@@ -259,39 +259,72 @@ class LaunchMixin:
     @Slot()
     def cancelLaunch(self):
         self._launch_cancelled = True
-        if self._launch_process:
-            pid = self._launch_process.pid
+        proc = self._launch_process  # 本地引用避免竞态
+        if proc:
+            pid = proc.pid
             try:
+                # 先关闭 stdout 管道防止 _watch 线程死等
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
+                # 杀进程树
                 if sys.platform == "win32":
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                                   capture_output=True, timeout=10)
+                    for _ in range(3):  # 最多重试三次
+                        result = subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(pid)],
+                            capture_output=True, timeout=8
+                        )
+                        if result.returncode == 0:
+                            break
+                        time.sleep(0.3)
+                    # 兜底: 直接杀
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
                 else:
-                    self._launch_process.kill()
+                    proc.kill()
                 self.logMessage.emit("已强制结束游戏进程")
             except Exception as e:
                 self.logMessage.emit(f"结束进程失败: {e}")
-            self._launch_process = None
         else:
             self.logMessage.emit("用户取消了启动")
+        self._launch_process = None
         self._launching = False
         self.launchProgressChanged.emit(0, "")
 
     @Slot()
     def killGameProcess(self):
-        if self._launch_process:
-            pid = self._launch_process.pid
+        proc = self._launch_process
+        if proc:
+            pid = proc.pid
             try:
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
                 if sys.platform == "win32":
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                                   capture_output=True, timeout=10)
+                    for _ in range(3):
+                        result = subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(pid)],
+                            capture_output=True, timeout=8
+                        )
+                        if result.returncode == 0:
+                            break
+                        time.sleep(0.3)
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
                 else:
-                    self._launch_process.kill()
+                    proc.kill()
                 self.logMessage.emit("已强制结束游戏进程")
             except Exception as e:
                 self.logMessage.emit(f"结束进程失败: {e}")
-            self._launch_process = None
-            self._launching = False
-            self.launchProgressChanged.emit(0, "")
+        self._launch_process = None
+        self._launching = False
+        self.launchProgressChanged.emit(0, "")
 
     @Slot()
     def killMinecraft(self):
