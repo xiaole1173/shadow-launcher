@@ -579,8 +579,72 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Slot(result=str)
     def pickJava(self) -> str:
-        """QML-friendly alias: open file dialog to pick Java. Returns path."""
-        return self.openJavaFileDialog()
+        """Open file dialog to pick Java executable."""
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(None, "选择 Java 可执行文件", "",
+            "Java (javaw.exe java.exe);;All Files (*.*)")
+        if path:
+            self.java_path = path
+            self._detect_java_version(path)
+            self.save_settings()
+        return path
+
+    @Slot()
+    def detectJava(self):
+        """Auto-detect Java installation from common paths."""
+        import os, glob
+        candidates = []
+        # Check common install paths
+        search_roots = [
+            os.environ.get("ProgramFiles", "C:\\Program Files"),
+            os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
+            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Eclipse Adoptium"),
+            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Eclipse Foundation"),
+            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Microsoft"),
+            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Zulu"),
+            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "BellSoft"),
+        ]
+        for root in search_roots:
+            if not os.path.isdir(root):
+                continue
+            for dirpath, dirs, files in os.walk(root):
+                if "bin" in dirs:
+                    bin_dir = os.path.join(dirpath, "bin")
+                    for exe in ["javaw.exe", "java.exe"]:
+                        exe_path = os.path.join(bin_dir, exe)
+                        if os.path.isfile(exe_path):
+                            candidates.append(exe_path)
+                            break
+                depth = dirpath.replace(root, "").count(os.sep)
+                if depth > 4:  # Limit search depth
+                    dirs.clear()
+                if len(candidates) >= 5:
+                    break
+            if len(candidates) >= 5:
+                break
+        if candidates:
+            self.java_path = candidates[0]
+            self._detect_java_version(candidates[0])
+            self.save_settings()
+
+    def _detect_java_version(self, java_path: str):
+        """Detect Java version from a java executable."""
+        import subprocess, re
+        try:
+            result = subprocess.run([java_path, "-version"], capture_output=True, text=True, timeout=10)
+            output = result.stdout + result.stderr
+            m = re.search(r'version "(\d+(?:\.\d+)?)', output)
+            if m:
+                ver = m.group(1)
+                self._java_version = ver
+                self._java_major = int(ver.split('.')[0])
+                self.javaPathChanged.emit()
+                return
+        except Exception:
+            pass
+        self._java_version = "未知"
+        self._java_major = 0
+        self.javaPathChanged.emit()
 
     # ═══ Memory properties ═══
 
