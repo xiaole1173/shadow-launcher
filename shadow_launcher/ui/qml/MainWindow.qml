@@ -112,6 +112,28 @@ Window {
             }
         }
 
+        // ── Loading bar (Android-style indeterminate) ──
+        Rectangle {
+            id: loadingBar
+            Layout.fillWidth: true
+            Layout.preferredHeight: pageLoading ? 2 : 0
+            color: "transparent"
+            clip: true
+
+            Rectangle {
+                id: loadingSlider
+                width: 100; height: 2; radius: 1
+                color: "#6080e8"
+                x: pageLoading ? -40 : -100
+                y: 0
+
+                SequentialAnimation on x {
+                    running: pageLoading
+                    loops: Animation.Infinite
+                    NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
+                    NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
+                }
+            }
         }
 
         RowLayout {
@@ -1609,6 +1631,9 @@ Window {
     }
 
     // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
+    // See issue: toast with anchors.bottom causes layout jitter
+    property string _toastMsg: ""
+    function showToast(msg) { /* TODO */ }
 
     Rectangle {
         id: killButton
@@ -1672,31 +1697,6 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150 } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
-    }
-
-    // ── Loading bar (overlay, no layout impact) ──
-    Rectangle {
-        id: loadingBar
-        z: 15
-        x: 0; y: 34
-        width: appWindow.width; height: 2
-        color: "transparent"
-        clip: true
-        opacity: pageLoading ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-
-        Rectangle {
-            id: loadingSlider
-            width: 100; height: 2; radius: 1
-            color: "#6080e8"
-            x: -100; y: 0
-
-            SequentialAnimation on x {
-                running: loadingBar.opacity > 0
-                loops: Animation.Infinite
-                NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
-                NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
-            }
-        }
+}
 }
 }
