@@ -830,7 +830,7 @@ Window {
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 40
                                         text: versionFilteredModel.count === 0 && backend && backend.versionDetails && backend.versionDetails.length > 0
-                                              ? "没有匹配的版本 : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "杩樻病鏈夊畨瑁呬换浣曠増鏈琝n鍓嶅線下载椤甸潰瀹夎绗竴涓増鏈惂" : "")
+                                              ? "没有匹配的版本" : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "还没有安装任何版本\n前往下载页面安装第一个版本吧" : "")
                                         font.pixelSize: 12; color: "#505468"
                                         horizontalAlignment: Text.AlignHCenter
                                         visible: versionFilteredModel.count === 0
