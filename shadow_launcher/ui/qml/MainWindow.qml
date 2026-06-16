@@ -118,34 +118,6 @@ Window {
             }
         }
 
-        // ── Loading bar (Android-style indeterminate, on top of titleBar) ──
-        Rectangle {
-            id: loadingBar
-            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-            anchors.topMargin: 36  // right below titleBar
-            height: 2
-            color: "transparent"
-            clip: true
-            z: 100
-            opacity: pageLoading ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-
-            Rectangle {
-                id: loadingSlider
-                width: 100; height: 2; radius: 1
-                color: "#6080e8"
-                x: -100
-                y: 0
-
-                SequentialAnimation on x {
-                    running: pageLoading
-                    loops: Animation.Infinite
-                    NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
-                    NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
-                }
-            }
-        }
-
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
             Layout.margins: 8; spacing: 8
@@ -1708,6 +1680,32 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150 } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
+    }
+
+    // ── Loading bar (overlay, zero layout impact) ──
+    Rectangle {
+        id: loadingBar
+        z: 15
+        x: 0; y: 34
+        width: parent.width; height: 2
+        color: "transparent"
+        clip: true
+        opacity: pageLoading ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Rectangle {
+            id: loadingSlider
+            width: 100; height: 2; radius: 1
+            color: "#6080e8"
+            x: -100; y: 0
+
+            SequentialAnimation on x {
+                running: loadingBar.opacity > 0
+                loops: Animation.Infinite
+                NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
+                NumberAnimation { from: 100; to: parent.width + 100; duration: 400; easing.type: Easing.InCubic }
+            }
+        }
     }
 
     Timer {
