@@ -9,7 +9,7 @@ Mixin 只包含 Slot 方法和内存工具。
 import threading
 import time
 
-from PySide6.QtCore import Slot, QTimer
+from PySide6.QtCore import Slot
 
 from shadow_launcher.core.launcher import launch_minecraft, auto_memory, get_system_memory, get_memory_status
 from shadow_launcher.core.versions import fetch_version_json
@@ -84,15 +84,13 @@ class LaunchMixin:
 
         def _launch():
             try:
+                # Phase 1: 准备阶段（逐步推进进度）
                 for i in range(1, 6):
-                    QTimer.singleShot(
-                        i * 200,
-                        lambda v=i: self._update_launch_progress(
-                            v * 10, f"准备中 ({v * 20}%)"
-                        ),
-                    )
                     time.sleep(0.2)
+                    self._update_launch_progress(i * 10, f"准备中 ({i * 20}%)")
 
+                # Phase 2: 启动游戏进程
+                self._update_launch_progress(55, "正在启动游戏进程...")
                 self._launch_process = launch_minecraft(
                     version_id=version_id,
                     version_json=version_json,
@@ -103,15 +101,17 @@ class LaunchMixin:
                     logged_in=self._account.is_online,
                 )
 
-                QTimer.singleShot(
-                    0, lambda: self._update_launch_progress(70, "进程已启动")
-                )
+                # Phase 3: 进程已启动
+                self._update_launch_progress(70, "进程已启动")
                 self.logMessage.emit("游戏进程已启动，等待窗口...")
                 self.minecraftStarted.emit()
 
-                QTimer.singleShot(
-                    1500, lambda: self._update_launch_progress(100, "启动完成")
-                )
+                # Phase 4: 等待窗口初始化
+                time.sleep(1.0)
+                self._update_launch_progress(90, "窗口已打开")
+
+                time.sleep(0.5)
+                self._update_launch_progress(100, "启动完成")
 
                 def _watch():
                     for line in self._launch_process.stdout:
