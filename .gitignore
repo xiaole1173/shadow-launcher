@@ -1,21 +1,29 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual environment
+venv/
+.venv/
 
 # IDE
 .vscode/
 .idea/
 
-# Minecraft data
+# Minecraft data (user's personal files)
 .shadow/
-.minecraft/
-versions/
 
-# Install state
-shadow_launcher/config/install_state.json
+# Temp/config
+*.log
+*.tmp
 shadow_launcher/config/install_log.txt
+shadow_launcher/config/install_state.json
 shadow_launcher/config/session.json
 
 # OS
 Thumbs.db
-desktop.ini
+.DS_Store
