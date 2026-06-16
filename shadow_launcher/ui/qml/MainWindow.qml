@@ -1662,33 +1662,36 @@ Window {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
         active: true
-        visible: (item && item.visible) || false
+        visible: item ? item.visible : false
         onLoaded: {
-            item.visible = backend ? backend.launching : false
+            if (item) item.visible = backend ? backend.launching : false
         }
     }
 
     Connections {
         target: backend; enabled: backend !== null
-        function onLaunchingChanged() {
-            if (backend.launching && launchOverlayLoader.item) {
+        function onLaunchProgressChanged(pct, status) {
+            if (!launchOverlayLoader.item) return
+            var launching = backend ? backend.launching : false
+            if (launching && !launchOverlayLoader.item.visible) {
                 launchOverlayLoader.item.visible = true
+            } else if (!launching && launchOverlayLoader.item.visible) {
+                // call closeOverlay if exists, else just hide
+                if (launchOverlayLoader.item.closeOverlay) {
+                    launchOverlayLoader.item.closeOverlay()
+                } else {
+                    launchOverlayLoader.item.visible = false
+                }
             }
-            // closeOverlay handles the closing animation internally
         }
+        function onMinecraftStarted() { killButton.visible = true }
+        function onMinecraftStopped() { killButton.visible = false }
         function onLaunchCancelled() { showToast("取消启动成功") }
+        function onLogMessage(msg) { logArea.text += msg + "\n" }
     }
 
 
     // Kill button moved to sidebar bottom
-
-    Connections {
-        target: backend; enabled: backend !== null
-        function onLogMessage(msg) { logArea.text += msg + "\n" }
-        function onMinecraftStarted() { killButton.visible = true }
-        function onMinecraftStopped() { killButton.visible = false }
-        function onLaunchCancelled() { showToast("取消启动成功") }
-    }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
     Rectangle {
