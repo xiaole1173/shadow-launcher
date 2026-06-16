@@ -3,19 +3,15 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 path = r'C:\Users\蔡朝彬\.openclaw\workspace\shadow-launcher\shadow_launcher\ui\qml\MainWindow.qml'
 with open(path, 'r', encoding='utf-8') as f:
-    content = f.read()
+    lines = f.readlines()
 
-# Fix line 923: garbled showToast text
-old_prefix = 'if (!currentSelectedVersion) { showToast("'
-idx = content.find(old_prefix)
-if idx >= 0:
-    # Find the closing of this garbled string
-    end_marker = '"); return }'
-    end_idx = content.index(end_marker, idx)
-    new_line = 'if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }'
-    content = content[:idx] + new_line + content[end_idx + len(end_marker):]
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    print('Fixed line 923')
-else:
-    print('Prefix not found')
+# Fix line 1445 (0-indexed 1444)
+line = lines[1444]
+# Find the pattern
+old = line
+new = '                                            onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.verifyVersion(currentSelectedVersion) }\n'
+lines[1444] = new
+
+with open(path, 'w', encoding='utf-8') as f:
+    f.writelines(lines)
+print('Fixed line 1445')

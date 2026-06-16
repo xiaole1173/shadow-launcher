@@ -1335,8 +1335,8 @@ Window {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 3
 
-                                    Text { text: "璧勬簮鍖呯鐞?; font.pixelSize: 14"; font.bold: true""; color: "#d0d4e0" }
-                                    Text { text: "绠＄悊宸插畨瑁呯殑鐠у嫭绨崠鍛嫲閺夋劘宸濋崠鍛偓?"; font.pixelSize: 11; color: "#606478" }
+                                    Text { text: "资源包管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "管理已安装的资源包和材质包"; font.pixelSize: 11; color: "#606478" }
 
                                     RowLayout {
                                         spacing: 8
@@ -1442,7 +1442,7 @@ Window {
                                         MouseArea {
                                             id: verifyBtnMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                             enabled: !(backend && backend.verifyRunning)
-                                            onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?"; return } if (backend) backend.verifyVersion(currentSelectedVersion") }
+                                            onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.verifyVersion(currentSelectedVersion) }
                                         }
                                     }
 
