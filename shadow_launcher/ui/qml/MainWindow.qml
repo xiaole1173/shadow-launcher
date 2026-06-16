@@ -143,7 +143,17 @@ Window {
             Rectangle {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
                 color: "#0a0c12"; radius: 6
-                ColumnLayout {
+
+                // Floating selection indicator - overlay on top of ColumnLayout
+                Rectangle {
+                    id: navIndicator
+                    z: 10
+                    x: 8; y: 8 + 8 + 16 + 20 + navListIndex * 44  // parent.margin(8) + topMargin(8) + fontSize(16) + bottomMargin(20) + itemHeight(44)*index
+                    width: 2; height: 44; color: "#6080e8"
+                    Behavior on y {
+                        SmoothedAnimation { velocity: 200; duration: 300 }
+                    }
+                }
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
                     Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
 
