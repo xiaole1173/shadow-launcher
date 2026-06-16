@@ -341,6 +341,12 @@ class SettingsMixin:
 
     # ═══ Alias slots for QML compatibility ═══
 
+    @Slot(result="QVariantList")
+    def scanJavaInstallations(self):
+        """Scan and return all Java installations as [{path, version, major}]"""
+        results = find_java_installations()
+        return [{"path": p, "version": v, "major": m} for p, v, m in results]
+
     @Slot(result=str)
     def detectJava(self) -> str:
         """QML-friendly alias: auto-detect and select best Java. Returns path."""

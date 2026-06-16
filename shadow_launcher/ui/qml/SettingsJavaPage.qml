@@ -232,7 +232,7 @@ Rectangle {
 
                         Label {
                             anchors.centerIn: parent
-                            text: "📁 手动选择"
+                            text: "手动选择"
                             color: root.colorAccent
                             font.pixelSize: 14
                         }
