@@ -868,7 +868,7 @@ Window {
                                     // Version label
                                     Text {
                                         Layout.fillWidth: true
-                                        text: currentSelectedVersion || "閺堫亪鈧瀚ㄧ増鏈?
+                                        text: currentSelectedVersion || "未选择版本"
                                         font.pixelSize: 16; font.weight: Font.Bold; color: "#d0d4e0"
                                     }
 
