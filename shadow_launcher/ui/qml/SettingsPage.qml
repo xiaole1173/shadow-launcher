@@ -12,7 +12,7 @@ Rectangle {
     opacity: 0; y: 10
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-    Component.onCompleted: { opacity = 1; y = 0 }
+    Component.onCompleted: { opacity = 1; y = 0; appWindow.pageLoading = false }
 
     RowLayout {
         anchors.fill: parent; spacing: 0

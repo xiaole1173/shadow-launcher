@@ -67,7 +67,7 @@ Rectangle {
         target: backend
         enabled: backend !== null
 
-        function onVersionListReady() { _versionTypeMap = null; refreshVersionModel() }
+        function onVersionListReady() { _versionTypeMap = null; refreshVersionModel(); appWindow.pageLoading = false }
 
         function onResourceDownloadDone(success) {
             page.installingMod = false
@@ -501,7 +501,7 @@ Rectangle {
         Connections {
             target: backend
             enabled: backend !== null && page.currentTab === 0
-            function onVersionListReady() { _versionTypeMap = null; refreshVersionModel() }
+            function onVersionListReady() { _versionTypeMap = null; refreshVersionModel(); appWindow.pageLoading = false }
         }
 
         // ── Version install progress overlay ──

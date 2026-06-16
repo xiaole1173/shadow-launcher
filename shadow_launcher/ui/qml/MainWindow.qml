@@ -40,7 +40,7 @@ Window {
 
     Timer {
         id: loadTimer
-        interval: 800
+        interval: 5000
         onTriggered: pageLoading = false
     }
 
@@ -114,35 +114,24 @@ Window {
 
         // ── Loading bar (Android-style indeterminate) ──
         Rectangle {
+            id: loadingBar
             Layout.fillWidth: true
-            Layout.preferredHeight: 2
+            Layout.preferredHeight: pageLoading ? 2 : 0
             color: "transparent"
-            visible: pageLoading
             clip: true
 
             Rectangle {
                 id: loadingSlider
                 width: 100; height: 2; radius: 1
                 color: "#6080e8"
+                x: pageLoading ? -40 : -100
                 y: 0
 
-                PropertyAnimation on x {
-                    id: slideAnim
-                    from: -100
-                    to: appWindow.width + 100
-                    duration: 1200
-                    loops: Animation.Infinite
+                SequentialAnimation on x {
                     running: pageLoading
-                    easing.type: Easing.InOutCubic
-                }
-
-                // Second smaller blob trailing
-                Rectangle {
-                    width: 40; height: 2; radius: 1
-                    color: "#6080e8"
-                    opacity: 0.4
-                    anchors.left: parent.right
-                    anchors.leftMargin: 8
+                    loops: Animation.Infinite
+                    NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
+                    NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
                 }
             }
         }
