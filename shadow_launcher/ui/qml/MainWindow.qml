@@ -1656,10 +1656,38 @@ Window {
         active: backend && backend.launching; visible: active
     }
 
-    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
-    // See issue: toast with anchors.bottom causes layout jitter
+    // Cancel toast notification
     property string _toastMsg: ""
-    function showToast(msg) { /* TODO */ }
+    property bool _toastVisible: false
+
+    Timer {
+        id: toastTimer
+        interval: 2500; onTriggered: _toastVisible = false
+    }
+
+    Rectangle {
+        id: cancelToast
+        z: 25
+        anchors.top: parent.top; anchors.topMargin: 12
+        anchors.right: parent.right; anchors.rightMargin: 16
+        width: toastText.implicitWidth + 24; height: 32; radius: 4
+        color: "#1a2a4a"; border.color: "#3a5080"
+        opacity: _toastVisible ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Text {
+            id: toastText
+            anchors.centerIn: parent
+            text: _toastMsg || "取消启动成功"
+            font.pixelSize: 12; color: "#a0c0f0"
+        }
+    }
+
+    function showToast(msg) {
+        _toastMsg = msg
+        _toastVisible = true
+        toastTimer.restart()
+    }
 
 
     // Kill button moved to sidebar bottom
@@ -1669,6 +1697,7 @@ Window {
         function onLogMessage(msg) { logArea.text += msg + "\n" }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
+        function onLaunchCancelled() { showToast("取消启动成功") }
     }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
