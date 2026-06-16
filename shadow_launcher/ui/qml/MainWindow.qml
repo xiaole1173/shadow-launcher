@@ -1561,13 +1561,13 @@ Window {
                                     Text { text: "危险操作"; font.pixelSize: 10; color: "#c05050"; font.letterSpacing: 1.5 }
                                     Rectangle {
                                         Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#2a1f24"
-                                        Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13""; color: "#c05050" }
+                                        Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13; color: "#c05050" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?)"; return }
-                                                confirmDialog.title = "鍒犻櫎版本"
-                                                confirmDialog.message = "确认畾瑕佸垹闄ょ増鏈?芦 " + currentSelectedVersion + " 绂?吗？\n濮濄倖鎼锋担婊€绗夐崣顖涙寵闁库偓閿涘瞼澧楅張顒佹瀮娴犺泛銇欑亸鍡氼潶濮橀晲绠欏垹闄ら妴?"
+                                                if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
+                                                confirmDialog.title = "删除版本"
+                                                confirmDialog.message = "确认要删除版本 " + currentSelectedVersion + " 吗？\n此操作不可撤销，版本的所有文件将被删除。"
 
                                                 confirmDialog.onAccept = function() {
                                                     showVersionSettings = false
