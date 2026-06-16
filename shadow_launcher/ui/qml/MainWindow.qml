@@ -373,7 +373,7 @@ Window {
                                 Rectangle {
                                     Layout.fillWidth: true; height: 44; radius: 8
                                     color: "#3a4eb8"
-                                    Text { anchors.centerIn: parent; text: "鍚姩娓告垙"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
+                                    Text { anchors.centerIn: parent; text: "鍚姩娓告垙"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             if (!backend) return
@@ -507,8 +507,8 @@ Window {
                                                             if (index === 0) {
                                                                 if (backend) backend.openGameDir(0)
                                                             } else {
-                                                                confirmDialog.title = "缁夊娅庨惄顔肩秿"
-                                                                confirmDialog.message = "閺勵垰鎯佺粔濠氭珟閻╊喖缍?鑺?" + model.display + " 禄锛焠\n（不会删除本地文件）"
+                                                                confirmDialog.title = "缁夊娅庨惄顔肩秿"
+                                                                confirmDialog.message = "是否移除鑺?" + model.display + " 禄锛焠\n（不会删除本地文件）"
                                                                 confirmDialog.onAccept = function() { if (backend) backend.removeGameDir(index) }
                                                                 confirmDialog.visible = true
                                                             }
@@ -781,7 +781,7 @@ Window {
                                                             anchors.centerIn: parent
                                                             text: {
                                                                 var vt = model.versionType
-                                                                if (vt === "snapshot") return "蹇収"
+                                                                if (vt === "snapshot") return "蹇収"
                                                                 if (vt === "old") return "旧版"
                                                                 if (vt === "modded") return "整合"
                                                                 return "正式版"
@@ -916,7 +916,7 @@ Window {
                                     // Launch button
                                     Rectangle {
                                         width: 100; height: 32; radius: 6; color: "#3a4eb8"
-                                        Text { anchors.centerIn: parent; text: "鍚姩"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: "鍚姩"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (!backend) return
@@ -936,8 +936,8 @@ Window {
                             Rectangle {
                                 Layout.preferredWidth: 170; Layout.fillHeight: true; color: "transparent"
                                 property var sectionModel: [
-                                    { text: "概览", icon: "" },
-                                    { text: "鍚姩閰嶇疆", icon: "" },
+                                    { text: "概览", icon: "" },
+                                    { text: "鍚姩閰嶇疆", icon: "" },
                                     { text: "Mod 管理", icon: "" },
                                     { text: "资源包管理", icon: "" },
                                     { text: "存档管理", icon: "" },
@@ -972,7 +972,7 @@ Window {
                                 Layout.fillWidth: true; Layout.fillHeight: true
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
 
-                                // 鈺愨晲鈺怱ection 0: 概览 ═══
+                                // 鈺愨晲鈺怱ection 0: 概览 ═══
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 0
@@ -1051,7 +1051,7 @@ Window {
 
                                         // Copy path
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#2538b0" : "#3a4eb8"
-                                            Text { anchors.centerIn: parent; text: "棣冩惖 澶嶅埗版本璺緞"; font.pixelSize: 11; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "棣冩惖 澶嶅埗版本璺緞"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHoverCp }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1091,7 +1091,7 @@ Window {
                                     Item { Layout.fillHeight: true }
                                 }
 
-                                // 鈺愨晲鈺怱ection 1: 鍚姩閰嶇疆 ═══
+                                // 鈺愨晲鈺怱ection 1: 鍚姩閰嶇疆 ═══
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 1
@@ -1104,8 +1104,8 @@ Window {
                                             id: launchSettingsContent
                                             width: parent.width; spacing: 14
 
-                                            // Java 环境顖氼暔
-                                            Text { text: "Java 环境顖氼暔"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
+                                            // Java 环境顖氼暔
+                                            Text { text: "Java 环境顖氼暔"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
 
                                             // Recommended Java hint
                                             Text {
@@ -1128,11 +1128,11 @@ Window {
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#1a1f2e"
                                                 Text { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                                                    text: backend ? (backend.javaPath || "閺堫亝顥呭ù瀣煂 Java") : "閺堫亝顥呭ù瀣煂 Java"
+                                                    text: backend ? (backend.javaPath || "閺堫亝顥呭ù瀣煂 Java") : "閺堫亝顥呭ù瀣煂 Java"
                                                     font.pixelSize: 12; color: "#b0b8c8"; elide: Text.ElideMiddle; width: parent.width - 90 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"
-                                                    Text { anchors.centerIn: parent; text: "閼奉亜濮╁Λ鈧ù?"; font.pixelSize: 11; color: "#e8ecf8" }
+                                                    Text { anchors.centerIn: parent; text: "閼奉亜濮╁Λ鈧ù?"; font.pixelSize: 11; color: "#e8ecf8" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
@@ -1180,7 +1180,7 @@ Window {
                                             }
                                             Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#888ca0" }
 
-                                            // 閼奉亜濮╅崘鍛摠
+                                            // 閼奉亜濮╅崘鍛摠
                                             RowLayout {
                                                 Text { text: "閼奉亜濮╅崚鍡涘帳"; font.pixelSize: 12; color: "#c0c8d8" }
                                                 Item { Layout.fillWidth: true }
@@ -1201,7 +1201,7 @@ Window {
                                                 }
                                             }
 
-                                            // 预设顔?
+                                            // 预设顔?
                                             Text { text: "预设"; font.pixelSize: 10; color: "#888ca0" }
                                             Flow {
                                                 Layout.fillWidth: true; spacing: 8
@@ -1222,10 +1222,10 @@ Window {
                                                 }
                                             }
 
-                                            // 版本闅旂顬?
+                                            // 版本闅旂顬?
                                             Text { text: "版本琛屼负"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                                             RowLayout {
-                                                Text { text: "版本闅旂顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "版本闅旂顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#c0c8d8" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.isolationEnabled : false
@@ -1243,8 +1243,8 @@ Window {
                                                 }
                                             }
 
-                                            // 濞撳憡鍨欓梽鍕鍙傛暟
-                                            Text { text: "濞撳憡鍨欓梽鍕鍙傛暟"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
+                                            // 濞撳憡鍨欓梽鍕鍙傛暟
+                                            Text { text: "濞撳憡鍨欓梽鍕鍙傛暟"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
                                             Text { text: "（示例 --width 1920 --height 1080 --fullscreen閿?"; font.pixelSize: 9; color: "#888ca0" }
                                             Rectangle { Layout.fillWidth: true; height: 44; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                                                 TextInput {
@@ -1264,7 +1264,7 @@ Window {
                                     visible: settingsNav.currentIndex === 2
 
                                     Text { text: "Mod 管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "绠＄悊宸插畨瑁呯殑 Mod閿涘本鐓￠惇瀣閺堫剙鎷板吋瀹诡啇閹佲偓?"; font.pixelSize: 11; color: "#9498a8" }
+                                    Text { text: "管理已安装的 Mod閿涘本鐓￠惇瀣閺堫剙鎷板吋瀹诡啇閹佲偓?"; font.pixelSize: 11; color: "#9498a8" }
 
                                     // Refresh + search
                                     RowLayout {
@@ -1330,7 +1330,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 3: 璧勬簮鍖呯鐞嗏晲鈺愨晲
+                                // 鈺愨晲鈺怱ection 3: 璧勬簮鍖呯鐞嗏晲鈺愨晲
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 3
@@ -1431,7 +1431,7 @@ Window {
                                     visible: settingsNav.currentIndex === 5
 
                                     Text { text: "游戏完整性校验"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "閹殿偅寮块柅澶婄暰版本閻ㄥ嫭鐖堕幋蹇旀瀮娴犺泛鐣弫瀛樷偓褝绱濆Λ鈧弻銉﹀疮閸у繑鍨ㄧ己澶遍惃鍕瀮娴犺翰鈧?"; font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                    Text { text: "閹殿偅寮块柅澶婄暰版本閻ㄥ嫭鐖堕幋蹇旀瀮娴犺泛鐣弫瀛樷偓褝绱濆Λ鈧弻銉﹀疮閸у繑鍨ㄧ己澶遍惃鍕瀮娴犺翰鈧?"; font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                                     // Start button
                                     Rectangle {
@@ -1465,7 +1465,7 @@ Window {
                                                     var pct = Math.round(backend.verifyProgressDone / backend.verifyProgressTotal * 100)
                                                     return "鏍￠獙 个. " + backend.verifyProgressDone + "/" + backend.verifyProgressTotal + " (" + pct + "%)"
                                                 }
-                                                return backend && backend.verifyRunning ? "閸戝棗顦稉?.." : ""
+                                                return backend && backend.verifyRunning ? "閸戝棗顦稉?.." : ""
                                             }
                                             font.pixelSize: 11; color: "#989cb0"
                                         }
@@ -1544,7 +1544,7 @@ Window {
 
                                         // Migrate
                                         Rectangle { width: 110; height: 32; radius: 5; color: migrateHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "杩佺Щ鐩綍"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "杩佺Щ鐩綍"; font.pixelSize: 11; color: "#c0c8d8" }
                                             HoverHandler { id: migrateHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1643,7 +1643,7 @@ Window {
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
                 }
                 Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
-                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
+                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { confirmDialog.visible = false; if (confirmDialog.onAccept) confirmDialog.onAccept() }
                     }
