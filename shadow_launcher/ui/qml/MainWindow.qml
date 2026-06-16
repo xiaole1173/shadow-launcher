@@ -1497,8 +1497,8 @@ Window {
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
                                         color: repairBtnHover.hovered ? "#c07830" : "#b06820"
-                                        visible: verifyResultLabel.text.indexOf("娑擃亝鏋冩禒鑸垫箒闂傤噣顣?) > 0 || verifyResultLabel.text.indexOf("损坏") > 0 || verifyResultLabel.text.indexOf("缺失") > 0
-                                        Text { anchors.centerIn: parent; text: "娑撯偓闁款喕鎱ㄦ径?"; font.pixelSize: 12; color: "#e8ecf8" }
+                                        visible: verifyResultLabel.text.indexOf("错误") > 0 || verifyResultLabel.text.indexOf("损坏") > 0 || verifyResultLabel.text.indexOf("缺失") > 0
+                                        Text { anchors.centerIn: parent; text: "修复"; font.pixelSize: 12; color: "#e8ecf8" }
                                         HoverHandler { id: repairBtnHover }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?; return }"; if (backend) backend.repairVersion(currentSelectedVersion") }
