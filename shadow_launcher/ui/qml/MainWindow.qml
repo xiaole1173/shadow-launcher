@@ -1021,10 +1021,10 @@ Window {
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#2538b0" : "#3a4eb8"
-                                            Text { anchors.centerIn: parent; text: "棣冩懖 閹搭亜娴樻枃浠跺す?"; font.pixelSize: 11; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "📸 截图文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover2 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?; return }"; if (backend) backend.openScreenshotsFolder(") }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openScreenshotsFolder() }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#2538b0" : "#3a4eb8"
