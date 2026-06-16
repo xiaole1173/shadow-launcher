@@ -289,7 +289,7 @@ Rectangle {
                         onClicked: {
                             page.currentFilter = modelData.key
                             appWindow.pageLoading = true
-                            refreshVersionModel()
+                            Qt.callLater(refreshVersionModel)
                         }
                     }
                 }
