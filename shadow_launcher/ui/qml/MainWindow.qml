@@ -920,8 +920,7 @@ Window {
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (!backend) return
-                                                if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?)"; return }
-                                                if (!backend.username) { showToast("璇峰厛登录璐﹀彿"); return }
+                                                if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
                                                 backend.launch(currentSelectedVersion)
                                             }
                                         }
