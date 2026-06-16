@@ -1501,7 +1501,7 @@ Window {
                                         Text { anchors.centerIn: parent; text: "修复"; font.pixelSize: 12; color: "#e8ecf8" }
                                         HoverHandler { id: repairBtnHover }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?; return }"; if (backend) backend.repairVersion(currentSelectedVersion") }
+                                            onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.repairVersion(currentSelectedVersion) }
                                         }
                                     }
 
