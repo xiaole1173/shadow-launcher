@@ -586,7 +586,6 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         if path:
             self.java_path = path
             self._detect_java_version(path)
-            self.save_settings()
         return path
 
     @Slot()
@@ -625,7 +624,6 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         if candidates:
             self.java_path = candidates[0]
             self._detect_java_version(candidates[0])
-            self.save_settings()
 
     def _detect_java_version(self, java_path: str):
         """Detect Java version from a java executable."""
