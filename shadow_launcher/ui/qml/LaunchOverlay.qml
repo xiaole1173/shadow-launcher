@@ -7,24 +7,88 @@ Rectangle {
     id: overlay
     color: "#0c0f16"
 
-    // Simple fade animation — Loader 直接加载/卸载，QML animate 自动产生
-    opacity: 1
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    // ── Flip-page animation ──
+    property bool flipped: false
+    property bool closing: false
 
-    Component.onCompleted: { overlay.opacity = 0; overlay.opacity = 1 }
+    transform: Rotation {
+        id: flipRotation
+        origin.x: overlay.width / 2
+        origin.y: overlay.height / 2
+        axis { x: 0; y: 1; z: 0 }
+        angle: flipped ? 0 : 90
+        Behavior on angle {
+            NumberAnimation {
+                id: flipAnim
+                duration: 500; easing.type: Easing.OutBack
+                onStopped: {
+                    if (closing) {
+                        overlay.visible = false
+                        overlay.closing = false
+                    }
+                }
+            }
+        }
+    }
+
+    opacity: flipped ? 1 : 0
+    Behavior on opacity {
+        NumberAnimation {
+            id: fadeAnim
+            duration: 300; easing.type: Easing.OutCubic
+        }
+    }
+
+    // Activate: visible first, then flip in
+    onVisibleChanged: {
+        if (visible) {
+            flipped = true
+            closing = false
+        }
+    }
+
+    // Close gracefully: flip out first, then hide
+    function closeOverlay() {
+        closing = true
+        flipped = false
+        // If already not flipped, hide immediately
+        if (flipAnim && !flipAnim.running) {
+            overlay.visible = false
+            closing = false
+        }
+    }
+
+    // Auto-close when backend stops launching
+    Connections {
+        target: backend
+        enabled: backend !== null
+        function onLaunchingChanged() {
+            if (backend && !backend.launching && overlay.visible) {
+                closeOverlay()
+            }
+        }
+    }
 
     // ── Progress state from backend ──
     property int progressValue: 0
     property string statusText: "准备启动..."
-    property string versionId: backend ? (backend.launchVersion || "") : ""
-    property string username: backend ? (backend.launchUsername || "") : ""
-    property int memory: backend ? (backend.launchMemory || 0) : 0
+    property string versionId: ""
+    property string username: ""
+    property int memory: 0
 
     Connections {
         target: backend
         enabled: backend !== null
         function onLaunchProgressChanged(pct, status) {
             progressValue = pct; statusText = status
+            versionId = backend.launchVersion || ""
+            username = backend.launchUsername || ""
+            memory = backend.launchMemory || 0
+        }
+    }
+
+    Component.onCompleted: {
+        if (backend) {
             versionId = backend.launchVersion || ""
             username = backend.launchUsername || ""
             memory = backend.launchMemory || 0
@@ -73,6 +137,7 @@ Rectangle {
         }
 
         Text {
+            id: statusLabel
             Layout.alignment: Qt.AlignHCenter
             text: statusText; color: "#9094a8"; font.pixelSize: 12
         }

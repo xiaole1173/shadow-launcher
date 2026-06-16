@@ -135,10 +135,11 @@ Window {
                 id: loadingBar
                 z: 15
                 x: 0; y: 0
-                width: appWindow.width - 16; height: 2
+                width: parent.width; height: 2
                 color: "transparent"
                 clip: true
                 opacity: pageLoading ? 1 : 0
+                visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 150 } }
 
                 Rectangle {
@@ -216,7 +217,7 @@ Window {
 
                 Rectangle {
                     id: pageContainer
-                    Layout.fillWidth: true; Layout.fillHeight: true; color: "#0c0f16"
+                    Layout.fillWidth: true; Layout.fillHeight: true; color: "transparent"
 
                     // ========== HOMEPAGE ==========
                     Rectangle {
@@ -1660,7 +1661,11 @@ Window {
     Loader {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
-        active: backend ? backend.launching : false
+        active: true
+        visible: (item && item.visible) || false
+        onLoaded: {
+            item.visible = backend ? backend.launching : false
+        }
     }
 
     Connections {
@@ -1682,7 +1687,7 @@ Window {
         function onLogMessage(msg) { logArea.text += msg + "\n" }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
-        function onLaunchCancelled() { showToast("取消启动成功"); overlayCloseTimer.start() }
+        function onLaunchCancelled() { showToast("取消启动成功") }
     }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
