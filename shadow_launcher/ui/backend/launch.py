@@ -201,6 +201,7 @@ class LaunchMixin:
             self._update_launch_progress(70, "进程已启动，检测中...")
             self.logMessage.emit("游戏进程已启动，等待窗口...")
             self.minecraftStarted.emit()
+            self.isRunningChanged.emit()
 
             # P0-5: 3秒存活检测
             alive_result = check_process_alive(self._launch_process, timeout=3.0)
@@ -237,6 +238,7 @@ class LaunchMixin:
                 self._launching = False
                 self.minecraftStopped.emit()
                 self.launchProgressChanged.emit(0, "")
+                self.isRunningChanged.emit()
 
             threading.Thread(target=_watch, daemon=True).start()
 

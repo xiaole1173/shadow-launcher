@@ -1661,31 +1661,22 @@ Window {
     Loader {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
-        active: backend && backend.launching; visible: active
-    }
-
-    Timer {
-        id: toastTimer
-        interval: 2500; onTriggered: toastVisible = false
-    }
-
-    Rectangle {
-        id: cancelToast
-        z: 25
-        anchors.top: parent.top; anchors.topMargin: 12
-        anchors.right: parent.right; anchors.rightMargin: 16
-        property string toastText: _toastMsg || "取消启动成功"
-        width: toastLabel.implicitWidth + 24; height: 32; radius: 4
-        color: "#1a2a4a"; border.color: "#3a5080"
-        opacity: toastVisible ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-        Text {
-            id: toastLabel
-            anchors.centerIn: parent
-            text: cancelToast.toastText
-            font.pixelSize: 12; color: "#a0c0f0"
+        active: true
+        visible: (item && item.visible) || false
+        onLoaded: {
+            item.visible = backend ? backend.launching : false
         }
+    }
+
+    Connections {
+        target: backend; enabled: backend !== null
+        function onLaunchingChanged() {
+            if (backend.launching && launchOverlayLoader.item) {
+                launchOverlayLoader.item.visible = true
+            }
+            // closeOverlay handles the closing animation internally
+        }
+        function onLaunchCancelled() { showToast("取消启动成功") }
     }
 
 
@@ -1739,6 +1730,30 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150 } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
-}
+    }
+
+    Timer {
+        id: toastTimer
+        interval: 2500; onTriggered: toastVisible = false
+    }
+
+    Rectangle {
+        id: cancelToast
+        z: 25
+        anchors.top: parent.top; anchors.topMargin: 12
+        anchors.right: parent.right; anchors.rightMargin: 16
+        property string toastText: _toastMsg || "取消启动成功"
+        width: toastLabel.implicitWidth + 24; height: 32; radius: 4
+        color: "#1a2a4a"; border.color: "#3a5080"
+        opacity: toastVisible ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Text {
+            id: toastLabel
+            anchors.centerIn: parent
+            text: cancelToast.toastText
+            font.pixelSize: 12; color: "#a0c0f0"
+        }
+    }
 }
 }

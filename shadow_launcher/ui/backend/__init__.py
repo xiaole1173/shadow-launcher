@@ -307,6 +307,12 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     def launching(self):
         return self._launching
 
+    isRunningChanged = Signal()
+
+    @Property(bool, notify=isRunningChanged)
+    def isRunning(self):
+        return self._launch_process is not None and self._launch_process.poll() is None
+
     # ═══ 安装属性（实时，由 stdout 管道更新） ═══
 
     _install_state_file = os.path.join(os.path.dirname(__file__), "..", "..", "config", "install_state.json")
