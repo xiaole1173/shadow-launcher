@@ -988,8 +988,8 @@ Window {
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "宸茶顥?Mod"; font.pixelSize: 10; color: "#505468" }
-                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + "  个; font.pixelSize: 14; font.weight: Font.Medium; color: "#a0a5b8" }
+                                                Text { text: "已装 Mod"; font.pixelSize: 10; color: "#505468" }
+                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#a0a5b8" }
 
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
