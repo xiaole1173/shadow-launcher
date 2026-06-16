@@ -1132,7 +1132,7 @@ Window {
                                                     font.pixelSize: 12; color: "#b0b8c8"; elide: Text.ElideMiddle; width: parent.width - 90 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"
-                                                    Text { anchors.centerIn: parent; text: "閼奉亜濮╁Λ鈧ù?"; font.pixelSize: 11; color: "#e8ecf8" }
+                                                    Text { anchors.centerIn: parent; text: "自动检测"; font.pixelSize: 11; color: "#e8ecf8" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
