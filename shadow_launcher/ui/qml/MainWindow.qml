@@ -448,9 +448,9 @@ Window {
 
                     // ========== DOWNLOAD & SETTINGS ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex === 1; color: "#0c0f16"
-                        Loader { anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : "" } }
+                        Loader { anchors.fill: parent; asynchronous: true; active: navListIndex === 1; source: active ? "DownloadPage.qml" : "" } }
                     Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: "#0c0f16"
-                        Loader { anchors.fill: parent; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
+                        Loader { anchors.fill: parent; asynchronous: true; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress"; color: "#0c0f16"
