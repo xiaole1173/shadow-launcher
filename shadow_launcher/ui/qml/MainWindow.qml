@@ -44,7 +44,7 @@ Window {
         onTriggered: pageLoading = false
     }
 
-    // 鈺愨晲鈺怐ownload progress nav item management 鈺愨晲鈺?
+    // 鈺愨晲鈺怐ownload progress nav item management ═══
     property bool downloadNavVisible: false
 
     function showDownloadNav() {
@@ -155,12 +155,21 @@ Window {
                         ListElement { label: "设置"; pageKey: "settings" }
                     }
 
+                    // Floating selection indicator (animated)
+                    Rectangle {
+                        id: navIndicator
+                        x: 0; y: navListIndex * 44
+                        width: 2; height: 44; color: "#6080e8"
+                        Behavior on y {
+                            SmoothedAnimation { velocity: 200; duration: 300 }
+                        }
+                    }
+
                     Repeater {
                         model: navModel
                         Item {
                             width: parent ? parent.width : 180; Layout.fillWidth: true; height: 44
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
-                            Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 2; color: navListIndex === index ? "#6080e8" : "transparent" }
                             Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
                         }
@@ -882,7 +891,7 @@ Window {
                         ColumnLayout {
                             anchors.fill: parent; anchors.margins: 16; spacing: 0
 
-                            // 鈺愨晲鈺怲OP BAR: version info + actions 鈺愨晲鈺?
+                            // 鈺愨晲鈺怲OP BAR: version info + actions ═══
                             Rectangle {
                                 Layout.fillWidth: true; height: 56; radius: 8
                                 color: "#11141c"; border.color: "#1a1e28"
@@ -961,7 +970,7 @@ Window {
 
                             Item { Layout.preferredHeight: 12 }
 
-                            // 鈺愨晲鈺怋ODY: sidebar + content 鈺愨晲鈺?
+                            // 鈺愨晲鈺怋ODY: sidebar + content ═══
                             RowLayout {
                                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 16
                             Rectangle {
@@ -1003,7 +1012,7 @@ Window {
                                 Layout.fillWidth: true; Layout.fillHeight: true
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
 
-                                // 鈺愨晲鈺怱ection 0: 概览 鈺愨晲鈺?
+                                // 鈺愨晲鈺怱ection 0: 概览 ═══
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 0
@@ -1122,7 +1131,7 @@ Window {
                                     Item { Layout.fillHeight: true }
                                 }
 
-                                // 鈺愨晲鈺怱ection 1: 鍚姩閰嶇疆 鈺愨晲鈺?
+                                // 鈺愨晲鈺怱ection 1: 鍚姩閰嶇疆 ═══
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 1
@@ -1289,7 +1298,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 2: Mod 管理 鈺愨晲鈺?
+                                // 鈺愨晲鈺怱ection 2: Mod 管理 ═══
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 2
@@ -1413,7 +1422,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 4: 存档管理 鈺愨晲鈺?
+                                // 鈺愨晲鈺怱ection 4: 存档管理 ═══
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 4
@@ -1623,7 +1632,7 @@ Window {
         active: backend && backend.launching; visible: active
     }
 
-    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) 鈺愨晲鈺?
+    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
     // See issue: toast with anchors.bottom causes layout jitter
     property string _toastMsg: ""
     function showToast(msg) { /* TODO */ }
@@ -1650,7 +1659,7 @@ Window {
         function onMinecraftStopped() { killButton.visible = false }
     }
 
-    // 鈺愨晲鈺怌onfirm Dialog 鈺愨晲鈺?
+    // 鈺愨晲鈺怌onfirm Dialog ═══
     Rectangle {
         id: confirmDialog; z: 400
         anchors.centerIn: parent; width: 360; height: 180; radius: 10
