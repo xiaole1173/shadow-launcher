@@ -572,7 +572,7 @@ Window {
                                         Text {
                                             anchors.left: parent.left; anchors.leftMargin: 30; anchors.verticalCenter: parent.verticalCenter
                                             text: {
-                                                if (!backend) return "磁盘信息不可用
+                                                if (!backend) return "磁盘信息不可用"
                                                 var pct = backend.diskPercent
                                                 var free = backend.diskFree
                                                 var status = pct > 95 ? "危险" : (pct > 80 ? "偏低" : "正常")
