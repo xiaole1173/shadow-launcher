@@ -136,6 +136,7 @@ Rectangle {
                 versionModel.append({versionId: vid, vtype: vtype})
             }
         }
+        appWindow.pageLoading = false
     }
 
     function getReleaseCount() {
@@ -287,6 +288,7 @@ Rectangle {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             page.currentFilter = modelData.key
+                            appWindow.pageLoading = true
                             refreshVersionModel()
                         }
                     }

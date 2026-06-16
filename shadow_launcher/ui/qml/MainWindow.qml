@@ -40,7 +40,7 @@ Window {
 
     Timer {
         id: loadTimer
-        interval: 5000
+        interval: 100
         onTriggered: pageLoading = false
     }
 
