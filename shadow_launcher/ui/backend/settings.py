@@ -273,7 +273,7 @@ class SettingsMixin:
         results = find_java_installations()
         if 0 <= index < len(results):
             path, ver_str, major = results[index]
-            self._java_path = path
+            self.javaPath = path
             self._java_version = ver_str
             self._java_major = major
             self.logMessage.emit(f"✅ 已切换 Java {major}: {path}")
@@ -286,7 +286,7 @@ class SettingsMixin:
         best = pick_best_java(results, min_version=17)
         if best:
             path, ver_str, major = best
-            self._java_path = path
+            self.javaPath = path
             self._java_version = ver_str
             self._java_major = major
             self.logMessage.emit(f"✅ 已选择 Java {major}: {path}")
@@ -316,7 +316,7 @@ class SettingsMixin:
         if os.path.isfile(path):
             ver = _get_java_version(path)
             if ver:
-                self._java_path = path
+                self.javaPath = path
                 self._java_version = ver["str"]
                 self._java_major = ver["major"]
                 self.logMessage.emit(f"✅ Java 已设置: {path} (版本 {ver['str']})")

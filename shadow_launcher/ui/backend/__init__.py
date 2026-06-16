@@ -525,7 +525,14 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         """Return list of all detected Java installations [{path, version, major}]"""
         from .settings import find_java_installations
         results = find_java_installations()
-        return [{"path": p, "version": v, "major": m} for p, v, m in results]
+        # Deduplicate by major version (keep first occurrence = highest path priority)
+        seen_majors = set()
+        deduped = []
+        for item in [{"path": p, "version": v, "major": m} for p, v, m in results]:
+            if item["major"] not in seen_majors:
+                seen_majors.add(item["major"])
+                deduped.append(item)
+        return deduped
 
     @Property(str, notify=javaPathChanged)
     def javaVersion(self):
