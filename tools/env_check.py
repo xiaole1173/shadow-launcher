@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 
 def _check(name: str, ok: bool, detail: str) -> bool:
-    mark = "✅" if ok else "❌"
+    mark = "[OK]" if ok else "[FAIL]"
     print(f"  {mark} {name}: {detail}")
     return ok
 
@@ -64,7 +64,7 @@ def main():
         all_ok &= _check("项目路径", True, "正常")
 
     # 6. 环境变量
-    env_ok = os.environ.get("QT_PLUGIN_PATH") or os.environ.get("QML2_IMPORT_PATH")
+    env_ok = bool(os.environ.get("QT_PLUGIN_PATH") or os.environ.get("QML2_IMPORT_PATH"))
     all_ok &= _check(".env 加载", env_ok, "已加载" if env_ok else "未加载 (运行前请加载 .env)")
 
     # 7. Java (optional)
@@ -72,7 +72,7 @@ def main():
     if java_home:
         all_ok &= _check("JAVA_HOME", True, java_home)
 
-    print(f"\n{'✅ 全部通过' if all_ok else '❌ 存在问题，请修复'}")
+    print(f"\n{'[OK] All checks passed' if all_ok else '[FAIL] Some checks failed'}")
     return 0 if all_ok else 1
 
 
