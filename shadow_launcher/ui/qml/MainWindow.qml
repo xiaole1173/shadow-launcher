@@ -994,8 +994,8 @@ Window {
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "版本闅旂顬?"; font.pixelSize: 10""; color: "#505468" }
-                                                Text { text: backend && backend.isolationEnabled ? "已开启 : "鏈紑鍚?; font.pixelSize: 14; font.weight: Font.Medium"; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
+                                                Text { text: "版本隔离"; font.pixelSize: 10; color: "#505468" }
+                                                Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: 14; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
                                             }
                                         }
                                     }
