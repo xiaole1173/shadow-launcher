@@ -939,7 +939,7 @@ Window {
                                     { text: "概览", icon: "" },
                                     { text: "鍚姩閰嶇疆", icon: "" },
                                     { text: "Mod 管理", icon: "" },
-                                    { text: "璧勬簮鍖呯鐞?, icon: "" },
+                                    { text: "资源包管理", icon: "" },
                                     { text: "存档管理", icon: "" },
                                     { text: "工具与维护, icon: "" }
                                 ]
