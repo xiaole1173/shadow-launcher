@@ -18,6 +18,7 @@ Window {
     property bool showVersionSelect: false
     property bool showVersionSettings: false
     property var offlineHistory: []
+    property bool pageLoading: false
     // Toast disabled - see bottom of file for TODO
     function showToast(msg) { /* TODO: fix black bar issue */ }
 
@@ -35,7 +36,13 @@ Window {
         if (h.length > 10) h = h.slice(0, 10)
         offlineHistory = h
     }
-    function switchPage(index) { navListIndex = index; showVersionSelect = false; showVersionSettings = false }
+    function switchPage(index) { navListIndex = index; showVersionSelect = false; showVersionSettings = false; pageLoading = true; loadTimer.restart() }
+
+    Timer {
+        id: loadTimer
+        interval: 800
+        onTriggered: pageLoading = false
+    }
 
     // 鈺愨晲鈺怐ownload progress nav item management 鈺愨晲鈺?
     property bool downloadNavVisible: false
@@ -101,6 +108,41 @@ Window {
                     width: 36; height: 24; color: closeBtn.containsMouse ? "#c05050" : "transparent"
                     Text { anchors.centerIn: parent; text: "\u2715"; color: closeBtn.containsMouse ? "#e8ecf8" : "#9498a8"; font.pixelSize: 12 }
                     MouseArea { id: closeBtn; anchors.fill: parent; hoverEnabled: true; onClicked: appWindow.close() }
+                }
+            }
+        }
+
+        // ── Loading bar (Android-style indeterminate) ──
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 2
+            color: "transparent"
+            visible: pageLoading
+            clip: true
+
+            Rectangle {
+                id: loadingSlider
+                width: 100; height: 2; radius: 1
+                color: "#6080e8"
+                y: 0
+
+                PropertyAnimation on x {
+                    id: slideAnim
+                    from: -100
+                    to: parent.width + 100
+                    duration: 1200
+                    loops: Animation.Infinite
+                    running: pageLoading
+                    easing.type: Easing.InOutCubic
+                }
+
+                // Second smaller blob trailing
+                Rectangle {
+                    width: 40; height: 2; radius: 1
+                    color: "#6080e8"
+                    opacity: 0.4
+                    anchors.left: parent.right
+                    anchors.leftMargin: 8
                 }
             }
         }
