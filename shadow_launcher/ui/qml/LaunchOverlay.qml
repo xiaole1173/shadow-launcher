@@ -11,8 +11,7 @@ Rectangle {
     opacity: 1
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-    Component.onCompleted: overlay.opacity = 0; overlay.opacity = 1  // trigger fade-in
-    Component.onDestruction: overlay.opacity = 0  // fade-out (may not render due to Loader)
+    Component.onCompleted: { overlay.opacity = 0; overlay.opacity = 1 }
 
     // ── Progress state from backend ──
     property int progressValue: 0
