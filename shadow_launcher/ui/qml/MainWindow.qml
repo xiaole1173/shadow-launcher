@@ -1137,7 +1137,7 @@ Window {
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
                                                     width: 50; height: 26; radius: 4; color: "transparent"; border.color: "#1a1f2e"
-                                                    Text { anchors.centerIn: parent; text: "浏览顫?"; font.pixelSize: 11""; color: "#9094a8" }
+                                                    Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#9094a8" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.pickJava() } }
                                                 }
                                             }
@@ -1146,9 +1146,9 @@ Window {
                                                     if (!backend || !backend.javaVersion) return ""
                                                     var compat = backend.javaCompatibility
                                                     var base = backend.javaVersion
-                                                    if (compat === "recommended") return base + "  閴?推荐"
-                                                    if (compat === "compatible") return base + "  ↓ 兼容顔?
-                                                    if (compat === "incompatible") return base + "  閴?不兼容"
+                                                    if (compat === "recommended") return base + "  ✓ 推荐"
+                                                    if (compat === "compatible") return base + "  ↓ 兼容"
+                                                    if (compat === "incompatible") return base + "  ✗ 不兼容"
 
                                                     return base
                                                 }
