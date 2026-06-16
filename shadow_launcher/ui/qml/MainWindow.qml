@@ -19,8 +19,14 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
-    // Toast disabled - see bottom of file for TODO
-    function showToast(msg) { /* TODO: fix black bar issue */ }
+    property string _toastMsg: ""
+    property bool toastVisible: false
+
+    function showToast(msg) {
+        _toastMsg = msg || ""
+        toastVisible = true
+        toastTimer.restart()
+    }
 
     Component.onCompleted: {
         if (backend) {
@@ -112,19 +118,23 @@ Window {
             }
         }
 
-        // ── Loading bar (Android-style indeterminate) ──
+        // ── Loading bar (Android-style indeterminate, on top of titleBar) ──
         Rectangle {
             id: loadingBar
-            Layout.fillWidth: true
-            Layout.preferredHeight: pageLoading ? 2 : 0
+            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+            anchors.topMargin: 36  // right below titleBar
+            height: 2
             color: "transparent"
             clip: true
+            z: 100
+            opacity: pageLoading ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 150 } }
 
             Rectangle {
                 id: loadingSlider
                 width: 100; height: 2; radius: 1
                 color: "#6080e8"
-                x: pageLoading ? -40 : -100
+                x: -100
                 y: 0
 
                 SequentialAnimation on x {
@@ -1654,7 +1664,8 @@ Window {
         target: backend; enabled: backend !== null
         function onLogMessage(msg) { logArea.text += msg + "\n" }
         function onMinecraftStarted() { killButton.visible = true }
-        function onMinecraftStopped() { killButton.visible = false }
+        function onMinecraftStopped() { killButton.visible = false; showToast("已结束") }
+        function onLaunchCancelled() { showToast("取消启动成功") }
     }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
@@ -1697,6 +1708,29 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150 } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
-}
+    }
+
+    Timer {
+        id: toastTimer
+        interval: 2500; onTriggered: toastVisible = false
+    }
+
+    Rectangle {
+        id: cancelToast
+        z: 25
+        anchors.top: parent.top; anchors.topMargin: 40
+        anchors.right: parent.right; anchors.rightMargin: 12
+        width: toastLabel.implicitWidth + 24; height: 28; radius: 4
+        color: "#1a2a4a"; border.color: "#3a5080"
+        opacity: toastVisible ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Text {
+            id: toastLabel
+            anchors.centerIn: parent
+            text: _toastMsg || ""
+            font.pixelSize: 11; color: "#a0c0f0"
+        }
+    }
 }
 }
