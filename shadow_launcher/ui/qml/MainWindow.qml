@@ -1518,7 +1518,7 @@ Window {
                                             HoverHandler { id: cloneHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?)"; return }
+                                                    if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
 
                                                     if (backend) backend.cloneVersion(currentSelectedVersion)
 
