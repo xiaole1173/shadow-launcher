@@ -1530,11 +1530,11 @@ Window {
 
                                         // Rename
                                         Rectangle { width: 110; height: 32; radius: 5; color: renameHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11""; color: "#a0a5b8" }
+                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#a0a5b8" }
                                             HoverHandler { id: renameHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?)"; return }
+                                                    if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
 
                                                     if (backend) backend.renameVersion(currentSelectedVersion)
 

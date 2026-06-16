@@ -5,10 +5,10 @@ path = r'C:\Users\蔡朝彬\.openclaw\workspace\shadow-launcher\shadow_launcher\
 with open(path, 'r', encoding='utf-8') as f:
     lines = f.readlines()
 
-# Fix line 1521 (0-indexed 1520)
+# Fix line 1537 (0-indexed 1536)
 new = '                                                    if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }\n'
-lines[1520] = new
+lines[1536] = new
 
 with open(path, 'w', encoding='utf-8') as f:
     f.writelines(lines)
-print('Fixed line 1521')
+print('Fixed line 1537')
