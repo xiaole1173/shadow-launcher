@@ -1105,7 +1105,7 @@ Window {
                                             width: parent.width; spacing: 14
 
                                             // Java 环境顖氼暔
-                                            Text { text: "Java 环境顖氼暔"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
+                                            Text { text: "Java 环境" }
 
                                             // Recommended Java hint
                                             Text {
@@ -1128,7 +1128,7 @@ Window {
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#1a1f2e"
                                                 Text { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                                                    text: backend ? (backend.javaPath || "閺堫亝顥呭ù瀣煂 Java") : "閺堫亝顥呭ù瀣煂 Java"
+                                                    text: backend ? (backend.javaPath || "未找到 Java 可执行文件"
                                                     font.pixelSize: 12; color: "#b0b8c8"; elide: Text.ElideMiddle; width: parent.width - 90 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"
@@ -1163,6 +1163,35 @@ Window {
                                             }
 
                                             // 鍐呭瓨设置
+
+                                            // 可用 Java 列表
+                                            ColumnLayout {
+                                                visible: backend && backend.javaList && backend.javaList.length > 0
+                                                spacing: 4
+                                                Text { text: "可用 Java:"; font.pixelSize: 10; color: "#787c90" }
+                                                Repeater {
+                                                    model: backend ? backend.javaList : []
+                                                    Rectangle {
+                                                        Layout.fillWidth: true; height: 30; radius: 4
+                                                        color: {
+                                                            if (backend && modelData.path === backend.javaPath) return "#1e2a48"
+                                                            return javaItemHover.hovered ? "#141c28" : "transparent"
+                                                        }
+                                                        border.color: backend && modelData.path === backend.javaPath ? "#6080e8" : "transparent"
+                                                        RowLayout {
+                                                            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
+                                                            Text { text: "Java " + modelData.major + " (" + modelData.version + ")"; font.pixelSize: 11; color: "#c0c8d8" }
+                                                            Item { Layout.fillWidth: true }
+                                                            Text { text: modelData.path; font.pixelSize: 9; color: "#787c90"; elide: Text.ElideMiddle; Layout.maximumWidth: 180 }
+                                                        }
+                                                        HoverHandler { id: javaItemHover }
+                                                        MouseArea {
+                                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                            onClicked: { if (backend) backend.selectJavaByIndex(index) }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             Text { text: "内存分配"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 12
