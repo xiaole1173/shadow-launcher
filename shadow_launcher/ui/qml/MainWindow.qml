@@ -112,33 +112,43 @@ Window {
             }
         }
 
-        // ── Loading bar (Android-style indeterminate) ──
-        Rectangle {
-            id: loadingBar
+        // ── Loading bar (Android-style indeterminate, anchored overlay, no layout impact) ──
+        Item {
+            // This item takes zero layout space but holds the animated bar
             Layout.fillWidth: true
-            Layout.preferredHeight: pageLoading ? 2 : 0
-            color: "transparent"
-            clip: true
-
-            Rectangle {
-                id: loadingSlider
-                width: 100; height: 2; radius: 1
-                color: "#6080e8"
-                x: pageLoading ? -40 : -100
-                y: 0
-
-                SequentialAnimation on x {
-                    running: pageLoading
-                    loops: Animation.Infinite
-                    NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
-                    NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
-                }
-            }
+            Layout.preferredHeight: 0  // 不占布局空间
         }
 
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
             Layout.margins: 8; spacing: 8
+
+            // Floating loading bar (overlays on top of content, zero layout impact)
+            Rectangle {
+                id: loadingBar
+                z: 15
+                anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+                height: 2; color: "transparent"
+                clip: true
+                opacity: pageLoading ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                Rectangle {
+                    id: loadingSlider
+                    width: 100; height: 2; radius: 1
+                    color: "#6080e8"
+                    x: -100
+                    y: 0
+
+                    SequentialAnimation on x {
+                        running: loadingBar.opacity > 0
+                        loops: Animation.Infinite
+                        NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
+                        NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
+                    }
+                }
+            }
 
             Rectangle {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
