@@ -330,5 +330,5 @@ class LaunchMixin:
 
     @Slot()
     def killMinecraft(self):
-        """QML 调用的强制结束入口"""
-        self.killGameProcess()
+        """QML 调用的强制结束入口（异步）"""
+        threading.Thread(target=self.killGameProcess, daemon=True).start()

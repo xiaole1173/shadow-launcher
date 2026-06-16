@@ -21,6 +21,13 @@ Window {
     property bool pageLoading: false
     property string _toastMsg: ""
     property bool toastVisible: false
+    property bool _overlayActive: false
+
+    Timer {
+        id: overlayCloseTimer
+        interval: 600
+        onTriggered: _overlayActive = false
+    }
 
     function showToast(msg) {
         _toastMsg = msg || ""
@@ -1661,11 +1668,7 @@ Window {
     Loader {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
-        active: true
-        visible: (item && item.visible) || false
-        onLoaded: {
-            item.visible = backend ? backend.launching : false
-        }
+        active: _overlayActive
     }
 
     Connections {
@@ -1687,7 +1690,14 @@ Window {
         function onLogMessage(msg) { logArea.text += msg + "\n" }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
-        function onLaunchCancelled() { showToast("取消启动成功") }
+        function onLaunchCancelled() { showToast("取消启动成功"); overlayCloseTimer.start() }
+        function onLaunchingChanged() {
+            if (backend.launching) {
+                _overlayActive = true
+            } else {
+                overlayCloseTimer.start()
+            }
+        }
     }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
