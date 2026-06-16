@@ -50,7 +50,7 @@ def check_java_executable() -> str | None:
         result = subprocess.run(
             [java_path, "-version"],
             capture_output=True, text=True,
-            timeout=10,
+            timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         if result.returncode != 0:
@@ -63,31 +63,38 @@ def check_java_executable() -> str | None:
 def check_java_arch(java_path: str) -> tuple[bool, str]:
     """
     P0：检测 Java 架构（32/64位）
+    优先用 PE 头（零耗时），失败时回退到 java -version
     返回: (is_64bit, arch_str)
     """
+    # 首选：PE 头检测（零耗时）
+    try:
+        with open(java_path, "rb") as f:
+            f.seek(60)
+            pe_offset = struct.unpack("<I", f.read(4))[0]
+            f.seek(pe_offset + 4)
+            machine = struct.unpack("<H", f.read(2))[0]
+            if machine == 0x8664:
+                return True, "64-bit"
+            elif machine == 0x014C:
+                return False, "32-bit"
+            elif machine == 0xAA64:
+                return True, "ARM64"
+    except Exception:
+        pass
+
+    # 回退：java -version（快速，约0.5s）
     try:
         result = subprocess.run(
-            [java_path, "-XshowSettings:all", "-version"],
+            [java_path, "-version"],
             capture_output=True, text=True,
-            timeout=15,
+            timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
-        output = result.stderr + result.stdout
-        if "64-Bit" in output:
+        output = (result.stderr + result.stdout).lower()
+        if "64-bit" in output:
             return True, "64-bit"
-        elif "32-Bit" in output:
+        elif "32-bit" in output:
             return False, "32-bit"
-        else:
-            # 回退：检查 PE 头
-            with open(java_path, "rb") as f:
-                f.seek(60)
-                pe_offset = struct.unpack("<I", f.read(4))[0]
-                f.seek(pe_offset + 4)
-                machine = struct.unpack("<H", f.read(2))[0]
-                if machine == 0x8664:
-                    return True, "64-bit"
-                elif machine == 0x014C:
-                    return False, "32-bit"
     except Exception:
         pass
     return True, "unknown"  # 默认假设64位
