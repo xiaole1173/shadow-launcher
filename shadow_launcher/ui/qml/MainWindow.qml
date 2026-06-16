@@ -310,7 +310,7 @@ Window {
                                     Text {
                                         anchors.left: parent.left; anchors.leftMargin: 12
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: "输入用户名"; color: "#888ca0"
+                                        text: "输入用户名"; color: "#a8b0c0"
                                         font.pixelSize: 13
                                         visible: !offlineNameInput.text
                                     }
@@ -367,14 +367,14 @@ Window {
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: backend ? (backend.accountUuid || "") : ""
-                                    font.pixelSize: 10; color: "#888ca0"
+                                    font.pixelSize: 10; color: "#a8b0c0"
                                     font.family: "Consolas, monospace"
                                 }
 
                                 // Login type + Logout
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 12
-                                    Text { text: loginMode === 1 ? "离线模式" : "正版登录"; font.pixelSize: 11; color: "#888ca0" }
+                                    Text { text: loginMode === 1 ? "离线模式" : "正版登录"; font.pixelSize: 11; color: "#a8b0c0" }
                                     Rectangle {
                                         width: 60; height: 24; radius: 4
                                         color: "transparent"; border.color: "#2a1f24"
@@ -477,7 +477,7 @@ Window {
                         onVisibleChanged: { if (visible && backend) backend.refreshVersionDetails() }
 
                         Rectangle { x: 16; y: 16; height: 28; width: 80; radius: 5; color: "transparent"
-                            Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#888ca0"; font.pixelSize: 12 }
+                            Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#a8b0c0"; font.pixelSize: 12 }
                             MouseArea { anchors.fill: parent; onClicked: { showVersionSelect = false } }
                         }
                         RowLayout {
@@ -487,7 +487,7 @@ Window {
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 14; spacing: 6
-                                    Text { text: "游戏文件夹"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                    Text { text: "游戏文件夹"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                     ListModel { id: gameDirModel }
                                     Component.onCompleted: {
                                         var dirs = backend ? backend.gameDirectories : []
@@ -571,16 +571,16 @@ Window {
                                             anchors.top: parent.top; anchors.topMargin: 8
                                             spacing: 4
                                             RowLayout {
-                                                Text { text: "版本"; font.pixelSize: 10; color: "#888ca0"; Layout.preferredWidth: 40 }
+                                                Text { text: "版本"; font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
                                                 Text { text: backend ? (backend.gameDirInfo.versionCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#8aa8f0" }
                                             }
                                             RowLayout {
-                                                Text { text: "模组"; font.pixelSize: 10; color: "#888ca0"; Layout.preferredWidth: 40 }
-                                                Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "模组"; font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                                                Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#d4dcf0" }
                                             }
                                             RowLayout {
-                                                Text { text: "占用"; font.pixelSize: 10; color: "#888ca0"; Layout.preferredWidth: 40 }
-                                                Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: 12; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "占用"; font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                                                Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: 12; font.weight: Font.Medium; color: "#d4dcf0" }
                                             }
                                         }
                                     }
@@ -632,7 +632,7 @@ Window {
                                     // Header row: title + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
-                                        Text { text: "已安装版本"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                        Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                         Rectangle {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"
                                             border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
@@ -643,7 +643,7 @@ Window {
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 10
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    text: "搜索版本..."; color: "#787c90"; font.pixelSize: 12
+                                                    text: "搜索版本..."; color: "#9ca0b4"; font.pixelSize: 12
                                                     visible: !searchField.text
                                                 }
                                             }
@@ -870,7 +870,7 @@ Window {
                                         Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 40
                                         text: versionFilteredModel.count === 0 && backend && backend.versionDetails && backend.versionDetails.length > 0
                                               ? "没有匹配的版本" : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "还没有安装任何版本\n前往下载页面安装第一个版本吧" : "")
-                                        font.pixelSize: 12; color: "#888ca0"
+                                        font.pixelSize: 12; color: "#a8b0c0"
                                         horizontalAlignment: Text.AlignHCenter
                                         visible: versionFilteredModel.count === 0
                                     }
@@ -995,7 +995,7 @@ Window {
                                             Text {
                                                 text: modelData.text
                                                 font.pixelSize: 13
-                                                color: ListView.isCurrentItem ? "#e0e4f8" : (mouseArea2.containsMouse ? "#d4d8e8" : "#686c80")
+                                                color: ListView.isCurrentItem ? "#e0e4f8" : (mouseArea2.containsMouse ? "#e4e8fc" : "#9498ac")
                                                 font.weight: ListView.isCurrentItem ? Font.Bold : Font.Normal
                                             }
                                             Item { Layout.fillWidth: true }
@@ -1022,65 +1022,65 @@ Window {
                                         RowLayout {
                                             anchors.fill: parent; anchors.margins: 14; spacing: 12
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "占用空间"; font.pixelSize: 10; color: "#888ca0" }
-                                                Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: 14; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "占用空间"; font.pixelSize: 10; color: "#a8b0c0" }
+                                                Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: 14; font.weight: Font.Medium; color: "#d4dcf0" }
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "已装 Mod"; font.pixelSize: 10; color: "#888ca0" }
-                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "已装 Mod"; font.pixelSize: 10; color: "#a8b0c0" }
+                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#d4dcf0" }
 
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "版本隔离"; font.pixelSize: 10; color: "#888ca0" }
+                                                Text { text: "版本隔离"; font.pixelSize: 10; color: "#a8b0c0" }
                                                 Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: 14; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
                                             }
                                         }
                                     }
 
                                     // Shortcuts
-                                    Text { text: "快捷入口"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                    Text { text: "快捷入口"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                     Flow {
                                         Layout.fillWidth: true; spacing: 8
 
                                         // Always visible
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover0.hovered ? "#2538b0" : "#3a4eb8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover0.hovered ? "#3a5ed0" : "#2a4590"
                                             Text { anchors.centerIn: parent; text: "版本文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover0 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openVersionDir(currentSelectedVersion) }
                                             }
                                         }
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#2538b0" : "#3a4eb8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#3a5ed0" : "#2a4590"
                                             Text { anchors.centerIn: parent; text: "存档文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover1 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openSavesFolder() }
                                             }
                                         }
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#2538b0" : "#3a4eb8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#3a5ed0" : "#2a4590"
                                             Text { anchors.centerIn: parent; text: "截图文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover2 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openScreenshotsFolder() }
                                             }
                                         }
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#2538b0" : "#3a4eb8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#3a5ed0" : "#2a4590"
                                             Text { anchors.centerIn: parent; text: "logs 日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover6 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (backend && !backend.openLogsFolder()) showToast("无日志文件") }
                                             }
                                         }
-                                        Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#2538b0" : "#3a4eb8"
+                                        Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#3a5ed0" : "#2a4590"
                                             Text { anchors.centerIn: parent; text: "最新启动日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover7 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (backend && !backend.openLatestLog()) showToast("无日志文件") }
                                             }
                                         }
-                                        Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#b04040" : "#8a3030"
+                                        Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#c85050" : "#9a3838"
                                             Text { anchors.centerIn: parent; text: "崩溃日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover8 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1089,7 +1089,7 @@ Window {
                                         }
 
                                         // Copy path
-                                        Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#2538b0" : "#3a4eb8"
+                                        Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#3a5ed0" : "#2a4590"
                                             Text { anchors.centerIn: parent; text: "复制版本路径"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHoverCp }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1101,7 +1101,7 @@ Window {
                                         }
 
                                         // Mod-only: visible only for modded versions
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover3.hovered ? "#2538b0" : "#4a5ec8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover3.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                                             Text { anchors.centerIn: parent; text: "Mod 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover3 }
@@ -1109,7 +1109,7 @@ Window {
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openModsFolder() }
                                             }
                                         }
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#2538b0" : "#4a5ec8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                                             Text { anchors.centerIn: parent; text: "config 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover4 }
@@ -1117,7 +1117,7 @@ Window {
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openConfigFolder() }
                                             }
                                         }
-                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover5.hovered ? "#2538b0" : "#4a5ec8"
+                                        Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover5.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                                             Text { anchors.centerIn: parent; text: "光影包"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover5 }
@@ -1205,7 +1205,7 @@ Window {
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 12
                                                 ColumnLayout { Layout.fillWidth: true; spacing: 4
-                                                    Text { text: "最大内存 " + (backend ? backend.maxMemoryMb + " MB" : "-"); font.pixelSize: 12; color: "#c0c8d8" }
+                                                    Text { text: "最大内存 " + (backend ? backend.maxMemoryMb + " MB" : "-"); font.pixelSize: 12; color: "#d4dcf0" }
                                                     Slider {
                                                         id: maxMemSlider; Layout.fillWidth: true
                                                         from: 512; to: 16384; stepSize: 512
@@ -1216,11 +1216,11 @@ Window {
                                                 }
                                                 Text { text: "最小" + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#989cb0" }
                                             }
-                                            Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#888ca0" }
+                                            Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#a8b0c0" }
 
                                             // 閼奉亜濮╅崘鍛摠
                                             RowLayout {
-                                                Text { text: "閼奉亜濮╅崚鍡涘帳"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "閼奉亜濮╅崚鍡涘帳"; font.pixelSize: 12; color: "#d4dcf0" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.autoMemoryEnabled : true
@@ -1240,7 +1240,7 @@ Window {
                                             }
 
                                             // 预设顔?
-                                            Text { text: "预设"; font.pixelSize: 10; color: "#888ca0" }
+                                            Text { text: "预设"; font.pixelSize: 10; color: "#a8b0c0" }
                                             Flow {
                                                 Layout.fillWidth: true; spacing: 8
                                                 Repeater {
@@ -1263,7 +1263,7 @@ Window {
                                             // 版本隔离（模组配置/存档独立）顬?
                                             Text { text: "版本琛屼负"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                                             RowLayout {
-                                                Text { text: "版本隔离（模组配置/存档独立）顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "版本隔离（模组配置/存档独立）顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#d4dcf0" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.isolationEnabled : false
@@ -1273,7 +1273,7 @@ Window {
 
                                             // 閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤
                                             RowLayout {
-                                                Text { text: "閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤"; font.pixelSize: 12; color: "#d4dcf0" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.closeOnLaunch : false
@@ -1283,7 +1283,7 @@ Window {
 
                                             // 濞撳憡鍨欓梽鍕鍙傛暟
                                             Text { text: "濞撳憡鍨欓梽鍕鍙傛暟"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
-                                            Text { text: "（示例 --width 1920 --height 1080 --fullscreen閿?"; font.pixelSize: 9; color: "#888ca0" }
+                                            Text { text: "（示例 --width 1920 --height 1080 --fullscreen閿?"; font.pixelSize: 9; color: "#a8b0c0" }
                                             Rectangle { Layout.fillWidth: true; height: 44; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                                                 TextInput {
                                                     id: gameArgsInput; anchors.fill: parent; anchors.margins: 8
@@ -1333,7 +1333,7 @@ Window {
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 10
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    text: "搜索 Mod..."; color: "#787c90"; font.pixelSize: 12
+                                                    text: "搜索 Mod..."; color: "#9ca0b4"; font.pixelSize: 12
                                                     visible: !modSearchField.text
                                                 }
                                             }
@@ -1546,13 +1546,13 @@ Window {
                                     Item { height: 12; width: 1 }
 
                                     // Version tools
-                                    Text { text: "版本宸ュ叿"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                    Text { text: "版本宸ュ叿"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                     Flow {
                                         Layout.fillWidth: true; spacing: 8
 
                                         // Clone
                                         Rectangle { width: 110; height: 32; radius: 5; color: cloneHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "鍏嬮殕版本"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "鍏嬮殕版本"; font.pixelSize: 11; color: "#d4dcf0" }
                                             HoverHandler { id: cloneHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1568,7 +1568,7 @@ Window {
 
                                         // Rename
                                         Rectangle { width: 110; height: 32; radius: 5; color: renameHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#d4dcf0" }
                                             HoverHandler { id: renameHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1582,7 +1582,7 @@ Window {
 
                                         // Migrate
                                         Rectangle { width: 110; height: 32; radius: 5; color: migrateHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "迁移目录"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "迁移目录"; font.pixelSize: 11; color: "#d4dcf0" }
                                             HoverHandler { id: migrateHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
