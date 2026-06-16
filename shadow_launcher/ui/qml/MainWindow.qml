@@ -21,30 +21,6 @@ Window {
     property bool pageLoading: false
     property string _toastMsg: ""
     property bool toastVisible: false
-    property bool _overlayActive: backend ? backend.launching : false
-    property bool _launchingWasActive: false
-
-    Timer {
-        id: overlayCloseTimer
-        interval: 600
-        onTriggered: _overlayActive = false
-    }
-
-    // Poll-based: detect launching → true to show, → false to delay-close
-    Timer {
-        id: overlayWatchdog
-        interval: 100; running: true; repeat: true
-        onTriggered: {
-            var active = backend ? backend.launching : false
-            if (active && !_overlayActive) {
-                _overlayActive = true
-                _launchingWasActive = true
-            } else if (!active && _launchingWasActive) {
-                _launchingWasActive = false
-                overlayCloseTimer.start()
-            }
-        }
-    }
 
     function showToast(msg) {
         _toastMsg = msg || ""
@@ -1684,7 +1660,7 @@ Window {
     Loader {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
-        active: _overlayActive
+        active: backend ? backend.launching : false
     }
 
     Connections {
