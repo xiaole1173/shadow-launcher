@@ -302,10 +302,6 @@ class LaunchMixin:
         if proc:
             pid = proc.pid
             try:
-                try:
-                    proc.stdout.close()
-                except Exception:
-                    pass
                 if sys.platform == "win32":
                     for _ in range(3):
                         result = subprocess.run(
@@ -327,6 +323,7 @@ class LaunchMixin:
         self._launch_process = None
         self._launching = False
         self.launchProgressChanged.emit(0, "")
+        self.isRunningChanged.emit()
 
     @Slot()
     def killMinecraft(self):

@@ -21,12 +21,18 @@ Window {
     property bool pageLoading: false
     property string _toastMsg: ""
     property bool toastVisible: false
-    property bool _overlayActive: false
+    property bool _overlayActive: backend ? backend.launching : false
 
     Timer {
         id: overlayCloseTimer
         interval: 600
         onTriggered: _overlayActive = false
+    }
+
+    onLaunchingChanged: {
+        if (_overlayActive && backend && !backend.launching) {
+            overlayCloseTimer.start()
+        }
     }
 
     function showToast(msg) {
@@ -142,11 +148,10 @@ Window {
                 id: loadingBar
                 z: 15
                 x: 0; y: 0
-                width: parent.width; height: 2
+                width: appWindow.width - 16; height: 2
                 color: "transparent"
                 clip: true
                 opacity: pageLoading ? 1 : 0
-                visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 150 } }
 
                 Rectangle {
@@ -224,7 +229,7 @@ Window {
 
                 Rectangle {
                     id: pageContainer
-                    Layout.fillWidth: true; Layout.fillHeight: true; color: "transparent"
+                    Layout.fillWidth: true; Layout.fillHeight: true; color: "#0c0f16"
 
                     // ========== HOMEPAGE ==========
                     Rectangle {
@@ -1691,13 +1696,6 @@ Window {
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
         function onLaunchCancelled() { showToast("取消启动成功"); overlayCloseTimer.start() }
-        function onLaunchingChanged() {
-            if (backend.launching) {
-                _overlayActive = true
-            } else {
-                overlayCloseTimer.start()
-            }
-        }
     }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
