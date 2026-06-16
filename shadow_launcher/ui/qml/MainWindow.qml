@@ -166,6 +166,22 @@ Window {
                     }
                     Item { Layout.fillHeight: true }
                     Text { Layout.alignment: Qt.AlignHCenter; text: "v0.3.0"; font.pixelSize: 10; color: "#303440" }
+
+                    // Force kill button (only visible while game is running)
+                    Rectangle {
+                        id: killButton
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: 8
+                        width: 40; height: 40; radius: 20
+                        color: "#3a4eb8"
+                        opacity: backend ? (backend.isRunning ? 1 : 0) : 0
+                        scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
+                        Text { anchors.centerIn: parent; text: "■"; color: "#e8ecf8"; font.pixelSize: 14 }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
+                    }
                 }
 
                 // Animated selection indicator overlay
@@ -1635,20 +1651,8 @@ Window {
     property string _toastMsg: ""
     function showToast(msg) { /* TODO */ }
 
-    Rectangle {
-        id: killButton
-        width: 48; height: 48; radius: 24
-        anchors.right: parent.right; anchors.rightMargin: 20
-        anchors.bottom: parent.bottom; anchors.bottomMargin: 56
-        z: 200; color: "#c05050"
-        opacity: backend ? (backend.isRunning ? 1 : 0) : 0
-        scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
-        Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
-    }
+
+    // Kill button moved to sidebar bottom
 
     Connections {
         target: backend; enabled: backend !== null

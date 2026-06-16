@@ -206,6 +206,8 @@ class LaunchMixin:
 
                 time.sleep(0.5)
                 self._update_launch_progress(100, "启动完成")
+                time.sleep(1.5)
+                self._launching = False
 
                 # 日志监控线程
                 def _watch():
