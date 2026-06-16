@@ -593,7 +593,7 @@ Window {
                                     // Header row: title + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
-                                        Text { text: "已安装版本"; font.pixelSize: 10""; color: "#404458"; font.letterSpacing: 1.5 }
+                                        Text { text: "已安装版本"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                         Rectangle {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"
                                             border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
