@@ -1105,8 +1105,8 @@ Window {
                                             width: parent.width; spacing: 14
 
                                             // Java 环境顖氼暔
-                                            Text { text: "Java 环境顖氼暔"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
-
+                                            // Java 环境
+                                            Text { text: "Java 环境"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
                                             // Recommended Java hint
                                             Text {
                                                 text: {
@@ -1128,7 +1128,7 @@ Window {
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#1a1f2e"
                                                 Text { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                                                    text: backend ? (backend.javaPath || "閺堫亝顥呭ù瀣煂 Java") : "閺堫亝顥呭ù瀣煂 Java"
+                                                    text: backend ? (backend.javaPath || "未找到 Java 可执行文件") : "未找到 Java 可执行文件"
                                                     font.pixelSize: 12; color: "#b0b8c8"; elide: Text.ElideMiddle; width: parent.width - 90 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"

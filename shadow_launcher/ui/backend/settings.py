@@ -80,13 +80,12 @@ def find_java_installations():
                     continue
                 for d in list(dirs):
                     lower_d = d.lower()
-                    if "javafx" in lower_d or "jre" in lower_d:
-                        exe = _find_java_exe(os.path.join(root, d))
-                        if exe and os.path.isfile(exe) and exe not in seen:
-                            ver = _get_java_version(exe)
-                            if ver:
-                                seen.add(exe)
-                                results.append((exe, ver["str"], ver["major"]))
+                    exe = _find_java_exe(os.path.join(root, d))
+                    if exe and os.path.isfile(exe) and exe not in seen:
+                        ver = _get_java_version(exe)
+                        if ver:
+                            seen.add(exe)
+                            results.append((exe, ver["str"], ver["major"]))
                 exe = _find_java_exe(root)
                 if exe and os.path.isfile(exe) and exe not in seen:
                     ver = _get_java_version(exe)

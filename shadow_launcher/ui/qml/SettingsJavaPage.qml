@@ -188,7 +188,7 @@ Rectangle {
 
                         Label {
                             anchors.centerIn: parent
-                            text: "🔍 自动搜索"
+                            text: "自动搜索"
                             color: root.colorAccent
                             font.pixelSize: 14
                         }
