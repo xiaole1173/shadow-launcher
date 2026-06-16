@@ -1609,9 +1609,6 @@ Window {
     }
 
     // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
-    // See issue: toast with anchors.bottom causes layout jitter
-    property string _toastMsg: ""
-    function showToast(msg) { /* TODO */ }
 
     Rectangle {
         id: killButton
@@ -1698,9 +1695,8 @@ Window {
                 running: loadingBar.opacity > 0
                 loops: Animation.Infinite
                 NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
-                NumberAnimation { from: 100; to: parent.width + 100; duration: 400; easing.type: Easing.InCubic }
+                NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
             }
         }
-    }
 }
 }
