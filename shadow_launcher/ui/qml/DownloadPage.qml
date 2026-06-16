@@ -67,7 +67,7 @@ Rectangle {
         target: backend
         enabled: backend !== null
 
-        function onVersionListReady() { refreshVersionModel() }
+        function onVersionListReady() { _versionTypeMap = null; refreshVersionModel() }
 
         function onResourceDownloadDone(success) {
             page.installingMod = false
@@ -85,37 +85,35 @@ Rectangle {
     }
 
     // ──── Helper: categorize versions ────
-    function isSnapshotVersion(v) {
-        // Use backend.versionList type if available, fall back to name pattern
+    property var _versionTypeMap: null
+    function getVersionTypeMap() {
+        if (_versionTypeMap) return _versionTypeMap
+        var map = {}
         if (backend && backend.versionList) {
-            for (var j = 0; j < backend.versionList.length; j++) {
-                if (backend.versionList[j].id === v) return backend.versionList[j].type === "snapshot"
+            var vl = backend.versionList
+            for (var i = 0; i < vl.length; i++) {
+                map[vl[i].id] = vl[i].type
             }
         }
+        _versionTypeMap = map
+        return map
+    }
+    function isSnapshotVersion(v) {
+        var map = getVersionTypeMap()
+        if (map[v]) return map[v] === "snapshot"
         return v.indexOf("pre") >= 0 || v.indexOf("rc") >= 0 || /^\d{2}w\d{2}[a-z]$/i.test(v)
     }
     function isOldVersion(v) {
-        // Use backend.versionList type if available
-        if (backend && backend.versionList) {
-            for (var j = 0; j < backend.versionList.length; j++) {
-                if (backend.versionList[j].id === v) {
-                    var t = backend.versionList[j].type
-                    return t === "old_alpha" || t === "old_beta"
-                }
-            }
-        }
+        var map = getVersionTypeMap()
+        if (map[v]) return map[v] === "old_alpha" || map[v] === "old_beta"
         return v.indexOf("alpha") >= 0 || v.indexOf("beta") >= 0 ||
                v.indexOf("inf") >= 0 || v.indexOf("rd") >= 0 ||
                v.indexOf("a1") >= 0 || v.indexOf("b1") >= 0
     }
 
     function getVersionType(v) {
-        // Get type string from versionList
-        if (backend && backend.versionList) {
-            for (var j = 0; j < backend.versionList.length; j++) {
-                if (backend.versionList[j].id === v) return backend.versionList[j].type
-            }
-        }
+        var map = getVersionTypeMap()
+        if (map[v]) return map[v]
         if (isSnapshotVersion(v)) return "snapshot"
         if (isOldVersion(v)) return "old"
         return "release"
@@ -503,7 +501,7 @@ Rectangle {
         Connections {
             target: backend
             enabled: backend !== null && page.currentTab === 0
-            function onVersionListReady() { refreshVersionModel() }
+            function onVersionListReady() { _versionTypeMap = null; refreshVersionModel() }
         }
 
         // ── Version install progress overlay ──
