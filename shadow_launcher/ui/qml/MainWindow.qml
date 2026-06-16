@@ -123,12 +123,13 @@ Window {
             Layout.fillWidth: true; Layout.fillHeight: true
             Layout.margins: 8; spacing: 8
 
-            // Floating loading bar (overlays on top of content, zero layout impact)
+            // Floating loading bar (overlay, positioned at top of RowLayout)
             Rectangle {
                 id: loadingBar
                 z: 15
-                anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-                height: 2; color: "transparent"
+                x: 0; y: 0
+                width: parent.width; height: 2
+                color: "transparent"
                 clip: true
                 opacity: pageLoading ? 1 : 0
                 visible: opacity > 0
@@ -1658,11 +1659,11 @@ Window {
 
     // Cancel toast notification
     property string _toastMsg: ""
-    property bool _toastVisible: false
+    property bool toastVisible: false
 
     Timer {
         id: toastTimer
-        interval: 2500; onTriggered: _toastVisible = false
+        interval: 2500; onTriggered: toastVisible = false
     }
 
     Rectangle {
@@ -1670,22 +1671,24 @@ Window {
         z: 25
         anchors.top: parent.top; anchors.topMargin: 12
         anchors.right: parent.right; anchors.rightMargin: 16
-        width: toastText.implicitWidth + 24; height: 32; radius: 4
+        property string toastText: _toastMsg || "取消启动成功"
+        width: toastLabel.implicitWidth + 24; height: 32; radius: 4
         color: "#1a2a4a"; border.color: "#3a5080"
-        opacity: _toastVisible ? 1 : 0
+        opacity: toastVisible ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200 } }
         Text {
-            id: toastText
+            id: toastLabel
             anchors.centerIn: parent
-            text: _toastMsg || "取消启动成功"
+            text: cancelToast.toastText
             font.pixelSize: 12; color: "#a0c0f0"
         }
     }
 
     function showToast(msg) {
-        _toastMsg = msg
-        _toastVisible = true
+        _toastMsg = msg || ""
+        cancelToast.toastText = msg || "取消启动成功"
+        toastVisible = true
         toastTimer.restart()
     }
 
