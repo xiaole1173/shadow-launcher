@@ -160,13 +160,21 @@ Window {
                         Item {
                             width: parent ? parent.width : 180; Layout.fillWidth: true; height: 44
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
-                            Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 2; color: navListIndex === index ? "#6080e8" : "transparent" }
                             Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
                         }
                     }
                     Item { Layout.fillHeight: true }
                     Text { Layout.alignment: Qt.AlignHCenter; text: "v0.3.0"; font.pixelSize: 10; color: "#303440" }
+                }
+
+                // Animated selection indicator overlay
+                Rectangle {
+                    id: navIndicator
+                    z: 10
+                    x: 8; y: 8 + 52 + navListIndex * 44
+                    width: 2; height: 44; color: "#6080e8"
+                    Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
                 }
             }
 
