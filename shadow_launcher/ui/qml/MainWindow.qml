@@ -941,7 +941,7 @@ Window {
                                     { text: "Mod 管理", icon: "" },
                                     { text: "资源包管理", icon: "" },
                                     { text: "存档管理", icon: "" },
-                                    { text: "工具与维护, icon: "" }
+                                    { text: "工具与维护", icon: "" }
                                 ]
                                 ListView {
                                     id: settingsNav
