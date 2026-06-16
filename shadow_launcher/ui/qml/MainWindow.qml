@@ -555,7 +555,7 @@ Window {
                                         }
                                     }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11""; color: "#606478" }
+                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { showToast("导入整合包功能开发中") }
