@@ -551,7 +551,7 @@ Window {
                                         Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { showToast("鍔熻兘寮€鍙戜腑锛岃鍓嶅線鏂囦欢澶规墜鍔ㄦ坊鍔?) }
+                                            onClicked: { showToast("功能开发中，请前往文件夹手动添加") }
                                         }
                                     }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
