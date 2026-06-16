@@ -366,7 +366,7 @@ Window {
                                     RowLayout {
                                         anchors.centerIn: parent; spacing: 8
                                         Rectangle { width: 8; height: 8; radius: 4; color: "#6080e8"; visible: currentSelectedVersion !== "" }
-                                        Text { text: currentSelectedVersion || "閺堫亪鈧瀚ㄧ増鏈?; font.pixelSize: 16; font.weight: Font.Bold"; color: currentSelectedVersion ? "#8aa8f0" : "#787c90" }
+                                        Text { text: currentSelectedVersion || "未选择版本"; font.weight: Font.Bold"; color: currentSelectedVersion ? "#8aa8f0" : "#787c90" }
                                     }
                                 }
 
