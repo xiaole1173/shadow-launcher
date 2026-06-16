@@ -19,14 +19,8 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
-    property string _toastMsg: ""
-    property bool toastVisible: false
-
-    function showToast(msg) {
-        _toastMsg = msg || ""
-        toastVisible = true
-        toastTimer.restart()
-    }
+    // Toast disabled - see bottom of file for TODO
+    function showToast(msg) { /* TODO: fix black bar issue */ }
 
     Component.onCompleted: {
         if (backend) {
@@ -116,6 +110,8 @@ Window {
                     MouseArea { id: closeBtn; anchors.fill: parent; hoverEnabled: true; onClicked: appWindow.close() }
                 }
             }
+        }
+
         }
 
         RowLayout {
@@ -1636,8 +1632,7 @@ Window {
         target: backend; enabled: backend !== null
         function onLogMessage(msg) { logArea.text += msg + "\n" }
         function onMinecraftStarted() { killButton.visible = true }
-        function onMinecraftStopped() { killButton.visible = false; showToast("已结束") }
-        function onLaunchCancelled() { showToast("取消启动成功") }
+        function onMinecraftStopped() { killButton.visible = false }
     }
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
@@ -1682,12 +1677,12 @@ Window {
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
     }
 
-    // ── Loading bar (overlay, zero layout impact) ──
+    // ── Loading bar (overlay, no layout impact) ──
     Rectangle {
         id: loadingBar
         z: 15
         x: 0; y: 34
-        width: parent.width; height: 2
+        width: appWindow.width; height: 2
         color: "transparent"
         clip: true
         opacity: pageLoading ? 1 : 0
@@ -1705,29 +1700,6 @@ Window {
                 NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
                 NumberAnimation { from: 100; to: parent.width + 100; duration: 400; easing.type: Easing.InCubic }
             }
-        }
-    }
-
-    Timer {
-        id: toastTimer
-        interval: 2500; onTriggered: toastVisible = false
-    }
-
-    Rectangle {
-        id: cancelToast
-        z: 25
-        anchors.top: parent.top; anchors.topMargin: 40
-        anchors.right: parent.right; anchors.rightMargin: 12
-        width: toastLabel.implicitWidth + 24; height: 28; radius: 4
-        color: "#1a2a4a"; border.color: "#3a5080"
-        opacity: toastVisible ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-        Text {
-            id: toastLabel
-            anchors.centerIn: parent
-            text: _toastMsg || ""
-            font.pixelSize: 11; color: "#a0c0f0"
         }
     }
 }
