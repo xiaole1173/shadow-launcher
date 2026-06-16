@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Minecraft data
+.shadow/
+.minecraft/
+versions/
+
+# Install state
+shadow_launcher/config/install_state.json
+shadow_launcher/config/install_log.txt
+shadow_launcher/config/session.json
+
+# OS
+Thumbs.db
+desktop.ini

@@ -1,0 +1,147 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Controls.Basic
+import QtQuick.Layouts
+
+Rectangle {
+    id: page
+    color: "transparent"
+
+    opacity: 0; y: 10
+    Behavior on opacity { NumberAnimation { duration: 250 } }
+    Behavior on y { NumberAnimation { duration: 250 } }
+    Component.onCompleted: { opacity = 1; y = 0 }
+
+    function fmtSpeed(bps) {
+        if (bps <= 0) return "0 B/s"
+        if (bps < 1024) return bps.toFixed(0) + " B/s"
+        if (bps < 1048576) return (bps / 1024).toFixed(1) + " KB/s"
+        return (bps / 1048576).toFixed(2) + " MB/s"
+    }
+    function fmtSize(b) {
+        if (b <= 0) return "0 B"
+        if (b < 1024) return b + " B"
+        if (b < 1048576) return (b / 1024).toFixed(2) + " KB"
+        return (b / 1048576).toFixed(2) + " MB"
+    }
+
+    // The key: read backend properties INTO local JS vars ONCE per binding evaluation
+    // This ensures QML actually re-evaluates the property chain.
+
+    ColumnLayout {
+        anchors.fill: parent; anchors.margins: 20; spacing: 12
+
+        // ── Header ──
+        RowLayout {
+            Layout.fillWidth: true
+            Text { text: "下载进度"; font.pixelSize: 18; font.bold: true; color: "#e8ecf8"; Layout.fillWidth: true }
+            Rectangle {
+                radius: 4; height: 24; width: statusText.implicitWidth + 16
+                color: (backend && backend.installing) ? "#1a3028" : "#201a1a"
+                Text {
+                    id: statusText; anchors.centerIn: parent
+                    text: (backend && backend.installing) ? "下载中" : "空闲"
+                    color: (backend && backend.installing) ? "#4bc870" : "#886060"
+                    font.pixelSize: 11
+                }
+            }
+        }
+
+        // ── Version info ──
+        Rectangle {
+            Layout.fillWidth: true; height: 40; radius: 8; color: "#11141c"; border.color: "#1a1f2a"
+            RowLayout { anchors.fill: parent; anchors.margins: 14
+                Text { text: "版本：" + (backend ? (backend.installVersionId || "--") : "--"); color: "#e8ecf8"; font.pixelSize: 13; font.bold: true; Layout.fillWidth: true }
+                Text {
+                    text: (backend && backend.installing) ? (backend.installPhase === "verifying" ? "校验中" : "下载中") : "--"
+                    color: "#5d6fe0"; font.pixelSize: 11
+                }
+            }
+        }
+
+        // ── Total progress (file count) ──
+        Rectangle {
+            Layout.fillWidth: true; height: 64; radius: 8; color: "#0e111a"; border.color: "#1a1f2a"
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12; spacing: 6
+                RowLayout {
+                    Text { text: "文件"; font.pixelSize: 12; color: "#8890a0" }
+                    Text { text: (backend ? backend.installProgress : 0) + " / " + (backend ? backend.installTotal : 0); font.pixelSize: 13; font.weight: Font.DemiBold; color: "#e8ecf8"; Layout.fillWidth: true }
+                    Text { text: (backend && backend.installTotal > 0) ? (backend.installProgress / backend.installTotal * 100).toFixed(1) + "%" : "0%"; font.pixelSize: 14; font.weight: Font.Bold; color: "#5d6fe0" }
+                }
+                // Progress bar
+                Rectangle { Layout.fillWidth: true; height: 8; radius: 4; color: "#1a1f2a"
+                    Rectangle {
+                        height: 8; radius: 4; color: "#5068d8"
+                        width: (backend && backend.installTotal > 0) ? parent.width * (backend.installProgress / backend.installTotal) : 0
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
+            }
+        }
+
+        // ── Single file progress ──
+        Rectangle {
+            Layout.fillWidth: true; height: 56; radius: 8; color: "#0e111a"; border.color: "#1a1f2a"
+            visible: (backend && backend.installing && backend.installFile !== "")
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12; spacing: 4
+                RowLayout {
+                    Text { text: "文件"; font.pixelSize: 12; color: "#707888" }
+                    Text { text: backend ? (backend.installFile || "--") : "--"; font.pixelSize: 12; color: "#aab0c0"; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                    Text { text: backend ? fmtSize(backend.installBytesDownloaded) + " / " + fmtSize(backend.installBytesTotal) : ""; font.pixelSize: 10; color: "#707888"; font.family: "Consolas, monospace" }
+                }
+                Rectangle { Layout.fillWidth: true; height: 6; radius: 3; color: "#1a1f2a"
+                    Rectangle {
+                        height: 6; radius: 3; color: "#4a6eb8"
+                        width: (backend && backend.installBytesTotal > 0) ? parent.width * (backend.installBytesDownloaded / backend.installBytesTotal) : 0
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
+            }
+        }
+
+        // ── Speed ──
+        Text {
+            Layout.fillWidth: true
+            text: {
+                var spd = backend ? backend.installSpeed : 0
+                return "速度: " + fmtSpeed(spd)
+            }
+            color: "#707888"; font.pixelSize: 11
+            visible: backend && backend.installing
+        }
+
+        // ── Cancel ──
+        Rectangle {
+            width: 100; height: 30; radius: 5
+            color: cancelMouse.containsMouse ? "#502020" : "#2a1a1a"
+            border.color: cancelMouse.containsMouse ? "#a04040" : "#603030"
+            Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
+            MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.cancelInstall() } }
+            visible: backend && backend.installing
+        }
+
+        // ── Empty state ──
+        Rectangle {
+            Layout.fillWidth: true; height: 100; radius: 8; color: "#11141c"; border.color: "#1a1f2a"
+            visible: !backend || (!backend.installing && backend.installPhase !== "done")
+            ColumnLayout { anchors.centerIn: parent; spacing: 6
+                Text { Layout.alignment: Qt.AlignHCenter; text: "当前没有进行中的下载"; font.pixelSize: 13; color: "#707888" }
+                Text { Layout.alignment: Qt.AlignHCenter; text: "前往下载页面选择版本开始下载"; font.pixelSize: 11; color: "#505468" }
+            }
+        }
+
+        // ── Done state ──
+        Rectangle {
+            Layout.fillWidth: true; height: 80; radius: 8; color: "#0e1a14"; border.color: "#1a3028"
+            visible: backend && backend.installPhase === "done"
+            ColumnLayout { anchors.centerIn: parent; spacing: 6
+                Text { Layout.alignment: Qt.AlignHCenter; text: "安装完成"; font.pixelSize: 15; font.bold: true; color: "#4bc870" }
+                Text { Layout.alignment: Qt.AlignHCenter; text: "版本 " + (backend ? backend.installVersionId : "") + " 已就绪"; font.pixelSize: 11; color: "#608868" }
+            }
+        }
+
+        Item { Layout.fillHeight: true }
+    }
+}
