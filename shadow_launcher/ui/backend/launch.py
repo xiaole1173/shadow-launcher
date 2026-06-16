@@ -7,6 +7,8 @@ LaunchMixin — 游戏启动/停止/进度管理
 
 import threading
 import time
+import sys
+import subprocess
 
 from PySide6.QtCore import Slot
 
@@ -251,9 +253,19 @@ class LaunchMixin:
     @Slot()
     def cancelLaunch(self):
         self._launch_cancelled = True  # signal the launch thread to abort
-        if self._launch_process and self._launch_process.poll() is None:
-            self._launch_process.kill()  # kill not terminate for immediate stop
-            self.logMessage.emit("已强制结束游戏进程")
+        if self._launch_process:
+            pid = self._launch_process.pid
+            try:
+                # Windows: kill entire process tree
+                if sys.platform == "win32":
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                                   capture_output=True, timeout=10)
+                else:
+                    self._launch_process.kill()
+                self.logMessage.emit("已强制结束游戏进程")
+            except Exception as e:
+                self.logMessage.emit(f"结束进程失败: {e}")
+            self._launch_process = None
         else:
             self.logMessage.emit("用户取消了启动")
         self._launching = False
@@ -261,8 +273,22 @@ class LaunchMixin:
 
     @Slot()
     def killGameProcess(self):
-        if self._launch_process and self._launch_process.poll() is None:
-            self._launch_process.kill()
-            self.logMessage.emit("已强制结束游戏进程")
+        if self._launch_process:
+            pid = self._launch_process.pid
+            try:
+                if sys.platform == "win32":
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                                   capture_output=True, timeout=10)
+                else:
+                    self._launch_process.kill()
+                self.logMessage.emit("已强制结束游戏进程")
+            except Exception as e:
+                self.logMessage.emit(f"结束进程失败: {e}")
+            self._launch_process = None
             self._launching = False
             self.launchProgressChanged.emit(0, "")
+
+    @Slot()
+    def killMinecraft(self):
+        """QML 调用的强制结束入口"""
+        self.killGameProcess()
