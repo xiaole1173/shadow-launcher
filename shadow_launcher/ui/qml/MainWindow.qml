@@ -19,15 +19,8 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
-    property string _toastMsg: ""
-    property bool toastVisible: false
-
-    function showToast(msg) {
-        _toastMsg = msg || ""
-        cancelToast.toastText = msg || ""
-        toastVisible = true
-        toastTimer.restart()
-    }
+    // Toast disabled - see bottom of file for TODO
+    function showToast(msg) { /* TODO: fix black bar issue */ }
 
     Component.onCompleted: {
         if (backend) {
@@ -119,44 +112,33 @@ Window {
             }
         }
 
-        // ── Loading bar (Android-style indeterminate, anchored overlay, no layout impact) ──
-        Item {
-            // This item takes zero layout space but holds the animated bar
+        // ── Loading bar (Android-style indeterminate) ──
+        Rectangle {
+            id: loadingBar
             Layout.fillWidth: true
-            Layout.preferredHeight: 0  // 不占布局空间
+            Layout.preferredHeight: pageLoading ? 2 : 0
+            color: "transparent"
+            clip: true
+
+            Rectangle {
+                id: loadingSlider
+                width: 100; height: 2; radius: 1
+                color: "#6080e8"
+                x: pageLoading ? -40 : -100
+                y: 0
+
+                SequentialAnimation on x {
+                    running: pageLoading
+                    loops: Animation.Infinite
+                    NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
+                    NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
+                }
+            }
         }
 
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
             Layout.margins: 8; spacing: 8
-
-            // Floating loading bar (overlay, positioned at top of RowLayout)
-            Rectangle {
-                id: loadingBar
-                z: 15
-                x: 0; y: 0
-                width: parent.width; height: 2
-                color: "transparent"
-                clip: true
-                opacity: pageLoading ? 1 : 0
-                visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: 150 } }
-
-                Rectangle {
-                    id: loadingSlider
-                    width: 100; height: 2; radius: 1
-                    color: "#6080e8"
-                    x: -100
-                    y: 0
-
-                    SequentialAnimation on x {
-                        running: loadingBar.opacity > 0
-                        loops: Animation.Infinite
-                        NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
-                        NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
-                    }
-                }
-            }
 
             Rectangle {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
@@ -184,22 +166,6 @@ Window {
                     }
                     Item { Layout.fillHeight: true }
                     Text { Layout.alignment: Qt.AlignHCenter; text: "v0.3.0"; font.pixelSize: 10; color: "#303440" }
-
-                    // Force kill button (only visible while game is running)
-                    Rectangle {
-                        id: killButton
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 8
-                        width: 40; height: 40; radius: 20
-                        color: "#3a4eb8"
-                        opacity: backend ? (backend.isRunning ? 1 : 0) : 0
-                        scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
-                        visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
-                        Text { anchors.centerIn: parent; text: "■"; color: "#e8ecf8"; font.pixelSize: 14 }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
-                    }
                 }
 
                 // Animated selection indicator overlay
@@ -1661,37 +1627,35 @@ Window {
     Loader {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
-        active: true
-        visible: item ? item.visible : false
-        onLoaded: {
-            if (item) item.visible = backend ? backend.launching : false
-        }
+        active: backend && backend.launching; visible: active
+    }
+
+    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
+    // See issue: toast with anchors.bottom causes layout jitter
+    property string _toastMsg: ""
+    function showToast(msg) { /* TODO */ }
+
+    Rectangle {
+        id: killButton
+        width: 48; height: 48; radius: 24
+        anchors.right: parent.right; anchors.rightMargin: 20
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 56
+        z: 200; color: "#c05050"
+        opacity: backend ? (backend.isRunning ? 1 : 0) : 0
+        scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
+        Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
+        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
     }
 
     Connections {
         target: backend; enabled: backend !== null
-        function onLaunchProgressChanged(pct, status) {
-            if (!launchOverlayLoader.item) return
-            var launching = backend ? backend.launching : false
-            if (launching && !launchOverlayLoader.item.visible) {
-                launchOverlayLoader.item.visible = true
-            } else if (!launching && launchOverlayLoader.item.visible) {
-                // call closeOverlay if exists, else just hide
-                if (launchOverlayLoader.item.closeOverlay) {
-                    launchOverlayLoader.item.closeOverlay()
-                } else {
-                    launchOverlayLoader.item.visible = false
-                }
-            }
-        }
+        function onLogMessage(msg) { logArea.text += msg + "\n" }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
-        function onLaunchCancelled() { showToast("取消启动成功") }
-        function onLogMessage(msg) { logArea.text += msg + "\n" }
     }
-
-
-    // Kill button moved to sidebar bottom
 
     // 鈺愨晲鈺怌onfirm Dialog ═══
     Rectangle {
@@ -1733,30 +1697,6 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150 } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
-    }
-
-    Timer {
-        id: toastTimer
-        interval: 2500; onTriggered: toastVisible = false
-    }
-
-    Rectangle {
-        id: cancelToast
-        z: 25
-        anchors.top: parent.top; anchors.topMargin: 12
-        anchors.right: parent.right; anchors.rightMargin: 16
-        property string toastText: _toastMsg || "取消启动成功"
-        width: toastLabel.implicitWidth + 24; height: 32; radius: 4
-        color: "#1a2a4a"; border.color: "#3a5080"
-        opacity: toastVisible ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-        Text {
-            id: toastLabel
-            anchors.centerIn: parent
-            text: cancelToast.toastText
-            font.pixelSize: 12; color: "#a0c0f0"
-        }
-    }
+}
 }
 }
