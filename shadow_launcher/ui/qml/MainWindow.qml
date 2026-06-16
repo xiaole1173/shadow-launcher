@@ -1042,7 +1042,7 @@ Window {
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#b04040" : "#8a3030"
-                                            Text { anchors.centerIn: parent; text: "棣冩寽 瀹曗晜绨濇棩蹇?"; font.pixelSize: 11""; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "📋 日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover8 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (backend && !backend.openCrashLog()) showToast("无崩溃报告") }
@@ -1067,7 +1067,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "棣冃?Mod 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover3 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?; return }"; if (backend) backend.openModsFolder(") }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openModsFolder() }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#2538b0" : "#4a5ec8"
