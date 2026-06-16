@@ -34,6 +34,7 @@ class LaunchMixin:
     _launch_status: str = ""
     _launching: bool = False
     _launch_process = None
+    _launch_cancelled: bool = False  # 用户取消标志
     _java_arch_info: str = ""  # 缓存 Java 架构信息
 
     # ═══ 内存工具 ═══
@@ -165,8 +166,17 @@ class LaunchMixin:
             try:
                 # Phase 1: 准备阶段（逐步推进进度）
                 for i in range(1, 6):
+                    if self._launch_cancelled:
+                        self._launching = False
+                        self.launchProgressChanged.emit(0, "")
+                        return
                     time.sleep(0.2)
                     self._update_launch_progress(5 + i * 8, f"准备中 ({i * 20}%)")
+
+                if self._launch_cancelled:
+                    self._launching = False
+                    self.launchProgressChanged.emit(0, "")
+                    return
 
                 # Phase 2: 启动游戏进程
                 self._update_launch_progress(45, "正在解压原生库...")
@@ -208,6 +218,7 @@ class LaunchMixin:
                 self._update_launch_progress(100, "启动完成")
                 time.sleep(1.5)
                 self._launching = False
+                self.launchProgressChanged.emit(0, "")  # notify QML to close overlay
 
                 # 日志监控线程
                 def _watch():
@@ -239,8 +250,11 @@ class LaunchMixin:
 
     @Slot()
     def cancelLaunch(self):
+        self._launch_cancelled = True  # signal the launch thread to abort
         if self._launch_process and self._launch_process.poll() is None:
-            self._launch_process.terminate()
+            self._launch_process.kill()  # kill not terminate for immediate stop
+            self.logMessage.emit("已强制结束游戏进程")
+        else:
             self.logMessage.emit("用户取消了启动")
         self._launching = False
         self.launchProgressChanged.emit(0, "")
