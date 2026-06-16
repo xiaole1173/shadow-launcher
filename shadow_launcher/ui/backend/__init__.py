@@ -245,6 +245,13 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     def versionIds(self):
         return self._version_ids
 
+    @Property("QVariantList", notify=versionListReady)
+    def versionList(self):
+        """Return [{id, type}] for all versions in manifest, for QML filtering."""
+        if not self._version_manifest:
+            return []
+        return [{"id": v.id, "type": v.type} for v in self._version_manifest.versions]
+
     @Property("QVariantList", notify=installedVersionsChanged)
     def installedVersions(self):
         return self._installed_ids

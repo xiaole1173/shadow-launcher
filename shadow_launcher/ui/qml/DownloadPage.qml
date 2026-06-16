@@ -86,12 +86,39 @@ Rectangle {
 
     // ──── Helper: categorize versions ────
     function isSnapshotVersion(v) {
-        return v.indexOf("pre") >= 0 || v.indexOf("rc") >= 0
+        // Use backend.versionList type if available, fall back to name pattern
+        if (backend && backend.versionList) {
+            for (var j = 0; j < backend.versionList.length; j++) {
+                if (backend.versionList[j].id === v) return backend.versionList[j].type === "snapshot"
+            }
+        }
+        return v.indexOf("pre") >= 0 || v.indexOf("rc") >= 0 || /^\d{2}w\d{2}[a-z]$/i.test(v)
     }
     function isOldVersion(v) {
+        // Use backend.versionList type if available
+        if (backend && backend.versionList) {
+            for (var j = 0; j < backend.versionList.length; j++) {
+                if (backend.versionList[j].id === v) {
+                    var t = backend.versionList[j].type
+                    return t === "old_alpha" || t === "old_beta"
+                }
+            }
+        }
         return v.indexOf("alpha") >= 0 || v.indexOf("beta") >= 0 ||
                v.indexOf("inf") >= 0 || v.indexOf("rd") >= 0 ||
                v.indexOf("a1") >= 0 || v.indexOf("b1") >= 0
+    }
+
+    function getVersionType(v) {
+        // Get type string from versionList
+        if (backend && backend.versionList) {
+            for (var j = 0; j < backend.versionList.length; j++) {
+                if (backend.versionList[j].id === v) return backend.versionList[j].type
+            }
+        }
+        if (isSnapshotVersion(v)) return "snapshot"
+        if (isOldVersion(v)) return "old"
+        return "release"
     }
 
     function refreshVersionModel() {

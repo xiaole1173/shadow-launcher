@@ -53,7 +53,6 @@ class VersionMixin:
                 self._version_manifest = manifest
                 self._version_ids = [
                     v.id for v in manifest.versions
-                    if v.type == "release"
                 ]
                 self._installed_ids = get_installed_versions()
                 self.versionListReady.emit()
