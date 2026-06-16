@@ -1202,14 +1202,14 @@ Window {
                                             }
 
                                             // 预设顔?
-                                            Text { text: "预设顔?"; font.pixelSize: 10""; color: "#505468" }
+                                            Text { text: "预设"; font.pixelSize: 10; color: "#505468" }
                                             Flow {
                                                 Layout.fillWidth: true; spacing: 8
                                                 Repeater {
                                                     model: [
-                                                        { label: "榛樿骞宠　", args: "-Xmx2G -XX:+UseG1GC" },
+                                                        { label: "默认平衡", args: "-Xmx2G -XX:+UseG1GC" },
                                                         { label: "性能优先", args: "-Xmx4G -XX:+UseG1GC -XX:+AggressiveOpts" },
-                                                        { label: "低延迟, args: "-Xmx2G -XX:+UseZGC" }
+                                                        { label: "低延迟", args: "-Xmx2G -XX:+UseZGC" }
 
                                                     ]
                                                     Rectangle { width: 90; height: 26; radius: 4; color: presetHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
