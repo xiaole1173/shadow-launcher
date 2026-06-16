@@ -37,7 +37,7 @@ Window {
     }
     function switchPage(index) { navListIndex = index; showVersionSelect = false; showVersionSettings = false }
 
-    // 鈺愨晲鈺怐ownload progress nav item management ═══
+    // 鈺愨晲鈺怐ownload progress nav item management 鈺愨晲鈺?
     property bool downloadNavVisible: false
 
     function showDownloadNav() {
@@ -90,16 +90,16 @@ Window {
             }
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 12
-                Text { text: "Shadow Launcher"; color: "#9498a8"; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
+                Text { text: "Shadow Launcher"; color: "#606478"; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
                 Item { Layout.fillWidth: true }
                 Rectangle {
                     width: 36; height: 24; color: minBtn.containsMouse ? "#1a1f2e" : "transparent"
-                    Text { anchors.centerIn: parent; text: "\u2014"; color: "#9498a8"; font.pixelSize: 14 }
+                    Text { anchors.centerIn: parent; text: "\u2014"; color: "#606478"; font.pixelSize: 14 }
                     MouseArea { id: minBtn; anchors.fill: parent; hoverEnabled: true; onClicked: appWindow.showMinimized() }
                 }
                 Rectangle {
                     width: 36; height: 24; color: closeBtn.containsMouse ? "#c05050" : "transparent"
-                    Text { anchors.centerIn: parent; text: "\u2715"; color: closeBtn.containsMouse ? "#e8ecf8" : "#9498a8"; font.pixelSize: 12 }
+                    Text { anchors.centerIn: parent; text: "\u2715"; color: closeBtn.containsMouse ? "#e8ecf8" : "#606478"; font.pixelSize: 12 }
                     MouseArea { id: closeBtn; anchors.fill: parent; hoverEnabled: true; onClicked: appWindow.close() }
                 }
             }
@@ -114,7 +114,7 @@ Window {
                 color: "#0a0c12"; radius: 6
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
-                    Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
+                    Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#d0d4e0" }
 
                     // Navigation model
                     ListModel {
@@ -130,7 +130,7 @@ Window {
                             width: parent ? parent.width : 180; Layout.fillWidth: true; height: 44
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
                             Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 2; color: navListIndex === index ? "#6080e8" : "transparent" }
-                            Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
+                            Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#d0d4e0" : "#606478" }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
                         }
                     }
@@ -193,7 +193,7 @@ Window {
                                         Behavior on radius { NumberAnimation { duration: 200 } }
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
-                                    Text { anchors.centerIn: parent; text: "正版登录"; font.pixelSize: 13; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
+                                    Text { anchors.centerIn: parent; text: "正版登录"; font.pixelSize: 13; color: loginMode === 0 ? "#d0d4e0" : "#606478"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
                                     MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) backend.setLastLoginMode(0) } }
                                 }
                                 Rectangle {
@@ -208,7 +208,7 @@ Window {
                                         Behavior on radius { NumberAnimation { duration: 200 } }
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
-                                    Text { anchors.centerIn: parent; text: "离线模式"; font.pixelSize: 13; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
+                                    Text { anchors.centerIn: parent; text: "离线模式"; font.pixelSize: 13; color: loginMode === 1 ? "#d0d4e0" : "#606478"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
                                     MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) backend.setLastLoginMode(1) } }
                                 }
                             }
@@ -232,13 +232,13 @@ Window {
                                 Rectangle {
                                     Layout.fillWidth: true; height: 40; radius: 7
                                     color: "#11141c"; border.color: "#1e2230"
-                                    Text { anchors.centerIn: parent; text: "选择已登录账号"; color: "#9498a8"; font.pixelSize: 13 }
+                                    Text { anchors.centerIn: parent; text: "选择已登录账号"; color: "#606478"; font.pixelSize: 13 }
                                     MouseArea { anchors.fill: parent }
                                 }
                                 Rectangle {
                                     Layout.alignment: Qt.AlignHCenter; width: 160; height: 36; radius: 7
                                     color: "#2a3878"
-                                    Text { anchors.centerIn: parent; text: "Microsoft 登录"; color: "#e4e8f2"; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                    Text { anchors.centerIn: parent; text: "Microsoft 登录"; color: "#d0d4e0"; font.pixelSize: 13; font.weight: Font.DemiBold }
                                     MouseArea { anchors.fill: parent }
                                 }
                             }
@@ -265,13 +265,13 @@ Window {
                                     TextInput {
                                         id: offlineNameInput
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                                        color: "#e4e8f2"; font.pixelSize: 13
+                                        color: "#d0d4e0"; font.pixelSize: 13
                                         verticalAlignment: TextInput.AlignVCenter
                                     }
                                     Text {
                                         anchors.left: parent.left; anchors.leftMargin: 12
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: "输入用户名"; color: "#888ca0"
+                                        text: "输入用户名"; color: "#505468"
                                         font.pixelSize: 13
                                         visible: !offlineNameInput.text
                                     }
@@ -321,21 +321,21 @@ Window {
                                             fillMode: Image.PreserveAspectFit
                                         }
                                     }
-                                    Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
+                                    Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#d0d4e0" }
                                 }
 
                                 // UUID
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: backend ? (backend.accountUuid || "") : ""
-                                    font.pixelSize: 10; color: "#888ca0"
+                                    font.pixelSize: 10; color: "#505468"
                                     font.family: "Consolas, monospace"
                                 }
 
                                 // Login type + Logout
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 12
-                                    Text { text: loginMode === 1 ? "离线模式" : "正版登录"; font.pixelSize: 11; color: "#888ca0" }
+                                    Text { text: loginMode === 1 ? "离线模式" : "正版登录"; font.pixelSize: 11; color: "#505468" }
                                     Rectangle {
                                         width: 60; height: 24; radius: 4
                                         color: "transparent"; border.color: "#2a1f24"
@@ -366,14 +366,14 @@ Window {
                                     RowLayout {
                                         anchors.centerIn: parent; spacing: 8
                                         Rectangle { width: 8; height: 8; radius: 4; color: "#6080e8"; visible: currentSelectedVersion !== "" }
-                                        Text { text: currentSelectedVersion || "未选择版本"; font.pixelSize: 16; font.weight: Font.Bold; color: currentSelectedVersion ? "#8aa8f0" : "#787c90" }
+                                        Text { text: currentSelectedVersion || "閺堫亪鈧瀚ㄧ増鏈?; font.pixelSize: 16; font.weight: Font.Bold"; color: currentSelectedVersion ? "#8aa8f0" : "#404458" }
                                     }
                                 }
 
                                 Rectangle {
                                     Layout.fillWidth: true; height: 44; radius: 8
                                     color: "#3a4eb8"
-                                    Text { anchors.centerIn: parent; text: "鍚姩娓告垙"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
+                                    Text { anchors.centerIn: parent; text: "鍚姩娓告垙"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             if (!backend) return
@@ -398,7 +398,7 @@ Window {
                                         RowLayout {
                                             anchors.centerIn: parent; spacing: 6
                                             Rectangle { width: 8; height: 2; radius: 1; color: "#5068c8" }
-                                            Text { text: "版本选择"; font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
+                                            Text { text: "版本选择"; font.pixelSize: 13; font.weight: Font.Medium; color: "#9094a8" }
                                         }
                                     }
                                     Rectangle {
@@ -406,8 +406,8 @@ Window {
                                         MouseArea { anchors.fill: parent; onClicked: { showVersionSettings = true } }
                                         RowLayout {
                                             anchors.centerIn: parent; spacing: 6
-                                            Rectangle { width: 8; height: 8; radius: 2; color: "transparent"; border.color: "#9498a8"; border.width: 1.5 }
-                                            Text { text: "版本设置"; font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
+                                            Rectangle { width: 8; height: 8; radius: 2; color: "transparent"; border.color: "#606478"; border.width: 1.5 }
+                                            Text { text: "版本设置"; font.pixelSize: 13; font.weight: Font.Medium; color: "#9094a8" }
                                         }
                                     }
                                 }
@@ -438,7 +438,7 @@ Window {
                         onVisibleChanged: { if (visible && backend) backend.refreshVersionDetails() }
 
                         Rectangle { x: 16; y: 16; height: 28; width: 80; radius: 5; color: "transparent"
-                            Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#888ca0"; font.pixelSize: 12 }
+                            Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#505468"; font.pixelSize: 12 }
                             MouseArea { anchors.fill: parent; onClicked: { showVersionSelect = false } }
                         }
                         RowLayout {
@@ -448,7 +448,7 @@ Window {
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 14; spacing: 6
-                                    Text { text: "游戏文件夹"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                    Text { text: "游戏文件夹"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                     ListModel { id: gameDirModel }
                                     Component.onCompleted: {
                                         var dirs = backend ? backend.gameDirectories : []
@@ -485,7 +485,7 @@ Window {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     text: model.display
                                                     font.pixelSize: 12
-                                                    color: versionSelectOverlay.activeGameDirIndex === index ? "#8aa8f0" : "#c0c8d8"
+                                                    color: versionSelectOverlay.activeGameDirIndex === index ? "#8aa8f0" : "#a0a5b8"
                                                     elide: Text.ElideRight
                                                     maximumLineCount: 1
                                                 }
@@ -507,8 +507,8 @@ Window {
                                                             if (index === 0) {
                                                                 if (backend) backend.openGameDir(0)
                                                             } else {
-                                                                confirmDialog.title = "缁夊娅庨惄顔肩秿"
-                                                                confirmDialog.message = "是否移除鑺?" + model.display + " 禄锛焠\n（不会删除本地文件）"
+                                                                confirmDialog.title = "缁夊娅庨惄顔肩秿"
+                                                                confirmDialog.message = "閺勵垰鎯佺粔濠氭珟閻╊喖缍?鑺?" + model.display + " 禄锛焠\n（不会删除本地文件）"
                                                                 confirmDialog.onAccept = function() { if (backend) backend.removeGameDir(index) }
                                                                 confirmDialog.visible = true
                                                             }
@@ -532,30 +532,30 @@ Window {
                                             anchors.top: parent.top; anchors.topMargin: 8
                                             spacing: 4
                                             RowLayout {
-                                                Text { text: "版本"; font.pixelSize: 10; color: "#888ca0"; Layout.preferredWidth: 40 }
+                                                Text { text: "版本"; font.pixelSize: 10; color: "#505468"; Layout.preferredWidth: 40 }
                                                 Text { text: backend ? (backend.gameDirInfo.versionCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#8aa8f0" }
                                             }
                                             RowLayout {
-                                                Text { text: "模组"; font.pixelSize: 10; color: "#888ca0"; Layout.preferredWidth: 40 }
-                                                Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "模组"; font.pixelSize: 10; color: "#505468"; Layout.preferredWidth: 40 }
+                                                Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#a0a5b8" }
                                             }
                                             RowLayout {
-                                                Text { text: "占用"; font.pixelSize: 10; color: "#888ca0"; Layout.preferredWidth: 40 }
-                                                Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: 12; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "占用"; font.pixelSize: 10; color: "#505468"; Layout.preferredWidth: 40 }
+                                                Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: 12; font.weight: Font.Medium; color: "#a0a5b8" }
                                             }
                                         }
                                     }
 
                                     Item { height: 4; width: 1 }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: "#9498a8" }
+                                        Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { showToast("功能开发中，请前往文件夹手动添加") }
                                         }
                                     }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: "#9498a8" }
+                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { showToast("导入整合包功能开发中") }
@@ -593,18 +593,18 @@ Window {
                                     // Header row: title + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
-                                        Text { text: "已安装版本"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                        Text { text: "已安装版本"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                         Rectangle {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"
                                             border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
                                             TextInput {
                                                 id: searchField; anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
-                                                color: "#e4e8f2"; font.pixelSize: 12
+                                                color: "#d0d4e0"; font.pixelSize: 12
                                                 verticalAlignment: TextInput.AlignVCenter
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 10
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    text: "搜索版本..."; color: "#787c90"; font.pixelSize: 12
+                                                    text: "搜索版本..."; color: "#404458"; font.pixelSize: 12
                                                     visible: !searchField.text
                                                 }
                                             }
@@ -626,7 +626,7 @@ Window {
                                             property int versionSortIndex: 0
                                             RowLayout {
                                                 anchors.centerIn: parent; spacing: 4
-                                                Text { text: sortBtn.versionSortIndex === 0 ? "↓ 版本" : (sortBtn.versionSortIndex === 1 ? "↓ 版本" : (sortBtn.versionSortIndex === 2 ? "↓ 大小" : "↓ 模组")); font.pixelSize: 10; color: "#b0b8c8" }
+                                                Text { text: sortBtn.versionSortIndex === 0 ? "↓ 版本" : (sortBtn.versionSortIndex === 1 ? "↓ 版本" : (sortBtn.versionSortIndex === 2 ? "↓ 大小" : "↓ 模组")); font.pixelSize: 10; color: "#9094a8" }
                                             }
                                             HoverHandler { id: sortHover }
                                             MouseArea {
@@ -647,7 +647,7 @@ Window {
                                             property var loaderLabels: ["全部类型", "原版", "Forge", "Fabric", "NeoForge", "Quilt"]
                                             RowLayout {
                                                 anchors.centerIn: parent; spacing: 4
-                                                Text { text: loaderFilter.loaderLabels[loaderFilter.loaderFilterIndex]; font.pixelSize: 10; color: "#b0b8c8" }
+                                                Text { text: loaderFilter.loaderLabels[loaderFilter.loaderFilterIndex]; font.pixelSize: 10; color: "#9094a8" }
                                             }
                                             HoverHandler { id: loaderFiltHover }
                                             MouseArea {
@@ -761,7 +761,7 @@ Window {
                                                     // Version id
                                                     Text {
                                                         text: model.id
-                                                        font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2"
+                                                        font.pixelSize: 14; font.weight: Font.DemiBold; color: "#d0d4e0"
                                                         Layout.preferredWidth: 100
                                                         elide: Text.ElideRight
                                                     }
@@ -781,7 +781,7 @@ Window {
                                                             anchors.centerIn: parent
                                                             text: {
                                                                 var vt = model.versionType
-                                                                if (vt === "snapshot") return "蹇収"
+                                                                if (vt === "snapshot") return "蹇収"
                                                                 if (vt === "old") return "旧版"
                                                                 if (vt === "modded") return "整合"
                                                                 return "正式版"
@@ -796,7 +796,7 @@ Window {
                                                     ColumnLayout {
                                                         spacing: 0
                                                         Text { text: model.sizeDisplay || ""; font.pixelSize: 11; font.weight: Font.Medium; color: "#808898"; Layout.alignment: Qt.AlignRight }
-                                                        Text { text: model.modCount > 0 ? model.modCount + " 模组" : ""; font.pixelSize: 10; color: "#989cb0"; Layout.alignment: Qt.AlignRight }
+                                                        Text { text: model.modCount > 0 ? model.modCount + " 模组" : ""; font.pixelSize: 10; color: "#707488"; Layout.alignment: Qt.AlignRight }
                                                     }
 
                                                     Item { width: 4 }
@@ -831,7 +831,7 @@ Window {
                                         Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 40
                                         text: versionFilteredModel.count === 0 && backend && backend.versionDetails && backend.versionDetails.length > 0
                                               ? "没有匹配的版本" : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "还没有安装任何版本\n前往下载页面安装第一个版本吧" : "")
-                                        font.pixelSize: 12; color: "#888ca0"
+                                        font.pixelSize: 12; color: "#505468"
                                         horizontalAlignment: Text.AlignHCenter
                                         visible: versionFilteredModel.count === 0
                                     }
@@ -851,7 +851,7 @@ Window {
                         ColumnLayout {
                             anchors.fill: parent; anchors.margins: 16; spacing: 0
 
-                            // 鈺愨晲鈺怲OP BAR: version info + actions ═══
+                            // 鈺愨晲鈺怲OP BAR: version info + actions 鈺愨晲鈺?
                             Rectangle {
                                 Layout.fillWidth: true; height: 56; radius: 8
                                 color: "#11141c"; border.color: "#1a1e28"
@@ -861,7 +861,7 @@ Window {
                                     // Back button
                                     Rectangle {
                                         width: 60; height: 28; radius: 6; color: "transparent"; border.color: "#1a1f2e"
-                                        Text { anchors.centerIn: parent; text: "↓ 返回"; font.pixelSize: 11; color: "#989cb0" }
+                                        Text { anchors.centerIn: parent; text: "↓ 返回"; font.pixelSize: 11; color: "#707488" }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSettings = false } }
                                     }
 
@@ -869,7 +869,7 @@ Window {
                                     Text {
                                         Layout.fillWidth: true
                                         text: currentSelectedVersion || "未选择版本"
-                                        font.pixelSize: 16; font.weight: Font.Bold; color: "#e4e8f2"
+                                        font.pixelSize: 16; font.weight: Font.Bold; color: "#d0d4e0"
                                     }
 
                                     // Loader tag
@@ -916,7 +916,7 @@ Window {
                                     // Launch button
                                     Rectangle {
                                         width: 100; height: 32; radius: 6; color: "#3a4eb8"
-                                        Text { anchors.centerIn: parent; text: "鍚姩"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: "鍚姩"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (!backend) return
@@ -930,14 +930,14 @@ Window {
 
                             Item { Layout.preferredHeight: 12 }
 
-                            // 鈺愨晲鈺怋ODY: sidebar + content ═══
+                            // 鈺愨晲鈺怋ODY: sidebar + content 鈺愨晲鈺?
                             RowLayout {
                                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 16
                             Rectangle {
                                 Layout.preferredWidth: 170; Layout.fillHeight: true; color: "transparent"
                                 property var sectionModel: [
-                                    { text: "概览", icon: "" },
-                                    { text: "鍚姩閰嶇疆", icon: "" },
+                                    { text: "概览", icon: "" },
+                                    { text: "鍚姩閰嶇疆", icon: "" },
                                     { text: "Mod 管理", icon: "" },
                                     { text: "资源包管理", icon: "" },
                                     { text: "存档管理", icon: "" },
@@ -956,7 +956,7 @@ Window {
                                             Text {
                                                 text: modelData.text
                                                 font.pixelSize: 13
-                                                color: ListView.isCurrentItem ? "#e0e4f8" : (mouseArea2.containsMouse ? "#d4d8e8" : "#686c80")
+                                                color: ListView.isCurrentItem ? "#e0e4f8" : (mouseArea2.containsMouse ? "#c0c4d8" : "#686c80")
                                                 font.weight: ListView.isCurrentItem ? Font.Bold : Font.Normal
                                             }
                                             Item { Layout.fillWidth: true }
@@ -972,7 +972,7 @@ Window {
                                 Layout.fillWidth: true; Layout.fillHeight: true
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
 
-                                // 鈺愨晲鈺怱ection 0: 概览 ═══
+                                // 鈺愨晲鈺怱ection 0: 概览 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 0
@@ -983,25 +983,25 @@ Window {
                                         RowLayout {
                                             anchors.fill: parent; anchors.margins: 14; spacing: 12
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "占用绌洪棿"; font.pixelSize: 10; color: "#888ca0" }
-                                                Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: 14; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "占用绌洪棿"; font.pixelSize: 10; color: "#505468" }
+                                                Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: 14; font.weight: Font.Medium; color: "#a0a5b8" }
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "已装 Mod"; font.pixelSize: 10; color: "#888ca0" }
-                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#c0c8d8" }
+                                                Text { text: "已装 Mod"; font.pixelSize: 10; color: "#505468" }
+                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#a0a5b8" }
 
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
-                                                Text { text: "版本隔离"; font.pixelSize: 10; color: "#888ca0" }
+                                                Text { text: "版本隔离"; font.pixelSize: 10; color: "#505468" }
                                                 Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: 14; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
                                             }
                                         }
                                     }
 
                                     // Shortcuts
-                                    Text { text: "韫囶偅宓庨崗銉ュ經"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                    Text { text: "韫囶偅宓庨崗銉ュ經"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                     Flow {
                                         Layout.fillWidth: true; spacing: 8
 
@@ -1051,7 +1051,7 @@ Window {
 
                                         // Copy path
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#2538b0" : "#3a4eb8"
-                                            Text { anchors.centerIn: parent; text: "棣冩惖 澶嶅埗版本璺緞"; font.pixelSize: 11; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "棣冩惖 澶嶅埗版本璺緞"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHoverCp }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1091,7 +1091,7 @@ Window {
                                     Item { Layout.fillHeight: true }
                                 }
 
-                                // 鈺愨晲鈺怱ection 1: 鍚姩閰嶇疆 ═══
+                                // 鈺愨晲鈺怱ection 1: 鍚姩閰嶇疆 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 1
@@ -1104,8 +1104,8 @@ Window {
                                             id: launchSettingsContent
                                             width: parent.width; spacing: 14
 
-                                            // Java 环境顖氼暔
-                                            Text { text: "Java 环境顖氼暔"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
+                                            // Java 环境顖氼暔
+                                            Text { text: "Java 环境顖氼暔"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#d0d4e0" }
 
                                             // Recommended Java hint
                                             Text {
@@ -1128,16 +1128,16 @@ Window {
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#1a1f2e"
                                                 Text { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                                                    text: backend ? (backend.javaPath || "閺堫亝顥呭ù瀣煂 Java") : "閺堫亝顥呭ù瀣煂 Java"
-                                                    font.pixelSize: 12; color: "#b0b8c8"; elide: Text.ElideMiddle; width: parent.width - 90 }
+                                                    text: backend ? (backend.javaPath || "閺堫亝顥呭ù瀣煂 Java") : "閺堫亝顥呭ù瀣煂 Java"
+                                                    font.pixelSize: 12; color: "#9094a8"; elide: Text.ElideMiddle; width: parent.width - 90 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"
-                                                    Text { anchors.centerIn: parent; text: "閼奉亜濮╁Λ鈧ù?"; font.pixelSize: 11; color: "#e8ecf8" }
+                                                    Text { anchors.centerIn: parent; text: "閼奉亜濮╁Λ鈧ù?"; font.pixelSize: 11; color: "#e8ecf8" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
                                                     width: 50; height: 26; radius: 4; color: "transparent"; border.color: "#1a1f2e"
-                                                    Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#b0b8c8" }
+                                                    Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#9094a8" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.pickJava() } }
                                                 }
                                             }
@@ -1158,16 +1158,16 @@ Window {
                                                     if (compat === "recommended") return "#4bc870"
                                                     if (compat === "compatible") return "#e0a040"
                                                     if (compat === "incompatible") return "#c05050"
-                                                    return "#888ca0"
+                                                    return "#505468"
                                                 }
                                             }
 
                                             // 鍐呭瓨设置
-                                            Text { text: "内存分配"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                                            Text { text: "内存分配"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#d0d4e0"; Layout.topMargin: 8 }
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 12
                                                 ColumnLayout { Layout.fillWidth: true; spacing: 4
-                                                    Text { text: "最大内存 " + (backend ? backend.maxMemoryMb + " MB" : "-"); font.pixelSize: 12; color: "#c0c8d8" }
+                                                    Text { text: "最大内存 " + (backend ? backend.maxMemoryMb + " MB" : "-"); font.pixelSize: 12; color: "#a0a5b8" }
                                                     Slider {
                                                         id: maxMemSlider; Layout.fillWidth: true
                                                         from: 512; to: 16384; stepSize: 512
@@ -1176,13 +1176,13 @@ Window {
                                                         onMoved: { if (backend) backend.setMaxMemory(value) }
                                                     }
                                                 }
-                                                Text { text: "最小" + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#989cb0" }
+                                                Text { text: "最小" + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#707488" }
                                             }
-                                            Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#888ca0" }
+                                            Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#505468" }
 
-                                            // 閼奉亜濮╅崘鍛摠
+                                            // 閼奉亜濮╅崘鍛摠
                                             RowLayout {
-                                                Text { text: "閼奉亜濮╅崚鍡涘帳"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "閼奉亜濮╅崚鍡涘帳"; font.pixelSize: 12; color: "#a0a5b8" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.autoMemoryEnabled : true
@@ -1191,18 +1191,18 @@ Window {
                                             }
 
                                             // JVM 参数
-                                            Text { text: "JVM 参数"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                                            Text { text: "JVM 参数"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#d0d4e0"; Layout.topMargin: 8 }
                                             Rectangle { Layout.fillWidth: true; height: 60; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                                                 TextInput {
                                                     id: jvmArgsInput; anchors.fill: parent; anchors.margins: 8
-                                                    color: "#b0b8c8"; font.pixelSize: 11; font.family: "Consolas, monospace"
+                                                    color: "#9094a8"; font.pixelSize: 11; font.family: "Consolas, monospace"
                                                     text: backend ? backend.jvmArgs : ""
                                                     onEditingFinished: { if (backend) backend.setJvmArgs(text) }
                                                 }
                                             }
 
-                                            // 预设顔?
-                                            Text { text: "预设"; font.pixelSize: 10; color: "#888ca0" }
+                                            // 预设顔?
+                                            Text { text: "预设"; font.pixelSize: 10; color: "#505468" }
                                             Flow {
                                                 Layout.fillWidth: true; spacing: 8
                                                 Repeater {
@@ -1213,7 +1213,7 @@ Window {
 
                                                     ]
                                                     Rectangle { width: 90; height: 26; radius: 4; color: presetHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                                        Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 11; color: "#b0b8c8" }
+                                                        Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 11; color: "#9094a8" }
                                                         HoverHandler { id: presetHover }
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                             onClicked: { jvmArgsInput.text = modelData.args; if (backend) backend.setJvmArgs(modelData.args) }
@@ -1222,10 +1222,10 @@ Window {
                                                 }
                                             }
 
-                                            // 版本闅旂顬?
-                                            Text { text: "版本琛屼负"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                                            // 版本闅旂顬?
+                                            Text { text: "版本琛屼负"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#d0d4e0"; Layout.topMargin: 8 }
                                             RowLayout {
-                                                Text { text: "版本闅旂顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "版本闅旂顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#a0a5b8" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.isolationEnabled : false
@@ -1235,7 +1235,7 @@ Window {
 
                                             // 閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤
                                             RowLayout {
-                                                Text { text: "閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤"; font.pixelSize: 12; color: "#c0c8d8" }
+                                                Text { text: "閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤"; font.pixelSize: 12; color: "#a0a5b8" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.closeOnLaunch : false
@@ -1243,13 +1243,13 @@ Window {
                                                 }
                                             }
 
-                                            // 濞撳憡鍨欓梽鍕鍙傛暟
-                                            Text { text: "濞撳憡鍨欓梽鍕鍙傛暟"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
-                                            Text { text: "（示例 --width 1920 --height 1080 --fullscreen閿?"; font.pixelSize: 9; color: "#888ca0" }
+                                            // 濞撳憡鍨欓梽鍕鍙傛暟
+                                            Text { text: "濞撳憡鍨欓梽鍕鍙傛暟"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#d0d4e0"; Layout.topMargin: 10 }
+                                            Text { text: "（示例 --width 1920 --height 1080 --fullscreen閿?"; font.pixelSize: 9; color: "#505468" }
                                             Rectangle { Layout.fillWidth: true; height: 44; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                                                 TextInput {
                                                     id: gameArgsInput; anchors.fill: parent; anchors.margins: 8
-                                                    color: "#b0b8c8"; font.pixelSize: 11; font.family: "Consolas, monospace"
+                                                    color: "#9094a8"; font.pixelSize: 11; font.family: "Consolas, monospace"
                                                     text: backend ? backend.gameArgs : ""
                                                     onEditingFinished: { if (backend) backend.setGameArgs(text) }
                                                 }
@@ -1258,13 +1258,13 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 2: Mod 管理 ═══
+                                // 鈺愨晲鈺怱ection 2: Mod 管理 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 2
 
-                                    Text { text: "Mod 管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "管理已安装的 Mod閿涘本鐓￠惇瀣閺堫剙鎷板吋瀹诡啇閹佲偓?"; font.pixelSize: 11; color: "#9498a8" }
+                                    Text { text: "Mod 管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "绠＄悊宸插畨瑁呯殑 Mod閿涘本鐓￠惇瀣閺堫剙鎷板吋瀹诡啇閹佲偓?"; font.pixelSize: 11; color: "#606478" }
 
                                     // Refresh + search
                                     RowLayout {
@@ -1280,7 +1280,7 @@ Window {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"; border.color: modSearchField.activeFocus ? "#5068c8" : "#1a1f2e"
                                             TextInput {
                                                 id: modSearchField; anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
-                                                color: "#e4e8f2"; font.pixelSize: 12; verticalAlignment: TextInput.AlignVCenter
+                                                color: "#d0d4e0"; font.pixelSize: 12; verticalAlignment: TextInput.AlignVCenter
                                                 onTextChanged: {
                                                     modListModel.clear()
                                                     if (backend) {
@@ -1295,7 +1295,7 @@ Window {
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 10
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    text: "搜索 Mod..."; color: "#787c90"; font.pixelSize: 12
+                                                    text: "搜索 Mod..."; color: "#404458"; font.pixelSize: 12
                                                     visible: !modSearchField.text
                                                 }
                                             }
@@ -1312,8 +1312,8 @@ Window {
                                             width: modListView.width; height: 36; radius: 4; color: modRowHover.hovered ? "#11141c" : "transparent"
                                             RowLayout {
                                                 anchors.fill: parent; anchors.margins: 10; spacing: 10
-                                                Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
-                                                Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
+                                                Text { text: name; font.pixelSize: 12; color: "#c0c4d8"; Layout.fillWidth: true; elide: Text.ElideRight }
+                                                Text { text: sizeDisplay; font.pixelSize: 10; color: "#606478" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
                                                     Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { id: delBtnHover; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
@@ -1330,13 +1330,13 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 3: 璧勬簮鍖呯鐞嗏晲鈺愨晲
+                                // 鈺愨晲鈺怱ection 3: 璧勬簮鍖呯鐞嗏晲鈺愨晲
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 3
 
-                                    Text { text: "资源包管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "管理已安装的资源包和材质包"; font.pixelSize: 11; color: "#9498a8" }
+                                    Text { text: "资源包管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "管理已安装的资源包和材质包"; font.pixelSize: 11; color: "#606478" }
 
                                     RowLayout {
                                         spacing: 8
@@ -1347,7 +1347,7 @@ Window {
                                             }
                                         }
                                         Rectangle { height: 28; radius: 4; color: "transparent"; border.color: "#1a1f2e"; implicitWidth: rpOpenText.implicitWidth + 20
-                                            Text { id: rpOpenText; anchors.centerIn: parent; text: "閹垫挸绱戞枃浠跺す?"; font.pixelSize: 11; color: "#b0b8c8" }
+                                            Text { id: rpOpenText; anchors.centerIn: parent; text: "閹垫挸绱戞枃浠跺す?"; font.pixelSize: 11; color: "#9094a8" }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.openResourcePacksFolder() } }
                                         }
                                     }
@@ -1364,8 +1364,8 @@ Window {
                                                 Rectangle { width: 20; height: 20; radius: 3; color: isDir ? "#5060a0" : "#3a6040"
                                                     Text { anchors.centerIn: parent; text: isDir ? "棣冩惂" : "棣冩⒒"; font.pixelSize: 10 }
                                                 }
-                                                Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
-                                                Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
+                                                Text { text: name; font.pixelSize: 12; color: "#c0c4d8"; Layout.fillWidth: true; elide: Text.ElideRight }
+                                                Text { text: sizeDisplay; font.pixelSize: 10; color: "#606478" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
                                                     Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1382,13 +1382,13 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 4: 存档管理 ═══
+                                // 鈺愨晲鈺怱ection 4: 存档管理 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 4
 
-                                    Text { text: "存档管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "閺屻儳婀呴妴浣割槵娴犺棄鎷扮粻锛勬倞娴ｇ姷娈戝〒鍛婂灆鐎涙ɑ銆傞妴?"; font.pixelSize: 11; color: "#9498a8" }
+                                    Text { text: "存档管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "閺屻儳婀呴妴浣割槵娴犺棄鎷扮粻锛勬倞娴ｇ姷娈戝〒鍛婂灆鐎涙ɑ銆傞妴?"; font.pixelSize: 11; color: "#606478" }
 
                                     Rectangle {
                                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
@@ -1407,8 +1407,8 @@ Window {
                                             width: saveListView.width; height: 36; radius: 4; color: saveRowHover.hovered ? "#11141c" : "transparent"
                                             RowLayout {
                                                 anchors.fill: parent; anchors.margins: 10; spacing: 10
-                                                Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
-                                                Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
+                                                Text { text: name; font.pixelSize: 12; color: "#c0c4d8"; Layout.fillWidth: true; elide: Text.ElideRight }
+                                                Text { text: sizeDisplay; font.pixelSize: 10; color: "#606478" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
                                                     Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1430,8 +1430,8 @@ Window {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 5
 
-                                    Text { text: "游戏完整性校验"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "閹殿偅寮块柅澶婄暰版本閻ㄥ嫭鐖堕幋蹇旀瀮娴犺泛鐣弫瀛樷偓褝绱濆Λ鈧弻銉﹀疮閸у繑鍨ㄧ己澶遍惃鍕瀮娴犺翰鈧?"; font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                    Text { text: "游戏完整性校验"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "閹殿偅寮块柅澶婄暰版本閻ㄥ嫭鐖堕幋蹇旀瀮娴犺泛鐣弫瀛樷偓褝绱濆Λ鈧弻銉﹀疮閸у繑鍨ㄧ己澶遍惃鍕瀮娴犺翰鈧?"; font.pixelSize: 11; color: "#606478"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                                     // Start button
                                     Rectangle {
@@ -1465,9 +1465,9 @@ Window {
                                                     var pct = Math.round(backend.verifyProgressDone / backend.verifyProgressTotal * 100)
                                                     return "鏍￠獙 个. " + backend.verifyProgressDone + "/" + backend.verifyProgressTotal + " (" + pct + "%)"
                                                 }
-                                                return backend && backend.verifyRunning ? "閸戝棗顦稉?.." : ""
+                                                return backend && backend.verifyRunning ? "閸戝棗顦稉?.." : ""
                                             }
-                                            font.pixelSize: 11; color: "#989cb0"
+                                            font.pixelSize: 11; color: "#707488"
                                         }
                                     }
 
@@ -1483,7 +1483,7 @@ Window {
                                                 id: verifyResultLabel
                                                 width: parent.width
                                                 text: backend ? backend.verifyResultText : ""
-                                                font.pixelSize: 11; color: "#b0b8c8"
+                                                font.pixelSize: 11; color: "#9094a8"
                                                 font.family: "Consolas, Microsoft YaHei, monospace"
                                                 wrapMode: Text.WordWrap
                                                 lineHeight: 1.6
@@ -1508,13 +1508,13 @@ Window {
                                     Item { height: 12; width: 1 }
 
                                     // Version tools
-                                    Text { text: "版本宸ュ叿"; font.pixelSize: 10; color: "#787c90"; font.letterSpacing: 1.5 }
+                                    Text { text: "版本宸ュ叿"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                     Flow {
                                         Layout.fillWidth: true; spacing: 8
 
                                         // Clone
                                         Rectangle { width: 110; height: 32; radius: 5; color: cloneHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "鍏嬮殕版本"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "鍏嬮殕版本"; font.pixelSize: 11; color: "#a0a5b8" }
                                             HoverHandler { id: cloneHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1530,7 +1530,7 @@ Window {
 
                                         // Rename
                                         Rectangle { width: 110; height: 32; radius: 5; color: renameHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#a0a5b8" }
                                             HoverHandler { id: renameHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1544,7 +1544,7 @@ Window {
 
                                         // Migrate
                                         Rectangle { width: 110; height: 32; radius: 5; color: migrateHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "杩佺Щ鐩綍"; font.pixelSize: 11; color: "#c0c8d8" }
+                                            Text { anchors.centerIn: parent; text: "杩佺Щ鐩綍"; font.pixelSize: 11; color: "#a0a5b8" }
                                             HoverHandler { id: migrateHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1592,7 +1592,7 @@ Window {
         active: backend && backend.launching; visible: active
     }
 
-    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
+    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) 鈺愨晲鈺?
     // See issue: toast with anchors.bottom causes layout jitter
     property string _toastMsg: ""
     function showToast(msg) { /* TODO */ }
@@ -1619,7 +1619,7 @@ Window {
         function onMinecraftStopped() { killButton.visible = false }
     }
 
-    // 鈺愨晲鈺怌onfirm Dialog ═══
+    // 鈺愨晲鈺怌onfirm Dialog 鈺愨晲鈺?
     Rectangle {
         id: confirmDialog; z: 400
         anchors.centerIn: parent; width: 360; height: 180; radius: 10
@@ -1633,17 +1633,17 @@ Window {
 
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 12
-            Text { text: confirmDialog.title; font.pixelSize: 15; font.weight: Font.Bold; color: "#e4e8f2" }
-            Text { text: confirmDialog.message; font.pixelSize: 12; color: "#b0b8c8"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            Text { text: confirmDialog.title; font.pixelSize: 15; font.weight: Font.Bold; color: "#d0d4e0" }
+            Text { text: confirmDialog.message; font.pixelSize: 12; color: "#9094a8"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
             Item { Layout.fillHeight: true }
             RowLayout {
                 Layout.alignment: Qt.AlignRight; spacing: 10
                 Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
-                    Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
+                    Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#9094a8" }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
                 }
                 Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
-                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
+                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { confirmDialog.visible = false; if (confirmDialog.onAccept) confirmDialog.onAccept() }
                     }

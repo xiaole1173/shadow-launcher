@@ -510,6 +510,12 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     def javaPath(self):
         return self._java_path
 
+    @javaPath.setter
+    def javaPath(self, value):
+        if self._java_path != value:
+            self._java_path = value
+            self.javaPathChanged.emit()
+
     @Property(str, notify=javaPathChanged)
     def javaVersion(self):
         return self._java_version
