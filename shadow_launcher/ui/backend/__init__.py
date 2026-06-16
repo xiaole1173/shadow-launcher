@@ -82,6 +82,9 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         self._source_index = 0
         self._isolation_enabled = is_isolation_enabled()
         self._isolated_versions = get_isolated_versions()
+        self._java_path = ""
+        self._java_version = ""
+        self._java_major = 0
 
         # 调用各 Mixin 的初始化
         self._init_account()
@@ -590,7 +593,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         path, _ = QFileDialog.getOpenFileName(None, "选择 Java 可执行文件", "",
             "Java (javaw.exe java.exe);;All Files (*.*)")
         if path:
-            self.java_path = path
+            self.javaPath = path
             self._detect_java_version(path)
         return path
 
@@ -628,7 +631,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             if len(candidates) >= 5:
                 break
         if candidates:
-            self.java_path = candidates[0]
+            self.javaPath = candidates[0]
             self._detect_java_version(candidates[0])
 
     def _detect_java_version(self, java_path: str):
@@ -637,7 +640,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         try:
             result = subprocess.run([java_path, "-version"], capture_output=True, text=True, timeout=10)
             output = result.stdout + result.stderr
-            m = re.search(r'version "(\d+(?:\.\d+)?)', output)
+            m = re.search(r'version "([\d.]+)', output)
             if m:
                 ver = m.group(1)
                 self._java_version = ver

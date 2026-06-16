@@ -1146,9 +1146,9 @@ Window {
                                                     if (!backend || !backend.javaVersion) return ""
                                                     var compat = backend.javaCompatibility
                                                     var base = backend.javaVersion
-                                                    if (compat === "recommended") return base + "  ✓ 推荐"
-                                                    if (compat === "compatible") return base + "  ↓ 兼容"
-                                                    if (compat === "incompatible") return base + "  ✗ 不兼容"
+                                                    if (compat === "recommended") return base + "  推荐"
+                                                    if (compat === "compatible") return base + "  兼容"
+                                                    if (compat === "incompatible") return base + "  不兼容"
 
                                                     return base
                                                 }
