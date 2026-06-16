@@ -1218,9 +1218,9 @@ Window {
                                             }
                                             Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#a8b0c0" }
 
-                                            // 閼奉亜濮╅崘鍛摠
+                                            // 自动内存
                                             RowLayout {
-                                                Text { text: "閼奉亜濮╅崚鍡涘帳"; font.pixelSize: 12; color: "#d4dcf0" }
+                                                Text { text: "自动内存"; font.pixelSize: 12; color: "#d4dcf0" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.autoMemoryEnabled : true
@@ -1260,10 +1260,10 @@ Window {
                                                 }
                                             }
 
-                                            // 版本隔离（模组配置/存档独立）顬?
-                                            Text { text: "版本琛屼负"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                                            // 版本隔离
+                                            Text { text: "版本隔离"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                                             RowLayout {
-                                                Text { text: "版本隔离（模组配置/存档独立）顬囬敍鍫熌佺紒?閰嶇疆/鐎涙ɑ銆傞悪顒傜彌閿?"; font.pixelSize: 12; color: "#d4dcf0" }
+                                                Text { text: "版本隔离（模组配置/存档独立）"; font.pixelSize: 12; color: "#d4dcf0" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.isolationEnabled : false
@@ -1271,9 +1271,9 @@ Window {
                                                 }
                                             }
 
-                                            // 閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤
+                                            // 启动后关闭启动器
                                             RowLayout {
-                                                Text { text: "閸氼垰濮╅崥搴″彠闂傤厼鎯庨崝銊ユ珤"; font.pixelSize: 12; color: "#d4dcf0" }
+                                                Text { text: "启动后关闭启动器"; font.pixelSize: 12; color: "#d4dcf0" }
                                                 Item { Layout.fillWidth: true }
                                                 Switch {
                                                     checked: backend ? backend.closeOnLaunch : false
@@ -1281,9 +1281,9 @@ Window {
                                                 }
                                             }
 
-                                            // 濞撳憡鍨欓梽鍕鍙傛暟
-                                            Text { text: "濞撳憡鍨欓梽鍕鍙傛暟"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
-                                            Text { text: "（示例 --width 1920 --height 1080 --fullscreen閿?"; font.pixelSize: 9; color: "#a8b0c0" }
+                                            // 游戏附加参数
+                                            Text { text: "游戏附加参数"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
+                                            Text { text: "（示例 --width 1920 --height 1080 --fullscreen）"; font.pixelSize: 9; color: "#a8b0c0" }
                                             Rectangle { Layout.fillWidth: true; height: 44; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                                                 TextInput {
                                                     id: gameArgsInput; anchors.fill: parent; anchors.margins: 8
@@ -1302,7 +1302,7 @@ Window {
                                     visible: settingsNav.currentIndex === 2
 
                                     Text { text: "Mod 管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "管理已安装的 Mod，查看版本和兼容性。閿涘本鐓￠惇瀣閺堫剙鎷板吋瀹诡啇閹佲偓?"; font.pixelSize: 11; color: "#9498a8" }
+                                    Text { text: "管理已安装的 Mod，查看版本和兼容性。"; font.pixelSize: 11; color: "#9498a8" }
 
                                     // Refresh + search
                                     RowLayout {
@@ -1353,7 +1353,7 @@ Window {
                                                 Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
-                                                    Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
+                                                    Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { id: delBtnHover; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                                         onClicked: { if (backend) backend.deleteMod(name); modListModel.remove(index) }
                                                     }
@@ -1385,7 +1385,7 @@ Window {
                                             }
                                         }
                                         Rectangle { height: 28; radius: 4; color: "transparent"; border.color: "#1a1f2e"; implicitWidth: rpOpenText.implicitWidth + 20
-                                            Text { id: rpOpenText; anchors.centerIn: parent; text: "閹垫挸绱戞枃浠跺す?"; font.pixelSize: 11; color: "#b0b8c8" }
+                                            Text { id: rpOpenText; anchors.centerIn: parent; text: "打开文件夹"; font.pixelSize: 11; color: "#b0b8c8" }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.openResourcePacksFolder() } }
                                         }
                                     }
@@ -1400,12 +1400,12 @@ Window {
                                             RowLayout {
                                                 anchors.fill: parent; anchors.margins: 10; spacing: 10
                                                 Rectangle { width: 20; height: 20; radius: 3; color: isDir ? "#5060a0" : "#3a6040"
-                                                    Text { anchors.centerIn: parent; text: isDir ? "棣冩惂" : "棣冩⒒"; font.pixelSize: 10 }
+                                                    Text { anchors.centerIn: parent; text: isDir ? "文件夹" : "文件"; font.pixelSize: 10 }
                                                 }
                                                 Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                                    Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
+                                                    Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                         onClicked: { if (backend) backend.deleteResourcePack(name); rpListModel.remove(index) }
                                                     }
@@ -1426,7 +1426,7 @@ Window {
                                     visible: settingsNav.currentIndex === 4
 
                                     Text { text: "存档管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "閺屻儳婀呴妴浣割槵娴犺棄鎷扮粻锛勬倞娴ｇ姷娈戝〒鍛婂灆鐎涙ɑ銆傞妴?"; font.pixelSize: 11; color: "#9498a8" }
+                                    Text { text: "管理已保存的世界存档，可备份或迁移存档文件。"; font.pixelSize: 11; color: "#9498a8" }
 
                                     Rectangle {
                                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
@@ -1448,7 +1448,7 @@ Window {
                                                 Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                                    Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
+                                                    Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                         onClicked: { if (backend) backend.deleteSave(name); saveListModel.remove(index) }
                                                     }
@@ -1469,13 +1469,13 @@ Window {
                                     visible: settingsNav.currentIndex === 5
 
                                     Text { text: "游戏完整性校验"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                                    Text { text: "扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。閻ㄥ嫭鐖堕幋蹇旀瀮娴犺泛鐣弫瀛樷偓褝绱濆Λ鈧弻銉﹀疮閸у繑鍨ㄧ己澶遍惃鍕瀮娴犺翰鈧?"; font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                    Text { text: "扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。"; font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                                     // Start button
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
                                         color: (backend && backend.verifyRunning) ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
-                                        Text { anchors.centerIn: parent; text: (backend && backend.verifyRunning) ? "鏍￠獙 个.." : "开始校验; font.pixelSize: 12"; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: (backend && backend.verifyRunning) ? "校验中..." : "开始校验"; font.pixelSize: 12; color: "#e8ecf8" }
 
                                         MouseArea {
                                             id: verifyBtnMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
@@ -1501,9 +1501,9 @@ Window {
                                             text: {
                                                 if (backend && backend.verifyProgressTotal > 0) {
                                                     var pct = Math.round(backend.verifyProgressDone / backend.verifyProgressTotal * 100)
-                                                    return "鏍￠獙 个. " + backend.verifyProgressDone + "/" + backend.verifyProgressTotal + " (" + pct + "%)"
+                                                    return "校验中 " + backend.verifyProgressDone + "/" + backend.verifyProgressTotal + " (" + pct + "%)"
                                                 }
-                                                return backend && backend.verifyRunning ? "閸戝棗顦稉?.." : ""
+                                                return backend && backend.verifyRunning ? "校验中..." : ""
                                             }
                                             font.pixelSize: 11; color: "#989cb0"
                                         }
@@ -1546,13 +1546,13 @@ Window {
                                     Item { height: 12; width: 1 }
 
                                     // Version tools
-                                    Text { text: "版本宸ュ叿"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                                    Text { text: "版本工具"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                     Flow {
                                         Layout.fillWidth: true; spacing: 8
 
                                         // Clone
                                         Rectangle { width: 110; height: 32; radius: 5; color: cloneHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "鍏嬮殕版本"; font.pixelSize: 11; color: "#d4dcf0" }
+                                            Text { anchors.centerIn: parent; text: "克隆版本"; font.pixelSize: 11; color: "#d4dcf0" }
                                             HoverHandler { id: cloneHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
