@@ -339,11 +339,6 @@ class SettingsMixin:
     def getJavaMajor(self) -> int:
         return self._java_major
 
-    @Property("QVariantList", notify=javaPathChanged)
-    def javaList(self):
-        """Return list of all detected Java installations [{path, version, major}]"""
-        results = find_java_installations()
-        return [{"path": p, "version": v, "major": m} for p, v, m in results]
 
     # ═══ Alias slots for QML compatibility ═══
 

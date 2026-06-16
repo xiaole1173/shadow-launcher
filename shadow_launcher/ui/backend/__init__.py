@@ -505,6 +505,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     def isolatedVersions(self):
         return self._isolated_versions
 
+
     # ═══ Java 属性 ═══
 
     javaPathChanged = Signal()
@@ -518,6 +519,13 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         if self._java_path != value:
             self._java_path = value
             self.javaPathChanged.emit()
+
+    @Property("QVariantList", notify=javaPathChanged)
+    def javaList(self):
+        """Return list of all detected Java installations [{path, version, major}]"""
+        from .settings import find_java_installations
+        results = find_java_installations()
+        return [{"path": p, "version": v, "major": m} for p, v, m in results]
 
     @Property(str, notify=javaPathChanged)
     def javaVersion(self):
