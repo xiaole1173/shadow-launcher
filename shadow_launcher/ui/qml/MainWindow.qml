@@ -448,7 +448,7 @@ Window {
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 14; spacing: 6
-                                    Text { text: "游戏文件夹"; font.pixelSize: 10""; color: "#404458"; font.letterSpacing: 1.5 }
+                                    Text { text: "游戏文件夹"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                     ListModel { id: gameDirModel }
                                     Component.onCompleted: {
                                         var dirs = backend ? backend.gameDirectories : []
