@@ -548,7 +548,7 @@ Window {
 
                                     Item { height: 4; width: 1 }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "+ 娣诲姞鏂囦欢澶?"; font.pixelSize: 11""; color: "#606478" }
+                                        Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { showToast("鍔熻兘寮€鍙戜腑锛岃鍓嶅線鏂囦欢澶规墜鍔ㄦ坊鍔?) }
