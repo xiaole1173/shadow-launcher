@@ -43,7 +43,7 @@ Window {
     function showDownloadNav() {
         if (!downloadNavVisible) {
             downloadNavVisible = true
-            navModel.append({ label: "涓嬭浇杩涘害", pageKey: "download_progress" })
+            navModel.append({ label: "下载杩涘害", pageKey: "download_progress" })
             switchPage(navModel.count - 1)  // auto-switch to the new page
         }
     }
@@ -120,8 +120,8 @@ Window {
                     ListModel {
                         id: navModel
                         ListElement { label: "鍚姩"; pageKey: "home" }
-                        ListElement { label: "涓嬭浇"; pageKey: "download" }
-                        ListElement { label: "璁剧疆"; pageKey: "settings" }
+                        ListElement { label: "下载"; pageKey: "download" }
+                        ListElement { label: "设置"; pageKey: "settings" }
                     }
 
                     Repeater {
@@ -373,7 +373,7 @@ Window {
                                 Rectangle {
                                     Layout.fillWidth: true; height: 44; radius: 8
                                     color: "#3a4eb8"
-                                    Text { anchors.centerIn: parent; text: "鍚?鍔?娓?鎴?"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
+                                    Text { anchors.centerIn: parent; text: "启动游戏"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             if (!backend) return
@@ -407,7 +407,7 @@ Window {
                                         RowLayout {
                                             anchors.centerIn: parent; spacing: 6
                                             Rectangle { width: 8; height: 8; radius: 2; color: "transparent"; border.color: "#606478"; border.width: 1.5 }
-                                            Text { text: "鐗堟湰璁剧疆"; font.pixelSize: 13; font.weight: Font.Medium; color: "#9094a8" }
+                                            Text { text: "鐗堟湰设置"; font.pixelSize: 13; font.weight: Font.Medium; color: "#9094a8" }
                                         }
                                     }
                                 }
@@ -551,14 +551,14 @@ Window {
                                         Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { showToast("鍔熻兘寮€鍙戜腑锛岃鍓嶅線鏂囦欢澶规墜鍔ㄦ坊鍔?) }
+                                            onClicked: { showToast("功能开发中，请前往文件夹手动添加") }
                                         }
                                     }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "瀵煎叆鏁村悎鍖?"; font.pixelSize: 11; color: "#606478" }
+                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: "#606478" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { showToast("瀵煎叆鏁村悎鍖呭姛鑳藉紑鍙戜腑") }
+                                            onClicked: { showToast("瀵煎叆整合鍖呭姛鑳藉紑鍙戜腑") }
                                         }
                                     }
 
@@ -572,11 +572,11 @@ Window {
                                         Text {
                                             anchors.left: parent.left; anchors.leftMargin: 30; anchors.verticalCenter: parent.verticalCenter
                                             text: {
-                                                if (!backend) return "纾佺洏淇℃伅涓嶅彲鐢?
+                                                if (!backend) return "磁盘信息不可用"
                                                 var pct = backend.diskPercent
                                                 var free = backend.diskFree
-                                                var status = pct > 95 ? "鍗遍櫓" : (pct > 80 ? "鍋忎綆" : "姝ｅ父")
-                                                return "鍓╀綑 " + free + "  (" + status + ")"
+                                                var status = pct > 95 ? "危险" : (pct > 80 ? "偏低" : "正常")
+                                                return "剩余 " + free + "  (" + status + ")"
                                             }
                                             font.pixelSize: 11; color: "#808898"
                                         }
@@ -593,7 +593,7 @@ Window {
                                     // Header row: title + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
-                                        Text { text: "宸插畨瑁呯増鏈?"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
+                                        Text { text: "已安装版本"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                         Rectangle {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"
                                             border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
@@ -604,7 +604,7 @@ Window {
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 10
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    text: "鎼滅储鐗堟湰..."; color: "#404458"; font.pixelSize: 12
+                                                    text: "搜索鐗堟湰..."; color: "#404458"; font.pixelSize: 12
                                                     visible: !searchField.text
                                                 }
                                             }
@@ -781,10 +781,10 @@ Window {
                                                             anchors.centerIn: parent
                                                             text: {
                                                                 var vt = model.versionType
-                                                                if (vt === "snapshot") return "蹇収"
-                                                                if (vt === "old") return "鏃х増"
-                                                                if (vt === "modded") return "鏁村悎"
-                                                                return "姝ｅ紡鐗?
+                                                                if (vt === "snapshot") return "快照"
+                                                                if (vt === "old") return "旧版"
+                                                                if (vt === "modded") return "整合"
+                                                                return "正式版"
                                                             }
                                                             font.pixelSize: 9; color: "#e8ecf8"
                                                         }
@@ -830,7 +830,7 @@ Window {
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 40
                                         text: versionFilteredModel.count === 0 && backend && backend.versionDetails && backend.versionDetails.length > 0
-                                              ? "娌℃湁鍖归厤鐨勭増鏈? : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "杩樻病鏈夊畨瑁呬换浣曠増鏈琝n鍓嶅線涓嬭浇椤甸潰瀹夎绗竴涓増鏈惂" : "")
+                                              ? "没有匹配的版本" : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "还没有安装任何版本\n前往下载页面安装第一个版本吧" : "")
                                         font.pixelSize: 12; color: "#505468"
                                         horizontalAlignment: Text.AlignHCenter
                                         visible: versionFilteredModel.count === 0
@@ -916,7 +916,7 @@ Window {
                                     // Launch button
                                     Rectangle {
                                         width: 100; height: 32; radius: 6; color: "#3a4eb8"
-                                        Text { anchors.centerIn: parent; text: "鍚?鍔?"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: "启动"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (!backend) return
@@ -938,11 +938,11 @@ Window {
                                 Layout.preferredWidth: 170; Layout.fillHeight: true; color: "transparent"
                                 property var sectionModel: [
                                     { text: "姒傝", icon: "" },
-                                    { text: "鍚姩閰嶇疆", icon: "" },
-                                    { text: "Mod 绠＄悊", icon: "" },
-                                    { text: "璧勬簮鍖呯鐞?, icon: "" },
-                                    { text: "瀛樻。绠＄悊", icon: "" },
-                                    { text: "宸ュ叿涓庣淮鎶?, icon: "" }
+                                    { text: "启动配置", icon: "" },
+                                    { text: "Mod 管理", icon: "" },
+                                    { text: "资源包管理", icon: "" },
+                                    { text: "存档管理", icon: "" },
+                                    { text: "工具与维护", icon: "" }
                                 ]
                                 ListView {
                                     id: settingsNav
@@ -988,12 +988,13 @@ Window {
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
                                                 Text { text: "宸茶 Mod"; font.pixelSize: 10; color: "#505468" }
-                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 涓?; font.pixelSize: 14; font.weight: Font.Medium; color: "#a0a5b8" }
+                                                Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#a0a5b8" }
+
                                             }
                                             Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                                             ColumnLayout { Layout.fillWidth: true; spacing: 2
                                                 Text { text: "鐗堟湰闅旂"; font.pixelSize: 10; color: "#505468" }
-                                                Text { text: backend && backend.isolationEnabled ? "宸插紑鍚? : "鏈紑鍚?; font.pixelSize: 14; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
+                                                Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: 14; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
                                             }
                                         }
                                     }
@@ -1005,51 +1006,51 @@ Window {
 
                                         // Always visible
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover0.hovered ? "#2538b0" : "#3a4eb8"
-                                            Text { anchors.centerIn: parent; text: "馃搧 鐗堟湰鏂囦欢澶?"; font.pixelSize: 11; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "📧 版本文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover0 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.openVersionDir(currentSelectedVersion) }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.openVersionDir(currentSelectedVersion") }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#2538b0" : "#3a4eb8"
-                                            Text { anchors.centerIn: parent; text: "馃捑 瀛樻。鏂囦欢澶?"; font.pixelSize: 11; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "📑 存档文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover1 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.openSavesFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.openSavesFolder(") }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#2538b0" : "#3a4eb8"
                                             Text { anchors.centerIn: parent; text: "馃摲 鎴浘鏂囦欢澶?"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover2 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.openScreenshotsFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.openScreenshotsFolder(") }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#2538b0" : "#3a4eb8"
                                             Text { anchors.centerIn: parent; text: "馃搵 logs 鏃ュ織"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover6 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (backend && !backend.openLogsFolder()) showToast("鏃犳棩蹇楁枃浠?) }
+                                                onClicked: { if (backend && !backend.openLogsFolder()) showToast("鏃犳棩蹇楁枃浠?") }
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#2538b0" : "#3a4eb8"
                                             Text { anchors.centerIn: parent; text: "馃搫 鏈€鏂板惎鍔ㄦ棩蹇?"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover7 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (backend && !backend.openLatestLog()) showToast("鏈壘鍒板惎鍔ㄦ棩蹇?) }
+                                                onClicked: { if (backend && !backend.openLatestLog()) showToast("鏈壘鍒板惎鍔ㄦ棩蹇?") }
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#b04040" : "#8a3030"
                                             Text { anchors.centerIn: parent; text: "馃挜 宕╂簝鏃ュ織"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover8 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (backend && !backend.openCrashLog()) showToast("鏃犲穿婧冩姤鍛?) }
+                                                onClicked: { if (backend && !backend.openCrashLog()) showToast("鏃犲穿婧冩姤鍛?") }
                                             }
                                         }
 
                                         // Copy path
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#2538b0" : "#3a4eb8"
-                                            Text { anchors.centerIn: parent; text: "馃搵 澶嶅埗鐗堟湰璺緞"; font.pixelSize: 11; color: "#e8ecf8" }
+                                            Text { anchors.centerIn: parent; text: "馃搵 澶嶅埗版本路径"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHoverCp }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
@@ -1065,7 +1066,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "馃З Mod 鏂囦欢澶?"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover3 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.openModsFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.openModsFolder(") }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#2538b0" : "#4a5ec8"
@@ -1073,7 +1074,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "鈿?config 閰嶇疆"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover4 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.openConfigFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.openConfigFolder(") }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover5.hovered ? "#2538b0" : "#4a5ec8"
@@ -1081,7 +1082,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "鉁?鍏夊奖鍖?"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover5 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.openShaderPacksFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.openShaderPacksFolder(") }
                                             }
                                         }
                                     }
@@ -1089,7 +1090,7 @@ Window {
                                     Item { Layout.fillHeight: true }
                                 }
 
-                                // 鈺愨晲鈺?Section 1: 鍚姩閰嶇疆 鈺愨晲鈺?
+                                // 鈺愨晲鈺?Section 1: 启动配置 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 1
@@ -1146,7 +1147,8 @@ Window {
                                                     var base = backend.javaVersion
                                                     if (compat === "recommended") return base + "  鉁?鎺ㄨ崘"
                                                     if (compat === "compatible") return base + "  鈿?鍏煎"
-                                                    if (compat === "incompatible") return base + "  鉂?涓嶅吋瀹?
+                                                    if (compat === "incompatible") return base + "  鉂?涓嶅吋瀹?"
+
                                                     return base
                                                 }
                                                 font.pixelSize: 10
@@ -1159,7 +1161,7 @@ Window {
                                                 }
                                             }
 
-                                            // 鍐呭瓨璁剧疆
+                                            // 鍐呭瓨设置
                                             Text { text: "鍐呭瓨鍒嗛厤"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#d0d4e0"; Layout.topMargin: 8 }
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 12
@@ -1204,9 +1206,10 @@ Window {
                                                 Layout.fillWidth: true; spacing: 8
                                                 Repeater {
                                                     model: [
-                                                        { label: "榛樿骞宠　", args: "-Xmx2G -XX:+UseG1GC" },
-                                                        { label: "鎬ц兘浼樺厛", args: "-Xmx4G -XX:+UseG1GC -XX:+AggressiveOpts" },
-                                                        { label: "浣庡欢杩?, args: "-Xmx2G -XX:+UseZGC" }
+                                                        { label: "默认平衡", args: "-Xmx2G -XX:+UseG1GC" },
+                                                        { label: "性能优先", args: "-Xmx4G -XX:+UseG1GC -XX:+AggressiveOpts" },
+                                                        { label: "低延迟", args: "-Xmx2G -XX:+UseZGC" }
+
                                                     ]
                                                     Rectangle { width: 90; height: 26; radius: 4; color: presetHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
                                                         Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 11; color: "#9094a8" }
@@ -1254,12 +1257,12 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺?Section 2: Mod 绠＄悊 鈺愨晲鈺?
+                                // 鈺愨晲鈺?Section 2: Mod 管理 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 2
 
-                                    Text { text: "Mod 绠＄悊"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "Mod 管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
                                     Text { text: "绠＄悊宸插畨瑁呯殑 Mod锛屾煡鐪嬬増鏈拰鍏煎鎬с€?"; font.pixelSize: 11; color: "#606478" }
 
                                     // Refresh + search
@@ -1291,7 +1294,7 @@ Window {
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 10
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    text: "鎼滅储 Mod..."; color: "#404458"; font.pixelSize: 12
+                                                    text: "搜索 Mod..."; color: "#404458"; font.pixelSize: 12
                                                     visible: !modSearchField.text
                                                 }
                                             }
@@ -1311,7 +1314,7 @@ Window {
                                                 Text { text: name; font.pixelSize: 12; color: "#c0c4d8"; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 Text { text: sizeDisplay; font.pixelSize: 10; color: "#606478" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
-                                                    Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
+                                                    Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { id: delBtnHover; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                                         onClicked: { if (backend) backend.deleteMod(name); modListModel.remove(index) }
                                                     }
@@ -1326,12 +1329,12 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺?Section 3: 璧勬簮鍖呯鐞?鈺愨晲鈺?
+                                // 鈺愨晲鈺?Section 3: 资源包管理鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 3
 
-                                    Text { text: "璧勬簮鍖呯鐞?"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "资源包管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
                                     Text { text: "绠＄悊宸插畨瑁呯殑璧勬簮鍖呭拰鏉愯川鍖呫€?"; font.pixelSize: 11; color: "#606478" }
 
                                     RowLayout {
@@ -1363,7 +1366,7 @@ Window {
                                                 Text { text: name; font.pixelSize: 12; color: "#c0c4d8"; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 Text { text: sizeDisplay; font.pixelSize: 10; color: "#606478" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                                    Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
+                                                    Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                         onClicked: { if (backend) backend.deleteResourcePack(name); rpListModel.remove(index) }
                                                     }
@@ -1378,12 +1381,12 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺?Section 4: 瀛樻。绠＄悊 鈺愨晲鈺?
+                                // 鈺愨晲鈺?Section 4: 存档管理 鈺愨晲鈺?
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 4
 
-                                    Text { text: "瀛樻。绠＄悊"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
+                                    Text { text: "存档管理"; font.pixelSize: 14; font.bold: true; color: "#d0d4e0" }
                                     Text { text: "鏌ョ湅銆佸浠藉拰绠＄悊浣犵殑娓告垙瀛樻。銆?"; font.pixelSize: 11; color: "#606478" }
 
                                     Rectangle {
@@ -1406,7 +1409,7 @@ Window {
                                                 Text { text: name; font.pixelSize: 12; color: "#c0c4d8"; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 Text { text: sizeDisplay; font.pixelSize: 10; color: "#606478" }
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                                    Text { anchors.centerIn: parent; text: "鍒犻櫎"; font.pixelSize: 10; color: "#c05050" }
+                                                    Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                         onClicked: { if (backend) backend.deleteSave(name); saveListModel.remove(index) }
                                                     }
@@ -1433,11 +1436,12 @@ Window {
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
                                         color: (backend && backend.verifyRunning) ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
-                                        Text { anchors.centerIn: parent; text: (backend && backend.verifyRunning) ? "鏍￠獙涓?.." : "寮€濮嬫牎楠?; font.pixelSize: 12; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: (backend && backend.verifyRunning) ? "校验中..." : "开始校验"; font.pixelSize: 12; color: "#e8ecf8" }
+
                                         MouseArea {
                                             id: verifyBtnMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                             enabled: !(backend && backend.verifyRunning)
-                                            onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return } if (backend) backend.verifyVersion(currentSelectedVersion) }
+                                            onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return } if (backend) backend.verifyVersion(currentSelectedVersion") }
                                         }
                                     }
 
@@ -1496,37 +1500,43 @@ Window {
                                         Text { anchors.centerIn: parent; text: "涓€閿慨澶?"; font.pixelSize: 12; color: "#e8ecf8" }
                                         HoverHandler { id: repairBtnHover }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }; if (backend) backend.repairVersion(currentSelectedVersion) }
+                                            onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本); return }; if (backend) backend.repairVersion(currentSelectedVersion") }
                                         }
                                     }
 
                                     Item { height: 12; width: 1 }
 
                                     // Version tools
-                                    Text { text: "鐗堟湰宸ュ叿"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
+                                    Text { text: "版本工具"; font.pixelSize: 10; color: "#404458"; font.letterSpacing: 1.5 }
                                     Flow {
                                         Layout.fillWidth: true; spacing: 8
 
                                         // Clone
                                         Rectangle { width: 110; height: 32; radius: 5; color: cloneHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "鍏嬮殕鐗堟湰"; font.pixelSize: 11; color: "#a0a5b8" }
+                                            Text { anchors.centerIn: parent; text: "克隆版本"; font.pixelSize: 11; color: "#a0a5b8" }
                                             HoverHandler { id: cloneHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }
+                                                    if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
+
                                                     if (backend) backend.cloneVersion(currentSelectedVersion)
-                                                    showToast("已克隆版本: " + currentSelectedVersion)                                }
+
+                                                    showToast("已克隆版本: " + currentSelectedVersion) }
+
+
                                             }
                                         }
 
                                         // Rename
                                         Rectangle { width: 110; height: 32; radius: 5; color: renameHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                                            Text { anchors.centerIn: parent; text: "閲嶅懡鍚嶇増鏈?"; font.pixelSize: 11; color: "#a0a5b8" }
+                                            Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#a0a5b8" }
                                             HoverHandler { id: renameHover }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }
+                                                    if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
+
                                                     if (backend) backend.renameVersion(currentSelectedVersion)
+
                                                 }
                                             }
                                         }
@@ -1547,16 +1557,17 @@ Window {
                                     Item { height: 12; width: 1 }
 
                                     // Delete version
-                                    Text { text: "鍗遍櫓鎿嶄綔"; font.pixelSize: 10; color: "#c05050"; font.letterSpacing: 1.5 }
+                                    Text { text: "危险操作"; font.pixelSize: 10; color: "#c05050"; font.letterSpacing: 1.5 }
                                     Rectangle {
                                         Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#2a1f24"
-                                        Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "鍒犻櫎姝ょ増鏈?"; font.pixelSize: 13; color: "#c05050" }
+                                        Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13; color: "#c05050" }
                                         MouseArea {
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                if (!currentSelectedVersion) { showToast("璇峰厛閫夋嫨涓€涓増鏈?); return }
-                                                confirmDialog.title = "鍒犻櫎鐗堟湰"
-                                                confirmDialog.message = "纭畾瑕佸垹闄ょ増鏈?芦 " + currentSelectedVersion + " 禄 鍚楋紵\n姝ゆ搷浣滀笉鍙挙閿€锛岀増鏈枃浠跺す灏嗚姘镐箙鍒犻櫎銆?
+                                                if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
+                                                confirmDialog.title = "删除鐗堟湰"
+                                                confirmDialog.message = "确定要删除版本 « " + currentSelectedVersion + " 禄 鍚楋紵\n姝ゆ搷浣滀笉鍙挙閿€锛岀増鏈枃浠跺す灏嗚姘镐箙删除銆?"
+
                                                 confirmDialog.onAccept = function() {
                                                     showVersionSettings = false
                                                     backend.deleteVersion(currentSelectedVersion)
@@ -1627,11 +1638,11 @@ Window {
             RowLayout {
                 Layout.alignment: Qt.AlignRight; spacing: 10
                 Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
-                    Text { anchors.centerIn: parent; text: "鍙栨秷"; font.pixelSize: 12; color: "#9094a8" }
+                    Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#9094a8" }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
                 }
                 Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
-                    Text { anchors.centerIn: parent; text: "纭"; font.pixelSize: 12; color: "#e8ecf8" }
+                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { confirmDialog.visible = false; if (confirmDialog.onAccept) confirmDialog.onAccept() }
                     }
@@ -1648,5 +1659,13 @@ Window {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
     }
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
