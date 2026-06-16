@@ -19,8 +19,15 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
-    // Toast disabled - see bottom of file for TODO
-    function showToast(msg) { /* TODO: fix black bar issue */ }
+    property string _toastMsg: ""
+    property bool toastVisible: false
+
+    function showToast(msg) {
+        _toastMsg = msg || ""
+        cancelToast.toastText = msg || ""
+        toastVisible = true
+        toastTimer.restart()
+    }
 
     Component.onCompleted: {
         if (backend) {
@@ -1657,10 +1664,6 @@ Window {
         active: backend && backend.launching; visible: active
     }
 
-    // Cancel toast notification
-    property string _toastMsg: ""
-    property bool toastVisible: false
-
     Timer {
         id: toastTimer
         interval: 2500; onTriggered: toastVisible = false
@@ -1683,13 +1686,6 @@ Window {
             text: cancelToast.toastText
             font.pixelSize: 12; color: "#a0c0f0"
         }
-    }
-
-    function showToast(msg) {
-        _toastMsg = msg || ""
-        cancelToast.toastText = msg || "取消启动成功"
-        toastVisible = true
-        toastTimer.restart()
     }
 
 
