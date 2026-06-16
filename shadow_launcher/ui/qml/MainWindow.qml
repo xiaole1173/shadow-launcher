@@ -784,7 +784,7 @@ Window {
                                                                 if (vt === "snapshot") return "蹇収"
                                                                 if (vt === "old") return "旧版"
                                                                 if (vt === "modded") return "整合"
-                                                                return "正式版
+                                                                return "正式版"
                                                             }
                                                             font.pixelSize: 9; color: "#e8ecf8"
                                                         }
