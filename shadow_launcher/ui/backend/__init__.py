@@ -252,6 +252,21 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             return []
         return [{"id": v.id, "type": v.type} for v in self._version_manifest.versions]
 
+    @Property("QVariantList", notify=versionListReady)
+    def releaseVersions(self):
+        """Pre-filtered: release versions only [id, ...]"""
+        return [v.id for v in self._version_manifest.versions if v.type == "release"] if self._version_manifest else []
+
+    @Property("QVariantList", notify=versionListReady)
+    def snapshotVersions(self):
+        """Pre-filtered: snapshot versions only [id, ...]"""
+        return [v.id for v in self._version_manifest.versions if v.type == "snapshot"] if self._version_manifest else []
+
+    @Property("QVariantList", notify=versionListReady)
+    def oldVersions(self):
+        """Pre-filtered: old_alpha/old_beta versions only [id, ...]"""
+        return [v.id for v in self._version_manifest.versions if v.type in ("old_alpha", "old_beta")] if self._version_manifest else []
+
     @Property("QVariantList", notify=installedVersionsChanged)
     def installedVersions(self):
         return self._installed_ids

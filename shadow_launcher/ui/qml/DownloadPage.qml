@@ -67,7 +67,7 @@ Rectangle {
         target: backend
         enabled: backend !== null
 
-        function onVersionListReady() { _versionTypeMap = null; refreshVersionModel(); appWindow.pageLoading = false }
+        function onVersionListReady() { refreshVersionModel(); appWindow.pageLoading = false }
 
         function onResourceDownloadDone(success) {
             page.installingMod = false
@@ -121,52 +121,21 @@ Rectangle {
 
     function refreshVersionModel() {
         versionModel.clear()
-        if (!backend || !backend.versionIds) return
-        var vids = backend.versionIds
-        for (var i = 0; i < vids.length; i++) {
-            var vid = vids[i]
-            var vtype = "release"
-            if (isSnapshotVersion(vid)) vtype = "snapshot"
-            else if (isOldVersion(vid)) vtype = "old"
-            if (currentFilter === "release" && vtype === "release") {
-                versionModel.append({versionId: vid, vtype: vtype})
-            } else if (currentFilter === "snapshot" && vtype === "snapshot") {
-                versionModel.append({versionId: vid, vtype: vtype})
-            } else if (currentFilter === "old" && vtype === "old") {
-                versionModel.append({versionId: vid, vtype: vtype})
-            }
+        if (!backend) return
+        var list
+        if (currentFilter === "snapshot") list = backend.snapshotVersions
+        else if (currentFilter === "old") list = backend.oldVersions
+        else list = backend.releaseVersions
+        if (!list) return
+        for (var i = 0; i < list.length; i++) {
+            versionModel.append({versionId: list[i], vtype: currentFilter})
         }
         appWindow.pageLoading = false
     }
 
-    function getReleaseCount() {
-        var c = 0
-        if (backend && backend.versionIds) {
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i] || ""
-                if (!isSnapshotVersion(v) && !isOldVersion(v)) c++
-            }
-        }
-        return c
-    }
-    function getSnapshotCount() {
-        var c = 0
-        if (backend && backend.versionIds) {
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                if (isSnapshotVersion(backend.versionIds[i] || "")) c++
-            }
-        }
-        return c
-    }
-    function getOldCount() {
-        var c = 0
-        if (backend && backend.versionIds) {
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                if (isOldVersion(backend.versionIds[i] || "")) c++
-            }
-        }
-        return c
-    }
+    function getReleaseCount() { return backend ? backend.releaseVersions.length : 0 }
+    function getSnapshotCount() { return backend ? backend.snapshotVersions.length : 0 }
+    function getOldCount() { return backend ? backend.oldVersions.length : 0 }
 
     // ──── Tab bar ────
     RowLayout {
@@ -503,7 +472,7 @@ Rectangle {
         Connections {
             target: backend
             enabled: backend !== null && page.currentTab === 0
-            function onVersionListReady() { _versionTypeMap = null; refreshVersionModel(); appWindow.pageLoading = false }
+            function onVersionListReady() { refreshVersionModel(); appWindow.pageLoading = false }
         }
 
         // ── Version install progress overlay ──
