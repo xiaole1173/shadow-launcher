@@ -129,7 +129,7 @@ Window {
                 PropertyAnimation on x {
                     id: slideAnim
                     from: -100
-                    to: parent.width + 100
+                    to: appWindow.width + 100
                     duration: 1200
                     loops: Animation.Infinite
                     running: pageLoading
