@@ -110,7 +110,7 @@ Window {
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
-        // ── Header bar (matches sidebar color, same height as SHADOW area) ──
+        // ── Header row (spans full width, matches sidebar color) ──
         Rectangle {
             Layout.fillWidth: true; height: 44
             color: "#0a0c12"
@@ -118,7 +118,6 @@ Window {
                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
                 spacing: 0
                 Item { Layout.fillWidth: true }
-                // Minimize button
                 Rectangle {
                     width: 28; height: 28; radius: 14
                     color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
@@ -129,7 +128,6 @@ Window {
                     MouseArea { id: hdrMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
                 }
                 Item { width: 6 }
-                // Close button
                 Rectangle {
                     width: 28; height: 28; radius: 14
                     color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
@@ -171,7 +169,8 @@ Window {
 
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
-            Layout.margins: 8; spacing: 8
+            Layout.leftMargin: 8; Layout.rightMargin: 8; Layout.bottomMargin: 8; Layout.topMargin: -36
+            spacing: 8
 
             Rectangle {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
