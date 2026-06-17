@@ -58,6 +58,9 @@ set(SOURCES
     src/backend/launch_backend.cpp
     src/backend/resource_backend.cpp
     src/backend/check_backend.cpp
+
+    # Unified backend wrapper (Phase 4)
+    src/backend/shadow_backend.cpp
 )
 
 set(HEADERS
@@ -77,6 +80,9 @@ set(HEADERS
     src/backend/launch_backend.h
     src/backend/resource_backend.h
     src/backend/check_backend.h
+
+    # Unified backend wrapper (Phase 4)
+    src/backend/shadow_backend.h
 )
 
 # ============================================================
@@ -87,9 +93,24 @@ qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS})
 qt_add_qml_module(ShadowLauncher
     URI "ShadowLauncher"
     VERSION 1.0
-    # Phase 1: Minimal test QML (switch to real QML in Phase 4)
+    # Phase 4: Full QML UI from Python project
     QML_FILES
-        qml/Phase1Main.qml
+        qml/MainWindow.qml
+        qml/HomePage.qml
+        qml/DownloadPage.qml
+        qml/DownloadProgressPage.qml
+        qml/SettingsPage.qml
+        qml/SettingsGeneralPage.qml
+        qml/SettingsJavaPage.qml
+        qml/SettingsMemoryPage.qml
+        qml/VersionSelectPage.qml
+        qml/VersionSettingsPage.qml
+        qml/LaunchOverlay.qml
+        qml/InstallConfigOverlay.qml
+        qml/KillButton.qml
+        qml/ShadowButton.qml
+        qml/SubPageOverlays.qml
+        qml/ToastManager.qml
 )
 
 target_include_directories(ShadowLauncher PRIVATE src)

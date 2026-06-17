@@ -1,5 +1,5 @@
 // Shadow Launcher — C++ Entry Point
-// Phase 1: Minimal QML bootstrap (no backend yet)
+// Phase 4: Unified backend + QML UI port
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -7,6 +7,10 @@
 #include <QIcon>
 #include <QDir>
 #include <QStandardPaths>
+
+#include "backend/shadow_backend.h"
+
+using namespace ShadowLauncher;
 
 int main(int argc, char *argv[])
 {
@@ -22,14 +26,18 @@ int main(int argc, char *argv[])
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataDir);
 
+    // Create unified backend — owns all 7 sub-backends
+    ShadowBackend* backend = new ShadowBackend(&app);
+
     // QML engine
     QQmlApplicationEngine engine;
 
-    // Expose data directory to QML
+    // Expose backend and data directory to QML
+    engine.rootContext()->setContextProperty("backend", backend);
     engine.rootContext()->setContextProperty("dataDir", dataDir);
 
     // Load main QML
-    const QUrl url(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/Phase1Main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &app, []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
