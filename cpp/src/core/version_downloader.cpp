@@ -1,0 +1,755 @@
+// Shadow Launcher — VersionDownloader
+// Minecraft version installation pipeline: client.jar + libraries + assets.
+// Uses ParallelDownloader for concurrent multi-file downloads and
+// HttpClient for single-file asset index retrieval.
+
+#include "version_downloader.h"
+#include "parallel_downloader.h"
+#include "http_client.h"
+
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QCryptographicHash>
+#include <QEventLoop>
+#include <QUrl>
+
+namespace ShadowLauncher {
+
+// ═══════════════════════════════════════════════════════════
+// MirrorSource — predefined mirrors
+// ═══════════════════════════════════════════════════════════
+
+MirrorSource MirrorSource::bmclapi()
+{
+    MirrorSource m;
+    m.name           = QStringLiteral("BMCLAPI");
+    m.desc           = QStringLiteral("国内高速 · 默认推荐");
+    m.manifestUrl    = QStringLiteral("https://bmclapi2.bangbang93.com/mc/game/version_manifest.json");
+    m.versionMetaHost = QStringLiteral("bmclapi2.bangbang93.com");
+    m.resourceBase   = QStringLiteral("https://bmclapi2.bangbang93.com/assets");
+    m.libraryBase    = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
+    m.jarHost        = QStringLiteral("bmclapi2.bangbang93.com");
+    m.isDefault      = true;
+    return m;
+}
+
+MirrorSource MirrorSource::mojang()
+{
+    MirrorSource m;
+    m.name           = QStringLiteral("Mojang 官方");
+    m.desc           = QStringLiteral("官方源 · 较慢但权威");
+    m.manifestUrl    = QStringLiteral("https://launchermeta.mojang.com/mc/game/version_manifest.json");
+    m.versionMetaHost = QStringLiteral("launchermeta.mojang.com");
+    m.resourceBase   = QStringLiteral("https://resources.download.minecraft.net");
+    m.libraryBase    = QStringLiteral("https://libraries.minecraft.net");
+    m.jarHost        = QStringLiteral("launcher.mojang.com");
+    return m;
+}
+
+MirrorSource MirrorSource::mcbbs()
+{
+    MirrorSource m;
+    m.name           = QStringLiteral("MCBBS 镜像");
+    m.desc           = QStringLiteral("国内备用 · 可靠");
+    m.manifestUrl    = QStringLiteral("https://download.mcbbs.net/mc/game/version_manifest.json");
+    m.versionMetaHost = QStringLiteral("download.mcbbs.net");
+    m.resourceBase   = QStringLiteral("https://download.mcbbs.net/assets");
+    m.libraryBase    = QStringLiteral("https://download.mcbbs.net/maven");
+    m.jarHost        = QStringLiteral("download.mcbbs.net");
+    return m;
+}
+
+QVector<MirrorSource> MirrorSource::allMirrors()
+{
+    return { bmclapi(), mojang(), mcbbs() };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Construction / Destruction
+// ═══════════════════════════════════════════════════════════
+
+VersionDownloader::VersionDownloader(QObject* parent)
+    : QObject(parent)
+    , m_mirror(MirrorSource::bmclapi())
+    , m_minecraftDir(QDir::homePath() + QStringLiteral("/.shadow/minecraft"))
+{
+    m_downloader = new ParallelDownloader(m_maxWorkers, this);
+
+    // Forward progress signals
+    connect(m_downloader, &ParallelDownloader::progressChanged,
+            this, [this](int completed, int total, qint64 dlBytes, qint64 totBytes) {
+        m_completedFiles.storeRelaxed(completed);
+        m_totalFiles.storeRelaxed(total);
+        m_downloadedBytes.storeRelaxed(static_cast<int>(dlBytes));
+        m_totalBytes.storeRelaxed(static_cast<int>(totBytes));
+        emit progressChanged(completed, total, dlBytes, totBytes);
+    });
+
+    connect(m_downloader, &ParallelDownloader::fileProgress,
+            this, &VersionDownloader::fileProgress);
+
+    connect(m_downloader, &ParallelDownloader::logMessage,
+            this, &VersionDownloader::logMessage);
+
+    connect(m_downloader, &ParallelDownloader::allFinished,
+            this, &VersionDownloader::onAllFinished);
+}
+
+VersionDownloader::~VersionDownloader()
+{
+    // ParallelDownloader is a QObject child; auto-deleted
+}
+
+// ═══════════════════════════════════════════════════════════
+// Configuration
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::setMirror(const MirrorSource& mirror)
+{
+    m_mirror = mirror;
+}
+
+void VersionDownloader::setMinecraftDir(const QString& dir)
+{
+    m_minecraftDir = dir;
+}
+
+void VersionDownloader::setMaxWorkers(int workers)
+{
+    m_maxWorkers = qBound(1, workers, 64);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Main pipeline: downloadVersion
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
+                                         const QString& versionId)
+{
+    if (m_state == Running || m_state == Paused) {
+        emit logMessage(QStringLiteral("⚠ 已有下载任务进行中"));
+        return;
+    }
+
+    m_state = Running;
+    m_currentVersionId = versionId;
+    m_currentVersionJson = versionJson;
+    m_assetObjects.clear();
+    m_taskDestPaths.clear();
+
+    m_completedFiles.storeRelaxed(0);
+    m_totalFiles.storeRelaxed(0);
+    m_totalBytes.storeRelaxed(0);
+    m_downloadedBytes.storeRelaxed(0);
+
+    emit stateChanged();
+
+    // --- Step 1: Save version JSON to disk ---
+    const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
+    QDir().mkpath(versionDir);
+
+    const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    QJsonDocument doc(versionJson);
+    QFile jsonFile(jsonPath);
+    if (jsonFile.open(QIODevice::WriteOnly)) {
+        jsonFile.write(doc.toJson(QJsonDocument::Indented));
+        jsonFile.close();
+        emit logMessage(QStringLiteral("已保存版本清单: %1").arg(jsonPath));
+    } else {
+        emit logMessage(QStringLiteral("⚠ 无法保存版本清单: %1").arg(jsonPath));
+    }
+
+    // --- Step 2: Download asset index JSON ---
+    QJsonObject assetIdx = versionJson.value(QStringLiteral("assetIndex")).toObject();
+    if (!assetIdx.isEmpty()) {
+        emit logMessage(QStringLiteral("下载资源索引..."));
+        if (downloadAssetIndex(assetIdx)) {
+            m_assetObjects = parseAssetIndex(assetIdx);
+            emit logMessage(QStringLiteral("资源清单: %1 个文件需要下载").arg(m_assetObjects.size()));
+        } else {
+            emit logMessage(QStringLiteral("⚠ 资源索引下载失败，跳过资源文件"));
+        }
+    }
+
+    // --- Step 3: Collect all download tasks ---
+    QVector<DownloadTask> tasks;
+    collectTasks(versionJson, versionId, m_assetObjects, tasks);
+
+    const int totalFiles = tasks.size();
+    m_totalFiles.storeRelaxed(totalFiles);
+
+    qint64 totalEstimate = 0;
+    for (const auto& t : tasks)
+        totalEstimate += t.totalBytes;
+    m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+
+    emit logMessage(QStringLiteral("准备下载 %1 个文件, 预估 %2")
+                        .arg(totalFiles)
+                        .arg(formatSize(totalEstimate)));
+
+    if (tasks.isEmpty()) {
+        m_state = Done;
+        emit downloadFinished(true, QString());
+        emit stateChanged();
+        return;
+    }
+
+    // --- Step 4: Start parallel download ---
+    m_downloader->addTasks(tasks);
+    m_downloader->start();
+}
+
+// ═══════════════════════════════════════════════════════════
+// Lifecycle: pause / resume / cancel
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::pause()
+{
+    if (m_state != Running) return;
+    m_state = Paused;
+    m_downloader->pause();
+    emit stateChanged();
+}
+
+void VersionDownloader::resume()
+{
+    if (m_state != Paused) return;
+    m_state = Running;
+    m_downloader->resume();
+    emit stateChanged();
+}
+
+void VersionDownloader::cancel()
+{
+    if (m_state != Running && m_state != Paused) return;
+    m_state = Cancelled;
+    m_downloader->cancel();
+    emit stateChanged();
+}
+
+// ═══════════════════════════════════════════════════════════
+// State queries
+// ═══════════════════════════════════════════════════════════
+
+int VersionDownloader::completedFiles() const
+{
+    return m_completedFiles.loadRelaxed();
+}
+
+int VersionDownloader::totalFiles() const
+{
+    return m_totalFiles.loadRelaxed();
+}
+
+qint64 VersionDownloader::downloadedBytes() const
+{
+    return m_downloadedBytes.loadRelaxed();
+}
+
+qint64 VersionDownloader::totalBytes() const
+{
+    return m_totalBytes.loadRelaxed();
+}
+
+QString VersionDownloader::stateStr() const
+{
+    switch (m_state) {
+    case Idle:       return QStringLiteral("idle");
+    case Running:    return QStringLiteral("running");
+    case Paused:     return QStringLiteral("paused");
+    case Cancelled:  return QStringLiteral("cancelled");
+    case Verifying:  return QStringLiteral("verifying");
+    case Done:       return QStringLiteral("done");
+    case Failed:     return QStringLiteral("failed");
+    }
+    return QStringLiteral("idle");
+}
+
+bool VersionDownloader::isRunning() const
+{
+    return m_state == Running;
+}
+
+// ═══════════════════════════════════════════════════════════
+// allFinished → verify → emit downloadFinished
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::onAllFinished(bool success, int failedCount)
+{
+    if (m_state == Cancelled) {
+        emit downloadFinished(false, QStringLiteral("下载已取消"));
+        return;
+    }
+
+    // --- Integrity verification ---
+    m_state = Verifying;
+    emit stateChanged();
+    emit logMessage(QStringLiteral("🔍 正在进行完整性校验..."));
+
+    const QStringList missing = verifyAllFiles(m_currentVersionJson, m_currentVersionId);
+
+    // Restore completedFiles so UI shows 100% after verify
+    m_completedFiles.storeRelaxed(m_totalFiles.loadRelaxed());
+
+    if (!missing.isEmpty()) {
+        emit logMessage(QStringLiteral("⚠ 完整性检查: %1 个文件缺失").arg(missing.size()));
+        for (int i = 0; i < qMin(missing.size(), 10); ++i)
+            emit logMessage(QStringLiteral("  缺失: %1").arg(missing[i]));
+        if (missing.size() > 10)
+            emit logMessage(QStringLiteral("  ... 共 %1 个").arg(missing.size()));
+
+        m_state = Failed;
+        emit stateChanged();
+        emit downloadFinished(false,
+            QStringLiteral("%1 个文件缺失或校验失败").arg(missing.size()));
+        return;
+    }
+
+    if (failedCount > 0) {
+        emit logMessage(QStringLiteral("⚠ %1 个文件下载失败，但已通过完整性校验").arg(failedCount));
+    }
+
+    m_state = Done;
+    emit stateChanged();
+    emit logMessage(QStringLiteral("✅ 下载完成，所有文件通过校验"));
+    emit downloadFinished(true, QString());
+}
+
+// ═══════════════════════════════════════════════════════════
+// Asset index download (single-file, blocking via QEventLoop)
+// ═══════════════════════════════════════════════════════════
+
+bool VersionDownloader::downloadAssetIndex(const QJsonObject& assetIdx)
+{
+    const QString idxUrl = assetIdx.value(QStringLiteral("url")).toString();
+    if (idxUrl.isEmpty()) return false;
+
+    const QString mirrorUrl = buildMirrorUrl(idxUrl, QStringLiteral("meta"));
+    const QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
+    const QString idxPath = m_minecraftDir + QStringLiteral("/assets/indexes/")
+                            + idxId + QStringLiteral(".json");
+    QDir().mkpath(QFileInfo(idxPath).absolutePath());
+
+    QStringList urls;
+    urls << mirrorUrl;
+    if (mirrorUrl != idxUrl)
+        urls << idxUrl;
+
+    for (const QString& url : urls) {
+        if (m_state == Cancelled) return false;
+
+        QEventLoop loop;
+        bool ok = false;
+        QString errMsg;
+
+        HttpClient::instance().download(url, idxPath, nullptr,
+            [&](bool success, const QString& error) {
+                ok = success;
+                errMsg = error;
+                loop.quit();
+            });
+
+        loop.exec();
+
+        if (ok && QFileInfo::exists(idxPath))
+            return true;
+    }
+
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Parse local asset index JSON → objects map
+// ═══════════════════════════════════════════════════════════
+
+QMap<QString, QJsonObject> VersionDownloader::parseAssetIndex(const QJsonObject& assetIdx)
+{
+    const QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
+    const QString idxPath = m_minecraftDir + QStringLiteral("/assets/indexes/")
+                            + idxId + QStringLiteral(".json");
+
+    QFile f(idxPath);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+
+    if (!doc.isObject()) return {};
+
+    QJsonObject objects = doc.object().value(QStringLiteral("objects")).toObject();
+    QMap<QString, QJsonObject> result;
+    for (auto it = objects.begin(); it != objects.end(); ++it)
+        result.insert(it.key(), it.value().toObject());
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task collection: client.jar + libraries + assets
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::collectTasks(const QJsonObject& versionJson,
+                                      const QString& versionId,
+                                      const QMap<QString, QJsonObject>& assetObjects,
+                                      QVector<DownloadTask>& tasks)
+{
+    const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
+
+    // --- client.jar ---
+    QJsonObject client = versionJson.value(QStringLiteral("downloads"))
+                                 .toObject()
+                                 .value(QStringLiteral("client"))
+                                 .toObject();
+    if (!client.value(QStringLiteral("url")).toString().isEmpty()) {
+        const QString origUrl = client.value(QStringLiteral("url")).toString();
+        DownloadTask jarTask;
+        jarTask.name      = versionId + QStringLiteral(".jar");
+        jarTask.url       = buildMirrorUrl(origUrl, QStringLiteral("jar"));
+        jarTask.savePath  = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+        jarTask.sha1      = client.value(QStringLiteral("sha1")).toString();
+        jarTask.totalBytes = static_cast<qint64>(client.value(QStringLiteral("size")).toDouble());
+        jarTask.mirrors   = { origUrl };
+        tasks.append(jarTask);
+        m_taskDestPaths.append(jarTask.savePath);
+    }
+
+    // --- libraries ---
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+    for (const QJsonValue& libVal : libraries) {
+        QJsonObject lib = libVal.toObject();
+        if (shouldDownloadLibrary(lib))
+            addLibraryTasks(lib, tasks);
+    }
+
+    // --- asset objects ---
+    const QString objectsDir = m_minecraftDir + QStringLiteral("/assets/objects");
+
+    // Build extra mirror resource base (for fallback)
+    QString altResourceHost;
+    for (const MirrorSource& m : MirrorSource::allMirrors()) {
+        if (m.name != m_mirror.name) {
+            altResourceHost = QUrl(m.resourceBase).host();
+            break;
+        }
+    }
+
+    const QString primaryHost = QUrl(m_mirror.resourceBase).host();
+    const QString defaultHost = QStringLiteral("resources.download.minecraft.net");
+
+    for (auto it = assetObjects.begin(); it != assetObjects.end(); ++it) {
+        const QJsonObject& obj = it.value();
+        const QString sha1 = obj.value(QStringLiteral("hash")).toString();
+        const QString prefix = sha1.left(2);
+        const QString dest = objectsDir + QStringLiteral("/") + prefix
+                             + QStringLiteral("/") + sha1;
+
+        QStringList mirrors;
+        mirrors << QStringLiteral("https://resources.download.minecraft.net/%1/%2")
+                       .arg(prefix, sha1);
+
+        if (primaryHost != defaultHost) {
+            mirrors << QStringLiteral("https://%1/%2/%3")
+                           .arg(primaryHost, prefix, sha1);
+        }
+        if (!altResourceHost.isEmpty() && altResourceHost != primaryHost
+            && altResourceHost != defaultHost) {
+            mirrors << QStringLiteral("https://%1/%2/%3")
+                           .arg(altResourceHost, prefix, sha1);
+        }
+
+        DownloadTask assetTask;
+        assetTask.name       = sha1;   // assets identified by hash
+        assetTask.url        = mirrors.first();
+        assetTask.savePath   = dest;
+        assetTask.sha1       = sha1;
+        assetTask.totalBytes = static_cast<qint64>(obj.value(QStringLiteral("size")).toDouble());
+        assetTask.mirrors    = mirrors;
+
+        tasks.append(assetTask);
+        m_taskDestPaths.append(dest);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// OS rule filtering for libraries
+// ═══════════════════════════════════════════════════════════
+
+bool VersionDownloader::shouldDownloadLibrary(const QJsonObject& lib) const
+{
+    QJsonArray rules = lib.value(QStringLiteral("rules")).toArray();
+    if (rules.isEmpty())
+        return true;    // no rules → always download
+
+    for (const QJsonValue& ruleVal : rules) {
+        QJsonObject rule = ruleVal.toObject();
+        QJsonObject osCond = rule.value(QStringLiteral("os")).toObject();
+        QString action = rule.value(QStringLiteral("action")).toString(QStringLiteral("allow"));
+
+        if (osCond.isEmpty()) {
+            // No OS condition → rule always matches
+            return action == QStringLiteral("allow");
+        }
+
+        QString osName = osCond.value(QStringLiteral("name")).toString().toLower();
+        bool isMatch = false;
+
+#ifdef Q_OS_WIN
+        isMatch = osName.contains(QStringLiteral("windows"));
+#elif defined(Q_OS_LINUX)
+        isMatch = osName.contains(QStringLiteral("linux"));
+#elif defined(Q_OS_MACOS)
+        isMatch = (osName.contains(QStringLiteral("osx"))
+                   || osName.contains(QStringLiteral("macos")));
+#endif
+
+        if (isMatch)
+            return action == QStringLiteral("allow");
+    }
+
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Library task creation (artifact + native classifiers)
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::addLibraryTasks(const QJsonObject& lib,
+                                         QVector<DownloadTask>& tasks)
+{
+    QJsonObject downloads = lib.value(QStringLiteral("downloads")).toObject();
+
+    auto addArtifact = [&](const QJsonObject& art) {
+        QString url  = art.value(QStringLiteral("url")).toString();
+        QString path = art.value(QStringLiteral("path")).toString();
+        if (url.isEmpty() || path.isEmpty()) return;
+
+        DownloadTask task;
+        task.name      = QFileInfo(path).fileName();
+        task.url       = buildMirrorUrl(url, QStringLiteral("library"));
+        task.savePath  = m_minecraftDir + QStringLiteral("/libraries/") + path;
+        task.sha1      = art.value(QStringLiteral("sha1")).toString();
+        task.totalBytes = static_cast<qint64>(art.value(QStringLiteral("size")).toDouble());
+        task.mirrors   = { url };
+
+        tasks.append(task);
+        m_taskDestPaths.append(task.savePath);
+    };
+
+    // Main artifact
+    QJsonObject artifact = downloads.value(QStringLiteral("artifact")).toObject();
+    if (!artifact.isEmpty())
+        addArtifact(artifact);
+
+    // Native classifiers (platform-dependent)
+    QJsonObject classifiers = downloads.value(QStringLiteral("classifiers")).toObject();
+    if (!classifiers.isEmpty()) {
+        for (auto it = classifiers.begin(); it != classifiers.end(); ++it) {
+            const QString clsName = it.key().toLower();
+            bool match = false;
+#ifdef Q_OS_WIN
+            match = clsName.contains(QStringLiteral("natives-windows"));
+#elif defined(Q_OS_LINUX)
+            match = clsName.contains(QStringLiteral("natives-linux"));
+#elif defined(Q_OS_MACOS)
+            match = (clsName.contains(QStringLiteral("natives-osx"))
+                     || clsName.contains(QStringLiteral("natives-macos")));
+#endif
+            if (match)
+                addArtifact(it.value().toObject());
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Mirror URL building
+// ═══════════════════════════════════════════════════════════
+
+QString VersionDownloader::buildMirrorUrl(const QString& originalUrl,
+                                           const QString& kind) const
+{
+    if (originalUrl.isEmpty() || m_mirror.name == QStringLiteral("Mojang 官方"))
+        return originalUrl;
+
+    struct Replacement { QString from; QString to; };
+
+    // libraryBase and resourceBase include "https://" → strip for host-only replace
+    const QString libHost  = QUrl(m_mirror.libraryBase).host();
+    const QString resHost  = QUrl(m_mirror.resourceBase).host();
+
+    QList<Replacement> reps;
+    reps.append({ QStringLiteral("launcher.mojang.com"),             m_mirror.jarHost });
+    reps.append({ QStringLiteral("launchermeta.mojang.com"),         m_mirror.versionMetaHost });
+    reps.append({ QStringLiteral("libraries.minecraft.net"),         libHost });
+    reps.append({ QStringLiteral("resources.download.minecraft.net"), resHost });
+
+    for (const auto& rep : reps) {
+        if (originalUrl.contains(rep.from))
+            return QString(originalUrl).replace(rep.from, rep.to);
+    }
+
+    return originalUrl;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Integrity verification (post-download SHA1 scan)
+// ═══════════════════════════════════════════════════════════
+
+QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
+                                               const QString& versionId)
+{
+    QStringList missing;
+    const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
+
+    // --- Count total items for progress ---
+    int totalItems = 1;   // jar
+
+    QList<QJsonObject> libArts;
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+    for (const QJsonValue& lv : libraries) {
+        QJsonObject lib = lv.toObject();
+        if (!shouldDownloadLibrary(lib)) continue;
+
+        QJsonObject dl = lib.value(QStringLiteral("downloads")).toObject();
+        QJsonObject art = dl.value(QStringLiteral("artifact")).toObject();
+        if (!art.isEmpty()) libArts.append(art);
+
+        QJsonObject classifiers = dl.value(QStringLiteral("classifiers")).toObject();
+        for (auto it = classifiers.begin(); it != classifiers.end(); ++it) {
+            QString clsName = it.key().toLower();
+#ifdef Q_OS_WIN
+            if (clsName.contains(QStringLiteral("natives-windows")))
+#elif defined(Q_OS_LINUX)
+            if (clsName.contains(QStringLiteral("natives-linux")))
+#elif defined(Q_OS_MACOS)
+            if (clsName.contains(QStringLiteral("natives-osx"))
+                || clsName.contains(QStringLiteral("natives-macos")))
+#endif
+                libArts.append(it.value().toObject());
+        }
+    }
+    totalItems += libArts.size();
+
+    // Asset count from the already-downloaded index
+    QJsonObject assetIdx = versionJson.value(QStringLiteral("assetIndex")).toObject();
+    QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
+    QString idxPath = m_minecraftDir + QStringLiteral("/assets/indexes/")
+                      + idxId + QStringLiteral(".json");
+
+    QMap<QString, QJsonObject> assetObjects;
+    int assetCount = 0;
+    if (!assetIdx.isEmpty() && QFileInfo::exists(idxPath)) {
+        QFile f(idxPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            f.close();
+            QJsonObject objs = doc.object().value(QStringLiteral("objects")).toObject();
+            for (auto it = objs.begin(); it != objs.end(); ++it)
+                assetObjects.insert(it.key(), it.value().toObject());
+            assetCount = assetObjects.size();
+        }
+    }
+    totalItems += assetCount;
+
+    int checked = 0;
+
+    // Start at 0 so UI sees "verify in progress" immediately
+    emit verifyProgress(0, totalItems);
+
+    // --- 1. client.jar ---
+    const QString jarPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+    checked++;
+    emit verifyProgress(checked, totalItems);
+    if (!QFileInfo::exists(jarPath))
+        missing.append(QStringLiteral("versions/%1/%1.jar").arg(versionId));
+
+    // --- 2. Libraries ---
+    for (const QJsonObject& art : libArts) {
+        checked++;
+        if (checked % 10 == 0)
+            emit verifyProgress(checked, totalItems);
+
+        QString path = art.value(QStringLiteral("path")).toString();
+        QString dest = m_minecraftDir + QStringLiteral("/libraries/") + path;
+        if (!QFileInfo::exists(dest)) {
+            missing.append(QStringLiteral("libraries/%1").arg(path));
+        } else {
+            QString sha1 = art.value(QStringLiteral("sha1")).toString();
+            if (!sha1.isEmpty() && !verifySha1(dest, sha1))
+                missing.append(QStringLiteral("libraries/%1 (SHA1)").arg(path));
+        }
+    }
+
+    // --- 3. Asset objects ---
+    const QString objectsDir = m_minecraftDir + QStringLiteral("/assets/objects");
+    int batch = 0;
+    for (auto it = assetObjects.begin(); it != assetObjects.end(); ++it) {
+        checked++;
+        batch++;
+        if (batch % 100 == 0)
+            emit verifyProgress(checked, totalItems);
+
+        const QJsonObject& obj = it.value();
+        QString sha1 = obj.value(QStringLiteral("hash")).toString();
+        QString prefix = sha1.left(2);
+        QString dest = objectsDir + QStringLiteral("/") + prefix
+                       + QStringLiteral("/") + sha1;
+        if (!QFileInfo::exists(dest)) {
+            missing.append(QStringLiteral("assets/%1").arg(it.key()));
+        } else if (!verifySha1(dest, sha1)) {
+            missing.append(QStringLiteral("assets/%1 (SHA1)").arg(it.key()));
+        }
+    }
+
+    emit verifyProgress(totalItems, totalItems);
+    return missing;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Public integrity verification entry point
+// ═══════════════════════════════════════════════════════════
+
+QStringList VersionDownloader::verifyIntegrity(const QJsonObject& versionJson,
+                                                const QString& versionId)
+{
+    return verifyAllFiles(versionJson, versionId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════
+
+bool VersionDownloader::verifySha1(const QString& filePath, const QString& expected)
+{
+    QFile f(filePath);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    hash.addData(&f);
+    f.close();
+
+    return QString::fromLatin1(hash.result().toHex())
+        .compare(expected, Qt::CaseInsensitive) == 0;
+}
+
+QString VersionDownloader::formatSize(qint64 bytes)
+{
+    if (bytes < 1024)
+        return QStringLiteral("%1 B").arg(bytes);
+    if (bytes < 1024 * 1024)
+        return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+    return QStringLiteral("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+}
+
+void VersionDownloader::emitProgress(const QString& name)
+{
+    emit progressChanged(m_completedFiles.loadRelaxed(),
+                         m_totalFiles.loadRelaxed(),
+                         m_downloadedBytes.loadRelaxed(),
+                         m_totalBytes.loadRelaxed());
+}
+
+} // namespace ShadowLauncher

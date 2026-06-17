@@ -46,6 +46,7 @@ set(SOURCES
     src/core/version_manager.cpp
     src/core/downloader.cpp
     src/core/parallel_downloader.cpp
+    src/core/version_downloader.cpp
     src/core/launcher.cpp
     src/core/mod_manager.cpp
 
@@ -66,6 +67,7 @@ set(HEADERS
     src/core/version_manager.h
     src/core/downloader.h
     src/core/parallel_downloader.h
+    src/core/version_downloader.h
     src/core/launcher.h
     src/core/mod_manager.h
     src/backend/app_backend.h
