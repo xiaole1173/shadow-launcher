@@ -119,29 +119,16 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Property("QVariantMap", notify=gameDirInfoChanged)
     def gameDirInfo(self):
-        base = self._game_dir if hasattr(self, "_game_dir") and self._game_dir else MINECRAFT_DIR
         info = {"versionCount": 0, "modCount": 0, "sizeDisplay": ""}
         try:
-            from shadow_launcher.core.versions import get_installed_versions
-            vers = get_installed_versions(base)
-            info["versionCount"] = len(vers)
+            # Use cached data from async scans — no blocking IO
+            details = self._version_details if hasattr(self, '_version_details') else []
+            info["versionCount"] = len(details)
+            info["modCount"] = sum(d.get("modCount", 0) for d in details)
 
-            # Mod count
-            mods = os.path.join(base, "mods")
-            if os.path.isdir(mods):
-                info["modCount"] = sum(1 for f in os.listdir(mods) if f.endswith(".jar"))
-
-            # Size — scan all relevant dirs
-            total = 0
-            for scan in ["libraries", "versions", "mods", "config", "saves", "resourcepacks", "shaderpacks", os.path.join("assets", "objects")]:
-                sd = os.path.join(base, scan)
-                if os.path.isdir(sd):
-                    for dirpath, _, filenames in os.walk(sd):
-                        for fn in filenames:
-                            try:
-                                total += os.path.getsize(os.path.join(dirpath, fn))
-                            except OSError:
-                                pass
+            # Total size: sum of version sizes + cached shared lib/asset size
+            total = sum(d.get("sizeBytes", 0) for d in details)
+            total += getattr(self, '_cached_lib_asset_size', 0) or 0
             info["sizeDisplay"] = self._format_size(total)
         except Exception:
             pass
@@ -898,8 +885,13 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         if 0 <= index < len(dirs):
             self._game_dir = dirs[index]
             self.logMessage.emit(f"已切换游戏目录: {dirs[index]}")
-            self.refreshInstalled()
-            self.installedVersionsChanged.emit()
+            # Reset cached sizes for new directory
+            self._cached_lib_asset_size = None
+            self._cached_lib_asset_base = None
+            # Fast refresh: update installed list + start async details scan
+            self.refreshInstalledList()
+            self.refreshVersionDetails()  # async, non-blocking
+            self.refreshGameDirInfo()
 
     @Slot()
     def addGameDir(self):
@@ -1525,6 +1517,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                 self._cached_lib_asset_base = base
             self.versionDetailsReady.emit()
             self.versionDetailsChanged.emit()
+            self.gameDirInfoChanged.emit()
         except Exception as e:
             self.logMessage.emit(f"[版本扫描] 扫描失败: {e}")
 

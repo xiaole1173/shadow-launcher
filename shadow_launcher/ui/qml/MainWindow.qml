@@ -589,8 +589,6 @@ Window {
                                                     onClicked: {
                                                         versionSelectOverlay.activeGameDirIndex = index
                                                         if (backend) backend.setGameDir(index)
-                                                        // 延迟刷新避免UI卡顿 — 先更新选中态再扫描文件
-                                                        deferRefreshTimer.start()
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
