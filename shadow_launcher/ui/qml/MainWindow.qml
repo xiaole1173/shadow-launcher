@@ -103,7 +103,7 @@ Window {
 
     // ── Rounded window container ──
     Rectangle {
-        anchors.fill: parent; radius: 10
+        anchors.fill: parent; radius: 16
         color: "#0c0f16"
         clip: true
 
@@ -119,28 +119,27 @@ Window {
                 onPositionChanged: { appWindow.x += mouse.x - lastPos.x; appWindow.y += mouse.y - lastPos.y }
             }
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 12
+                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
+                spacing: 0
                 Text { text: "Shadow Launcher"; color: "#9498a8"; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
                 Item { Layout.fillWidth: true }
                 Rectangle {
                     width: 28; height: 28; radius: 14
-                    color: minBtn.containsMouse ? "#1a1f2e" : "transparent"
-                    scale: minBtnHover.hovered ? 1.1 : 1.0
+                    color: minBtn.containsMouse ? (minBtn.pressed ? "#3a4050" : "#2a2f3a") : "transparent"
+                    scale: minBtn.pressed ? 0.85 : (minBtn.containsMouse ? 1.12 : 1.0)
                     Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2014"; color: minBtnHover.hovered ? "#c0c8d8" : "#6a7080"; font.pixelSize: 14; font.weight: Font.Bold }
-                    HoverHandler { id: minBtnHover }
-                    MouseArea { id: minBtn; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    Text { anchors.centerIn: parent; text: "\u2014"; color: minBtn.containsMouse ? "#d0d4e0" : "#6a7080"; font.pixelSize: 14; font.weight: Font.Bold }
+                    MouseArea { id: minBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
                 }
                 Rectangle {
                     width: 28; height: 28; radius: 14
-                    color: closeBtnHover.hovered ? "#c05050" : "transparent"
-                    scale: closeBtnHover.hovered ? 1.1 : 1.0
+                    color: closeBtn.containsMouse ? (closeBtn.pressed ? "#e06060" : "#c05050") : "transparent"
+                    scale: closeBtn.pressed ? 0.85 : (closeBtn.containsMouse ? 1.12 : 1.0)
                     Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2715"; color: closeBtnHover.hovered ? "#fff" : "#6a7080"; font.pixelSize: 13; font.weight: Font.Bold }
-                    HoverHandler { id: closeBtnHover }
-                    MouseArea { id: closeBtn; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    Text { anchors.centerIn: parent; text: "\u2715"; color: closeBtn.containsMouse ? "#fff" : "#6a7080"; font.pixelSize: 13; font.weight: Font.Bold }
+                    MouseArea { id: closeBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
                 }
             }
         }
