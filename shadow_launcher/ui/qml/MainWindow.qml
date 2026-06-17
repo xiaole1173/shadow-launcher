@@ -588,9 +588,7 @@ Window {
                                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                                     onClicked: {
                                                         versionSelectOverlay.activeGameDirIndex = index
-                                                        if (backend) backend.setGameDir(index)
-                                                        // Show scanning indicator
-                                                        versionRightPanel.scanning = true
+                                                        if (backend) { backend.setGameDir(index); toastManager.show("正在扫描版本...") }
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
@@ -684,17 +682,12 @@ Window {
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
                                 ColumnLayout {
                                     id: versionRightPanel
-                                    property bool scanning: false
                                     anchors.fill: parent; anchors.margins: 12; spacing: 6
 
                                     // Header row: title + refresh + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
                                         Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
-                                        Text {
-                                            visible: versionRightPanel.scanning
-                                            text: "扫描中..."; font.pixelSize: 10; color: "#e0a040"
-                                        }
                                         // Refresh installed versions button
                                         Rectangle {
                                             id: verRefreshBtn
@@ -722,8 +715,7 @@ Window {
                                                 onClicked: {
                                                     if (backend) {
                                                         backend.refreshVersionDetails()
-                                                        deferRefreshTimer.start()
-                                                        toastManager.show("已刷新版本列表")
+                                                        toastManager.show("正在扫描版本...")
                                                     }
                                                 }
                                             }
@@ -860,7 +852,10 @@ Window {
                                     Connections {
                                         target: backend; enabled: backend !== null
                                         function onVersionDetailsChanged() { versionRightPanel.populateVersionDetails() }
-                                        function onVersionDetailsReady() { versionRightPanel.scanning = false }
+                                        function onVersionDetailsReady() {
+                                            versionRightPanel.populateVersionDetails()
+                                            toastManager.show("版本扫描完成")
+                                        }
                                     }
 
                                     Connections {
