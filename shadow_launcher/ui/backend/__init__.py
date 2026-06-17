@@ -447,97 +447,95 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         self._install_speed = 0.0
 
         cmd = [sys.executable, cli_path, version_id, "--source", str(source_index)]
+        try:
+            self._install_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                cwd=os.path.dirname(cli_path),
+            )
+        except Exception as e:
+            self.logMessage.emit(f"启动安装进程失败: {e}")
+            return
+
+        self.installPhaseChanged.emit("starting")
+        self.installingChanged.emit()
+        self.installVersionChanged.emit(version_id)
+        self._install_t0 = time.time()
+
+        def _read_pipe():
+            """Read stdout lines from subprocess and emit signals."""
             try:
-                self._install_process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    cwd=os.path.dirname(cli_path),
-                )
+                for line in self._install_process.stdout:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    if line.startswith("PROG:"):
+                        parts = line[5:].split(":", 4)
+                        if len(parts) >= 5:
+                            try:
+                                cf = int(parts[0])
+                                tf = int(parts[1])
+                                db = int(parts[2])
+                                tb = int(parts[3])
+                                name = parts[4]
+                            except ValueError:
+                                continue
+                            self._install_progress = cf
+                            self._install_total = tf
+                            self._install_bytes_downloaded = db
+                            self._install_bytes_total = tb
+                            self._install_file = name.replace('???', '')
+                            if self._install_phase != "downloading":
+                                self._install_phase = "downloading"
+                                self.installPhaseChanged.emit("downloading")
+                            self.installProgressChanged.emit(cf)
+                            self.installTotalChanged.emit(tf)
+                            self.installFileProgress.emit(name)
+                            elapsed = time.time() - self._install_t0 if time.time() > self._install_t0 else 0.001
+                            self._install_speed = db / elapsed if elapsed > 0 else 0
+                            self.installBytesProgress.emit(db, tb)
+                            if cf % 50 == 0 and tf > 0:
+                                pct = cf / tf * 100
+                                self.logMessage.emit(f"[安装] {version_id} | {pct:.1f}% ({cf}/{tf}) | {self._install_speed/1048576:.1f} MB/s | {name[:40]}")
+
+                    elif line.startswith("LOG:"):
+                        self.logMessage.emit(line[4:])
+
+                    elif line.startswith("DONE:"):
+                        self._install_phase = "done"
+                        self.installPhaseChanged.emit("done")
+                        self.logMessage.emit(f"✅ {version_id} 安装完成！")
+                        self.refreshInstalled()
+                        self._on_download_complete(download_item)
+                        break
+
+                    elif line.startswith("FAIL:"):
+                        self._install_phase = "failed"
+                        self.installPhaseChanged.emit("failed")
+                        self.logMessage.emit(f"FAIL {line[5:]}")
+                        self.refreshInstalled()
+                        self._on_download_complete(download_item)
+                        break
+
+                    elif line.startswith("CANCEL"):
+                        self._install_phase = "cancelled"
+                        self.installPhaseChanged.emit("cancelled")
+                        self._on_download_complete(download_item)
+                        break
             except Exception as e:
-                self.logMessage.emit(f"启动安装进程失败: {e}")
-                return
+                self.logMessage.emit(f"读取安装进度失败: {e}")
+                self._on_download_complete(download_item)
+            finally:
+                self._install_process = None
+                self._install_reader_thread = None
 
-            self.installPhaseChanged.emit("starting")
-            self.installingChanged.emit()
-            self.installVersionChanged.emit(version_id)
-            self._install_t0 = time.time()
-
-            def _read_pipe():
-                """Read stdout lines from subprocess and emit signals."""
-                try:
-                    for line in self._install_process.stdout:
-                        line = line.strip()
-                        if not line:
-                            continue
-
-                        if line.startswith("PROG:"):
-                            parts = line[5:].split(":", 4)
-                            if len(parts) >= 5:
-                                try:
-                                    cf = int(parts[0])
-                                    tf = int(parts[1])
-                                    db = int(parts[2])
-                                    tb = int(parts[3])
-                                    name = parts[4]
-                                except ValueError:
-                                    continue
-                                self._install_progress = cf
-                                self._install_total = tf
-                                self._install_bytes_downloaded = db
-                                self._install_bytes_total = tb
-                                self._install_file = name.replace('???', '')
-                                if self._install_phase != "downloading":
-                                    self._install_phase = "downloading"
-                                    self.installPhaseChanged.emit("downloading")
-                                self.installProgressChanged.emit(cf)
-                                self.installTotalChanged.emit(tf)
-                                self.installFileProgress.emit(name)
-                                elapsed = time.time() - self._install_t0 if time.time() > self._install_t0 else 0.001
-                                self._install_speed = db / elapsed if elapsed > 0 else 0
-                                self.installBytesProgress.emit(db, tb)
-                                if cf % 50 == 0 and tf > 0:
-                                    pct = cf / tf * 100
-                                    self.logMessage.emit(f"[安装] {version_id} | {pct:.1f}% ({cf}/{tf}) | {self._install_speed/1048576:.1f} MB/s | {name[:40]}")
-
-                        elif line.startswith("LOG:"):
-                            self.logMessage.emit(line[4:])
-
-                        elif line.startswith("DONE:"):
-                            self._install_phase = "done"
-                            self.installPhaseChanged.emit("done")
-                            self.logMessage.emit(f"✅ {version_id} 安装完成！")
-                            # 立即刷新已安装版本（修复按钮闪烁bug）
-                            self.refreshInstalled()
-                            # 推送到已完成下载列表
-                            self._on_download_complete(download_item)
-                            break
-
-                        elif line.startswith("FAIL:"):
-                            self._install_phase = "failed"
-                            self.installPhaseChanged.emit("failed")
-                            self.logMessage.emit(f"FAIL {line[5:]}")
-                            self.refreshInstalled()
-                            self._on_download_complete(download_item)
-                            break
-
-                        elif line.startswith("CANCEL"):
-                            self._install_phase = "cancelled"
-                            self.installPhaseChanged.emit("cancelled")
-                            self._on_download_complete(download_item)
-                            break
-                except Exception as e:
-                    self.logMessage.emit(f"读取安装进度失败: {e}")
-                    self._on_download_complete(download_item)
-                finally:
-                    self._install_process = None
-                    self._install_reader_thread = None
-
-            self._install_reader_thread = threading.Thread(target=_read_pipe, daemon=True)
-            self._install_reader_thread.start()
+        self._install_reader_thread = threading.Thread(target=_read_pipe, daemon=True)
+        self._install_reader_thread.start()
 
     def _on_download_complete(self, item: dict):
         """下载完成后的清理和队列推进"""

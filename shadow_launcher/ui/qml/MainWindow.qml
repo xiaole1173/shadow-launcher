@@ -1749,7 +1749,7 @@ Window {
 
     SequentialAnimation {
         id: flyBallSeq
-        ScriptAction { script: { flyBall.width = 10; flyBall.height = 10; flyBall.visible = true; flyBall.scale = 1.0 } }
+        ScriptAction { script: { flyBall.width = 10; flyBall.height = 10; flyBall.visible = true; flyBall.opacity = 1.0; flyBall.scale = 1.0 } }
         ScriptAction { script: { flyBallAnim.start() } }
         PauseAnimation { duration: 400 }
         ScriptAction { script: { flyBallBounce.start() } }
@@ -1781,21 +1781,22 @@ Window {
     function animateDownloadBall(sourceX, sourceY) {
         // Target: position where "下载进度" nav item is/will be
         var targetIdx = downloadNavVisible ? navModel.count - 1 : navModel.count
-        // Nav item Y in sidebar coords: 8(margin) + 8(topMargin) + logoHeight(16) + logoBottomMargin(20) = 52
-        var navItemY = 52 + targetIdx * 44
-        // Convert sidebar-local to Window coords: titlebar(36) + loadingBar(2) + RowLayoutMargin(8) + sidebarMargin(8) = 54
-        var targetAbsoluteY = 54 + navItemY + 20  // center of nav item
-        var targetAbsoluteX = 108  // RowLayoutMargin(8) + sidebarWidth(200)/2 = 108
+        // Nav item Y in sidebar coords: derived from navIndicator formula y = 8 + 52 + index * 44
+        // sidebar top in window: titlebar(36) + loadingBar(2) + RowLayout.margins(8) = 46
+        var sidebarTop = 46
+        var navItemSidebarY = 52 + targetIdx * 44  // → nav item top in sidebar coords
+        var targetY = sidebarTop + navItemSidebarY + 22  // center of 44px-high nav item
+        var targetX = 108  // RowLayout.margins(8) + sidebarWidth(200)/2 = 108
 
         flyBallAnim.startX = sourceX
         flyBallAnim.startY = sourceY
-        flyBallAnim.endX = targetAbsoluteX
-        flyBallAnim.endY = targetAbsoluteY
+        flyBallAnim.endX = targetX
+        flyBallAnim.endY = targetY
 
         flyBallSeq.start()
 
         // Also bounce the nav overlay
-        navBounceOverlay.y = 54 + navItemY
+        navBounceOverlay.y = sidebarTop + navItemSidebarY
         navBounceSeq.start()
     }
 

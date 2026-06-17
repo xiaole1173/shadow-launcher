@@ -276,6 +276,8 @@ Rectangle {
                 color: refreshHover.hovered ? "#1a2848" : "transparent"
                 border.color: refreshHover.hovered ? "#5068d8" : "#1e2230"
                 border.width: 1
+                scale: refreshHover.hovered ? 1.08 : 1.0
+                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 visible: page.currentTab === 0
                 Text {
                     anchors.centerIn: parent
@@ -306,8 +308,10 @@ Rectangle {
                     width: multiLabel.implicitWidth + 14
                     color: page.currentSource === -1 ? "#5068d8" : "#11141c"
                     border.color: page.currentSource === -1 ? "#5068d8" : "#1e2230"
+                    scale: multiSrcMouse.containsMouse ? 1.04 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text { id: multiLabel; anchors.centerIn: parent; text: "多源"; color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = -1 }
+                    MouseArea { id: multiSrcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = -1 }
                 }
                 // Divider
                 Rectangle { width: 1; height: 16; color: "#1e2230" }
@@ -321,8 +325,10 @@ Rectangle {
                         width: srcLabel.implicitWidth + 14
                         color: page.currentSource === modelData.key ? "#5068d8" : "#11141c"
                         border.color: page.currentSource === modelData.key ? "#5068d8" : "#1e2230"
+                        scale: srcMouse.containsMouse ? 1.04 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Text { id: srcLabel; anchors.centerIn: parent; text: modelData.label; color: page.currentSource === modelData.key ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = modelData.key }
+                        MouseArea { id: srcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = modelData.key }
                     }
                 }
             }

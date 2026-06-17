@@ -38,15 +38,15 @@ Rectangle {
                     }
                     MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { nav.currentIndex = index; page.currentSection = index } }
                 }
+            }
 
-                // Animated selection indicator overlay
-                Rectangle {
-                    id: settingsIndicator
-                    z: 10
-                    x: 0; y: 8 + nav.currentIndex * 40
-                    width: 2; height: 38; color: "#5d6fe0"; radius: 1
-                    Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
-                }
+            // Animated selection indicator overlay
+            Rectangle {
+                id: settingsIndicator
+                z: 10
+                x: 8; y: 8 + nav.currentIndex * 40
+                width: 2; height: 38; color: "#5d6fe0"; radius: 1
+                Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
             }
         }
 
@@ -63,6 +63,8 @@ Rectangle {
                 // ========== SECTION 0: General ==========
                 Item {
                     Layout.fillWidth: true; Layout.fillHeight: true; visible: page.currentSection === 0
+                    opacity: page.currentSection === 0 ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     ColumnLayout {
                         anchors.fill: parent; spacing: 12
                         Text { text: "通用设置"; font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
@@ -102,6 +104,8 @@ Rectangle {
                 // ========== SECTION 1: Java ==========
                 Item {
                     Layout.fillWidth: true; Layout.fillHeight: true; visible: page.currentSection === 1
+                    opacity: page.currentSection === 1 ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     ScrollView {
                         anchors.fill: parent; clip: true
                         ColumnLayout {
@@ -172,6 +176,8 @@ Rectangle {
                 // ========== SECTION 2: Memory ==========
                 Item {
                     Layout.fillWidth: true; Layout.fillHeight: true; visible: page.currentSection === 2
+                    opacity: page.currentSection === 2 ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     ColumnLayout {
                         anchors.fill: parent; spacing: 16
                         Text { text: "内存设置"; font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
@@ -233,6 +239,8 @@ Rectangle {
                                 RowLayout { spacing: 6
                                     Repeater { model: [{ label: "低配 (2G)", val: 2048 }, { label: "中配 (4G)", val: 4096 }, { label: "高配 (8G)", val: 8192 }]
                                         Rectangle { width: presetLabel.implicitWidth + 20; height: 30; radius: 6; color: presetMouse.containsMouse ? "#5068d8" : "#1f2740"; border.color: presetMouse.containsMouse ? "#6d7de8" : "#2a3d60"
+                                            scale: presetMouse.containsMouse ? 1.04 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { id: presetLabel; anchors.centerIn: parent; text: modelData.label; color: presetMouse.containsMouse ? "#ffffff" : "#b0c0e8"; font.pixelSize: 11 }
                                             MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { maxSlider.value = modelData.val; if (backend) backend.setMaxMemory(modelData.val) } }
                                         }
@@ -250,6 +258,8 @@ Rectangle {
                 // ========== SECTION 3: About ==========
                 Item {
                     Layout.fillWidth: true; Layout.fillHeight: true; visible: page.currentSection === 3
+                    opacity: page.currentSection === 3 ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     ColumnLayout {
                         anchors.fill: parent; spacing: 14
                         Text { text: "关于"; font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }

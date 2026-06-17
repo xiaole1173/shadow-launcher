@@ -64,7 +64,33 @@ Rectangle {
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
         }
-        Item { Layout.preferredWidth: backText.implicitWidth + 20 }
+        // 刷新按钮
+        Rectangle {
+            id: refreshBtnV
+            width: 32; height: 32; radius: 6
+            color: refreshHoverV.hovered ? "#1A222D" : "transparent"
+            border.color: refreshHoverV.hovered ? "#3B82F6" : "#2A2F3A"
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
+            Text {
+                anchors.centerIn: parent
+                text: "↻"
+                color: refreshHoverV.hovered ? "#3B82F6" : "#B4BAC6"
+                font.pixelSize: 16
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+            HoverHandler { id: refreshHoverV }
+            ToolTip { visible: refreshHoverV.hovered; text: "刷新版本列表"; delay: 500 }
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (backend) backend.refreshVersionList()
+                }
+            }
+        }
     }
 
     // ═══ TWO PANELS ═══
@@ -140,6 +166,8 @@ Rectangle {
                     color: "transparent"
                     border.color: addArea.containsMouse ? "#3B82F6" : "#2A2F3A"
                     border.width: 1
+                    scale: addArea.containsMouse ? 1.03 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Text {
                         anchors.centerIn: parent
@@ -166,6 +194,8 @@ Rectangle {
                     color: "transparent"
                     border.color: importArea.containsMouse ? "#3B82F6" : "#2A2F3A"
                     border.width: 1
+                    scale: importArea.containsMouse ? 1.03 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Text {
                         anchors.centerIn: parent
@@ -210,6 +240,8 @@ Rectangle {
                         color: activeFilter === modelData ? "#3B82F6" : "#1A1D24"
                         border.color: activeFilter === modelData ? "#3B82F6" : "#2A2F3A"
                         border.width: 1
+                        scale: pillMouse.containsMouse ? 1.04 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         Text {
@@ -221,6 +253,7 @@ Rectangle {
                             Behavior on color { ColorAnimation { duration: 200 } }
                         }
                         MouseArea {
+                            id: pillMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -289,8 +322,13 @@ Rectangle {
                         color: cardArea.containsMouse ? "#1E212A" : "transparent"
                         border.color: selectedVersionId === model.versionId ? "#3B82F6" : "transparent"
                         border.width: 1
+                        opacity: 0
+                        scale: cardArea.containsMouse ? 1.01 : 1.0
+                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
+                        Component.onCompleted: { opacity = 1 }
 
                         RowLayout {
                             anchors.fill: parent
@@ -343,6 +381,8 @@ Rectangle {
                 radius: 8
                 color: selectArea.containsMouse ? "#2563EB" : (selectedVersionId !== "" ? "#3B82F6" : "#2A2F3A")
                 opacity: selectedVersionId !== "" ? 1.0 : 0.5
+                scale: selectArea.containsMouse ? 1.03 : 1.0
+                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 200 } }
                 Behavior on opacity { NumberAnimation { duration: 200 } }
 
