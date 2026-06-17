@@ -589,6 +589,8 @@ Window {
                                                     onClicked: {
                                                         versionSelectOverlay.activeGameDirIndex = index
                                                         if (backend) backend.setGameDir(index)
+                                                        // Show scanning indicator
+                                                        versionRightPanel.scanning = true
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
@@ -682,12 +684,17 @@ Window {
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
                                 ColumnLayout {
                                     id: versionRightPanel
+                                    property bool scanning: false
                                     anchors.fill: parent; anchors.margins: 12; spacing: 6
 
                                     // Header row: title + refresh + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
                                         Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                                        Text {
+                                            visible: versionRightPanel.scanning
+                                            text: "扫描中..."; font.pixelSize: 10; color: "#e0a040"
+                                        }
                                         // Refresh installed versions button
                                         Rectangle {
                                             id: verRefreshBtn
@@ -853,6 +860,7 @@ Window {
                                     Connections {
                                         target: backend; enabled: backend !== null
                                         function onVersionDetailsChanged() { versionRightPanel.populateVersionDetails() }
+                                        function onVersionDetailsReady() { versionRightPanel.scanning = false }
                                     }
 
                                     Connections {

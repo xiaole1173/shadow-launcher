@@ -1382,6 +1382,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                 if f.endswith('.jar'):
                     global_mods[f] = True
 
+        t0 = time.time()
         details = []
         for name in sorted(os.listdir(versions_dir), reverse=True):
             ver_dir = os.path.join(versions_dir, name)
@@ -1485,6 +1486,8 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                 "modCount": mod_count,
             })
 
+        elapsed = (time.time() - t0) * 1000
+        self.logMessage.emit(f"[版本扫描] 完成: {len(details)} 个版本, 耗时 {elapsed:.0f}ms")
         return details, base, lib_asset_size
 
     @staticmethod
