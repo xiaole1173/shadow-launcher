@@ -4,6 +4,7 @@
 #include <QProcess>
 #include <QString>
 #include <QTimer>
+#include <QJsonObject>
 
 namespace ShadowLauncher {
 
@@ -38,7 +39,7 @@ private slots:
 private:
     bool validateLaunch(const QString& versionId, const QString& javaPath, QString& errorMsg) const;
     void forceKill();
-    QStringList buildArgs(const QString& versionId, int maxMemoryMB) const;
+    QStringList buildArgs(const QString& versionId, int maxMemoryMB, const QJsonObject& versionJson) const;
 
     QProcess* m_process = nullptr;
     QString m_gameDir;

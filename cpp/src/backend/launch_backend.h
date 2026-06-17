@@ -32,6 +32,9 @@ public:
     Q_INVOKABLE int getSystemMemory();
     Q_INVOKABLE QVariantMap getMemoryStatus();
 
+    // ---- Called by ShadowBackend to sync game directory ----
+    void setGameDir(const QString& dir);
+
 signals:
     void launchProgressChanged(int progress, const QString& status);
     void launchStateChanged();
@@ -51,7 +54,6 @@ private:
     int m_launchProgress = 0;
     QString m_launchStatus;
     bool m_cancelled = false;
-    QString m_gameDir;
 };
 
 } // namespace ShadowLauncher

@@ -33,6 +33,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // ── Sync game directories: ALL backends use the same path ──
     m_version->setGameDir(m_app->gameDir());
     m_settings->setMinecraftDir(m_app->gameDir());
+    m_launch->setGameDir(m_app->gameDir());
 
     // ── Signal forwarding: AccountBackend → ShadowBackend ──
     connect(m_account, &AccountBackend::accountChanged,
@@ -674,6 +675,7 @@ void ShadowBackend::setGameDir(const QString& dir) {
     // Sync all backends to the new directory
     m_version->setGameDir(dir);
     m_settings->setMinecraftDir(dir);
+    m_launch->setGameDir(dir);
 }
 
 // ============================================================

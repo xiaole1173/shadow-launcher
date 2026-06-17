@@ -104,24 +104,18 @@ void SettingsBackend::saveSettings()
 
 void SettingsBackend::doAutoDetect()
 {
-    // Start background Java scan immediately
-    scanJavaInstallations();
-
     // Skip if we already have a valid Java from saved settings
     if (m_javaReady && QFileInfo::exists(m_javaPath)) {
         emit logMessage(QStringLiteral("Java 已配置: %1 (版本 %2)")
                             .arg(m_javaPath, m_javaVersion));
+        // Still scan in background to populate the list
+        scanJavaInstallations();
         return;
     }
 
-    // Run auto-detection if no Java configured yet
-    emit logMessage(QStringLiteral("正在自动检测 Java..."));
-    QString path = autoSelectJava();
-
-    if (path.isEmpty()) {
-        emit logMessage(QStringLiteral("⚠ 未找到 Java，请在设置中手动指定"));
-    }
-
+    // No Java configured — start async scan; auto-select happens in scan completion
+    emit logMessage(QStringLiteral("正在后台自动检测 Java..."));
+    scanJavaInstallations();
     saveSettings();
 }
 
@@ -162,14 +156,8 @@ void SettingsBackend::setJavaPath(const QString& path)
 
 const QVector<SettingsBackend::JavaInfo>& SettingsBackend::cachedJavaList()
 {
-    if (!m_javaCacheValid) {
-        m_cachedJavaList = findAllJava();
-        std::sort(m_cachedJavaList.begin(), m_cachedJavaList.end(),
-                  [](const JavaInfo& a, const JavaInfo& b) {
-                      return a.major > b.major;
-                  });
-        m_javaCacheValid = true;
-    }
+    // Return cache immediately — no sync disk scan
+    // Cache is populated by scanJavaInstallations() (async) or loadSettings()
     return m_cachedJavaList;
 }
 
@@ -199,6 +187,10 @@ QVariantList SettingsBackend::scanJavaInstallations()
                 emit logMessage(QStringLiteral("找到 %1 个 Java 安装，最新: Java %2")
                                     .arg(results.size())
                                     .arg(results.first().major));
+                // Auto-select best Java if none configured yet
+                if (!m_javaReady || !QFileInfo::exists(m_javaPath)) {
+                    autoSelectJava();
+                }
             } else {
                 emit logMessage(QStringLiteral("⚠ 未在系统中找到 Java 安装"));
             }

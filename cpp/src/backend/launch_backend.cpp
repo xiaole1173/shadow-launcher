@@ -9,18 +9,10 @@
 #    define WIN32_LEAN_AND_MEAN
 #  endif
 #  include <windows.h>
+#  include <psapi.h>
 #endif
 
 namespace ShadowLauncher {
-
-// ============================================================
-// Game directory default (same as SettingsBackend)
-// ============================================================
-
-static QString defaultGameDir()
-{
-    return QDir::homePath() + QStringLiteral("/.shadow/minecraft");
-}
 
 // ============================================================
 // Constructor / Destructor
@@ -29,14 +21,7 @@ static QString defaultGameDir()
 LaunchBackend::LaunchBackend(QObject* parent)
     : QObject(parent)
     , m_launcher(new Launcher(this))
-    , m_gameDir(defaultGameDir())
 {
-    QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
-
-    m_launcher->setGameDir(m_gameDir);
-
     connect(m_launcher, &Launcher::launchStarted,
             this, &LaunchBackend::onLaunchStarted);
     connect(m_launcher, &Launcher::launchProgress,
@@ -46,6 +31,17 @@ LaunchBackend::LaunchBackend(QObject* parent)
 }
 
 LaunchBackend::~LaunchBackend() = default;
+
+// ============================================================
+// Configuration
+// ============================================================
+
+void LaunchBackend::setGameDir(const QString& dir)
+{
+    if (m_launcher) {
+        m_launcher->setGameDir(dir);
+    }
+}
 
 // ============================================================
 // Property: isRunning
@@ -77,7 +73,6 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     emit launchStateChanged();
     emit logMessage(QStringLiteral("启动 %1 | %2").arg(versionId, username));
 
-    m_launcher->setGameDir(m_gameDir);
     m_launcher->start(versionId, javaPath, maxMemoryMB);
 }
 
@@ -121,14 +116,19 @@ void LaunchBackend::killGameProcess()
 int LaunchBackend::getAutoMemory()
 {
 #ifdef Q_OS_WIN
-    MEMORYSTATUSEX s;
-    s.dwLength = sizeof(s);
-    if (GlobalMemoryStatusEx(&s)) {
-        qint64 availMB = static_cast<qint64>(s.ullAvailPhys / (1024 * 1024));
-        return qBound(1024, static_cast<int>(availMB / 2), 8192);
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memStatus)) {
+        // Recommend 50% of available memory, min 512MB, max 16GB
+        auto availableMB = static_cast<int>(memStatus.ullAvailPhys / (1024 * 1024));
+        int recommended = availableMB / 2;
+        // Cap at 80% of total physical (for 32-bit Java: ~2GB hard limit)
+        auto totalMB = static_cast<int>(memStatus.ullTotalPhys / (1024 * 1024));
+        recommended = qMin(recommended, static_cast<int>(totalMB * 0.8));
+        return qBound(512, recommended, 16384);
     }
 #endif
-    return 2048; // fallback
+    return 2048; // fallback: 2GB
 }
 
 // ============================================================
@@ -138,13 +138,13 @@ int LaunchBackend::getAutoMemory()
 int LaunchBackend::getSystemMemory()
 {
 #ifdef Q_OS_WIN
-    MEMORYSTATUSEX s;
-    s.dwLength = sizeof(s);
-    if (GlobalMemoryStatusEx(&s)) {
-        return static_cast<int>(s.ullTotalPhys / (1024 * 1024));
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memStatus)) {
+        return static_cast<int>(memStatus.ullTotalPhys / (1024 * 1024));
     }
 #endif
-    return 0;
+    return 4096;
 }
 
 // ============================================================
@@ -153,47 +153,43 @@ int LaunchBackend::getSystemMemory()
 
 QVariantMap LaunchBackend::getMemoryStatus()
 {
-    QVariantMap map;
+    QVariantMap status;
 #ifdef Q_OS_WIN
-    MEMORYSTATUSEX s;
-    s.dwLength = sizeof(s);
-    if (GlobalMemoryStatusEx(&s)) {
-        qint64 totalMB = static_cast<qint64>(s.ullTotalPhys / (1024 * 1024));
-        qint64 availMB = static_cast<qint64>(s.ullAvailPhys  / (1024 * 1024));
-        map[QStringLiteral("total")]       = QVariant::fromValue(totalMB);
-        map[QStringLiteral("available")]   = QVariant::fromValue(availMB);
-        map[QStringLiteral("percent")]     = static_cast<int>(s.dwMemoryLoad);
-        map[QStringLiteral("recommended")] = qBound(1024, static_cast<int>(availMB / 2), 8192);
-        return map;
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memStatus)) {
+        auto totalMB = static_cast<int>(memStatus.ullTotalPhys / (1024 * 1024));
+        auto availMB = static_cast<int>(memStatus.ullAvailPhys / (1024 * 1024));
+        int usedMB = totalMB - availMB;
+        int usagePercent = totalMB > 0 ? (usedMB * 100 / totalMB) : 0;
+
+        status[QStringLiteral("totalMB")] = totalMB;
+        status[QStringLiteral("availMB")] = availMB;
+        status[QStringLiteral("usedMB")] = usedMB;
+        status[QStringLiteral("usagePercent")] = usagePercent;
+        status[QStringLiteral("recommendedMB")] = getAutoMemory();
     }
 #endif
-    map[QStringLiteral("total")]       = 0;
-    map[QStringLiteral("available")]   = 0;
-    map[QStringLiteral("percent")]     = 0;
-    map[QStringLiteral("recommended")] = 2048;
-    return map;
+    return status;
 }
 
 // ============================================================
-// Private Slots: Launcher signal forwarding
+// Private Slots
 // ============================================================
 
 void LaunchBackend::onLaunchStarted()
 {
-    m_launching = true;
-    emit launchStateChanged();
+    m_launchProgress = 10;
+    m_launchStatus = QStringLiteral("Minecraft 进程已启动");
+    emit launchProgressChanged(10, m_launchStatus);
     emit minecraftStarted();
     emit isRunningChanged();
+    emit logMessage(QStringLiteral("Minecraft 进程已启动"));
 }
 
 void LaunchBackend::onLaunchProgress(const QString& message)
 {
-    // Forward as status text; increment progress loosely
-    // Launcher emits text messages without numeric progress,
-    // so we do a simple heuristic: bump toward 90% capped.
-    if (m_launchProgress < 90) {
-        m_launchProgress = qMin(90, m_launchProgress + 5);
-    }
+    m_launchProgress = qMin(m_launchProgress + 5, 95);
     m_launchStatus = message;
     emit launchProgressChanged(m_launchProgress, message);
     emit logMessage(message);
@@ -201,25 +197,21 @@ void LaunchBackend::onLaunchProgress(const QString& message)
 
 void LaunchBackend::onLaunchFinished(bool success, const QString& errorMsg)
 {
+    m_launching = false;
     if (success) {
         m_launchProgress = 100;
         m_launchStatus = QStringLiteral("启动完成");
-        emit launchProgressChanged(100, m_launchStatus);
+        emit launchProgressChanged(100, QStringLiteral("启动完成"));
+        emit logMessage(QStringLiteral("Minecraft 启动成功"));
     } else {
         m_launchProgress = 0;
         m_launchStatus.clear();
-        emit launchProgressChanged(0, errorMsg.isEmpty()
-            ? QStringLiteral("启动失败") : errorMsg);
+        emit launchProgressChanged(0, errorMsg);
+        emit logMessage(QStringLiteral("启动失败: %1").arg(errorMsg));
     }
-
-    m_launching = false;
-    m_cancelled = false;
+    emit launchStateChanged();
     emit minecraftStopped();
     emit isRunningChanged();
-    emit launchStateChanged();
-    emit logMessage(errorMsg.isEmpty()
-        ? QStringLiteral("Minecraft 已退出")
-        : QStringLiteral("启动失败: %1").arg(errorMsg));
 }
 
 } // namespace ShadowLauncher
