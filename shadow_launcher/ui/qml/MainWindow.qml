@@ -176,9 +176,13 @@ Window {
                     }
 
                     Repeater {
+                        id: navRepeater
                         model: navModel
                         Item {
+                            id: navItemDelegate
                             width: parent ? parent.width : 180; Layout.fillWidth: true; height: 44
+                            // Expose window-position for fly ball animation
+                            property var windowRoot: appWindow
                             scale: navMouse.containsMouse ? 1.03 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
@@ -1790,10 +1794,10 @@ Window {
     Rectangle {
         id: flyBall
         z: 500
-        width: 0; height: 0; radius: 6
+        width: 12; height: 12; radius: 6
         color: "#6080e8"
         visible: false
-        x: 0; y: 0
+        opacity: 0
     }
 
     ParallelAnimation {
@@ -1815,12 +1819,23 @@ Window {
 
     SequentialAnimation {
         id: flyBallSeq
-        ScriptAction { script: { flyBall.x = flyBallAnim.startX; flyBall.y = flyBallAnim.startY; flyBall.width = 10; flyBall.height = 10; flyBall.visible = true; flyBall.opacity = 1.0; flyBall.scale = 1.0 } }
-        ScriptAction { script: { flyBallAnim.start() } }
+        // Phase 1: Show ball at start position
+        ScriptAction { script: {
+            flyBall.x = flyBallAnim.startX
+            flyBall.y = flyBallAnim.startY
+            flyBall.opacity = 1.0
+            flyBall.visible = true
+            flyBall.scale = 1.0
+        } }
+        // Phase 2: Fly to target
+        ScriptAction { script: { flyBallAnim.restart() } }
         PauseAnimation { duration: 400 }
-        ScriptAction { script: { flyBallBounce.start() } }
-        PauseAnimation { duration: 320 }
-        ScriptAction { script: { flyBall.opacity = 0; flyBall.visible = false; flyBall.width = 0; flyBall.height = 0 } }
+        // Phase 3: Bounce at target
+        ScriptAction { script: { flyBallBounce.restart() } }
+        PauseAnimation { duration: 350 }
+        // Phase 4: Fade out
+        NumberAnimation { target: flyBall; property: "opacity"; to: 0; duration: 200 }
+        ScriptAction { script: { flyBall.visible = false } }
     }
 
     // Nav item bounce overlay (inside sidebar)
@@ -1836,32 +1851,56 @@ Window {
 
     SequentialAnimation {
         id: navBounceSeq
-        ScriptAction { script: { navBounceOverlay.visible = true; navBounceOverlay.opacity = 0.4; navBounceOverlay.scale = 0.95 } }
+        ScriptAction { script: { navBounceOverlay.opacity = 0.3; navBounceOverlay.visible = true } }
         ParallelAnimation {
-            NumberAnimation { target: navBounceOverlay; property: "scale"; to: 1.04; duration: 180; easing.type: Easing.OutBack }
-            NumberAnimation { target: navBounceOverlay; property: "opacity"; to: 0; duration: 350; easing.type: Easing.OutCubic }
+            NumberAnimation { target: navBounceOverlay; property: "scale"; from: 0.92; to: 1.05; duration: 250; easing.type: Easing.OutBack }
+            NumberAnimation { target: navBounceOverlay; property: "opacity"; to: 0.0; duration: 400; easing.type: Easing.OutCubic }
         }
         ScriptAction { script: { navBounceOverlay.visible = false } }
     }
 
+    Item {
+        id: downloadNavRef
+        // Positioned at the download nav item in window coords (set from animateDownloadBall)
+        property real targetX: 0
+        property real targetY: 0
+    }
+
     function animateDownloadBall(sourceX, sourceY) {
-        // Compute target Y using navModel count (download nav item is last)
-        var idx = downloadNavVisible ? navModel.count - 1 : navModel.count
-        // Each nav item: 44px height, 8px top margin for first item, no spacing
-        var navItemY = 52 + idx * 44 + 8  // 52 = titlebar(36) + loadingBar(2) + sidebar margins
-        var targetY = navItemY + 22  // center of 44px item
-        var targetX = 108  // sidebar center
+        // Dynamically compute target using the Repeater item positions
+        // Find the download progress nav item (last in navModel)
+        var idx = downloadNavVisible ? navModel.count - 1 : -1
+        if (idx < 0) {
+            console.log("[flyBall] download nav not visible, skipping")
+            return
+        }
+
+        // Get actual window coords of the nav item centre via mapToItem
+        var delegate = navRepeater.itemAt(idx)
+        if (!delegate) {
+            console.log("[flyBall] delegate not ready, using estimate")
+            var sidebarTop = 46  // titlebar(36) + loadingBar(2) + Layout.margins(8) = 46
+            var navItemSidebarY = 8 + 48 + idx * 46  // sidebar margins(8) + SHADOW text(~48) + idx * (44+2spacing)
+            downloadNavRef.targetX = 108
+            downloadNavRef.targetY = sidebarTop + navItemSidebarY + 22
+        } else {
+            var pt = delegate.mapToItem(null, delegate.width / 2, delegate.height / 2)
+            downloadNavRef.targetX = pt.x
+            downloadNavRef.targetY = pt.y
+        }
+
+        console.log("[flyBall] source=(" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → target=(" + downloadNavRef.targetX.toFixed(0) + "," + downloadNavRef.targetY.toFixed(0) + ")")
 
         flyBallAnim.startX = sourceX
         flyBallAnim.startY = sourceY
-        flyBallAnim.endX = targetX
-        flyBallAnim.endY = targetY
+        flyBallAnim.endX = downloadNavRef.targetX
+        flyBallAnim.endY = downloadNavRef.targetY
 
-        flyBallSeq.start()
+        flyBallSeq.restart()
 
-        // Also bounce the nav overlay
-        navBounceOverlay.y = navItemY
-        navBounceSeq.start()
+        // Also bounce the nav overlay at the target position
+        navBounceOverlay.y = downloadNavRef.targetY - 20
+        navBounceSeq.restart()
     }
 
     // ═══ Kill button (inside pageContainer — see pageContainer above) ═══
