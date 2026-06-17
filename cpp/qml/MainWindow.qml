@@ -24,7 +24,6 @@ Window {
         if (backend) {
             backend.refreshVersionList()
             backend.refreshInstalled()
-            backend.refreshVersionDetails()
         }
     }
 
@@ -534,7 +533,12 @@ Window {
                         property int activeGameDirIndex: 0
 
                         // Refresh installed versions when overlay opens
-                        onVisibleChanged: { if (visible && backend) backend.refreshVersionDetails() }
+                        onVisibleChanged: {
+                            if (visible && backend) {
+                                backend.refreshVersionDetails()
+                                deferRefreshTimer.start()
+                            }
+                        }
 
                         // 延迟刷新定时器 — 先更新UI再扫描文件避免卡顿
                         Timer {
@@ -692,9 +696,9 @@ Window {
                                             text: {
                                                 if (!backend) return "磁盘信息不可用"
                                                 var pct = backend.diskPercent
-                                                var free = backend.diskFree
+                                                var freeGb = (backend.diskFree / 1073741824).toFixed(1)
                                                 var status = pct > 95 ? "危险" : (pct > 80 ? "偏低" : "正常")
-                                                return "剩余 " + free + "  (" + status + ")"
+                                                return "剩余 " + freeGb + " GB  (" + status + ")"
                                             }
                                             font.pixelSize: 11; color: "#808898"
                                         }

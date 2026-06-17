@@ -73,7 +73,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(bool devMode READ devMode CONSTANT)
 
     // ── Version details/summary ──
-    Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionListReady)
+    Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionDetailsReady)
     Q_PROPERTY(QString currentVersionSummary READ currentVersionSummary CONSTANT)
 
     // ── Download queue ──
@@ -147,7 +147,7 @@ public:
     QString installSpeed() const { return QStringLiteral("0 B/s"); }
     qint64 installBytesDownloaded() const { return 0; }
     qint64 installBytesTotal() const { return 0; }
-    QVariantList versionDetails() const;
+    QVariantList versionDetails() const { return m_versionDetails; }
     QString currentVersionSummary() const { return {}; }
 
     // ── Download queue ──
@@ -216,8 +216,8 @@ public:
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void refreshInstalledList();
-    Q_INVOKABLE void refreshVersionDetails() {}  // stub
-    Q_INVOKABLE void refreshGameDirInfo() {}    // stub
+    void refreshVersionDetails();
+    void refreshGameDirInfo();
     Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void launch(const QString& versionId);
@@ -273,6 +273,7 @@ signals:
     void generalSettingsChanged();
     void isolationChanged();
     void versionListReady();
+    void versionDetailsReady();
     void installedVersionsChanged();
     void selectedVersionChanged();
     void installStateChanged();
@@ -321,5 +322,6 @@ private:
     bool m_closeOnLaunch = false;
     QString m_gameDir;
     QVariantMap m_gameDirInfo;
+    QVariantList m_versionDetails;
 };
 }

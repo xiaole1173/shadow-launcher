@@ -8,6 +8,10 @@
 #include "version_backend.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QTimer>
 
@@ -109,8 +113,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     QCoreApplication::applicationName());
         m_lastLoginMode = s.value(QStringLiteral("account/lastLoginMode"), 1).toInt();
         QString lastUser = s.value(QStringLiteral("account/lastUsername")).toString();
-        if (m_lastLoginMode == 0 && !lastUser.isEmpty()) {
-            // Auto-restore offline login on startup
+        if ((m_lastLoginMode == 1 || m_lastLoginMode == 0) && !lastUser.isEmpty()) {
+            // Auto-restore login on startup
             QTimer::singleShot(100, this, [this, lastUser]() {
                 m_account->offlineLogin(lastUser);
             });
@@ -292,8 +296,140 @@ QStringList ShadowBackend::oldVersions() const {
     return list;
 }
 
-QVariantList ShadowBackend::versionDetails() const {
-    return m_version->versionInfoList();
+void ShadowBackend::refreshVersionDetails()
+{
+    QDir gameDir(m_app->gameDir());
+    QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
+    QDir versionsDir(versionsPath);
+
+    m_versionDetails.clear();
+    if (!versionsDir.exists()) {
+        emit versionDetailsReady();
+        return;
+    }
+
+    // Map of known MC versions to their types (from cached manifest)
+    QMap<QString, QString> knownTypes;
+    auto cached = m_version->cachedMcVersions();
+    for (const auto& v : cached) {
+        knownTypes[v.id] = v.type;
+    }
+
+    const QStringList entries = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString& versionId : entries) {
+        QString verPath = versionsDir.filePath(versionId);
+        QString jarPath = verPath + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+        if (!QFileInfo::exists(jarPath)) continue;
+
+        QVariantMap detail;
+        detail[QStringLiteral("id")] = versionId;
+
+        // Version type from manifest or heuristic
+        QString vtype = knownTypes.value(versionId, QString());
+        if (vtype.isEmpty()) {
+            // Heuristic: versions containing 'w' followed by number are snapshots
+            if (versionId.contains(QRegularExpression(QStringLiteral("\\dw\\d|alpha|beta|inf"))))
+                vtype = QStringLiteral("old");
+            else
+                vtype = QStringLiteral("release");
+        }
+        detail[QStringLiteral("versionType")] = vtype;
+
+        // Detect mod loader
+        QString loaderType = QStringLiteral("原版");
+        QString loaderVersion;
+        // Check for Forge
+        QString forgeDir = verPath + QStringLiteral("/mods");
+        if (QDir(forgeDir).exists()) {
+            // Check for Fabric
+            QString fabricJson = verPath + QStringLiteral("/fabric-installer.json");
+            if (QFileInfo::exists(fabricJson)) {
+                loaderType = QStringLiteral("Fabric");
+            } else {
+                loaderType = QStringLiteral("Forge");
+            }
+        }
+        // Check for NeoForge
+        if (QFileInfo::exists(verPath + QStringLiteral("/neoforge"))) {
+            loaderType = QStringLiteral("NeoForge");
+        }
+        // Check for Quilt
+        if (QFileInfo::exists(verPath + QStringLiteral("/quilt"))) {
+            loaderType = QStringLiteral("Quilt");
+        }
+        detail[QStringLiteral("loaderType")] = loaderType;
+        detail[QStringLiteral("loaderVersion")] = loaderVersion;
+
+        // Compute total size
+        qint64 totalSize = 0;
+        QDirIterator it(verPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            totalSize += it.fileInfo().size();
+        }
+        detail[QStringLiteral("sizeBytes")] = totalSize;
+
+        // Count mods
+        int modCount = 0;
+        if (QDir(forgeDir).exists()) {
+            QDirIterator modIt(forgeDir, QStringList() << QStringLiteral("*.jar"), QDir::Files);
+            while (modIt.hasNext()) { modIt.next(); modCount++; }
+        }
+        detail[QStringLiteral("modCount")] = modCount;
+
+        m_versionDetails.append(detail);
+    }
+
+    emit versionDetailsReady();
+    emit logMessage(QStringLiteral("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
+}
+
+void ShadowBackend::refreshGameDirInfo()
+{
+    QDir gameDir(m_app->gameDir());
+    QVariantMap info;
+
+    // Count installed versions
+    QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
+    QDir versionsDir(versionsPath);
+    int versionCount = 0;
+    qint64 totalSize = 0;
+
+    if (versionsDir.exists()) {
+        const QStringList entries = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& versionId : entries) {
+            QString jarPath = versionsDir.filePath(versionId + QStringLiteral("/") + versionId + QStringLiteral(".jar"));
+            if (QFileInfo::exists(jarPath)) versionCount++;
+
+            QDirIterator it(versionsDir.filePath(versionId), QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
+        }
+    }
+    info[QStringLiteral("versionCount")] = versionCount;
+
+    // Count mods
+    QString modsPath = gameDir.absoluteFilePath(QStringLiteral("mods"));
+    QDir modsDir(modsPath);
+    int modCount = 0;
+    if (modsDir.exists()) {
+        QDirIterator modIt(modsPath, QStringList() << QStringLiteral("*.jar"), QDir::Files);
+        while (modIt.hasNext()) { modIt.next(); modCount++; }
+    }
+    info[QStringLiteral("modCount")] = modCount;
+
+    // Format size
+    QString sizeDisplay;
+    if (totalSize >= 1073741824) {
+        sizeDisplay = QString::number(totalSize / 1073741824.0, 'f', 2) + QStringLiteral(" GB");
+    } else if (totalSize >= 1048576) {
+        sizeDisplay = QString::number(totalSize / 1048576.0, 'f', 1) + QStringLiteral(" MB");
+    } else {
+        sizeDisplay = QString::number(totalSize / 1024.0, 'f', 0) + QStringLiteral(" KB");
+    }
+    info[QStringLiteral("sizeDisplay")] = sizeDisplay;
+
+    m_gameDirInfo = info;
+    emit gameDirChanged();
 }
 
 QVariantMap ShadowBackend::systemMemoryInfo() const {

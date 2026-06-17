@@ -296,7 +296,12 @@ Rectangle {
                 MouseArea {
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (backend) { backend.refreshVersionList(); toastManager.show("版本列表已刷新") }
+                        if (backend) {
+                            toastManager.show("正在刷新...")
+                            appWindow.pageLoading = true
+                            versionModel.clear()
+                            backend.refreshVersionList()
+                        }
                     }
                 }
             }
