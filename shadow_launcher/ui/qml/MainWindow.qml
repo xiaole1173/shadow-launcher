@@ -1130,7 +1130,13 @@ Window {
                                             Text { anchors.centerIn: parent; text: "版本文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover0 }
                                             MouseArea { id: shMouse0; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.openVersionDir(currentSelectedVersion) }
+                                                onClicked: {
+                                                    if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                                                    if (backend) {
+                                                        backend.openVersionDir(currentSelectedVersion)
+                                                        toastManager.show("已打开版本文件夹")
+                                                    }
+                                                }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#3a5ed0" : "#2a4590"
