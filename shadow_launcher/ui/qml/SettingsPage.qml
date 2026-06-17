@@ -109,7 +109,7 @@ Rectangle {
                                         Item { Layout.fillWidth: true }
                                     }
                                     Text { text: backend ? (backend.javaVersion || "未知版本") : ""; font.pixelSize: 15; font.bold: true; color: "#e8ecf8"; Layout.fillWidth: true }
-                                    Text { text: backend ? (backend.javaExecutable || "未找到 Java 可执行文件") : "未找到 Java"; font.pixelSize: 11; font.family: "Consolas, monospace"; color: "#8890a0"; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                                    Text { text: backend ? (backend.javaPath || "未找到 Java 可执行文件") : "未找到 Java"; font.pixelSize: 11; font.family: "Consolas, monospace"; color: "#8890a0"; elide: Text.ElideMiddle; Layout.fillWidth: true }
                                 }
                             }
 
@@ -125,12 +125,12 @@ Rectangle {
                                 delegate: Rectangle {
                                     width: javaListView.width; height: 46; radius: 6
                                     color: javaRow.containsMouse ? "#151a28" : "transparent"
-                                    border.color: backend.javaExecutable === modelData.path ? "#5068d8" : "transparent"
+                                    border.color: backend.javaPath === modelData.path ? "#5068d8" : "transparent"
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 12; spacing: 10
-                                        Rectangle { width: 8; height: 8; radius: 4; color: backend.javaExecutable === modelData.path ? "#5d6fe0" : "#505468" }
+                                        Rectangle { width: 8; height: 8; radius: 4; color: backend.javaPath === modelData.path ? "#5d6fe0" : "#505468" }
                                         ColumnLayout { spacing: 2; Layout.fillWidth: true
-                                            Text { text: "Java " + modelData.major; font.pixelSize: 13; color: backend.javaExecutable === modelData.path ? "#e8ecf8" : "#b8c0d0"; font.weight: backend.javaExecutable === modelData.path ? Font.DemiBold : Font.Normal }
+                                            Text { text: "Java " + modelData.major; font.pixelSize: 13; color: backend.javaPath === modelData.path ? "#e8ecf8" : "#b8c0d0"; font.weight: backend.javaPath === modelData.path ? Font.DemiBold : Font.Normal }
                                             Text { text: modelData.path; font.pixelSize: 10; font.family: "Consolas, monospace"; color: "#707888"; elide: Text.ElideMiddle; Layout.fillWidth: true }
                                         }
                                         Text { text: "v" + modelData.version; font.pixelSize: 10; color: "#606478" }

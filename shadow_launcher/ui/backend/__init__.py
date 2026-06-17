@@ -642,40 +642,21 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Slot()
     def detectJava(self):
-        """Auto-detect Java installation from common paths."""
-        import os, glob
-        candidates = []
-        # Check common install paths
-        search_roots = [
-            os.environ.get("ProgramFiles", "C:\\Program Files"),
-            os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
-            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Eclipse Adoptium"),
-            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Eclipse Foundation"),
-            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Microsoft"),
-            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Zulu"),
-            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "BellSoft"),
-        ]
-        for root in search_roots:
-            if not os.path.isdir(root):
-                continue
-            for dirpath, dirs, files in os.walk(root):
-                if "bin" in dirs:
-                    bin_dir = os.path.join(dirpath, "bin")
-                    for exe in ["javaw.exe", "java.exe"]:
-                        exe_path = os.path.join(bin_dir, exe)
-                        if os.path.isfile(exe_path):
-                            candidates.append(exe_path)
-                            break
-                depth = dirpath.replace(root, "").count(os.sep)
-                if depth > 4:  # Limit search depth
-                    dirs.clear()
-                if len(candidates) >= 5:
-                    break
-            if len(candidates) >= 5:
-                break
-        if candidates:
-            self.javaPath = candidates[0]
-            self._detect_java_version(candidates[0])
+        """Auto-detect Java installation — 使用全面的 find_java_installations."""
+        from .settings import find_java_installations, pick_best_java
+        results = find_java_installations()
+        if results:
+            # Prefer Java 17+ for modern MC versions, fall back to highest available
+            best = pick_best_java(results, min_version=17)
+            if best:
+                path, ver_str, major = best
+                self._java_path = path
+                self._java_version = ver_str
+                self._java_major = major
+                self.javaPathChanged.emit()
+                self.logMessage.emit(f"自动检测: Java {major} ({path})")
+                return
+        self.logMessage.emit("未找到 Java，请手动指定路径")
 
     def _detect_java_version(self, java_path: str):
         """Detect Java version from a java executable."""

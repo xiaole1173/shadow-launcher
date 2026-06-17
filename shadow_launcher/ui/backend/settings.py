@@ -50,23 +50,26 @@ def find_java_installations():
     results = []
     seen = set()
 
+    def _add_result(exe_path: str):
+        """添加结果前按 bin 目录去重（同一JDK下的javaw.exe和java.exe视为相同）"""
+        if not exe_path or not os.path.isfile(exe_path):
+            return
+        bin_dir = os.path.dirname(exe_path)
+        normalized = os.path.normpath(bin_dir).lower()
+        if normalized in seen:
+            return
+        seen.add(normalized)
+        ver = _get_java_version(exe_path)
+        if ver:
+            results.append((exe_path, ver["str"], ver["major"]))
+
     # 1. 检查 JAVA_HOME
     java_home = os.environ.get("JAVA_HOME", "")
     if java_home:
-        exe = _find_java_exe(java_home)
-        if exe and exe not in seen:
-            ver = _get_java_version(exe)
-            if ver:
-                seen.add(exe)
-                results.append((exe, ver["str"], ver["major"]))
+        _add_result(_find_java_exe(java_home))
 
     # 2. 检查 PATH 中的 java
-    path_java = _find_java_on_path()
-    if path_java and path_java not in seen:
-        ver = _get_java_version(path_java)
-        if ver:
-            seen.add(path_java)
-            results.append((path_java, ver["str"], ver["major"]))
+    _add_result(_find_java_on_path())
 
     # 3. 扫描常见安装目录
     for search_dir in JAVA_SEARCH_PATHS:
@@ -79,19 +82,8 @@ def find_java_installations():
                     dirs.clear()
                     continue
                 for d in list(dirs):
-                    lower_d = d.lower()
-                    exe = _find_java_exe(os.path.join(root, d))
-                    if exe and os.path.isfile(exe) and exe not in seen:
-                        ver = _get_java_version(exe)
-                        if ver:
-                            seen.add(exe)
-                            results.append((exe, ver["str"], ver["major"]))
-                exe = _find_java_exe(root)
-                if exe and os.path.isfile(exe) and exe not in seen:
-                    ver = _get_java_version(exe)
-                    if ver:
-                        seen.add(exe)
-                        results.append((exe, ver["str"], ver["major"]))
+                    _add_result(_find_java_exe(os.path.join(root, d)))
+                _add_result(_find_java_exe(root))
                 if _depth >= 3:
                     dirs.clear()
         except Exception:
@@ -115,12 +107,7 @@ def find_java_installations():
                         subkey = winreg.OpenKey(key, subkey_name)
                         path_val, _ = winreg.QueryValueEx(subkey, "JavaHome")
                         winreg.CloseKey(subkey)
-                        exe = _find_java_exe(path_val)
-                        if exe and os.path.isfile(exe) and exe not in seen:
-                            ver = _get_java_version(exe)
-                            if ver:
-                                seen.add(exe)
-                                results.append((exe, ver["str"], ver["major"]))
+                        _add_result(_find_java_exe(path_val))
                         i += 1
                     except OSError:
                         break
