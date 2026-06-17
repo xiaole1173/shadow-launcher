@@ -8,6 +8,8 @@ import QtQuick.Layouts
 // ═══════════════════════════════════════════════════════════════════
 
 Rectangle {
+    width: parent ? parent.width : 800
+    height: parent ? parent.height : 600
     id: page
     color: "#121418"
 

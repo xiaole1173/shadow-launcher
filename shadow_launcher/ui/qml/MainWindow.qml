@@ -162,6 +162,7 @@ Window {
 
             Rectangle {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
+                layer.enabled: true
                 color: "#0a0c12"; radius: 6
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
@@ -210,6 +211,8 @@ Window {
                 Rectangle {
                     id: pageContainer
                     Layout.fillWidth: true; Layout.fillHeight: true; color: "transparent"
+                    layer.enabled: true; layer.smooth: true
+                    clip: true
 
                     // ========== HOMEPAGE ==========
                     Rectangle {

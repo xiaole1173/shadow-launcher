@@ -3,6 +3,8 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
 Rectangle {
+    width: parent ? parent.width : 400
+    height: parent ? parent.height : 300
     color: "#121418"
     id: root
 
