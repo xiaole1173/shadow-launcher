@@ -9,6 +9,7 @@
 
 #include <QCoreApplication>
 #include <QSettings>
+#include <QTimer>
 
 namespace ShadowLauncher {
 
@@ -33,6 +34,16 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::offlineHistoryChanged);
     connect(m_account, &AccountBackend::logMessage,
             this, &ShadowBackend::logMessage);
+    // Persist username on every login
+    connect(m_account, &AccountBackend::accountChanged,
+            this, [this]() {
+                QString u = m_account->username();
+                if (!u.isEmpty()) {
+                    QSettings s(QCoreApplication::organizationName(),
+                                QCoreApplication::applicationName());
+                    s.setValue(QStringLiteral("account/lastUsername"), u);
+                }
+            });
 
     // ── Signal forwarding: SettingsBackend → ShadowBackend ──
     connect(m_settings, &SettingsBackend::javaPathChanged,
@@ -97,6 +108,13 @@ ShadowBackend::ShadowBackend(QObject* parent)
         QSettings s(QCoreApplication::organizationName(),
                     QCoreApplication::applicationName());
         m_lastLoginMode = s.value(QStringLiteral("account/lastLoginMode"), 1).toInt();
+        QString lastUser = s.value(QStringLiteral("account/lastUsername")).toString();
+        if (m_lastLoginMode == 0 && !lastUser.isEmpty()) {
+            // Auto-restore offline login on startup
+            QTimer::singleShot(100, this, [this, lastUser]() {
+                m_account->offlineLogin(lastUser);
+            });
+        }
     }
 
     // ── Signal forwarding: ResourceBackend → ShadowBackend ──
@@ -161,6 +179,10 @@ QString ShadowBackend::javaVersion() const {
 
 int ShadowBackend::javaMajor() const {
     return m_settings->javaMajor();
+}
+
+bool ShadowBackend::javaInstalled() const {
+    return m_settings->isJavaReady();
 }
 
 int ShadowBackend::minMemoryMb() const {
@@ -360,6 +382,10 @@ QString ShadowBackend::detectJava() {
 
 QString ShadowBackend::browseJava() {
     return m_settings->browseJava();
+}
+
+void ShadowBackend::selectJavaByIndex(int index) {
+    m_settings->selectJavaByIndex(index);
 }
 
 QVariantMap ShadowBackend::getMemoryStatus() {

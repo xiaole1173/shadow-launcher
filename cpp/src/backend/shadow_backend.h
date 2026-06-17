@@ -29,6 +29,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString javaPath READ javaPath NOTIFY javaPathChanged)
     Q_PROPERTY(QString javaVersion READ javaVersion NOTIFY javaPathChanged)
     Q_PROPERTY(int javaMajor READ javaMajor NOTIFY javaPathChanged)
+    Q_PROPERTY(bool javaInstalled READ javaInstalled NOTIFY javaPathChanged)
+    Q_PROPERTY(bool javaReady READ javaInstalled NOTIFY javaPathChanged)
     Q_PROPERTY(int minMemoryMb READ minMemoryMb NOTIFY memorySettingsChanged)
     Q_PROPERTY(int maxMemoryMb READ maxMemoryMb NOTIFY memorySettingsChanged)
     Q_PROPERTY(bool closeAfterLaunch READ closeAfterLaunch NOTIFY generalSettingsChanged)
@@ -121,6 +123,7 @@ public:
     QString javaPath() const;
     QString javaVersion() const;
     int javaMajor() const;
+    bool javaInstalled() const;
     int minMemoryMb() const;
     int maxMemoryMb() const;
     bool closeAfterLaunch() const;
@@ -202,6 +205,7 @@ public:
     Q_INVOKABLE QString autoSelectJava();
     Q_INVOKABLE QString detectJava();
     Q_INVOKABLE QString browseJava();
+    Q_INVOKABLE void selectJavaByIndex(int index);
     Q_INVOKABLE QVariantMap getMemoryStatus();
     Q_INVOKABLE void setMinMemory(int mb);
     Q_INVOKABLE void setMaxMemory(int mb);
