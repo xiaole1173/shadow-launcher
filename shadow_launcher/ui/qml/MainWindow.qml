@@ -1532,7 +1532,7 @@ Window {
                                         }
 
                                         Component.onCompleted: {
-                                            if (backend) { backend.openResourcePacksFolder(); toastManager.show("已打开资源包文件夹"); var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]) }
+                                            if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]) }
                                         }
                                     }
                                 }
@@ -1808,34 +1808,24 @@ Window {
         property real endY: 0
         NumberAnimation { target: flyBall; property: "x"; from: flyBallAnim.startX; to: flyBallAnim.endX; duration: 400; easing.type: Easing.InCubic }
         NumberAnimation { target: flyBall; property: "y"; from: flyBallAnim.startY; to: flyBallAnim.endY; duration: 400; easing.type: Easing.InCubic }
+        onStopped: {
+            // When fly reaches target, bounce then fade
+            flyBallBounce.restart()
+            flyBallFade.start()
+        }
     }
 
     SequentialAnimation {
         id: flyBallBounce
-        NumberAnimation { target: flyBall; property: "scale"; from: 1.0; to: 1.5; duration: 120; easing.type: Easing.OutCubic }
-        NumberAnimation { target: flyBall; property: "scale"; from: 1.5; to: 0.7; duration: 100; easing.type: Easing.InCubic }
-        NumberAnimation { target: flyBall; property: "scale"; from: 0.7; to: 1.0; duration: 100; easing.type: Easing.OutCubic }
+        NumberAnimation { target: flyBall; property: "scale"; from: 1.0; to: 1.7; duration: 140; easing.type: Easing.OutBack }
+        NumberAnimation { target: flyBall; property: "scale"; from: 1.7; to: 0.8; duration: 100; easing.type: Easing.InCubic }
+        NumberAnimation { target: flyBall; property: "scale"; from: 0.8; to: 1.0; duration: 120; easing.type: Easing.OutCubic }
     }
 
-    SequentialAnimation {
-        id: flyBallSeq
-        // Phase 1: Show ball at start position
-        ScriptAction { script: {
-            flyBall.x = flyBallAnim.startX
-            flyBall.y = flyBallAnim.startY
-            flyBall.opacity = 1.0
-            flyBall.visible = true
-            flyBall.scale = 1.0
-        } }
-        // Phase 2: Fly to target
-        ScriptAction { script: { flyBallAnim.restart() } }
-        PauseAnimation { duration: 400 }
-        // Phase 3: Bounce at target
-        ScriptAction { script: { flyBallBounce.restart() } }
-        PauseAnimation { duration: 350 }
-        // Phase 4: Fade out
-        NumberAnimation { target: flyBall; property: "opacity"; to: 0; duration: 200 }
-        ScriptAction { script: { flyBall.visible = false } }
+    NumberAnimation {
+        id: flyBallFade
+        target: flyBall; property: "opacity"; to: 0; duration: 350; easing.type: Easing.OutCubic
+        onStopped: { flyBall.visible = false }
     }
 
     // Nav item bounce overlay (inside sidebar)
@@ -1847,60 +1837,57 @@ Window {
         color: "#306080e8"
         x: 8; y: 0
         opacity: 0
-    }
-
-    SequentialAnimation {
-        id: navBounceSeq
-        ScriptAction { script: { navBounceOverlay.opacity = 0.3; navBounceOverlay.visible = true } }
-        ParallelAnimation {
-            NumberAnimation { target: navBounceOverlay; property: "scale"; from: 0.92; to: 1.05; duration: 250; easing.type: Easing.OutBack }
-            NumberAnimation { target: navBounceOverlay; property: "opacity"; to: 0.0; duration: 400; easing.type: Easing.OutCubic }
+        
+        NumberAnimation on opacity {
+            id: navOverlayFade
+            from: 0.3; to: 0; duration: 420; easing.type: Easing.OutCubic
+            onStopped: { navBounceOverlay.visible = false }
         }
-        ScriptAction { script: { navBounceOverlay.visible = false } }
-    }
-
-    Item {
-        id: downloadNavRef
-        // Positioned at the download nav item in window coords (set from animateDownloadBall)
-        property real targetX: 0
-        property real targetY: 0
+        NumberAnimation on scale {
+            id: navOverlayScale
+            from: 0.9; to: 1.06; duration: 260; easing.type: Easing.OutBack
+        }
     }
 
     function animateDownloadBall(sourceX, sourceY) {
-        // Dynamically compute target using the Repeater item positions
         // Find the download progress nav item (last in navModel)
         var idx = downloadNavVisible ? navModel.count - 1 : -1
-        if (idx < 0) {
-            console.log("[flyBall] download nav not visible, skipping")
-            return
-        }
+        if (idx < 0) { console.log("[flyBall] nav not visible, skip"); return }
 
-        // Get actual window coords of the nav item centre via mapToItem
+        var targetX, targetY
         var delegate = navRepeater.itemAt(idx)
-        if (!delegate) {
-            console.log("[flyBall] delegate not ready, using estimate")
-            var sidebarTop = 46  // titlebar(36) + loadingBar(2) + Layout.margins(8) = 46
-            var navItemSidebarY = 8 + 48 + idx * 46  // sidebar margins(8) + SHADOW text(~48) + idx * (44+2spacing)
-            downloadNavRef.targetX = 108
-            downloadNavRef.targetY = sidebarTop + navItemSidebarY + 22
-        } else {
+        if (delegate) {
             var pt = delegate.mapToItem(null, delegate.width / 2, delegate.height / 2)
-            downloadNavRef.targetX = pt.x
-            downloadNavRef.targetY = pt.y
+            targetX = pt.x; targetY = pt.y
+        } else {
+            // Fallback estimate
+            targetX = 108
+            targetY = 46 + 8 + 48 + idx * 46 + 22
         }
 
-        console.log("[flyBall] source=(" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → target=(" + downloadNavRef.targetX.toFixed(0) + "," + downloadNavRef.targetY.toFixed(0) + ")")
+        console.log("[flyBall] (" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → (" + targetX.toFixed(0) + "," + targetY.toFixed(0) + ")")
 
+        // Position and show ball
+        flyBall.x = sourceX
+        flyBall.y = sourceY
+        flyBall.opacity = 1.0
+        flyBall.scale = 1.0
+        flyBall.visible = true
+
+        // Set anim targets and fly
         flyBallAnim.startX = sourceX
         flyBallAnim.startY = sourceY
-        flyBallAnim.endX = downloadNavRef.targetX
-        flyBallAnim.endY = downloadNavRef.targetY
+        flyBallAnim.endX = targetX
+        flyBallAnim.endY = targetY
+        flyBallAnim.restart()
 
-        flyBallSeq.restart()
-
-        // Also bounce the nav overlay at the target position
-        navBounceOverlay.y = downloadNavRef.targetY - 20
-        navBounceSeq.restart()
+        // Nav overlay bounce
+        navBounceOverlay.y = targetY - 20
+        navBounceOverlay.opacity = 0.3
+        navBounceOverlay.scale = 0.9
+        navBounceOverlay.visible = true
+        navOverlayFade.restart()
+        navOverlayScale.restart()
     }
 
     // ═══ Kill button (inside pageContainer — see pageContainer above) ═══
