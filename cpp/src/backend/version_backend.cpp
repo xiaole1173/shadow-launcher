@@ -85,6 +85,11 @@ QVariantList VersionBackend::versionInfoList() const
     return list;
 }
 
+QVector<McVersion> VersionBackend::cachedMcVersions() const
+{
+    return m_versionMgr->cachedVersions();
+}
+
 void VersionBackend::refreshVersionList()
 {
     emit logMessage(QStringLiteral("正在获取版本列表..."));

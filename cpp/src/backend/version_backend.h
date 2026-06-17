@@ -6,6 +6,8 @@
 #include <QVariantList>
 #include <QTimer>
 
+#include "../utils/types.h"
+
 namespace ShadowLauncher {
 
 class VersionManager;
@@ -31,6 +33,8 @@ public:
 
     /// Return cached version list with id + type for QML
     QVariantList versionInfoList() const;
+    /// Access to raw cached versions from VersionManager
+    QVector<McVersion> cachedMcVersions() const;
     int installProgress() const { return m_installProgress; }
     int installTotal() const { return m_installTotal; }
     QString installFile() const { return m_installFile; }

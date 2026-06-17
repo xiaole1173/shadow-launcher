@@ -242,6 +242,42 @@ QString ShadowBackend::installPhase() const {
     return m_version->installPhase();
 }
 
+QStringList ShadowBackend::releaseVersions() const {
+    QStringList list;
+    auto versions = m_version->cachedMcVersions();
+    for (const auto& v : versions) {
+        if (v.type == QStringLiteral("release")) list.append(v.id);
+    }
+    return list;
+}
+
+QStringList ShadowBackend::snapshotVersions() const {
+    QStringList list;
+    auto versions = m_version->cachedMcVersions();
+    for (const auto& v : versions) {
+        if (v.type == QStringLiteral("snapshot")) list.append(v.id);
+    }
+    return list;
+}
+
+QStringList ShadowBackend::oldVersions() const {
+    QStringList list;
+    auto versions = m_version->cachedMcVersions();
+    for (const auto& v : versions) {
+        if (v.type != QStringLiteral("release") && v.type != QStringLiteral("snapshot"))
+            list.append(v.id);
+    }
+    return list;
+}
+
+QVariantList ShadowBackend::versionDetails() const {
+    return m_version->versionInfoList();
+}
+
+QVariantMap ShadowBackend::systemMemoryInfo() const {
+    return m_settings->getMemoryStatus();
+}
+
 // ============================================================
 // Launch property getters
 // ============================================================

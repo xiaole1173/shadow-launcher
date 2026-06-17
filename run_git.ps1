@@ -1,0 +1,1 @@
+cd D:\MC_Project\shadow-launcher\cpp && git status --short

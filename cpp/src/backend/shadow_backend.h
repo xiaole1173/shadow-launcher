@@ -7,7 +7,6 @@
 
 namespace ShadowLauncher {
 
-// Forward declarations of all 7 backends
 class AppBackend;
 class AccountBackend;
 class SettingsBackend;
@@ -18,7 +17,7 @@ class ResourceBackend;
 
 class ShadowBackend : public QObject {
     Q_OBJECT
-    // --- Account properties (delegated from AccountBackend) ---
+    // ── Account ──
     Q_PROPERTY(QString username READ username NOTIFY accountChanged)
     Q_PROPERTY(bool isOnline READ isOnline NOTIFY accountChanged)
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
@@ -26,7 +25,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
     Q_PROPERTY(int lastLoginMode READ lastLoginMode WRITE setLastLoginMode NOTIFY loginModeChanged)
 
-    // --- Settings properties ---
+    // ── Settings ──
     Q_PROPERTY(QString javaPath READ javaPath NOTIFY javaPathChanged)
     Q_PROPERTY(QString javaVersion READ javaVersion NOTIFY javaPathChanged)
     Q_PROPERTY(int javaMajor READ javaMajor NOTIFY javaPathChanged)
@@ -34,12 +33,15 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int maxMemoryMb READ maxMemoryMb NOTIFY memorySettingsChanged)
     Q_PROPERTY(bool closeAfterLaunch READ closeAfterLaunch NOTIFY generalSettingsChanged)
     Q_PROPERTY(bool isolationEnabled READ isolationEnabled NOTIFY isolationChanged)
-    Q_PROPERTY(QVariantList availableJavaList READ availableJavaList CONSTANT)
+    Q_PROPERTY(QVariantList availableJavaList READ availableJavaList NOTIFY javaPathChanged)
 
-    // --- Version properties ---
+    // ── Version ──
     Q_PROPERTY(QString selectedVersion READ selectedVersion NOTIFY selectedVersionChanged)
     Q_PROPERTY(QStringList versionIds READ versionIds NOTIFY versionListReady)
     Q_PROPERTY(QVariantList versionList READ versionList NOTIFY versionListReady)
+    Q_PROPERTY(QStringList releaseVersions READ releaseVersions NOTIFY versionListReady)
+    Q_PROPERTY(QStringList snapshotVersions READ snapshotVersions NOTIFY versionListReady)
+    Q_PROPERTY(QStringList oldVersions READ oldVersions NOTIFY versionListReady)
     Q_PROPERTY(QStringList installedVersions READ installedVersions NOTIFY installedVersionsChanged)
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
     Q_PROPERTY(int installProgress READ installProgress NOTIFY installProgressChanged)
@@ -47,31 +49,75 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString installFile READ installFile NOTIFY installFileProgress)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
+    Q_PROPERTY(QString installSpeed READ installSpeed CONSTANT)
+    Q_PROPERTY(qint64 installBytesDownloaded READ installBytesDownloaded NOTIFY installBytesProgress)
+    Q_PROPERTY(qint64 installBytesTotal READ installBytesTotal NOTIFY installBytesProgress)
 
-    // --- Launch properties ---
+    // ── Launch ──
     Q_PROPERTY(bool launching READ isLaunching NOTIFY launchStateChanged)
     Q_PROPERTY(int launchProgress READ launchProgress NOTIFY launchProgressChanged)
     Q_PROPERTY(QString launchStatus READ launchStatus NOTIFY launchProgressChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
+    Q_PROPERTY(QString launchVersion READ launchVersion CONSTANT)
+    Q_PROPERTY(QString launchUsername READ launchUsername CONSTANT)
 
-    // --- Resource properties ---
+    // ── Resource ──
     Q_PROPERTY(bool downloading READ isResourceDownloading NOTIFY resourceDownloadStateChanged)
 
-    // --- App properties ---
+    // ── App ──
     Q_PROPERTY(QString gameDir READ gameDir NOTIFY gameDirChanged)
     Q_PROPERTY(QString dataDir READ appDataDir CONSTANT)
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(bool devMode READ devMode CONSTANT)
 
+    // ── Version details/summary ──
+    Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionListReady)
+    Q_PROPERTY(QString currentVersionSummary READ currentVersionSummary CONSTANT)
+
+    // ── Download queue ──
+    Q_PROPERTY(QVariantList downloadQueue READ downloadQueue CONSTANT)
+    Q_PROPERTY(QVariantList activeDownloads READ activeDownloads CONSTANT)
+
+    // ── Game info ──
+    Q_PROPERTY(QVariantMap gameDirInfo READ gameDirInfo NOTIFY gameDirChanged)
+    Q_PROPERTY(QVariantList gameDirectories READ gameDirectories CONSTANT)
+    Q_PROPERTY(qint64 diskFree READ diskFree CONSTANT)
+    Q_PROPERTY(int diskPercent READ diskPercent CONSTANT)
+    Q_PROPERTY(bool closeOnLaunch READ closeOnLaunch NOTIFY generalSettingsChanged)
+    Q_PROPERTY(bool autoMemoryEnabled READ autoMemoryEnabled NOTIFY memorySettingsChanged)
+    Q_PROPERTY(QVariantMap systemMemoryInfo READ systemMemoryInfo NOTIFY memorySettingsChanged)
+    Q_PROPERTY(QString gameArgs READ gameArgs CONSTANT)
+    Q_PROPERTY(QString jvmArgs READ jvmArgs CONSTANT)
+    Q_PROPERTY(QString javaCompatibility READ javaCompatibility CONSTANT)
+    Q_PROPERTY(bool isModdedVersion READ isModdedVersion CONSTANT)
+
+    // ── Verify ──
+    Q_PROPERTY(bool verifyRunning READ verifyRunning CONSTANT)
+    Q_PROPERTY(bool _verify_running READ verifyRunning CONSTANT)
+    Q_PROPERTY(int verifyProgressDone READ verifyProgressDone CONSTANT)
+    Q_PROPERTY(int verifyProgressTotal READ verifyProgressTotal CONSTANT)
+    Q_PROPERTY(bool verifyResultOk READ verifyResultOk CONSTANT)
+    Q_PROPERTY(QString verifyResultText READ verifyResultText CONSTANT)
+    Q_PROPERTY(QString verifyVersion READ verifyVersion CONSTANT)
+
+    // ── Misc ──
+    Q_PROPERTY(QVariantList listMods READ listMods CONSTANT)
+    Q_PROPERTY(QVariantList listResourcePacks READ listResourcePacks CONSTANT)
+    Q_PROPERTY(QVariantList listSaves READ listSaves CONSTANT)
+
 public:
     explicit ShadowBackend(QObject* parent = nullptr);
 
-    // All getters (delegate to sub-backends)
+    // ── Account getters ──
     QString username() const;
     bool isOnline() const;
     QString accountUuid() const;
     QString skinPath() const;
     QStringList offlineUsernames() const;
+    int lastLoginMode() const;
+    void setLastLoginMode(int mode);
+
+    // ── Settings getters ──
     QString javaPath() const;
     QString javaVersion() const;
     int javaMajor() const;
@@ -80,11 +126,14 @@ public:
     bool closeAfterLaunch() const;
     bool isolationEnabled() const;
     QVariantList availableJavaList() const;
-    int lastLoginMode() const;
-    void setLastLoginMode(int mode);
+
+    // ── Version getters ──
     QString selectedVersion() const;
     QStringList versionIds() const;
     QVariantList versionList() const;
+    QStringList releaseVersions() const;
+    QStringList snapshotVersions() const;
+    QStringList oldVersions() const;
     QStringList installedVersions() const;
     bool isInstalling() const;
     int installProgress() const;
@@ -92,23 +141,66 @@ public:
     QString installFile() const;
     QString installVersionId() const;
     QString installPhase() const;
+    QString installSpeed() const { return QStringLiteral("0 B/s"); }
+    qint64 installBytesDownloaded() const { return 0; }
+    qint64 installBytesTotal() const { return 0; }
+    QVariantList versionDetails() const;
+    QString currentVersionSummary() const { return {}; }
+
+    // ── Download queue ──
+    QVariantList downloadQueue() const { return {}; }
+    QVariantList activeDownloads() const { return {}; }
+
+    // ── Launch getters ──
     bool isLaunching() const;
     int launchProgress() const;
     QString launchStatus() const;
     bool isRunning() const;
+    QString launchVersion() const { return m_launchVersion; }
+    QString launchUsername() const { return m_launchUsername; }
+
+    // ── Resource getters ──
     bool isResourceDownloading() const;
+
+    // ── App getters ──
     QString gameDir() const;
     QString appDataDir() const;
     QString theme() const;
     bool devMode() const;
 
-    // Q_INVOKABLE methods — directly delegate to sub-backends
+    // ── Game info stubs ──
+    QVariantMap gameDirInfo() const { return m_gameDirInfo; }
+    QVariantList gameDirectories() const { return {}; }
+    qint64 diskFree() const { return 100LL * 1024 * 1024 * 1024; }  // 100 GB
+    int diskPercent() const { return 30; }
+    bool closeOnLaunch() const { return m_closeOnLaunch; }
+    bool autoMemoryEnabled() const { return true; }
+    QVariantMap systemMemoryInfo() const;
+    QString gameArgs() const { return {}; }
+    QString jvmArgs() const { return {}; }
+    QString javaCompatibility() const { return QStringLiteral("OK"); }
+    bool isModdedVersion() const { return false; }
+
+    // ── Verify stubs ──
+    bool verifyRunning() const { return false; }
+    int verifyProgressDone() const { return 0; }
+    int verifyProgressTotal() const { return 0; }
+    bool verifyResultOk() const { return true; }
+    QString verifyResultText() const { return {}; }
+    QString verifyVersion() const { return {}; }
+
+    // ── Mod/file list stubs ──
+    QVariantList listMods() const { return {}; }
+    QVariantList listResourcePacks() const { return {}; }
+    QVariantList listSaves() const { return {}; }
+
+    // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
     Q_INVOKABLE void logout();
     Q_INVOKABLE QString getSkinUrl(const QString& username = {}) const;
     Q_INVOKABLE QVariantList scanJavaInstallations();
     Q_INVOKABLE QString autoSelectJava();
-    Q_INVOKABLE QString detectJava();  // alias for autoSelectJava
+    Q_INVOKABLE QString detectJava();
     Q_INVOKABLE QString browseJava();
     Q_INVOKABLE QVariantMap getMemoryStatus();
     Q_INVOKABLE void setMinMemory(int mb);
@@ -120,6 +212,8 @@ public:
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void refreshInstalledList();
+    Q_INVOKABLE void refreshVersionDetails() {}  // stub
+    Q_INVOKABLE void refreshGameDirInfo() {}    // stub
     Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void launch(const QString& versionId);
@@ -136,12 +230,41 @@ public:
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);
     Q_INVOKABLE void setGameDir(const QString& dir);
     Q_INVOKABLE int getAutoMemory();
+    Q_INVOKABLE void setCloseOnLaunch(bool v) { m_closeOnLaunch = v; emit generalSettingsChanged(); }
+    Q_INVOKABLE void setAutoMemoryEnabled(bool) {}  // stub
+    Q_INVOKABLE void setGameArgs(const QString&) {}  // stub
+    Q_INVOKABLE void setJvmArgs(const QString&) {}   // stub
+
+    // ── Path/document stubs ──
+    Q_INVOKABLE void openJavaFileDialog() { browseJava(); }
+    Q_INVOKABLE void pickJava() { browseJava(); }
+    Q_INVOKABLE void checkFileChanges() {}
+    Q_INVOKABLE void cloneVersion(const QString&) {}
+    Q_INVOKABLE void copyVersionPath(const QString&) {}
+    Q_INVOKABLE void deleteMod(const QString&) {}
+    Q_INVOKABLE void deleteResourcePack(const QString&) {}
+    Q_INVOKABLE void deleteSave(const QString&) {}
+    Q_INVOKABLE void migrateVersion(const QString&) {}
+    Q_INVOKABLE void openConfigFolder() { openGameDir(); }
+    Q_INVOKABLE void openCrashLog() {}
+    Q_INVOKABLE void openLatestLog() {}
+    Q_INVOKABLE void openLogsFolder() {}
+    Q_INVOKABLE void openModsFolder() {}
+    Q_INVOKABLE void openResourcePacksFolder() {}
+    Q_INVOKABLE void openSavesFolder() {}
+    Q_INVOKABLE void openScreenshotsFolder() {}
+    Q_INVOKABLE void openShaderPacksFolder() {}
+    Q_INVOKABLE void removeGameDir(int) {}
+    Q_INVOKABLE void renameVersion(const QString&, const QString&) {}
+    Q_INVOKABLE void repairVersion(const QString&) {}
+    Q_INVOKABLE void verifyVersion(const QString&) {}
 
 signals:
     void accountChanged();
     void skinReady();
     void offlineHistoryChanged();
     void javaPathChanged();
+    void javaReadyChanged();
     void memorySettingsChanged();
     void generalSettingsChanged();
     void isolationChanged();
@@ -170,7 +293,6 @@ signals:
     void logMessage(const QString& msg);
 
 public:
-    // Direct access to sub-backends (for main.cpp setup)
     AppBackend* app() const { return m_app; }
     AccountBackend* account() const { return m_account; }
     SettingsBackend* settings() const { return m_settings; }
@@ -189,7 +311,11 @@ private:
     ResourceBackend* m_resource = nullptr;
 
     bool m_isolationEnabled = false;
-    int m_lastLoginMode = 1;  // 0=online, 1=offline (default)
+    int m_lastLoginMode = 1;
+    QString m_launchVersion;
+    QString m_launchUsername;
+    bool m_closeOnLaunch = false;
     QString m_gameDir;
+    QVariantMap m_gameDirInfo;
 };
 }
