@@ -214,7 +214,9 @@ def migrate_version_to_isolated(version_id: str) -> bool:
 
 
 def is_version_isolated(version_id: str) -> bool:
-    """检查某个版本是否已开启隔离"""
+    """检查某个版本是否已开启隔离（全局隔离开启时所有版本视为已隔离）"""
+    if is_isolation_enabled():
+        return True
     marker = os.path.join(MINECRAFT_DIR, "versions", version_id, ".isolated")
     return os.path.exists(marker)
 
@@ -222,9 +224,11 @@ def is_version_isolated(version_id: str) -> bool:
 def get_version_game_dir(version_id: str) -> str:
     """
     获取版本的游戏目录
-    - 隔离开启 + 版本已隔离 → versions/{id}/game/
+    - 隔离开启 → versions/{id}/game/  （每个版本完全独立的存档/截图/模组等）
     - 否则 → MINECRAFT_DIR（共享目录）
     """
-    if is_isolation_enabled() and is_version_isolated(version_id):
-        return os.path.join(MINECRAFT_DIR, "versions", version_id, "game")
+    if is_isolation_enabled():
+        game_dir = os.path.join(MINECRAFT_DIR, "versions", version_id, "game")
+        os.makedirs(game_dir, exist_ok=True)
+        return game_dir
     return MINECRAFT_DIR

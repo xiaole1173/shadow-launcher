@@ -403,8 +403,16 @@ class SettingsMixin:
     def setIsolationEnabled(self, enabled: bool):
         set_isolation_enabled(enabled)
         self._isolation_enabled = enabled
+        if enabled:
+            # 为所有已安装版本创建独立的 game 目录
+            import os as _os
+            for vid in self._installed_ids if hasattr(self, '_installed_ids') else []:
+                game_dir = _os.path.join(MINECRAFT_DIR, "versions", vid, "game")
+                _os.makedirs(game_dir, exist_ok=True)
+            self.logMessage.emit(f"版本隔离已开启 — 各版本拥有独立的存档/截图/配置")
+        else:
+            self.logMessage.emit(f"版本隔离已关闭 — 所有版本共享游戏目录")
         self.isolationChanged.emit()
-        self.logMessage.emit(f"版本隔离已{'开启' if enabled else '关闭'}")
 
     @Slot(str)
     def migrateToIsolated(self, version_id: str):

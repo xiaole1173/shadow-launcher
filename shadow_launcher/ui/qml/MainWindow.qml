@@ -1514,7 +1514,9 @@ Window {
 
                                     Rectangle {
                                         Layout.fillWidth: true; Layout.fillHeight: true
-                                        color: "#0d1018"; radius: 6; border.color: "#1a1e28"
+                                        color: "#0d1018"; radius: 6
+                                        border.color: !backend ? "#1a1e28" : (backend.verifyRunning ? "#2a3050" : (backend.verifyResultOk ? "#2a4a2a" : backend.verifyResultText !== "" ? "#4a2a2a" : "#1a1e28"))
+                                        border.width: 1
                                         visible: backend && backend.verifyResultText !== ""
                                         clip: true
                                         Flickable {

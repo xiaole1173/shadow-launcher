@@ -931,6 +931,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     _verify_progress_done: int = 0
     _verify_progress_total: int = 0
     _verify_result_text: str = ""
+    _verify_ok: bool = False
 
     @Property(bool, notify=verifyFinished)
     def verifyRunning(self):
@@ -948,6 +949,10 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     def verifyResultText(self):
         return self._verify_result_text
 
+    @Property(bool, notify=verifyFinished)
+    def verifyResultOk(self):
+        return self._verify_ok
+
     @Slot(str)
     def verifyVersion(self, version_id: str):
         if not version_id:
@@ -961,6 +966,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         self._verify_progress_done = 0
         self._verify_progress_total = 0
         self._verify_result_text = "正在准备校验..."
+        self._verify_ok = False
         self.verifyProgressChanged.emit(0, 0)
         self.verifyResultReady.emit(self._verify_result_text)
         self.verifyFinished.emit(False)
@@ -1063,17 +1069,20 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                     if len(missing) > 20:
                         result += f"\n... 共 {len(missing)} 个问题"
                     self._verify_result_text = result
+                    self._verify_ok = False
                     self.verifyResultReady.emit(result)
                     self.verifyFinished.emit(False)
                     self.logMessage.emit(f"[完整性校验] {version_id} 发现 {len(missing)} 个问题")
                 else:
                     self._verify_result_text = f"✅ {version_id} 全部文件通过校验！"
+                    self._verify_ok = True
                     self.verifyResultReady.emit(self._verify_result_text)
                     self.verifyFinished.emit(True)
                     self.logMessage.emit(f"[完整性校验] {version_id} 全部通过")
 
             except Exception as e:
                 self._verify_running = False
+                self._verify_ok = False
                 self._verify_result_text = f"校验失败: {str(e)}"
                 self.verifyResultReady.emit(self._verify_result_text)
                 self.verifyFinished.emit(False)
