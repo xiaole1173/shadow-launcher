@@ -889,6 +889,15 @@ Window {
                         opacity: showVersionSettings ? 1 : 0
                         visible: opacity > 0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                        onVisibleChanged: {
+                            if (visible && backend) {
+                                // 版本切换时刷新所有数据列表（跟随版本隔离）
+                                backend.refreshVersionDetails()
+                                modListModel.clear(); var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i])
+                                rpListModel.clear(); var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i])
+                                saveListModel.clear(); var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
+                            }
+                        }
 
                         ColumnLayout {
                             anchors.fill: parent; anchors.margins: 16; spacing: 0
