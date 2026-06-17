@@ -1776,7 +1776,7 @@ Window {
 
     SequentialAnimation {
         id: flyBallSeq
-        ScriptAction { script: { flyBall.width = 10; flyBall.height = 10; flyBall.visible = true; flyBall.opacity = 1.0; flyBall.scale = 1.0 } }
+        ScriptAction { script: { flyBall.x = flyBallAnim.startX; flyBall.y = flyBallAnim.startY; flyBall.width = 10; flyBall.height = 10; flyBall.visible = true; flyBall.opacity = 1.0; flyBall.scale = 1.0 } }
         ScriptAction { script: { flyBallAnim.start() } }
         PauseAnimation { duration: 400 }
         ScriptAction { script: { flyBallBounce.start() } }
@@ -1806,14 +1806,12 @@ Window {
     }
 
     function animateDownloadBall(sourceX, sourceY) {
-        // Target: position where "下载进度" nav item is/will be
-        var targetIdx = downloadNavVisible ? navModel.count - 1 : navModel.count
-        // Nav item Y in sidebar coords: derived from navIndicator formula y = 8 + 52 + index * 44
-        // sidebar top in window: titlebar(36) + loadingBar(2) + RowLayout.margins(8) = 46
-        var sidebarTop = 46
-        var navItemSidebarY = 52 + targetIdx * 44  // → nav item top in sidebar coords
-        var targetY = sidebarTop + navItemSidebarY + 22  // center of 44px-high nav item
-        var targetX = 108  // RowLayout.margins(8) + sidebarWidth(200)/2 = 108
+        // Compute target Y using navModel count (download nav item is last)
+        var idx = downloadNavVisible ? navModel.count - 1 : navModel.count
+        // Each nav item: 44px height, 8px top margin for first item, no spacing
+        var navItemY = 52 + idx * 44 + 8  // 52 = titlebar(36) + loadingBar(2) + sidebar margins
+        var targetY = navItemY + 22  // center of 44px item
+        var targetX = 108  // sidebar center
 
         flyBallAnim.startX = sourceX
         flyBallAnim.startY = sourceY
@@ -1823,7 +1821,7 @@ Window {
         flyBallSeq.start()
 
         // Also bounce the nav overlay
-        navBounceOverlay.y = sidebarTop + navItemSidebarY
+        navBounceOverlay.y = navItemY
         navBounceSeq.start()
     }
 
