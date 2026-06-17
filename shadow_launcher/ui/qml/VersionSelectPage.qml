@@ -84,7 +84,7 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (backend) backend.refreshVersionList()
+                    if (backend) { backend.refreshVersionList(); toastManager.show("版本列表已刷新") }
                 }
             }
         }

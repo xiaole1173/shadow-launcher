@@ -255,7 +255,7 @@ Window {
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
                                     Text { anchors.centerIn: parent; text: "正版登录"; font.pixelSize: 13; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
-                                    MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) backend.setLastLoginMode(0) } }
+                                    MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.setLastLoginMode(0); toastManager.show("已切换至正版登录") } } }
                                 }
                                 Rectangle {
                                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -270,7 +270,7 @@ Window {
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
                                     Text { anchors.centerIn: parent; text: "离线模式"; font.pixelSize: 13; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
-                                    MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) backend.setLastLoginMode(1) } }
+                                    MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.setLastLoginMode(1); toastManager.show("已切换至离线模式") } } }
                                 }
                             }
                         }
@@ -403,7 +403,7 @@ Window {
                                         Text { anchors.centerIn: parent; text: "登出"; font.pixelSize: 11; color: "#c05050" }
                                         MouseArea {
                                             anchors.fill: parent
-                                            onClicked: { if (backend) backend.logout() }
+                                            onClicked: { if (backend) { backend.logout(); toastManager.show("已登出") } }
                                         }
                                     }
                                 }
@@ -709,7 +709,7 @@ Window {
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onPressed: installBtnPressed = true
                                                 onReleased: installBtnPressed = false
-                                                onClicked: { showVersionSelect = false; switchPage(1) }  // 导航到下载页
+                                                onClicked: { showVersionSelect = false; switchPage(1); toastManager.show("正在前往下载页面") }  // 导航到下载页
                                             }
                                         }
                                         property bool installBtnPressed: false
@@ -1278,14 +1278,14 @@ Window {
                                                     scale: autoDetectMa.pressed ? 0.9 : 1.0
                                                     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                                     Text { anchors.centerIn: parent; text: "自动检测"; font.pixelSize: 11; color: "#e8ecf8" }
-                                                    MouseArea { id: autoDetectMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
+                                                    MouseArea { id: autoDetectMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.detectJava(); toastManager.show("正在检测 Java 环境...") } } }
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
                                                     width: 50; height: 26; radius: 4; color: "transparent"; border.color: "#1a1f2e"
                                                     scale: browseJavaMa.pressed ? 0.9 : 1.0
                                                     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                                     Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#b0b8c8" }
-                                                    MouseArea { id: browseJavaMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.pickJava() } }
+                                                    MouseArea { id: browseJavaMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { var ok = backend.pickJava(); if (ok) toastManager.show("已选择 Java 路径") } } }
                                                 }
                                             }
                                             Text {
@@ -1422,7 +1422,7 @@ Window {
                                             Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
                                             MouseArea { id: modRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { modListModel.clear(); if (backend) { var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i]) } }
+                                                onClicked: { modListModel.clear(); if (backend) { var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i]); toastManager.show("Mod 列表已刷新") } }
                                             }
                                         }
                                         Rectangle {
@@ -1466,7 +1466,7 @@ Window {
                                                 Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
                                                     Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { id: delBtnHover; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                                        onClicked: { if (backend) backend.deleteMod(name); modListModel.remove(index) }
+                                                        onClicked: { if (backend) { backend.deleteMod(name); modListModel.remove(index); toastManager.show("已删除 Mod: " + name) } }
                                                     }
                                                 }
                                             }
@@ -1494,12 +1494,12 @@ Window {
                                             Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                             Text { id: rpRefreshText; anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
                                             MouseArea { id: rpRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { rpListModel.clear(); if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]) } }
+                                                onClicked: { rpListModel.clear(); if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]); toastManager.show("资源包列表已刷新") } }
                                             }
                                         }
                                         Rectangle { height: 28; radius: 4; color: "transparent"; border.color: "#1a1f2e"; implicitWidth: rpOpenText.implicitWidth + 20
                                             Text { id: rpOpenText; anchors.centerIn: parent; text: "打开文件夹"; font.pixelSize: 11; color: "#b0b8c8" }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.openResourcePacksFolder() } }
+                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.openResourcePacksFolder(); toastManager.show("已打开资源包文件夹") } } }
                                         }
                                     }
 
@@ -1520,7 +1520,7 @@ Window {
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
                                                     Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                        onClicked: { if (backend) backend.deleteResourcePack(name); rpListModel.remove(index) }
+                                                        onClicked: { if (backend) { backend.deleteResourcePack(name); rpListModel.remove(index); toastManager.show("已删除资源包: " + name) } }
                                                     }
                                                 }
                                             }
@@ -1528,7 +1528,7 @@ Window {
                                         }
 
                                         Component.onCompleted: {
-                                            if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]) }
+                                            if (backend) { backend.openResourcePacksFolder(); toastManager.show("已打开资源包文件夹"); var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]) }
                                         }
                                     }
                                 }
@@ -1547,7 +1547,7 @@ Window {
                                         Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
                                         MouseArea { id: saveRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { saveListModel.clear(); if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]) } }
+                                            onClicked: { saveListModel.clear(); if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]); toastManager.show("存档列表已刷新") } }
                                         }
                                     }
 
@@ -1565,7 +1565,7 @@ Window {
                                                 Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
                                                     Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
                                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                        onClicked: { if (backend) backend.deleteSave(name); saveListModel.remove(index) }
+                                                        onClicked: { if (backend) { backend.deleteSave(name); saveListModel.remove(index); toastManager.show("已删除存档: " + name) } }
                                                     }
                                                 }
                                             }

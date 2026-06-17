@@ -242,7 +242,7 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             hoverEnabled: true
                             onClicked: {
-                                if (backend) backend.openJavaFileDialog()
+                                if (backend) { backend.openJavaFileDialog(); toastManager.show("正在打开文件选择器...") }
                             }
 
                             Rectangle {

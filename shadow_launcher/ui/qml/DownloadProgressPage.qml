@@ -86,7 +86,7 @@ Rectangle {
                         Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 10; color: "#806060" }
                         MouseArea {
                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (backend) backend.cancelQueuedDownload(modelData.versionId) }
+                            onClicked: { if (backend) { backend.cancelQueuedDownload(modelData.versionId); toastManager.show("已取消下载") } }
                         }
                     }
                 }
@@ -179,7 +179,7 @@ Rectangle {
             scale: cancelMouse.pressed ? 0.9 : 1.0
             Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
             Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
-            MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.cancelInstall() } }
+            MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.cancelInstall(); toastManager.show("已取消安装") } } }
             visible: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed" && backend.installPhase !== "verifying"
         }
 
