@@ -609,8 +609,9 @@ Rectangle {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
                                 hoverEnabled: true
+                                enabled: backend && !backend.verifyRunning
                                 onClicked: {
-                                    // TODO: trigger integrity check via backend
+                                    if (backend) backend.verifyVersion(page.currentVersionId)
                                 }
                             }
                         }
@@ -619,6 +620,7 @@ Rectangle {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
+                            visible: backend ? backend.verifyRunning : false
 
                             Rectangle {
                                 Layout.fillWidth: true
@@ -629,13 +631,18 @@ Rectangle {
                                 Rectangle {
                                     height: 6
                                     radius: 3
-                                    width: parent.width * 0.0  // placeholder
+                                    width: (backend && backend.verifyProgressTotal > 0)
+                                        ? parent.width * (backend.verifyProgressDone / backend.verifyProgressTotal)
+                                        : 0
                                     color: "#3B82F6"
+                                    Behavior on width { NumberAnimation { duration: 100 } }
                                 }
                             }
 
                             Text {
-                                text: "等待开始校验..."
+                                text: (backend && backend.verifyProgressTotal > 0)
+                                    ? "校验中... " + backend.verifyProgressDone + "/" + backend.verifyProgressTotal
+                                    : "正在准备校验..."
                                 font.pixelSize: 12
                                 color: "#7E8596"
                             }
@@ -654,9 +661,12 @@ Rectangle {
                             }
 
                             Text {
-                                text: "暂无校验结果"
+                                text: (backend && backend.verifyResultText) ? backend.verifyResultText : "暂无校验结果"
                                 font.pixelSize: 12
-                                color: "#7E8596"
+                                color: (backend && backend.verifyFinished !== undefined && backend.verifyFinished && backend.verifyResultText)
+                                    ? "#4bc870" : "#7E8596"
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
                             }
                         }
                     }

@@ -399,7 +399,7 @@ Rectangle {
                             Text {
                                 id: installedTag
                                 anchors.centerIn: parent
-                                text: "installed"
+                                text: "已安装"
                                 color: "#4bc870"; font.pixelSize: 9
                                 font.family: "Consolas, monospace"
                             }
@@ -415,8 +415,8 @@ Rectangle {
                             Text {
                                 id: typeTag
                                 anchors.centerIn: parent
-                                text: model.vtype === "release" ? "release" :
-                                      (model.vtype === "snapshot" ? "snapshot" : "old")
+                                text: model.vtype === "release" ? "正式版" :
+                                      (model.vtype === "snapshot" ? "快照" : "旧版")
                                 color: model.vtype === "release" ? "#3b8" :
                                        (model.vtype === "snapshot" ? "#ca8" : "#888")
                                 font.pixelSize: 10
@@ -430,22 +430,23 @@ Rectangle {
                         Button {
                             id: installBtn
                             property bool isInstalled: backend && backend.installedVersions && (backend.installedVersions.indexOf(model.versionId) >= 0)
-                            text: isInstalled ? "已安装" : "安装"
-                            implicitWidth: isInstalled ? 56 : 48; implicitHeight: 24
+                            property bool isInstallingThis: backend && backend.installing && backend.installVersionId === model.versionId && backend.installPhase !== "done"
+                            text: isInstalled ? "已安装" : (isInstallingThis ? "下载中…" : "安装")
+                            implicitWidth: isInstalled ? 56 : (isInstallingThis ? 56 : 48); implicitHeight: 24
                             font.pixelSize: 10; font.weight: Font.Medium
-                            z: 10  // ensure Button is on top of itemHover
+                            z: 10
                             flat: true
-                            enabled: !isInstalled
+                            enabled: !isInstalled && !isInstallingThis
                             contentItem: Text {
                                 text: installBtn.text
-                                color: installBtn.isInstalled ? "#4bc870" : (installBtn.hovered && installBtn.enabled ? "#ffffff" : "#707888")
+                                color: installBtn.isInstalled ? "#4bc870" : (installBtn.isInstallingThis ? "#6080e8" : (installBtn.hovered && installBtn.enabled ? "#ffffff" : "#707888"))
                                 font.pixelSize: 10; font.weight: Font.Medium
                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle {
                                 radius: 4
-                                color: installBtn.isInstalled ? "#0a1810" : (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent")
-                                border.color: installBtn.isInstalled ? "#1a3028" : (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : "#1e2230")
+                                color: installBtn.isInstalled ? "#0a1810" : (installBtn.isInstallingThis ? "#0a1020" : (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent"))
+                                border.color: installBtn.isInstalled ? "#1a3028" : (installBtn.isInstallingThis ? "#1a2840" : (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : "#1e2230"))
                                 border.width: 1
                             }
                             onClicked: {
@@ -483,8 +484,8 @@ Rectangle {
             anchors.bottomMargin: 8
             anchors.leftMargin: 12
             anchors.rightMargin: 12
-            height: (backend && (backend.installing || backend.installPhase === "done")) ? 80 : 0
-            visible: backend && (backend.installing || backend.installPhase === "done")
+            height: (backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed") ? 80 : 0
+            visible: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed"
             color: "#11141c"
             radius: 8
             border.color: "#1e2230"

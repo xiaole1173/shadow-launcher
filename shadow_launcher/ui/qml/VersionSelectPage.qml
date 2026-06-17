@@ -21,6 +21,11 @@ Rectangle {
 
     property string selectedVersionId: ""
     property string activeFilter: "all"
+    property string toastText: ""
+
+    Timer { id: toastTimer; interval: 2500; onTriggered: toastText = "" }
+
+    function showToast(msg) { toastText = msg; toastTimer.restart() }
 
     // ═══ TOP BAR ═══
     RowLayout {
@@ -149,7 +154,7 @@ Rectangle {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (backend) backend.logMessage("添加文件夹功能开发中...")
+                            showToast("添加文件夹功能开发中...")
                         }
                     }
                 }
@@ -174,6 +179,9 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            showToast("导入整合包功能开发中...")
+                        }
                     }
                 }
             }
@@ -353,6 +361,34 @@ Rectangle {
                     cursorShape: selectedVersionId !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: {
                         if (selectedVersionId !== "") root.versionSelected(selectedVersionId)
+                    }
+                }
+            }
+
+            // Toast notification
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 12
+                height: toastRow.implicitHeight + 12
+                width: Math.min(toastRow.implicitWidth + 24, parent.width - 32)
+                radius: 6
+                color: "#1a2a40"
+                border.color: "#3a5ed0"
+                border.width: 1
+                opacity: toastText !== "" ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 250 } }
+
+                RowLayout {
+                    id: toastRow
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Rectangle { width: 3; height: 14; radius: 2; color: "#5080e8" }
+                    Text {
+                        text: toastText
+                        color: "#c8d4f0"
+                        font.pixelSize: 12
                     }
                 }
             }

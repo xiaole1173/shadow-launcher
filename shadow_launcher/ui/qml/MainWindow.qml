@@ -19,8 +19,6 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
-    // Toast disabled - see bottom of file for TODO
-    function showToast(msg) { /* TODO: fix black bar issue */ }
 
     Component.onCompleted: {
         if (backend) {
@@ -50,7 +48,7 @@ Window {
     function showDownloadNav() {
         if (!downloadNavVisible) {
             downloadNavVisible = true
-            navModel.append({ label: "下载杩涘害", pageKey: "download_progress" })
+            navModel.append({ label: "下载进度", pageKey: "download_progress" })
             switchPage(navModel.count - 1)  // auto-switch to the new page
         }
     }
@@ -113,22 +111,25 @@ Window {
         }
 
         // ── Loading bar (Android-style indeterminate) ──
+        // FIX: fixed height 2px + opacity control → zero layout jitter
         Rectangle {
             id: loadingBar
             Layout.fillWidth: true
-            Layout.preferredHeight: pageLoading ? 2 : 0
+            Layout.preferredHeight: 2
+            opacity: pageLoading ? 1 : 0
             color: "transparent"
             clip: true
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
             Rectangle {
                 id: loadingSlider
                 width: 100; height: 2; radius: 1
                 color: "#6080e8"
-                x: pageLoading ? -40 : -100
+                x: -100
                 y: 0
 
                 SequentialAnimation on x {
-                    running: pageLoading
+                    running: loadingBar.opacity > 0
                     loops: Animation.Infinite
                     NumberAnimation { from: -100; to: 100; duration: 600; easing.type: Easing.InOutCubic }
                     NumberAnimation { from: 100; to: appWindow.width + 100; duration: 400; easing.type: Easing.InCubic }
@@ -648,11 +649,12 @@ Window {
                                                 }
                                             }
                                         }
-                                        // Install button
+                                        // Install button — shortcut to download new versions
                                         Rectangle {
                                             width: 28; height: 28; radius: 4; color: installBtnHover.hovered ? "#2553a8" : "#3a4eb8"
                                             Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 18; font.weight: Font.Bold; color: "#e8ecf8" }
                                             HoverHandler { id: installBtnHover }
+                                            ToolTip { visible: installBtnHover.hovered; text: "安装新版本"; delay: 500 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { showVersionSelect = false; navListIndex = 2 }  // Switch to download
                                             }
@@ -1620,6 +1622,43 @@ Window {
                         }
                     }
                 }
+
+                // ═══ Toast overlay (inside pageContainer) ═══
+                Rectangle {
+                    id: toastBox
+                    z: 300
+                    anchors.left: parent.left
+                    anchors.leftMargin: 16
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 16
+                    width: Math.min(toastText.implicitWidth + 36, parent.width - 32)
+                    height: 36; radius: 4
+                    color: "#141c30"
+                    border.color: "#3040a0"
+                    border.width: 1
+                    opacity: _toastMsg !== "" ? 1 : 0
+                    y: _toastMsg !== "" ? 0 : 20
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 3; color: "#5080e8"
+                        radius: 1
+                    }
+
+                    Text {
+                        id: toastText
+                        anchors.centerIn: parent
+                        text: _toastMsg
+                        color: "#b0c0f0"
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+                }
             }
         }
     }
@@ -1630,16 +1669,26 @@ Window {
         active: backend && backend.launching; visible: active
     }
 
-    // 鈺愨晲鈺怲oast (disabled - TODO: fix black bar on popup) ═══
-    // See issue: toast with anchors.bottom causes layout jitter
-    property string _toastMsg: ""
-    function showToast(msg) { /* TODO */ }
+    // ═══ Toast notification (anchored inside pageContainer, no Window-level anchors) ═══
+    function showToast(msg) {
+        _toastMsg = msg
+        toastTimer.restart()
+    }
 
+    property string _toastMsg: ""
+
+    Timer {
+        id: toastTimer
+        interval: 2500
+        onTriggered: { _toastMsg = "" }
+    }
+
+    // ═══ Kill button (x/y positioning, NOT anchors — avoids Window layout competition) ═══
     Rectangle {
         id: killButton
         width: 48; height: 48; radius: 24
-        anchors.right: parent.right; anchors.rightMargin: 20
-        anchors.bottom: parent.bottom; anchors.bottomMargin: 56
+        x: appWindow.width - width - 20
+        y: appWindow.height - height - 56
         z: 200; color: "#c05050"
         opacity: backend ? (backend.isRunning ? 1 : 0) : 0
         scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
