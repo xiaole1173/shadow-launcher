@@ -1,5 +1,6 @@
 #include "app_backend.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -13,13 +14,23 @@ namespace ShadowLauncher {
 AppBackend::AppBackend(QObject *parent)
     : QObject(parent)
 {
+    // Data dir: keep in AppData for launcher settings/cache
     m_dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                 + QStringLiteral("/shadow");
-    m_gameDir = m_dataDir + QStringLiteral("/minecraft");
 
-    // Ensure data directories exist
+    // Game dir: create .minecraft next to the launcher EXE
+    QString exeDir = QCoreApplication::applicationDirPath();
+    m_gameDir = exeDir + QStringLiteral("/.minecraft");
+
+    // Ensure directories exist
     QDir().mkpath(m_dataDir);
     QDir().mkpath(m_gameDir);
+    QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
+    QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
+    QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
+    QDir().mkpath(m_gameDir + QStringLiteral("/mods"));
+
+    emit logMessage(QStringLiteral("游戏目录: %1").arg(m_gameDir));
 }
 
 // ────────────────────────────────────────────────────────────

@@ -671,6 +671,9 @@ void ShadowBackend::setTheme(const QString& theme) {
 
 void ShadowBackend::setGameDir(const QString& dir) {
     m_app->setGameDir(dir);
+    // Sync all backends to the new directory
+    m_version->setGameDir(dir);
+    m_settings->setMinecraftDir(dir);
 }
 
 // ============================================================
