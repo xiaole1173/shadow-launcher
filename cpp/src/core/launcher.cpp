@@ -1,23 +1,13 @@
 #include "launcher.h"
-#include "logger.h"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QStandardPaths>
-#include <QCoreApplication>
-#include <QUuid>
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#include <tlhelp32.h>
-#endif
+#include <QDebug>
+#include <QRegularExpression>
+#include <QTimer>
 
 namespace ShadowLauncher {
-
-// ---- Constructor / Destructor ----
 
 Launcher::Launcher(QObject* parent)
     : QObject(parent)
@@ -33,363 +23,242 @@ Launcher::Launcher(QObject* parent)
             this, &Launcher::onProcessFinished);
     connect(m_process, &QProcess::errorOccurred,
             this, &Launcher::onProcessError);
-
-    Logger::info("Launcher initialized");
 }
 
 Launcher::~Launcher()
 {
     if (isRunning()) {
-        cancel();
-        m_process->waitForFinished(3000);
+        forceKill();
     }
 }
 
-// ---- Public API ----
+// ============================================================
+// Public API
+// ============================================================
 
-void Launcher::start(const QString& versionId,
-                     const QString& javaPath,
-                     int maxMemory,
-                     const QJsonObject& versionJson)
+void Launcher::start(const QString& versionId, const QString& javaPath, int maxMemoryMB)
 {
+    // --- Validate ---
+    QString errorMsg;
+    if (!validateLaunch(versionId, javaPath, errorMsg)) {
+        emit launchFinished(false, errorMsg);
+        return;
+    }
+
+    // --- Abort if already running ---
     if (isRunning()) {
-        emit launchFinished(false, "A Minecraft process is already running");
+        emit launchFinished(false, QStringLiteral("另一个 Minecraft 实例已在运行"));
         return;
     }
 
-    if (m_gameDir.isEmpty()) {
-        emit launchFinished(false, "Game directory not set");
-        return;
-    }
-
-    if (!QFileInfo::exists(javaPath)) {
-        emit launchFinished(false, "Java executable not found: " + javaPath);
-        return;
-    }
-
-    m_versionId = versionId;
+    m_currentVersionId = versionId;
     m_cancelling = false;
-    m_stdoutBuffer.clear();
-    m_stderrBuffer.clear();
 
-    // 1) Build JVM arguments
-    QStringList jvmArgs = buildJvmArgs(versionId, maxMemory, versionJson);
+    // --- Build arguments ---
+    QStringList args = buildArgs(versionId, maxMemoryMB);
 
-    // 2) Build classpath
-    QString classpath = buildClasspath(versionJson);
+    emit launchProgress(QStringLiteral("启动 Minecraft %1...").arg(versionId));
 
-    // 3) Main class
-    QString mainClass = versionJson.value("mainClass").toString("net.minecraft.client.main.Main");
-
-    // 4) Minecraft arguments
-    QStringList mcArgs;
-    mcArgs << "--username" << "ShadowPlayer"
-           << "--version" << versionId
-           << "--gameDir" << (m_gameDir + "/versions/" + versionId + "/game")
-           << "--assetsDir" << (m_gameDir + "/assets")
-           << "--assetIndex" << versionJson.value("assetIndex").toObject().value("id").toString(versionId)
-           << "--uuid" << QUuid::createUuid().toString(QUuid::WithoutBraces)
-           << "--accessToken" << "0"
-           << "--userType" << "mojang"
-           << "--versionType" << versionJson.value("type").toString("release");
-
-    // 5) Full command
-    QStringList fullCmd;
-    fullCmd << jvmArgs;
-    fullCmd << "-cp" << classpath;
-    fullCmd << mainClass;
-    fullCmd << mcArgs;
-
-    Logger::info(QString("Launching: %1 %2").arg(javaPath, fullCmd.join(' ')));
-
-    emit launchProgress("Preparing launch...");
-    emit launchStarted();
-
-    m_process->setProgram(javaPath);
-    m_process->setArguments(fullCmd);
-
-    // Set working directory to version dir
-    QString versionDir = m_gameDir + "/versions/" + versionId;
-    m_process->setWorkingDirectory(versionDir);
-
-    m_process->start();
+    m_process->setWorkingDirectory(m_gameDir);
+    m_process->start(javaPath, args);
 }
 
 void Launcher::cancel()
 {
-    if (!isRunning())
-        return;
+    if (!isRunning()) return;
 
     m_cancelling = true;
-    emit launchProgress("Cancelling...");
+    emit launchProgress(QStringLiteral("正在停止 Minecraft..."));
 
-    Logger::info("Cancelling Minecraft process");
+    // Graceful close
+    m_process->closeWriteChannel();
 
-#ifdef Q_OS_WIN
-    forceKillProcessTree();
-#else
-    m_process->terminate();
-    if (!m_process->waitForFinished(3000)) {
-        m_process->kill();
-    }
-#endif
+    // After 2s grace, force kill
+    QTimer::singleShot(2000, this, [this]() {
+        if (isRunning()) {
+            forceKill();
+        }
+    });
 }
 
-bool Launcher::isRunning() const
-{
-    return m_process && m_process->state() != QProcess::NotRunning;
-}
-
-qint64 Launcher::pid() const
-{
-    if (!m_process)
-        return 0;
-    return m_process->processId();
-}
-
-// ---- Private Slots ----
+// ============================================================
+// Private Slots
+// ============================================================
 
 void Launcher::onProcessStarted()
 {
-    emit launchProgress("Minecraft started (PID: " + QString::number(m_process->processId()) + ")");
-    Logger::info(QString("Minecraft PID: %1").arg(m_process->processId()));
+    emit launchStarted();
+    emit launchProgress(QStringLiteral("Minecraft 进程已启动 (PID: %1)")
+                        .arg(m_process->processId()));
 }
 
 void Launcher::onReadyReadStdout()
 {
-    m_stdoutBuffer.append(m_process->readAllStandardOutput());
-
-    // Emit complete lines
-    while (true) {
-        int idx = m_stdoutBuffer.indexOf('\n');
-        if (idx < 0)
-            break;
-        QByteArray line = m_stdoutBuffer.left(idx).trimmed();
-        m_stdoutBuffer.remove(0, idx + 1);
-        if (!line.isEmpty()) {
-            QString lineStr = QString::fromUtf8(line);
-            emit launchOutput(lineStr);
-        }
+    QByteArray data = m_process->readAllStandardOutput();
+    QString text = QString::fromUtf8(data).trimmed();
+    if (!text.isEmpty()) {
+        emit launchProgress(QStringLiteral("[stdout] %1").arg(text));
     }
 }
 
 void Launcher::onReadyReadStderr()
 {
-    m_stderrBuffer.append(m_process->readAllStandardError());
-
-    while (true) {
-        int idx = m_stderrBuffer.indexOf('\n');
-        if (idx < 0)
-            break;
-        QByteArray line = m_stderrBuffer.left(idx).trimmed();
-        m_stderrBuffer.remove(0, idx + 1);
-        if (!line.isEmpty()) {
-            QString lineStr = QString::fromUtf8(line);
-            emit launchOutput(lineStr);
-        }
+    QByteArray data = m_process->readAllStandardError();
+    QString text = QString::fromUtf8(data).trimmed();
+    if (!text.isEmpty()) {
+        emit launchProgress(QStringLiteral("[stderr] %1").arg(text));
     }
 }
 
 void Launcher::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    // Flush remaining buffers
-    if (!m_stdoutBuffer.isEmpty()) {
-        emit launchOutput(QString::fromUtf8(m_stdoutBuffer.trimmed()));
-    }
-    if (!m_stderrBuffer.isEmpty()) {
-        emit launchOutput(QString::fromUtf8(m_stderrBuffer.trimmed()));
-    }
-
-    bool success = (exitStatus == QProcess::NormalExit && exitCode == 0);
+    Q_UNUSED(exitStatus)
 
     if (m_cancelling) {
-        emit launchFinished(true, "Cancelled");
-        Logger::info("Minecraft process cancelled");
-    } else if (success) {
         emit launchFinished(true, QString());
-        Logger::info("Minecraft exited normally");
+    } else if (exitCode == 0) {
+        emit launchFinished(true, QString());
     } else {
-        QString err = QString("Minecraft exited with code %1 (%2)")
-            .arg(exitCode)
-            .arg(exitStatus == QProcess::CrashExit ? "crashed" : "unknown");
-        emit launchFinished(false, err);
-        Logger::error(err);
+        QString msg = QStringLiteral("Minecraft 异常退出 (退出码: %1)").arg(exitCode);
+        emit launchFinished(false, msg);
     }
-
-    m_cancelling = false;
 }
 
 void Launcher::onProcessError(QProcess::ProcessError error)
 {
-    QString errMsg;
-    switch (error) {
-    case QProcess::FailedToStart:
-        errMsg = "Failed to start Minecraft process (Java not found or permission denied)";
-        break;
-    case QProcess::Crashed:
-        errMsg = "Minecraft process crashed";
-        break;
-    case QProcess::Timedout:
-        errMsg = "Minecraft process timed out";
-        break;
-    case QProcess::WriteError:
-        errMsg = "Failed to write to Minecraft process";
-        break;
-    case QProcess::ReadError:
-        errMsg = "Failed to read from Minecraft process";
-        break;
-    default:
-        errMsg = "Unknown process error";
-        break;
+    static const char* messages[] = {
+        "",                         // NoError
+        "无法启动 Java 进程，请检查路径",
+        "Minecraft 进程崩溃",
+        "进程超时",
+        "写入错误",                 // WriteError
+        "读取错误"                  // ReadError
+    };
+
+    int idx = static_cast<int>(error);
+    QString msg = (idx >= 1 && idx <= 5)
+        ? QStringLiteral("启动失败: %1").arg(QString::fromLatin1(messages[idx]))
+        : QStringLiteral("未知进程错误");
+
+    emit launchProgress(msg);
+    emit launchFinished(false, msg);
+}
+
+// ============================================================
+// Private Helpers
+// ============================================================
+
+bool Launcher::validateLaunch(const QString& versionId, const QString& javaPath,
+                               QString& errorMsg) const
+{
+    // 1. Java exists
+    if (!QFileInfo::exists(javaPath)) {
+        errorMsg = QStringLiteral("Java 未找到: %1").arg(javaPath);
+        return false;
     }
 
-    Logger::error(errMsg);
-    emit launchFinished(false, errMsg);
-}
-
-// ---- Private Helpers ----
-
-QStringList Launcher::buildJvmArgs(const QString& versionId,
-                                    int maxMemory,
-                                    const QJsonObject& versionJson)
-{
-    QStringList args;
-
-    // Memory
-    int minMemory = qMin(maxMemory / 2, 2048);
-    args << QString("-Xmx%1M").arg(maxMemory);
-    args << QString("-Xms%1M").arg(minMemory);
-
-    // G1GC
-    args << "-XX:+UseG1GC"
-         << "-XX:+UnlockExperimentalVMOptions"
-         << "-XX:G1NewSizePercent=20"
-         << "-XX:G1ReservePercent=20"
-         << "-XX:MaxGCPauseMillis=50"
-         << "-XX:G1HeapRegionSize=32M";
-
-    // Version jar path
-    QString versionJar = m_gameDir + "/versions/" + versionId + "/" + versionId + ".jar";
-    args << QString("-Dminecraft.client.jar=%1").arg(versionJar);
-
-    // Native libraries
-    QString nativesDir = m_gameDir + "/versions/" + versionId + "/" + versionId + "-natives";
-    args << QString("-Djava.library.path=%1").arg(nativesDir);
-
-    // Shadow launcher marker
-    args << "-Dshadow.launcher=true";
-
-    return args;
-}
-
-QString Launcher::buildClasspath(const QJsonObject& versionJson)
-{
-    QString versionId = versionJson.value("id").toString();
-    QString versionJar = m_gameDir + "/versions/" + versionId + "/" + versionId + ".jar";
-    QString libsDir = m_gameDir + "/libraries";
-
-    QStringList cp;
-    cp << versionJar;
-
-    // Parse libraries from version JSON
-    QJsonArray libraries = versionJson.value("libraries").toArray();
-    for (const QJsonValue& libVal : libraries) {
-        QJsonObject lib = libVal.toObject();
-        QString name = lib.value("name").toString();
-        if (name.isEmpty())
-            continue;
-
-        // Skip platform-specific libs that don't match Windows
-        QJsonArray rules = lib.value("rules").toArray();
-        if (!rules.isEmpty()) {
-            bool allowed = false;
-            for (const QJsonValue& ruleVal : rules) {
-                QJsonObject rule = ruleVal.toObject();
-                QString action = rule.value("action").toString();
-                QJsonObject os = rule.value("os").toObject();
-                QString osName = os.value("name").toString();
-
-                if (osName.isEmpty()) {
-                    allowed = (action == "allow");
-                } else if (osName == "windows") {
-                    allowed = (action == "allow");
-                } else {
-                    allowed = (action == "disallow");
-                }
-            }
-            if (!allowed)
-                continue;
-        }
-
-        // Build library path
-        QString libPath = buildLibPath(name, versionJson);
-        if (!libPath.isEmpty() && QFileInfo::exists(libPath)) {
-            cp << libPath;
-        }
+    // 2. Version directory exists
+    QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    if (!QDir(versionDir).exists()) {
+        errorMsg = QStringLiteral("版本目录不存在: %1").arg(versionDir);
+        return false;
     }
 
-    return cp.join(';');
+    // 3. Version JSON exists
+    QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    if (!QFileInfo::exists(jsonPath)) {
+        errorMsg = QStringLiteral("版本配置文件缺失: %1").arg(jsonPath);
+        return false;
+    }
+
+    return true;
 }
 
-QString Launcher::buildLibPath(const QString& libName, const QJsonObject& /*versionJson*/)
+void Launcher::forceKill()
 {
-    QString libsDir = m_gameDir + "/libraries";
+    if (!m_process) return;
 
-    // Parse Maven-style name: "group:artifact:version"
-    QStringList parts = libName.split(':');
-    if (parts.size() < 3)
-        return QString();
-
-    QString group = parts[0];
-    QString artifact = parts[1];
-    QString version = parts[2];
-
-    QString groupPath = group.replace('.', '/');
-    QString jarName = artifact + "-" + version + ".jar";
-
-    return libsDir + "/" + groupPath + "/" + artifact + "/" + version + "/" + jarName;
-}
-
-QString Launcher::extractNatives(const QString& versionId, const QJsonObject& /*versionJson*/)
-{
-    // Stub: return the expected natives directory
-    // Full implementation would parse versionJson for native libraries and extract .dll files
-    QString nativesDir = m_gameDir + "/versions/" + versionId + "/" + versionId + "-natives";
-    QDir().mkpath(nativesDir);
-    return nativesDir;
-}
-
-#ifdef Q_OS_WIN
-void Launcher::forceKillProcessTree()
-{
-    qint64 targetPid = m_process->processId();
-    if (targetPid <= 0)
+    qint64 pid = m_process->processId();
+    if (pid <= 0) {
+        m_process->kill();
+        m_process->waitForFinished(1000);
         return;
-
-    // Strategy: use taskkill /F /T to kill entire tree
-    QString cmd = QString("taskkill /F /T /PID %1").arg(targetPid);
-
-    // Try up to 3 times
-    for (int i = 0; i < 3 && isRunning(); i++) {
-        QProcess killer;
-        killer.start("taskkill", QStringList() << "/F" << "/T" << "/PID" << QString::number(targetPid));
-        killer.waitForFinished(2000);
     }
 
-    // Final fallback
-    if (isRunning()) {
+    // Windows: kill process tree
+    QString cmd = QStringLiteral("taskkill /F /T /PID %1").arg(pid);
+    QProcess::startDetached(cmd);
+
+    // Give taskkill time, then direct kill
+    if (!m_process->waitForFinished(2000)) {
         m_process->kill();
         m_process->waitForFinished(1000);
     }
 }
-#else
-void Launcher::forceKillProcessTree()
+
+QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB) const
 {
-    m_process->terminate();
-    if (!m_process->waitForFinished(3000)) {
-        m_process->kill();
+    // Due to Maven-style library dependencies, full classpath construction
+    // requires parsing the version JSON. This simplified version passes
+    // the core arguments; a full implementation would use install_profile
+    // from the Minecraft launcher metadata.
+    
+    QStringList args;
+
+    // JVM memory
+    args << QStringLiteral("-Xmx%1M").arg(maxMemoryMB);
+    args << QStringLiteral("-Xms%1M").arg(qMin(512, maxMemoryMB / 4));
+
+    // Game directory for this version
+    QString gameDir = m_gameDir + QStringLiteral("/versions/") + versionId
+                      + QStringLiteral("/game");
+    QDir().mkpath(gameDir);
+
+    // Native libraries path
+    args << QStringLiteral("-Djava.library.path=")
+            + m_gameDir + QStringLiteral("/versions/") + versionId
+            + QStringLiteral("/natives");
+
+    // Build classpath from installed libraries
+    QString libDir = m_gameDir + QStringLiteral("/libraries");
+    QStringList jars;
+
+    if (QDir(libDir).exists()) {
+        QDirIterator it(libDir, QStringList() << QStringLiteral("*.jar"),
+                        QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            jars.append(it.next());
+        }
     }
+
+    // Add version jar
+    QString versionJar = m_gameDir + QStringLiteral("/versions/") + versionId
+                         + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+    if (QFileInfo::exists(versionJar)) {
+        jars.prepend(versionJar);
+    }
+
+    // Build classpath string (Windows: semicolon separator)
+    QString classpath = jars.join(QStringLiteral(";"));
+
+    if (!classpath.isEmpty()) {
+        args << QStringLiteral("-cp") << classpath;
+    }
+
+    // Main class
+    args << QStringLiteral("net.minecraft.client.main.Main");
+
+    // Minecraft arguments
+    args << QStringLiteral("--username") << QStringLiteral("{username}");
+    args << QStringLiteral("--version") << versionId;
+    args << QStringLiteral("--gameDir") << gameDir;
+    args << QStringLiteral("--assetsDir") << m_gameDir + QStringLiteral("/assets");
+    args << QStringLiteral("--assetIndex") << versionId;
+    args << QStringLiteral("--accessToken") << QStringLiteral("0");
+    args << QStringLiteral("--userType") << QStringLiteral("mojang");
+    args << QStringLiteral("--versionType") << QStringLiteral("release");
+
+    return args;
 }
-#endif
 
 } // namespace ShadowLauncher
