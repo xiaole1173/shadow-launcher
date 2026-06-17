@@ -13,6 +13,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QStorageInfo>
 #include <QTimer>
 
 namespace ShadowLauncher {
@@ -539,6 +540,30 @@ void ShadowBackend::setMaxMemory(int mb) {
 void ShadowBackend::setIsolationEnabled(bool enabled) {
     m_isolationEnabled = enabled;
     m_settings->setIsolationEnabled(enabled);
+}
+
+qint64 ShadowBackend::diskFree() const
+{
+    QStorageInfo storage(m_app->gameDir());
+    if (storage.isValid() && storage.bytesAvailable() > 0) {
+        return storage.bytesAvailable();
+    }
+    // Fallback: query root drive
+    QStorageInfo root(QDir::rootPath());
+    return root.isValid() ? root.bytesAvailable() : 100LL * 1024 * 1024 * 1024;
+}
+
+int ShadowBackend::diskPercent() const
+{
+    QStorageInfo storage(m_app->gameDir());
+    if (storage.isValid() && storage.bytesTotal() > 0) {
+        return static_cast<int>(100.0 * (1.0 - static_cast<double>(storage.bytesAvailable()) / storage.bytesTotal()));
+    }
+    QStorageInfo root(QDir::rootPath());
+    if (root.isValid() && root.bytesTotal() > 0) {
+        return static_cast<int>(100.0 * (1.0 - static_cast<double>(root.bytesAvailable()) / root.bytesTotal()));
+    }
+    return 30;
 }
 
 void ShadowBackend::openGameDir() {

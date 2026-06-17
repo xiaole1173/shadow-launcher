@@ -137,7 +137,7 @@ Rectangle {
         // Batch populate to avoid UI freeze (20 items per tick)
         page._batchList = list
         page._batchIndex = 0
-        page._batchTimer.restart()
+        _batchTimer.restart()
     }
 
     property var _batchList: []

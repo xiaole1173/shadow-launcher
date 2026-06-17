@@ -174,8 +174,8 @@ public:
     // ── Game info stubs ──
     QVariantMap gameDirInfo() const { return m_gameDirInfo; }
     QVariantList gameDirectories() const { return {}; }
-    qint64 diskFree() const { return 100LL * 1024 * 1024 * 1024; }  // 100 GB
-    int diskPercent() const { return 30; }
+    qint64 diskFree() const;
+    int diskPercent() const;
     bool closeOnLaunch() const { return m_closeOnLaunch; }
     bool autoMemoryEnabled() const { return true; }
     QVariantMap systemMemoryInfo() const;
@@ -216,8 +216,8 @@ public:
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void refreshInstalledList();
-    void refreshVersionDetails();
-    void refreshGameDirInfo();
+    Q_INVOKABLE void refreshVersionDetails();
+    Q_INVOKABLE void refreshGameDirInfo();
     Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void launch(const QString& versionId);

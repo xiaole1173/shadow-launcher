@@ -127,16 +127,38 @@ Rectangle {
 
     function refreshVersionModel() {
         versionModel.clear()
-        if (!backend) return
+        if (!backend) { appWindow.pageLoading = false; return }
         var list
         if (currentFilter === "snapshot") list = backend.snapshotVersions
         else if (currentFilter === "old") list = backend.oldVersions
         else list = backend.releaseVersions
-        if (!list) return
-        for (var i = 0; i < list.length; i++) {
-            versionModel.append({versionId: list[i], vtype: currentFilter})
+        if (!list || list.length === 0) { appWindow.pageLoading = false; return }
+
+        // Batch populate to avoid UI freeze (20 items per tick)
+        page._batchList = list
+        page._batchIndex = 0
+        page._batchTimer.restart()
+    }
+
+    property var _batchList: []
+    property int _batchIndex: 0
+    Timer {
+        id: _batchTimer
+        interval: 1
+        repeat: true
+        onTriggered: {
+            var list = page._batchList
+            var start = page._batchIndex
+            var end = Math.min(start + 20, list.length)
+            for (var i = start; i < end; i++) {
+                versionModel.append({versionId: list[i], vtype: page.currentFilter})
+            }
+            page._batchIndex = end
+            if (end >= list.length) {
+                _batchTimer.stop()
+                appWindow.pageLoading = false
+            }
         }
-        appWindow.pageLoading = false
     }
 
     function getReleaseCount() { return backend ? backend.releaseVersions.length : 0 }

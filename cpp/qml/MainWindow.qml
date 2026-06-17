@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -53,7 +53,7 @@ Window {
         }
     }
 
-    // 鈺愨晲鈺怐ownload progress nav item management ═══
+    // Download progress nav item management ===
     property bool downloadNavVisible: false
 
     function showDownloadNav() {
@@ -469,11 +469,11 @@ Window {
                                         onClicked: {
                                             if (!backend) return
                                             if (!currentSelectedVersion) {
-                                                toastManager.show("璇峰厛登录璐﹀彿")
+                                                toastManager.show("请先选择版本")
                                                 return
                                             }
                                             if (!backend.username) {
-                                                toastManager.show("璇峰厛登录璐﹀彿")
+                                                toastManager.show("请先登录账号")
                                                 return
                                             }
                                             backend.launch(currentSelectedVersion)
@@ -623,8 +623,8 @@ Window {
                                                             if (index === 0) {
                                                                 if (backend) backend.openGameDir(0)
                                                             } else {
-                                                                confirmDialog.title = "缁夊娅庨惄顔肩秿"
-                                                                confirmDialog.message = "閺勵垰鎯佺粔濠氭珟閻╊喖缍?鑺?" + model.display + " 禄锛焠\n（不会删除本地文件）"
+                                                                confirmDialog.title = "移除文件夹"
+                                                                confirmDialog.message = "确定要移除 " + model.display + " 吗？\n（不会删除本地文件）"
                                                                 confirmDialog.onAccept = function() { if (backend) backend.removeGameDir(index) }
                                                                 confirmDialog.visible = true
                                                             }
@@ -1035,7 +1035,7 @@ Window {
                         ColumnLayout {
                             anchors.fill: parent; anchors.margins: 16; spacing: 0
 
-                            // 鈺愨晲鈺怲OP BAR: version info + actions ═══
+                            // TOP BAR: version info + actions ===
                             Rectangle {
                                 Layout.fillWidth: true; height: 56; radius: 8
                                 color: "#11141c"; border.color: "#1a1e28"
@@ -1116,7 +1116,7 @@ Window {
 
                             Item { Layout.preferredHeight: 12 }
 
-                            // 鈺愨晲鈺怋ODY: sidebar + content ═══
+                            // BODY: sidebar + content ═══
                             RowLayout {
                                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 16
                             Rectangle {
@@ -1160,7 +1160,7 @@ Window {
                                 Layout.fillWidth: true; Layout.fillHeight: true
                                 color: "#11141c"; radius: 8; border.color: "#1a1e28"
 
-                                // 鈺愨晲鈺怱ection 0: 概览 ═══
+                                // Section 0: 概览 ===
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 0
@@ -1305,7 +1305,7 @@ Window {
                                     Item { Layout.fillHeight: true }
                                 }
 
-                                // 鈺愨晲鈺怱ection 1: 启动閰嶇疆 ═══
+                                // Section 1: 启动配置 ===
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 1
@@ -1475,7 +1475,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 2: Mod 管理 ═══
+                                // Section 2: Mod 管理 ===
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 2
@@ -1549,7 +1549,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 3: 璧勬簮鍖呯鐞嗏晲鈺愨晲
+                                // Section 3: 资源包管理 ===
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 3
@@ -1603,7 +1603,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 4: 存档管理 ═══
+                                // Section 4: 存档管理 ===
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 8
                                     visible: settingsNav.currentIndex === 4
@@ -1648,7 +1648,7 @@ Window {
                                     }
                                 }
 
-                                // 鈺愨晲鈺怱ection 5: 宸ュ叿涓庣淮鎶も晲鈺愨晲
+                                // Section 5: 工具与维护
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 24; spacing: 12
                                     visible: settingsNav.currentIndex === 5
@@ -1966,7 +1966,7 @@ Window {
         function onMinecraftStopped() { killButton.visible = false }
     }
 
-    // 鈺愨晲鈺怌onfirm Dialog ═══
+    // Confirm Dialog ===
     Rectangle {
         id: confirmDialog; z: 400
         anchors.centerIn: parent; width: 360; height: 180; radius: 10

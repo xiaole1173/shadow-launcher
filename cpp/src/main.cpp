@@ -29,10 +29,8 @@ public:
         if (eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG") {
             MSG* msg = static_cast<MSG*>(message);
             if (msg->message == WM_SYSCOMMAND && (msg->wParam & 0xFFF0) == SC_MINIMIZE) {
-                if (targetWindow) {
-                    targetWindow->showMinimized();
-                    return true;
-                }
+                ShowWindow(msg->hwnd, SW_MINIMIZE);
+                return true;
             }
         }
 #endif
