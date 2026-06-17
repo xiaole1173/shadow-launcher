@@ -1700,7 +1700,7 @@ Window {
 
     Connections {
         target: backend; enabled: backend !== null
-        function onLogMessage(msg) { logArea.text += msg + "\n" }
+        function onLogMessage(msg) { console.log("[backend]", msg) }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
     }
