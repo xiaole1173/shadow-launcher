@@ -161,6 +161,8 @@ Window {
                         model: navModel
                         Item {
                             width: parent ? parent.width : 180; Layout.fillWidth: true; height: 44
+                            scale: navMouse.containsMouse ? 1.03 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
                             Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
@@ -1695,6 +1697,87 @@ Window {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
         active: backend && backend.launching; visible: active
+    }
+
+    // ════════════════════════════════════════════
+    //  Download animation — flying ball ═══
+    // ════════════════════════════════════════════
+    Rectangle {
+        id: flyBall
+        z: 500
+        width: 0; height: 0; radius: 6
+        color: "#6080e8"
+        visible: false
+        x: 0; y: 0
+    }
+
+    ParallelAnimation {
+        id: flyBallAnim
+        property real startX: 0
+        property real startY: 0
+        property real endX: 0
+        property real endY: 0
+        NumberAnimation { target: flyBall; property: "x"; from: flyBallAnim.startX; to: flyBallAnim.endX; duration: 400; easing.type: Easing.InCubic }
+        NumberAnimation { target: flyBall; property: "y"; from: flyBallAnim.startY; to: flyBallAnim.endY; duration: 400; easing.type: Easing.InCubic }
+    }
+
+    SequentialAnimation {
+        id: flyBallBounce
+        NumberAnimation { target: flyBall; property: "scale"; from: 1.0; to: 1.5; duration: 120; easing.type: Easing.OutCubic }
+        NumberAnimation { target: flyBall; property: "scale"; from: 1.5; to: 0.7; duration: 100; easing.type: Easing.InCubic }
+        NumberAnimation { target: flyBall; property: "scale"; from: 0.7; to: 1.0; duration: 100; easing.type: Easing.OutCubic }
+    }
+
+    SequentialAnimation {
+        id: flyBallSeq
+        ScriptAction { script: { flyBall.width = 10; flyBall.height = 10; flyBall.visible = true; flyBall.scale = 1.0 } }
+        ScriptAction { script: { flyBallAnim.start() } }
+        PauseAnimation { duration: 400 }
+        ScriptAction { script: { flyBallBounce.start() } }
+        PauseAnimation { duration: 320 }
+        ScriptAction { script: { flyBall.opacity = 0; flyBall.visible = false; flyBall.width = 0; flyBall.height = 0 } }
+    }
+
+    // Nav item bounce overlay (inside sidebar)
+    Rectangle {
+        id: navBounceOverlay
+        z: 200
+        visible: false
+        width: 184; height: 40; radius: 6
+        color: "#306080e8"
+        x: 8; y: 0
+        opacity: 0
+    }
+
+    SequentialAnimation {
+        id: navBounceSeq
+        ScriptAction { script: { navBounceOverlay.visible = true; navBounceOverlay.opacity = 0.4; navBounceOverlay.scale = 0.95 } }
+        ParallelAnimation {
+            NumberAnimation { target: navBounceOverlay; property: "scale"; to: 1.04; duration: 180; easing.type: Easing.OutBack }
+            NumberAnimation { target: navBounceOverlay; property: "opacity"; to: 0; duration: 350; easing.type: Easing.OutCubic }
+        }
+        ScriptAction { script: { navBounceOverlay.visible = false } }
+    }
+
+    function animateDownloadBall(sourceX, sourceY) {
+        // Target: position where "下载进度" nav item is/will be
+        var targetIdx = downloadNavVisible ? navModel.count - 1 : navModel.count
+        // Nav item Y in sidebar coords: 8(margin) + 8(topMargin) + logoHeight(16) + logoBottomMargin(20) = 52
+        var navItemY = 52 + targetIdx * 44
+        // Convert sidebar-local to Window coords: titlebar(36) + loadingBar(2) + RowLayoutMargin(8) + sidebarMargin(8) = 54
+        var targetAbsoluteY = 54 + navItemY + 20  // center of nav item
+        var targetAbsoluteX = 108  // RowLayoutMargin(8) + sidebarWidth(200)/2 = 108
+
+        flyBallAnim.startX = sourceX
+        flyBallAnim.startY = sourceY
+        flyBallAnim.endX = targetAbsoluteX
+        flyBallAnim.endY = targetAbsoluteY
+
+        flyBallSeq.start()
+
+        // Also bounce the nav overlay
+        navBounceOverlay.y = 54 + navItemY
+        navBounceSeq.start()
     }
 
     // ═══ Toast notification (anchored inside pageContainer, no Window-level anchors) ═══

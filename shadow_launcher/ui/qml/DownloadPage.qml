@@ -162,6 +162,8 @@ Rectangle {
                 color: page.currentTab === index ? "#1a1f2e" : "transparent"
                 border.color: page.currentTab === index ? "#3a4eb8" : "transparent"
                 border.width: page.currentTab === index ? 1 : 0
+                scale: tabMouse.containsMouse ? 1.04 : 1.0
+                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                 Text {
                     anchors.centerIn: parent
@@ -172,6 +174,7 @@ Rectangle {
                 }
 
                 MouseArea {
+                    id: tabMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
@@ -230,6 +233,8 @@ Rectangle {
                     border.color: page.currentFilter === modelData.key ? "#3a4eb8" : "#1e2230"
                     border.width: 1
                     clip: true
+                    scale: pillMouse.containsMouse ? 1.04 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                     Row {
                         id: pillRow
@@ -252,6 +257,7 @@ Rectangle {
                     }
 
                     MouseArea {
+                        id: pillMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -369,12 +375,29 @@ Rectangle {
                 spacing: 2
 
                 delegate: Rectangle {
+                    id: versionRow
                     width: versionList.width
                     height: 42
                     color: itemHover.containsMouse ? "#11141c" : "transparent"
                     radius: 6
                     border.color: page.selectedVersionId === model.versionId ? "#3a4eb8" : "transparent"
                     border.width: page.selectedVersionId === model.versionId ? 1 : 0
+
+                    // Entrance animation
+                    opacity: 0
+                    scale: 1.0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                    Component.onCompleted: {
+                        opacity = 1
+                    }
+
+                    // Row bounce animation for download feedback
+                    SequentialAnimation {
+                        id: rowBounceAnim
+                        NumberAnimation { target: versionRow; property: "scale"; from: 1.0; to: 1.04; duration: 150; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: versionRow; property: "scale"; from: 1.04; to: 1.0; duration: 150; easing.type: Easing.InCubic }
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -451,7 +474,14 @@ Rectangle {
                             }
                             onClicked: {
                                 console.log("[DownloadPage] Install clicked for " + model.versionId + " source=" + page.currentSource)
-                                if (backend) backend.installVersion(model.versionId, page.currentSource)
+                                if (backend) {
+                                    backend.installVersion(model.versionId, page.currentSource)
+                                    // Row bounce animation
+                                    rowBounceAnim.start()
+                                    // Flying ball: map button center → Window coords
+                                    var gp = installBtn.mapToItem(appWindow.contentItem, installBtn.width / 2, installBtn.height / 2)
+                                    if (appWindow.animateDownloadBall) appWindow.animateDownloadBall(gp.x, gp.y)
+                                }
                             }
                         }
                     }
@@ -604,6 +634,8 @@ Rectangle {
                             color: page.modLoader === modelData.toLowerCase() ? "#3a4eb8" : "#11141c"
                             border.color: page.modLoader === modelData.toLowerCase() ? "#3a4eb8" : "#1e2230"
                             border.width: 1
+                            scale: loaderBtnMouse.containsMouse ? 1.05 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                             Text {
                                 anchors.centerIn: parent
@@ -613,7 +645,9 @@ Rectangle {
                             }
 
                             MouseArea {
+                                id: loaderBtnMouse
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     if (page.modLoader !== modelData.toLowerCase()) {
@@ -749,6 +783,10 @@ Rectangle {
                         radius: 8
                         border.color: cardMouse.containsMouse ? "#3a4eb8" : "#1a1f2a"
                         border.width: 1
+
+                        opacity: 0
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                        Component.onCompleted: { opacity = 1 }
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -941,6 +979,10 @@ Rectangle {
                         radius: 8
                         border.color: cardMouse2.containsMouse ? "#3a4eb8" : "#1a1f2a"
                         border.width: 1
+
+                        opacity: 0
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                        Component.onCompleted: { opacity = 1 }
 
                         property var itemData: shaderGrid.shaderData[index] || {}
 

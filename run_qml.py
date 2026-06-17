@@ -59,6 +59,13 @@ def _qt_message_handler(mode, context, message):
 
 
 def main():
+    # ── 0.5 持久化日志启动 ──
+    from shadow_launcher.core.logger import log_startup, log_shutdown, install_crash_handler, log_info
+    log_startup()
+    install_crash_handler()
+    import atexit
+    atexit.register(lambda: log_shutdown(0, "正常退出"))
+    log_info("run_qml.py 入口启动")
     qInstallMessageHandler(_qt_message_handler)
 
     # 高 DPI 适配

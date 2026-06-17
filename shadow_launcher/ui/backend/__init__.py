@@ -59,6 +59,9 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     installPhaseChanged = Signal(str)
     isolationChanged = Signal()
     installingChanged = Signal()
+    versionListRefreshing = Signal()
+    installQueueChanged = Signal()
+    installActiveChanged = Signal()
 
     # 资源下载信号
     searchResultsReady = Signal(list)
@@ -74,6 +77,11 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     def __init__(self, parent=None):
         QObject.__init__(self, parent)
+
+        # ═══ 持久化日志 ═══
+        from shadow_launcher.core.logger import log_info, log_user_action, get_log_path, get_recent_logs
+        self.logMessage.connect(log_info)
+        log_info("Backend 初始化完成")
 
         # ═══ 共享状态 ═══
         self._version_manifest = None
@@ -96,6 +104,15 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
         # Scan version details (async, don't block GUI)
         threading.Thread(target=self._async_initial_scan, daemon=True).start()
+
+        # ═══ 下载队列系统 ═══
+        self._download_queue: list = []  # 排队中的版本
+        self._active_downloads: list = []  # 正在下载（最多2个）
+        self._download_lock = threading.Lock()
+        self._max_concurrent_downloads = 2
+
+        # 文件变化监控
+        self._last_installed_count = len(self._installed_ids)
 
     gameDirInfoChanged = Signal()
 
@@ -267,7 +284,18 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Property("QVariantList", notify=installedVersionsChanged)
     def installedVersions(self):
-        return self._installed_ids
+        """返回已安装版本列表，合并队列/下载中的版本确保UI一致性"""
+        result = list(self._installed_ids) if self._installed_ids else []
+        with self._download_lock:
+            for item in self._download_queue:
+                vid = item.get("versionId", "")
+                if vid and vid not in result:
+                    result.append(vid)
+            for item in self._active_downloads:
+                vid = item.get("versionId", "")
+                if vid and vid not in result:
+                    result.append(vid)
+        return result
 
     @Property(str, notify=versionListReady)
     def selectedVersion(self):
@@ -368,19 +396,47 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Slot(str, int)
     def installVersion(self, version_id: str, source_index: int = 0):
-        """通过子进程运行 install_cli.py，通过 stdout 管道获取实时进度"""
+        """安装版本 - 支持多版本排队下载"""
         cli_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "install_cli.py")
         cli_path = os.path.abspath(cli_path)
-
-        if self._install_reader_thread and self._install_reader_thread.is_alive():
-            self.logMessage.emit(f"安装 {self._install_version_id} 正在进行中，请稍后")
-            return
 
         if not os.path.exists(cli_path):
             self.logMessage.emit(f"未找到安装脚本: {cli_path}")
             return
 
-        self.logMessage.emit(f"启动安装: {version_id} (source={source_index})")
+        # 检查是否已经安装
+        installed = get_installed_versions()
+        if version_id in installed:
+            self.logMessage.emit(f"{version_id} 已安装，无需重复下载")
+            return
+
+        # ═══ 下载队列逻辑 ═══
+        with self._download_lock:
+            for existing in self._active_downloads + self._download_queue:
+                if existing.get("versionId") == version_id:
+                    self.logMessage.emit(f"{version_id} 已在下载队列中")
+                    return
+
+            download_item = {
+                "versionId": version_id, "sourceIndex": source_index,
+                "state": "downloading", "progress": 0, "total": 0,
+                "bytesDownloaded": 0, "bytesTotal": 0, "file": "",
+                "speed": 0.0, "phase": "starting", "t0": time.time(),
+            }
+
+            if len(self._active_downloads) < self._max_concurrent_downloads:
+                self._active_downloads.append(download_item)
+            else:
+                download_item["state"] = "queued"
+                self._download_queue.append(download_item)
+                self.logMessage.emit(f"{version_id} 已加入下载队列 (位置 {len(self._download_queue)})")
+                self.installQueueChanged.emit()
+                self.installActiveChanged.emit()
+                return
+
+            self.installActiveChanged.emit()
+
+        self.logMessage.emit(f"开始下载: {version_id} (源: {source_index})")
 
         # Reset all install state
         self._install_progress = 0
@@ -389,118 +445,208 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         self._install_bytes_total = 0
         self._install_file = ""
         self._install_speed = 0.0
-        self._install_running = False
-        self._install_phase = ""
-        self._install_version_id = version_id
-        self._install_elapsed = 0.0
 
         cmd = [sys.executable, cli_path, version_id, "--source", str(source_index)]
-        try:
-            self._install_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                cwd=os.path.dirname(cli_path),
-            )
-        except Exception as e:
-            self.logMessage.emit(f"启动安装进程失败: {e}")
-            return
-
-        self._install_running = True
-        self._install_phase = "starting"
-        self.installPhaseChanged.emit("starting")
-        self.installingChanged.emit()
-        self.installVersionChanged.emit(version_id)
-        self._install_t0 = time.time()
-
-        def _read_pipe():
-            """Read stdout lines from subprocess and emit signals."""
             try:
-                for line in self._install_process.stdout:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    if line.startswith("PROG:"):
-                        parts = line[5:].split(":", 4)
-                        if len(parts) >= 5:
-                            try:
-                                cf = int(parts[0])
-                                tf = int(parts[1])
-                                db = int(parts[2])
-                                tb = int(parts[3])
-                                name = parts[4]
-                            except ValueError:
-                                continue
-                            self._install_progress = cf
-                            self._install_total = tf
-                            self._install_bytes_downloaded = db
-                            self._install_bytes_total = tb
-                            self._install_file = name.replace('???', '')
-                            if self._install_phase != "downloading":
-                                self._install_phase = "downloading"
-                                self.installPhaseChanged.emit("downloading")
-                            self.installProgressChanged.emit(cf)
-                            self.installTotalChanged.emit(tf)
-                            self.installFileProgress.emit(name)
-                            # Calculate and emit speed
-                            elapsed = time.time() - self._install_t0 if time.time() > self._install_t0 else 0.001
-                            self._install_speed = db / elapsed if elapsed > 0 else 0
-                            self.installBytesProgress.emit(db, tb)
-                            # Log every 50th file
-                            if cf % 50 == 0 and tf > 0:
-                                pct = cf / tf * 100
-                                self.logMessage.emit(f"[安装] {version_id} | {pct:.1f}% ({cf}/{tf}) | {self._install_speed/1048576:.1f} MB/s | {name[:40]}")
-
-                    elif line.startswith("LOG:"):
-                        self.logMessage.emit(line[4:])
-
-                    elif line.startswith("DONE:"):
-                        parts = line[5:].split(":")
-                        self._install_phase = "done"
-                        self._install_running = True
-                        self.installPhaseChanged.emit("done")
-                        self.logMessage.emit(f"OK {version_id} 安装完成！耗时 {parts[1] if len(parts)>1 else '?'}s")
-                        # Keep showing for 5s then reset
-                        def _delayed_reset():
-                            time.sleep(5)
-                            self._install_running = False
-                            self._install_phase = ""
-                            self.installingChanged.emit()
-                            self.installPhaseChanged.emit("")
-                            self.refreshInstalled()  # refresh installed versions list
-                        threading.Thread(target=_delayed_reset, daemon=True).start()
-                        break
-
-                    elif line.startswith("FAIL:"):
-                        self._install_phase = "failed"
-                        self._install_running = False
-                        self.installPhaseChanged.emit("failed")
-                        self.installingChanged.emit()
-                        self.logMessage.emit(f"FAIL {line[5:]}")
-                        break
-
-                    elif line.startswith("CANCEL"):
-                        self._install_phase = "cancelled"
-                        self._install_running = False
-                        self.installPhaseChanged.emit("cancelled")
-                        self.installingChanged.emit()
-                        break
+                self._install_process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    cwd=os.path.dirname(cli_path),
+                )
             except Exception as e:
-                self.logMessage.emit(f"读取安装进度失败: {e}")
+                self.logMessage.emit(f"启动安装进程失败: {e}")
+                return
+
+            self.installPhaseChanged.emit("starting")
+            self.installingChanged.emit()
+            self.installVersionChanged.emit(version_id)
+            self._install_t0 = time.time()
+
+            def _read_pipe():
+                """Read stdout lines from subprocess and emit signals."""
+                try:
+                    for line in self._install_process.stdout:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        if line.startswith("PROG:"):
+                            parts = line[5:].split(":", 4)
+                            if len(parts) >= 5:
+                                try:
+                                    cf = int(parts[0])
+                                    tf = int(parts[1])
+                                    db = int(parts[2])
+                                    tb = int(parts[3])
+                                    name = parts[4]
+                                except ValueError:
+                                    continue
+                                self._install_progress = cf
+                                self._install_total = tf
+                                self._install_bytes_downloaded = db
+                                self._install_bytes_total = tb
+                                self._install_file = name.replace('???', '')
+                                if self._install_phase != "downloading":
+                                    self._install_phase = "downloading"
+                                    self.installPhaseChanged.emit("downloading")
+                                self.installProgressChanged.emit(cf)
+                                self.installTotalChanged.emit(tf)
+                                self.installFileProgress.emit(name)
+                                elapsed = time.time() - self._install_t0 if time.time() > self._install_t0 else 0.001
+                                self._install_speed = db / elapsed if elapsed > 0 else 0
+                                self.installBytesProgress.emit(db, tb)
+                                if cf % 50 == 0 and tf > 0:
+                                    pct = cf / tf * 100
+                                    self.logMessage.emit(f"[安装] {version_id} | {pct:.1f}% ({cf}/{tf}) | {self._install_speed/1048576:.1f} MB/s | {name[:40]}")
+
+                        elif line.startswith("LOG:"):
+                            self.logMessage.emit(line[4:])
+
+                        elif line.startswith("DONE:"):
+                            self._install_phase = "done"
+                            self.installPhaseChanged.emit("done")
+                            self.logMessage.emit(f"✅ {version_id} 安装完成！")
+                            # 立即刷新已安装版本（修复按钮闪烁bug）
+                            self.refreshInstalled()
+                            # 推送到已完成下载列表
+                            self._on_download_complete(download_item)
+                            break
+
+                        elif line.startswith("FAIL:"):
+                            self._install_phase = "failed"
+                            self.installPhaseChanged.emit("failed")
+                            self.logMessage.emit(f"FAIL {line[5:]}")
+                            self.refreshInstalled()
+                            self._on_download_complete(download_item)
+                            break
+
+                        elif line.startswith("CANCEL"):
+                            self._install_phase = "cancelled"
+                            self.installPhaseChanged.emit("cancelled")
+                            self._on_download_complete(download_item)
+                            break
+                except Exception as e:
+                    self.logMessage.emit(f"读取安装进度失败: {e}")
+                    self._on_download_complete(download_item)
+                finally:
+                    self._install_process = None
+                    self._install_reader_thread = None
+
+            self._install_reader_thread = threading.Thread(target=_read_pipe, daemon=True)
+            self._install_reader_thread.start()
+
+    def _on_download_complete(self, item: dict):
+        """下载完成后的清理和队列推进"""
+        next_version = None
+        next_source = 0
+
+        with self._download_lock:
+            if item in self._active_downloads:
+                self._active_downloads.remove(item)
+
+            if self._download_queue and len(self._active_downloads) < self._max_concurrent_downloads:
+                next_item = self._download_queue.pop(0)
+                next_version = next_item["versionId"]
+                next_source = next_item.get("sourceIndex", 0)
+
+            self.installQueueChanged.emit()
+            self.installActiveChanged.emit()
+
+        # 同步到旧的单版本属性
+        if next_version:
+            self.installVersion(next_version, next_source)
+
+        if self._active_downloads:
+            self._sync_install_state_from_active()
+        else:
+            def _delayed_reset():
+                time.sleep(3)
                 self._install_running = False
                 self._install_phase = ""
                 self.installingChanged.emit()
-            finally:
-                self._install_process = None
-                self._install_reader_thread = None
+                self.installPhaseChanged.emit("")
+            threading.Thread(target=_delayed_reset, daemon=True).start()
 
-        self._install_reader_thread = threading.Thread(target=_read_pipe, daemon=True)
-        self._install_reader_thread.start()
+    def _sync_install_state_from_active(self):
+        """将当前活跃下载同步到旧的单版本属性（兼容 DownloadPage QML 绑定）"""
+        if not self._active_downloads:
+            return
+        first = self._active_downloads[0]
+        self._install_running = True
+        self._install_phase = first.get("phase", "downloading")
+        self._install_version_id = first["versionId"]
+        self.installingChanged.emit()
+        self.installPhaseChanged.emit(self._install_phase)
+        self.installVersionChanged.emit(self._install_version_id)
 
+    # ═══ 下载队列属性 ═══
+
+    @Property("QVariantList", notify=installQueueChanged)
+    def downloadQueue(self):
+        """排队中的下载项 [{versionId, state, ...}]"""
+        return [dict(item) for item in self._download_queue]
+
+    @Property("QVariantList", notify=installActiveChanged)
+    def activeDownloads(self):
+        """活跃的下载项 [{versionId, state, progress, total, ...}]"""
+        return [dict(item) for item in self._active_downloads]
+
+    @Slot(str)
+    def cancelQueuedDownload(self, version_id: str):
+        """取消队列中的下载"""
+        with self._download_lock:
+            for item in self._download_queue:
+                if item.get("versionId") == version_id:
+                    self._download_queue.remove(item)
+                    self.logMessage.emit(f"已取消 {version_id} 的排队下载")
+                    self.installQueueChanged.emit()
+                    return
+            self.logMessage.emit(f"{version_id} 不在排队中")
+
+    # ═══ 版本列表刷新 ═══
+
+    @Slot()
+    def refreshVersionList(self):
+        """手动刷新版本列表"""
+        self.versionListRefreshing.emit()
+        self.logMessage.emit("正在刷新版本列表...")
+
+        def _refresh():
+            try:
+                from shadow_launcher.core.versions import fetch_version_manifest
+                manifest = fetch_version_manifest(use_mirror=True)
+                self._version_manifest = manifest
+                self._version_ids = [v.id for v in manifest.versions]
+                self._installed_ids = get_installed_versions()
+                self.versionListReady.emit()
+                self.installedVersionsChanged.emit()
+                self._last_installed_count = len(self._installed_ids)
+                self.logMessage.emit(
+                    f"版本列表已刷新 (正式版: {len([v for v in manifest.versions if v.type == 'release'])}, "
+                    f"快照: {len([v for v in manifest.versions if v.type == 'snapshot'])})"
+                )
+            except Exception as e:
+                self.logMessage.emit(f"刷新版本列表失败: {e}")
+
+        t = threading.Thread(target=_refresh, daemon=True)
+        t.start()
+
+    @Slot()
+    def checkFileChanges(self):
+        """检查游戏文件是否变化，自动刷新"""
+        try:
+            current_count = len(get_installed_versions())
+            if current_count != self._last_installed_count:
+                self._last_installed_count = current_count
+                self.logMessage.emit("检测到游戏文件变化，自动刷新...")
+                self.refreshInstalled()
+                self.refreshVersionDetails()
+        except Exception:
+            pass
 
     @Slot()
     def cancelInstall(self):
@@ -913,10 +1059,27 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     @Slot()
     def openScreenshotsFolder(self):
         spath = self._get_data_dir("screenshots")
-        if os.path.isdir(spath):
-            os.startfile(spath)
-        else:
-            os.startfile(base)
+        os.makedirs(spath, exist_ok=True)
+        os.startfile(spath)
+
+    @Slot()
+    def openLogFolder(self):
+        """打开日志文件夹"""
+        from shadow_launcher.core.logger import LOG_DIR
+        os.makedirs(LOG_DIR, exist_ok=True)
+        os.startfile(LOG_DIR)
+
+    @Slot(str)
+    def logUserAction(self, action: str):
+        """记录用户操作到持久化日志"""
+        from shadow_launcher.core.logger import log_user_action
+        log_user_action(action)
+
+    @Slot(result=str)
+    def getRecentLogs(self):
+        """获取最近日志（供UI诊断面板显示）"""
+        from shadow_launcher.core.logger import get_recent_logs
+        return get_recent_logs(100)
 
     # ═══ 完整性校验信号和状态 ═══
     verifyProgressChanged = Signal(int, int)
