@@ -106,6 +106,7 @@ Rectangle {
                         onClicked: {
                             if (backend) {
                                 var name = nameInput.text.trim() || "Player"
+                                backend.setLastLoginMode(0)
                                 backend.offlineLogin(name)
                             }
                         }

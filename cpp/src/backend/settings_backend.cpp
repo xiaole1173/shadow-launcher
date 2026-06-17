@@ -108,6 +108,9 @@ void SettingsBackend::saveSettings()
 
 void SettingsBackend::doAutoDetect()
 {
+    // Always pre-warm the cache (non-blocking—runs via QTimer)
+    cachedJavaList();
+
     // Skip if we already have a valid Java from saved settings
     if (m_javaReady && QFileInfo::exists(m_javaPath)) {
         emit logMessage(QStringLiteral("Java 已配置: %1 (版本 %2)")

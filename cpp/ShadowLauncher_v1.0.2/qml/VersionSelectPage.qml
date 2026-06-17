@@ -10,6 +10,7 @@ Rectangle {
     id: root
 
     property var backend: null
+    property var mainWindow: null
     property var versionIds: []
     signal goBack()
     signal versionSelected(string versionId)
@@ -80,7 +81,12 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (backend) { backend.refreshVersionList(); toastManager.show("已刷新版本列表") }
+                    if (backend) {
+                        toastManager.show("正在刷新...")
+                        if (mainWindow) mainWindow.pageLoading = true
+                        versionModel.clear()
+                        backend.refreshVersionList()
+                    }
                 }
             }
         }
@@ -295,7 +301,11 @@ Rectangle {
             Connections {
                 target: backend
                 enabled: backend !== null
-                function onVersionListReady() { rebuildVersionList() }
+                function onVersionListReady() {
+                    rebuildVersionList()
+                    if (mainWindow) mainWindow.pageLoading = false
+                    if (toastManager) toastManager.show("版本列表已刷新")
+                }
             }
 
             Component.onCompleted: rebuildVersionList()

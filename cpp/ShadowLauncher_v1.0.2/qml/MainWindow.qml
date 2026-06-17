@@ -22,6 +22,7 @@ Window {
 
     Component.onCompleted: {
         if (backend) {
+            backend.refreshVersionList()
             backend.refreshInstalled()
             backend.refreshVersionDetails()
         }
@@ -115,9 +116,12 @@ Window {
 
         // ── Loading bar (Android-style indeterminate) ──
         // FIX: fixed height 2px + opacity control → zero layout jitter
+        // FIX: inset from rounded window corners (radius: 16)
         Rectangle {
             id: loadingBar
             Layout.fillWidth: true
+            Layout.leftMargin: 16
+            Layout.rightMargin: 16
             Layout.preferredHeight: 2
             opacity: pageLoading ? 1 : 0
             color: "transparent"

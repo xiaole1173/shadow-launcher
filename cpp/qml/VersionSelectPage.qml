@@ -280,8 +280,8 @@ Rectangle {
             function rebuildVersionList() {
                 versionModel.clear()
                 var ids = []
-                if (backend && backend.versionIds) {
-                    ids = backend.versionIds
+                if (backend && backend.installedVersions) {
+                    ids = backend.installedVersions
                 }
                 for (var i = 0; i < ids.length; i++) {
                     var v = ids[i] || ""
