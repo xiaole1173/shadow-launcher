@@ -270,6 +270,29 @@ Rectangle {
                 }
             }
 
+            // ── 刷新按钮 ──
+            Rectangle {
+                width: 28; height: 28; radius: 5
+                color: refreshHover.hovered ? "#1a2848" : "transparent"
+                border.color: refreshHover.hovered ? "#5068d8" : "#1e2230"
+                border.width: 1
+                visible: page.currentTab === 0
+                Text {
+                    anchors.centerIn: parent
+                    text: "↻"
+                    color: refreshHover.hovered ? "#8aa8f0" : "#9094a8"
+                    font.pixelSize: 16
+                }
+                HoverHandler { id: refreshHover }
+                ToolTip { visible: refreshHover.hovered; text: "刷新版本列表"; delay: 500 }
+                MouseArea {
+                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (backend) backend.refreshVersionList()
+                    }
+                }
+            }
+
             Item { Layout.fillWidth: true }
 
             // ── Download source selector ──
@@ -449,27 +472,50 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
-                    // Install button - using QtQuick.Controls.Button (bypass Loader MA bug)
+                    // Install button - using QtQuick.Controls.Button
                         Button {
                             id: installBtn
                             property bool isInstalled: backend && backend.installedVersions && (backend.installedVersions.indexOf(model.versionId) >= 0)
                             property bool isInstallingThis: backend && backend.installing && backend.installVersionId === model.versionId && backend.installPhase !== "done"
-                            text: isInstalled ? "已安装" : (isInstallingThis ? "下载中…" : "安装")
-                            implicitWidth: isInstalled ? 56 : (isInstallingThis ? 56 : 48); implicitHeight: 24
+                            property bool isDownloadQueued: {
+                                if (!backend || !backend.downloadQueue) return false
+                                for (var i = 0; i < backend.downloadQueue.length; i++) {
+                                    if (backend.downloadQueue[i].versionId === model.versionId) return true
+                                }
+                                return false
+                            }
+                            property bool isDownloadActive: {
+                                if (!backend || !backend.activeDownloads) return false
+                                for (var i = 0; i < backend.activeDownloads.length; i++) {
+                                    if (backend.activeDownloads[i].versionId === model.versionId) return true
+                                }
+                                return false
+                            }
+                            text: isInstalled ? "已安装" : (isDownloadQueued ? "排队中" : (isInstallingThis || isDownloadActive ? "下载中…" : "安装"))
+                            implicitWidth: isInstalled ? 56 : (isDownloadQueued ? 56 : (isInstallingThis || isDownloadActive ? 56 : 48)); implicitHeight: 24
                             font.pixelSize: 10; font.weight: Font.Medium
                             z: 10
                             flat: true
-                            enabled: !isInstalled && !isInstallingThis
+                            enabled: !isInstalled && !isInstallingThis && !isDownloadQueued && !isDownloadActive
                             contentItem: Text {
                                 text: installBtn.text
-                                color: installBtn.isInstalled ? "#4bc870" : (installBtn.isInstallingThis ? "#6080e8" : (installBtn.hovered && installBtn.enabled ? "#ffffff" : "#707888"))
+                                color: installBtn.isInstalled ? "#4bc870" :
+                                       (installBtn.isDownloadQueued ? "#e0a040" :
+                                       (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#6080e8" :
+                                       (installBtn.hovered && installBtn.enabled ? "#ffffff" : "#707888")))
                                 font.pixelSize: 10; font.weight: Font.Medium
                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle {
                                 radius: 4
-                                color: installBtn.isInstalled ? "#0a1810" : (installBtn.isInstallingThis ? "#0a1020" : (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent"))
-                                border.color: installBtn.isInstalled ? "#1a3028" : (installBtn.isInstallingThis ? "#1a2840" : (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : "#1e2230"))
+                                color: installBtn.isInstalled ? "#0a1810" :
+                                       (installBtn.isDownloadQueued ? "#1a1800" :
+                                       (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#0a1020" :
+                                       (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent")))
+                                border.color: installBtn.isInstalled ? "#1a3028" :
+                                              (installBtn.isDownloadQueued ? "#3a3000" :
+                                              (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#1a2840" :
+                                              (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : "#1e2230")))
                                 border.width: 1
                             }
                             onClicked: {
@@ -508,14 +554,18 @@ Rectangle {
 
         // ── Version install progress overlay ──
         Rectangle {
+            id: downloadBar
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 8
             anchors.leftMargin: 12
             anchors.rightMargin: 12
-            height: (backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed") ? 80 : 0
-            visible: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed"
+            property bool hasActiveDownload: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed"
+            property bool hasQueue: backend && backend.downloadQueue && backend.downloadQueue.length > 0
+            property bool hasDownloads: hasActiveDownload || hasQueue
+            height: hasDownloads ? (hasActiveDownload ? 80 : 52) : 0
+            visible: hasDownloads
             color: "#11141c"
             radius: 8
             border.color: "#1e2230"
@@ -526,11 +576,12 @@ Rectangle {
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 12
-                spacing: 6
+                spacing: 4
 
                 RowLayout {
+                    visible: downloadBar.hasActiveDownload
                     Text {
-                        text: "正在安装 " + (page.selectedVersionId || "")
+                        text: "正在安装 " + (backend ? (backend.installVersionId || "") : "")
                         color: "#d0d4e0"
                         font.pixelSize: 13
                         font.bold: true
@@ -542,6 +593,21 @@ Rectangle {
                             : "准备中..."
                         color: "#9094a8"
                         font.pixelSize: 12
+                    }
+                }
+
+                RowLayout {
+                    visible: downloadBar.hasQueue || downloadBar.hasActiveDownload
+                    Text {
+                        text: downloadBar.hasActiveDownload ? "" : "等待下载开始..."
+                        color: "#9094a8"
+                        font.pixelSize: 11
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: downloadBar.hasQueue ? ("排队: " + backend.downloadQueue.length + " 个版本") : ""
+                        color: "#e0a040"
+                        font.pixelSize: 11
                     }
                 }
 

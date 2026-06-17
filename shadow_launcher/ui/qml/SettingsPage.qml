@@ -29,13 +29,23 @@ Rectangle {
                 delegate: Rectangle {
                     width: nav.width - 16; height: 38; radius: 6
                     color: nav.currentIndex === index ? "#181c28" : (navMouse.containsMouse ? "#11141c" : "transparent")
-                    Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 2; color: nav.currentIndex === index ? "#5d6fe0" : "transparent" }
+                    scale: navMouse.containsMouse ? 1.02 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text {
                         anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter
                         text: modelData; color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13
                         font.weight: nav.currentIndex === index ? Font.DemiBold : Font.Normal
                     }
                     MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { nav.currentIndex = index; page.currentSection = index } }
+                }
+
+                // Animated selection indicator overlay
+                Rectangle {
+                    id: settingsIndicator
+                    z: 10
+                    x: 0; y: 8 + nav.currentIndex * 40
+                    width: 2; height: 38; color: "#5d6fe0"; radius: 1
+                    Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
                 }
             }
         }

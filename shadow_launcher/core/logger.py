@@ -168,3 +168,30 @@ def install_crash_handler():
             _original_thread_excepthook(args)
 
     threading.excepthook = _thread_handler
+
+
+def install_qt_handler():
+    """安装 Qt 消息拦截器 — 捕获所有 QML 警告/布局错误/渲染问题"""
+    try:
+        from PySide6.QtCore import qInstallMessageHandler, QtMsgType
+
+        def _qt_handler(msg_type, context, message):
+            type_map = {
+                QtMsgType.QtDebugMsg: "QT_DBG",
+                QtMsgType.QtInfoMsg: "QT_INFO",
+                QtMsgType.QtWarningMsg: "QT_WARN",
+                QtMsgType.QtCriticalMsg: "QT_CRIT",
+                QtMsgType.QtFatalMsg: "QT_FATAL",
+            }
+            level = type_map.get(msg_type, "QT_MSG")
+            # 提取文件/行号信息
+            loc = ""
+            if context.file:
+                fname = context.file.split("/")[-1].split("\\")[-1]
+                loc = f"({fname}:{context.line})"
+            _write_log(level, f"{loc} {message}")
+
+        qInstallMessageHandler(_qt_handler)
+        _write_log("INFO", "Qt 消息拦截器已安装 — UI层警告/错误将被记录")
+    except ImportError:
+        pass  # 无 PySide6 环境（如纯CLI模式）

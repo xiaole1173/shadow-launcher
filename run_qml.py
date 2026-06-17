@@ -60,9 +60,11 @@ def _qt_message_handler(mode, context, message):
 
 def main():
     # ── 0.5 持久化日志启动 ──
-    from shadow_launcher.core.logger import log_startup, log_shutdown, install_crash_handler, log_info
+    from shadow_launcher.core.logger import log_startup, log_shutdown, install_crash_handler, install_qt_handler, log_info
     log_startup()
     install_crash_handler()
+    # Qt 消息拦截必须在 QApplication 创建之后
+    # 在 main() 中 app 创建后再调用
     import atexit
     atexit.register(lambda: log_shutdown(0, "正常退出"))
     log_info("run_qml.py 入口启动")
@@ -76,6 +78,9 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Shadow Launcher")
     app.setOrganizationName("Shadow")
+
+    # Qt UI 消息拦截 — 捕获 QML 警告/布局错误/渲染问题到日志
+    install_qt_handler()
 
     # 创建后端
     backend = ShadowBackend()
