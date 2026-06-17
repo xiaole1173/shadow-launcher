@@ -36,8 +36,14 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("backend", backend);
     engine.rootContext()->setContextProperty("dataDir", dataDir);
 
-    // Load main QML
-    const QUrl url(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
+    // Load main QML (filesystem for packaged, fallback to qrc for dev)
+    QString qmlPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
+    QUrl url;
+    if (QFile::exists(qmlPath)) {
+        url = QUrl::fromLocalFile(qmlPath);
+    } else {
+        url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
+    }
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
         &app, []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
