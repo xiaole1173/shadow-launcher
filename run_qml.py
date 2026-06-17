@@ -40,7 +40,7 @@ if _project_root not in sys.path:
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtCore import QUrl, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QUrl, Qt, QtMsgType, qInstallMessageHandler
 
 from shadow_launcher.ui.qml.backend import ShadowBackend
 

@@ -19,6 +19,7 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
+    property string toastMsg: ""
 
     Component.onCompleted: {
         if (backend) {
@@ -1636,8 +1637,8 @@ Window {
                     color: "#141c30"
                     border.color: "#3040a0"
                     border.width: 1
-                    opacity: _toastMsg !== "" ? 1 : 0
-                    y: _toastMsg !== "" ? 0 : 20
+                    opacity: toastMsg !== "" ? 1 : 0
+                    y: toastMsg !== "" ? 0 : 20
                     Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
@@ -1652,7 +1653,7 @@ Window {
                     Text {
                         id: toastText
                         anchors.centerIn: parent
-                        text: _toastMsg
+                        text: toastMsg
                         color: "#b0c0f0"
                         font.pixelSize: 11
                         elide: Text.ElideRight
@@ -1671,16 +1672,14 @@ Window {
 
     // ═══ Toast notification (anchored inside pageContainer, no Window-level anchors) ═══
     function showToast(msg) {
-        _toastMsg = msg
+        toastMsg = msg
         toastTimer.restart()
     }
-
-    property string _toastMsg: ""
 
     Timer {
         id: toastTimer
         interval: 2500
-        onTriggered: { _toastMsg = "" }
+        onTriggered: { toastMsg = "" }
     }
 
     // ═══ Kill button (x/y positioning, NOT anchors — avoids Window layout competition) ═══
