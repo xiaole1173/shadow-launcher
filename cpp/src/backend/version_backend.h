@@ -28,6 +28,9 @@ public:
     ~VersionBackend() override;
 
     bool isInstalling() const { return m_installing; }
+
+    /// Return cached version list with id + type for QML
+    QVariantList versionInfoList() const;
     int installProgress() const { return m_installProgress; }
     int installTotal() const { return m_installTotal; }
     QString installFile() const { return m_installFile; }

@@ -17,6 +17,7 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(int minMemoryMB READ minMemoryMB NOTIFY memorySettingsChanged)
     Q_PROPERTY(int maxMemoryMB READ maxMemoryMB NOTIFY memorySettingsChanged)
     Q_PROPERTY(bool closeAfterLaunch READ closeAfterLaunch NOTIFY generalSettingsChanged)
+    Q_PROPERTY(bool javaReady READ isJavaReady NOTIFY javaPathChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -27,12 +28,14 @@ public:
     int minMemoryMB() const { return m_minMemoryMB; }
     int maxMemoryMB() const { return m_maxMemoryMB; }
     bool closeAfterLaunch() const { return m_closeAfterLaunch; }
+    bool isJavaReady() const { return m_javaReady; }
 
     void setJavaPath(const QString& path);
 
     // ---- Slots ----
     Q_INVOKABLE QVariantList scanJavaInstallations();
     Q_INVOKABLE QString autoSelectJava();
+    Q_INVOKABLE QString detectJava();         // QML alias
     Q_INVOKABLE QVariantMap getMemoryStatus();
     Q_INVOKABLE void setMinMemory(int mb);
     Q_INVOKABLE void setMaxMemory(int mb);
@@ -49,6 +52,7 @@ public:
 
 signals:
     void javaPathChanged();
+    void javaReadyChanged();
     void memorySettingsChanged();
     void generalSettingsChanged();
     void isolationChanged();
@@ -61,12 +65,16 @@ private:
         int major = 0;
     };
 
+    void loadSettings();
+    void saveSettings();
+    void doAutoDetect();
+    const QVector<JavaInfo>& cachedJavaList();
+
     QVector<JavaInfo> findAllJava();
     JavaInfo getJavaInfo(const QString& exePath);
     int parseMajorVersion(const QString& versionStr);
     bool tryAddJavaResult(const QString& exePath, QSet<QString>& seenBinDirs,
                           QVector<JavaInfo>& out);
-
     QString findJavaInDir(const QString& dirPath);
     QString findJavaOnPath();
 
@@ -76,7 +84,12 @@ private:
     int m_minMemoryMB = 512;
     int m_maxMemoryMB = 2048;
     bool m_closeAfterLaunch = false;
+    bool m_javaReady = false;
     QString m_gameDir;
+
+    // Cache for Java scan results (expensive operation)
+    QVector<JavaInfo> m_cachedJavaList;
+    bool m_javaCacheValid = false;
 };
 
 } // namespace ShadowLauncher

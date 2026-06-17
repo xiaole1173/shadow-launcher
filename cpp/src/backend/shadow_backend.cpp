@@ -7,6 +7,9 @@
 #include "settings_backend.h"
 #include "version_backend.h"
 
+#include <QCoreApplication>
+#include <QSettings>
+
 namespace ShadowLauncher {
 
 ShadowBackend::ShadowBackend(QObject* parent)
@@ -88,6 +91,13 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::isRunningChanged);
     connect(m_launch, &LaunchBackend::logMessage,
             this, &ShadowBackend::logMessage);
+
+    // ── Load persisted login mode ──
+    {
+        QSettings s(QCoreApplication::organizationName(),
+                    QCoreApplication::applicationName());
+        m_lastLoginMode = s.value(QStringLiteral("account/lastLoginMode"), 1).toInt();
+    }
 
     // ── Signal forwarding: ResourceBackend → ShadowBackend ──
     connect(m_resource, &ResourceBackend::downloadStateChanged,
@@ -173,6 +183,21 @@ QVariantList ShadowBackend::availableJavaList() const {
     return m_settings->availableJavaList();
 }
 
+int ShadowBackend::lastLoginMode() const {
+    return m_lastLoginMode;
+}
+
+void ShadowBackend::setLastLoginMode(int mode) {
+    if (m_lastLoginMode != mode) {
+        m_lastLoginMode = mode;
+        // Persist
+        QSettings s(QCoreApplication::organizationName(),
+                    QCoreApplication::applicationName());
+        s.setValue(QStringLiteral("account/lastLoginMode"), mode);
+        emit loginModeChanged();
+    }
+}
+
 // ============================================================
 // Version property getters
 // ============================================================
@@ -183,6 +208,10 @@ QString ShadowBackend::selectedVersion() const {
 
 QStringList ShadowBackend::versionIds() const {
     return m_version->versionIds();
+}
+
+QVariantList ShadowBackend::versionList() const {
+    return m_version->versionInfoList();
 }
 
 QStringList ShadowBackend::installedVersions() const {

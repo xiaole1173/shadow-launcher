@@ -8,7 +8,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSettings>
 #include <QUrl>
+#include <QCoreApplication>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -58,6 +60,70 @@ SettingsBackend::SettingsBackend(QObject* parent)
     QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
     QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
     QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
+
+    // Load persisted settings
+    loadSettings();
+
+    // Auto-detect Java asynchronously (defer to event loop)
+    // This avoids blocking the UI during startup
+    QTimer::singleShot(100, this, &SettingsBackend::doAutoDetect);
+}
+
+// ============================================================
+// Settings persistence (QSettings)
+// ============================================================
+
+void SettingsBackend::loadSettings()
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+
+    m_javaPath = s.value(QStringLiteral("java/path"), QString()).toString();
+    m_javaVersion = s.value(QStringLiteral("java/version"), QString()).toString();
+    m_javaMajor = s.value(QStringLiteral("java/major"), 0).toInt();
+    m_javaReady = (m_javaMajor > 0);
+
+    m_minMemoryMB = s.value(QStringLiteral("memory/minMB"), 512).toInt();
+    m_maxMemoryMB = s.value(QStringLiteral("memory/maxMB"), 2048).toInt();
+    m_closeAfterLaunch = s.value(QStringLiteral("general/closeAfterLaunch"), false).toBool();
+}
+
+void SettingsBackend::saveSettings()
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+
+    s.setValue(QStringLiteral("java/path"), m_javaPath);
+    s.setValue(QStringLiteral("java/version"), m_javaVersion);
+    s.setValue(QStringLiteral("java/major"), m_javaMajor);
+
+    s.setValue(QStringLiteral("memory/minMB"), m_minMemoryMB);
+    s.setValue(QStringLiteral("memory/maxMB"), m_maxMemoryMB);
+    s.setValue(QStringLiteral("general/closeAfterLaunch"), m_closeAfterLaunch);
+}
+
+// ============================================================
+// Async Java auto-detect (called via QTimer after constructor)
+// ============================================================
+
+void SettingsBackend::doAutoDetect()
+{
+    // Skip if we already have a valid Java from saved settings
+    if (m_javaReady && QFileInfo::exists(m_javaPath)) {
+        emit logMessage(QStringLiteral("Java 已配置: %1 (版本 %2)")
+                            .arg(m_javaPath, m_javaVersion));
+        return;
+    }
+
+    // Run auto-detection (cache results)
+    emit logMessage(QStringLiteral("正在自动检测 Java..."));
+    QString path = autoSelectJava();
+
+    if (path.isEmpty()) {
+        emit logMessage(QStringLiteral("⚠ 未找到 Java，请在设置中手动指定"));
+    }
+
+    saveSettings();
 }
 
 // ============================================================
@@ -79,7 +145,15 @@ void SettingsBackend::setJavaPath(const QString& path)
     m_javaPath = info.path;
     m_javaVersion = info.version;
     m_javaMajor = info.major;
-    emit logMessage(QStringLiteral("✅ Java 已设置: %1 (版本 %2)").arg(path, info.version));
+
+    if (!m_javaReady) {
+        m_javaReady = true;
+        emit javaReadyChanged();
+    }
+
+    saveSettings();
+    emit logMessage(QStringLiteral("✅ Java 已设置: %1 (版本 %2)")
+                        .arg(path, info.version));
     emit javaPathChanged();
 }
 
@@ -87,24 +161,37 @@ void SettingsBackend::setJavaPath(const QString& path)
 // Java Detection Slots
 // ============================================================
 
+const QVector<SettingsBackend::JavaInfo>& SettingsBackend::cachedJavaList()
+{
+    if (!m_javaCacheValid) {
+        m_cachedJavaList = findAllJava();
+        std::sort(m_cachedJavaList.begin(), m_cachedJavaList.end(),
+                  [](const JavaInfo& a, const JavaInfo& b) {
+                      return a.major > b.major;
+                  });
+        m_javaCacheValid = true;
+    }
+    return m_cachedJavaList;
+}
+
 QVariantList SettingsBackend::scanJavaInstallations()
 {
     emit logMessage(QStringLiteral("正在扫描 Java 安装..."));
-    QVector<JavaInfo> results = findAllJava();
-    std::sort(results.begin(), results.end(),
-              [](const JavaInfo& a, const JavaInfo& b) { return a.major > b.major; });
+    const auto& results = cachedJavaList();
 
     QVariantList list;
     for (const auto& j : results) {
-        QVariantMap m;
-        m[QStringLiteral("path")] = j.path;
-        m[QStringLiteral("version")] = j.version;
-        m[QStringLiteral("major")] = j.major;
-        list.append(m);
+        list.append(QVariantMap{
+            { QStringLiteral("path"), j.path },
+            { QStringLiteral("version"), j.version },
+            { QStringLiteral("major"), j.major }
+        });
     }
     if (!list.isEmpty()) {
         emit logMessage(QStringLiteral("找到 %1 个 Java 安装，最新: Java %2 (%3)")
-                        .arg(list.size()).arg(results.first().major).arg(results.first().path));
+                            .arg(list.size())
+                            .arg(results.first().major)
+                            .arg(results.first().path));
     } else {
         emit logMessage(QStringLiteral("⚠ 未在系统中找到 Java 安装"));
     }
@@ -113,9 +200,7 @@ QVariantList SettingsBackend::scanJavaInstallations()
 
 QVariantList SettingsBackend::availableJavaList()
 {
-    QVector<JavaInfo> results = findAllJava();
-    std::sort(results.begin(), results.end(),
-              [](const JavaInfo& a, const JavaInfo& b) { return a.major > b.major; });
+    const auto& results = cachedJavaList();
     QVariantList list;
     for (const auto& j : results) {
         list.append(QVariantMap{
@@ -129,9 +214,7 @@ QVariantList SettingsBackend::availableJavaList()
 
 void SettingsBackend::selectJavaByIndex(int index)
 {
-    QVector<JavaInfo> results = findAllJava();
-    std::sort(results.begin(), results.end(),
-              [](const JavaInfo& a, const JavaInfo& b) { return a.major > b.major; });
+    const auto& results = cachedJavaList();
     if (index < 0 || index >= results.size()) {
         emit logMessage(QStringLiteral("❌ Java 索引无效: %1").arg(index));
         return;
@@ -140,15 +223,17 @@ void SettingsBackend::selectJavaByIndex(int index)
     m_javaPath = info.path;
     m_javaVersion = info.version;
     m_javaMajor = info.major;
-    emit logMessage(QStringLiteral("✅ 已切换 Java %1: %2").arg(info.major).arg(info.path));
+    m_javaReady = true;
+    saveSettings();
+    emit logMessage(QStringLiteral("✅ 已切换 Java %1: %2")
+                        .arg(info.major).arg(info.path));
     emit javaPathChanged();
+    emit javaReadyChanged();
 }
 
 QString SettingsBackend::autoSelectJava()
 {
-    QVector<JavaInfo> results = findAllJava();
-    std::sort(results.begin(), results.end(),
-              [](const JavaInfo& a, const JavaInfo& b) { return a.major > b.major; });
+    const auto& results = cachedJavaList();
     const JavaInfo* best = nullptr;
     for (const auto& j : results) {
         if (j.major >= 17) { best = &j; break; }
@@ -158,28 +243,39 @@ QString SettingsBackend::autoSelectJava()
         m_javaPath = best->path;
         m_javaVersion = best->version;
         m_javaMajor = best->major;
-        emit logMessage(QStringLiteral("✅ 已选择 Java %1: %2").arg(best->major).arg(best->path));
+        m_javaReady = true;
+        saveSettings();
+        emit logMessage(QStringLiteral("✅ 已选择 Java %1: %2")
+                            .arg(best->major).arg(best->path));
         emit javaPathChanged();
+        emit javaReadyChanged();
         return best->path;
     }
     emit logMessage(QStringLiteral("⚠ 未找到合适的 Java，请手动指定"));
     return {};
 }
 
+QString SettingsBackend::detectJava() { return autoSelectJava(); }
+
 QString SettingsBackend::openJavaFileDialog()
 {
+    // Use the QML engine's root object as parent to avoid modal issues
+    QWidget* parentWidget = nullptr;
     QString path = QFileDialog::getOpenFileName(
-        nullptr, QStringLiteral("选择 Java 可执行文件"),
+        parentWidget, QStringLiteral("选择 Java 可执行文件"),
         QStringLiteral("C:\\Program Files\\Java"),
         QStringLiteral("Java 可执行文件 (java.exe javaw.exe);;所有文件 (*.*)"));
-    if (!path.isEmpty()) { setJavaPath(path); return path; }
+    if (!path.isEmpty()) {
+        setJavaPath(path);
+        return path;
+    }
     return {};
 }
 
 QString SettingsBackend::browseJava() { return openJavaFileDialog(); }
 
 // ============================================================
-// Memory
+// Memory (Bug 6 fix: use int for QML compatibility)
 // ============================================================
 
 QVariantMap SettingsBackend::getMemoryStatus()
@@ -189,18 +285,21 @@ QVariantMap SettingsBackend::getMemoryStatus()
     MEMORYSTATUSEX s;
     s.dwLength = sizeof(s);
     if (GlobalMemoryStatusEx(&s)) {
-        qint64 totalMB = static_cast<qint64>(s.ullTotalPhys / (1024 * 1024));
-        qint64 availMB = static_cast<qint64>(s.ullAvailPhys  / (1024 * 1024));
-        map[QStringLiteral("total")]       = QVariant::fromValue(totalMB);
-        map[QStringLiteral("available")]   = QVariant::fromValue(availMB);
+        int totalMB = static_cast<int>(s.ullTotalPhys / (1024 * 1024));
+        int availMB = static_cast<int>(s.ullAvailPhys / (1024 * 1024));
+        map[QStringLiteral("total")]       = totalMB;
+        map[QStringLiteral("available")]   = availMB;
         map[QStringLiteral("percent")]     = static_cast<int>(s.dwMemoryLoad);
-        map[QStringLiteral("recommended")] = qBound(1024, static_cast<int>(availMB / 2), 8192);
+        map[QStringLiteral("recommended")] = qBound(1024, availMB / 2, 8192);
         return map;
     }
 #endif
-    map[QStringLiteral("total")] = 0;
-    map[QStringLiteral("available")] = 0;
-    map[QStringLiteral("percent")] = 0;
+    // Fallback: round-trip estimate
+    int totalMB = 8192;
+    int percent = 50;
+    map[QStringLiteral("total")]       = totalMB;
+    map[QStringLiteral("available")]   = totalMB / 2;
+    map[QStringLiteral("percent")]     = percent;
     map[QStringLiteral("recommended")] = 2048;
     return map;
 }
@@ -208,12 +307,14 @@ QVariantMap SettingsBackend::getMemoryStatus()
 void SettingsBackend::setMinMemory(int mb)
 {
     m_minMemoryMB = qBound(256, mb, m_maxMemoryMB);
+    saveSettings();
     emit memorySettingsChanged();
 }
 
 void SettingsBackend::setMaxMemory(int mb)
 {
     m_maxMemoryMB = qBound(m_minMemoryMB, mb, 32768);
+    saveSettings();
     emit memorySettingsChanged();
 }
 
@@ -224,6 +325,7 @@ void SettingsBackend::setMaxMemory(int mb)
 void SettingsBackend::setCloseAfterLaunch(bool enabled)
 {
     m_closeAfterLaunch = enabled;
+    saveSettings();
     emit generalSettingsChanged();
 }
 

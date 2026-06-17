@@ -24,6 +24,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
     Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinReady)
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
+    Q_PROPERTY(int lastLoginMode READ lastLoginMode WRITE setLastLoginMode NOTIFY loginModeChanged)
 
     // --- Settings properties ---
     Q_PROPERTY(QString javaPath READ javaPath NOTIFY javaPathChanged)
@@ -38,6 +39,7 @@ class ShadowBackend : public QObject {
     // --- Version properties ---
     Q_PROPERTY(QString selectedVersion READ selectedVersion NOTIFY selectedVersionChanged)
     Q_PROPERTY(QStringList versionIds READ versionIds NOTIFY versionListReady)
+    Q_PROPERTY(QVariantList versionList READ versionList NOTIFY versionListReady)
     Q_PROPERTY(QStringList installedVersions READ installedVersions NOTIFY installedVersionsChanged)
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
     Q_PROPERTY(int installProgress READ installProgress NOTIFY installProgressChanged)
@@ -78,8 +80,11 @@ public:
     bool closeAfterLaunch() const;
     bool isolationEnabled() const;
     QVariantList availableJavaList() const;
+    int lastLoginMode() const;
+    void setLastLoginMode(int mode);
     QString selectedVersion() const;
     QStringList versionIds() const;
+    QVariantList versionList() const;
     QStringList installedVersions() const;
     bool isInstalling() const;
     int installProgress() const;
@@ -161,6 +166,7 @@ signals:
     void searchResultsReady(const QVariantList& results);
     void gameDirChanged();
     void themeChanged();
+    void loginModeChanged();
     void logMessage(const QString& msg);
 
 public:
@@ -183,6 +189,7 @@ private:
     ResourceBackend* m_resource = nullptr;
 
     bool m_isolationEnabled = false;
+    int m_lastLoginMode = 1;  // 0=online, 1=offline (default)
     QString m_gameDir;
 };
 }

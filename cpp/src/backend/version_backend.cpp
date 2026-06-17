@@ -72,6 +72,19 @@ void VersionBackend::setSelectedVersion(const QString& versionId)
 // Slots — version list
 // ============================================================
 
+QVariantList VersionBackend::versionInfoList() const
+{
+    QVariantList list;
+    QVector<McVersion> versions = m_versionMgr->cachedVersions();
+    for (const auto& v : versions) {
+        QVariantMap m;
+        m[QStringLiteral("id")] = v.id;
+        m[QStringLiteral("type")] = v.type;
+        list.append(m);
+    }
+    return list;
+}
+
 void VersionBackend::refreshVersionList()
 {
     emit logMessage(QStringLiteral("正在获取版本列表..."));
