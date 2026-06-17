@@ -45,6 +45,7 @@ public:
     QString selectedVersion() const { return m_selectedVersion; }
 
     // Slots
+    Q_INVOKABLE void setGameDir(const QString& dir);
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
@@ -78,6 +79,7 @@ private:
 
     VersionManager* m_versionMgr = nullptr;
     VersionDownloader* m_downloader = nullptr;
+    QString m_gameDir;
 
     QStringList m_versionIds;
     QStringList m_installedIds;

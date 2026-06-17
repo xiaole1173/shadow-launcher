@@ -43,6 +43,7 @@ public:
     Q_INVOKABLE void selectJavaByIndex(int index);
     Q_INVOKABLE QString openJavaFileDialog();
     Q_INVOKABLE QString browseJava();          // QML alias
+    void setMinecraftDir(const QString& dir);
     Q_INVOKABLE void setIsolationEnabled(bool enabled);
     Q_INVOKABLE void openGameDir();
     Q_INVOKABLE void openVersionDir(const QString& versionId);
@@ -90,6 +91,7 @@ private:
     // Cache for Java scan results (expensive operation)
     QVector<JavaInfo> m_cachedJavaList;
     bool m_javaCacheValid = false;
+    bool m_javaScanning = false;
 };
 
 } // namespace ShadowLauncher

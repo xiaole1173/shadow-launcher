@@ -30,6 +30,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_launch = new LaunchBackend(this);
     m_resource = new ResourceBackend(this);
 
+    // ── Sync game directories: ALL backends use the same path ──
+    m_version->setGameDir(m_app->gameDir());
+    m_settings->setMinecraftDir(m_app->gameDir());
+
     // ── Signal forwarding: AccountBackend → ShadowBackend ──
     connect(m_account, &AccountBackend::accountChanged,
             this, &ShadowBackend::accountChanged);

@@ -11,6 +11,8 @@
 #include <QSettings>
 #include <QUrl>
 #include <QCoreApplication>
+#include <future>
+#include <algorithm>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -24,9 +26,6 @@ namespace ShadowLauncher {
 // ============================================================
 // Constants
 // ============================================================
-
-static const QString MINECRAFT_DIR =
-    QDir::homePath() + QStringLiteral("/.shadow/minecraft");
 
 static const char* COMMON_JAVA_DIRS[] = {
     "C:\\Program Files\\Java",
@@ -55,12 +54,9 @@ SettingsBackend::SettingsBackend(QObject* parent)
     , m_minMemoryMB(512)
     , m_maxMemoryMB(2048)
     , m_closeAfterLaunch(false)
-    , m_gameDir(MINECRAFT_DIR)
 {
-    QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
-
+    // Game dir is set later by ShadowBackend via setMinecraftDir()
+    
     // Load persisted settings
     loadSettings();
 
@@ -108,6 +104,9 @@ void SettingsBackend::saveSettings()
 
 void SettingsBackend::doAutoDetect()
 {
+    // Start background Java scan immediately
+    scanJavaInstallations();
+
     // Skip if we already have a valid Java from saved settings
     if (m_javaReady && QFileInfo::exists(m_javaPath)) {
         emit logMessage(QStringLiteral("Java 已配置: %1 (版本 %2)")
@@ -115,7 +114,7 @@ void SettingsBackend::doAutoDetect()
         return;
     }
 
-    // Run auto-detection (will also populate cache lazily)
+    // Run auto-detection if no Java configured yet
     emit logMessage(QStringLiteral("正在自动检测 Java..."));
     QString path = autoSelectJava();
 
@@ -176,33 +175,44 @@ const QVector<SettingsBackend::JavaInfo>& SettingsBackend::cachedJavaList()
 
 QVariantList SettingsBackend::scanJavaInstallations()
 {
-    emit logMessage(QStringLiteral("正在扫描 Java 安装..."));
-    const auto& results = cachedJavaList();
+    if (m_javaScanning) {
+        emit logMessage(QStringLiteral("Java 扫描已在进行中..."));
+        return {};
+    }
+    m_javaScanning = true;
+    emit logMessage(QStringLiteral("正在后台扫描 Java 安装..."));
+    emit javaPathChanged();  // signal QML to show loading state
 
-    QVariantList list;
-    for (const auto& j : results) {
-        list.append(QVariantMap{
-            { QStringLiteral("path"), j.path },
-            { QStringLiteral("version"), j.version },
-            { QStringLiteral("major"), j.major }
-        });
-    }
-    if (!list.isEmpty()) {
-        emit logMessage(QStringLiteral("找到 %1 个 Java 安装，最新: Java %2 (%3)")
-                            .arg(list.size())
-                            .arg(results.first().major)
-                            .arg(results.first().path));
-    } else {
-        emit logMessage(QStringLiteral("⚠ 未在系统中找到 Java 安装"));
-    }
-    return list;
+    auto future = std::async(std::launch::async, [this]() {
+        QVector<JavaInfo> results = findAllJava();
+        std::sort(results.begin(), results.end(),
+                  [](const JavaInfo& a, const JavaInfo& b) {
+                      return a.major > b.major;
+                  });
+
+        QMetaObject::invokeMethod(this, [this, results]() {
+            m_cachedJavaList = results;
+            m_javaCacheValid = true;
+            m_javaScanning = false;
+            emit javaPathChanged();  // signal QML to refresh model
+            if (!results.isEmpty()) {
+                emit logMessage(QStringLiteral("找到 %1 个 Java 安装，最新: Java %2")
+                                    .arg(results.size())
+                                    .arg(results.first().major));
+            } else {
+                emit logMessage(QStringLiteral("⚠ 未在系统中找到 Java 安装"));
+            }
+        }, Qt::QueuedConnection);
+    });
+
+    return {};  // return immediately, results arrive via signal
 }
 
 QVariantList SettingsBackend::availableJavaList()
 {
-    const auto& results = cachedJavaList();
+    // Return cached list immediately — no sync disk scan
     QVariantList list;
-    for (const auto& j : results) {
+    for (const auto& j : m_cachedJavaList) {
         list.append(QVariantMap{
             { QStringLiteral("path"), j.path },
             { QStringLiteral("version"), j.version },
@@ -333,6 +343,17 @@ void SettingsBackend::setCloseAfterLaunch(bool enabled)
 // Isolation (delegates to VersionManager later)
 // ============================================================
 
+void SettingsBackend::setMinecraftDir(const QString& dir)
+{
+    if (m_gameDir != dir && !dir.isEmpty()) {
+        m_gameDir = dir;
+        QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
+        QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
+        QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
+        emit logMessage(QStringLiteral("游戏目录已设置: %1").arg(m_gameDir));
+    }
+}
+
 void SettingsBackend::setIsolationEnabled(bool enabled)
 {
     Q_UNUSED(enabled)
@@ -348,21 +369,21 @@ void SettingsBackend::setIsolationEnabled(bool enabled)
 
 void SettingsBackend::openGameDir()
 {
-    QDir().mkpath(MINECRAFT_DIR);
-    QDesktopServices::openUrl(QUrl::fromLocalFile(MINECRAFT_DIR));
+    QDir().mkpath(m_gameDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(m_gameDir));
 }
 
 void SettingsBackend::openVersionDir(const QString& versionId)
 {
-    QString d = MINECRAFT_DIR + QStringLiteral("/versions/") + versionId;
+    QString d = m_gameDir + QStringLiteral("/versions/") + versionId;
     QDir().mkpath(d);
     QDesktopServices::openUrl(QUrl::fromLocalFile(d));
 }
 
 void SettingsBackend::deleteVersion(const QString& versionId)
 {
-    QString verDir = MINECRAFT_DIR + QStringLiteral("/versions/") + versionId;
-    QString ai = MINECRAFT_DIR + QStringLiteral("/assets/indexes/")
+    QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    QString ai = m_gameDir + QStringLiteral("/assets/indexes/")
                  + versionId + QStringLiteral(".json");
     if (QDir(verDir).exists()) QDir(verDir).removeRecursively();
     if (QFileInfo::exists(ai)) QFile::remove(ai);

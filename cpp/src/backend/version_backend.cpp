@@ -26,9 +26,7 @@ VersionBackend::VersionBackend(QObject* parent)
 {
     // ── VersionManager: fetch + cache version manifest ──
     m_versionMgr = new VersionManager(this);
-    m_versionMgr->setDataDir(QDir::homePath() + QStringLiteral("/.shadow"));
-    m_versionMgr->setGameDir(QDir::homePath() + QStringLiteral("/.shadow/minecraft"));
-
+    
     // Manifest ready → populate m_versionIds → notify QML
     connect(m_versionMgr, &VersionManager::versionsReady, this,
             [this](const QVector<McVersion>& versions) {
@@ -59,6 +57,16 @@ VersionBackend::~VersionBackend() = default;
 // ============================================================
 // Slots — version selection
 // ============================================================
+
+void VersionBackend::setGameDir(const QString& dir)
+{
+    if (m_gameDir != dir) {
+        m_gameDir = dir;
+        m_versionMgr->setDataDir(dir + QStringLiteral("/.."));
+        m_versionMgr->setGameDir(dir);
+        refreshInstalled();
+    }
+}
 
 void VersionBackend::setSelectedVersion(const QString& versionId)
 {
@@ -299,9 +307,9 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 void VersionBackend::updateInstalledList()
 {
     m_installedIds.clear();
+    if (m_gameDir.isEmpty()) return;
 
-    const QString versionsDir =
-        m_versionMgr->gameDir() + QStringLiteral("/versions");
+    const QString versionsDir = m_gameDir + QStringLiteral("/versions");
     QDir dir(versionsDir);
 
     if (!dir.exists()) {
