@@ -1541,8 +1541,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         base = self._get_data_dir()
         mods = []
         for search_dir in [os.path.join(base, "mods"),
-                           os.path.join(self._get_data_dir("mods")),
-                           os.path.join(self._game_dir or MINECRAFT_DIR, "versions", self._selected_version or "", "mods")]:
+                           os.path.join(getattr(self, '_game_dir', MINECRAFT_DIR), "versions", self._selected_version or "", "mods")]:
             if not os.path.isdir(search_dir):
                 continue
             for fname in sorted(os.listdir(search_dir)):
