@@ -68,8 +68,10 @@ Rectangle {
             color: refreshHoverV.hovered ? "#1A222D" : "transparent"
             border.color: refreshHoverV.hovered ? "#3B82F6" : "#2A2F3A"
             border.width: 1
+            scale: refreshMa.pressed ? 0.88 : (refreshHoverV.hovered ? 1.08 : 1.0)
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
+            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
             Text {
                 anchors.centerIn: parent
                 text: "↻"
@@ -80,6 +82,7 @@ Rectangle {
             HoverHandler { id: refreshHoverV }
             ToolTip { visible: refreshHoverV.hovered; text: "刷新版本列表"; delay: 500 }
             MouseArea {
+                id: refreshMa
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor

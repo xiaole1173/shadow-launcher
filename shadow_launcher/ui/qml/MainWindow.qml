@@ -1852,7 +1852,7 @@ Window {
     function animateDownloadBall(sourceX, sourceY) {
         // Find the download progress nav item (last in navModel)
         var idx = downloadNavVisible ? navModel.count - 1 : -1
-        if (idx < 0) { console.log("[flyBall] nav not visible, skip"); return }
+        if (idx < 0) { return }
 
         var targetX, targetY
         var delegate = navRepeater.itemAt(idx)
@@ -1860,12 +1860,12 @@ Window {
             var pt = delegate.mapToItem(null, delegate.width / 2, delegate.height / 2)
             targetX = pt.x; targetY = pt.y
         } else {
-            // Fallback estimate
             targetX = 108
             targetY = 46 + 8 + 48 + idx * 46 + 22
         }
 
-        console.log("[flyBall] (" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → (" + targetX.toFixed(0) + "," + targetY.toFixed(0) + ")")
+        // Diagnostic: write trace to file
+        if (backend) backend.logMessage("[flyBall] (" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → (" + targetX.toFixed(0) + "," + targetY.toFixed(0) + ")")
 
         // Position and show ball
         flyBall.x = sourceX

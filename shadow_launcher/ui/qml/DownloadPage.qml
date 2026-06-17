@@ -536,10 +536,12 @@ Rectangle {
                                     backend.installVersion(model.versionId, page.currentSource)
                                     // Row bounce animation
                                     rowBounceAnim.start()
-                                    // Show download nav + trigger flying ball via signal
-                                    if (page.mainWindow) page.mainWindow.showDownloadNavSilent()
-                                    var gp = installBtn.mapToItem(null, installBtn.width / 2, installBtn.height / 2)
-                                    page.triggerDownloadBall(gp.x, gp.y)
+                                    // Show download nav + trigger flying ball directly
+                                    if (page.mainWindow) {
+                                        page.mainWindow.showDownloadNavSilent()
+                                        var gp = installBtn.mapToItem(null, installBtn.width / 2, installBtn.height / 2)
+                                        page.mainWindow.animateDownloadBall(gp.x, gp.y)
+                                    }
                                 }
                             }
                         }
