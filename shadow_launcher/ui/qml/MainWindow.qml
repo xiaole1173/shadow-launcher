@@ -110,8 +110,37 @@ Window {
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
-        // Spacer — buttons moved to floating right edge (same height as sidebar SHADOW)
-        Item { Layout.fillWidth: true; height: 2 }
+        // ── Header bar (matches sidebar color, same height as SHADOW area) ──
+        Rectangle {
+            Layout.fillWidth: true; height: 44
+            color: "#0a0c12"
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
+                spacing: 0
+                Item { Layout.fillWidth: true }
+                // Minimize button
+                Rectangle {
+                    width: 28; height: 28; radius: 14
+                    color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
+                    scale: hdrMin.pressed ? 0.85 : (hdrMin.containsMouse ? 1.12 : 1.0)
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    Text { anchors.centerIn: parent; text: "\u2014"; color: hdrMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
+                    MouseArea { id: hdrMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
+                }
+                Item { width: 6 }
+                // Close button
+                Rectangle {
+                    width: 28; height: 28; radius: 14
+                    color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
+                    scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    Text { anchors.centerIn: parent; text: "\u2715"; color: hdrClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
+                    MouseArea { id: hdrClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
+                }
+            }
+        }
 
         // ── Loading bar (Android-style indeterminate) ──
         // FIX: fixed height 2px + opacity control → zero layout jitter
@@ -1968,26 +1997,6 @@ Window {
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
 }
 }
-
-    // ═══ Window controls (floating, same height as sidebar SHADOW) ═══
-    Rectangle {
-        id: wmMin; x: parent.width - 64; y: 24; width: 28; height: 28; radius: 14; z: 100
-        color: wmMinMa.containsMouse ? (wmMinMa.pressed ? "#3a4050" : "#252a35") : "transparent"
-        scale: wmMinMa.pressed ? 0.85 : (wmMinMa.containsMouse ? 1.12 : 1.0)
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-        Text { anchors.centerIn: parent; text: "\u2014"; color: wmMinMa.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
-        MouseArea { id: wmMinMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
-    }
-    Rectangle {
-        id: wmClose; x: parent.width - 34; y: 24; width: 28; height: 28; radius: 14; z: 100
-        color: wmCloseMa.containsMouse ? (wmCloseMa.pressed ? "#e06060" : "#c05050") : "transparent"
-        scale: wmCloseMa.pressed ? 0.85 : (wmCloseMa.containsMouse ? 1.12 : 1.0)
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-        Text { anchors.centerIn: parent; text: "\u2715"; color: wmCloseMa.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
-        MouseArea { id: wmCloseMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
-    }
 
     // ═══ Toast notification system ═══
     ToastManager {
