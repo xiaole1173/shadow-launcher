@@ -1456,8 +1456,10 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             cached_size = getattr(self, '_cached_lib_asset_size', None)
             cached_base = getattr(self, '_cached_lib_asset_base', None)
             if cached_size is None or cached_base != base:
+                # Only scan libraries for size — assets/objects is too large (10k+ files)
+                # and irrelevant for version-level metadata display
                 lib_asset_size = 0
-                for scan_dir in ["libraries", os.path.join("assets", "objects")]:
+                for scan_dir in ["libraries"]:
                     sd = os.path.join(base, scan_dir)
                     if os.path.isdir(sd):
                         for dirpath, _, filenames in os.walk(sd):
@@ -1466,6 +1468,8 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                                     lib_asset_size += os.path.getsize(os.path.join(dirpath, fn))
                                 except OSError:
                                     pass
+                # Assets scan deferred — only when full disk report needed
+                # lib_asset_size does not include assets/objects
             else:
                 lib_asset_size = cached_size
 
@@ -1504,6 +1508,9 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     @Slot()
     def refreshVersionDetails(self):
         """Refresh installed version details in background thread (non-blocking)"""
+        if getattr(self, '_scanning', False):
+            return
+        self._scanning = True
         if not hasattr(self, '_version_details_lock'):
             self._version_details_lock = threading.Lock()
         threading.Thread(target=self._scan_version_details_bg, daemon=True).start()
@@ -1523,6 +1530,8 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             self.gameDirInfoChanged.emit()
         except Exception as e:
             self.logMessage.emit(f"[版本扫描] 扫描失败: {e}")
+        finally:
+            self._scanning = False
 
     @Property("QVariantMap", notify=versionDetailsChanged)
     def currentVersionSummary(self):
