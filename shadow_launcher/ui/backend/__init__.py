@@ -23,6 +23,7 @@ import os
 from shadow_launcher.core.versions import (
     MINECRAFT_DIR, get_installed_versions,
     is_isolation_enabled, get_isolated_versions,
+    get_version_game_dir,
 )
 from shadow_launcher.core.downloader import MIRROR_SOURCES
 
@@ -112,9 +113,9 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             if os.path.isdir(mods):
                 info["modCount"] = sum(1 for f in os.listdir(mods) if f.endswith(".jar"))
 
-            # Size
+            # Size — scan all relevant dirs
             total = 0
-            for scan in ["versions", "mods", "config", "saves", "resourcepacks", "shaderpacks"]:
+            for scan in ["libraries", "versions", "mods", "config", "saves", "resourcepacks", "shaderpacks", os.path.join("assets", "objects")]:
                 sd = os.path.join(base, scan)
                 if os.path.isdir(sd):
                     for dirpath, _, filenames in os.walk(sd):
@@ -123,9 +124,6 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                                 total += os.path.getsize(os.path.join(dirpath, fn))
                             except OSError:
                                 pass
-            # Libraries + assets (use cache if available)
-            if self._cached_lib_asset_base == base:
-                total += (self._cached_lib_asset_size or 0)
             info["sizeDisplay"] = self._format_size(total)
         except Exception:
             pass
@@ -914,9 +912,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Slot()
     def openScreenshotsFolder(self):
-        dirs = self.gameDirectories
-        base = self._game_dir if hasattr(self, '_game_dir') else dirs[0] if dirs else MINECRAFT_DIR
-        spath = os.path.join(base, "screenshots")
+        spath = self._get_data_dir("screenshots")
         if os.path.isdir(spath):
             os.startfile(spath)
         else:
@@ -1309,9 +1305,10 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             # Note: lib_asset_size stored separately for total disk usage display
             lib_asset_size = (self._cached_lib_asset_size or 0)
 
-            # Mod count
+            # Mod count (check shared mods + version-specific mods + isolated game dir mods)
             mod_count = 0
-            for md, _ in [(mods_base, True), (os.path.join(ver_dir, "mods"), True)]:
+            for md in [mods_base, os.path.join(ver_dir, "mods"),
+                       os.path.join(get_version_game_dir(name), "mods")]:
                 if os.path.isdir(md):
                     mod_count += sum(1 for f in os.listdir(md) if f.endswith('.jar'))
 
@@ -1359,11 +1356,18 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                 }
         return {"sizeDisplay": "-", "modCount": 0, "loaderType": "原版", "versionType": "release", "isolated": False}
 
+    def _get_data_dir(self, subdir: str = "") -> str:
+        """获取当前版本的数据目录（存档/资源包等），跟随版本隔离"""
+        base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
+        vid = self._selected_version if hasattr(self, '_selected_version') and self._selected_version else ""
+        if vid and is_isolation_enabled():
+            base = get_version_game_dir(vid)
+        return os.path.join(base, subdir) if subdir else base
+
     @Slot(result="QVariantList")
     def listSaves(self):
         """Scan saves folder and return [{name, size, sizeDisplay, mtime}]"""
-        base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
-        saves_dir = os.path.join(base, "saves")
+        saves_dir = self._get_data_dir("saves")
         saves = []
         if not os.path.isdir(saves_dir):
             return saves
@@ -1397,8 +1401,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     @Slot(str)
     def deleteSave(self, save_name: str):
         """Delete a world save"""
-        base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
-        spath = os.path.join(base, "saves", save_name)
+        spath = os.path.join(self._get_data_dir("saves"), save_name)
         if os.path.isdir(spath):
             import shutil
             shutil.rmtree(spath, ignore_errors=True)
@@ -1409,8 +1412,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     @Slot(result="QVariantList")
     def listResourcePacks(self):
         """Scan resourcepacks folder, return [{name, size, sizeDisplay, mtime}]"""
-        base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
-        rp_dir = os.path.join(base, "resourcepacks")
+        rp_dir = self._get_data_dir("resourcepacks")
         packs = []
         if not os.path.isdir(rp_dir):
             return packs
@@ -1536,10 +1538,11 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     @Slot(result="QVariantList")
     def listMods(self):
         """Scan mods folder and return [{name, size, sizeDisplay, mtime, path}]"""
-        base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
+        base = self._get_data_dir()
         mods = []
         for search_dir in [os.path.join(base, "mods"),
-                           os.path.join(base, "versions", self._selected_version or "", "mods")]:
+                           os.path.join(self._get_data_dir("mods")),
+                           os.path.join(self._game_dir or MINECRAFT_DIR, "versions", self._selected_version or "", "mods")]:
             if not os.path.isdir(search_dir):
                 continue
             for fname in sorted(os.listdir(search_dir)):
