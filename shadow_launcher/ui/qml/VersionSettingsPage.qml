@@ -255,7 +255,7 @@ Rectangle {
                                     color: "transparent"
                                     border.color: shortcutMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
                                     border.width: 1
-                                    scale: shortcutMouse.containsMouse ? 1.02 : 1.0
+                                    scale: shortcutMouse.containsMouse ? 1.04 : 1.0
 
                                     Behavior on border.color { ColorAnimation { duration: 200 } }
                                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -300,7 +300,7 @@ Rectangle {
                             color: "transparent"
                             border.color: deleteBtnMouse.containsMouse ? "#EF4444" : "#2A2F3A"
                             border.width: 1
-                            scale: deleteBtnMouse.containsMouse ? 1.02 : 1.0
+                            scale: deleteBtnMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -720,7 +720,7 @@ Rectangle {
                                 color: "transparent"
                                 border.color: openFolderMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
                                 border.width: 1
-                                scale: openFolderMouse.containsMouse ? 1.02 : 1.0
+                                scale: openFolderMouse.containsMouse ? 1.04 : 1.0
 
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -749,7 +749,7 @@ Rectangle {
                                 color: "transparent"
                                 border.color: addPackMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
                                 border.width: 1
-                                scale: addPackMouse.containsMouse ? 1.02 : 1.0
+                                scale: addPackMouse.containsMouse ? 1.04 : 1.0
 
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -915,7 +915,7 @@ Rectangle {
                     color: "transparent"
                     border.color: cancelDelMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
                     border.width: 1
-                    scale: cancelDelMouse.containsMouse ? 1.03 : 1.0
+                    scale: cancelDelMouse.containsMouse ? 1.04 : 1.0
 
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -945,7 +945,7 @@ Rectangle {
                     color: "transparent"
                     border.color: confirmDelMouse.containsMouse ? "#DC2626" : "#EF4444"
                     border.width: 1
-                    scale: confirmDelMouse.containsMouse ? 1.03 : 1.0
+                    scale: confirmDelMouse.containsMouse ? 1.04 : 1.0
 
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }

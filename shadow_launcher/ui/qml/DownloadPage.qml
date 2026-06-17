@@ -524,6 +524,8 @@ Rectangle {
                                     backend.installVersion(model.versionId, page.currentSource)
                                     // Row bounce animation
                                     rowBounceAnim.start()
+                                    // Show download nav item (but don't auto-switch during animation)
+                                    appWindow.showDownloadNavSilent()
                                     // Flying ball: map button center → Window coords
                                     var gp = installBtn.mapToItem(appWindow.contentItem, installBtn.width / 2, installBtn.height / 2)
                                     if (appWindow.animateDownloadBall) appWindow.animateDownloadBall(gp.x, gp.y)

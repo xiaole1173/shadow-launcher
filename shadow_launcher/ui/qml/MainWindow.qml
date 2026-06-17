@@ -43,6 +43,17 @@ Window {
         onTriggered: pageLoading = false
     }
 
+    // 自动检测游戏文件变化（每30秒）
+    Timer {
+        id: fileChangeTimer
+        interval: 30000
+        running: true
+        repeat: true
+        onTriggered: {
+            if (backend) backend.checkFileChanges()
+        }
+    }
+
     // 鈺愨晲鈺怐ownload progress nav item management ═══
     property bool downloadNavVisible: false
 
@@ -51,6 +62,14 @@ Window {
             downloadNavVisible = true
             navModel.append({ label: "下载进度", pageKey: "download_progress" })
             switchPage(navModel.count - 1)  // auto-switch to the new page
+        }
+    }
+
+    function showDownloadNavSilent() {
+        // Add nav item without auto-switching (for ball animation flow)
+        if (!downloadNavVisible) {
+            downloadNavVisible = true
+            navModel.append({ label: "下载进度", pageKey: "download_progress" })
         }
     }
 
