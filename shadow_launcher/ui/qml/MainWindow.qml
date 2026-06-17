@@ -110,39 +110,8 @@ Window {
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
-        Rectangle {
-            Layout.fillWidth: true; height: 36; color: "#0a0c12"
-            MouseArea {
-                anchors.fill: parent
-                property point lastPos: Qt.point(0, 0)
-                onPressed: lastPos = Qt.point(mouse.x, mouse.y)
-                onPositionChanged: { appWindow.x += mouse.x - lastPos.x; appWindow.y += mouse.y - lastPos.y }
-            }
-            RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
-                spacing: 0
-                Text { text: "Shadow Launcher"; color: "#9498a8"; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                Item { Layout.fillWidth: true }
-                Rectangle {
-                    width: 28; height: 28; radius: 14
-                    color: minBtn.containsMouse ? (minBtn.pressed ? "#3a4050" : "#2a2f3a") : "transparent"
-                    scale: minBtn.pressed ? 0.85 : (minBtn.containsMouse ? 1.12 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2014"; color: minBtn.containsMouse ? "#d0d4e0" : "#6a7080"; font.pixelSize: 14; font.weight: Font.Bold }
-                    MouseArea { id: minBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
-                }
-                Rectangle {
-                    width: 28; height: 28; radius: 14
-                    color: closeBtn.containsMouse ? (closeBtn.pressed ? "#e06060" : "#c05050") : "transparent"
-                    scale: closeBtn.pressed ? 0.85 : (closeBtn.containsMouse ? 1.12 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2715"; color: closeBtn.containsMouse ? "#fff" : "#6a7080"; font.pixelSize: 13; font.weight: Font.Bold }
-                    MouseArea { id: closeBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
-                }
-            }
-        }
+        // Title bar removed — buttons moved to sidebar SHADOW row
+        Item { Layout.fillWidth: true; height: 4 }  // tiny spacer
 
         // ── Loading bar (Android-style indeterminate) ──
         // FIX: fixed height 2px + opacity control → zero layout jitter
@@ -181,7 +150,41 @@ Window {
                 color: "#0a0c12"; radius: 6
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
-                    Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
+                    // SHADOW row with window controls
+                    RowLayout {
+                        Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 8; Layout.rightMargin: 4
+                        spacing: 0
+                        // Window drag area
+                        MouseArea {
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            property point lastPos: Qt.point(0, 0)
+                            onPressed: lastPos = Qt.point(mouse.x, mouse.y)
+                            onPositionChanged: { appWindow.x += mouse.x - lastPos.x; appWindow.y += mouse.y - lastPos.y }
+                            Rectangle { anchors.fill: parent; color: "transparent" }
+                            Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
+                        }
+                        Item { Layout.fillWidth: true }
+                        // Minimize button
+                        Rectangle {
+                            width: 26; height: 26; radius: 13
+                            color: wmMin.containsMouse ? (wmMin.pressed ? "#3a4050" : "#252a35") : "transparent"
+                            scale: wmMin.pressed ? 0.85 : (wmMin.containsMouse ? 1.12 : 1.0)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Text { anchors.centerIn: parent; text: "\u2014"; color: wmMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
+                            MouseArea { id: wmMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
+                        }
+                        // Close button
+                        Rectangle {
+                            width: 26; height: 26; radius: 13
+                            color: wmClose.containsMouse ? (wmClose.pressed ? "#e06060" : "#c05050") : "transparent"
+                            scale: wmClose.pressed ? 0.85 : (wmClose.containsMouse ? 1.12 : 1.0)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Text { anchors.centerIn: parent; text: "\u2715"; color: wmClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
+                            MouseArea { id: wmClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
+                        }
+                    }
 
                     // Navigation model
                     ListModel {
