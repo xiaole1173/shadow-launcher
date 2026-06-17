@@ -1145,7 +1145,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "存档文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover1 }
                                             MouseArea { id: shMouse1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.openSavesFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openSavesFolder(); toastManager.show("已打开存档文件夹") } }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#3a5ed0" : "#2a4590"
@@ -1154,7 +1154,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "截图文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover2 }
                                             MouseArea { id: shMouse2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.openScreenshotsFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openScreenshotsFolder(); toastManager.show("已打开截图文件夹") } }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#3a5ed0" : "#2a4590"
@@ -1163,7 +1163,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "logs 日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover6 }
                                             MouseArea { id: shMouse6; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (backend && !backend.openLogsFolder()) toastManager.show("无日志文件") }
+                                                onClicked: { if (backend) { var ok = backend.openLogsFolder(); if (ok) toastManager.show("已打开日志文件夹"); else toastManager.show("无日志文件") } }
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#3a5ed0" : "#2a4590"
@@ -1172,7 +1172,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "最新启动日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover7 }
                                             MouseArea { id: shMouse7; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (backend && !backend.openLatestLog()) toastManager.show("无日志文件") }
+                                                onClicked: { if (backend) { var ok = backend.openLatestLog(); if (ok) toastManager.show("已打开最新日志"); else toastManager.show("无日志文件") } }
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#c85050" : "#9a3838"
@@ -1181,7 +1181,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "崩溃日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover8 }
                                             MouseArea { id: shMouse8; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (backend && !backend.openCrashLog()) toastManager.show("无崩溃报告") }
+                                                onClicked: { if (backend) { var ok = backend.openCrashLog(); if (ok) toastManager.show("已打开崩溃日志"); else toastManager.show("无崩溃报告") } }
                                             }
                                         }
 
@@ -1193,8 +1193,8 @@ Window {
                                             HoverHandler { id: shortcutHoverCp }
                                             MouseArea { id: shMouseCp; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (!currentSelectedVersion) return
-                                                    if (backend) backend.copyVersionPath(currentSelectedVersion)
+                                                    if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                                                    if (backend) { backend.copyVersionPath(currentSelectedVersion); toastManager.show("已复制版本路径") }
                                                 }
                                             }
                                         }
@@ -1207,7 +1207,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "Mod 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover3 }
                                             MouseArea { id: shMouse3; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.openModsFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openModsFolder(); toastManager.show("已打开 Mod 文件夹") } }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#3a5ed0" : "#3a4a90"
@@ -1217,7 +1217,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "config 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover4 }
                                             MouseArea { id: shMouse4; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.openConfigFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openConfigFolder(); toastManager.show("已打开 config 文件夹") } }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover5.hovered ? "#3a5ed0" : "#3a4a90"
@@ -1227,7 +1227,7 @@ Window {
                                             Text { anchors.centerIn: parent; text: "光影包"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover5 }
                                             MouseArea { id: shMouse5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.openShaderPacksFolder() }
+                                                onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openShaderPacksFolder(); toastManager.show("已打开光影包文件夹") } }
                                             }
                                         }
                                     }
