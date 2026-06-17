@@ -417,8 +417,8 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: model.vtype === "release" ? "正式版" :
                                       (model.vtype === "snapshot" ? "快照" : "旧版")
-                                color: model.vtype === "release" ? "#3b8" :
-                                       (model.vtype === "snapshot" ? "#ca8" : "#888")
+                                color: model.vtype === "release" ? "#4a8" :
+                                       (model.vtype === "snapshot" ? "#b84" : "#999")
                                 font.pixelSize: 10
                                 font.family: "Consolas, monospace"
                             }

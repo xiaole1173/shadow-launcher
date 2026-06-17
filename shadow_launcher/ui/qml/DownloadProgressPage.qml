@@ -112,6 +112,18 @@ Rectangle {
             visible: backend && backend.installing
         }
 
+        // ── Verifying indicator ──
+        Rectangle {
+            Layout.fillWidth: true; height: 44; radius: 8; color: "#1a1a30"; border.color: "#2a2a50"
+            visible: backend && backend.verifyRunning
+            RowLayout { anchors.fill: parent; anchors.margins: 12; spacing: 8
+                Rectangle { width: 12; height: 12; radius: 6; color: "#5068d8"
+                    RotationAnimator on rotation { from: 0; to: 360; duration: 1200; loops: Animation.Infinite; running: visible } }
+                Text { text: "正在校验游戏文件完整性..."; font.pixelSize: 13; color: "#a0b0e8"; Layout.fillWidth: true }
+                Text { text: backend ? backend.verifyResultText : ""; font.pixelSize: 11; color: "#606888" }
+            }
+        }
+
         // ── Cancel ──
         Rectangle {
             width: 100; height: 30; radius: 5
@@ -119,7 +131,7 @@ Rectangle {
             border.color: cancelMouse.containsMouse ? "#a04040" : "#603030"
             Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
             MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.cancelInstall() } }
-            visible: backend && backend.installing
+            visible: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed" && backend.installPhase !== "verifying"
         }
 
         // ── Empty state ──

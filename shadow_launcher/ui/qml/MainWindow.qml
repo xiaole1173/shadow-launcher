@@ -1660,6 +1660,22 @@ Window {
                         maximumLineCount: 1
                     }
                 }
+
+                // ═══ Kill button overlay (bottom-right of pageContainer) ═══
+                Rectangle {
+                    id: killButton
+                    width: 48; height: 48; radius: 24
+                    anchors.right: parent.right; anchors.rightMargin: 16
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 16
+                    z: 200; color: "#c05050"
+                    opacity: backend ? (backend.isRunning ? 1 : 0) : 0
+                    scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
+                    Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
+                }
             }
         }
     }
@@ -1682,21 +1698,8 @@ Window {
         onTriggered: { toastMsg = "" }
     }
 
-    // ═══ Kill button (x/y positioning, NOT anchors — avoids Window layout competition) ═══
-    Rectangle {
-        id: killButton
-        width: 48; height: 48; radius: 24
-        x: appWindow.width - width - 20
-        y: appWindow.height - height - 56
-        z: 200; color: "#c05050"
-        opacity: backend ? (backend.isRunning ? 1 : 0) : 0
-        scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
-        Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
-    }
+    // ═══ Kill button (inside pageContainer — see pageContainer above) ═══
+    // Reference to killButton via id still works from Window scope due to QML id resolution
 
     Connections {
         target: backend; enabled: backend !== null

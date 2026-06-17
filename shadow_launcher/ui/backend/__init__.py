@@ -448,12 +448,14 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                             self.installProgressChanged.emit(cf)
                             self.installTotalChanged.emit(tf)
                             self.installFileProgress.emit(name)
+                            # Calculate and emit speed
+                            elapsed = time.time() - self._install_t0 if time.time() > self._install_t0 else 0.001
+                            self._install_speed = db / elapsed if elapsed > 0 else 0
                             self.installBytesProgress.emit(db, tb)
                             # Log every 50th file
                             if cf % 50 == 0 and tf > 0:
                                 pct = cf / tf * 100
-                                spd = (db / (time.time() - self._install_t0)) if (time.time() > self._install_t0) else 0
-                                self.logMessage.emit(f"[安装] {version_id} | {pct:.1f}% ({cf}/{tf}) | {spd/1048576:.1f} MB/s | {name[:40]}")
+                                self.logMessage.emit(f"[安装] {version_id} | {pct:.1f}% ({cf}/{tf}) | {self._install_speed/1048576:.1f} MB/s | {name[:40]}")
 
                     elif line.startswith("LOG:"):
                         self.logMessage.emit(line[4:])
@@ -1272,7 +1274,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
             elif "forge" in vl or "fabric" in vl or "mod" in vl:
                 vtype = "modded"
 
-            # Size — version dir
+            # Size — version dir only (shared libs/assets shown separately)
             total_size = 0
             for dirpath, dirnames, filenames in os.walk(ver_dir):
                 for fn in filenames:
@@ -1282,7 +1284,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                     except OSError:
                         pass
 
-            # Libraries + assets — scan once, cache for this batch
+            # Shared libraries + assets size (cache once per scan)
             if self._cached_lib_asset_size is None or self._cached_lib_asset_base != base:
                 self._cached_lib_asset_size = 0
                 self._cached_lib_asset_base = base
@@ -1295,7 +1297,8 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                                     self._cached_lib_asset_size += os.path.getsize(os.path.join(dirpath, fn))
                                 except OSError:
                                     pass
-            total_size += (self._cached_lib_asset_size or 0)
+            # Note: lib_asset_size stored separately for total disk usage display
+            lib_asset_size = (self._cached_lib_asset_size or 0)
 
             # Mod count
             mod_count = 0
