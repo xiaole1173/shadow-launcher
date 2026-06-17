@@ -106,10 +106,14 @@ Rectangle {
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
             width: 120; height: 34; radius: 6
-            color: "transparent"; border.color: "#402428"
-            Text { anchors.centerIn: parent; text: "取消启动"; font.pixelSize: 12; color: "#c05050" }
+            color: cancelLaunchMouse.containsMouse ? "#2a1518" : "transparent"; border.color: cancelLaunchMouse.containsMouse ? "#602828" : "#402428"
+            scale: cancelLaunchMouse.pressed ? 0.9 : (cancelLaunchMouse.containsMouse ? 1.04 : 1.0)
+            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Text { anchors.centerIn: parent; text: "取消启动"; font.pixelSize: 12; color: cancelLaunchMouse.containsMouse ? "#ff6060" : "#c05050" }
             MouseArea {
-                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                id: cancelLaunchMouse
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                 onClicked: { if (backend) backend.cancelLaunch() }
             }
         }

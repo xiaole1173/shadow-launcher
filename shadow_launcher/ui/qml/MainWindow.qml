@@ -1782,14 +1782,15 @@ Window {
                     width: 48; height: 48; radius: 24
                     anchors.right: parent.right; anchors.rightMargin: 16
                     anchors.bottom: parent.bottom; anchors.bottomMargin: 16
-                    z: 200; color: "#c05050"
+                    z: 200; color: killMouse.containsMouse ? "#e06060" : "#c05050"
                     opacity: backend ? (backend.isRunning ? 1 : 0) : 0
-                    scale: backend ? (backend.isRunning ? 1 : 0.3) : 0.3
+                    scale: killMouse.containsMouse ? 1.1 : (backend ? (backend.isRunning ? 1 : 0.3) : 0.3)
                     visible: opacity > 0
                     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                    Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
+                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
                     Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { killPressAnim.start(); killDelayTimer.start() } } }
+                    MouseArea { id: killMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { killPressAnim.start(); killDelayTimer.start() } } }
 
                     Timer {
                         id: killDelayTimer
