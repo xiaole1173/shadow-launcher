@@ -110,35 +110,8 @@ Window {
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
-        // ── Header row (spans full width, matches sidebar color) ──
-        Rectangle {
-            Layout.fillWidth: true; height: 44
-            color: "#0a0c12"
-            RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
-                spacing: 0
-                Item { Layout.fillWidth: true }
-                Rectangle {
-                    width: 28; height: 28; radius: 14
-                    color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
-                    scale: hdrMin.pressed ? 0.85 : (hdrMin.containsMouse ? 1.12 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2014"; color: hdrMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
-                    MouseArea { id: hdrMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
-                }
-                Item { width: 6 }
-                Rectangle {
-                    width: 28; height: 28; radius: 14
-                    color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
-                    scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2715"; color: hdrClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
-                    MouseArea { id: hdrClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
-                }
-            }
-        }
+        // Spacer — buttons moved to floating right edge (same height as sidebar SHADOW)
+        Item { Layout.fillWidth: true; height: 2 }
 
         // ── Loading bar (Android-style indeterminate) ──
         // FIX: fixed height 2px + opacity control → zero layout jitter
@@ -169,8 +142,7 @@ Window {
 
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
-            Layout.leftMargin: 8; Layout.rightMargin: 8; Layout.bottomMargin: 8; Layout.topMargin: -36
-            spacing: 8
+            Layout.margins: 8; spacing: 8
 
             Rectangle {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
@@ -219,6 +191,42 @@ Window {
 
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
+
+                // ── Right-side header (matched to SHADOW height, sidebar color) ──
+                Rectangle {
+                    Layout.fillWidth: true; height: 44
+                    color: "#0a0c12"
+                    MouseArea {
+                        anchors.fill: parent
+                        property point lastPos: Qt.point(0, 0)
+                        onPressed: lastPos = Qt.point(mouse.x, mouse.y)
+                        onPositionChanged: { appWindow.x += mouse.x - lastPos.x; appWindow.y += mouse.y - lastPos.y }
+                    }
+                    RowLayout {
+                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
+                        spacing: 0
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            width: 28; height: 28; radius: 14
+                            color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
+                            scale: hdrMin.pressed ? 0.85 : (hdrMin.containsMouse ? 1.12 : 1.0)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Text { anchors.centerIn: parent; text: "\u2014"; color: hdrMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
+                            MouseArea { id: hdrMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
+                        }
+                        Item { width: 6 }
+                        Rectangle {
+                            width: 28; height: 28; radius: 14
+                            color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
+                            scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Text { anchors.centerIn: parent; text: "\u2715"; color: hdrClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
+                            MouseArea { id: hdrClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
+                        }
+                    }
+                }
 
                 Rectangle {
                     id: pageContainer
