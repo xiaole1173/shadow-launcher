@@ -110,42 +110,8 @@ Window {
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
-        // ── Top bar (full width) ──
-        Rectangle {
-            Layout.fillWidth: true; height: 38
-            color: "#0a0c12"
-            MouseArea {
-                anchors.fill: parent
-                property point lastPos: Qt.point(0, 0)
-                onPressed: lastPos = Qt.point(mouse.x, mouse.y)
-                onPositionChanged: { appWindow.x += mouse.x - lastPos.x; appWindow.y += mouse.y - lastPos.y }
-            }
-            RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
-                spacing: 0
-                Text { Layout.leftMargin: 8; text: "SHADOW"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2"; Layout.alignment: Qt.AlignVCenter }
-                Item { Layout.fillWidth: true }
-                Rectangle {
-                    width: 26; height: 26; radius: 13
-                    color: topMin.containsMouse ? (topMin.pressed ? "#3a4050" : "#252a35") : "transparent"
-                    scale: topMin.pressed ? 0.85 : (topMin.containsMouse ? 1.12 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2014"; color: topMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
-                    MouseArea { id: topMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
-                }
-                Item { width: 6 }
-                Rectangle {
-                    width: 26; height: 26; radius: 13
-                    color: topClose.containsMouse ? (topClose.pressed ? "#e06060" : "#c05050") : "transparent"
-                    scale: topClose.pressed ? 0.85 : (topClose.containsMouse ? 1.12 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "\u2715"; color: topClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
-                    MouseArea { id: topClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
-                }
-            }
-        }
+        // Spacer — buttons moved to floating right edge (same height as sidebar SHADOW)
+        Item { Layout.fillWidth: true; height: 2 }
 
         // ── Loading bar (Android-style indeterminate) ──
         // FIX: fixed height 2px + opacity control → zero layout jitter
@@ -184,8 +150,7 @@ Window {
                 color: "#0a0c12"; radius: 6
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
-                    // SHADOW removed to top bar — sidebar starts with nav items directly
-                    Item { Layout.topMargin: 6; height: 1 }  // tiny spacer
+                    Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
 
                     // Navigation model
                     ListModel {
@@ -218,7 +183,7 @@ Window {
                 Rectangle {
                     id: navIndicator
                     z: 10
-                    x: 8; y: 8 + 9 + navListIndex * 46
+                    x: 8; y: 8 + 52 + navListIndex * 44
                     width: 2; height: 44; color: "#6080e8"
                     Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
                 }
@@ -2003,6 +1968,26 @@ Window {
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
 }
 }
+
+    // ═══ Window controls (floating, same height as sidebar SHADOW) ═══
+    Rectangle {
+        id: wmMin; x: parent.width - 64; y: 24; width: 28; height: 28; radius: 14; z: 100
+        color: wmMinMa.containsMouse ? (wmMinMa.pressed ? "#3a4050" : "#252a35") : "transparent"
+        scale: wmMinMa.pressed ? 0.85 : (wmMinMa.containsMouse ? 1.12 : 1.0)
+        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+        Text { anchors.centerIn: parent; text: "\u2014"; color: wmMinMa.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
+        MouseArea { id: wmMinMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
+    }
+    Rectangle {
+        id: wmClose; x: parent.width - 34; y: 24; width: 28; height: 28; radius: 14; z: 100
+        color: wmCloseMa.containsMouse ? (wmCloseMa.pressed ? "#e06060" : "#c05050") : "transparent"
+        scale: wmCloseMa.pressed ? 0.85 : (wmCloseMa.containsMouse ? 1.12 : 1.0)
+        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+        Text { anchors.centerIn: parent; text: "\u2715"; color: wmCloseMa.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
+        MouseArea { id: wmCloseMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
+    }
 
     // ═══ Toast notification system ═══
     ToastManager {
