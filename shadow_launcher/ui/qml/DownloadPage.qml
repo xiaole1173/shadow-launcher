@@ -7,6 +7,12 @@ Rectangle {
     id: page
     color: "#0c0f16"
 
+    // Reference back to the main window (set by Loader onLoaded)
+    property var mainWindow: null
+
+    // Signal for the flying ball animation — emitted to main window
+    signal triggerDownloadBall(real sourceX, real sourceY)
+
     // Category tabs
     property int currentTab: 0  // 0=MC版本, 1=Mod, 2=光影, 3=资源包
 
@@ -530,11 +536,10 @@ Rectangle {
                                     backend.installVersion(model.versionId, page.currentSource)
                                     // Row bounce animation
                                     rowBounceAnim.start()
-                                    // Show download nav item (but don't auto-switch during animation)
-                                    appWindow.showDownloadNavSilent()
-                                    // Flying ball: map button center → Window coords
-                                    var gp = installBtn.mapToItem(appWindow.contentItem, installBtn.width / 2, installBtn.height / 2)
-                                    if (appWindow.animateDownloadBall) appWindow.animateDownloadBall(gp.x, gp.y)
+                                    // Show download nav + trigger flying ball via signal
+                                    if (page.mainWindow) page.mainWindow.showDownloadNavSilent()
+                                    var gp = installBtn.mapToItem(null, installBtn.width / 2, installBtn.height / 2)
+                                    page.triggerDownloadBall(gp.x, gp.y)
                                 }
                             }
                         }

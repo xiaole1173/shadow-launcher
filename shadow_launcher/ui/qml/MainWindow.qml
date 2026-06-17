@@ -479,7 +479,14 @@ Window {
 
                     // ========== DOWNLOAD & SETTINGS ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex === 1; color: "#0c0f16"
-                        Loader { anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : "" } }
+                        Loader { anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
+                            onLoaded: {
+                                item.mainWindow = appWindow
+                                item.triggerDownloadBall.connect(function(sx, sy) {
+                                    appWindow.animateDownloadBall(sx, sy)
+                                })
+                            }
+                        } }
                     Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: "#0c0f16"
                         Loader { anchors.fill: parent; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
 
@@ -500,8 +507,10 @@ Window {
                         onVisibleChanged: { if (visible && backend) backend.refreshVersionDetails() }
 
                         Rectangle { x: 16; y: 16; height: 28; width: 80; radius: 5; color: "transparent"
+                            scale: vsBackHover.containsMouse ? 1.06 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#a8b0c0"; font.pixelSize: 12 }
-                            MouseArea { anchors.fill: parent; onClicked: { showVersionSelect = false } }
+                            MouseArea { id: vsBackHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSelect = false } }
                         }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 16; anchors.topMargin: 52; spacing: 16
@@ -541,6 +550,8 @@ Window {
                                                 height: 36; radius: 6
                                                 color: dirMouse.containsMouse ? "#1a1f2e" : (versionSelectOverlay.activeGameDirIndex === index ? "#0e131a" : "transparent")
                                                 border.color: versionSelectOverlay.activeGameDirIndex === index ? "#2a4eb8" : "transparent"
+                                                scale: dirMouse.containsMouse ? 1.02 : 1.0
+                                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 12
                                                     anchors.right: parent.right; anchors.rightMargin: 8
@@ -610,16 +621,22 @@ Window {
 
                                     Item { height: 4; width: 1 }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: "#9498a8" }
+                                        scale: addDirHover.containsMouse ? 1.03 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                        Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: addDirHover.containsMouse ? "#b0b8e0" : "#9498a8" }
                                         MouseArea {
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            id: addDirHover
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                             onClicked: { showToast("功能开发中，请前往文件夹手动添加") }
                                         }
                                     }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
-                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: "#9498a8" }
+                                        scale: importHover.containsMouse ? 1.03 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                        Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: importHover.containsMouse ? "#b0b8e0" : "#9498a8" }
                                         MouseArea {
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            id: importHover
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                             onClicked: { showToast("导入整合包功能开发中") }
                                         }
                                     }
@@ -933,8 +950,10 @@ Window {
                                     // Back button
                                     Rectangle {
                                         width: 60; height: 28; radius: 6; color: "transparent"; border.color: "#1a1f2e"
+                                        scale: backHover.containsMouse ? 1.06 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "← 返回"; font.pixelSize: 11; color: "#989cb0" }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSettings = false } }
+                                        MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSettings = false } }
                                     }
 
                                     // Version label
@@ -1022,6 +1041,8 @@ Window {
                                     delegate: Rectangle {
                                         width: settingsNav.width; height: 36; radius: 6
                                         color: ListView.isCurrentItem ? "#162040" : (mouseArea2.containsMouse ? "#11141c" : "transparent")
+                                        scale: mouseArea2.containsMouse ? 1.03 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                         Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 3; color: ListView.isCurrentItem ? "#5080e8" : "transparent" }
                                         RowLayout {
                                             anchors.fill: parent; anchors.leftMargin: 16; spacing: 10
@@ -1508,6 +1529,9 @@ Window {
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
                                         color: (backend && backend.verifyRunning) ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
+                                        scale: verifyBtnMouse.containsMouse && !(backend && backend.verifyRunning) ? 1.04 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                        Behavior on color { ColorAnimation { duration: 200 } }
                                         Text { anchors.centerIn: parent; text: (backend && backend.verifyRunning) ? "校验中..." : "开始校验"; font.pixelSize: 12; color: "#e8ecf8" }
 
                                         MouseArea {
@@ -1634,9 +1658,12 @@ Window {
                                     Text { text: "危险操作"; font.pixelSize: 10; color: "#c05050"; font.letterSpacing: 1.5 }
                                     Rectangle {
                                         Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#2a1f24"
-                                        Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13; color: "#c05050" }
+                                        scale: delVerHover.containsMouse ? 1.02 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                        Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13; color: delVerHover.containsMouse ? "#f05050" : "#c05050" }
                                         MouseArea {
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            id: delVerHover
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }
                                                 confirmDialog.title = "删除版本"
