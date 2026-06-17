@@ -6,6 +6,13 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     color: "#0c0f16"
+    visible: backend ? backend.launching : false
+
+    // On launch finish, play exit animation before hiding
+    property bool launchingActual: backend ? backend.launching : false
+    onLaunchingActualChanged: {
+        if (!launchingActual && visible) hide()
+    }
 
     // Flip-page animation on appearance
     property bool flipped: false
@@ -21,8 +28,24 @@ Rectangle {
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
     onVisibleChanged: {
-        if (visible) flipped = true
-        else flipped = false
+        if (visible) {
+            flipped = false
+            showTimer.start()
+        }
+    }
+
+    Timer { id: showTimer; interval: 50; onTriggered: { flipped = true } }
+
+    // Hide with flip-out animation
+    function hide() {
+        flipped = false  // triggers reverse flip
+        hideTimer.start()
+    }
+
+    Timer {
+        id: hideTimer
+        interval: 550  // slightly longer than animation (500ms)
+        onTriggered: { overlay.visible = false }
     }
 
     // Progress state
@@ -114,7 +137,10 @@ Rectangle {
             MouseArea {
                 id: cancelLaunchMouse
                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                onClicked: { if (backend) backend.cancelLaunch() }
+                onClicked: {
+                    overlay.hide()
+                    if (backend) backend.cancelLaunch()
+                }
             }
         }
     }

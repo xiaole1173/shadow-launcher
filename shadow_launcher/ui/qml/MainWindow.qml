@@ -1811,7 +1811,7 @@ Window {
     Loader {
         id: launchOverlayLoader; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
-        active: backend && backend.launching; visible: active
+        active: true  // Always loaded for smooth hide animation
     }
 
     // ════════════════════════════════════════════
