@@ -11,6 +11,7 @@ Loader {
     visible: showVersionSelect
     onLoaded: {
         versionSelectLoader.item.backend = backend
+        versionSelectLoader.item.toastManager = toastManager
         versionSelectLoader.item.goBack.connect(function() { showVersionSelect = false })
         versionSelectLoader.item.versionSelected.connect(function(vid) {
             currentSelectedVersion = vid

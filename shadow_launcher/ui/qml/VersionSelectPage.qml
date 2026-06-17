@@ -55,11 +55,11 @@ Rectangle {
             }
         }
 
-        // 刷新按钮 — 紧挨"← 启动"
+        // 刷新按钮 — 紧挨"← 启动"  [DIAGNOSTIC: pink bg for visibility]
         Rectangle {
             width: refreshLabel.implicitWidth + 24; height: 32; radius: 6
-            color: refreshHover.hovered ? "#1A222D" : "transparent"
-            border.color: refreshHover.hovered ? "#3B82F6" : "transparent"
+            color: refreshHover.hovered ? "#3B82F6" : "#2a3040"
+            border.color: refreshHover.hovered ? "#60A5FA" : "#3a4050"
             border.width: 1
             scale: refreshMa.pressed ? 0.88 : (refreshHover.hovered ? 1.08 : 1.0)
             Behavior on color { ColorAnimation { duration: 150 } }
@@ -68,10 +68,9 @@ Rectangle {
             Text {
                 id: refreshLabel
                 anchors.centerIn: parent
-                text: "↻"
-                color: refreshHover.hovered ? "#3B82F6" : "#7E8596"
-                font.pixelSize: 16
-                Behavior on color { ColorAnimation { duration: 150 } }
+                text: "⟳ 刷新"
+                color: "#e0e4f0"
+                font.pixelSize: 12; font.weight: Font.Medium
             }
             HoverHandler { id: refreshHover }
             ToolTip { visible: refreshHover.hovered; text: "刷新版本列表"; delay: 500 }
