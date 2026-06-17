@@ -1126,53 +1126,67 @@ Window {
 
                                         // Always visible
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover0.hovered ? "#3a5ed0" : "#2a4590"
+                                            scale: shMouse0.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "版本文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover0 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse0; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openVersionDir(currentSelectedVersion) }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#3a5ed0" : "#2a4590"
+                                            scale: shMouse1.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "存档文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover1 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openSavesFolder() }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#3a5ed0" : "#2a4590"
+                                            scale: shMouse2.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "截图文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover2 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openScreenshotsFolder() }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#3a5ed0" : "#2a4590"
+                                            scale: shMouse6.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "logs 日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover6 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse6; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (backend && !backend.openLogsFolder()) showToast("无日志文件") }
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#3a5ed0" : "#2a4590"
+                                            scale: shMouse7.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "最新启动日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover7 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse7; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (backend && !backend.openLatestLog()) showToast("无日志文件") }
                                             }
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#c85050" : "#9a3838"
+                                            scale: shMouse8.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "崩溃日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover8 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse8; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (backend && !backend.openCrashLog()) showToast("无崩溃报告") }
                                             }
                                         }
 
                                         // Copy path
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#3a5ed0" : "#2a4590"
+                                            scale: shMouseCp.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "复制版本路径"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHoverCp }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouseCp; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     if (!currentSelectedVersion) return
                                                     if (backend) backend.copyVersionPath(currentSelectedVersion)
@@ -1183,25 +1197,31 @@ Window {
                                         // Mod-only: visible only for modded versions
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover3.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
+                                            scale: shMouse3.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "Mod 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover3 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse3; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openModsFolder() }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
+                                            scale: shMouse4.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "config 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover4 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse4; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openConfigFolder() }
                                             }
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover5.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
+                                            scale: shMouse5.pressed ? 0.92 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "光影包"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover5 }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: shMouse5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { if (!currentSelectedVersion) { showToast("请先选择一个版本"); return }; if (backend) backend.openShaderPacksFolder() }
                                             }
                                         }
@@ -1389,8 +1409,10 @@ Window {
                                         spacing: 8
                                         Rectangle {
                                             width: 80; height: 28; radius: 4; color: "#3a4eb8"
+                                            scale: modRefreshMa.pressed ? 0.9 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: modRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { modListModel.clear(); if (backend) { var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i]) } }
                                             }
                                         }
@@ -1459,8 +1481,10 @@ Window {
                                     RowLayout {
                                         spacing: 8
                                         Rectangle { height: 28; radius: 4; color: "#3a4eb8"; implicitWidth: rpRefreshText.implicitWidth + 20
+                                            scale: rpRefreshMa.pressed ? 0.9 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                             Text { id: rpRefreshText; anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            MouseArea { id: rpRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { rpListModel.clear(); if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]) } }
                                             }
                                         }
@@ -1510,8 +1534,10 @@ Window {
 
                                     Rectangle {
                                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
+                                        scale: saveRefreshMa.pressed ? 0.9 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        MouseArea { id: saveRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { saveListModel.clear(); if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]) } }
                                         }
                                     }
@@ -1759,7 +1785,13 @@ Window {
                     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                     Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
                     Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { killPressAnim.start(); backend.killMinecraft() } } }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { killPressAnim.start(); killDelayTimer.start() } } }
+
+                    Timer {
+                        id: killDelayTimer
+                        interval: 300
+                        onTriggered: { if (backend) backend.killMinecraft() }
+                    }
 
                     SequentialAnimation {
                         id: killPressAnim
