@@ -55,6 +55,37 @@ Rectangle {
             }
         }
 
+        // 刷新按钮 — 紧挨"← 启动"
+        Rectangle {
+            width: refreshLabel.implicitWidth + 24; height: 32; radius: 6
+            color: refreshHover.hovered ? "#1A222D" : "transparent"
+            border.color: refreshHover.hovered ? "#3B82F6" : "transparent"
+            border.width: 1
+            scale: refreshMa.pressed ? 0.88 : (refreshHover.hovered ? 1.08 : 1.0)
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
+            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Text {
+                id: refreshLabel
+                anchors.centerIn: parent
+                text: "↻"
+                color: refreshHover.hovered ? "#3B82F6" : "#7E8596"
+                font.pixelSize: 16
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+            HoverHandler { id: refreshHover }
+            ToolTip { visible: refreshHover.hovered; text: "刷新版本列表"; delay: 500 }
+            MouseArea {
+                id: refreshMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (backend) { backend.refreshVersionList(); toastManager.show("已刷新版本列表") }
+                }
+            }
+        }
+
         Text {
             Layout.fillWidth: true
             text: "版本选择"
@@ -270,57 +301,12 @@ Rectangle {
 
             Component.onCompleted: rebuildVersionList()
 
-            // ── 刷新栏 ──
-            RowLayout {
-                anchors.top: filterPills.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 10
-                height: 34; spacing: 8
-
-                Text {
-                    text: "版本列表"
-                    color: "#7E8596"
-                    font.pixelSize: 11; font.bold: true
-                }
-                Item { Layout.fillWidth: true }
-                Rectangle {
-                    width: refreshLabel.implicitWidth + 28; height: 30; radius: 6
-                    color: refreshHover.hovered ? "#1A222D" : "#0E1018"
-                    border.color: refreshHover.hovered ? "#3B82F6" : "#2A2F3A"
-                    border.width: 1
-                    scale: refreshMa.pressed ? 0.9 : (refreshHover.hovered ? 1.06 : 1.0)
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Text {
-                        id: refreshLabel
-                        anchors.centerIn: parent
-                        text: "↻ 刷新列表"
-                        color: refreshHover.hovered ? "#3B82F6" : "#B4BAC6"
-                        font.pixelSize: 12
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-                    HoverHandler { id: refreshHover }
-                    ToolTip { visible: refreshHover.hovered; text: "重新拉取版本列表"; delay: 500 }
-                    MouseArea {
-                        id: refreshMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (backend) { backend.refreshVersionList(); toastManager.show("版本列表已刷新") }
-                        }
-                    }
-                }
-            }
-
             ScrollView {
                 anchors.top: filterPills.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: selectBtn.top
-                anchors.topMargin: 58
+                anchors.topMargin: 8
                 anchors.leftMargin: 12
                 anchors.rightMargin: 12
                 anchors.bottomMargin: 8
