@@ -686,10 +686,44 @@ Window {
                                     id: versionRightPanel
                                     anchors.fill: parent; anchors.margins: 12; spacing: 6
 
-                                    // Header row: title + search + sort
+                                    // Header row: title + refresh + search + sort
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
                                         Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                                        // Refresh installed versions button
+                                        Rectangle {
+                                            id: verRefreshBtn
+                                            width: verRefreshText.implicitWidth + 16; height: 28; radius: 4
+                                            color: verRefreshHover.hovered ? "#1a2848" : "#0d1018"
+                                            border.color: verRefreshHover.hovered ? "#5068c8" : "#1a1f2e"
+                                            border.width: 1
+                                            scale: verRefreshPressed ? 0.88 : (verRefreshHover.hovered ? 1.06 : 1.0)
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                            Text {
+                                                id: verRefreshText
+                                                anchors.centerIn: parent
+                                                text: "⟳ 刷新"; font.pixelSize: 11
+                                                color: verRefreshHover.hovered ? "#8aa8f0" : "#7e8596"
+                                            }
+                                            HoverHandler { id: verRefreshHover }
+                                            ToolTip { visible: verRefreshHover.hovered; text: "重新扫描已安装版本"; delay: 500 }
+                                            MouseArea {
+                                                anchors.fill: parent; hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onPressed: verRefreshPressed = true
+                                                onReleased: verRefreshPressed = false
+                                                onClicked: {
+                                                    if (backend) {
+                                                        backend.refreshVersionDetails()
+                                                        deferRefreshTimer.start()
+                                                        toastManager.show("已刷新版本列表")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        property bool verRefreshPressed: false
                                         Rectangle {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"
                                             border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
