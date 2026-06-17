@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 #include <QDateTime>
 #include <QJsonObject>
 #include <QVector>
@@ -53,6 +54,7 @@ struct DownloadTask {
     bool completed = false;
     bool failed = false;
     QString errorMsg;
+    QStringList mirrors;   // Alternative download URLs (Modrinth/CDN fallback)
 };
 
 // ============================================================
