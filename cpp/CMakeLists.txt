@@ -1,0 +1,121 @@
+cmake_minimum_required(VERSION 3.21)
+project(ShadowLauncher VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+
+# ============================================================
+# Dependencies
+# ============================================================
+
+# Qt 6.5 LTS
+find_package(Qt6 6.5 REQUIRED COMPONENTS
+    Core
+    Gui
+    Qml
+    Quick
+    QuickControls2
+    Network
+    Widgets
+)
+
+# nlohmann/json (header-only — manually downloaded)
+add_library(nlohmann_json INTERFACE)
+target_include_directories(nlohmann_json INTERFACE src/third_party/nlohmann)
+
+# cpr (libcurl C++ wrapper) — TODO: install via vcpkg or manual
+# For Phase 1 build test, use Qt Network as fallback
+# Uncomment when cpr is available:
+# include(FetchContent)
+# FetchContent_Declare(cpr ...) 
+# FetchContent_MakeAvailable(cpr)
+# target_link_libraries(... cpr::cpr)
+
+# ============================================================
+# Sources
+# ============================================================
+
+set(SOURCES
+    src/main.cpp
+
+    # Core services (Phase 2 — added progressively)
+    src/core/http_client.cpp
+    src/core/logger.cpp
+    src/core/version_manager.cpp
+    src/core/downloader.cpp
+    src/core/parallel_downloader.cpp
+    src/core/launcher.cpp
+    src/core/mod_manager.cpp
+
+    # Backend (Phase 3 — added progressively)
+    src/backend/app_backend.cpp
+    src/backend/settings_backend.cpp
+    src/backend/account_backend.cpp
+    src/backend/version_backend.cpp
+    src/backend/launch_backend.cpp
+    src/backend/resource_backend.cpp
+    src/backend/check_backend.cpp
+)
+
+set(HEADERS
+    src/utils/types.h
+    src/core/http_client.h
+    src/core/logger.h
+    src/core/version_manager.h
+    src/core/downloader.h
+    src/core/parallel_downloader.h
+    src/core/launcher.h
+    src/core/mod_manager.h
+    src/backend/app_backend.h
+    src/backend/settings_backend.h
+    src/backend/account_backend.h
+    src/backend/version_backend.h
+    src/backend/launch_backend.h
+    src/backend/resource_backend.h
+    src/backend/check_backend.h
+)
+
+# ============================================================
+# Target
+# ============================================================
+
+qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS})
+qt_add_qml_module(ShadowLauncher
+    URI "ShadowLauncher"
+    VERSION 1.0
+    # Phase 1: Minimal test QML (switch to real QML in Phase 4)
+    QML_FILES
+        qml/Phase1Main.qml
+)
+
+target_include_directories(ShadowLauncher PRIVATE src)
+
+target_link_libraries(ShadowLauncher PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Network
+    Qt6::Widgets
+    nlohmann_json
+)
+# cpr::cpr — added when libcurl is installed
+
+# Windows: hide console window
+if(WIN32)
+    set_target_properties(ShadowLauncher PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+endif()
+
+# ============================================================
+# Install
+# ============================================================
+
+install(TARGETS ShadowLauncher
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
