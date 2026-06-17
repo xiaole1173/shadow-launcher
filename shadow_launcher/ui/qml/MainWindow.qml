@@ -517,7 +517,7 @@ Window {
                             id: deferRefreshTimer
                             interval: 80
                             onTriggered: {
-                                if (backend) { backend.refreshInstalled(); backend.refreshGameDirInfo() }
+                                if (backend) { backend.refreshInstalledList(); backend.refreshGameDirInfo() }
                             }
                         }
 

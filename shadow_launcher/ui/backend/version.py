@@ -78,6 +78,13 @@ class VersionMixin:
         self._selected_version = version_id
 
     @Slot()
+    def refreshInstalledList(self):
+        """Fast: update installed IDs only (no heavy scan). Use for UI refresh."""
+        base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
+        self._installed_ids = get_installed_versions(base)
+        self.installedVersionsChanged.emit()
+
+    @Slot()
     def refreshInstalled(self):
         base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
         self._installed_ids = get_installed_versions(base)

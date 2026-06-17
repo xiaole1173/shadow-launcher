@@ -55,6 +55,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
     installTotalChanged = Signal(int)
     installFileProgress = Signal(str)
     installFinished = Signal(bool)
+    versionDetailsReady = Signal()
     installBytesProgress = Signal(int, int)
     installPhaseChanged = Signal(str)
     isolationChanged = Signal()
@@ -1365,15 +1366,23 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
         return self._version_details
 
     def _scan_version_details(self):
-        """Scan all installed versions for metadata (loader, mods, size, etc)"""
+        """Scan all installed versions for metadata (loader, mods, size, etc).
+        Synchronous — use refreshVersionDetails() for async UI path."""
+        details, base_dir, lib_asset_size = self._scan_version_details_inner()
+        self._version_details = details
+        self._version_detail_dir = base_dir
+        self._cached_lib_asset_size = lib_asset_size
+        self._cached_lib_asset_base = base_dir
+
+    def _scan_version_details_inner(self):
+        """Scan all installed versions for metadata (loader, mods, size, etc).
+        Returns (details_list, base_dir, lib_asset_size) — thread-safe."""
         base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
         versions_dir = os.path.join(base, "versions")
         mods_base = os.path.join(base, "mods")
 
         if not os.path.exists(versions_dir):
-            self._version_details = []
-            self._version_detail_dir = ""
-            return
+            return [], "", 0
 
         global_mods = {}
         if os.path.isdir(mods_base):
@@ -1451,20 +1460,21 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                         pass
 
             # Shared libraries + assets size (cache once per scan)
-            if self._cached_lib_asset_size is None or self._cached_lib_asset_base != base:
-                self._cached_lib_asset_size = 0
-                self._cached_lib_asset_base = base
+            cached_size = getattr(self, '_cached_lib_asset_size', None)
+            cached_base = getattr(self, '_cached_lib_asset_base', None)
+            if cached_size is None or cached_base != base:
+                lib_asset_size = 0
                 for scan_dir in ["libraries", os.path.join("assets", "objects")]:
                     sd = os.path.join(base, scan_dir)
                     if os.path.isdir(sd):
                         for dirpath, _, filenames in os.walk(sd):
                             for fn in filenames:
                                 try:
-                                    self._cached_lib_asset_size += os.path.getsize(os.path.join(dirpath, fn))
+                                    lib_asset_size += os.path.getsize(os.path.join(dirpath, fn))
                                 except OSError:
                                     pass
-            # Note: lib_asset_size stored separately for total disk usage display
-            lib_asset_size = (self._cached_lib_asset_size or 0)
+            else:
+                lib_asset_size = cached_size
 
             # Mod count (check shared mods + version-specific mods + isolated game dir mods)
             mod_count = 0
@@ -1483,8 +1493,7 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
                 "modCount": mod_count,
             })
 
-        self._version_details = details
-        self._version_detail_dir = base
+        return details, base, lib_asset_size
 
     @staticmethod
     def _format_size(size_bytes: int) -> str:
@@ -1499,8 +1508,25 @@ class ShadowBackend(QObject, AccountMixin, VersionMixin, LaunchMixin, SettingsMi
 
     @Slot()
     def refreshVersionDetails(self):
-        self._scan_version_details()
-        self.versionDetailsChanged.emit()
+        """Refresh installed version details in background thread (non-blocking)"""
+        if not hasattr(self, '_version_details_lock'):
+            self._version_details_lock = threading.Lock()
+        threading.Thread(target=self._scan_version_details_bg, daemon=True).start()
+
+    def _scan_version_details_bg(self):
+        """Background thread: scan version details then emit signal"""
+        try:
+            details, detail_dir, lib_asset_size = self._scan_version_details_inner()
+            base = self._game_dir if hasattr(self, '_game_dir') and self._game_dir else MINECRAFT_DIR
+            with self._version_details_lock:
+                self._version_details = details
+                self._version_detail_dir = detail_dir
+                self._cached_lib_asset_size = lib_asset_size
+                self._cached_lib_asset_base = base
+            self.versionDetailsReady.emit()
+            self.versionDetailsChanged.emit()
+        except Exception as e:
+            self.logMessage.emit(f"[版本扫描] 扫描失败: {e}")
 
     @Property("QVariantMap", notify=versionDetailsChanged)
     def currentVersionSummary(self):
