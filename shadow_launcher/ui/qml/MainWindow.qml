@@ -1270,13 +1270,17 @@ Window {
                                                     font.pixelSize: 12; color: "#b0b8c8"; elide: Text.ElideMiddle; width: parent.width - 90 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"
+                                                    scale: autoDetectMa.pressed ? 0.9 : 1.0
+                                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                                     Text { anchors.centerIn: parent; text: "自动检测"; font.pixelSize: 11; color: "#e8ecf8" }
-                                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
+                                                    MouseArea { id: autoDetectMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
                                                     width: 50; height: 26; radius: 4; color: "transparent"; border.color: "#1a1f2e"
+                                                    scale: browseJavaMa.pressed ? 0.9 : 1.0
+                                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                                     Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#b0b8c8" }
-                                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.pickJava() } }
+                                                    MouseArea { id: browseJavaMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.pickJava() } }
                                                 }
                                             }
                                             Text {
@@ -1931,12 +1935,16 @@ Window {
             RowLayout {
                 Layout.alignment: Qt.AlignRight; spacing: 10
                 Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
+                    scale: cancelDlgMa.pressed ? 0.9 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
+                    MouseArea { id: cancelDlgMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
                 }
                 Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
+                    scale: confirmDlgMa.pressed ? 0.9 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                    MouseArea { id: confirmDlgMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { confirmDialog.visible = false; if (confirmDialog.onAccept) confirmDialog.onAccept() }
                     }
                 }

@@ -176,6 +176,8 @@ Rectangle {
             width: 100; height: 30; radius: 5
             color: cancelMouse.containsMouse ? "#502020" : "#2a1a1a"
             border.color: cancelMouse.containsMouse ? "#a04040" : "#603030"
+            scale: cancelMouse.pressed ? 0.9 : 1.0
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
             Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
             MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.cancelInstall() } }
             visible: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed" && backend.installPhase !== "verifying"

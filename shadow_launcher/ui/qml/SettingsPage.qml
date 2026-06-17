@@ -158,11 +158,15 @@ Rectangle {
                             // Buttons
                             RowLayout { Layout.fillWidth: true; spacing: 10
                                 Rectangle { width: detectBtnText.implicitWidth + 24; height: 34; radius: 7; color: detectBtnArea.containsMouse ? "#6d7de8" : "#5068d8"
+                                    scale: detectBtnArea.pressed ? 0.92 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                     Text { id: detectBtnText; anchors.centerIn: parent; text: "重新检测"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#ffffff" }
                                     MouseArea { id: detectBtnArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.detectJava() } }
                                 }
                                 Rectangle { width: browseBtnText.implicitWidth + 24; height: 34; radius: 7; color: browseBtnArea.containsMouse ? "#1a1f2e" : "transparent"
+                                    scale: browseBtnArea.pressed ? 0.92 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
                                     border.color: browseBtnArea.containsMouse ? "#6d7de8" : "#4a5ec8"; border.width: 1.5
                                     Text { id: browseBtnText; anchors.centerIn: parent; text: "手动选择"; font.pixelSize: 13; font.weight: Font.Medium; color: browseBtnArea.containsMouse ? "#ffffff" : "#b0b8e0" }
                                     MouseArea { id: browseBtnArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.browseJava() } }
