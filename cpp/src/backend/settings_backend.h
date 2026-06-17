@@ -9,6 +9,8 @@
 
 namespace ShadowLauncher {
 
+class VersionIsolation;
+
 class SettingsBackend : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString javaPath READ javaPath WRITE setJavaPath NOTIFY javaPathChanged)
@@ -18,6 +20,7 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(int maxMemoryMB READ maxMemoryMB NOTIFY memorySettingsChanged)
     Q_PROPERTY(bool closeAfterLaunch READ closeAfterLaunch NOTIFY generalSettingsChanged)
     Q_PROPERTY(bool javaReady READ isJavaReady NOTIFY javaPathChanged)
+    Q_PROPERTY(bool isolationEnabled READ isolationEnabled NOTIFY isolationChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -45,11 +48,16 @@ public:
     Q_INVOKABLE QString browseJava();          // QML alias
     void setMinecraftDir(const QString& dir);
     Q_INVOKABLE void setIsolationEnabled(bool enabled);
+    Q_INVOKABLE void migrateVersionToIsolated(const QString& versionId);
+    Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
+    Q_INVOKABLE bool isolationEnabled() const;
     Q_INVOKABLE void openGameDir();
     Q_INVOKABLE void openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
     Q_INVOKABLE void openPath(const QString& path);
     Q_INVOKABLE void setCloseAfterLaunch(bool enabled);
+    void setIsolationGameDir(const QString& dir);
+    VersionIsolation* isolation() const { return m_isolation; }
 
 signals:
     void javaPathChanged();
@@ -87,6 +95,7 @@ private:
     bool m_closeAfterLaunch = false;
     bool m_javaReady = false;
     QString m_gameDir;
+    VersionIsolation* m_isolation = nullptr;
 
     // Cache for Java scan results (expensive operation)
     QVector<JavaInfo> m_cachedJavaList;

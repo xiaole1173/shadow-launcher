@@ -32,6 +32,10 @@ public:
     Q_INVOKABLE int getSystemMemory();
     Q_INVOKABLE QVariantMap getMemoryStatus();
 
+    // ---- Pre-launch checks ----
+    Q_INVOKABLE QString checkJavaArchitecture(const QString& javaPath);
+    Q_INVOKABLE bool checkVersionHasNatives(const QString& versionId);
+
     // ---- Called by ShadowBackend to sync game directory ----
     void setGameDir(const QString& dir);
 
@@ -42,6 +46,10 @@ signals:
     void minecraftStopped();
     void isRunningChanged();
     void logMessage(const QString& msg);
+
+    // ── Pre-launch check signals ──
+    void launchCheckProgress(const QString& step);
+    void launchCheckWarning(const QString& warning);
 
 private slots:
     void onLaunchStarted();

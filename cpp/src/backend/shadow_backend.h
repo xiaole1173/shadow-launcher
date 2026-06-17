@@ -210,6 +210,8 @@ public:
     Q_INVOKABLE void setMinMemory(int mb);
     Q_INVOKABLE void setMaxMemory(int mb);
     Q_INVOKABLE void setIsolationEnabled(bool enabled);
+    Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
+    Q_INVOKABLE void migrateVersionToIsolated(const QString& versionId);
     Q_INVOKABLE void openGameDir();
     Q_INVOKABLE void openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
@@ -243,8 +245,6 @@ public:
     Q_INVOKABLE void openJavaFileDialog() { browseJava(); }
     Q_INVOKABLE void pickJava() { browseJava(); }
     Q_INVOKABLE void checkFileChanges() {}
-    Q_INVOKABLE void cloneVersion(const QString&) {}
-    Q_INVOKABLE void copyVersionPath(const QString&) {}
     Q_INVOKABLE void deleteMod(const QString&) {}
     Q_INVOKABLE void deleteResourcePack(const QString&) {}
     Q_INVOKABLE void deleteSave(const QString&) {}
@@ -259,9 +259,11 @@ public:
     Q_INVOKABLE void openScreenshotsFolder() {}
     Q_INVOKABLE void openShaderPacksFolder() {}
     Q_INVOKABLE void removeGameDir(int) {}
-    Q_INVOKABLE void renameVersion(const QString&, const QString&) {}
+    Q_INVOKABLE void verifyVersion(const QString& versionId);
+    Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
+    Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
+    Q_INVOKABLE QString copyVersionPath(const QString& versionId);
     Q_INVOKABLE void repairVersion(const QString&) {}
-    Q_INVOKABLE void verifyVersion(const QString&) {}
 
 signals:
     void accountChanged();
@@ -297,6 +299,11 @@ signals:
     void loginModeChanged();
     void logMessage(const QString& msg);
 
+    // ── Verify signals ──
+    void verifyStarted();
+    void verifyProgress(int checked, int total);
+    void verifyFinished(bool allPassed);
+
 public:
     AppBackend* app() const { return m_app; }
     AccountBackend* account() const { return m_account; }
@@ -315,7 +322,7 @@ private:
     LaunchBackend* m_launch = nullptr;
     ResourceBackend* m_resource = nullptr;
 
-    bool m_isolationEnabled = false;
+    bool m_isolationEnabled = true;
     int m_lastLoginMode = 1;
     QString m_launchVersion;
     QString m_launchUsername;

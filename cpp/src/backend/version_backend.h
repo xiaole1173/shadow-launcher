@@ -12,6 +12,7 @@ namespace ShadowLauncher {
 
 class VersionManager;
 class VersionDownloader;
+class VersionIsolation;
 
 class VersionBackend : public QObject {
     Q_OBJECT
@@ -46,6 +47,7 @@ public:
 
     // Slots
     Q_INVOKABLE void setGameDir(const QString& dir);
+    void setIsolation(class VersionIsolation* iso) { m_isolation = iso; }
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
@@ -53,6 +55,13 @@ public:
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void pauseInstall();
     Q_INVOKABLE void resumeInstall();
+    Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
+
+    // ── Version management operations ──
+    Q_INVOKABLE void verifyVersion(const QString& versionId);
+    Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
+    Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
+    Q_INVOKABLE QString copyVersionPath(const QString& versionId);
 
 signals:
     void versionListReady();
@@ -67,6 +76,11 @@ signals:
     void installFinished(bool success);
     void logMessage(const QString& msg);
 
+    // ── Version management signals ──
+    void verifyStarted();
+    void verifyProgress(int checked, int total);
+    void verifyFinished(bool allPassed);
+
 private slots:
     void onVersionDownloadProgress(int cf, int tf, qint64 db, qint64 tb);
     void onVersionDownloadLog(const QString& msg);
@@ -79,6 +93,7 @@ private:
 
     VersionManager* m_versionMgr = nullptr;
     VersionDownloader* m_downloader = nullptr;
+    class VersionIsolation* m_isolation = nullptr;
     QString m_gameDir;
 
     QStringList m_versionIds;

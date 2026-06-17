@@ -1,4 +1,5 @@
 #include "shadow_backend.h"
+#include "../core/version_isolation.h"
 #include "account_backend.h"
 #include "app_backend.h"
 #include "check_backend.h"
@@ -33,7 +34,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // ── Sync game directories: ALL backends use the same path ──
     m_version->setGameDir(m_app->gameDir());
     m_settings->setMinecraftDir(m_app->gameDir());
+    m_settings->setIsolationGameDir(m_app->gameDir());
     m_launch->setGameDir(m_app->gameDir());
+    m_version->setIsolation(m_settings->isolation());
 
     // ── Signal forwarding: AccountBackend → ShadowBackend ──
     connect(m_account, &AccountBackend::accountChanged,
@@ -98,6 +101,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::installFinished);
     connect(m_version, &VersionBackend::logMessage,
             this, &ShadowBackend::logMessage);
+    connect(m_version, &VersionBackend::verifyStarted,
+            this, &ShadowBackend::verifyStarted);
+    connect(m_version, &VersionBackend::verifyProgress,
+            this, &ShadowBackend::verifyProgress);
+    connect(m_version, &VersionBackend::verifyFinished,
+            this, &ShadowBackend::verifyFinished);
 
     // ── Signal forwarding: LaunchBackend → ShadowBackend ──
     connect(m_launch, &LaunchBackend::launchProgressChanged,
@@ -547,6 +556,14 @@ void ShadowBackend::setIsolationEnabled(bool enabled) {
     m_settings->setIsolationEnabled(enabled);
 }
 
+QString ShadowBackend::getVersionGameDir(const QString& versionId) const {
+    return m_settings->getVersionGameDir(versionId);
+}
+
+void ShadowBackend::migrateVersionToIsolated(const QString& versionId) {
+    m_settings->migrateVersionToIsolated(versionId);
+}
+
 qint64 ShadowBackend::diskFree() const
 {
     QStorageInfo storage(m_app->gameDir());
@@ -675,7 +692,28 @@ void ShadowBackend::setGameDir(const QString& dir) {
     // Sync all backends to the new directory
     m_version->setGameDir(dir);
     m_settings->setMinecraftDir(dir);
+    m_settings->setIsolationGameDir(dir);
     m_launch->setGameDir(dir);
+}
+
+// ============================================================
+// Q_INVOKABLE methods — Version management
+// ============================================================
+
+void ShadowBackend::verifyVersion(const QString& versionId) {
+    m_version->verifyVersion(versionId);
+}
+
+bool ShadowBackend::renameVersion(const QString& oldId, const QString& newId) {
+    return m_version->renameVersion(oldId, newId);
+}
+
+bool ShadowBackend::cloneVersion(const QString& sourceId, const QString& newId) {
+    return m_version->cloneVersion(sourceId, newId);
+}
+
+QString ShadowBackend::copyVersionPath(const QString& versionId) {
+    return m_version->copyVersionPath(versionId);
 }
 
 // ============================================================

@@ -1,4 +1,5 @@
 #include "settings_backend.h"
+#include "../core/version_isolation.h"
 
 #include <QDesktopServices>
 #include <QDir>
@@ -55,6 +56,11 @@ SettingsBackend::SettingsBackend(QObject* parent)
     , m_maxMemoryMB(2048)
     , m_closeAfterLaunch(false)
 {
+    // Create VersionIsolation (game dir set later)
+    m_isolation = new VersionIsolation(this);
+    connect(m_isolation, &VersionIsolation::isolationChanged,
+            this, &SettingsBackend::isolationChanged);
+
     // Game dir is set later by ShadowBackend via setMinecraftDir()
     
     // Load persisted settings
@@ -339,6 +345,7 @@ void SettingsBackend::setMinecraftDir(const QString& dir)
 {
     if (m_gameDir != dir && !dir.isEmpty()) {
         m_gameDir = dir;
+        m_isolation->setGameDir(dir);
         QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
         QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
         QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
@@ -348,11 +355,36 @@ void SettingsBackend::setMinecraftDir(const QString& dir)
 
 void SettingsBackend::setIsolationEnabled(bool enabled)
 {
-    Q_UNUSED(enabled)
+    m_isolation->setEnabled(enabled);
     emit logMessage(enabled
         ? QStringLiteral("版本隔离已开启 — 各版本拥有独立的存档/截图/配置")
         : QStringLiteral("版本隔离已关闭 — 所有版本共享游戏目录"));
-    emit isolationChanged();
+    // isolationChanged signal is emitted by VersionIsolation
+}
+
+void SettingsBackend::migrateVersionToIsolated(const QString& versionId)
+{
+    bool ok = m_isolation->migrateToIsolated(versionId);
+    if (ok) {
+        emit logMessage(QStringLiteral("版本 %1 已迁移到隔离模式").arg(versionId));
+    } else {
+        emit logMessage(QStringLiteral("版本 %1 迁移失败：未找到版本 JSON").arg(versionId));
+    }
+}
+
+QString SettingsBackend::getVersionGameDir(const QString& versionId) const
+{
+    return m_isolation->getVersionGameDir(versionId);
+}
+
+bool SettingsBackend::isolationEnabled() const
+{
+    return m_isolation->isEnabled();
+}
+
+void SettingsBackend::setIsolationGameDir(const QString& dir)
+{
+    m_isolation->setGameDir(dir);
 }
 
 // ============================================================
