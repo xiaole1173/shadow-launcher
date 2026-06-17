@@ -506,6 +506,15 @@ Window {
                         // Refresh installed versions when overlay opens
                         onVisibleChanged: { if (visible && backend) backend.refreshVersionDetails() }
 
+                        // 延迟刷新定时器 — 先更新UI再扫描文件避免卡顿
+                        Timer {
+                            id: deferRefreshTimer
+                            interval: 80
+                            onTriggered: {
+                                if (backend) { backend.refreshInstalled(); backend.refreshGameDirInfo() }
+                            }
+                        }
+
                         Rectangle { x: 16; y: 16; height: 28; width: 80; radius: 5; color: "transparent"
                             scale: vsBackHover.containsMouse ? 1.06 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -573,7 +582,9 @@ Window {
                                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                                     onClicked: {
                                                         versionSelectOverlay.activeGameDirIndex = index
-                                                        if (backend) { backend.setGameDir(index); backend.refreshInstalled(); backend.refreshGameDirInfo() }
+                                                        if (backend) backend.setGameDir(index)
+                                                        // 延迟刷新避免UI卡顿 — 先更新选中态再扫描文件
+                                                        deferRefreshTimer.start()
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
@@ -691,26 +702,36 @@ Window {
                                         // Install button — shortcut to download new versions
                                         Rectangle {
                                             width: 28; height: 28; radius: 4; color: installBtnHover.hovered ? "#2553a8" : "#3a4eb8"
+                                            scale: installBtnPressed ? 0.9 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 18; font.weight: Font.Bold; color: "#e8ecf8" }
                                             HoverHandler { id: installBtnHover }
                                             ToolTip { visible: installBtnHover.hovered; text: "安装新版本"; delay: 500 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { showVersionSelect = false; navListIndex = 2 }  // Switch to download
+                                                onPressed: installBtnPressed = true
+                                                onReleased: installBtnPressed = false
+                                                onClicked: { showVersionSelect = false; switchPage(1) }  // 导航到下载页
                                             }
                                         }
+                                        property bool installBtnPressed: false
                                         // Sort button
                                         Rectangle {
                                             id: sortBtn
                                             width: 70; height: 28; radius: 4; color: sortHover.hovered ? "#1a2848" : "#0d1018"
                                             border.color: sortHover.hovered ? "#5068c8" : "#1a1f2e"
+                                            scale: sortPressed ? 0.92 : (sortHover.hovered ? 1.03 : 1.0)
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             property int versionSortIndex: 0
                                             RowLayout {
                                                 anchors.centerIn: parent; spacing: 4
                                                 Text { text: sortBtn.versionSortIndex === 0 ? "↓ 版本" : (sortBtn.versionSortIndex === 1 ? "↓ 版本" : (sortBtn.versionSortIndex === 2 ? "↓ 大小" : "↓ 模组")); font.pixelSize: 10; color: "#b0b8c8" }
                                             }
                                             HoverHandler { id: sortHover }
+                                            property bool sortPressed: false
                                             MouseArea {
                                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                onPressed: sortPressed = true
+                                                onReleased: sortPressed = false
                                                 onClicked: {
                                                     sortBtn.versionSortIndex = (sortBtn.versionSortIndex + 1) % 4
                                                     versionRightPanel.applyFilterSort()
@@ -723,8 +744,11 @@ Window {
                                             id: loaderFilter
                                             width: 80; height: 28; radius: 4; color: loaderFiltHover.hovered ? "#1a2848" : "#0d1018"
                                             border.color: loaderFiltHover.hovered ? "#5068c8" : "#1a1f2e"
+                                            scale: loadFiltPressed ? 0.92 : (loaderFiltHover.hovered ? 1.03 : 1.0)
+                                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             property int loaderFilterIndex: 0  // 0=全部 1=原版 2=Forge 3=Fabric 4=NeoForge 5=Quilt
                                             property var loaderLabels: ["全部类型", "原版", "Forge", "Fabric", "NeoForge", "Quilt"]
+                                            property bool loadFiltPressed: false
                                             RowLayout {
                                                 anchors.centerIn: parent; spacing: 4
                                                 Text { text: loaderFilter.loaderLabels[loaderFilter.loaderFilterIndex]; font.pixelSize: 10; color: "#b0b8c8" }
@@ -732,6 +756,8 @@ Window {
                                             HoverHandler { id: loaderFiltHover }
                                             MouseArea {
                                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                onPressed: loadFiltPressed = true
+                                                onReleased: loadFiltPressed = false
                                                 onClicked: {
                                                     loaderFilter.loaderFilterIndex = (loaderFilter.loaderFilterIndex + 1) % loaderFilter.loaderLabels.length
                                                     versionRightPanel.applyFilterSort()
@@ -1733,7 +1759,13 @@ Window {
                     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                     Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
                     Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) backend.killMinecraft() } }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { killPressAnim.start(); backend.killMinecraft() } } }
+
+                    SequentialAnimation {
+                        id: killPressAnim
+                        NumberAnimation { target: killButton; property: "scale"; to: 0.75; duration: 80; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: killButton; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack }
+                    }
                 }
             }
         }
