@@ -942,7 +942,7 @@ Rectangle {
                         border.color: cardMouse2.containsMouse ? "#3a4eb8" : "#1a1f2a"
                         border.width: 1
 
-                        property var data: shaderGrid.shaderData[index] || {}
+                        property var itemData: shaderGrid.shaderData[index] || {}
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -959,8 +959,8 @@ Rectangle {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: parent.parent.parent.parent.data.title
-                                            ? parent.parent.parent.parent.data.title[0]
+                                        text: parent.parent.parent.parent.itemData.title
+                                            ? parent.parent.parent.parent.itemData.title[0]
                                             : "S"
                                         color: "#d4b840"
                                         font.pixelSize: 14
@@ -968,7 +968,7 @@ Rectangle {
                                     }
                                 }
                                 Text {
-                                    text: parent.parent.parent.parent.data.title || ""
+                                    text: parent.parent.parent.parent.itemData.title || ""
                                     color: "#d0d4e0"
                                     font.pixelSize: 13
                                     font.bold: true
@@ -978,7 +978,7 @@ Rectangle {
                             }
 
                             Text {
-                                text: parent.parent.parent.parent.data.desc || ""
+                                text: parent.parent.parent.parent.itemData.desc || ""
                                 color: "#606478"
                                 font.pixelSize: 11
                                 elide: Text.ElideRight
