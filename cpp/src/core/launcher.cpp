@@ -1,4 +1,5 @@
 #include "launcher.h"
+#include "../utils/logger.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -6,8 +7,14 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QRegularExpression>
+#include <QTextStream>
 #include <QTimer>
+
+// QZipReader is a Qt private API in QtGui.
+// If linking fails, add  Qt6::GuiPrivate  to target_link_libraries in CMakeLists.txt.
+#include <private/qzipreader_p.h>
 
 namespace ShadowLauncher {
 
@@ -88,6 +95,12 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     }
 
     QJsonObject versionJson = doc.object();
+
+    // --- Extract natives (before building args so library path exists) ---
+    extractNatives(versionId, versionJson);
+
+    // --- Ensure options.txt has language setting ---
+    ensureOptionsTxt(versionId);
 
     // --- Build arguments ---
     QStringList args = buildArgs(versionId, maxMemoryMB, versionJson);
@@ -431,6 +444,213 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     QDir().mkpath(m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
 
     return args;
+}
+
+// ============================================================
+// Private Helpers — Natives Extraction
+// ============================================================
+
+bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versionJson)
+{
+    QString nativesDir = m_gameDir + QStringLiteral("/versions/") + versionId
+                         + QStringLiteral("/natives");
+
+    // Idempotent: skip if natives already extracted
+    QDir nd(nativesDir);
+    if (nd.exists()) {
+        QStringList nativeFilters;
+#ifdef Q_OS_WIN
+        nativeFilters << QStringLiteral("*.dll");
+#elif defined(Q_OS_MACOS)
+        nativeFilters << QStringLiteral("*.dylib") << QStringLiteral("*.jnilib");
+#else
+        nativeFilters << QStringLiteral("*.so");
+#endif
+        QStringList existing = nd.entryList(nativeFilters, QDir::Files);
+        if (!existing.isEmpty()) {
+            qCDebug(logLaunch) << "Natives already extracted, skipping:" << nativesDir
+                               << "(" << existing.size() << "files)";
+            return true;
+        }
+    }
+
+    QDir().mkpath(nativesDir);
+
+    const QString libsDir = m_gameDir + QStringLiteral("/libraries");
+    const QJsonArray libraries = versionJson[QStringLiteral("libraries")].toArray();
+
+    // Determine platform-specific native classifier prefix
+#ifdef Q_OS_WIN
+    const QString nativePrefix = QStringLiteral("natives-windows");
+#elif defined(Q_OS_MACOS)
+    const QString nativePrefix = QStringLiteral("natives-osx");
+#else
+    const QString nativePrefix = QStringLiteral("natives-linux");
+#endif
+
+    int extractedCount = 0;
+    int jarCount = 0;
+
+    for (const QJsonValue& libVal : libraries) {
+        QJsonObject lib = libVal.toObject();
+        if (!shouldIncludeLibrary(lib)) continue;
+
+        QJsonObject downloads = lib[QStringLiteral("downloads")].toObject();
+        QJsonObject classifiers = downloads[QStringLiteral("classifiers")].toObject();
+
+        for (auto it = classifiers.begin(); it != classifiers.end(); ++it) {
+            QString clsName = it.key();
+            if (!clsName.startsWith(nativePrefix)) continue;
+
+            QJsonObject clsArt = it.value().toObject();
+            QString path = clsArt[QStringLiteral("path")].toString();
+            if (path.isEmpty()) continue;
+
+            QString jarPath = libsDir + QStringLiteral("/") + path;
+            if (!QFileInfo::exists(jarPath)) continue;
+
+            jarCount++;
+
+            // Open the native JAR (ZIP format)
+            QZipReader zipReader(jarPath);
+            if (zipReader.status() != QZipReader::NoError) {
+                qCWarning(logLaunch) << "Failed to open native JAR:" << jarPath;
+                continue;
+            }
+
+            // Get exclude patterns from library extract config
+            QStringList excludePatterns;
+            QJsonObject extract = lib[QStringLiteral("extract")].toObject();
+            QJsonArray excludeArr = extract[QStringLiteral("exclude")].toArray();
+            for (const QJsonValue& exVal : excludeArr) {
+                excludePatterns.append(exVal.toString());
+            }
+
+            // Extract native files only
+            const auto fileList = zipReader.fileInfoList();
+            for (const auto& fi : fileList) {
+                QString fileName = fi.filePath;
+
+                // Skip directories and META-INF
+                if (fi.isDir) continue;
+                if (fileName.startsWith(QStringLiteral("META-INF"))) continue;
+
+                // Only extract native library files
+                QString lower = fileName.toLower();
+                if (!lower.endsWith(QStringLiteral(".dll"))
+                    && !lower.endsWith(QStringLiteral(".so"))
+                    && !lower.endsWith(QStringLiteral(".dylib"))
+                    && !lower.endsWith(QStringLiteral(".jnilib"))) {
+                    continue;
+                }
+
+                // Check exclude patterns
+                bool excluded = false;
+                for (const QString& pattern : excludePatterns) {
+                    if (fileName.startsWith(pattern)) {
+                        excluded = true;
+                        break;
+                    }
+                }
+                if (excluded) continue;
+
+                // Write native file to natives directory
+                QByteArray data = zipReader.fileData(fileName);
+                if (!data.isEmpty()) {
+                    // Use only the basename to flatten directory structure
+                    QString baseName = QFileInfo(fileName).fileName();
+                    QString destPath = nativesDir + QStringLiteral("/") + baseName;
+                    QFile destFile(destPath);
+                    if (destFile.open(QIODevice::WriteOnly)) {
+                        destFile.write(data);
+                        destFile.close();
+                        extractedCount++;
+                    }
+                }
+            }
+            zipReader.close();
+        }
+    }
+
+    if (extractedCount > 0) {
+        qCInfo(logLaunch) << "Extracted" << extractedCount << "native files from"
+                          << jarCount << "JAR(s) to" << nativesDir;
+    } else if (jarCount > 0) {
+        qCDebug(logLaunch) << "No native files found in" << jarCount << "native JAR(s)";
+    }
+
+    return extractedCount > 0 || jarCount == 0;
+}
+
+// ============================================================
+// Private Helpers — Language Detection & options.txt
+// ============================================================
+
+void Launcher::ensureOptionsTxt(const QString& versionId)
+{
+    QString gameDir = m_gameDir + QStringLiteral("/versions/") + versionId
+                      + QStringLiteral("/game");
+    QString optionsPath = gameDir + QStringLiteral("/options.txt");
+
+    // Detect language from system locale
+    QString lang;
+    QLocale sysLocale = QLocale::system();
+    QLocale::Language sysLang = sysLocale.language();
+
+    switch (sysLang) {
+    case QLocale::Chinese:
+        lang = QStringLiteral("zh_cn");
+        break;
+    case QLocale::Japanese:
+        lang = QStringLiteral("ja_jp");
+        break;
+    case QLocale::Korean:
+        lang = QStringLiteral("ko_kr");
+        break;
+    default:
+        lang = QStringLiteral("en_us");
+        break;
+    }
+
+    QString langLine = QStringLiteral("lang:") + lang;
+
+    // Read existing options.txt
+    QStringList lines;
+    bool foundLang = false;
+
+    QFile file(optionsPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&file);
+        while (!stream.atEnd()) {
+            QString line = stream.readLine().trimmed();
+            if (line.startsWith(QStringLiteral("lang:"))) {
+                lines.append(langLine);
+                foundLang = true;
+            } else if (!line.isEmpty()) {
+                lines.append(line);
+            }
+        }
+        file.close();
+    }
+
+    if (!foundLang) {
+        lines.append(langLine);
+    }
+
+    // Write back
+    QDir().mkpath(gameDir);
+    QFile outFile(optionsPath);
+    if (outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        QTextStream out(&outFile);
+        for (const QString& line : lines) {
+            out << line << QStringLiteral("\n");
+        }
+        outFile.close();
+        qCDebug(logLaunch) << "options.txt updated, lang:" << lang
+                           << "file:" << optionsPath;
+    } else {
+        qCWarning(logLaunch) << "Failed to write options.txt:" << optionsPath;
+    }
 }
 
 } // namespace ShadowLauncher

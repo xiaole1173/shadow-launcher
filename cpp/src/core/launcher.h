@@ -40,6 +40,8 @@ private:
     bool validateLaunch(const QString& versionId, const QString& javaPath, QString& errorMsg) const;
     void forceKill();
     QStringList buildArgs(const QString& versionId, int maxMemoryMB, const QJsonObject& versionJson) const;
+    bool extractNatives(const QString& versionId, const QJsonObject& versionJson);
+    void ensureOptionsTxt(const QString& versionId);
 
     QProcess* m_process = nullptr;
     QString m_gameDir;
