@@ -351,9 +351,27 @@ void LaunchBackend::onLaunchStarted()
 
 void LaunchBackend::onLaunchProgress(const QString& message)
 {
+    static const QStringList skippable = {
+        QStringLiteral("Missing sound for event:"),
+        QStringLiteral("Missing language in:"),
+        QStringLiteral("Could not authorize you against Realms"),
+        QStringLiteral("Couldn't connect to realms"),
+    };
+
     m_launchProgress = qMin(m_launchProgress + 5, 95);
     m_launchStatus = message;
-    emit launchProgressChanged(m_launchProgress, message);
+
+    // 过滤 Minecraft 自身的无害噪音（Missing sound 等），仅记日志不弹进度
+    bool isNoise = false;
+    for (const QString& pattern : skippable) {
+        if (message.contains(pattern, Qt::CaseInsensitive)) {
+            isNoise = true;
+            break;
+        }
+    }
+    if (!isNoise) {
+        emit launchProgressChanged(m_launchProgress, message);
+    }
     emit logMessage(message);
 }
 

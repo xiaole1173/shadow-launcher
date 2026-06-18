@@ -295,13 +295,20 @@ Rectangle {
             }
         }
 
-        // Status text
+        // Status text (max 3 lines to prevent layout deformation)
         Text {
             id: statusLabel
             Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
+            Layout.maximumHeight: 48
             text: statusText
             color: checkFailed ? "#a08080" : "#9094a8"
             font.pixelSize: 12
+            elide: Text.ElideRight
+            maximumLineCount: 3
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignHCenter
+            clip: true
             visible: statusText !== ""
         }
 
