@@ -761,9 +761,42 @@ Rectangle {
                                 }
                             }
 
-                            // Re-download hint
+                            // Repair button — one-click re-download
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 32
+                                radius: 6
+                                color: "#15182A"
+                                border.color: "#2A3050"
+                                visible: page.verifyHasFailed && page.verifyFailedFiles.length > 0
+                                opacity: repairMouse.containsMouse ? 0.95 : 0.8
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "🔧 一键修复缺失文件"
+                                    font.pixelSize: 12
+                                    color: "#80c0ff"
+                                }
+
+                                MouseArea {
+                                    id: repairMouse
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        if (backend) {
+                                            backend.repairVersion(page.currentVersionId)
+                                            page.verifyFailedFiles = []
+                                            page.verifyHasFailed = false
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Hint below buttons
                             Text {
-                                text: "💡 清理后请返回下载页重新下载该版本"
+                                text: "💡 修复仅重新下载损坏/缺失的文件，已通过校验的文件不会重复下载"
                                 color: "#807880"
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap

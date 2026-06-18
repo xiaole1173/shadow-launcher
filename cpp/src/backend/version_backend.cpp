@@ -818,6 +818,38 @@ void VersionBackend::cleanCorruptVersion(const QString& versionId)
     emit logMessage(QStringLiteral("💡 请重新下载版本 %1 以恢复缺失文件").arg(versionId));
 }
 
+void VersionBackend::repairVersion(const QString& versionId)
+{
+    if (m_failedPathsCache.isEmpty()) {
+        emit logMessage(QStringLiteral("没有需要修复的文件"));
+        return;
+    }
+
+    int removed = 0;
+    for (const QString& path : m_failedPathsCache) {
+        if (QFileInfo::exists(path) && QFile::remove(path)) {
+            removed++;
+        }
+    }
+
+    emit logMessage(QStringLiteral("🔧 修复中: 已删除 %1 个损坏文件，开始重新下载...").arg(removed));
+
+    // 清除缓存，避免 cleanCorruptVersion 重复删除
+    m_failedPathsCache.clear();
+
+    // 重新下载版本 — 下载器会跳过 SHA1 匹配的文件，仅下载缺失/损坏的
+    if (m_installing && m_installVersionId == versionId) {
+        // 已在下载同一版本，先取消再重启
+        cancelInstall();
+        // 稍等取消完成后再安装
+        QTimer::singleShot(200, this, [this, versionId]() {
+            installVersion(versionId);
+        });
+    } else {
+        installVersion(versionId);
+    }
+}
+
 // ============================================================
 // Version management: rename
 // ============================================================

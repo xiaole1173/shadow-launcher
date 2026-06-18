@@ -77,6 +77,7 @@ public:
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cancelVerify();
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
+    Q_INVOKABLE void repairVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
