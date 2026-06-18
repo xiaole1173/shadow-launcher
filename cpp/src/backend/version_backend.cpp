@@ -56,9 +56,9 @@ VersionBackend::VersionBackend(QObject* parent)
                     QStringLiteral("获取版本列表失败: %1").arg(err));
             });
 
-    // Initial fetch — now fully async (loadFromCache runs in background thread)
-    refreshVersionList();
-    refreshInstalled();
+    // Defer initial fetch until setGameDir() sets m_dataDir
+    // (refreshVersionList needs data dir for cache, refreshInstalled needs game dir)
+    m_initialFetchDone = false;
 }
 
 VersionBackend::~VersionBackend() = default;
@@ -73,7 +73,15 @@ void VersionBackend::setGameDir(const QString& dir)
         m_gameDir = dir;
         m_versionMgr->setDataDir(dir + QStringLiteral("/.."));
         m_versionMgr->setGameDir(dir);
-        refreshInstalled();
+        // Defer disk I/O to event loop — avoid blocking construction
+        QTimer::singleShot(0, this, [this]() {
+            refreshInstalled();
+            // Initial version list fetch: now that data dir is set, cache works
+            if (!m_initialFetchDone) {
+                m_initialFetchDone = true;
+                refreshVersionList();
+            }
+        });
     }
 }
 

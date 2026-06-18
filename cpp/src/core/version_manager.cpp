@@ -25,6 +25,7 @@ namespace ShadowLauncher {
 // ============================================================
 
 static const char* MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+static const char* MIRROR_URL = "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json";
 
 static const char* CACHE_FILENAME = "versions.json";
 
@@ -84,34 +85,52 @@ void VersionManager::fetchVersions()
 
 void VersionManager::doNetworkFetch()
 {
-    // 2) Request Mojang API
+    // 2) Request Mojang API (with BMCLAPI fallback for China)
     QUrl mojangUrl(MANIFEST_URL);
     QNetworkRequest request(mojangUrl);
     request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
-    request.setTransferTimeout(15000);  // 15 second timeout
+    request.setTransferTimeout(8000);  // 8s timeout for primary
 
     QNetworkReply* reply = m_nam->get(request);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            const QString errMsg = reply->errorString();
-            emit fetchError(errMsg);
-            return;
+        // Check if primary succeeded
+        if (reply->error() == QNetworkReply::NoError) {
+            const QByteArray data = reply->readAll();
+            QVector<McVersion> parsed = parseManifest(data);
+            if (!parsed.isEmpty()) {
+                m_versions = parsed;
+                saveToCache();
+                emit versionsReady(m_versions);
+                return;
+            }
         }
 
-        const QByteArray data = reply->readAll();
-        QVector<McVersion> parsed = parseManifest(data);
+        // Primary failed — fallback to BMCLAPI mirror (faster in China)
+        QUrl mirrorUrl(MIRROR_URL);
+        QNetworkRequest mirrorReq(mirrorUrl);
+        mirrorReq.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
+        mirrorReq.setTransferTimeout(15000);
 
-        if (parsed.isEmpty()) {
-            emit fetchError(QStringLiteral("Failed to parse version manifest (Mojang API returned unexpected data)"));
-            return;
-        }
-
-        m_versions = parsed;
-        saveToCache();
-        emit versionsReady(m_versions);
+        QNetworkReply* mirrorReply = m_nam->get(mirrorReq);
+        connect(mirrorReply, &QNetworkReply::finished, this, [this, mirrorReply]() {
+            mirrorReply->deleteLater();
+            if (mirrorReply->error() != QNetworkReply::NoError) {
+                emit fetchError(mirrorReply->errorString());
+                return;
+            }
+            const QByteArray data = mirrorReply->readAll();
+            QVector<McVersion> parsed = parseManifest(data);
+            if (parsed.isEmpty()) {
+                emit fetchError(QStringLiteral("Failed to parse version manifest"));
+                return;
+            }
+            m_versions = parsed;
+            saveToCache();
+            emit versionsReady(m_versions);
+        });
     });
 }
 

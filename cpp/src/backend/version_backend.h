@@ -101,6 +101,7 @@ private:
     QString m_selectedVersion;
 
     bool m_installing = false;
+    bool m_initialFetchDone = false;
     int m_installProgress = 0;
     int m_installTotal = 0;
     QString m_installFile;

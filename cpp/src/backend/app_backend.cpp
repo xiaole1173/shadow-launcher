@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QTimer>
 
 namespace ShadowLauncher {
 
@@ -22,15 +23,16 @@ AppBackend::AppBackend(QObject *parent)
     QString exeDir = QCoreApplication::applicationDirPath();
     m_gameDir = exeDir + QStringLiteral("/.minecraft");
 
-    // Ensure directories exist
-    QDir().mkpath(m_dataDir);
-    QDir().mkpath(m_gameDir);
-    QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
-    QDir().mkpath(m_gameDir + QStringLiteral("/mods"));
-
-    emit logMessage(QStringLiteral("游戏目录: %1").arg(m_gameDir));
+    // Defer directory creation to event loop — avoid blocking construction
+    QTimer::singleShot(0, this, [this]() {
+        QDir().mkpath(m_dataDir);
+        QDir().mkpath(m_gameDir);
+        QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
+        QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
+        QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
+        QDir().mkpath(m_gameDir + QStringLiteral("/mods"));
+        emit logMessage(QStringLiteral("游戏目录: %1").arg(m_gameDir));
+    });
 }
 
 // ────────────────────────────────────────────────────────────
