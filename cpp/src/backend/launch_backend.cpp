@@ -351,6 +351,12 @@ void LaunchBackend::onLaunchStarted()
 
 void LaunchBackend::onLaunchProgress(const QString& message)
 {
+    // If already at 95% (game running), don't update progress anymore
+    if (m_launchProgress >= 95) {
+        emit logMessage(message);  // still log, but don't change UI
+        return;
+    }
+
     static const QStringList skippable = {
         QStringLiteral("Missing sound for event:"),
         QStringLiteral("Missing language in:"),
