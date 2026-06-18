@@ -85,7 +85,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     emit launchProgressChanged(5, QStringLiteral("检查 Java 可执行文件..."));
     if (!QFileInfo::exists(javaPath)) {
         m_launching = false;
-        emit launchProgressChanged(0, QString());
+        emit launchProgressChanged(0, QStringLiteral("Java 未找到"));
+        emit launchCheckFailed(QStringLiteral("Java 可执行文件"));
         emit launchStateChanged();
         emit logMessage(QStringLiteral("启动失败: Java 未找到"));
         return;
@@ -109,7 +110,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     QString versionDir = m_launcher->gameDir() + QStringLiteral("/versions/") + versionId;
     if (!QDir(versionDir).exists()) {
         m_launching = false;
-        emit launchProgressChanged(0, QString());
+        emit launchProgressChanged(0, QStringLiteral("版本目录不存在"));
+        emit launchCheckFailed(QStringLiteral("版本目录"));
         emit launchStateChanged();
         emit logMessage(QStringLiteral("启动失败: 版本目录不存在"));
         return;
@@ -119,7 +121,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     QString jarPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
     if (!QFileInfo::exists(jarPath)) {
         m_launching = false;
-        emit launchProgressChanged(0, QString());
+        emit launchProgressChanged(0, QStringLiteral("核心 Jar 缺失"));
+        emit launchCheckFailed(QStringLiteral("核心 Jar"));
         emit launchStateChanged();
         emit logMessage(QStringLiteral("启动失败: 版本核心文件缺失"));
         return;
@@ -133,7 +136,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
         QFile jsonFile(jsonPath);
         if (!jsonFile.open(QIODevice::ReadOnly)) {
             m_launching = false;
-            emit launchProgressChanged(0, QString());
+            emit launchProgressChanged(0, QStringLiteral("版本配置文件缺失"));
+            emit launchCheckFailed(QStringLiteral("版本配置"));
             emit launchStateChanged();
             emit logMessage(QStringLiteral("启动失败: 版本配置文件缺失"));
             return;

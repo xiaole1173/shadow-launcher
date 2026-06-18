@@ -191,14 +191,9 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         m_downloader->addTasks(tasks);
 
         // --- Version-level concurrency queue ---
-        // Enqueue this download; if a slot is available, start() is called immediately.
-        // If all 3 slots are full, the download will wait in the queue.
-        bool slotAvailable = ParallelDownloader::enqueueVersionDownload(m_downloader);
-        if (slotAvailable) {
-            m_downloader->start();
-        } else {
-            emit logMessage(QStringLiteral("⏳ 下载队列已满，等待中..."));
-        }
+        // Always start — enqueueVersionDownload handles concurrency limit
+        ParallelDownloader::enqueueVersionDownload(m_downloader);
+        m_downloader->start();
     };
 
     if (assetIdx.isEmpty()) { startTasks(); return; }

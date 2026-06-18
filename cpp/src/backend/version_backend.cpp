@@ -465,6 +465,7 @@ static QString sha1File(const QString& filePath)
 
 void VersionBackend::verifyVersion(const QString& versionId)
 {
+    setInstallPhase(QStringLiteral("verifying"));
     emit verifyStarted();
     emit logMessage(QStringLiteral("正在校验版本 %1...").arg(versionId));
 
@@ -475,6 +476,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
         emit logMessage(QStringLiteral("❌ 无法读取版本配置: %1").arg(jsonPath));
+        setInstallPhase(QStringLiteral("idle"));
         emit verifyFinished(false);
         return;
     }
@@ -485,6 +487,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
         emit logMessage(QStringLiteral("❌ 版本配置解析失败: %1").arg(parseErr.errorString()));
+        setInstallPhase(QStringLiteral("idle"));
         emit verifyFinished(false);
         return;
     }
@@ -609,6 +612,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
     } else {
         emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(total));
     }
+    setInstallPhase(QStringLiteral("idle"));
     emit verifyFinished(allPassed);
 }
 

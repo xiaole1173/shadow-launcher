@@ -49,6 +49,7 @@ signals:
 
     // ── Pre-launch check signals ──
     void launchCheckProgress(const QString& step);
+    void launchCheckFailed(const QString& phase);
     void launchCheckWarning(const QString& warning);
 
 private slots:
