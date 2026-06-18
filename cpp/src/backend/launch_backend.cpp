@@ -26,19 +26,15 @@ namespace ShadowLauncher {
 
 LaunchBackend::LaunchBackend(QObject* parent)
     : QObject(parent)
-    , m_launcher(new Launcher(this))
 {
     qCInfo(logLaunch) << "LaunchBackend constructed";
-
-    connect(m_launcher, &Launcher::launchStarted,
-            this, &LaunchBackend::onLaunchStarted);
-    connect(m_launcher, &Launcher::launchProgress,
-            this, &LaunchBackend::onLaunchProgress);
-    connect(m_launcher, &Launcher::launchFinished,
-            this, &LaunchBackend::onLaunchFinished);
 }
 
-LaunchBackend::~LaunchBackend() = default;
+LaunchBackend::~LaunchBackend()
+{
+    // Clean up all running launchers
+    killGameProcess();
+}
 
 // ============================================================
 // Configuration
@@ -46,18 +42,7 @@ LaunchBackend::~LaunchBackend() = default;
 
 void LaunchBackend::setGameDir(const QString& dir)
 {
-    if (m_launcher) {
-        m_launcher->setGameDir(dir);
-    }
-}
-
-// ============================================================
-// Property: isRunning
-// ============================================================
-
-bool LaunchBackend::isRunning() const
-{
-    return m_launcher && m_launcher->isRunning();
+    m_gameDir = dir;
 }
 
 // ============================================================
@@ -108,7 +93,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 void LaunchBackend::cancelLaunch()
 {
     m_cancelled = true;
-    m_launcher->killProcess();  // Kill immediately
+    if (m_checkTimer) m_checkTimer->stop();
 
     m_launching = false;
     m_launchProgress = 0;
@@ -124,15 +109,19 @@ void LaunchBackend::cancelLaunch()
 
 void LaunchBackend::killGameProcess()
 {
-    m_launcher->killProcess();  // Kill immediately with taskkill /F /T
-    emit logMessage(QStringLiteral("已强制结束游戏进程"));
+    for (Launcher* launcher : m_runningLaunchers) {
+        launcher->killProcess();  // Kill immediately with taskkill /F /T
+        launcher->deleteLater();
+    }
+    m_runningLaunchers.clear();
 
     m_launching = false;
     m_launchProgress = 0;
     m_launchStatus.clear();
     emit launchProgressChanged(0, QString());
+    emit runningCountChanged();
     emit isRunningChanged();
-    emit logMessage(QStringLiteral("已强制结束游戏进程"));
+    emit logMessage(QStringLiteral("已强制结束所有游戏进程"));
 }
 
 // ============================================================
@@ -228,6 +217,7 @@ void LaunchBackend::runNextCheck()
     case 0: {
         // Step 0 (10%): Java environment
         emit launchCheckProgress(QStringLiteral("检查 Java 环境..."));
+        m_launchProgress = 10;
         emit launchProgressChanged(10, QStringLiteral("检查 Java 环境..."));
         qCDebug(logLaunch) << "[PROGRESS] 10% - 检查 Java 环境...";
         if (!QFileInfo::exists(m_pendingJavaPath)) {
@@ -248,9 +238,10 @@ void LaunchBackend::runNextCheck()
     case 1: {
         // Step 1 (30%): Version core files
         emit launchCheckProgress(QStringLiteral("检查版本文件..."));
+        m_launchProgress = 30;
         emit launchProgressChanged(30, QStringLiteral("检查版本文件..."));
         qCDebug(logLaunch) << "[PROGRESS] 30% - 检查版本文件...";
-        QString versionDir = m_launcher->gameDir() + QStringLiteral("/versions/") + m_pendingVersionId;
+        QString versionDir = m_gameDir + QStringLiteral("/versions/") + m_pendingVersionId;
         if (!QDir(versionDir).exists()) {
             abortCheck(QStringLiteral("版本目录"), QStringLiteral("目录不存在")); return;
         }
@@ -274,6 +265,7 @@ void LaunchBackend::runNextCheck()
     case 2: {
         // Step 2 (50%): Dependencies
         emit launchCheckProgress(QStringLiteral("检查依赖文件..."));
+        m_launchProgress = 50;
         emit launchProgressChanged(50, QStringLiteral("检查依赖文件..."));
         qCDebug(logLaunch) << "[PROGRESS] 50% - 检查依赖文件...";
         QStringList missingLibs = checkVersionLibraries(m_pendingVersionId);
@@ -296,6 +288,7 @@ void LaunchBackend::runNextCheck()
     case 3: {
         // Step 3 (65%): Memory
         emit launchCheckProgress(QStringLiteral("检查内存分配..."));
+        m_launchProgress = 65;
         emit launchProgressChanged(65, QStringLiteral("检查内存分配..."));
         qCDebug(logLaunch) << "[PROGRESS] 65% - 检查内存分配...";
         if (m_pendingMaxMemory < 512)
@@ -307,9 +300,17 @@ void LaunchBackend::runNextCheck()
         // Step 4 (75%): Launch
         m_checkTimer->stop();
         emit launchCheckProgress(QStringLiteral("正在启动..."));
+        m_launchProgress = 75;
         emit launchProgressChanged(75, QStringLiteral("正在启动 Minecraft..."));
         qCDebug(logLaunch) << "[PROGRESS] 75% - 正在启动 Minecraft...";
-        m_launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory);
+        Launcher* launcher = new Launcher(this);
+        launcher->setGameDir(m_gameDir);
+        launcher->setProperty("launchVersion", m_pendingVersionId);
+        // Connect signals
+        connect(launcher, &Launcher::launchProgress, this, &LaunchBackend::onLaunchProgress);
+        connect(launcher, &Launcher::launchStarted, this, [this, launcher]() { handleLaunchStarted(launcher); });
+        connect(launcher, &Launcher::launchFinished, this, [this, launcher](bool ok, const QString& err) { handleLaunchFinished(launcher, ok, err); });
+        launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory);
         return;
     }
     default:
@@ -325,30 +326,35 @@ void LaunchBackend::runNextCheck()
 // Private Slots
 // ============================================================
 
-void LaunchBackend::onLaunchStarted()
+void LaunchBackend::handleLaunchStarted(Launcher* launcher)
 {
+    // Add to running list
+    m_runningLaunchers.append(launcher);
+    emit runningCountChanged();
+    emit isRunningChanged();
+
     // Phase 3: Process started, wait for window
     m_launchProgress = 80;
     m_launchStatus = QStringLiteral("进程已启动，等待窗口...");
     emit launchProgressChanged(80, m_launchStatus);
     qCDebug(logLaunch) << "[PROGRESS] 80% - 进程已启动，等待窗口...";
     emit minecraftStarted();
-    emit isRunningChanged();
-    qCInfo(logLaunch) << "Minecraft process started — waiting for window";
 
-    // After 3s, check if process still alive → window should be ready
-    QTimer::singleShot(3000, this, [this]() {
-        if (!m_launcher->isRunning()) {
-            // Process died before window appeared
+    // After 3s, check if process still alive
+    QTimer::singleShot(3000, this, [this, launcher]() {
+        if (!launcher->isRunning()) {
             emit launchProgressChanged(0, QStringLiteral("游戏进程意外退出"));
             emit launchCheckFailed(QStringLiteral("进程存活"), QStringLiteral("游戏进程在窗口出现前退出"));
-            qCCritical(logLaunch) << "Minecraft process died before window appeared";
             emit logMessage(QStringLiteral("启动失败: 进程意外退出"));
+            // Remove from list
+            m_runningLaunchers.removeOne(launcher);
+            launcher->deleteLater();
+            emit runningCountChanged();
+            if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
             m_launching = false;
             emit launchStateChanged();
             return;
         }
-
         // Phase 4: Window ready
         m_launchProgress = 100;
         m_launchStatus = QStringLiteral("启动完成");
@@ -356,11 +362,12 @@ void LaunchBackend::onLaunchStarted()
         qCDebug(logLaunch) << "[PROGRESS] 100% - 启动完成 (窗口就绪)";
         qCInfo(logLaunch) << "Minecraft launch complete";
         emit logMessage(QStringLiteral("Minecraft 启动完成"));
-
-        // Launch sequence done → allow new launches
-        m_launching = false;
-        qCDebug(logLaunch) << "[STATE] m_launching = false (launch sequence complete)";
-        emit launchStateChanged();
+        // Delay m_launching=false until after overlay animation
+        QTimer::singleShot(2200, this, [this]() {
+            m_launching = false;
+            qCDebug(logLaunch) << "[STATE] m_launching = false (after overlay animation)";
+            emit launchStateChanged();
+        });
     });
 }
 
@@ -386,8 +393,16 @@ void LaunchBackend::onLaunchProgress(const QString& message)
     emit logMessage(message);
 }
 
-void LaunchBackend::onLaunchFinished(bool success, const QString& errorMsg)
+void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg)
 {
+    // Remove from running list
+    m_runningLaunchers.removeOne(launcher);
+    launcher->deleteLater();
+    emit runningCountChanged();
+    if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
+
+    if (!m_launching) return;  // Already handled in handleLaunchStarted death check
+
     m_launching = false;
     if (success) {
         m_launchProgress = 100;
@@ -404,7 +419,6 @@ void LaunchBackend::onLaunchFinished(bool success, const QString& errorMsg)
     }
     emit launchStateChanged();
     emit minecraftStopped();
-    emit isRunningChanged();
 }
 
 // ============================================================
@@ -492,9 +506,8 @@ QString LaunchBackend::checkJavaArchitecture(const QString& javaPath)
 QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
 {
     QStringList missing;
-    if (!m_launcher) return missing;
 
-    const QString gameDir = m_launcher->gameDir();
+    const QString gameDir = m_gameDir;
     const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
     const QString libsDir = gameDir + QStringLiteral("/libraries");
@@ -597,9 +610,8 @@ bool LaunchBackend::checkVersionHasNatives(const QString& versionId)
 QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
 {
     QStringList missing;
-    if (!m_launcher) return missing;
 
-    const QString gameDir = m_launcher->gameDir();
+    const QString gameDir = m_gameDir;
     const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
 
@@ -705,4 +717,37 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
     return missing;
 }
 
+// ============================================================
+// Multi-instance: kill one game by index
+// ============================================================
+
+void LaunchBackend::killGameById(int index)
+{
+    if (index < 0 || index >= m_runningLaunchers.size()) return;
+    Launcher* launcher = m_runningLaunchers.at(index);
+    launcher->killProcess();
+    m_runningLaunchers.removeAt(index);
+    launcher->deleteLater();
+    emit runningCountChanged();
+    if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
+    emit logMessage(QStringLiteral("已结束游戏进程 #%1").arg(index));
+}
+
+// ============================================================
+// Multi-instance: list running games
+// ============================================================
+
+QVariantList LaunchBackend::runningGames() const
+{
+    QVariantList list;
+    for (int i = 0; i < m_runningLaunchers.size(); ++i) {
+        QVariantMap info;
+        info["index"] = i;
+        info["version"] = m_runningLaunchers[i]->property("launchVersion").toString();
+        list.append(info);
+    }
+    return list;
+}
+
 } // namespace ShadowLauncher
+
