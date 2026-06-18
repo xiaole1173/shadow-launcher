@@ -50,6 +50,7 @@ Rectangle {
 
     // Hide with flip-out animation — sets _dismissed so binding allows close
     function hide() {
+        console.log("[overlay] hide() called: checkFailed=" + checkFailed)
         checkFailed = false
         checkFailedPhase = ""
         checkFailedDetails = ""
@@ -61,13 +62,19 @@ Rectangle {
     Timer {
         id: hideTimer
         interval: 550
-        onTriggered: { _dismissed = true; _animatingOut = false }
+        onTriggered: {
+            console.log("[overlay] hideTimer fired -> _dismissed=true")
+            _dismissed = true; _animatingOut = false
+        }
     }
 
     Timer {
         id: closeTimer
         interval: 1500
-        onTriggered: { if (!checkFailed) hide() }
+        onTriggered: {
+            console.log("[overlay] closeTimer fired -> calling hide()")
+            if (!checkFailed) hide()
+        }
     }
 
     // Progress state
@@ -76,23 +83,6 @@ Rectangle {
     property string versionId: ""
     property string username: ""
     property int memory: 0
-
-    // Update progress state from backend on change
-    Timer {
-        id: progressPoller
-        interval: 200
-        running: overlay.visible
-        repeat: true
-        onTriggered: {
-            if (backend) {
-                progressValue = backend.launchProgress || 0
-                statusText = backend.launchStatus || "准备启动..."
-                versionId = backend.launchVersion || ""
-                username = backend.launchUsername || ""
-                memory = 0
-            }
-        }
-    }
 
     // Check failure state
     property bool checkFailed: false
@@ -107,13 +97,14 @@ Rectangle {
         enabled: backend !== null
 
         function onLaunchProgressChanged(pct, status) {
+            console.log("[overlay] onLaunchProgressChanged: " + pct + "% - " + status)
             progressValue = pct
             statusText = status
             if (pct === 0 && status && status.indexOf("失败") >= 0) {
                 checkFailed = true
             }
-            // Auto-close when launch completes
             if (pct === 100 && !checkFailed) {
+                console.log("[overlay] 100% detected -> starting closeTimer (1500ms)")
                 closeTimer.start()
             }
         }
@@ -129,8 +120,9 @@ Rectangle {
         }
 
         function onLaunchStateChanged() {
+            console.log("[overlay] onLaunchStateChanged: backend.launching=" + (backend ? backend.launching : "null"))
             if (backend && backend.launching) {
-                // New launch — reset dismiss
+                console.log("[overlay] New launch -> reset _dismissed")
                 _dismissed = false
                 checkFailed = false
                 checkFailedPhase = ""

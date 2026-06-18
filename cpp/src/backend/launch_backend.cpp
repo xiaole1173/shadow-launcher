@@ -205,6 +205,7 @@ QVariantMap LaunchBackend::getMemoryStatus()
 
 void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
 {
+    qCDebug(logLaunch) << "[PROGRESS] ABORT: " << phase << "—" << reason;
     m_launching = false;
     if (m_checkTimer) {
         m_checkTimer->stop();
@@ -228,6 +229,7 @@ void LaunchBackend::runNextCheck()
         // Step 0 (10%): Java environment
         emit launchCheckProgress(QStringLiteral("检查 Java 环境..."));
         emit launchProgressChanged(10, QStringLiteral("检查 Java 环境..."));
+        qCDebug(logLaunch) << "[PROGRESS] 10% - 检查 Java 环境...";
         if (!QFileInfo::exists(m_pendingJavaPath)) {
             abortCheck(QStringLiteral("Java 可执行文件"),
                        QStringLiteral("路径: %1").arg(m_pendingJavaPath));
@@ -247,6 +249,7 @@ void LaunchBackend::runNextCheck()
         // Step 1 (30%): Version core files
         emit launchCheckProgress(QStringLiteral("检查版本文件..."));
         emit launchProgressChanged(30, QStringLiteral("检查版本文件..."));
+        qCDebug(logLaunch) << "[PROGRESS] 30% - 检查版本文件...";
         QString versionDir = m_launcher->gameDir() + QStringLiteral("/versions/") + m_pendingVersionId;
         if (!QDir(versionDir).exists()) {
             abortCheck(QStringLiteral("版本目录"), QStringLiteral("目录不存在")); return;
@@ -272,6 +275,7 @@ void LaunchBackend::runNextCheck()
         // Step 2 (50%): Dependencies
         emit launchCheckProgress(QStringLiteral("检查依赖文件..."));
         emit launchProgressChanged(50, QStringLiteral("检查依赖文件..."));
+        qCDebug(logLaunch) << "[PROGRESS] 50% - 检查依赖文件...";
         QStringList missingLibs = checkVersionLibraries(m_pendingVersionId);
         if (!missingLibs.isEmpty()) {
             QStringList d = missingLibs.mid(0, 5);
@@ -293,6 +297,7 @@ void LaunchBackend::runNextCheck()
         // Step 3 (65%): Memory
         emit launchCheckProgress(QStringLiteral("检查内存分配..."));
         emit launchProgressChanged(65, QStringLiteral("检查内存分配..."));
+        qCDebug(logLaunch) << "[PROGRESS] 65% - 检查内存分配...";
         if (m_pendingMaxMemory < 512)
             emit launchCheckWarning(QStringLiteral("内存不足 512MB，可能影响运行"));
         qCInfo(logLaunch) << "Pre-launch checks all passed — starting Minecraft";
@@ -303,6 +308,7 @@ void LaunchBackend::runNextCheck()
         m_checkTimer->stop();
         emit launchCheckProgress(QStringLiteral("正在启动..."));
         emit launchProgressChanged(75, QStringLiteral("正在启动 Minecraft..."));
+        qCDebug(logLaunch) << "[PROGRESS] 75% - 正在启动 Minecraft...";
         m_launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory);
         return;
     }
@@ -325,6 +331,7 @@ void LaunchBackend::onLaunchStarted()
     m_launchProgress = 80;
     m_launchStatus = QStringLiteral("进程已启动，等待窗口...");
     emit launchProgressChanged(80, m_launchStatus);
+    qCDebug(logLaunch) << "[PROGRESS] 80% - 进程已启动，等待窗口...";
     emit minecraftStarted();
     emit isRunningChanged();
     qCInfo(logLaunch) << "Minecraft process started — waiting for window";
@@ -346,11 +353,13 @@ void LaunchBackend::onLaunchStarted()
         m_launchProgress = 100;
         m_launchStatus = QStringLiteral("启动完成");
         emit launchProgressChanged(100, m_launchStatus);
+        qCDebug(logLaunch) << "[PROGRESS] 100% - 启动完成 (窗口就绪)";
         qCInfo(logLaunch) << "Minecraft launch complete";
         emit logMessage(QStringLiteral("Minecraft 启动完成"));
 
         // Launch sequence done → allow new launches
         m_launching = false;
+        qCDebug(logLaunch) << "[STATE] m_launching = false (launch sequence complete)";
         emit launchStateChanged();
     });
 }
