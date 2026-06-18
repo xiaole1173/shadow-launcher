@@ -244,7 +244,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 void LaunchBackend::cancelLaunch()
 {
     m_cancelled = true;
-    m_launcher->cancel();
+    m_launcher->killProcess();  // Kill immediately
 
     m_launching = false;
     m_launchProgress = 0;
@@ -260,7 +260,8 @@ void LaunchBackend::cancelLaunch()
 
 void LaunchBackend::killGameProcess()
 {
-    m_launcher->cancel();
+    m_launcher->killProcess();  // Kill immediately with taskkill /F /T
+    emit logMessage(QStringLiteral("已强制结束游戏进程"));
 
     m_launching = false;
     m_launchProgress = 0;

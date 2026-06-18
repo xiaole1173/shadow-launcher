@@ -18,6 +18,7 @@ public:
     // ---- API ----
     void start(const QString& versionId, const QString& javaPath, int maxMemoryMB);
     void cancel();
+    void killProcess();
     bool isRunning() const { return m_process && m_process->state() != QProcess::NotRunning; }
 
     // ---- Configuration ----
