@@ -99,17 +99,9 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
-    // Load main QML from filesystem (precompiled qmlcachegen types embedded via qt_add_qml_module)
-    checkpoint(QStringLiteral("Loading QML..."));
-    QString qmlPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
-    QUrl url;
-    if (QFile::exists(qmlPath)) {
-        url = QUrl::fromLocalFile(qmlPath);
-        qCInfo(logApp) << "QML loaded from filesystem (precompiled):" << qmlPath;
-    } else {
-        url = QUrl(QStringLiteral("qrc:/ShadowLauncher/qml/MainWindow.qml"));
-        qCInfo(logApp) << "QML loaded from resources";
-    }
+    // Load main QML from embedded resources (precompiled via qt_add_qml_module)
+    checkpoint(QStringLiteral("Loading QML (precompiled qrc)..."));
+    QUrl url(QStringLiteral("qrc:/ShadowLauncher/qml/MainWindow.qml"));
     engine.load(url);
     checkpoint(QStringLiteral("QML engine.load() completed"));
 
