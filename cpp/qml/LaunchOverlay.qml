@@ -7,9 +7,10 @@ Rectangle {
     id: overlay
     color: "#0c0f16"
 
-    // Visibility driven purely by bindings — NEVER set visible imperatively
+    // Visibility: dismiss flag overrides all other conditions
+    property bool _dismissed: false
     property bool _animatingOut: false
-    visible: (backend ? backend.launching : false) || checkFailed || _animatingOut
+    visible: ((backend ? backend.launching : false) || checkFailed || _animatingOut) && !_dismissed
 
     onCheckFailedChanged: {
         if (checkFailed) {
@@ -47,12 +48,12 @@ Rectangle {
 
     Timer { id: showTimer; interval: 50; onTriggered: { flipped = true } }
 
-    // Hide with flip-out animation — uses _animatingOut to keep visible during animation
+    // Hide with flip-out animation — sets _dismissed so binding allows close
     function hide() {
         checkFailed = false
         checkFailedPhase = ""
         checkFailedDetails = ""
-        flipped = false  // triggers reverse flip
+        flipped = false
         _animatingOut = true
         hideTimer.start()
     }
@@ -60,7 +61,13 @@ Rectangle {
     Timer {
         id: hideTimer
         interval: 550
-        onTriggered: { _animatingOut = false }  // binding then sets visible=false naturally
+        onTriggered: { _dismissed = true; _animatingOut = false }
+    }
+
+    Timer {
+        id: closeTimer
+        interval: 1500
+        onTriggered: { if (!checkFailed) hide() }
     }
 
     // Progress state
@@ -102,9 +109,12 @@ Rectangle {
         function onLaunchProgressChanged(pct, status) {
             progressValue = pct
             statusText = status
-            // If progress resets to 0 with an error status, treat as failure
             if (pct === 0 && status && status.indexOf("失败") >= 0) {
                 checkFailed = true
+            }
+            // Auto-close when launch completes
+            if (pct === 100 && !checkFailed) {
+                closeTimer.start()
             }
         }
 
@@ -120,7 +130,8 @@ Rectangle {
 
         function onLaunchStateChanged() {
             if (backend && backend.launching) {
-                // New launch request — reset error state
+                // New launch — reset dismiss
+                _dismissed = false
                 checkFailed = false
                 checkFailedPhase = ""
                 checkFailedDetails = ""
