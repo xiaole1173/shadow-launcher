@@ -1,7 +1,8 @@
-﻿// Shadow Launcher 鈥?Version Manager
-// Phase 2: Core 鈥?Fetches Minecraft version manifest from Mojang API
+// Shadow Launcher — Version Manager
+// Phase 2: Core — Fetches Minecraft version manifest from Mojang API
 
 #include "version_manager.h"
+#include "../utils/logger.h"
 
 #include <QDir>
 #include <QFile>
@@ -15,7 +16,7 @@
 #include <QDateTime>
 #include <future>
 
-// nlohmann/json 鈥?parse Mojang official JSON (pure C++ parsing, avoid QJsonDocument perf issues with large files)
+// nlohmann/json — parse Mojang official JSON (pure C++ parsing, avoid QJsonDocument perf issues with large files)
 #include "../third_party/nlohmann/json.hpp"
 
 namespace ShadowLauncher {
@@ -51,11 +52,13 @@ void VersionManager::fetchVersions()
 {
     // 0) If already loaded (cache or previous fetch), emit immediately — no re-parse
     if (!m_versions.isEmpty()) {
+        qCInfo(logMgr) << "Version list already loaded — emitting immediately (" << m_versions.size() << "versions)";
         emit versionsReady(m_versions);
         return;
     }
 
     // 1) Try cache in background thread — 1000+ version JSON parsing blocks main thread
+    qCInfo(logMgr) << "Fetching version list — trying cache first";
     m_cacheLoadFuture = std::async(std::launch::async, [this]() {
         // Do all heavy work (file I/O + JSON parse) on background thread
         QVector<McVersion> parsed;
@@ -69,6 +72,7 @@ void VersionManager::fetchVersions()
             }
         }
         if (!parsed.isEmpty()) {
+            qCInfo(logMgr) << "Cache hit:" << parsed.size() << "versions loaded from" << path;
             // Assign m_versions on main thread to avoid data race
             QMetaObject::invokeMethod(this, [this, parsed]() {
                 m_versions = parsed;
@@ -77,6 +81,7 @@ void VersionManager::fetchVersions()
             return;
         }
         // Cache miss — trigger network fetch on main thread
+        qCInfo(logMgr) << "Cache miss — triggering network fetch";
         QMetaObject::invokeMethod(this, [this]() {
             doNetworkFetch();
         }, Qt::QueuedConnection);
@@ -91,6 +96,7 @@ void VersionManager::doNetworkFetch()
     request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
     request.setTransferTimeout(8000);  // 8s timeout for primary
 
+    qCInfo(logMgr) << "Network fetch: primary URL =" << PRIMARY_URL;
     QNetworkReply* reply = m_nam->get(request);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -103,32 +109,38 @@ void VersionManager::doNetworkFetch()
             if (!parsed.isEmpty()) {
                 m_versions = parsed;
                 saveToCache();
+                qCInfo(logMgr) << "Primary source succeeded:" << parsed.size() << "versions";
                 emit versionsReady(m_versions);
                 return;
             }
         }
 
         // Primary failed — fallback to Mojang official
+        qCWarning(logMgr) << "Primary source failed:" << reply->errorString() << "— falling back to Mojang";
         QUrl fallbackUrl(FALLBACK_URL);
         QNetworkRequest mirrorReq(fallbackUrl);
         mirrorReq.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
         mirrorReq.setTransferTimeout(15000);
 
+        qCInfo(logMgr) << "Network fetch: fallback URL =" << FALLBACK_URL;
         QNetworkReply* mirrorReply = m_nam->get(mirrorReq);
         connect(mirrorReply, &QNetworkReply::finished, this, [this, mirrorReply]() {
             mirrorReply->deleteLater();
             if (mirrorReply->error() != QNetworkReply::NoError) {
+                qCCritical(logMgr) << "Fallback source also failed:" << mirrorReply->errorString();
                 emit fetchError(mirrorReply->errorString());
                 return;
             }
             const QByteArray data = mirrorReply->readAll();
             QVector<McVersion> parsed = parseManifest(data);
             if (parsed.isEmpty()) {
+                qCCritical(logMgr) << "Fallback source returned unparseable data";
                 emit fetchError(QStringLiteral("Failed to parse version manifest"));
                 return;
             }
             m_versions = parsed;
             saveToCache();
+            qCInfo(logMgr) << "Fallback source succeeded:" << parsed.size() << "versions";
             emit versionsReady(m_versions);
         });
     });
@@ -334,6 +346,7 @@ bool VersionManager::loadFromCache()
         return false;
 
     m_versions = parsed;
+    qCInfo(logMgr) << "Cache loaded:" << parsed.size() << "versions from" << path;
     return true;
 }
 
@@ -369,6 +382,7 @@ void VersionManager::saveToCache() const
         const std::string dump = root.dump(2);  // 2-space indent
         file.write(dump.data(), static_cast<qint64>(dump.size()));
         file.close();
+        qCInfo(logMgr) << "Cache saved:" << m_versions.size() << "versions to" << path;
     }
 }
 

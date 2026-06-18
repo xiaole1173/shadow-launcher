@@ -1,4 +1,5 @@
 #include "launch_backend.h"
+#include "../utils/logger.h"
 #include "../core/launcher.h"
 
 #include <QDir>
@@ -25,6 +26,9 @@ namespace ShadowLauncher {
 LaunchBackend::LaunchBackend(QObject* parent)
     : QObject(parent)
     , m_launcher(new Launcher(this))
+{
+    qCInfo(logLaunch) << "LaunchBackend constructed";
+}
 {
     connect(m_launcher, &Launcher::launchStarted,
             this, &LaunchBackend::onLaunchStarted);
@@ -74,6 +78,9 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 
     m_launchStatus = QStringLiteral("正在准备...");
     emit launchStateChanged();
+    qCInfo(logLaunch) << "Launch requested:" << versionId
+                      << "java:" << javaPath
+                      << "memory:" << maxMemoryMB << "MB";
     emit logMessage(QStringLiteral("启动 %1 | %2").arg(versionId, username));
 
     // ============================================================
@@ -88,15 +95,18 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
         emit launchProgressChanged(0, QStringLiteral("Java 未找到"));
         emit launchCheckFailed(QStringLiteral("Java 可执行文件"));
         emit launchStateChanged();
+        qCCritical(logLaunch) << "Pre-launch check FAILED: Java executable not found";
         emit logMessage(QStringLiteral("启动失败: Java 未找到"));
         return;
     }
+    qCInfo(logLaunch) << "Pre-launch check passed: Java executable";
 
     // Check 2: Java architecture
     emit launchCheckProgress(QStringLiteral("检查 Java 架构..."));
     emit launchProgressChanged(10, QStringLiteral("检查 Java 架构..."));
     QString arch = checkJavaArchitecture(javaPath);
     if (arch == QStringLiteral("32")) {
+        qCWarning(logLaunch) << "32-bit Java detected — limiting memory to 1536 MB";
         if (maxMemoryMB > 1536) {
             maxMemoryMB = 1536;
             emit launchCheckWarning(
@@ -113,9 +123,11 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
         emit launchProgressChanged(0, QStringLiteral("版本目录不存在"));
         emit launchCheckFailed(QStringLiteral("版本目录"));
         emit launchStateChanged();
+        qCCritical(logLaunch) << "Pre-launch check FAILED: version dir not found:" << versionDir;
         emit logMessage(QStringLiteral("启动失败: 版本目录不存在"));
         return;
     }
+    qCInfo(logLaunch) << "Pre-launch check passed: version directory exists";
 
     // Check 4: Version JAR
     QString jarPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
@@ -124,9 +136,11 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
         emit launchProgressChanged(0, QStringLiteral("核心 Jar 缺失"));
         emit launchCheckFailed(QStringLiteral("核心 Jar"));
         emit launchStateChanged();
+        qCCritical(logLaunch) << "Pre-launch check FAILED: JAR not found:" << jarPath;
         emit logMessage(QStringLiteral("启动失败: 版本核心文件缺失"));
         return;
     }
+    qCInfo(logLaunch) << "Pre-launch check passed: version JAR exists";
 
     // Check 5: Version JSON validity
     emit launchCheckProgress(QStringLiteral("检查版本配置文件..."));
@@ -139,6 +153,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
             emit launchProgressChanged(0, QStringLiteral("版本配置文件缺失"));
             emit launchCheckFailed(QStringLiteral("版本配置"));
             emit launchStateChanged();
+            qCCritical(logLaunch) << "Pre-launch check FAILED: version JSON not found:" << jsonPath;
             emit logMessage(QStringLiteral("启动失败: 版本配置文件缺失"));
             return;
         }
@@ -146,26 +161,33 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
         QJsonDocument::fromJson(jsonFile.readAll(), &parseErr);
         jsonFile.close();
         if (parseErr.error != QJsonParseError::NoError) {
+            qCWarning(logLaunch) << "Version JSON parse warning:" << parseErr.errorString();
             emit launchCheckWarning(
                 QStringLiteral("版本配置文件格式错误: %1").arg(parseErr.errorString()));
         }
     }
+    qCInfo(logLaunch) << "Pre-launch check passed: version JSON valid";
 
     // Check 6: Natives
     emit launchCheckProgress(QStringLiteral("检查运行库..."));
     emit launchProgressChanged(40, QStringLiteral("检查运行库..."));
     if (!checkVersionHasNatives(versionId)) {
+        qCWarning(logLaunch) << "Pre-launch check: no natives found for" << versionId;
         emit launchCheckWarning(
             QStringLiteral("未检测到运行库，可能需要下载或解压 natives"));
+    } else {
+        qCInfo(logLaunch) << "Pre-launch check passed: natives found";
     }
 
     // Check 7: Memory limits
     emit launchCheckProgress(QStringLiteral("检查内存限制..."));
     emit launchProgressChanged(50, QStringLiteral("检查内存限制..."));
     if (maxMemoryMB < 512) {
+        qCWarning(logLaunch) << "Pre-launch check: memory < 512 MB may cause issues";
         emit launchCheckWarning(
             QStringLiteral("内存分配不足 512MB，可能影响游戏运行"));
     }
+    qCInfo(logLaunch) << "Pre-launch checks all passed — starting Minecraft";
 
     m_launcher->start(versionId, javaPath, maxMemoryMB);
 }
@@ -278,6 +300,7 @@ void LaunchBackend::onLaunchStarted()
     emit launchProgressChanged(10, m_launchStatus);
     emit minecraftStarted();
     emit isRunningChanged();
+    qCInfo(logLaunch) << "Minecraft process started";
     emit logMessage(QStringLiteral("Minecraft 进程已启动"));
 }
 
@@ -296,11 +319,13 @@ void LaunchBackend::onLaunchFinished(bool success, const QString& errorMsg)
         m_launchProgress = 100;
         m_launchStatus = QStringLiteral("启动完成");
         emit launchProgressChanged(100, QStringLiteral("启动完成"));
+        qCInfo(logLaunch) << "Minecraft launch succeeded";
         emit logMessage(QStringLiteral("Minecraft 启动成功"));
     } else {
         m_launchProgress = 0;
         m_launchStatus.clear();
         emit launchProgressChanged(0, errorMsg);
+        qCCritical(logLaunch) << "Minecraft launch failed:" << errorMsg;
         emit logMessage(QStringLiteral("启动失败: %1").arg(errorMsg));
     }
     emit launchStateChanged();

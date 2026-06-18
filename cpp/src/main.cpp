@@ -15,6 +15,7 @@
 #  include <windows.h>
 #endif
 
+#include "utils/logger.h"
 #include "backend/shadow_backend.h"
 
 using namespace ShadowLauncher;
@@ -50,6 +51,11 @@ int main(int argc, char *argv[])
     app.setOrganizationName("ShadowTeam");
     app.setOrganizationDomain("shadowteam.dev");
 
+    // ── Initialise structured logging ──
+    initLogger(QCoreApplication::applicationDirPath());
+    qCInfo(logApp) << "=== Shadow Launcher v" << app.applicationVersion() << "starting ==="
+                   << "PID:" << QCoreApplication::applicationPid();
+
     // Data directory
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataDir);
@@ -81,14 +87,18 @@ int main(int argc, char *argv[])
     QUrl url;
     if (QFile::exists(qmlPath)) {
         url = QUrl::fromLocalFile(qmlPath);
+        qCInfo(logApp) << "QML loaded from filesystem:" << qmlPath;
     } else {
         url = QUrl(QStringLiteral("qrc:/ShadowLauncher/qml/MainWindow.qml"));
+        qCInfo(logApp) << "QML loaded from resources";
     }
     engine.load(url);
 
     if (engine.rootObjects().isEmpty()) {
+        qCCritical(logApp) << "Failed to load any QML root objects — exiting";
         return -1;
     }
 
+    qCInfo(logApp) << "Event loop started";
     return app.exec();
 }

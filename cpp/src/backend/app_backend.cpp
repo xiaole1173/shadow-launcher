@@ -1,4 +1,5 @@
 #include "app_backend.h"
+#include "../utils/logger.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -31,6 +32,8 @@ AppBackend::AppBackend(QObject *parent)
         QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
         QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
         QDir().mkpath(m_gameDir + QStringLiteral("/mods"));
+        qCInfo(logApp) << "AppBackend constructed — data dir:" << m_dataDir
+                       << "game dir:" << m_gameDir;
         emit logMessage(QStringLiteral("游戏目录: %1").arg(m_gameDir));
     });
 }

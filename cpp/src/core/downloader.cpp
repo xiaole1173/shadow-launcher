@@ -1,7 +1,8 @@
-﻿// Shadow Launcher 鈥?Single-file Downloader implementation
+// Shadow Launcher — Single-file Downloader implementation
 // Phase 2.3
 
 #include "downloader.h"
+#include "../utils/logger.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -11,9 +12,9 @@
 
 namespace ShadowLauncher {
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 //  Construction / Destruction
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 
 Downloader::Downloader(QObject* parent)
     : QObject(parent)
@@ -29,9 +30,9 @@ Downloader::~Downloader()
     cancel();
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 //  Public API
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 
 void Downloader::start(const DownloadTask& task)
 {
@@ -44,6 +45,11 @@ void Downloader::start(const DownloadTask& task)
     m_retryCount  = 0;
     m_cancelled   = false;
     m_downloading = true;
+
+    qCInfo(logDownload) << "Download task created:" << task.name
+                        << "url:" << task.url
+                        << "sha1:" << (task.sha1.isEmpty() ? QStringLiteral("(none)") : task.sha1.left(16) + QStringLiteral("..."))
+                        << "retries:" << task.maxRetries;
 
     doStart();
 }
@@ -65,9 +71,9 @@ bool Downloader::isDownloading() const
     return m_downloading;
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 //  Internal: start the actual HTTP request
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 
 void Downloader::doStart()
 {
@@ -89,7 +95,7 @@ void Downloader::doStart()
             m_downloading = false;
             return;
         }
-        // SHA1 mismatch 鈫?remove stale file and re-download
+        // SHA1 mismatch → remove stale file and re-download
         QFile::remove(m_task.savePath);
     }
 
@@ -98,7 +104,7 @@ void Downloader::doStart()
     // Build request
     QNetworkRequest request(QUrl(m_task.url));
     request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-    // Follow redirects (including https鈫抙ttp, which is the safest default)
+    // Follow redirects (including https→http, which is the safest default)
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
 
@@ -125,13 +131,13 @@ void Downloader::doStart()
         return;
     }
 
-    // Arm 30鈥痵 timeout (reset on each readyRead)
+    // Arm 30 s timeout (reset on each readyRead)
     m_timeoutTimer->start(30000);
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 //  Slots
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 
 void Downloader::onReadyRead()
 {
@@ -163,7 +169,7 @@ void Downloader::onFinished()
         m_file->close();
     }
 
-    // Check HTTP status (e.g. 404, 500 鈥?not a network error but still a failure)
+    // Check HTTP status (e.g. 404, 500 — not a network error but still a failure)
     const int statusCode =
         m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     if (statusCode >= 400) {
@@ -179,20 +185,21 @@ void Downloader::onFinished()
             return;
         }
 
+        qCCritical(logDownload) << "Download failed:" << m_task.name << "—" << errorMsg;
         emit downloadFinished(m_task.name, false, errorMsg);
         cleanup();
         m_downloading = false;
         return;
     }
 
-    // Atomically rename .tmp 鈫?final path
+    // Atomically rename .tmp → final path
     const QString tmpPath = m_task.savePath + QStringLiteral(".tmp");
     if (QFile::exists(m_task.savePath)) {
         QFile::remove(m_task.savePath);
     }
     if (!QFile::rename(tmpPath, m_task.savePath)) {
         emit downloadFinished(m_task.name, false,
-                              QStringLiteral("Failed to rename temp file: %1 鈫?%2")
+                              QStringLiteral("Failed to rename temp file: %1 → %2")
                                   .arg(tmpPath, m_task.savePath));
         cleanup();
         m_downloading = false;
@@ -210,6 +217,7 @@ void Downloader::onFinished()
         }
     }
 
+    qCInfo(logDownload) << "Download completed:" << m_task.name;
     // Success
     emit downloadFinished(m_task.name, true, QString());
     cleanup();
@@ -230,6 +238,7 @@ void Downloader::onNetworkError(QNetworkReply::NetworkError /*error*/)
         return;
     }
 
+    qCCritical(logDownload) << "Download failed:" << m_task.name << "—" << errorMsg;
     emit downloadFinished(m_task.name, false, errorMsg);
     cleanup();
     m_downloading = false;
@@ -239,12 +248,27 @@ void Downloader::onDownloadProgress(qint64 received, qint64 total)
 {
     if (m_cancelled) return;
     emit downloadProgress(m_task.name, received, total);
+
+    // Log at 20% milestones
+    if (total > 0) {
+        static int lastMilestone = 0;
+        int pct = static_cast<int>(received * 100 / total);
+        int milestone = (pct / 20) * 20; // 0, 20, 40, 60, 80
+        if (milestone > lastMilestone && milestone > 0) {
+            lastMilestone = milestone;
+            qCInfo(logDownload) << "Download progress:" << m_task.name
+                                << milestone << "% (" << received / 1048576
+                                << "/" << total / 1048576 << "MB)";
+        }
+        if (pct == 0) lastMilestone = 0;
+        if (pct >= 100) lastMilestone = 0;
+    }
 }
 
 void Downloader::onTimeout()
 {
     if (m_reply) {
-        m_reply->abort();   // triggers onNetworkError 鈫?retry logic
+        m_reply->abort();   // triggers onNetworkError → retry logic
     }
 
     // If abort didn't trigger a retry (e.g. reply already gone), handle here
@@ -256,14 +280,14 @@ void Downloader::onTimeout()
     }
 
     emit downloadFinished(m_task.name, false,
-                          QStringLiteral("Download timed out after 30鈥痵"));
+                          QStringLiteral("Download timed out after 30 s"));
     cleanup();
     m_downloading = false;
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 //  Helpers
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ────────────────────────────────────────────────────────────
 
 void Downloader::cleanup()
 {
@@ -304,5 +328,3 @@ bool Downloader::verifySha1(const QString& filePath, const QString& expected)
 }
 
 } // namespace ShadowLauncher
-
-// Qt MOC 鈥?must be included at end of the .cpp when the header lives in the same TU

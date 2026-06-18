@@ -1,4 +1,5 @@
 #include "account_backend.h"
+#include "../utils/logger.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -24,6 +25,7 @@ AccountBackend::AccountBackend(QObject *parent)
 
     // Ensure skin cache directory exists
     QDir().mkpath(m_dataDir + QStringLiteral("/assets/skins"));
+    qCInfo(logAccount) << "AccountBackend constructed";
 
     loadOfflineHistory();
 }
@@ -56,6 +58,7 @@ void AccountBackend::offlineLogin(const QString &username)
 
     emit accountChanged();
     emit offlineHistoryChanged();
+    qCInfo(logAccount) << "Offline login:" << name << "UUID:" << m_uuid;
     emit logMessage(QStringLiteral("离线登录: %1").arg(name));
 
     downloadSkin(name);
@@ -74,6 +77,7 @@ void AccountBackend::logout()
     m_isOnline = false;
 
     emit accountChanged();
+    qCInfo(logAccount) << "Logged out";
     emit logMessage(QStringLiteral("已登出"));
 }
 
@@ -140,6 +144,7 @@ void AccountBackend::downloadSkin(const QString &username)
     QFileInfo cacheInfo(cachePath);
     if (cacheInfo.exists() && cacheInfo.size() > 0) {
         m_skinPath = cachePath;
+        qCInfo(logAccount) << "Skin loaded from cache:" << cachePath;
         emit skinReady();
         return;
     }
@@ -150,6 +155,7 @@ void AccountBackend::downloadSkin(const QString &username)
         if (QFileInfo::exists(placeholder)) {
             m_skinPath = placeholder;
         }
+        qCInfo(logAccount) << "Skin: offline placeholder for" << username;
         emit skinReady();
         return;
     }
@@ -158,7 +164,7 @@ void AccountBackend::downloadSkin(const QString &username)
     QString url = getSkinUrl(username);
     HttpClient::instance().get(url,
         // success callback
-        [this, cachePath](int status, const QByteArray &body) {
+        [this, username, cachePath](int status, const QByteArray &body) {
             if (status == 200 && !body.isEmpty()) {
                 // Ensure parent directory exists
                 QFileInfo fi(cachePath);
@@ -170,6 +176,8 @@ void AccountBackend::downloadSkin(const QString &username)
                     file.close();
                     m_skinPath = cachePath;
                 }
+                qCInfo(logAccount) << "Skin downloaded:" << username
+                                   << "status:" << status;
             } else {
                 // Fallback to placeholder
                 QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
@@ -180,7 +188,8 @@ void AccountBackend::downloadSkin(const QString &username)
             emit skinReady();
         },
         // error callback
-        [this](const QString & /*error*/) {
+        [this, username](const QString &error) {
+            qCWarning(logAccount) << "Skin download failed for" << username << ":" << error;
             QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
             if (QFileInfo::exists(placeholder)) {
                 m_skinPath = placeholder;

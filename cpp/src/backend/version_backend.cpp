@@ -3,6 +3,7 @@
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 
 #include "version_backend.h"
+#include "../utils/logger.h"
 #include "../core/version_manager.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
@@ -33,6 +34,8 @@ namespace ShadowLauncher {
 VersionBackend::VersionBackend(QObject* parent)
     : QObject(parent)
 {
+    qCInfo(logVersion) << "VersionBackend constructed";
+
     // ── VersionManager: fetch + cache version manifest ──
     m_versionMgr = new VersionManager(this);
     
@@ -117,6 +120,7 @@ QVector<McVersion> VersionBackend::cachedMcVersions() const
 
 void VersionBackend::refreshVersionList()
 {
+    qCInfo(logVersion) << "Refreshing version list";
     emit logMessage(QStringLiteral("正在获取版本列表..."));
     m_versionMgr->fetchVersions();
 }
@@ -294,6 +298,8 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                 setInstallPhase(QStringLiteral("准备中..."));
                 m_installVersionId = versionId;
                 setInstalling(true);
+                qCInfo(logVersion) << "Install started:" << versionId
+                                   << "mirror:" << mirror.name;
                 emit logMessage(
                     QStringLiteral("开始安装 %1...").arg(versionId));
 
@@ -380,6 +386,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
             + QStringLiteral("/.download_progress.json");
         QFile::remove(markerPath);
 
+        qCInfo(logVersion) << "Install completed:" << m_installVersionId;
         emit logMessage(
             QStringLiteral("✅ %1 安装完成")
                 .arg(m_installVersionId));
@@ -389,6 +396,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         QString errDetail = error.isEmpty()
                                 ? QStringLiteral("校验失败")
                                 : error;
+        qCCritical(logVersion) << "Verify failed for" << m_installVersionId << ":" << errDetail;
         emit logMessage(
             QStringLiteral("❌ %1 校验失败: %2")
                 .arg(m_installVersionId, errDetail));
@@ -397,6 +405,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         QString errDetail = error.isEmpty()
                                 ? QStringLiteral("未知错误")
                                 : error;
+        qCCritical(logVersion) << "Install failed for" << m_installVersionId << ":" << errDetail;
         emit logMessage(
             QStringLiteral("❌ %1 安装失败: %2")
                 .arg(m_installVersionId, errDetail));
@@ -467,6 +476,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 {
     setInstallPhase(QStringLiteral("verifying"));
     emit verifyStarted();
+    qCInfo(logVersion) << "Verify started:" << versionId;
     emit logMessage(QStringLiteral("正在校验版本 %1...").arg(versionId));
 
     const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
@@ -608,8 +618,10 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
     bool allPassed = (failed == 0);
     if (allPassed) {
+        qCInfo(logVersion) << "Verify completed — all" << total << "files passed";
         emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(total));
     } else {
+        qCCritical(logVersion) << "Verify completed —" << failed << "/" << total << "files failed";
         emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(total));
     }
     setInstallPhase(QStringLiteral("idle"));

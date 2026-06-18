@@ -40,6 +40,9 @@ target_include_directories(nlohmann_json INTERFACE src/third_party/nlohmann)
 set(SOURCES
     src/main.cpp
 
+    # Utilities (Phase 4 — structured logging)
+    src/utils/logger.cpp
+
     # Core services (Phase 2 — added progressively)
     src/core/http_client.cpp
     src/core/logger.cpp
@@ -66,6 +69,7 @@ set(SOURCES
 
 set(HEADERS
     src/utils/types.h
+    src/utils/logger.h
     src/core/http_client.h
     src/core/logger.h
     src/core/version_manager.h
