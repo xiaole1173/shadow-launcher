@@ -327,6 +327,7 @@ void ParallelDownloader::start()
     m_failedCount.storeRelaxed(0);
     m_downloadedBytes.storeRelaxed(0);
     m_nextTask.storeRelaxed(0);
+    m_failedFiles.clear();
     m_state = Running;
 
     // Estimate total bytes
@@ -345,7 +346,7 @@ void ParallelDownloader::start()
 
     if (m_tasks.isEmpty()) {
         m_state = Done;
-        emit allFinished(true, 0);
+        emit allFinished(true, 0, QStringList());
         emit stateChanged();
         return;
     }
@@ -529,6 +530,11 @@ void ParallelDownloader::runWorker()
         m_completedFiles.fetchAndAddRelaxed(1);
         if (!ok) {
             m_failedCount.fetchAndAddRelaxed(1);
+            // Thread-safe append to failed files list
+            {
+                QMutexLocker lock(&m_mutex);
+                m_failedFiles.append(task.name);
+            }
         }
 
         emit fileCompleted(task.name, ok);
@@ -557,7 +563,7 @@ void ParallelDownloader::runWorker()
             dequeueVersionDownload(this);
             processNextQueued();
 
-            emit allFinished(success, failed);
+            emit allFinished(success, failed, m_failedFiles);
             emit stateChanged();
             emit logMessage(success
                 ? QString::fromUtf8("✅ 全部完成")
@@ -742,8 +748,12 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
 }
 
 // ═══════════════════════════════════════════════════════════
-// Single-URL download with HTTP Range support
+// Single-URL download with HTTP Range support + retry
 // ═══════════════════════════════════════════════════════════
+
+static constexpr int kDownloadTimeoutMs = 30000;  // per-attempt timeout
+static constexpr int kMaxRetries = 3;             // max attempts per URL
+static const int kRetryDelaysMs[kMaxRetries] = {500, 1500, 3000}; // progressive backoff
 
 bool ParallelDownloader::downloadSingleUrl(const QString& url,
                                             const QString& destPath,
@@ -751,97 +761,129 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
                                             qint64 rangeEnd,
                                             qint64& bytesReceived)
 {
-    QNetworkAccessManager mgr;
-    QUrl qurl(url);
-    QNetworkRequest request(qurl);
-    request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-    request.setRawHeader("Connection", "Keep-Alive");
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
-    request.setTransferTimeout(60000);
+    bytesReceived = 0;
 
-    // HTTP Range header for chunked download
-    if (rangeStart > 0 || rangeEnd >= 0) {
-        QByteArray rangeHeader = QStringLiteral("bytes=%1-")
-                                     .arg(rangeStart).toUtf8();
-        if (rangeEnd >= 0)
-            rangeHeader += QString::number(rangeEnd).toUtf8();
-        request.setRawHeader("Range", rangeHeader);
-    }
+    for (int attempt = 1; attempt <= kMaxRetries; ++attempt) {
+        if (m_cancelled) return false;
 
-    QNetworkReply* reply = mgr.get(request);
-    if (!reply) return false;
-
-    QFile file(destPath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        reply->deleteLater();
-        return false;
-    }
-
-    QEventLoop loop;
-    QTimer timeoutTimer;
-    timeoutTimer.setSingleShot(true);
-
-    // Periodic cancel/pause poll
-    QTimer cancelTimer;
-    connect(&cancelTimer, &QTimer::timeout, [&]() {
-        if (m_cancelled) {
-            reply->abort();
-            loop.quit();
-            return;
-        }
-        if (m_paused) {
+        // Pause checkpoint
+        {
             QMutexLocker lock(&m_mutex);
             while (m_paused && !m_cancelled)
                 m_pauseCond.wait(&m_mutex);
         }
-    });
-    cancelTimer.start(200);
+        if (m_cancelled) return false;
 
-    // Data arrival
-    connect(reply, &QNetworkReply::readyRead, [&]() {
-        file.write(reply->readAll());
-        timeoutTimer.start(30000);
-    });
+        // --- Core download attempt ---
+        QNetworkAccessManager mgr;
+        QUrl qurl(url);
+        QNetworkRequest request(qurl);
+        request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        request.setRawHeader("Connection", "Keep-Alive");
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                             QNetworkRequest::NoLessSafeRedirectPolicy);
+        request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
+        request.setTransferTimeout(kDownloadTimeoutMs);
 
-    // Progress tracking
-    connect(reply, &QNetworkReply::downloadProgress,
-            [&](qint64 received, qint64 /*total*/) {
-        bytesReceived = received;
-    });
+        // HTTP Range header for chunked download
+        if (rangeStart > 0 || rangeEnd >= 0) {
+            QByteArray rangeHeader = QStringLiteral("bytes=%1-")
+                                         .arg(rangeStart).toUtf8();
+            if (rangeEnd >= 0)
+                rangeHeader += QString::number(rangeEnd).toUtf8();
+            request.setRawHeader("Range", rangeHeader);
+        }
 
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    connect(&timeoutTimer, &QTimer::timeout, &loop, [&]() {
-        reply->abort();
-        loop.quit();
-    });
+        QNetworkReply* reply = mgr.get(request);
+        if (!reply) {
+            if (attempt < kMaxRetries)
+                QThread::msleep(kRetryDelaysMs[attempt - 1]);
+            continue;
+        }
 
-    timeoutTimer.start(30000);
-    loop.exec();
+        QFile file(destPath);
+        if (!file.open(QIODevice::WriteOnly)) {
+            reply->deleteLater();
+            if (attempt < kMaxRetries)
+                QThread::msleep(kRetryDelaysMs[attempt - 1]);
+            continue;
+        }
 
-    cancelTimer.stop();
-    file.close();
+        QEventLoop loop;
+        QTimer timeoutTimer;
+        timeoutTimer.setSingleShot(true);
 
-    const int statusCode =
-        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    const QNetworkReply::NetworkError netErr = reply->error();
-    reply->deleteLater();
+        // Periodic cancel/pause poll
+        QTimer cancelTimer;
+        connect(&cancelTimer, &QTimer::timeout, [&]() {
+            if (m_cancelled) {
+                reply->abort();
+                loop.quit();
+                return;
+            }
+            if (m_paused) {
+                QMutexLocker lock(&m_mutex);
+                while (m_paused && !m_cancelled)
+                    m_pauseCond.wait(&m_mutex);
+            }
+        });
+        cancelTimer.start(200);
 
-    // Accept 200 (full file) or 206 (partial content for Range requests)
-    bool ok = false;
-    if (rangeStart > 0 || rangeEnd >= 0) {
-        ok = (statusCode == 206 || statusCode == 200)
-             && netErr == QNetworkReply::NoError;
-    } else {
-        ok = (statusCode == 200)
-             && netErr == QNetworkReply::NoError;
-    }
+        // Data arrival
+        connect(reply, &QNetworkReply::readyRead, [&]() {
+            file.write(reply->readAll());
+            timeoutTimer.start(kDownloadTimeoutMs);
+        });
 
-    if (!ok)
+        // Progress tracking
+        connect(reply, &QNetworkReply::downloadProgress,
+                [&](qint64 received, qint64 /*total*/) {
+            bytesReceived = received;
+        });
+
+        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        connect(&timeoutTimer, &QTimer::timeout, &loop, [&]() {
+            reply->abort();
+            loop.quit();
+        });
+
+        timeoutTimer.start(kDownloadTimeoutMs);
+        loop.exec();
+
+        cancelTimer.stop();
+        file.close();
+
+        const int statusCode =
+            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QNetworkReply::NetworkError netErr = reply->error();
+        reply->deleteLater();
+
+        // Accept 200 (full file) or 206 (partial content for Range requests)
+        bool ok = false;
+        if (rangeStart > 0 || rangeEnd >= 0) {
+            ok = (statusCode == 206 || statusCode == 200)
+                 && netErr == QNetworkReply::NoError;
+        } else {
+            ok = (statusCode == 200)
+                 && netErr == QNetworkReply::NoError;
+        }
+
+        if (ok) return true;
+
+        // Clean up failed attempt
         QFile::remove(destPath);
 
-    return ok;
+        // Don't retry on 404 (file genuinely missing on this server)
+        if (statusCode == 404) return false;
+
+        // Retry with backoff
+        if (attempt < kMaxRetries) {
+            bytesReceived = 0;
+            QThread::msleep(kRetryDelaysMs[attempt - 1]);
+        }
+    }
+
+    return false;
 }
 
 // ═══════════════════════════════════════════════════════════

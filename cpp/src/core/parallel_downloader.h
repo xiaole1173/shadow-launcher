@@ -69,7 +69,8 @@ signals:
                          qint64 downloadedBytes, qint64 totalBytes);
     void fileProgress(const QString& fileName, qint64 received, qint64 total);
     void fileCompleted(const QString& fileName, bool success);
-    void allFinished(bool success, int failedCount);
+    /// @param failedFiles  List of file names that failed after all mirror retries
+    void allFinished(bool success, int failedCount, const QStringList& failedFiles);
     void logMessage(const QString& msg);
     void stateChanged();
 
@@ -142,6 +143,9 @@ private:
 
     // Checkpoint directory for resume info
     QString m_checkpointDir;
+
+    // Failed file names collected during download (for reporting)
+    QStringList m_failedFiles;
 
     // ------------------------------------------------------------------
     // Version-level concurrency: static queue across ParallelDownloader instances

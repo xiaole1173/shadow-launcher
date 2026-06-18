@@ -5,6 +5,10 @@
 #include <QStringList>
 #include <QVariantList>
 #include <QTimer>
+#include <QElapsedTimer>
+#include <QQueue>
+#include <QPair>
+#include <memory>
 
 #include "../utils/types.h"
 
@@ -44,6 +48,9 @@ public:
     QString installFile() const { return m_installFile; }
     QString installVersionId() const { return m_installVersionId; }
     QString installPhase() const { return m_installPhase; }
+    qint64 installSpeed() const { return m_installSpeed; }
+    qint64 installBytesDownloaded() const { return m_installBytesDl; }
+    qint64 installBytesTotal() const { return m_installBytesTotal; }
     int verifyChecked() const { return m_verifyChecked; }
     int verifyTotal() const { return m_verifyTotal; }
     bool isInstallPaused() const { return m_installPaused; }
@@ -61,10 +68,12 @@ public:
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void pauseInstall();
     Q_INVOKABLE void resumeInstall();
+    Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
 
     // ── Version management operations ──
     Q_INVOKABLE void verifyVersion(const QString& versionId);
+    Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
@@ -80,6 +89,7 @@ signals:
     void installBytesProgress(qint64 dl, qint64 total);
     void installPhaseChanged(const QString& phase);
     void installFinished(bool success);
+    void installSpeedChanged(qint64 speed);
     void logMessage(const QString& msg);
 
     // ── Version management signals ──
@@ -87,17 +97,23 @@ signals:
     void verifyProgress(int checked, int total);
     void verifyProgressChanged(int checked, int total);
     void verifyFinished(bool allPassed);
+    void verifyFailedFiles(const QStringList& failedFiles);
     void installPausedChanged(bool paused);
 
 private slots:
     void onVersionDownloadProgress(int cf, int tf, qint64 db, qint64 tb);
     void onVersionDownloadLog(const QString& msg);
     void onVersionDownloadFinished(bool success, const QString& error);
+    void processVerifyBatch();
 
 private:
     void updateInstalledList();
     void setInstalling(bool v);
     void setInstallPhase(const QString& phase);
+
+    // Batch verify state (async processing via QTimer::singleShot)
+    struct VerifyBatchState;
+    std::unique_ptr<VerifyBatchState> m_verifyState;
 
     VersionManager* m_versionMgr = nullptr;
     VersionDownloader* m_downloader = nullptr;
@@ -115,9 +131,15 @@ private:
     QString m_installFile;
     qint64 m_installBytesDl = 0;
     qint64 m_installBytesTotal = 0;
+    qint64 m_installSpeed = 0;
     QString m_installPhase = "idle";
     QString m_installVersionId;
     int m_verifyChecked = 0;
+    // Speed calculation
+    QElapsedTimer m_speedTimer;
+    qint64 m_lastSpeedBytes = 0;
+    // Install queue
+    QQueue<QPair<QString, int>> m_installQueue;
     int m_verifyTotal = 0;
     bool m_installPaused = false;
 };

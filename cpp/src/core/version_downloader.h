@@ -86,8 +86,13 @@ signals:
     void downloadFinished(bool success, const QString& errorMsg);
     void stateChanged();
 
+    /// Emitted when files fail to download (all mirrors exhausted).
+    /// QML can use this to show a retry UI or display missing file lists.
+    void downloadFailedFiles(const QStringList& failedFiles);
+
 private slots:
-    void onAllFinished(bool success, int failedCount);
+    void onAllFinished(bool success, int failedCount,
+                       const QStringList& failedFiles);
 
 private:
     // --- Pipeline steps ---

@@ -288,11 +288,19 @@ bool VersionDownloader::isRunning() const
 // allFinished → verify → emit downloadFinished
 // ═══════════════════════════════════════════════════════════
 
-void VersionDownloader::onAllFinished(bool success, int failedCount)
+void VersionDownloader::onAllFinished(bool success, int failedCount,
+                                        const QStringList& failedFiles)
 {
     if (m_state == Cancelled) {
         emit downloadFinished(false, QStringLiteral("下载已取消"));
         return;
+    }
+
+    // Report failed files to QML (even before verify — allows partial-resume UI)
+    if (!failedFiles.isEmpty()) {
+        emit downloadFailedFiles(failedFiles);
+        emit logMessage(QStringLiteral("⚠ 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
+                            .arg(failedFiles.size()));
     }
 
     // --- Integrity verification ---
@@ -311,6 +319,9 @@ void VersionDownloader::onAllFinished(bool success, int failedCount)
             emit logMessage(QStringLiteral("  缺失: %1").arg(missing[i]));
         if (missing.size() > 10)
             emit logMessage(QStringLiteral("  ... 共 %1 个").arg(missing.size()));
+
+        // Emit missing files too so QML can show a retry/download-missing button
+        emit downloadFailedFiles(missing);
 
         m_state = Failed;
         emit stateChanged();
@@ -422,7 +433,20 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         jarTask.savePath  = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
         jarTask.sha1      = client.value(QStringLiteral("sha1")).toString();
         jarTask.totalBytes = static_cast<qint64>(client.value(QStringLiteral("size")).toDouble());
-        jarTask.mirrors   = { origUrl };
+
+        // Build fallback mirrors: MCBBS jar host + Mojang direct
+        QStringList jarMirrors;
+        jarMirrors << origUrl;  // Mojang direct (final fallback)
+        for (const MirrorSource& m : MirrorSource::allMirrors()) {
+            if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
+                QString altUrl = QString(origUrl).replace(
+                    QStringLiteral("launcher.mojang.com"), m.jarHost);
+                if (!jarMirrors.contains(altUrl))
+                    jarMirrors << altUrl;
+            }
+        }
+        jarTask.mirrors = jarMirrors;
+
         tasks.append(jarTask);
         m_taskDestPaths.append(jarTask.savePath);
     }
@@ -438,17 +462,20 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
     // --- asset objects ---
     const QString objectsDir = m_minecraftDir + QStringLiteral("/assets/objects");
 
-    // Build extra mirror resource base (for fallback)
-    QString altResourceHost;
+    // Build ordered mirror base URL list for assets.
+    // Each base includes the full path prefix (e.g. /assets/) — no host-only construction.
+    QStringList assetMirrorBases;
+    // Primary mirror (selected by user)
+    assetMirrorBases << m_mirror.resourceBase;
+    // Alternate mirrors (MCBBS etc.), excluding Mojang official
     for (const MirrorSource& m : MirrorSource::allMirrors()) {
-        if (m.name != m_mirror.name) {
-            altResourceHost = QUrl(m.resourceBase).host();
-            break;
+        if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
+            if (!assetMirrorBases.contains(m.resourceBase))
+                assetMirrorBases << m.resourceBase;
         }
     }
-
-    const QString primaryHost = QUrl(m_mirror.resourceBase).host();
-    const QString defaultHost = QStringLiteral("resources.download.minecraft.net");
+    // Mojang official always as final fallback
+    const QString mojangAssetBase = QStringLiteral("https://resources.download.minecraft.net");
 
     for (auto it = assetObjects.begin(); it != assetObjects.end(); ++it) {
         const QJsonObject& obj = it.value();
@@ -458,19 +485,12 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
                              + QStringLiteral("/") + sha1;
 
         QStringList mirrors;
-        // Primary: use selected mirror's resource base (BMCLAPI by default)
-        if (primaryHost != defaultHost) {
-            mirrors << QStringLiteral("https://%1/%2/%3")
-                           .arg(primaryHost, prefix, sha1);
+        // All mirror bases: they all use <base>/<prefix>/<hash> pattern
+        for (const QString& base : assetMirrorBases) {
+            mirrors << QStringLiteral("%1/%2/%3").arg(base, prefix, sha1);
         }
-        mirrors << QStringLiteral("https://resources.download.minecraft.net/%1/%2")
-                       .arg(prefix, sha1);
-
-        if (!altResourceHost.isEmpty() && altResourceHost != primaryHost
-            && altResourceHost != defaultHost) {
-            mirrors << QStringLiteral("https://%1/%2/%3")
-                           .arg(altResourceHost, prefix, sha1);
-        }
+        // Mojang official always as final fallback
+        mirrors << QStringLiteral("%1/%2/%3").arg(mojangAssetBase, prefix, sha1);
 
         DownloadTask assetTask;
         assetTask.name       = sha1;   // assets identified by hash
@@ -544,7 +564,24 @@ void VersionDownloader::addLibraryTasks(const QJsonObject& lib,
         task.savePath  = m_minecraftDir + QStringLiteral("/libraries/") + path;
         task.sha1      = art.value(QStringLiteral("sha1")).toString();
         task.totalBytes = static_cast<qint64>(art.value(QStringLiteral("size")).toDouble());
-        task.mirrors   = { url };
+
+        // Build fallback mirrors for resilience:
+        //   mirror[0]: primary (already set as task.url via buildMirrorUrl)
+        //   mirror[1..]: alternate mirrors (MCBBS, etc.)
+        //   mirror[last]: Mojang direct (final fallback)
+        QStringList libMirrors;
+        libMirrors << url;  // Mojang direct (original URL)
+        for (const MirrorSource& m : MirrorSource::allMirrors()) {
+            if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
+                // Replace the Mojang library host with the alternate mirror's libraryBase
+                QString altUrl = QString(url).replace(
+                    QStringLiteral("https://libraries.minecraft.net"),
+                    m.libraryBase);
+                if (altUrl != task.url && !libMirrors.contains(altUrl))
+                    libMirrors << altUrl;
+            }
+        }
+        task.mirrors = libMirrors;
 
         tasks.append(task);
         m_taskDestPaths.append(task.savePath);
@@ -585,22 +622,31 @@ QString VersionDownloader::buildMirrorUrl(const QString& originalUrl,
     if (originalUrl.isEmpty() || m_mirror.name == QStringLiteral("Mojang 官方"))
         return originalUrl;
 
-    struct Replacement { QString from; QString to; };
+    // Replace the full Mojang URL prefix (scheme+host) with the mirror's base URL.
+    // Uses startsWith + mid() to preserve trailing paths and avoid double-scheme bugs
+    // that occur with plain .replace() on host-only substrings.
 
-    // libraryBase and resourceBase include "https://" → strip for host-only replace
-    const QString libHost  = QUrl(m_mirror.libraryBase).host();
-    const QString resHost  = QUrl(m_mirror.resourceBase).host();
+    // Jar downloads: launcher.mojang.com → mirror jar host
+    const QString mojangJar = QStringLiteral("https://launcher.mojang.com");
+    if (originalUrl.startsWith(mojangJar))
+        return QStringLiteral("https://%1").arg(m_mirror.jarHost)
+               + originalUrl.mid(mojangJar.length());
 
-    QList<Replacement> reps;
-    reps.append({ QStringLiteral("launcher.mojang.com"),             m_mirror.jarHost });
-    reps.append({ QStringLiteral("launchermeta.mojang.com"),         m_mirror.versionMetaHost });
-    reps.append({ QStringLiteral("libraries.minecraft.net"),         libHost });
-    reps.append({ QStringLiteral("resources.download.minecraft.net"), resHost });
+    // Version metadata: launchermeta.mojang.com → mirror versionMeta host
+    const QString mojangMeta = QStringLiteral("https://launchermeta.mojang.com");
+    if (originalUrl.startsWith(mojangMeta))
+        return QStringLiteral("https://%1").arg(m_mirror.versionMetaHost)
+               + originalUrl.mid(mojangMeta.length());
 
-    for (const auto& rep : reps) {
-        if (originalUrl.contains(rep.from))
-            return QString(originalUrl).replace(rep.from, rep.to);
-    }
+    // Libraries: libraries.minecraft.net → mirror libraryBase (includes /maven/ path)
+    const QString mojangLib = QStringLiteral("https://libraries.minecraft.net");
+    if (originalUrl.startsWith(mojangLib))
+        return m_mirror.libraryBase + originalUrl.mid(mojangLib.length());
+
+    // Resource assets: resources.download.minecraft.net → mirror resourceBase (includes /assets/ path)
+    const QString mojangRes = QStringLiteral("https://resources.download.minecraft.net");
+    if (originalUrl.startsWith(mojangRes))
+        return m_mirror.resourceBase + originalUrl.mid(mojangRes.length());
 
     return originalUrl;
 }
