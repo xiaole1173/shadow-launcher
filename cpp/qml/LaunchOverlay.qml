@@ -122,8 +122,10 @@ Rectangle {
         function onLaunchStateChanged() {
             console.log("[overlay] onLaunchStateChanged: backend.launching=" + (backend ? backend.launching : "null"))
             if (backend && backend.launching) {
-                console.log("[overlay] New launch -> reset _dismissed")
+                console.log("[overlay] New launch -> reset _dismissed + progress")
                 _dismissed = false
+                progressValue = 0
+                statusText = "准备启动..."
                 checkFailed = false
                 checkFailedPhase = ""
                 checkFailedDetails = ""

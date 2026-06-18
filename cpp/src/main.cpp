@@ -39,23 +39,6 @@ public:
                 return true;
             }
 
-            // ── Taskbar click: restore if minimized, minimize if already active ──
-            if (msg->message == WM_ACTIVATE && LOWORD(msg->wParam) == WA_CLICKACTIVE) {
-                if (targetWindow) {
-                    if (targetWindow->windowState() == Qt::WindowMinimized) {
-                        targetWindow->showNormal();
-                        targetWindow->raise();
-                        targetWindow->requestActivate();
-                        return true;
-                    }
-                    // Window already active & not minimized → minimize
-                    if (GetForegroundWindow() == msg->hwnd && !IsIconic(msg->hwnd)) {
-                        ShowWindow(msg->hwnd, SW_MINIMIZE);
-                        return true;
-                    }
-                }
-            }
-
             // ── Also handle system restore (taskbar thumbnail preview context menu) ──
             if (msg->message == WM_SYSCOMMAND && (msg->wParam & 0xFFF0) == SC_RESTORE) {
                 if (targetWindow) {

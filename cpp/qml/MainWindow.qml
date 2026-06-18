@@ -19,11 +19,13 @@ Window {
     property bool showVersionSettings: false
     property var offlineHistory: []
     property bool pageLoading: false
+    property var runningListModel: []
 
     Component.onCompleted: {
         // refreshVersionList() 已由 VersionBackend 构造时异步触发，此处不重复
         if (backend) {
             backend.refreshInstalled()
+            runningListModel = backend.runningGames()
         }
     }
 
@@ -179,6 +181,48 @@ Window {
                         }
                     }
                     Item { Layout.fillHeight: true }
+
+                    // ═══ Running Games ═══
+                    Text {
+                        visible: backend ? backend.runningCount > 0 : false
+                        Layout.leftMargin: 16; Layout.topMargin: 4
+                        text: "运行中 (" + (backend ? backend.runningCount : 0) + ")"
+                        font.pixelSize: 10; color: "#6080e8"
+                    }
+                    Repeater {
+                        id: runningList
+                        model: appWindow.runningListModel
+                        Item {
+                            width: parent ? parent.width - 16 : 180; Layout.fillWidth: true; height: 32
+                            Rectangle {
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                                color: runningItemHover.containsMouse ? "#151a26" : "#0d1018"
+                                radius: 4
+                                RowLayout {
+                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6
+                                    Text {
+                                        text: modelData.version || "?"
+                                        font.pixelSize: 11; color: "#d4dcf0"
+                                        elide: Text.ElideRight; Layout.fillWidth: true
+                                    }
+                                    Rectangle {
+                                        width: 20; height: 20; radius: 10
+                                        color: runningKillHover.containsMouse ? "#e06060" : "#c05050"
+                                        scale: runningKillHover.containsMouse ? 1.15 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                        Text { anchors.centerIn: parent; text: "\u2715"; font.pixelSize: 10; color: "#fff" }
+                                        MouseArea {
+                                            id: runningKillHover
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { if (backend) backend.killGameById(modelData.index) }
+                                        }
+                                    }
+                                }
+                            }
+                            HoverHandler { id: runningItemHover }
+                        }
+                    }
+
                     Text { Layout.alignment: Qt.AlignHCenter; text: "v0.3.0"; font.pixelSize: 10; color: "#303440" }
                 }
 
@@ -2053,6 +2097,7 @@ Window {
         function onLogMessage(msg) { console.log("[backend]", msg) }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
+        function onRunningCountChanged() { appWindow.runningListModel = backend ? backend.runningGames() : [] }
     }
 
     // Confirm Dialog ===
