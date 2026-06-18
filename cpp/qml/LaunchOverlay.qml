@@ -6,15 +6,19 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     color: "#0c0f16"
-    visible: _shouldShow
 
-    // Internal visibility — follows backend.launching unless error
-    property bool _shouldShow: (backend ? backend.launching : false) || checkFailed
-    on_ShouldShowChanged: {
-        if (_shouldShow) {
-            // Reset animation state
-            flipped = false
+    // Visibility driven purely by bindings — NEVER set visible imperatively
+    property bool _animatingOut: false
+    visible: (backend ? backend.launching : false) || checkFailed || _animatingOut
+
+    onCheckFailedChanged: {
+        if (checkFailed) {
+            // Show error: keep visible, stop any closing
+            _animatingOut = false
             hideTimer.stop()
+        } else if (!_animatingOut && !(backend && backend.launching)) {
+            // No reason to stay visible — start exit animation if this was a normal dismiss
+            // (handled by hide() function)
         }
     }
 
@@ -33,7 +37,8 @@ Rectangle {
 
     onVisibleChanged: {
         if (visible) {
-            hideTimer.stop()  // 取消旧关闭定时器
+            _animatingOut = false
+            hideTimer.stop()
             showTimer.stop()
             flipped = false
             showTimer.start()
@@ -47,19 +52,20 @@ Rectangle {
 
     Timer { id: showTimer; interval: 50; onTriggered: { flipped = true } }
 
-    // Hide with flip-out animation
+    // Hide with flip-out animation — uses _animatingOut to keep visible during animation
     function hide() {
         checkFailed = false
         checkFailedPhase = ""
         checkFailedDetails = ""
         flipped = false  // triggers reverse flip
+        _animatingOut = true
         hideTimer.start()
     }
 
     Timer {
         id: hideTimer
-        interval: 550  // slightly longer than animation (500ms)
-        onTriggered: { _shouldShow = false }
+        interval: 550
+        onTriggered: { _animatingOut = false }  // binding then sets visible=false naturally
     }
 
     // Progress state
