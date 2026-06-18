@@ -243,6 +243,10 @@ public:
     Q_INVOKABLE void setGameArgs(const QString&) {}  // stub
     Q_INVOKABLE void setJvmArgs(const QString&) {}   // stub
 
+    // ── Function versions of property-only getters (QML calls with parens) ──
+    // (listMods/listResourcePacks/listSaves are Q_PROPERTY readers above — no duplicate needed)
+    Q_INVOKABLE bool isModdedVersion(const QString& versionId) const { Q_UNUSED(versionId); return false; }
+
     // ── Path/document stubs ──
     Q_INVOKABLE void openJavaFileDialog() { browseJava(); }
     Q_INVOKABLE void pickJava() { browseJava(); }

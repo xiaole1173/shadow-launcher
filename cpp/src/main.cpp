@@ -10,6 +10,8 @@
 #include <QFile>
 #include <QWindow>
 #include <QAbstractNativeEventFilter>
+#include <QElapsedTimer>
+#include <QThread>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
@@ -42,9 +44,18 @@ public:
 
 int main(int argc, char *argv[])
 {
+    QElapsedTimer startupTimer;
+    startupTimer.start();
+    auto checkpoint = [&](const QString& stage) {
+        qCInfo(logApp) << "[STARTUP +" << startupTimer.elapsed() << "ms] " << stage
+                       << "(thread:" << QThread::currentThreadId() << ")";
+    };
+
     // Qt attribute setup
+    checkpoint(QStringLiteral("Setting Qt attributes..."));
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication app(argc, argv);
+    checkpoint(QStringLiteral("QGuiApplication constructed"));
 
     app.setApplicationName("Shadow Launcher");
     app.setApplicationVersion("1.0.0");
@@ -53,18 +64,22 @@ int main(int argc, char *argv[])
 
     // ── Initialise structured logging ──
     initLogger(QCoreApplication::applicationDirPath());
+    checkpoint(QStringLiteral("Logger initialized"));
     qCInfo(logApp) << "=== Shadow Launcher v" << app.applicationVersion() << "starting ==="
                    << "PID:" << QCoreApplication::applicationPid();
 
     // Data directory
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataDir);
+    checkpoint(QStringLiteral("Data directory created"));
 
     // Create unified backend — owns all 7 sub-backends
     ShadowBackend* backend = new ShadowBackend(&app);
+    checkpoint(QStringLiteral("ShadowBackend constructed"));
 
     // QML engine
     QQmlApplicationEngine engine;
+    checkpoint(QStringLiteral("QML engine created"));
 
     // Expose backend and data directory to QML
     engine.rootContext()->setContextProperty("backend", backend);
@@ -83,6 +98,7 @@ int main(int argc, char *argv[])
         }, Qt::QueuedConnection);
 
     // Load main QML from filesystem
+    checkpoint(QStringLiteral("Loading QML..."));
     QString qmlPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
     QUrl url;
     if (QFile::exists(qmlPath)) {
@@ -93,12 +109,15 @@ int main(int argc, char *argv[])
         qCInfo(logApp) << "QML loaded from resources";
     }
     engine.load(url);
+    checkpoint(QStringLiteral("QML engine.load() completed"));
 
     if (engine.rootObjects().isEmpty()) {
         qCCritical(logApp) << "Failed to load any QML root objects — exiting";
         return -1;
     }
+    checkpoint(QStringLiteral("Root objects verified"));
 
-    qCInfo(logApp) << "Event loop started";
+    qCInfo(logApp) << "Event loop started"
+                   << "— total startup:" << startupTimer.elapsed() << "ms";
     return app.exec();
 }

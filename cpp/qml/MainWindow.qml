@@ -572,7 +572,7 @@ Window {
                                     }
                                     Connections {
                                         target: backend; enabled: backend !== null
-                                        function onGameDirsChanged() {
+                                        function onGameDirChanged() {
                                             gameDirModel.clear()
                                             var dirs = backend.gameDirectories
                                             for (var d = 0; d < dirs.length; d++) {
@@ -765,6 +765,7 @@ Window {
                                             }
                                         }
                                         // Install button — shortcut to download new versions
+                                        property bool installBtnPressed: false
                                         Rectangle {
                                             width: 28; height: 28; radius: 4; color: installBtnHover.hovered ? "#2553a8" : "#3a4eb8"
                                             scale: installBtnPressed ? 0.9 : 1.0
@@ -778,7 +779,6 @@ Window {
                                                 onClicked: { showVersionSelect = false; switchPage(1); toastManager.show("正在前往下载页面") }  // 导航到下载页
                                             }
                                         }
-                                        property bool installBtnPressed: false
                                         // Sort button
                                         Rectangle {
                                             id: sortBtn
@@ -1395,7 +1395,7 @@ Window {
                                                 }
                                                 Text { text: "最小" + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#989cb0" }
                                             }
-                                            Text { text: backend ? backend.systemMemoryInfo : ""; font.pixelSize: 9; color: "#a8b0c0" }
+                                            Text { text: backend ? (JSON.stringify(backend.systemMemoryInfo) || "") : ""; font.pixelSize: 9; color: "#a8b0c0" }
 
                                             // 自动内存
                                             RowLayout {
