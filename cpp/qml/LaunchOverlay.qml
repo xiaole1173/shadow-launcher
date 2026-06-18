@@ -29,6 +29,8 @@ Rectangle {
 
     onVisibleChanged: {
         if (visible) {
+            hideTimer.stop()  // 取消旧关闭定时器
+            showTimer.stop()
             flipped = false
             showTimer.start()
             // Reset failure state when re-opening
