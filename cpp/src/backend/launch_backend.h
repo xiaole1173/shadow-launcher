@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QVariantMap>
 
 namespace ShadowLauncher {
@@ -60,12 +61,23 @@ private slots:
     void onLaunchProgress(const QString& message);
     void onLaunchFinished(bool success, const QString& errorMsg);
 
+    // ── Async pre-launch check steps ──
+    void runNextCheck();
+    void abortCheck(const QString& phase, const QString& reason);
+
 private:
     Launcher* m_launcher = nullptr;
     bool m_launching = false;
     int m_launchProgress = 0;
     QString m_launchStatus;
     bool m_cancelled = false;
+
+    // ── Async check state ──
+    QTimer* m_checkTimer = nullptr;
+    int m_checkStep = 0;
+    QString m_pendingVersionId;
+    QString m_pendingJavaPath;
+    int m_pendingMaxMemory = 0;
 };
 
 } // namespace ShadowLauncher
