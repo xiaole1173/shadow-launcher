@@ -344,9 +344,9 @@ QVariantMap LaunchBackend::getMemoryStatus()
 
 void LaunchBackend::onLaunchStarted()
 {
-    m_launchProgress = 100;
-    m_launchStatus = QStringLiteral("游戏已启动");
-    emit launchProgressChanged(100, m_launchStatus);
+    m_launchProgress = 95;
+    m_launchStatus = QStringLiteral("游戏正在运行");
+    emit launchProgressChanged(95, m_launchStatus);
     emit minecraftStarted();
     emit isRunningChanged();
     qCInfo(logLaunch) << "Minecraft process started";
