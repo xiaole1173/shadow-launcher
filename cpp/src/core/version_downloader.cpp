@@ -458,13 +458,14 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
                              + QStringLiteral("/") + sha1;
 
         QStringList mirrors;
-        mirrors << QStringLiteral("https://resources.download.minecraft.net/%1/%2")
-                       .arg(prefix, sha1);
-
+        // Primary: use selected mirror's resource base (BMCLAPI by default)
         if (primaryHost != defaultHost) {
             mirrors << QStringLiteral("https://%1/%2/%3")
                            .arg(primaryHost, prefix, sha1);
         }
+        mirrors << QStringLiteral("https://resources.download.minecraft.net/%1/%2")
+                       .arg(prefix, sha1);
+
         if (!altResourceHost.isEmpty() && altResourceHost != primaryHost
             && altResourceHost != defaultHost) {
             mirrors << QStringLiteral("https://%1/%2/%3")

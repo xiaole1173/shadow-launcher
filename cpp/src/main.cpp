@@ -38,13 +38,20 @@ public:
                 return true;
             }
 
-            // ── Restore from taskbar: taskbar click sends WM_ACTIVATE with WA_CLICKACTIVE ──
+            // ── Taskbar click: restore if minimized, minimize if already active ──
             if (msg->message == WM_ACTIVATE && LOWORD(msg->wParam) == WA_CLICKACTIVE) {
-                if (targetWindow && targetWindow->windowState() == Qt::WindowMinimized) {
-                    targetWindow->showNormal();
-                    targetWindow->raise();
-                    targetWindow->requestActivate();
-                    return true;
+                if (targetWindow) {
+                    if (targetWindow->windowState() == Qt::WindowMinimized) {
+                        targetWindow->showNormal();
+                        targetWindow->raise();
+                        targetWindow->requestActivate();
+                        return true;
+                    }
+                    // Window already active & not minimized → minimize
+                    if (GetForegroundWindow() == msg->hwnd && !IsIconic(msg->hwnd)) {
+                        ShowWindow(msg->hwnd, SW_MINIMIZE);
+                        return true;
+                    }
                 }
             }
 

@@ -227,7 +227,7 @@ Rectangle {
         // ── Empty state ──
         Rectangle {
             Layout.fillWidth: true; height: 100; radius: 8; color: "#11141c"; border.color: "#1a1f2a"
-            visible: !backend || (!backend.installing && backend.installPhase !== "done" && (!backend.downloadQueue || backend.downloadQueue.length === 0))
+            visible: !backend || (!Boolean(backend.installing) && String(backend.installPhase) !== "done" && (!backend.downloadQueue || !Array.isArray(backend.downloadQueue) || backend.downloadQueue.length === 0))
             ColumnLayout { anchors.centerIn: parent; spacing: 6
                 Text { Layout.alignment: Qt.AlignHCenter; text: "当前没有进行中的下载"; font.pixelSize: 13; color: "#707888" }
                 Text { Layout.alignment: Qt.AlignHCenter; text: "前往下载页面选择版本开始下载"; font.pixelSize: 11; color: "#505468" }

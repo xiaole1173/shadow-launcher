@@ -713,18 +713,19 @@ Window {
                                     anchors.fill: parent; anchors.margins: 12; spacing: 6
 
                                     // Header row: title + refresh + search + sort
+                                    property bool verRefreshPressed: false
+                                    property bool installBtnPressed: false
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 8
                                         Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                         // Refresh installed versions button
-                                        property bool verRefreshPressed: false
                                         Rectangle {
                                             id: verRefreshBtn
                                             width: verRefreshText.implicitWidth + 16; height: 28; radius: 4
                                             color: verRefreshHover.hovered ? "#1a2848" : "#0d1018"
                                             border.color: verRefreshHover.hovered ? "#5068c8" : "#1a1f2e"
                                             border.width: 1
-                                            scale: verRefreshPressed ? 0.88 : (verRefreshHover.hovered ? 1.06 : 1.0)
+                                            scale: versionRightPanel.verRefreshPressed ? 0.88 : (verRefreshHover.hovered ? 1.06 : 1.0)
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
                                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -739,8 +740,8 @@ Window {
                                             MouseArea {
                                                 anchors.fill: parent; hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onPressed: verRefreshPressed = true
-                                                onReleased: verRefreshPressed = false
+                                                onPressed: versionRightPanel.verRefreshPressed = true
+                                                onReleased: versionRightPanel.verRefreshPressed = false
                                                 onClicked: {
                                                     if (backend) {
                                                         backend.refreshVersionDetails()
@@ -765,17 +766,16 @@ Window {
                                             }
                                         }
                                         // Install button — shortcut to download new versions
-                                        property bool installBtnPressed: false
                                         Rectangle {
                                             width: 28; height: 28; radius: 4; color: installBtnHover.hovered ? "#2553a8" : "#3a4eb8"
-                                            scale: installBtnPressed ? 0.9 : 1.0
+                                            scale: versionRightPanel.installBtnPressed ? 0.9 : 1.0
                                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 18; font.weight: Font.Bold; color: "#e8ecf8" }
                                             HoverHandler { id: installBtnHover }
                                             ToolTip { visible: installBtnHover.hovered; text: "安装新版本"; delay: 500 }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                onPressed: installBtnPressed = true
-                                                onReleased: installBtnPressed = false
+                                                onPressed: versionRightPanel.installBtnPressed = true
+                                                onReleased: versionRightPanel.installBtnPressed = false
                                                 onClicked: { showVersionSelect = false; switchPage(1); toastManager.show("正在前往下载页面") }  // 导航到下载页
                                             }
                                         }

@@ -520,6 +520,19 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
+                        // Per-item download progress bar (visible when this version is installing)
+                        Rectangle {
+                            visible: backend && backend.installing && backend.installVersionId === model.versionId
+                                     && backend.installTotal > 0 && backend.installPhase !== "done"
+                            width: 80; height: 4; radius: 2
+                            color: "#1a1f2a"
+                            Rectangle {
+                                height: 4; radius: 2; color: "#5068d8"
+                                width: backend && backend.installTotal > 0 ? parent.width * (backend.installProgress / backend.installTotal) : 0
+                                Behavior on width { NumberAnimation { duration: 200 } }
+                            }
+                        }
+
                     // Install button - using QtQuick.Controls.Button
                         Button {
                             id: installBtn
@@ -572,11 +585,11 @@ Rectangle {
                                     backend.installVersion(model.versionId, page.currentSource)
                                     // Row bounce animation
                                     rowBounceAnim.start()
-                                    // Show download nav + trigger flying ball directly
+                                    // Show download nav + trigger flying ball via signal (qrc-safe)
                                     if (page.mainWindow) {
                                         page.mainWindow.showDownloadNavSilent()
                                         var gp = installBtn.mapToItem(null, installBtn.width / 2, installBtn.height / 2)
-                                        page.mainWindow.animateDownloadBall(gp.x, gp.y)
+                                        page.triggerDownloadBall(gp.x, gp.y)
                                     }
                                 }
                             }

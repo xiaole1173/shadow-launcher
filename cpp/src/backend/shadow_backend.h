@@ -91,7 +91,6 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString gameArgs READ gameArgs CONSTANT)
     Q_PROPERTY(QString jvmArgs READ jvmArgs CONSTANT)
     Q_PROPERTY(QString javaCompatibility READ javaCompatibility CONSTANT)
-    Q_PROPERTY(bool isModdedVersion READ isModdedVersion CONSTANT)
 
     // ── Verify ──
     Q_PROPERTY(bool verifyRunning READ verifyRunning NOTIFY verifyRunningChanged)
@@ -99,12 +98,6 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyTotalChanged)
     Q_PROPERTY(bool verifyResultOk READ verifyResultOk CONSTANT)
     Q_PROPERTY(QString verifyResultText READ verifyResultText CONSTANT)
-    Q_PROPERTY(QString verifyVersion READ verifyVersion CONSTANT)
-
-    // ── Misc ──
-    Q_PROPERTY(QVariantList listMods READ listMods CONSTANT)
-    Q_PROPERTY(QVariantList listResourcePacks READ listResourcePacks CONSTANT)
-    Q_PROPERTY(QVariantList listSaves READ listSaves CONSTANT)
 
 public:
     explicit ShadowBackend(QObject* parent = nullptr);
@@ -181,7 +174,6 @@ public:
     QString gameArgs() const { return {}; }
     QString jvmArgs() const { return {}; }
     QString javaCompatibility() const { return QStringLiteral("OK"); }
-    bool isModdedVersion() const { return false; }
 
     // ── Verify stubs ──
     bool verifyRunning() const;
