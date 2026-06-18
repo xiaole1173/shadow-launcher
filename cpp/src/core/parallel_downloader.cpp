@@ -401,7 +401,6 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
     QUrl qurl(url);
     QNetworkRequest request(qurl);
     request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-    request.setRawHeader("Accept-Encoding", "gzip, deflate");
     request.setRawHeader("Connection", "Keep-Alive");
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -504,7 +503,6 @@ bool ParallelDownloader::downloadMirrorRace(const QStringList& urls,
         QUrl qurl(url);
         QNetworkRequest request(qurl);
         request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-        request.setRawHeader("Accept-Encoding", "gzip, deflate");
         request.setRawHeader("Connection", "Keep-Alive");
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);

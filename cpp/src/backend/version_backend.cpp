@@ -195,6 +195,14 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
                 QJsonObject versionJson = doc.object();
 
+                // ── Cancel any running download first ──
+                if (m_downloader) {
+                    m_downloader->cancel();
+                    m_downloader->disconnect();
+                    m_downloader->deleteLater();
+                    m_downloader = nullptr;
+                }
+
                 // ── Create & configure downloader ──
                 m_downloader = new VersionDownloader(this);
                 m_downloader->setMirror(mirror);

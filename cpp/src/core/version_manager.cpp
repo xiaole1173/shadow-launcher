@@ -24,8 +24,8 @@ namespace ShadowLauncher {
 // Constants
 // ============================================================
 
-static const char* MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-static const char* MIRROR_URL = "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json";
+static const char* PRIMARY_URL = "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json";
+static const char* FALLBACK_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
 
 static const char* CACHE_FILENAME = "versions.json";
 
@@ -85,9 +85,9 @@ void VersionManager::fetchVersions()
 
 void VersionManager::doNetworkFetch()
 {
-    // 2) Request Mojang API (with BMCLAPI fallback for China)
-    QUrl mojangUrl(MANIFEST_URL);
-    QNetworkRequest request(mojangUrl);
+    // 2) Request primary source (BMCLAPI) with Mojang fallback
+    QUrl primaryUrl(PRIMARY_URL);
+    QNetworkRequest request(primaryUrl);
     request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
     request.setTransferTimeout(8000);  // 8s timeout for primary
 
@@ -108,9 +108,9 @@ void VersionManager::doNetworkFetch()
             }
         }
 
-        // Primary failed — fallback to BMCLAPI mirror (faster in China)
-        QUrl mirrorUrl(MIRROR_URL);
-        QNetworkRequest mirrorReq(mirrorUrl);
+        // Primary failed — fallback to Mojang official
+        QUrl fallbackUrl(FALLBACK_URL);
+        QNetworkRequest mirrorReq(fallbackUrl);
         mirrorReq.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
         mirrorReq.setTransferTimeout(15000);
 
@@ -150,7 +150,7 @@ QVector<McVersion> VersionManager::fetchVersionsSync()
     QVector<McVersion> result;
 
     QNetworkAccessManager nam;
-    QUrl syncUrl(MANIFEST_URL);
+    QUrl syncUrl(PRIMARY_URL);
     QNetworkRequest request(syncUrl);
     request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
     request.setTransferTimeout(15000);

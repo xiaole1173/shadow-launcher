@@ -96,7 +96,8 @@ VersionDownloader::VersionDownloader(QObject* parent)
             this, &VersionDownloader::logMessage);
 
     connect(m_downloader, &ParallelDownloader::allFinished,
-            this, &VersionDownloader::onAllFinished);
+            this, &VersionDownloader::onAllFinished,
+            Qt::QueuedConnection);
 }
 
 VersionDownloader::~VersionDownloader()
