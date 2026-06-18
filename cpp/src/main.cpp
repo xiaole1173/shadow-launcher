@@ -76,19 +76,14 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
-    // Load main QML — prefer qrc (has precompiled cache, instant) over filesystem (no cache, recompiles 16 files)
-    // Set SHADOWLAUNCHER_DEV=1 to use filesystem QML for hot-reload during development
-    QUrl url(QStringLiteral("qrc:/ShadowLauncher/qml/MainWindow.qml"));
-    if (qEnvironmentVariableIsSet("SHADOWLAUNCHER_DEV")) {
-        QString qmlPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
-        if (QFile::exists(qmlPath)) {
-            url = QUrl::fromLocalFile(qmlPath);
-        }
+    // Load main QML from filesystem
+    QString qmlPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
+    QUrl url;
+    if (QFile::exists(qmlPath)) {
+        url = QUrl::fromLocalFile(qmlPath);
+    } else {
+        url = QUrl(QStringLiteral("qrc:/ShadowLauncher/qml/MainWindow.qml"));
     }
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
-        &app, []() { QCoreApplication::exit(-1); },
-        Qt::QueuedConnection);
-
     engine.load(url);
 
     if (engine.rootObjects().isEmpty()) {

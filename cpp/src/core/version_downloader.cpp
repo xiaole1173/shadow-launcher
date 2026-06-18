@@ -164,44 +164,45 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         emit logMessage(QStringLiteral("⚠ 无法保存版本清单: %1").arg(jsonPath));
     }
 
-    // --- Step 2: Download asset index JSON ---
+    // --- Step 2-4: Download asset index async, then collect & start tasks ---
     QJsonObject assetIdx = versionJson.value(QStringLiteral("assetIndex")).toObject();
-    if (!assetIdx.isEmpty()) {
-        emit logMessage(QStringLiteral("下载资源索引..."));
-        if (downloadAssetIndex(assetIdx)) {
+
+    auto startTasks = [this, versionJson, versionId, assetIdx]() {
+        if (!assetIdx.isEmpty()) {
             m_assetObjects = parseAssetIndex(assetIdx);
-            emit logMessage(QStringLiteral("资源清单: %1 个文件需要下载").arg(m_assetObjects.size()));
-        } else {
-            emit logMessage(QStringLiteral("⚠ 资源索引下载失败，跳过资源文件"));
         }
-    }
+        QVector<DownloadTask> tasks;
+        collectTasks(versionJson, versionId, m_assetObjects, tasks);
+        m_totalFiles.storeRelaxed(tasks.size());
+        if (tasks.isEmpty()) {
+            m_state = Done;
+            emit downloadFinished(true, QString());
+            emit stateChanged();
+            return;
+        }
+        qint64 totalEstimate = 0;
+        for (const auto& t : tasks) totalEstimate += t.totalBytes;
+        m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+        emit logMessage(QStringLiteral("准备下载 %1 个文件").arg(tasks.size()));
+        m_downloader->addTasks(tasks);
+        m_downloader->start();
+    };
 
-    // --- Step 3: Collect all download tasks ---
-    QVector<DownloadTask> tasks;
-    collectTasks(versionJson, versionId, m_assetObjects, tasks);
+    if (assetIdx.isEmpty()) { startTasks(); return; }
 
-    const int totalFiles = tasks.size();
-    m_totalFiles.storeRelaxed(totalFiles);
+    const QString idxUrl = assetIdx.value(QStringLiteral("url")).toString();
+    const QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
+    const QString idxPath = m_minecraftDir + QStringLiteral("/assets/indexes/") + idxId + QStringLiteral(".json");
 
-    qint64 totalEstimate = 0;
-    for (const auto& t : tasks)
-        totalEstimate += t.totalBytes;
-    m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+    if (idxUrl.isEmpty() || QFileInfo::exists(idxPath)) { startTasks(); return; }
 
-    emit logMessage(QStringLiteral("准备下载 %1 个文件, 预估 %2")
-                        .arg(totalFiles)
-                        .arg(formatSize(totalEstimate)));
-
-    if (tasks.isEmpty()) {
-        m_state = Done;
-        emit downloadFinished(true, QString());
-        emit stateChanged();
-        return;
-    }
-
-    // --- Step 4: Start parallel download ---
-    m_downloader->addTasks(tasks);
-    m_downloader->start();
+    emit logMessage(QStringLiteral("下载资源索引..."));
+    QDir().mkpath(QFileInfo(idxPath).absolutePath());
+    HttpClient::instance().download(idxUrl, idxPath, nullptr,
+        [this, startTasks](bool ok, const QString&) {
+            if (!ok) emit logMessage(QStringLiteral("资源索引下载失败，跳过资源"));
+            startTasks();
+        });
 }
 
 // ═══════════════════════════════════════════════════════════

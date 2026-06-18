@@ -162,9 +162,16 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
         return;
     }
 
-    // ── Fetch detailed version JSON from version.url (async) ──
+    // ── Fetch version JSON using mirror URL (BMCLAPI for China) ──
     auto* nam = new QNetworkAccessManager(this);
-    QNetworkRequest req(QUrl(targetVersion.url));
+    // Apply mirror: replace Mojang host with BMCLAPI
+    QString versionJsonUrl = targetVersion.url;
+    if (mirror.name.contains(QStringLiteral("BMCLAPI"))) {
+        versionJsonUrl.replace(QStringLiteral("launchermeta.mojang.com"),
+                              QStringLiteral("bmclapi2.bangbang93.com"));
+    }
+    QUrl qurl(versionJsonUrl);
+    QNetworkRequest req(qurl);
     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
     req.setTransferTimeout(30000);
     QNetworkReply* reply = nam->get(req);
