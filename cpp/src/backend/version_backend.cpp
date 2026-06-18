@@ -651,6 +651,26 @@ void VersionBackend::verifyVersion(const QString& versionId)
     QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
     for (const QJsonValue& libVal : libraries) {
         QJsonObject lib = libVal.toObject();
+
+        // Check platform rules — skip if not applicable to Windows
+        QJsonArray rules = lib.value(QStringLiteral("rules")).toArray();
+        bool allowWindows = true;
+        for (const QJsonValue& ruleVal : rules) {
+            QJsonObject rule = ruleVal.toObject();
+            QString action = rule.value(QStringLiteral("action")).toString();
+            QJsonObject os = rule.value(QStringLiteral("os")).toObject();
+            QString osName = os.value(QStringLiteral("name")).toString().toLower();
+            if (action == QStringLiteral("allow") && !osName.isEmpty() && osName != QStringLiteral("windows")) {
+                allowWindows = false;
+                break;
+            }
+            if (action == QStringLiteral("disallow") && (osName.isEmpty() || osName == QStringLiteral("windows"))) {
+                allowWindows = false;
+                break;
+            }
+        }
+        if (!allowWindows) continue;
+
         QJsonObject downloads = lib.value(QStringLiteral("downloads")).toObject();
 
         // Main artifact
