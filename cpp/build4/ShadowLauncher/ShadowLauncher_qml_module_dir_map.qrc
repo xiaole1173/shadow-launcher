@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/ShadowLauncher">D:/MC_Project/shadow-launcher/cpp/build4/ShadowLauncher</file>
+
+  </qresource>
+</RCC>

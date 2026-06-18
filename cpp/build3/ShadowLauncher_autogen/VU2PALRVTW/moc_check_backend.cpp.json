@@ -1,0 +1,107 @@
+{
+    "classes": [
+        {
+            "className": "CheckBackend",
+            "methods": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "javaPath",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkJava",
+                    "returnType": "QVariantMap"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "gameDir",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkVersionJar",
+                    "returnType": "QVariantMap"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "gameDir",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkVersionJson",
+                    "returnType": "QVariantMap"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "maxMemoryMB",
+                            "type": "int"
+                        }
+                    ],
+                    "name": "checkMemory",
+                    "returnType": "QVariantMap"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "javaPath",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "maxMemoryMB",
+                            "type": "int"
+                        },
+                        {
+                            "name": "gameDir",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkAll",
+                    "returnType": "QVariantMap"
+                }
+            ],
+            "object": true,
+            "qualifiedClassName": "ShadowLauncher::CheckBackend",
+            "signals": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "msg",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "logMessage",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "check_backend.h",
+    "outputRevision": 68
+}

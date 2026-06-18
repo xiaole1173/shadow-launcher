@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\MainWindow.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\HomePage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\DownloadPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\DownloadProgressPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\SettingsPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\SettingsGeneralPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\SettingsJavaPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\SettingsMemoryPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\VersionSelectPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\VersionSettingsPage.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\LaunchOverlay.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\InstallConfigOverlay.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\KillButton.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\ShadowButton.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\SubPageOverlays.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\build4\CMakeFiles\d4fe8c161ce678044001b4a02f9d0b7f\ToastManager.qml.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\MC_Project\shadow-launcher\cpp\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\MainWindow.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\HomePage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\DownloadPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\DownloadProgressPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\SettingsPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\SettingsGeneralPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\SettingsJavaPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\SettingsMemoryPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\VersionSelectPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\VersionSettingsPage.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\LaunchOverlay.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\InstallConfigOverlay.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\KillButton.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\ShadowButton.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\SubPageOverlays.qml" />
+    <None Include="D:\MC_Project\shadow-launcher\cpp\build4\ShadowLauncher\qml\ToastManager.qml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{C8430BDD-0C3C-3C2F-A07E-9008072B68FF}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,287 @@
+{
+    "classes": [
+        {
+            "className": "LaunchBackend",
+            "methods": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "username",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "javaPath",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "maxMemoryMB",
+                            "type": "int"
+                        }
+                    ],
+                    "name": "launch",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "cancelLaunch",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "killGameProcess",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "getAutoMemory",
+                    "returnType": "int"
+                },
+                {
+                    "access": "public",
+                    "name": "getSystemMemory",
+                    "returnType": "int"
+                },
+                {
+                    "access": "public",
+                    "name": "getMemoryStatus",
+                    "returnType": "QVariantMap"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "javaPath",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkJavaArchitecture",
+                    "returnType": "QString"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkVersionHasNatives",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "checkVersionLibraries",
+                    "returnType": "QStringList"
+                }
+            ],
+            "object": true,
+            "properties": [
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 0,
+                    "name": "launching",
+                    "notify": "launchStateChanged",
+                    "read": "isLaunching",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 1,
+                    "name": "launchProgress",
+                    "notify": "launchProgressChanged",
+                    "read": "launchProgress",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 2,
+                    "name": "launchStatus",
+                    "notify": "launchProgressChanged",
+                    "read": "launchStatus",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 3,
+                    "name": "isRunning",
+                    "notify": "isRunningChanged",
+                    "read": "isRunning",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                }
+            ],
+            "qualifiedClassName": "ShadowLauncher::LaunchBackend",
+            "signals": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "progress",
+                            "type": "int"
+                        },
+                        {
+                            "name": "status",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "launchProgressChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "launchStateChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "minecraftStarted",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "minecraftStopped",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "isRunningChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "msg",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "logMessage",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "step",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "launchCheckProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "phase",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "details",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "launchCheckFailed",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "files",
+                            "type": "QStringList"
+                        }
+                    ],
+                    "name": "launchCheckMissingFiles",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "warning",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "launchCheckWarning",
+                    "returnType": "void"
+                }
+            ],
+            "slots": [
+                {
+                    "access": "private",
+                    "name": "onLaunchStarted",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "message",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "onLaunchProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "success",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "errorMsg",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "onLaunchFinished",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "launch_backend.h",
+    "outputRevision": 68
+}

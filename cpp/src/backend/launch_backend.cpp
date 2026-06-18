@@ -6,6 +6,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -92,7 +93,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     if (!QFileInfo::exists(javaPath)) {
         m_launching = false;
         emit launchProgressChanged(0, QStringLiteral("Java 未找到"));
-        emit launchCheckFailed(QStringLiteral("Java 可执行文件"));
+        emit launchCheckFailed(QStringLiteral("Java 可执行文件"),
+                               QStringLiteral("路径: %1").arg(javaPath));
         emit launchStateChanged();
         qCCritical(logLaunch) << "Pre-launch check FAILED: Java executable not found";
         emit logMessage(QStringLiteral("启动失败: Java 未找到"));
@@ -115,12 +117,13 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 
     // Check 3: Version directory
     emit launchCheckProgress(QStringLiteral("检查版本核心文件..."));
-    emit launchProgressChanged(20, QStringLiteral("检查版本核心文件..."));
+    emit launchProgressChanged(15, QStringLiteral("检查版本核心文件..."));
     QString versionDir = m_launcher->gameDir() + QStringLiteral("/versions/") + versionId;
     if (!QDir(versionDir).exists()) {
         m_launching = false;
         emit launchProgressChanged(0, QStringLiteral("版本目录不存在"));
-        emit launchCheckFailed(QStringLiteral("版本目录"));
+        emit launchCheckFailed(QStringLiteral("版本目录"),
+                               QStringLiteral("目录不存在: %1").arg(versionDir));
         emit launchStateChanged();
         qCCritical(logLaunch) << "Pre-launch check FAILED: version dir not found:" << versionDir;
         emit logMessage(QStringLiteral("启动失败: 版本目录不存在"));
@@ -133,7 +136,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     if (!QFileInfo::exists(jarPath)) {
         m_launching = false;
         emit launchProgressChanged(0, QStringLiteral("核心 Jar 缺失"));
-        emit launchCheckFailed(QStringLiteral("核心 Jar"));
+        emit launchCheckFailed(QStringLiteral("核心 Jar"),
+                               QStringLiteral("文件不存在: %1").arg(jarPath));
         emit launchStateChanged();
         qCCritical(logLaunch) << "Pre-launch check FAILED: JAR not found:" << jarPath;
         emit logMessage(QStringLiteral("启动失败: 版本核心文件缺失"));
@@ -143,14 +147,15 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 
     // Check 5: Version JSON validity
     emit launchCheckProgress(QStringLiteral("检查版本配置文件..."));
-    emit launchProgressChanged(30, QStringLiteral("检查版本配置文件..."));
+    emit launchProgressChanged(20, QStringLiteral("检查版本配置文件..."));
     QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
     {
         QFile jsonFile(jsonPath);
         if (!jsonFile.open(QIODevice::ReadOnly)) {
             m_launching = false;
             emit launchProgressChanged(0, QStringLiteral("版本配置文件缺失"));
-            emit launchCheckFailed(QStringLiteral("版本配置"));
+            emit launchCheckFailed(QStringLiteral("版本配置"),
+                                   QStringLiteral("配置文件不存在: %1").arg(jsonPath));
             emit launchStateChanged();
             qCCritical(logLaunch) << "Pre-launch check FAILED: version JSON not found:" << jsonPath;
             emit logMessage(QStringLiteral("启动失败: 版本配置文件缺失"));
@@ -166,6 +171,31 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
         }
     }
     qCInfo(logLaunch) << "Pre-launch check passed: version JSON valid";
+
+    // Check 5.5: Library files completeness (reads version JSON)
+    emit launchCheckProgress(QStringLiteral("检查依赖库文件..."));
+    emit launchProgressChanged(30, QStringLiteral("检查依赖库文件..."));
+    {
+        QStringList missingLibs = checkVersionLibraries(versionId);
+        if (!missingLibs.isEmpty()) {
+            // Show first 8 missing files in the details message
+            QStringList displayList = missingLibs.mid(0, 8);
+            QString detail = displayList.join(QStringLiteral(", "));
+            if (missingLibs.size() > 8) {
+                detail += QStringLiteral(" ... 等共 %1 个文件").arg(missingLibs.size());
+            }
+            m_launching = false;
+            emit launchProgressChanged(0, QStringLiteral("依赖库文件缺失"));
+            emit launchCheckMissingFiles(missingLibs);
+            emit launchCheckFailed(QStringLiteral("依赖库文件"),
+                                   QStringLiteral("缺少 %1 个文件: %2").arg(missingLibs.size()).arg(detail));
+            emit launchStateChanged();
+            qCCritical(logLaunch) << "Pre-launch check FAILED:" << missingLibs.size() << "library files missing";
+            emit logMessage(QStringLiteral("启动失败: 依赖库文件缺失 (%1 个)").arg(missingLibs.size()));
+            return;
+        }
+    }
+    qCInfo(logLaunch) << "Pre-launch check passed: all library files present";
 
     // Check 6: Natives
     emit launchCheckProgress(QStringLiteral("检查运行库..."));
@@ -408,6 +438,106 @@ QString LaunchBackend::checkJavaArchitecture(const QString& javaPath)
     Q_UNUSED(javaPath)
     return QStringLiteral("64");
 #endif
+}
+
+// ============================================================
+// Pre-launch check: Library file completeness
+// ============================================================
+
+QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
+{
+    QStringList missing;
+    if (!m_launcher) return missing;
+
+    const QString gameDir = m_launcher->gameDir();
+    const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
+    const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    const QString libsDir = gameDir + QStringLiteral("/libraries");
+
+    // Read version JSON
+    QFile jsonFile(jsonPath);
+    if (!jsonFile.open(QIODevice::ReadOnly)) {
+        emit logMessage(QStringLiteral("⚠ 无法读取版本 JSON 以检查库文件"));
+        return missing;
+    }
+
+    QJsonParseError parseErr;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll(), &parseErr);
+    jsonFile.close();
+
+    if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+        emit logMessage(QStringLiteral("⚠ 版本 JSON 解析失败，无法检查库文件"));
+        return missing;
+    }
+
+    QJsonObject versionJson = doc.object();
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+
+    for (const QJsonValue& libVal : libraries) {
+        QJsonObject lib = libVal.toObject();
+
+        // Skip platform-specific rules (client-side only)
+        QJsonArray rules = lib.value(QStringLiteral("rules")).toArray();
+        bool skip = false;
+        for (const QJsonValue& ruleVal : rules) {
+            QJsonObject rule = ruleVal.toObject();
+            QString action = rule.value(QStringLiteral("action")).toString();
+            QJsonObject os = rule.value(QStringLiteral("os")).toObject();
+            QString osName = os.value(QStringLiteral("name")).toString();
+            // If rule says "allow" for non-windows or "disallow" for windows
+            if (!osName.isEmpty()) {
+                bool isWindows = osName.contains(QStringLiteral("windows"), Qt::CaseInsensitive);
+                if (action == QStringLiteral("allow") && !isWindows) {
+                    skip = true;
+                    break;
+                }
+                if (action == QStringLiteral("disallow") && isWindows) {
+                    skip = true;
+                    break;
+                }
+            }
+        }
+        if (skip) continue;
+
+        QJsonObject downloads = lib.value(QStringLiteral("downloads")).toObject();
+
+        // Check main artifact
+        QJsonObject artifact = downloads.value(QStringLiteral("artifact")).toObject();
+        if (!artifact.isEmpty()) {
+            QString path = artifact.value(QStringLiteral("path")).toString();
+            QString fullPath = libsDir + QStringLiteral("/") + path;
+            if (!QFileInfo::exists(fullPath)) {
+                missing.append(path);
+            }
+        }
+
+        // Check native classifiers (Windows)
+        QJsonObject classifiers = downloads.value(QStringLiteral("classifiers")).toObject();
+        for (auto it = classifiers.begin(); it != classifiers.end(); ++it) {
+            QString key = it.key().toLower();
+            if (key.contains(QStringLiteral("natives-windows")) ||
+                key.contains(QStringLiteral("natives-windows"))) {
+                QJsonObject clsArt = it.value().toObject();
+                QString path = clsArt.value(QStringLiteral("path")).toString();
+                if (!path.isEmpty()) {
+                    QString fullPath = libsDir + QStringLiteral("/") + path;
+                    if (!QFileInfo::exists(fullPath)) {
+                        missing.append(path);
+                    }
+                }
+            }
+        }
+    }
+
+    if (!missing.isEmpty()) {
+        qCWarning(logLaunch) << "Missing" << missing.size() << "library files for" << versionId;
+        emit logMessage(QStringLiteral("⚠ 缺少 %1 个依赖库文件").arg(missing.size()));
+    } else {
+        qCInfo(logLaunch) << "All library files present for" << versionId;
+        emit logMessage(QStringLiteral("✅ 所有依赖库文件完整"));
+    }
+
+    return missing;
 }
 
 // ============================================================

@@ -1044,6 +1044,8 @@ Window {
                         property int _verifyProgressTotal: 0
                         property string _verifyResultText: ""
                         property bool _verifyResultOk: false
+                        property var _verifyFailedFiles: []
+                        property bool _verifyHasFailed: false
 
                         // ── 信号连接 ──
                         Connections {
@@ -1056,6 +1058,8 @@ Window {
                                 versionSettingsOverlay._verifyProgressTotal = 0
                                 versionSettingsOverlay._verifyResultText = ""
                                 versionSettingsOverlay._verifyResultOk = false
+                                versionSettingsOverlay._verifyFailedFiles = []
+                                versionSettingsOverlay._verifyHasFailed = false
                             }
 
                             function onVerifyProgress(checked, total) {
@@ -1066,12 +1070,15 @@ Window {
                             function onVerifyFinished(allPassed) {
                                 versionSettingsOverlay._verifyRunning = false
                                 versionSettingsOverlay._verifyResultOk = allPassed
-                                // 从日志构建结果文本 - 后端已经把每行结果通过 logMessage 发出
-                                // 这里构建摘要
                                 var total = versionSettingsOverlay._verifyProgressTotal
                                 versionSettingsOverlay._verifyResultText = allPassed
                                     ? ("✅ 校验完成: " + total + " 个文件全部通过")
-                                    : ("❌ 校验完成: 部分文件校验失败，请查看日志")
+                                    : ("❌ 校验完成: " + total + " 个文件中部分校验失败")
+                            }
+
+                            function onVerifyFailedFiles(files) {
+                                versionSettingsOverlay._verifyFailedFiles = files || []
+                                versionSettingsOverlay._verifyHasFailed = (files && files.length > 0)
                             }
 
                             function onLogMessage(msg) {

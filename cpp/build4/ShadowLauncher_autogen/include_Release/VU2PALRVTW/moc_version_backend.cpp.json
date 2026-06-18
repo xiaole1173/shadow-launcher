@@ -1,0 +1,574 @@
+{
+    "classes": [
+        {
+            "className": "VersionBackend",
+            "methods": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "dir",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "setGameDir",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "setSelectedVersion",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "refreshVersionList",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "refreshInstalled",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "sourceIndex",
+                            "type": "int"
+                        }
+                    ],
+                    "name": "installVersion",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "isCloned": true,
+                    "name": "installVersion",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "cancelInstall",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "pauseInstall",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "resumeInstall",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "cancelQueuedDownload",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "getVersionGameDir",
+                    "returnType": "QString"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "verifyVersion",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "cleanCorruptVersion",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "oldId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "newId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "renameVersion",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "sourceId",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "newId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "cloneVersion",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "versionId",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "copyVersionPath",
+                    "returnType": "QString"
+                }
+            ],
+            "object": true,
+            "properties": [
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 0,
+                    "name": "installing",
+                    "notify": "installStateChanged",
+                    "read": "isInstalling",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 1,
+                    "name": "installProgress",
+                    "notify": "installProgressChanged",
+                    "read": "installProgress",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 2,
+                    "name": "installTotal",
+                    "notify": "installProgressChanged",
+                    "read": "installTotal",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 3,
+                    "name": "installFile",
+                    "notify": "installProgressChanged",
+                    "read": "installFile",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 4,
+                    "name": "installVersionId",
+                    "notify": "installStateChanged",
+                    "read": "installVersionId",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 5,
+                    "name": "installPhase",
+                    "notify": "installPhaseChanged",
+                    "read": "installPhase",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 6,
+                    "name": "verifyChecked",
+                    "notify": "verifyProgressChanged",
+                    "read": "verifyChecked",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 7,
+                    "name": "verifyTotal",
+                    "notify": "verifyProgressChanged",
+                    "read": "verifyTotal",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 8,
+                    "name": "installPaused",
+                    "notify": "installPausedChanged",
+                    "read": "isInstallPaused",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 9,
+                    "name": "versionIds",
+                    "notify": "versionListReady",
+                    "read": "versionIds",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QStringList",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 10,
+                    "name": "installedIds",
+                    "notify": "installedVersionsChanged",
+                    "read": "installedIds",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QStringList",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 11,
+                    "name": "selectedVersion",
+                    "notify": "selectedVersionChanged",
+                    "read": "selectedVersion",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                }
+            ],
+            "qualifiedClassName": "ShadowLauncher::VersionBackend",
+            "signals": [
+                {
+                    "access": "public",
+                    "name": "versionListReady",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "installedVersionsChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "selectedVersionChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "installStateChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "installProgressChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "installTotalChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "name",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "installFileProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "dl",
+                            "type": "qint64"
+                        },
+                        {
+                            "name": "total",
+                            "type": "qint64"
+                        }
+                    ],
+                    "name": "installBytesProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "phase",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "installPhaseChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "success",
+                            "type": "bool"
+                        }
+                    ],
+                    "name": "installFinished",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "speed",
+                            "type": "qint64"
+                        }
+                    ],
+                    "name": "installSpeedChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "msg",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "logMessage",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "verifyStarted",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "checked",
+                            "type": "int"
+                        },
+                        {
+                            "name": "total",
+                            "type": "int"
+                        }
+                    ],
+                    "name": "verifyProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "checked",
+                            "type": "int"
+                        },
+                        {
+                            "name": "total",
+                            "type": "int"
+                        }
+                    ],
+                    "name": "verifyProgressChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "allPassed",
+                            "type": "bool"
+                        }
+                    ],
+                    "name": "verifyFinished",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "failedFiles",
+                            "type": "QStringList"
+                        }
+                    ],
+                    "name": "verifyFailedFiles",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "paused",
+                            "type": "bool"
+                        }
+                    ],
+                    "name": "installPausedChanged",
+                    "returnType": "void"
+                }
+            ],
+            "slots": [
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "cf",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tf",
+                            "type": "int"
+                        },
+                        {
+                            "name": "db",
+                            "type": "qint64"
+                        },
+                        {
+                            "name": "tb",
+                            "type": "qint64"
+                        }
+                    ],
+                    "name": "onVersionDownloadProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "msg",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "onVersionDownloadLog",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "success",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "error",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "onVersionDownloadFinished",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "name": "processVerifyBatch",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "version_backend.h",
+    "outputRevision": 68
+}

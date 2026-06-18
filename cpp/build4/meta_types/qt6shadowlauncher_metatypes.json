@@ -1,0 +1,4635 @@
+[
+    {
+        "classes": [
+            {
+                "className": "Downloader",
+                "object": true,
+                "qualifiedClassName": "ShadowLauncher::Downloader",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "received",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "downloadProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "errorMsg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadStarted",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "name": "onReadyRead",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "name": "onFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "error",
+                                "type": "QNetworkReply::NetworkError"
+                            }
+                        ],
+                        "name": "onNetworkError",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "received",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "onDownloadProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "name": "onTimeout",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "downloader.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "HttpClient",
+                "object": true,
+                "qualifiedClassName": "ShadowLauncher::HttpClient",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "proxyChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            },
+            {
+                "className": "DownloadQueue",
+                "object": true,
+                "qualifiedClassName": "ShadowLauncher::DownloadQueue",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "allCompleted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "completed",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "progressChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "http_client.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "Launcher",
+                "object": true,
+                "qualifiedClassName": "ShadowLauncher::Launcher",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "errorMsg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "launchStarted",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "name": "onProcessStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "name": "onReadyReadStdout",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "name": "onReadyReadStderr",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "exitCode",
+                                "type": "int"
+                            },
+                            {
+                                "name": "exitStatus",
+                                "type": "QProcess::ExitStatus"
+                            }
+                        ],
+                        "name": "onProcessFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "error",
+                                "type": "QProcess::ProcessError"
+                            }
+                        ],
+                        "name": "onProcessError",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "launcher.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ModManager",
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "busy",
+                        "notify": "busyChanged",
+                        "read": "isBusy",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::ModManager",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "results",
+                                "type": "QJsonArray"
+                            },
+                            {
+                                "name": "totalHits",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "searchCompleted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "error",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "searchFailed",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "files",
+                                "type": "QJsonArray"
+                            }
+                        ],
+                        "name": "versionsFetched",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "error",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "versionsFailed",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "received",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "downloadProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "filePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "busyChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "files",
+                                "type": "QJsonArray"
+                            }
+                        ],
+                        "name": "onVersionsForDownload",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "mod_manager.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ParallelDownloader",
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "totalFiles",
+                        "notify": "progressChanged",
+                        "read": "totalFiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "completedFiles",
+                        "notify": "progressChanged",
+                        "read": "completedFiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "totalBytes",
+                        "notify": "progressChanged",
+                        "read": "totalBytes",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "downloadedBytes",
+                        "notify": "progressChanged",
+                        "read": "downloadedBytes",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "state",
+                        "notify": "stateChanged",
+                        "read": "stateStr",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::ParallelDownloader",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "completedFiles",
+                                "type": "int"
+                            },
+                            {
+                                "name": "totalFiles",
+                                "type": "int"
+                            },
+                            {
+                                "name": "downloadedBytes",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "totalBytes",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "progressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "fileName",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "received",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "fileProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "fileName",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "fileCompleted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "failedCount",
+                                "type": "int"
+                            },
+                            {
+                                "name": "failedFiles",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "allFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "stateChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "parallel_downloader.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "VersionDownloader",
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "completedFiles",
+                        "notify": "progressChanged",
+                        "read": "completedFiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "totalFiles",
+                        "notify": "progressChanged",
+                        "read": "totalFiles",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "downloadedBytes",
+                        "notify": "progressChanged",
+                        "read": "downloadedBytes",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "totalBytes",
+                        "notify": "progressChanged",
+                        "read": "totalBytes",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "state",
+                        "notify": "stateChanged",
+                        "read": "stateStr",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::VersionDownloader",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "completedFiles",
+                                "type": "int"
+                            },
+                            {
+                                "name": "totalFiles",
+                                "type": "int"
+                            },
+                            {
+                                "name": "downloadedBytes",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "totalBytes",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "progressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "fileName",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "received",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "fileProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "checked",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "verifyProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "errorMsg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "stateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "failedFiles",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "downloadFailedFiles",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "failedCount",
+                                "type": "int"
+                            },
+                            {
+                                "name": "failedFiles",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "onAllFinished",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "version_downloader.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "VersionIsolation",
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "enabled",
+                        "notify": "isolationChanged",
+                        "read": "isEnabled",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false,
+                        "write": "setEnabled"
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::VersionIsolation",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "isolationChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "version_isolation.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "VersionManager",
+                "object": true,
+                "qualifiedClassName": "ShadowLauncher::VersionManager",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versions",
+                                "type": "QList<McVersion>"
+                            }
+                        ],
+                        "name": "versionsReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "error",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "fetchError",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "version_manager.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "AccountBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "username",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "offlineLogin",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "logout",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "username",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getSkinUrl",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "isCloned": true,
+                        "name": "getSkinUrl",
+                        "returnType": "QString"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "username",
+                        "notify": "accountChanged",
+                        "read": "username",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "isLoggedIn",
+                        "notify": "accountChanged",
+                        "read": "isLoggedIn",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "isOnline",
+                        "notify": "accountChanged",
+                        "read": "isOnline",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "accountUuid",
+                        "notify": "accountChanged",
+                        "read": "accountUuid",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "skinPath",
+                        "notify": "skinReady",
+                        "read": "skinPath",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "offlineUsernames",
+                        "notify": "offlineHistoryChanged",
+                        "read": "offlineUsernames",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::AccountBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "accountChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "skinReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "offlineHistoryChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "account_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "AppBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "relativePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "resolvePath",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "enabled",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "setDevMode",
+                        "returnType": "void"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "appVersion",
+                        "read": "appVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "appName",
+                        "read": "appName",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "dataDir",
+                        "read": "dataDir",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "gameDir",
+                        "notify": "gameDirChanged",
+                        "read": "gameDir",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "theme",
+                        "notify": "themeChanged",
+                        "read": "theme",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false,
+                        "write": "setTheme"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "devMode",
+                        "notify": "devModeChanged",
+                        "read": "devMode",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::AppBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "themeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "gameDirChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "devModeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "app_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "CheckBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "javaPath",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkJava",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "gameDir",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkVersionJar",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "gameDir",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkVersionJson",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "maxMemoryMB",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "checkMemory",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "javaPath",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "maxMemoryMB",
+                                "type": "int"
+                            },
+                            {
+                                "name": "gameDir",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkAll",
+                        "returnType": "QVariantMap"
+                    }
+                ],
+                "object": true,
+                "qualifiedClassName": "ShadowLauncher::CheckBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "check_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "LaunchBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "username",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "javaPath",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "maxMemoryMB",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "launch",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "cancelLaunch",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "killGameProcess",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getAutoMemory",
+                        "returnType": "int"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getSystemMemory",
+                        "returnType": "int"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getMemoryStatus",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "javaPath",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkJavaArchitecture",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkVersionHasNatives",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkVersionLibraries",
+                        "returnType": "QStringList"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "launching",
+                        "notify": "launchStateChanged",
+                        "read": "isLaunching",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "launchProgress",
+                        "notify": "launchProgressChanged",
+                        "read": "launchProgress",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "launchStatus",
+                        "notify": "launchProgressChanged",
+                        "read": "launchStatus",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "isRunning",
+                        "notify": "isRunningChanged",
+                        "read": "isRunning",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::LaunchBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "progress",
+                                "type": "int"
+                            },
+                            {
+                                "name": "status",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "launchStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "minecraftStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "minecraftStopped",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "isRunningChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "step",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchCheckProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "phase",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "details",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchCheckFailed",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "files",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "launchCheckMissingFiles",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "warning",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchCheckWarning",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "name": "onLaunchStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "onLaunchProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "errorMsg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "onLaunchFinished",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "launch_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ResourceBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "loader",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getPopularMods",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getShaderList",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "query",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "loader",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "searchMods",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "query",
+                                "type": "QString"
+                            }
+                        ],
+                        "isCloned": true,
+                        "name": "searchMods",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "loader",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadMod",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadShader",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "cancelDownload",
+                        "returnType": "void"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "downloading",
+                        "notify": "downloadStateChanged",
+                        "read": "isDownloading",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "dlProgress",
+                        "notify": "downloadProgressChanged",
+                        "read": "dlProgress",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "dlTotal",
+                        "notify": "downloadProgressChanged",
+                        "read": "dlTotal",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "dlFile",
+                        "notify": "downloadProgressChanged",
+                        "read": "dlFile",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::ResourceBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "completed",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            },
+                            {
+                                "name": "fileName",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "downloadStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "filePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "results",
+                                "type": "QVariantList"
+                            }
+                        ],
+                        "name": "searchResultsReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "results",
+                                "type": "QJsonArray"
+                            },
+                            {
+                                "name": "totalHits",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "onSearchCompleted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "received",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "onDownloadProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "filePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "onDownloadFinished",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "resource_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "SettingsBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "name": "scanJavaInstallations",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "name": "autoSelectJava",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "detectJava",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getMemoryStatus",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "mb",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "setMinMemory",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "mb",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "setMaxMemory",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "availableJavaList",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "index",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "selectJavaByIndex",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openJavaFileDialog",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "browseJava",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "enabled",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "setIsolationEnabled",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "migrateVersionToIsolated",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getVersionGameDir",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "isolationEnabled",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openGameDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "openVersionDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "deleteVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "path",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "openPath",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "enabled",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "setCloseAfterLaunch",
+                        "returnType": "void"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "javaPath",
+                        "notify": "javaPathChanged",
+                        "read": "javaPath",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false,
+                        "write": "setJavaPath"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "javaVersion",
+                        "notify": "javaPathChanged",
+                        "read": "javaVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "javaMajor",
+                        "notify": "javaPathChanged",
+                        "read": "javaMajor",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "minMemoryMB",
+                        "notify": "memorySettingsChanged",
+                        "read": "minMemoryMB",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "maxMemoryMB",
+                        "notify": "memorySettingsChanged",
+                        "read": "maxMemoryMB",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "closeAfterLaunch",
+                        "notify": "generalSettingsChanged",
+                        "read": "closeAfterLaunch",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 6,
+                        "name": "javaReady",
+                        "notify": "javaPathChanged",
+                        "read": "isJavaReady",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 7,
+                        "name": "isolationEnabled",
+                        "notify": "isolationChanged",
+                        "read": "isolationEnabled",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::SettingsBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "javaPathChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "javaReadyChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "memorySettingsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "generalSettingsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "isolationChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "settings_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "ShadowBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "name": "listMods",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "name": "listResourcePacks",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "name": "listSaves",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "username",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "offlineLogin",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "logout",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "username",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getSkinUrl",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "isCloned": true,
+                        "name": "getSkinUrl",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "scanJavaInstallations",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "name": "autoSelectJava",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "detectJava",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "name": "browseJava",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "index",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "selectJavaByIndex",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getMemoryStatus",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "mb",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "setMinMemory",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "mb",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "setMaxMemory",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "enabled",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "setIsolationEnabled",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getVersionGameDir",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "migrateVersionToIsolated",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openGameDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "openVersionDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "deleteVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshVersionList",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshInstalled",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshInstalledList",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshVersionDetails",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshGameDirInfo",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "sourceIndex",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "installVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "isCloned": true,
+                        "name": "installVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "cancelInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launch",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "cancelLaunch",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "killGameProcess",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "killMinecraft",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "loader",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getPopularMods",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getShaderList",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "query",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "loader",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "searchMods",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "query",
+                                "type": "QString"
+                            }
+                        ],
+                        "isCloned": true,
+                        "name": "searchMods",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "loader",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadMod",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "slug",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "downloadShader",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setSelectedVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "theme",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setTheme",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "checkAll",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "dir",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setGameDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "getAutoMemory",
+                        "returnType": "int"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "v",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "setCloseOnLaunch",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "setAutoMemoryEnabled",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setGameArgs",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setJvmArgs",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "isModdedVersion",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openJavaFileDialog",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "pickJava",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "checkFileChanges",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "deleteMod",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "deleteResourcePack",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "deleteSave",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "migrateVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openConfigFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openCrashLog",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openLatestLog",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openLogsFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openModsFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openResourcePacksFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openSavesFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openScreenshotsFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "openShaderPacksFolder",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "int"
+                            }
+                        ],
+                        "name": "removeGameDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "pauseInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "resumeInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "cancelQueuedDownload",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "verifyVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "cleanCorruptVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "oldId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "newId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "renameVersion",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "sourceId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "newId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "cloneVersion",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "copyVersionPath",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "repairVersion",
+                        "returnType": "void"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "username",
+                        "notify": "accountChanged",
+                        "read": "username",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "isOnline",
+                        "notify": "accountChanged",
+                        "read": "isOnline",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "accountUuid",
+                        "notify": "accountChanged",
+                        "read": "accountUuid",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "skinPath",
+                        "notify": "skinReady",
+                        "read": "skinPath",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "offlineUsernames",
+                        "notify": "offlineHistoryChanged",
+                        "read": "offlineUsernames",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "lastLoginMode",
+                        "notify": "loginModeChanged",
+                        "read": "lastLoginMode",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false,
+                        "write": "setLastLoginMode"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 6,
+                        "name": "javaPath",
+                        "notify": "javaPathChanged",
+                        "read": "javaPath",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 7,
+                        "name": "javaVersion",
+                        "notify": "javaPathChanged",
+                        "read": "javaVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 8,
+                        "name": "javaMajor",
+                        "notify": "javaPathChanged",
+                        "read": "javaMajor",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 9,
+                        "name": "javaInstalled",
+                        "notify": "javaPathChanged",
+                        "read": "javaInstalled",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 10,
+                        "name": "javaReady",
+                        "notify": "javaPathChanged",
+                        "read": "javaInstalled",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 11,
+                        "name": "minMemoryMb",
+                        "notify": "memorySettingsChanged",
+                        "read": "minMemoryMb",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 12,
+                        "name": "maxMemoryMb",
+                        "notify": "memorySettingsChanged",
+                        "read": "maxMemoryMb",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 13,
+                        "name": "closeAfterLaunch",
+                        "notify": "generalSettingsChanged",
+                        "read": "closeAfterLaunch",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 14,
+                        "name": "isolationEnabled",
+                        "notify": "isolationChanged",
+                        "read": "isolationEnabled",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 15,
+                        "name": "availableJavaList",
+                        "notify": "javaPathChanged",
+                        "read": "availableJavaList",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 16,
+                        "name": "selectedVersion",
+                        "notify": "selectedVersionChanged",
+                        "read": "selectedVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 17,
+                        "name": "versionIds",
+                        "notify": "versionListReady",
+                        "read": "versionIds",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 18,
+                        "name": "versionList",
+                        "notify": "versionListReady",
+                        "read": "versionList",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 19,
+                        "name": "releaseVersions",
+                        "notify": "versionListReady",
+                        "read": "releaseVersions",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 20,
+                        "name": "snapshotVersions",
+                        "notify": "versionListReady",
+                        "read": "snapshotVersions",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 21,
+                        "name": "oldVersions",
+                        "notify": "versionListReady",
+                        "read": "oldVersions",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 22,
+                        "name": "installedVersions",
+                        "notify": "installedVersionsChanged",
+                        "read": "installedVersions",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 23,
+                        "name": "installing",
+                        "notify": "installStateChanged",
+                        "read": "isInstalling",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 24,
+                        "name": "installProgress",
+                        "notify": "installProgressChanged",
+                        "read": "installProgress",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 25,
+                        "name": "installTotal",
+                        "notify": "installTotalChanged",
+                        "read": "installTotal",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 26,
+                        "name": "installFile",
+                        "notify": "installFileProgress",
+                        "read": "installFile",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 27,
+                        "name": "installVersionId",
+                        "notify": "installStateChanged",
+                        "read": "installVersionId",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 28,
+                        "name": "installPhase",
+                        "notify": "installPhaseChanged",
+                        "read": "installPhase",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 29,
+                        "name": "installSpeed",
+                        "notify": "installSpeedChanged",
+                        "read": "installSpeed",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 30,
+                        "name": "installBytesDownloaded",
+                        "notify": "installBytesProgress",
+                        "read": "installBytesDownloaded",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 31,
+                        "name": "installBytesTotal",
+                        "notify": "installBytesProgress",
+                        "read": "installBytesTotal",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 32,
+                        "name": "installPaused",
+                        "notify": "installPausedChanged",
+                        "read": "installPaused",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 33,
+                        "name": "launching",
+                        "notify": "launchStateChanged",
+                        "read": "isLaunching",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 34,
+                        "name": "launchProgress",
+                        "notify": "launchProgressChanged",
+                        "read": "launchProgress",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 35,
+                        "name": "launchStatus",
+                        "notify": "launchProgressChanged",
+                        "read": "launchStatus",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 36,
+                        "name": "isRunning",
+                        "notify": "isRunningChanged",
+                        "read": "isRunning",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 37,
+                        "name": "launchVersion",
+                        "read": "launchVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 38,
+                        "name": "launchUsername",
+                        "read": "launchUsername",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 39,
+                        "name": "downloading",
+                        "notify": "resourceDownloadStateChanged",
+                        "read": "isResourceDownloading",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 40,
+                        "name": "gameDir",
+                        "notify": "gameDirChanged",
+                        "read": "gameDir",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 41,
+                        "name": "dataDir",
+                        "read": "appDataDir",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 42,
+                        "name": "theme",
+                        "notify": "themeChanged",
+                        "read": "theme",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 43,
+                        "name": "devMode",
+                        "read": "devMode",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 44,
+                        "name": "versionDetails",
+                        "notify": "versionDetailsReady",
+                        "read": "versionDetails",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantList",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 45,
+                        "name": "currentVersionSummary",
+                        "read": "currentVersionSummary",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 46,
+                        "name": "downloadQueue",
+                        "read": "downloadQueue",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantList",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 47,
+                        "name": "activeDownloads",
+                        "read": "activeDownloads",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 48,
+                        "name": "gameDirInfo",
+                        "notify": "gameDirChanged",
+                        "read": "gameDirInfo",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 49,
+                        "name": "gameDirectories",
+                        "read": "gameDirectories",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantList",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 50,
+                        "name": "diskFree",
+                        "read": "diskFree",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "qint64",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 51,
+                        "name": "diskPercent",
+                        "read": "diskPercent",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 52,
+                        "name": "closeOnLaunch",
+                        "notify": "generalSettingsChanged",
+                        "read": "closeOnLaunch",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 53,
+                        "name": "autoMemoryEnabled",
+                        "notify": "memorySettingsChanged",
+                        "read": "autoMemoryEnabled",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 54,
+                        "name": "systemMemoryInfo",
+                        "notify": "memorySettingsChanged",
+                        "read": "systemMemoryInfo",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 55,
+                        "name": "gameArgs",
+                        "read": "gameArgs",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 56,
+                        "name": "jvmArgs",
+                        "read": "jvmArgs",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 57,
+                        "name": "javaCompatibility",
+                        "read": "javaCompatibility",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 58,
+                        "name": "verifyRunning",
+                        "notify": "verifyRunningChanged",
+                        "read": "verifyRunning",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 59,
+                        "name": "verifyChecked",
+                        "notify": "verifyCheckedChanged",
+                        "read": "verifyChecked",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 60,
+                        "name": "verifyTotal",
+                        "notify": "verifyTotalChanged",
+                        "read": "verifyTotal",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 61,
+                        "name": "verifyResultOk",
+                        "read": "verifyResultOk",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 62,
+                        "name": "verifyResultText",
+                        "read": "verifyResultText",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::ShadowBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "accountChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "skinReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "offlineHistoryChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "javaPathChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "javaReadyChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "memorySettingsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "generalSettingsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "isolationChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "versionListReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "versionDetailsReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installedVersionsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "selectedVersionChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installTotalChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installFileProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "dl",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "installBytesProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installPhaseChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "installFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installSpeedChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "progress",
+                                "type": "int"
+                            },
+                            {
+                                "name": "status",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "launchStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "minecraftStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "minecraftStopped",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "isRunningChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "resourceDownloadStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "completed",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            },
+                            {
+                                "name": "fileName",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "resourceDownloadProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "resourceDownloadDone",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "verifyRunningChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "verifyCheckedChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "verifyTotalChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installPausedChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "results",
+                                "type": "QVariantList"
+                            }
+                        ],
+                        "name": "searchResultsReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "gameDirChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "themeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "loginModeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "verifyStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "checked",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "verifyProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "allPassed",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "verifyFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "failedFiles",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "verifyFailedFiles",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "step",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchCheckProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "phase",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "details",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchCheckFailed",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "files",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "launchCheckMissingFiles",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "warning",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "launchCheckWarning",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "shadow_backend.h",
+        "outputRevision": 68
+    },
+    {
+        "classes": [
+            {
+                "className": "VersionBackend",
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "dir",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setGameDir",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "setSelectedVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshVersionList",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "refreshInstalled",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "sourceIndex",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "installVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "isCloned": true,
+                        "name": "installVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "cancelInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "pauseInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "resumeInstall",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "cancelQueuedDownload",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "getVersionGameDir",
+                        "returnType": "QString"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "verifyVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "cleanCorruptVersion",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "oldId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "newId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "renameVersion",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "sourceId",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "newId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "cloneVersion",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "versionId",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "copyVersionPath",
+                        "returnType": "QString"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "name": "installing",
+                        "notify": "installStateChanged",
+                        "read": "isInstalling",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "name": "installProgress",
+                        "notify": "installProgressChanged",
+                        "read": "installProgress",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "name": "installTotal",
+                        "notify": "installProgressChanged",
+                        "read": "installTotal",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "name": "installFile",
+                        "notify": "installProgressChanged",
+                        "read": "installFile",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "name": "installVersionId",
+                        "notify": "installStateChanged",
+                        "read": "installVersionId",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "name": "installPhase",
+                        "notify": "installPhaseChanged",
+                        "read": "installPhase",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 6,
+                        "name": "verifyChecked",
+                        "notify": "verifyProgressChanged",
+                        "read": "verifyChecked",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 7,
+                        "name": "verifyTotal",
+                        "notify": "verifyProgressChanged",
+                        "read": "verifyTotal",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 8,
+                        "name": "installPaused",
+                        "notify": "installPausedChanged",
+                        "read": "isInstallPaused",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 9,
+                        "name": "versionIds",
+                        "notify": "versionListReady",
+                        "read": "versionIds",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 10,
+                        "name": "installedIds",
+                        "notify": "installedVersionsChanged",
+                        "read": "installedIds",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 11,
+                        "name": "selectedVersion",
+                        "notify": "selectedVersionChanged",
+                        "read": "selectedVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ShadowLauncher::VersionBackend",
+                "signals": [
+                    {
+                        "access": "public",
+                        "name": "versionListReady",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installedVersionsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "selectedVersionChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "installTotalChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "installFileProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "dl",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "total",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "installBytesProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "phase",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "installPhaseChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "installFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "speed",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "installSpeedChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "logMessage",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "name": "verifyStarted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "checked",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "verifyProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "checked",
+                                "type": "int"
+                            },
+                            {
+                                "name": "total",
+                                "type": "int"
+                            }
+                        ],
+                        "name": "verifyProgressChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "allPassed",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "verifyFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "failedFiles",
+                                "type": "QStringList"
+                            }
+                        ],
+                        "name": "verifyFailedFiles",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "paused",
+                                "type": "bool"
+                            }
+                        ],
+                        "name": "installPausedChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "cf",
+                                "type": "int"
+                            },
+                            {
+                                "name": "tf",
+                                "type": "int"
+                            },
+                            {
+                                "name": "db",
+                                "type": "qint64"
+                            },
+                            {
+                                "name": "tb",
+                                "type": "qint64"
+                            }
+                        ],
+                        "name": "onVersionDownloadProgress",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "msg",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "onVersionDownloadLog",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            },
+                            {
+                                "name": "error",
+                                "type": "QString"
+                            }
+                        ],
+                        "name": "onVersionDownloadFinished",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "name": "processVerifyBatch",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "version_backend.h",
+        "outputRevision": 68
+    }
+]

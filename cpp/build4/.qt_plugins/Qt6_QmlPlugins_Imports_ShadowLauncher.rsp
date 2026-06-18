@@ -1,0 +1,14 @@
+-rootPath
+D:/MC_Project/shadow-launcher/cpp
+-cmake-output
+-output-file
+D:/MC_Project/shadow-launcher/cpp/build4/.qt_plugins/Qt6_QmlPlugins_Imports_ShadowLauncher.cmake
+-importPath
+D:/MC_Project/shadow-launcher/cpp/build4/ShadowLauncher
+-importPath
+D:/MC_Project/shadow-launcher/cpp/build4
+-importPath
+C:/Qt/6.5.3/msvc2019_64/./qml
+-qrcFiles
+D:/MC_Project/shadow-launcher/cpp/build4/.rcc/qmake_ShadowLauncher.qrc
+D:/MC_Project/shadow-launcher/cpp/build4/.rcc/ShadowLauncher_raw_qml_0.qrc

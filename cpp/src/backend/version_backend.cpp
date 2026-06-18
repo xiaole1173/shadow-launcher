@@ -137,8 +137,26 @@ void VersionBackend::refreshInstalled()
 
 void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 {
-    // ── Guard: prevent concurrent installs ──
+    // ── Queue: if already installing, enqueue ──
     if (m_installing) {
+        // Avoid duplicate queue entries
+        for (const auto& entry : m_installQueue) {
+            if (entry.first == versionId) {
+                emit logMessage(QStringLiteral("⏳ %1 已在下载队列中").arg(versionId));
+                return;
+            }
+        }
+        // Don't queue if it's the same as currently installing
+        if (m_installVersionId == versionId) {
+            emit logMessage(QStringLiteral("⚠ %1 正在下载中").arg(versionId));
+            return;
+        }
+        m_installQueue.enqueue({versionId, sourceIndex});
+        emit logMessage(QStringLiteral("⏳ %1 已加入下载队列 (位置 %2)")
+                            .arg(versionId)
+                            .arg(m_installQueue.size()));
+        // Notify property changes for UI
+        emit installStateChanged();
         return;
     }
 
@@ -321,6 +339,8 @@ void VersionBackend::pauseInstall()
 {
     if (m_downloader) {
         m_downloader->pause();
+        m_installPaused = true;
+        emit installPausedChanged(true);
         emit logMessage(QStringLiteral("⏸ 安装已暂停 (断点文件已保留)"));
     }
 }
@@ -329,6 +349,8 @@ void VersionBackend::resumeInstall()
 {
     if (m_downloader) {
         m_downloader->resume();
+        m_installPaused = false;
+        emit installPausedChanged(false);
         emit logMessage(QStringLiteral("▶ 安装已恢复"));
     }
 }
@@ -357,6 +379,26 @@ void VersionBackend::onVersionDownloadProgress(int cf, int tf,
     m_installBytesDl     = db;
     m_installBytesTotal  = tb;
 
+    // Speed calculation (bytes/sec)
+    if (!m_speedTimer.isValid()) {
+        m_speedTimer.start();
+        m_lastSpeedBytes = db;
+        m_installSpeed = 0;
+    } else {
+        qint64 elapsedMs = m_speedTimer.elapsed();
+        if (elapsedMs >= 500) {
+            qint64 deltaBytes = db - m_lastSpeedBytes;
+            if (deltaBytes > 0 && elapsedMs > 0) {
+                m_installSpeed = deltaBytes * 1000 / elapsedMs;
+            } else {
+                m_installSpeed = 0;
+            }
+            m_speedTimer.restart();
+            m_lastSpeedBytes = db;
+            emit installSpeedChanged(m_installSpeed);
+        }
+    }
+
     // Phase detection: if file count > 0 we're downloading
     if (m_installPhase != QStringLiteral("校验中...")) {
         setInstallPhase(QStringLiteral("下载中..."));
@@ -377,6 +419,11 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 {
     setInstalling(false);
     setInstallPhase(QStringLiteral("idle"));
+    // Reset speed tracking
+    m_installSpeed = 0;
+    m_speedTimer.invalidate();
+    m_lastSpeedBytes = 0;
+    emit installSpeedChanged(0);
     emit installFinished(success);
 
     if (success) {
@@ -409,6 +456,34 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         emit logMessage(
             QStringLiteral("❌ %1 安装失败: %2")
                 .arg(m_installVersionId, errDetail));
+    }
+
+    // ── Process next in queue ──
+    if (!m_installQueue.isEmpty()) {
+        auto next = m_installQueue.dequeue();
+        QString nextId = next.first;
+        int nextSource = next.second;
+        emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
+        QTimer::singleShot(200, this, [this, nextId, nextSource]() {
+            installVersion(nextId, nextSource);
+        });
+    }
+}
+
+void VersionBackend::cancelQueuedDownload(const QString& versionId)
+{
+    // Remove from queue
+    for (int i = 0; i < m_installQueue.size(); ++i) {
+        if (m_installQueue[i].first == versionId) {
+            m_installQueue.removeAt(i);
+            emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
+            emit installStateChanged();
+            return;
+        }
+    }
+    // If it's currently installing, cancel entirely
+    if (m_installVersionId == versionId && m_installing) {
+        cancelInstall();
     }
 }
 
@@ -460,8 +535,22 @@ void VersionBackend::setInstallPhase(const QString& phase)
 }
 
 // ============================================================
-// Version management: verify
+// Version management: verify (async batched)
 // ============================================================
+
+struct VersionBackend::VerifyBatchState {
+    struct Item {
+        QString path;
+        QString sha1;
+        QString name;
+    };
+    QVector<Item> items;
+    int index = 0;
+    int total = 0;
+    int failed = 0;
+    QStringList failedFiles;
+    QStringList failedPaths; // paths for cleanup
+};
 
 static QString sha1File(const QString& filePath)
 {
@@ -474,6 +563,12 @@ static QString sha1File(const QString& filePath)
 
 void VersionBackend::verifyVersion(const QString& versionId)
 {
+    // Guard: don't allow concurrent verify
+    if (m_verifyState) {
+        emit logMessage(QStringLiteral("校验已在运行中"));
+        return;
+    }
+
     setInstallPhase(QStringLiteral("verifying"));
     emit verifyStarted();
     qCInfo(logVersion) << "Verify started:" << versionId;
@@ -505,12 +600,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
     QJsonObject versionJson = doc.object();
 
     // Collect all expected files and their SHA1 hashes
-    struct VerifyItem {
-        QString path;
-        QString sha1;
-        QString name;
-    };
-    QVector<VerifyItem> items;
+    auto state = std::make_unique<VerifyBatchState>();
 
     // --- client.jar ---
     {
@@ -519,11 +609,11 @@ void VersionBackend::verifyVersion(const QString& versionId)
                                      .value(QStringLiteral("client"))
                                      .toObject();
         if (!client.isEmpty()) {
-            VerifyItem item;
+            VerifyBatchState::Item item;
             item.path = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
             item.sha1 = client.value(QStringLiteral("sha1")).toString();
             item.name = versionId + QStringLiteral(".jar");
-            items.append(item);
+            state->items.append(item);
         }
     }
 
@@ -538,11 +628,11 @@ void VersionBackend::verifyVersion(const QString& versionId)
         QJsonObject artifact = downloads.value(QStringLiteral("artifact")).toObject();
         if (!artifact.isEmpty()) {
             QString path = artifact.value(QStringLiteral("path")).toString();
-            VerifyItem item;
+            VerifyBatchState::Item item;
             item.path = libsDir + QStringLiteral("/") + path;
             item.sha1 = artifact.value(QStringLiteral("sha1")).toString();
             item.name = QStringLiteral("libraries/%1").arg(path);
-            items.append(item);
+            state->items.append(item);
         }
 
         // Native classifiers (Windows)
@@ -551,11 +641,11 @@ void VersionBackend::verifyVersion(const QString& versionId)
             if (it.key().toLower().contains(QStringLiteral("natives-windows"))) {
                 QJsonObject clsArt = it.value().toObject();
                 QString path = clsArt.value(QStringLiteral("path")).toString();
-                VerifyItem item;
+                VerifyBatchState::Item item;
                 item.path = libsDir + QStringLiteral("/") + path;
                 item.sha1 = clsArt.value(QStringLiteral("sha1")).toString();
                 item.name = QStringLiteral("libraries/%1").arg(path);
-                items.append(item);
+                state->items.append(item);
             }
         }
     }
@@ -576,56 +666,121 @@ void VersionBackend::verifyVersion(const QString& versionId)
                     QJsonObject obj = it.value().toObject();
                     QString sha1 = obj.value(QStringLiteral("hash")).toString();
                     QString prefix = sha1.left(2);
-                    VerifyItem item;
+                    VerifyBatchState::Item item;
                     item.path = objectsDir + QStringLiteral("/") + prefix + QStringLiteral("/") + sha1;
                     item.sha1 = sha1;
                     item.name = QStringLiteral("assets/%1").arg(it.key());
-                    items.append(item);
+                    state->items.append(item);
                 }
             }
         }
     }
 
-    const int total = items.size();
-    emit logMessage(QStringLiteral("校验 %1 个文件...").arg(total));
-    emit verifyProgress(0, total);
+    state->total = state->items.size();
+    m_verifyState = std::move(state);
 
-    // Verify each file
-    int checked = 0;
-    int failed = 0;
-    for (const VerifyItem& item : items) {
-        checked++;
-        if (checked % 50 == 0)
-            emit verifyProgress(checked, total);
+    emit logMessage(QStringLiteral("校验 %1 个文件...").arg(m_verifyState->total));
+    emit verifyProgress(0, m_verifyState->total);
+
+    // Start first batch
+    processVerifyBatch();
+}
+
+void VersionBackend::processVerifyBatch()
+{
+    if (!m_verifyState) return;
+
+    const int BATCH_SIZE = 20;
+    auto& s = *m_verifyState;
+
+    int batchEnd = qMin(s.index + BATCH_SIZE, s.total);
+
+    for (int i = s.index; i < batchEnd; ++i) {
+        const auto& item = s.items[i];
 
         if (!QFileInfo::exists(item.path)) {
-            failed++;
-            emit logMessage(QStringLiteral("  ✗ 缺失: %1").arg(item.name));
+            s.failed++;
+            s.failedFiles.append(item.name + QStringLiteral(" (缺失)"));
+            s.failedPaths.append(item.path);
         } else if (!item.sha1.isEmpty()) {
             QString actual = sha1File(item.path);
             if (actual.compare(item.sha1, Qt::CaseInsensitive) != 0) {
-                failed++;
-                emit logMessage(QStringLiteral("  ✗ SHA1不匹配: %1").arg(item.name));
-            } else {
-                emit logMessage(QStringLiteral("  ✓ %1").arg(item.name));
+                s.failed++;
+                s.failedFiles.append(item.name + QStringLiteral(" (校验失败)"));
+                s.failedPaths.append(item.path);
+            }
+        }
+        // Skip logging individual passed files to avoid log spam
+    }
+
+    s.index = batchEnd;
+    emit verifyProgress(s.index, s.total);
+
+    if (s.index >= s.total) {
+        // ── All batches complete ──
+        bool allPassed = (s.failed == 0);
+
+        if (allPassed) {
+            qCInfo(logVersion) << "Verify completed — all" << s.total << "files passed";
+            emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(s.total));
+        } else {
+            qCCritical(logVersion) << "Verify completed —" << s.failed << "/" << s.total << "files failed";
+
+            // Build summary (trim if too long)
+            QString detail = s.failedFiles.join(QStringLiteral(", "));
+            if (detail.length() > 250) {
+                detail = detail.left(250) + QStringLiteral("...");
+            }
+            emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(s.failed).arg(s.total));
+            emit logMessage(QStringLiteral("   失败文件: %1").arg(detail));
+
+            // Emit failed files for QML display
+            emit verifyFailedFiles(s.failedFiles);
+        }
+
+        setInstallPhase(QStringLiteral("idle"));
+        emit verifyFinished(allPassed);
+
+        m_verifyState.reset();
+    } else {
+        // Schedule next batch — yield to event loop so UI stays responsive
+        QTimer::singleShot(0, this, &VersionBackend::processVerifyBatch);
+    }
+}
+
+// ============================================================
+// Version management: clean corrupt files
+// ============================================================
+
+void VersionBackend::cleanCorruptVersion(const QString& versionId)
+{
+    if (!m_verifyState) {
+        emit logMessage(QStringLiteral("没有可清理的校验结果"));
+        return;
+    }
+
+    const auto& s = *m_verifyState;
+    if (s.failedPaths.isEmpty()) {
+        emit logMessage(QStringLiteral("没有需要清理的损坏文件"));
+        return;
+    }
+
+    int cleaned = 0;
+    int removed = 0;
+
+    for (const QString& path : s.failedPaths) {
+        if (QFileInfo::exists(path)) {
+            if (QFile::remove(path)) {
+                removed++;
             }
         } else {
-            emit logMessage(QStringLiteral("  ✓ 存在: %1").arg(item.name));
+            cleaned++; // already gone
         }
     }
 
-    emit verifyProgress(total, total);
-
-    bool allPassed = (failed == 0);
-    if (allPassed) {
-        qCInfo(logVersion) << "Verify completed — all" << total << "files passed";
-        emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(total));
-    } else {
-        qCCritical(logVersion) << "Verify completed —" << failed << "/" << total << "files failed";
-        emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(total));
-    }
-    setInstallPhase(QStringLiteral("idle"));
-    emit verifyFinished(allPassed);
+    emit logMessage(QStringLiteral("🧹 清理完成: 删除 %1 个损坏文件, %2 个文件已不存在")
+                        .arg(removed).arg(cleaned));
+    emit logMessage(QStringLiteral("💡 请重新下载版本 %1 以恢复缺失文件").arg(versionId));
 }
 
 // ============================================================

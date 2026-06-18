@@ -1,0 +1,16 @@
+/ShadowLauncher/qml/MainWindow.qml
+/ShadowLauncher/qml/HomePage.qml
+/ShadowLauncher/qml/DownloadPage.qml
+/ShadowLauncher/qml/DownloadProgressPage.qml
+/ShadowLauncher/qml/SettingsPage.qml
+/ShadowLauncher/qml/SettingsGeneralPage.qml
+/ShadowLauncher/qml/SettingsJavaPage.qml
+/ShadowLauncher/qml/SettingsMemoryPage.qml
+/ShadowLauncher/qml/VersionSelectPage.qml
+/ShadowLauncher/qml/VersionSettingsPage.qml
+/ShadowLauncher/qml/LaunchOverlay.qml
+/ShadowLauncher/qml/InstallConfigOverlay.qml
+/ShadowLauncher/qml/KillButton.qml
+/ShadowLauncher/qml/ShadowButton.qml
+/ShadowLauncher/qml/SubPageOverlays.qml
+/ShadowLauncher/qml/ToastManager.qml

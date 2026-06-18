@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/ShadowLauncher">
+    <file alias="qmldir">D:/MC_Project/shadow-launcher/cpp/build4/ShadowLauncher/qmldir</file>
+  </qresource>
+</RCC>
+

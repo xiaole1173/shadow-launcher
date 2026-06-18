@@ -96,17 +96,30 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // installPhaseChanged signal with different signature:
     // VersionBackend emits installPhaseChanged(const QString&), ShadowBackend emits installPhaseChanged()
     connect(m_version, &VersionBackend::installPhaseChanged,
-            this, [this](const QString&) { emit installPhaseChanged(); });
+            this, [this](const QString&) {
+                emit installPhaseChanged();
+                emit verifyRunningChanged();
+            });
     connect(m_version, &VersionBackend::installFinished,
             this, &ShadowBackend::installFinished);
+    connect(m_version, &VersionBackend::installSpeedChanged,
+            this, &ShadowBackend::installSpeedChanged);
+    connect(m_version, &VersionBackend::installPausedChanged,
+            this, [this](bool) { emit installPausedChanged(); });
     connect(m_version, &VersionBackend::logMessage,
             this, &ShadowBackend::logMessage);
     connect(m_version, &VersionBackend::verifyStarted,
             this, &ShadowBackend::verifyStarted);
     connect(m_version, &VersionBackend::verifyProgress,
-            this, &ShadowBackend::verifyProgress);
+            this, [this](int checked, int total) {
+                emit verifyProgress(checked, total);
+                emit verifyCheckedChanged();
+                emit verifyTotalChanged();
+            });
     connect(m_version, &VersionBackend::verifyFinished,
             this, &ShadowBackend::verifyFinished);
+    connect(m_version, &VersionBackend::verifyFailedFiles,
+            this, &ShadowBackend::verifyFailedFiles);
 
     // ── Signal forwarding: LaunchBackend → ShadowBackend ──
     connect(m_launch, &LaunchBackend::launchProgressChanged,
@@ -121,6 +134,14 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::isRunningChanged);
     connect(m_launch, &LaunchBackend::logMessage,
             this, &ShadowBackend::logMessage);
+    connect(m_launch, &LaunchBackend::launchCheckProgress,
+            this, &ShadowBackend::launchCheckProgress);
+    connect(m_launch, &LaunchBackend::launchCheckFailed,
+            this, &ShadowBackend::launchCheckFailed);
+    connect(m_launch, &LaunchBackend::launchCheckMissingFiles,
+            this, &ShadowBackend::launchCheckMissingFiles);
+    connect(m_launch, &LaunchBackend::launchCheckWarning,
+            this, &ShadowBackend::launchCheckWarning);
 
     // ── Load persisted login mode ──
     {
@@ -297,6 +318,18 @@ QString ShadowBackend::installVersionId() const {
 
 QString ShadowBackend::installPhase() const {
     return m_version->installPhase();
+}
+
+qint64 ShadowBackend::installSpeed() const {
+    return m_version ? m_version->installSpeed() : 0;
+}
+
+qint64 ShadowBackend::installBytesDownloaded() const {
+    return m_version ? m_version->installBytesDownloaded() : 0;
+}
+
+qint64 ShadowBackend::installBytesTotal() const {
+    return m_version ? m_version->installBytesTotal() : 0;
 }
 
 QStringList ShadowBackend::releaseVersions() const {
@@ -640,6 +673,18 @@ void ShadowBackend::cancelInstall() {
     m_version->cancelInstall();
 }
 
+void ShadowBackend::pauseInstall() {
+    m_version->pauseInstall();
+}
+
+void ShadowBackend::resumeInstall() {
+    m_version->resumeInstall();
+}
+
+void ShadowBackend::cancelQueuedDownload(const QString& versionId) {
+    if (m_version) m_version->cancelQueuedDownload(versionId);
+}
+
 void ShadowBackend::setSelectedVersion(const QString& versionId) {
     m_version->setSelectedVersion(versionId);
 }
@@ -718,6 +763,10 @@ void ShadowBackend::setGameDir(const QString& dir) {
 
 void ShadowBackend::verifyVersion(const QString& versionId) {
     m_version->verifyVersion(versionId);
+}
+
+void ShadowBackend::cleanCorruptVersion(const QString& versionId) {
+    m_version->cleanCorruptVersion(versionId);
 }
 
 bool ShadowBackend::renameVersion(const QString& oldId, const QString& newId) {

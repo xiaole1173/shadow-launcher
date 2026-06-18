@@ -1,0 +1,273 @@
+{
+    "classes": [
+        {
+            "className": "ResourceBackend",
+            "methods": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "loader",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "getPopularMods",
+                    "returnType": "QVariantList"
+                },
+                {
+                    "access": "public",
+                    "name": "getShaderList",
+                    "returnType": "QVariantList"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "query",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "loader",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "searchMods",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "query",
+                            "type": "QString"
+                        }
+                    ],
+                    "isCloned": true,
+                    "name": "searchMods",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "slug",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "loader",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "downloadMod",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "slug",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "downloadShader",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "cancelDownload",
+                    "returnType": "void"
+                }
+            ],
+            "object": true,
+            "properties": [
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 0,
+                    "name": "downloading",
+                    "notify": "downloadStateChanged",
+                    "read": "isDownloading",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 1,
+                    "name": "dlProgress",
+                    "notify": "downloadProgressChanged",
+                    "read": "dlProgress",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 2,
+                    "name": "dlTotal",
+                    "notify": "downloadProgressChanged",
+                    "read": "dlTotal",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "int",
+                    "user": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 3,
+                    "name": "dlFile",
+                    "notify": "downloadProgressChanged",
+                    "read": "dlFile",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false
+                }
+            ],
+            "qualifiedClassName": "ShadowLauncher::ResourceBackend",
+            "signals": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "completed",
+                            "type": "int"
+                        },
+                        {
+                            "name": "total",
+                            "type": "int"
+                        },
+                        {
+                            "name": "fileName",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "downloadProgressChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "name": "downloadStateChanged",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "slug",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "success",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "filePath",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "downloadFinished",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "results",
+                            "type": "QVariantList"
+                        }
+                    ],
+                    "name": "searchResultsReady",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "msg",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "logMessage",
+                    "returnType": "void"
+                }
+            ],
+            "slots": [
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "results",
+                            "type": "QJsonArray"
+                        },
+                        {
+                            "name": "totalHits",
+                            "type": "int"
+                        }
+                    ],
+                    "name": "onSearchCompleted",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "name",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "received",
+                            "type": "qint64"
+                        },
+                        {
+                            "name": "total",
+                            "type": "qint64"
+                        }
+                    ],
+                    "name": "onDownloadProgress",
+                    "returnType": "void"
+                },
+                {
+                    "access": "private",
+                    "arguments": [
+                        {
+                            "name": "slug",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "success",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "filePath",
+                            "type": "QString"
+                        }
+                    ],
+                    "name": "onDownloadFinished",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "resource_backend.h",
+    "outputRevision": 68
+}

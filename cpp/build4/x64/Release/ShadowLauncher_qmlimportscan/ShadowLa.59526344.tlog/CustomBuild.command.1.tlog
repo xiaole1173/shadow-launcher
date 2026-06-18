@@ -1,0 +1,32 @@
+^D:\MC_PROJECT\SHADOW-LAUNCHER\CPP\BUILD4\CMAKEFILES\8D8E8D25D0F2CB0BA72C330FA6C59352\QT6_QMLPLUGINS_IMPORTS_SHADOWLAUNCHER.CMAKE.RULE
+setlocal
+cd D:\MC_Project\shadow-launcher\cpp
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+call D:\MC_Project\shadow-launcher\cpp\build4\.qt\bin\qt_setup_tool_path.bat C:/Qt/6.5.3/msvc2019_64/./bin/qmlimportscanner.exe @D:/MC_Project/shadow-launcher/cpp/build4/.qt_plugins/Qt6_QmlPlugins_Imports_ShadowLauncher.rsp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\MC_PROJECT\SHADOW-LAUNCHER\CPP\BUILD4\CMAKEFILES\0DDB63996E50B444C2556FD9720DC43E\SHADOWLAUNCHER_QMLIMPORTSCAN.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\MC_PROJECT\SHADOW-LAUNCHER\CPP\CMAKELISTS.TXT
+setlocal
+C:\Users\蔡朝彬\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\cmake.exe -SD:/MC_Project/shadow-launcher/cpp -BD:/MC_Project/shadow-launcher/cpp/build4 --check-stamp-file D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

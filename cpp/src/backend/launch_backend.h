@@ -35,6 +35,7 @@ public:
     // ---- Pre-launch checks ----
     Q_INVOKABLE QString checkJavaArchitecture(const QString& javaPath);
     Q_INVOKABLE bool checkVersionHasNatives(const QString& versionId);
+    Q_INVOKABLE QStringList checkVersionLibraries(const QString& versionId);
 
     // ---- Called by ShadowBackend to sync game directory ----
     void setGameDir(const QString& dir);
@@ -49,7 +50,8 @@ signals:
 
     // ── Pre-launch check signals ──
     void launchCheckProgress(const QString& step);
-    void launchCheckFailed(const QString& phase);
+    void launchCheckFailed(const QString& phase, const QString& details);
+    void launchCheckMissingFiles(const QStringList& files);
     void launchCheckWarning(const QString& warning);
 
 private slots:

@@ -51,9 +51,10 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString installFile READ installFile NOTIFY installFileProgress)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
-    Q_PROPERTY(QString installSpeed READ installSpeed CONSTANT)
+    Q_PROPERTY(qint64 installSpeed READ installSpeed NOTIFY installSpeedChanged)
     Q_PROPERTY(qint64 installBytesDownloaded READ installBytesDownloaded NOTIFY installBytesProgress)
     Q_PROPERTY(qint64 installBytesTotal READ installBytesTotal NOTIFY installBytesProgress)
+    Q_PROPERTY(bool installPaused READ installPaused NOTIFY installPausedChanged)
 
     // ── Launch ──
     Q_PROPERTY(bool launching READ isLaunching NOTIFY launchStateChanged)
@@ -136,9 +137,9 @@ public:
     QString installFile() const;
     QString installVersionId() const;
     QString installPhase() const;
-    QString installSpeed() const { return QStringLiteral("0 B/s"); }
-    qint64 installBytesDownloaded() const { return 0; }
-    qint64 installBytesTotal() const { return 0; }
+    qint64 installSpeed() const;
+    qint64 installBytesDownloaded() const;
+    qint64 installBytesTotal() const;
     QVariantList versionDetails() const { return m_versionDetails; }
     QString currentVersionSummary() const { return {}; }
 
@@ -256,7 +257,11 @@ public:
     Q_INVOKABLE void openScreenshotsFolder() {}
     Q_INVOKABLE void openShaderPacksFolder() {}
     Q_INVOKABLE void removeGameDir(int) {}
+    Q_INVOKABLE void pauseInstall();
+    Q_INVOKABLE void resumeInstall();
+    Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     Q_INVOKABLE void verifyVersion(const QString& versionId);
+    Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
@@ -282,6 +287,7 @@ signals:
     void installBytesProgress(qint64 dl, qint64 total);
     void installPhaseChanged();
     void installFinished(bool success);
+    void installSpeedChanged();
     void launchProgressChanged(int progress, const QString& status);
     void launchStateChanged();
     void minecraftStarted();
@@ -304,6 +310,13 @@ signals:
     void verifyStarted();
     void verifyProgress(int checked, int total);
     void verifyFinished(bool allPassed);
+    void verifyFailedFiles(const QStringList& failedFiles);
+
+    // ── Pre-launch check signals ──
+    void launchCheckProgress(const QString& step);
+    void launchCheckFailed(const QString& phase, const QString& details);
+    void launchCheckMissingFiles(const QStringList& files);
+    void launchCheckWarning(const QString& warning);
 
 public:
     AppBackend* app() const { return m_app; }

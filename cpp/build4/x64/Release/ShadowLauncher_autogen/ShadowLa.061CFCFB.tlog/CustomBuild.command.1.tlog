@@ -1,0 +1,34 @@
+^D:\MC_PROJECT\SHADOW-LAUNCHER\CPP\BUILD4\CMAKEFILES\0D41BAA2D23DF97F0BF80225C68B8C5F\SHADOWLAUNCHER_QMLCACHE_LOADER.CPP.RULE
+setlocal
+call .qt\bin\qt_setup_tool_path.bat C:/Qt/6.5.3/msvc2019_64/./bin/qmlcachegen.exe --resource-name qmlcache_ShadowLauncher --resource D:/MC_Project/shadow-launcher/cpp/build4/.rcc/qmake_ShadowLauncher.qrc --resource D:/MC_Project/shadow-launcher/cpp/build4/.rcc/ShadowLauncher_raw_qml_0.qrc -o D:/MC_Project/shadow-launcher/cpp/build4/.rcc/qmlcache/ShadowLauncher_qmlcache_loader.cpp @D:/MC_Project/shadow-launcher/cpp/build4/.rcc/qmlcache/ShadowLauncher_qml_loader_file_list.rsp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\MC_PROJECT\SHADOW-LAUNCHER\CPP\BUILD4\CMAKEFILES\0DDB63996E50B444C2556FD9720DC43E\SHADOWLAUNCHER_AUTOGEN.RULE
+setlocal
+cd D:\MC_Project\shadow-launcher\cpp\build4
+if %errorlevel% neq 0 goto :cmEnd
+D:
+if %errorlevel% neq 0 goto :cmEnd
+C:\Users\蔡朝彬\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\cmake.exe -E cmake_autogen D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_autogen.dir/AutogenInfo.json Release
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\MC_PROJECT\SHADOW-LAUNCHER\CPP\CMAKELISTS.TXT
+setlocal
+C:\Users\蔡朝彬\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\cmake.exe -SD:/MC_Project/shadow-launcher/cpp -BD:/MC_Project/shadow-launcher/cpp/build4 --check-stamp-file D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

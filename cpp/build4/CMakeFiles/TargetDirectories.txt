@@ -1,0 +1,16 @@
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_automoc_json_extraction.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_qmltyperegistration.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/all_qmltyperegistrations.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_qmllint.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_qmllint_json.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_qmllint_module.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/all_qmllint.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/all_qmllint_json.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/all_qmllint_module.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_tooling.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_qmlimportscan.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/INSTALL.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ShadowLauncher_autogen.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ALL_BUILD.dir
+D:/MC_Project/shadow-launcher/cpp/build4/CMakeFiles/ZERO_CHECK.dir
