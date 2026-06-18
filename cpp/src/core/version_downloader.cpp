@@ -74,7 +74,7 @@ QVector<MirrorSource> MirrorSource::allMirrors()
 
 VersionDownloader::VersionDownloader(QObject* parent)
     : QObject(parent)
-    , m_mirror(MirrorSource::bmclapi())
+    , m_mirror(MirrorSource::mojang())  // Default to Mojang (BMCLAPI down)
     , m_minecraftDir(QDir::homePath() + QStringLiteral("/.shadow/minecraft"))
 {
     m_downloader = new ParallelDownloader(m_maxWorkers, this);

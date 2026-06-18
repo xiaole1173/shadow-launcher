@@ -42,11 +42,6 @@ Rectangle {
             showTimer.stop()
             flipped = false
             showTimer.start()
-            // Reset failure state when re-opening
-            checkFailed = false
-            checkFailedPhase = ""
-            checkFailedDetails = ""
-            missingFilesList = []
         }
     }
 
@@ -121,6 +116,15 @@ Rectangle {
 
         function onLaunchCheckMissingFiles(files) {
             missingFilesList = files || []
+        }
+
+        function onLaunchStateChanged() {
+            if (backend && backend.launching) {
+                // New launch request — reset error state
+                checkFailed = false
+                checkFailedPhase = ""
+                checkFailedDetails = ""
+            }
         }
 
         function onLaunchCheckWarning(warning) {
