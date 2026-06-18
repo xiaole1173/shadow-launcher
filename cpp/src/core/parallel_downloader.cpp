@@ -656,9 +656,27 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
                             .arg(ci.mirrorUrl));
 
         qint64 bytesReceived = 0;
-        const bool ok = downloadSingleUrl(ci.mirrorUrl, chunkPath,
-                                           ci.start, ci.end,
-                                           bytesReceived);
+        bool ok = downloadSingleUrl(ci.mirrorUrl, chunkPath,
+                                      ci.start, ci.end,
+                                      bytesReceived);
+
+        // Mirror fallback: if primary URL fails, try mirrors from task
+        int mirrorIdx = 0;
+        while (!ok && mirrorIdx < task.mirrors.size()) {
+            const QString& mirrorUrl = task.mirrors[mirrorIdx];
+            // Skip if same as already-tried primary URL
+            if (mirrorUrl != ci.mirrorUrl) {
+                QFile::remove(chunkPath); // clean failed partial
+                emit logMessage(QString::fromUtf8("  ↻ 回退镜像[%1]: %2")
+                                    .arg(mirrorIdx + 1)
+                                    .arg(mirrorUrl));
+                bytesReceived = 0;
+                ok = downloadSingleUrl(mirrorUrl, chunkPath,
+                                        ci.start, ci.end,
+                                        bytesReceived);
+            }
+            mirrorIdx++;
+        }
 
         if (ok && QFileInfo::exists(chunkPath)) {
             ci.completed = true;
@@ -669,7 +687,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
         } else {
             allChunksOk = false;
             QFile::remove(chunkPath);
-            emit logMessage(QString::fromUtf8("  ✗ 块%1 下载失败: %2")
+            emit logMessage(QString::fromUtf8("  ✗ 块%1 下载失败(所有镜像均失败): %2")
                                 .arg(ci.index + 1)
                                 .arg(ci.mirrorUrl));
             // Don't break — try remaining chunks from different mirrors
