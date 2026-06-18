@@ -9,14 +9,17 @@
 #include "version_backend.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStorageInfo>
+#include <QTextStream>
 #include <QTimer>
 #include <QUrl>
 
@@ -122,7 +125,34 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_version, &VersionBackend::verifyFinished,
             this, &ShadowBackend::verifyFinished);
     connect(m_version, &VersionBackend::verifyFailedFiles,
-            this, &ShadowBackend::verifyFailedFiles);
+            this, [this](const QStringList& failedFiles) {
+                // Generate error report
+                if (!failedFiles.isEmpty()) {
+                    QDir reportsDir(m_gameDir + QStringLiteral("/verify_reports"));
+                    if (!reportsDir.exists()) reportsDir.mkpath(QStringLiteral("."));
+                    QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
+                    m_verifyReportPath = reportsDir.filePath(
+                        QStringLiteral("verify_failed_%1.txt").arg(timestamp));
+                    QFile report(m_verifyReportPath);
+                    if (report.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                        QTextStream out(&report);
+                        out << QStringLiteral("Shadow Launcher — 版本完整性校验报告\n");
+                        out << QStringLiteral("======================================\n");
+                        out << QStringLiteral("时间: ") << QDateTime::currentDateTime().toString(Qt::ISODate) << QStringLiteral("\n");
+                        out << QStringLiteral("版本: ") << m_version->selectedVersion() << QStringLiteral("\n");
+                        out << QStringLiteral("异常文件数: ") << failedFiles.size() << QStringLiteral("\n");
+                        out << QStringLiteral("--------------------------------------\n");
+                        for (int i = 0; i < failedFiles.size(); ++i) {
+                            out << (i + 1) << QStringLiteral(". ") << failedFiles[i] << QStringLiteral("\n");
+                        }
+                        out << QStringLiteral("--------------------------------------\n");
+                        out << QStringLiteral("请使用「一键修复」重新下载损坏/缺失的文件。\n");
+                    }
+                } else {
+                    m_verifyReportPath.clear();
+                }
+                emit verifyFailedFiles(failedFiles);
+            });
 
     // ── Signal forwarding: LaunchBackend → ShadowBackend ──
     connect(m_launch, &LaunchBackend::launchProgressChanged,
@@ -805,6 +835,16 @@ bool ShadowBackend::cloneVersion(const QString& sourceId, const QString& newId) 
 
 QString ShadowBackend::copyVersionPath(const QString& versionId) {
     return m_version->copyVersionPath(versionId);
+}
+
+void ShadowBackend::repairVersion(const QString& versionId) {
+    m_version->repairVersion(versionId);
+}
+
+void ShadowBackend::openVerifyReport() {
+    if (!m_verifyReportPath.isEmpty() && QFile::exists(m_verifyReportPath)) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(m_verifyReportPath));
+    }
 }
 
 // ============================================================

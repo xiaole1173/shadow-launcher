@@ -267,7 +267,8 @@ public:
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
-    Q_INVOKABLE void repairVersion(const QString&) {}
+    Q_INVOKABLE void repairVersion(const QString& versionId);
+    Q_INVOKABLE void openVerifyReport();
 
 signals:
     void accountChanged();
@@ -342,6 +343,7 @@ private:
     int m_lastLoginMode = 1;
     QString m_launchVersion;
     QString m_launchUsername;
+    QString m_verifyReportPath;
     bool m_closeOnLaunch = false;
     QString m_gameDir;
     QVariantMap m_gameDirInfo;

@@ -1761,46 +1761,62 @@ Window {
                                         }
                                     }
 
+                                    Item { height: 12; width: 1 }
+
+                                    // Red failure notification
                                     Rectangle {
-                                        Layout.fillWidth: true; Layout.fillHeight: true
-                                        color: "#0d1018"; radius: 6
-                                        border.color: versionSettingsOverlay._verifyRunning ? "#2a3050" : (versionSettingsOverlay._verifyResultOk ? "#2a4a2a" : (versionSettingsOverlay._verifyResultText !== "" ? "#4a2a2a" : "#1a1e28"))
+                                        Layout.fillWidth: true
+                                        height: 40; radius: 6
+                                        color: "#2A1518"
+                                        border.color: "#804040"
                                         border.width: 1
-                                        visible: versionSettingsOverlay._verifyResultText !== ""
-                                        clip: true
-                                        Flickable {
-                                            anchors.fill: parent; anchors.margins: 12
-                                            contentHeight: verifyResultLabel.implicitHeight
+                                        visible: versionSettingsOverlay._verifyHasFailed && versionSettingsOverlay._verifyFailedFiles.length > 0
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 8
                                             Text {
-                                                id: verifyResultLabel
-                                                width: parent.width
-                                                text: versionSettingsOverlay._verifyResultText
-                                                font.pixelSize: 11; color: "#b0b8c8"
-                                                font.family: "Consolas, Microsoft YaHei, monospace"
-                                                wrapMode: Text.WordWrap
-                                                lineHeight: 1.6
+                                                text: "❌ 检测到 " + versionSettingsOverlay._verifyFailedFiles.length + " 个文件异常"
+                                                font.pixelSize: 12; color: "#ff8080"
                                             }
                                         }
                                     }
 
-                                    Item { height: 12; width: 1 }
-
-                                    // Repair button (hollow orange, visible when verify found failures)
-                                    Rectangle {
-                                        width: 140; height: 36; radius: 6
-                                        color: "transparent"
-                                        border.color: repairBtnHover.hovered ? "#ff8c42" : "#c06420"
-                                        border.width: 1.5
+                                    // Action buttons
+                                    RowLayout {
+                                        spacing: 10
                                         visible: versionSettingsOverlay._verifyHasFailed && versionSettingsOverlay._verifyFailedFiles.length > 0
-                                        Text { anchors.centerIn: parent; text: "🔧 一键修复"; font.pixelSize: 12; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
-                                        HoverHandler { id: repairBtnHover }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                                                if (backend) {
-                                                    backend.repairVersion(currentSelectedVersion)
-                                                    versionSettingsOverlay._verifyHasFailed = false
-                                                    versionSettingsOverlay._verifyFailedFiles = []
+
+                                        // Repair button (hollow orange)
+                                        Rectangle {
+                                            width: 140; height: 36; radius: 6
+                                            color: "transparent"
+                                            border.color: repairBtnHover.hovered ? "#ff8c42" : "#c06420"
+                                            border.width: 1.5
+                                            Text { anchors.centerIn: parent; text: "🔧 一键修复"; font.pixelSize: 12; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
+                                            HoverHandler { id: repairBtnHover }
+                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                                                    if (backend) {
+                                                        backend.repairVersion(currentSelectedVersion)
+                                                        versionSettingsOverlay._verifyHasFailed = false
+                                                        versionSettingsOverlay._verifyFailedFiles = []
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // View report button
+                                        Rectangle {
+                                            width: 140; height: 36; radius: 6
+                                            color: "transparent"
+                                            border.color: reportBtnHover.hovered ? "#ff8080" : "#804040"
+                                            border.width: 1.5
+                                            Text { anchors.centerIn: parent; text: "📋 查看异常详情"; font.pixelSize: 12; color: reportBtnHover.hovered ? "#ff8080" : "#e07070" }
+                                            HoverHandler { id: reportBtnHover }
+                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (backend) backend.openVerifyReport()
                                                 }
                                             }
                                         }
