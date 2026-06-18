@@ -290,7 +290,8 @@ static bool shouldIncludeLibrary(const QJsonObject& lib)
         }
     }
 
-    return true;
+    // No rule matched this platform — exclude (default deny)
+    return false;
 }
 
 static QString resolveLibraryPath(const QJsonObject& lib, const QString& librariesDir)
@@ -455,6 +456,8 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     QString nativesDir = m_gameDir + QStringLiteral("/versions/") + versionId
                          + QStringLiteral("/natives");
 
+    qCInfo(logLaunch) << "extractNatives: starting for" << versionId << "→" << nativesDir;
+
     // Idempotent: skip if natives already extracted
     QDir nd(nativesDir);
     if (nd.exists()) {
@@ -488,6 +491,8 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     const QString nativePrefix = QStringLiteral("natives-linux");
 #endif
 
+    qCInfo(logLaunch) << "extractNatives: scanning" << libraries.size() << "libraries for" << nativePrefix;
+
     int extractedCount = 0;
     int jarCount = 0;
 
@@ -495,9 +500,28 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
         QJsonObject lib = libVal.toObject();
         if (!shouldIncludeLibrary(lib)) continue;
 
+        QString libName = lib[QStringLiteral("name")].toString();
         QJsonObject downloads = lib[QStringLiteral("downloads")].toObject();
-        QJsonObject classifiers = downloads[QStringLiteral("classifiers")].toObject();
 
+        // Collect jar paths from both old & new format
+        QStringList pendingJars;
+        QStringList excludePatterns;
+
+        // --- New format (1.21+): natives classifier in the name ---
+        // e.g. "org.lwjgl:lwjgl-glfw:3.3.3:natives-windows"
+        if (libName.contains(QStringLiteral(":") + nativePrefix)) {
+            QJsonObject artifact = downloads[QStringLiteral("artifact")].toObject();
+            QString path = artifact[QStringLiteral("path")].toString();
+            if (!path.isEmpty()) {
+                QString jarPath = libsDir + QStringLiteral("/") + path;
+                if (QFileInfo::exists(jarPath)) {
+                    pendingJars.append(jarPath);
+                }
+            }
+        }
+
+        // --- Old format (1.8-1.20): classifiers section ---
+        QJsonObject classifiers = downloads[QStringLiteral("classifiers")].toObject();
         for (auto it = classifiers.begin(); it != classifiers.end(); ++it) {
             QString clsName = it.key();
             if (!clsName.startsWith(nativePrefix)) continue;
@@ -507,35 +531,35 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
             if (path.isEmpty()) continue;
 
             QString jarPath = libsDir + QStringLiteral("/") + path;
-            if (!QFileInfo::exists(jarPath)) continue;
+            if (QFileInfo::exists(jarPath)) {
+                pendingJars.append(jarPath);
+            }
+        }
 
+        // Get exclude patterns from library extract config (shared by both formats)
+        QJsonObject extract = lib[QStringLiteral("extract")].toObject();
+        QJsonArray excludeArr = extract[QStringLiteral("exclude")].toArray();
+        for (const QJsonValue& exVal : excludeArr) {
+            excludePatterns.append(exVal.toString());
+        }
+
+        // Process all pending native jars
+        for (const QString& jarPath : pendingJars) {
             jarCount++;
 
-            // Open the native JAR (ZIP format)
             QZipReader zipReader(jarPath);
             if (zipReader.status() != QZipReader::NoError) {
-                qCWarning(logLaunch) << "Failed to open native JAR:" << jarPath;
+                qCWarning(logLaunch) << "extractNatives: failed to open jar:" << jarPath;
                 continue;
             }
 
-            // Get exclude patterns from library extract config
-            QStringList excludePatterns;
-            QJsonObject extract = lib[QStringLiteral("extract")].toObject();
-            QJsonArray excludeArr = extract[QStringLiteral("exclude")].toArray();
-            for (const QJsonValue& exVal : excludeArr) {
-                excludePatterns.append(exVal.toString());
-            }
-
-            // Extract native files only
             const auto fileList = zipReader.fileInfoList();
             for (const auto& fi : fileList) {
                 QString fileName = fi.filePath;
 
-                // Skip directories and META-INF
                 if (fi.isDir) continue;
                 if (fileName.startsWith(QStringLiteral("META-INF"))) continue;
 
-                // Only extract native library files
                 QString lower = fileName.toLower();
                 if (!lower.endsWith(QStringLiteral(".dll"))
                     && !lower.endsWith(QStringLiteral(".so"))
@@ -544,20 +568,14 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
                     continue;
                 }
 
-                // Check exclude patterns
                 bool excluded = false;
                 for (const QString& pattern : excludePatterns) {
-                    if (fileName.startsWith(pattern)) {
-                        excluded = true;
-                        break;
-                    }
+                    if (fileName.startsWith(pattern)) { excluded = true; break; }
                 }
                 if (excluded) continue;
 
-                // Write native file to natives directory
                 QByteArray data = zipReader.fileData(fileName);
                 if (!data.isEmpty()) {
-                    // Use only the basename to flatten directory structure
                     QString baseName = QFileInfo(fileName).fileName();
                     QString destPath = nativesDir + QStringLiteral("/") + baseName;
                     QFile destFile(destPath);
@@ -572,13 +590,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
         }
     }
 
-    if (extractedCount > 0) {
-        qCInfo(logLaunch) << "Extracted" << extractedCount << "native files from"
-                          << jarCount << "JAR(s) to" << nativesDir;
-    } else if (jarCount > 0) {
-        qCDebug(logLaunch) << "No native files found in" << jarCount << "native JAR(s)";
-    }
-
+    qCInfo(logLaunch) << "extractNatives: complete —" << jarCount << "native jars, extracted" << extractedCount << "files →" << nativesDir;
     return extractedCount > 0 || jarCount == 0;
 }
 

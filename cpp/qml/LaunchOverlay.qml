@@ -6,12 +6,16 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     color: "#0c0f16"
-    visible: backend ? backend.launching : false
+    visible: _shouldShow
 
-    // On launch finish, play exit animation before hiding
-    property bool launchingActual: backend ? backend.launching : false
-    onLaunchingActualChanged: {
-        if (!launchingActual && visible) hide()
+    // Internal visibility — follows backend.launching unless error
+    property bool _shouldShow: (backend ? backend.launching : false) || checkFailed
+    on_ShouldShowChanged: {
+        if (_shouldShow) {
+            // Reset animation state
+            flipped = false
+            hideTimer.stop()
+        }
     }
 
     // Flip-page animation on appearance
@@ -45,6 +49,9 @@ Rectangle {
 
     // Hide with flip-out animation
     function hide() {
+        checkFailed = false
+        checkFailedPhase = ""
+        checkFailedDetails = ""
         flipped = false  // triggers reverse flip
         hideTimer.start()
     }
