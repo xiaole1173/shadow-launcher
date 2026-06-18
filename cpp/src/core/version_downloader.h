@@ -77,7 +77,11 @@ signals:
     void progressChanged(int completedFiles, int totalFiles,
                          qint64 downloadedBytes, qint64 totalBytes);
     void fileProgress(const QString& fileName, qint64 received, qint64 total);
-    void verifyProgress(int checked, int total);
+
+    /// Emitted during integrity verification phase only.
+    /// Does NOT overlap with downloadProgress — verify has its own signal.
+    void verifyProgressChanged(int checked, int total);
+
     void logMessage(const QString& msg);
     void downloadFinished(bool success, const QString& errorMsg);
     void stateChanged();

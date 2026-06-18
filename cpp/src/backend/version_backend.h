@@ -22,6 +22,9 @@ class VersionBackend : public QObject {
     Q_PROPERTY(QString installFile READ installFile NOTIFY installProgressChanged)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
+    Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
+    Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
+    Q_PROPERTY(bool installPaused READ isInstallPaused NOTIFY installPausedChanged)
     Q_PROPERTY(QStringList versionIds READ versionIds NOTIFY versionListReady)
     Q_PROPERTY(QStringList installedIds READ installedIds NOTIFY installedVersionsChanged)
     Q_PROPERTY(QString selectedVersion READ selectedVersion NOTIFY selectedVersionChanged)
@@ -41,6 +44,9 @@ public:
     QString installFile() const { return m_installFile; }
     QString installVersionId() const { return m_installVersionId; }
     QString installPhase() const { return m_installPhase; }
+    int verifyChecked() const { return m_verifyChecked; }
+    int verifyTotal() const { return m_verifyTotal; }
+    bool isInstallPaused() const { return m_installPaused; }
     QStringList versionIds() const { return m_versionIds; }
     QStringList installedIds() const { return m_installedIds; }
     QString selectedVersion() const { return m_selectedVersion; }
@@ -79,7 +85,9 @@ signals:
     // ── Version management signals ──
     void verifyStarted();
     void verifyProgress(int checked, int total);
+    void verifyProgressChanged(int checked, int total);
     void verifyFinished(bool allPassed);
+    void installPausedChanged(bool paused);
 
 private slots:
     void onVersionDownloadProgress(int cf, int tf, qint64 db, qint64 tb);
@@ -109,6 +117,9 @@ private:
     qint64 m_installBytesTotal = 0;
     QString m_installPhase = "idle";
     QString m_installVersionId;
+    int m_verifyChecked = 0;
+    int m_verifyTotal = 0;
+    bool m_installPaused = false;
 };
 
 } // namespace ShadowLauncher

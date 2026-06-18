@@ -275,6 +275,22 @@ QString ShadowBackend::installFile() const {
     return m_version->installFile();
 }
 
+bool ShadowBackend::verifyRunning() const {
+    return m_version && m_version->installPhase() == QStringLiteral("verifying");
+}
+
+int ShadowBackend::verifyChecked() const {
+    return m_version ? m_version->verifyChecked() : 0;
+}
+
+int ShadowBackend::verifyTotal() const {
+    return m_version ? m_version->verifyTotal() : 0;
+}
+
+bool ShadowBackend::installPaused() const {
+    return m_version ? m_version->isInstallPaused() : false;
+}
+
 QString ShadowBackend::installVersionId() const {
     return m_version->installVersionId();
 }

@@ -1,12 +1,19 @@
-// Shadow Launcher — Parallel download engine
-// Concurrent multi-file downloader with SHA1 verification,
-// mirror racing, pause/resume/cancel support.
+// Shadow Launcher — Parallel download engine v3
+// Chunked multi-source segmented download with:
+//  - HTTP Range requests across mirrors for large files (>1MB)
+//  - Direct single-URL for small files
+//  - Checkpoint resume via .download_progress.json
+//  - Pause/resume preserving .tmp chunks
+//  - Version-level concurrency queue (max 3)
 
 #include "parallel_downloader.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QCryptographicHash>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -17,6 +24,11 @@
 #include <QThread>
 
 namespace ShadowLauncher {
+
+// Static queue members
+QMutex ParallelDownloader::s_queueMutex;
+QQueue<ParallelDownloader*> ParallelDownloader::s_versionQueue;
+int ParallelDownloader::s_activeVersionCount = 0;
 
 // ═══════════════════════════════════════════════════════════
 // Construction / Destruction
@@ -30,7 +42,6 @@ ParallelDownloader::ParallelDownloader(int maxWorkers, QObject* parent)
 
 ParallelDownloader::~ParallelDownloader()
 {
-    // Signal threads to stop
     m_cancelled = true;
     m_state = Cancelled;
     {
@@ -39,7 +50,6 @@ ParallelDownloader::~ParallelDownloader()
         m_pauseCond.wakeAll();
     }
 
-    // Join all workers with generous timeout
     for (QThread* w : m_workers) {
         if (w->isRunning()) {
             if (!w->wait(35000)) {
@@ -58,7 +68,6 @@ ParallelDownloader::~ParallelDownloader()
 
 void ParallelDownloader::addTask(const DownloadTask& task)
 {
-    // Tasks can only be added before start()
     QMutexLocker lock(&m_mutex);
     if (m_state != Idle) return;
     m_tasks.append(task);
@@ -72,6 +81,229 @@ void ParallelDownloader::addTasks(const QVector<DownloadTask>& tasks)
 }
 
 // ═══════════════════════════════════════════════════════════
+// Checkpoint dir
+// ═══════════════════════════════════════════════════════════
+
+void ParallelDownloader::setCheckpointDir(const QString& dir)
+{
+    m_checkpointDir = dir;
+    if (!dir.isEmpty())
+        QDir().mkpath(dir);
+}
+
+QString ParallelDownloader::checkpointDir() const
+{
+    return m_checkpointDir;
+}
+
+bool ParallelDownloader::hasResumeCheckpoint(const QString& taskName) const
+{
+    return QFileInfo::exists(checkpointPath(taskName));
+}
+
+// ═══════════════════════════════════════════════════════════
+// Checkpoint helpers
+// ═══════════════════════════════════════════════════════════
+
+QString ParallelDownloader::checkpointPath(const QString& taskName) const
+{
+    if (m_checkpointDir.isEmpty())
+        return QString();
+    return m_checkpointDir + QStringLiteral("/") + taskName
+           + QStringLiteral(".checkpoint.json");
+}
+
+void ParallelDownloader::saveCheckpoint(const QString& taskName,
+                                         const QVector<ChunkInfo>& chunks)
+{
+    if (m_checkpointDir.isEmpty()) return;
+
+    QJsonArray arr;
+    for (const auto& c : chunks) {
+        QJsonObject obj;
+        obj[QStringLiteral("index")]     = c.index;
+        obj[QStringLiteral("start")]     = c.start;
+        obj[QStringLiteral("end")]       = c.end;
+        obj[QStringLiteral("mirrorUrl")] = c.mirrorUrl;
+        obj[QStringLiteral("completed")] = c.completed;
+        arr.append(obj);
+    }
+
+    QJsonObject root;
+    root[QStringLiteral("chunks")] = arr;
+
+    QFile f(checkpointPath(taskName));
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+        f.close();
+    }
+}
+
+QVector<ParallelDownloader::ChunkInfo>
+ParallelDownloader::loadCheckpoint(const QString& taskName) const
+{
+    QVector<ChunkInfo> result;
+    QString path = checkpointPath(taskName);
+    if (path.isEmpty() || !QFileInfo::exists(path))
+        return result;
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return result;
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+
+    if (!doc.isObject()) return result;
+    QJsonArray arr = doc.object().value(QStringLiteral("chunks")).toArray();
+    for (const auto& val : arr) {
+        QJsonObject obj = val.toObject();
+        ChunkInfo ci;
+        ci.index     = obj.value(QStringLiteral("index")).toInt();
+        ci.start     = static_cast<qint64>(obj.value(QStringLiteral("start")).toDouble());
+        ci.end       = static_cast<qint64>(obj.value(QStringLiteral("end")).toDouble());
+        ci.mirrorUrl = obj.value(QStringLiteral("mirrorUrl")).toString();
+        ci.completed = obj.value(QStringLiteral("completed")).toBool();
+        result.append(ci);
+    }
+    return result;
+}
+
+void ParallelDownloader::clearCheckpoint(const QString& taskName)
+{
+    QFile::remove(checkpointPath(taskName));
+}
+
+// ═══════════════════════════════════════════════════════════
+// Chunking logic: split file >1MB into chunks across mirrors
+// ═══════════════════════════════════════════════════════════
+
+QVector<ParallelDownloader::ChunkInfo>
+ParallelDownloader::splitIntoChunks(const DownloadTask& task) const
+{
+    QVector<ChunkInfo> chunks;
+
+    // Small files: one chunk with primary URL (use first mirror=mojang if available)
+    if (task.totalBytes <= kChunkThreshold) {
+        ChunkInfo ci;
+        ci.index       = 0;
+        ci.start       = 0;
+        ci.end         = -1;  // entire file
+        ci.mirrorUrl   = task.url;
+        ci.completed   = false;
+        chunks.append(ci);
+        return chunks;
+    }
+
+    // Large file: split into N chunks across all available URLs
+    // Build all available URLs (primary + mirrors)
+    QStringList allUrls;
+    allUrls.append(task.url);
+    for (const QString& m : task.mirrors) {
+        if (!allUrls.contains(m))
+            allUrls.append(m);
+    }
+
+    if (allUrls.isEmpty()) {
+        // Fallback: single URL
+        ChunkInfo ci;
+        ci.index       = 0;
+        ci.start       = 0;
+        ci.end         = -1;
+        ci.mirrorUrl   = task.url;
+        ci.completed   = false;
+        chunks.append(ci);
+        return chunks;
+    }
+
+    // Use number of sources as chunk count (max 8 chunks)
+    const int numChunks = qMin(allUrls.size(), 8);
+    const qint64 totalSize = (task.totalBytes > 0)
+                             ? task.totalBytes
+                             : kChunkThreshold * 4; // fallback estimate
+    const qint64 chunkSize = qMax(totalSize / numChunks, (qint64)(64 * 1024)); // min 64KB per chunk
+
+    // Distribute work: most traffic to BMCLAPI-like (first in list),
+    // but spread across all mirrors.
+    // Rotate through URLs so each chunk gets a different mirror.
+    for (int i = 0; i < numChunks; ++i) {
+        const qint64 start = i * chunkSize;
+        qint64 end = (i == numChunks - 1) ? -1 : (start + chunkSize - 1);
+
+        // Pick mirror: cycle through sources, preferring BMCLAPI-like for odd chunks
+        int urlIdx;
+        if (i % 2 == 0) {
+            // First mirror gets more load (BMCLAPI)
+            urlIdx = 0;
+        } else {
+            // Rotate through remaining mirrors
+            urlIdx = qMin(i % (allUrls.size() - 1) + 1, allUrls.size() - 1);
+        }
+
+        // Clamp
+        if (urlIdx >= allUrls.size()) urlIdx = 0;
+
+        ChunkInfo ci;
+        ci.index       = i;
+        ci.start       = start;
+        ci.end         = end;
+        ci.mirrorUrl   = allUrls[urlIdx];
+        ci.completed   = false;
+        chunks.append(ci);
+    }
+
+    return chunks;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Merge .tmp chunks → final file
+// ═══════════════════════════════════════════════════════════
+
+bool ParallelDownloader::mergeChunks(const QString& finalPath,
+                                      const QVector<ChunkInfo>& chunks)
+{
+    QFile out(finalPath);
+    if (!out.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+
+    for (const auto& ci : chunks) {
+        if (!ci.completed) {
+            out.close();
+            QFile::remove(finalPath);
+            return false;
+        }
+
+        QString chunkPath = finalPath + QStringLiteral(".chunk.")
+                            + QString::number(ci.index);
+        QFile in(chunkPath);
+        if (!in.open(QIODevice::ReadOnly)) {
+            out.close();
+            QFile::remove(finalPath);
+            return false;
+        }
+
+        // Stream copy in 64KB blocks to avoid memory blowout on large files
+        QByteArray buf;
+        buf.resize(65536);
+        qint64 bytesRead;
+        while ((bytesRead = in.read(buf.data(), buf.size())) > 0) {
+            if (out.write(buf.constData(), bytesRead) != bytesRead) {
+                in.close();
+                out.close();
+                QFile::remove(finalPath);
+                return false;
+            }
+        }
+        in.close();
+
+        // Clean up chunk tmp
+        QFile::remove(chunkPath);
+    }
+
+    out.close();
+    return true;
+}
+
+// ═══════════════════════════════════════════════════════════
 // Lifecycle
 // ═══════════════════════════════════════════════════════════
 
@@ -79,7 +311,7 @@ void ParallelDownloader::start()
 {
     if (m_state == Running || m_state == Paused) return;
 
-    // Clean up any completed tasks from a previous run
+    // Clean completed tasks from previous runs
     {
         QMutexLocker lock(&m_mutex);
         m_tasks.erase(
@@ -88,7 +320,7 @@ void ParallelDownloader::start()
             m_tasks.end());
     }
 
-    // Reset all state
+    // Reset state
     m_cancelled = false;
     m_paused = false;
     m_completedFiles.storeRelaxed(0);
@@ -97,32 +329,29 @@ void ParallelDownloader::start()
     m_nextTask.storeRelaxed(0);
     m_state = Running;
 
-    // Estimate total bytes from task size hints
+    // Estimate total bytes
     qint64 totalEstimate = 0;
     {
         QMutexLocker lock(&m_mutex);
-        for (const auto& t : m_tasks) {
+        for (const auto& t : m_tasks)
             totalEstimate += t.totalBytes;
-        }
     }
     m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
 
-    const int totalFiles = m_tasks.size();
-
     emit logMessage(QString::fromUtf8("准备下载 %1 个文件, 预估 %2")
-                        .arg(totalFiles)
+                        .arg(m_tasks.size())
                         .arg(formatSize(totalEstimate)));
     emit stateChanged();
 
-    if (totalFiles == 0) {
+    if (m_tasks.isEmpty()) {
         m_state = Done;
         emit allFinished(true, 0);
         emit stateChanged();
         return;
     }
 
-    // Spawn worker threads (one fewer than tasks if tasks < maxWorkers)
-    const int workers = qMin(m_maxWorkers, totalFiles);
+    // Spawn workers
+    const int workers = qMin(m_maxWorkers, (int)m_tasks.size());
     for (int i = 0; i < workers; ++i) {
         m_activeWorkers.ref();
         QThread* worker = QThread::create([this]() { runWorker(); });
@@ -176,8 +405,6 @@ void ParallelDownloader::cancel()
 
 int ParallelDownloader::totalFiles() const
 {
-    // m_tasks is only written before start(); safe to read without lock
-    // during the run phase, but take the lock for strict correctness.
     QMutexLocker lock(&const_cast<QMutex&>(m_mutex));
     return m_tasks.size();
 }
@@ -215,6 +442,53 @@ bool ParallelDownloader::isRunning() const
 }
 
 // ═══════════════════════════════════════════════════════════
+// Version-level concurrency queue (static)
+// ═══════════════════════════════════════════════════════════
+
+bool ParallelDownloader::enqueueVersionDownload(ParallelDownloader* instance)
+{
+    QMutexLocker lock(&s_queueMutex);
+    if (s_activeVersionCount < kMaxConcurrentVersions) {
+        // Slot available — run immediately
+        s_activeVersionCount++;
+        instance->m_queuedAndReady = true;
+        return true;
+    }
+    // Queue full — append to queue
+    s_versionQueue.enqueue(instance);
+    instance->m_queuedAndReady = false;
+    return false;
+}
+
+void ParallelDownloader::dequeueVersionDownload(ParallelDownloader* instance)
+{
+    QMutexLocker lock(&s_queueMutex);
+    Q_UNUSED(instance);
+    s_activeVersionCount = qMax(0, s_activeVersionCount - 1);
+}
+
+void ParallelDownloader::processNextQueued()
+{
+    QMutexLocker lock(&s_queueMutex);
+    if (s_versionQueue.isEmpty())
+        return;
+    if (s_activeVersionCount >= kMaxConcurrentVersions)
+        return;
+
+    ParallelDownloader* next = s_versionQueue.dequeue();
+    s_activeVersionCount++;
+    next->m_queuedAndReady = true;
+
+    // Wake the instance's start logic (the instance itself needs to react)
+    // Since we're in a static context, send a meta-call via QMetaObject
+    QMetaObject::invokeMethod(next, [next]() {
+        if (next->m_queuedAndReady && next->m_state == Idle) {
+            next->start();
+        }
+    }, Qt::QueuedConnection);
+}
+
+// ═══════════════════════════════════════════════════════════
 // Worker thread entry point
 // ═══════════════════════════════════════════════════════════
 
@@ -230,10 +504,9 @@ void ParallelDownloader::runWorker()
         }
         if (m_cancelled) break;
 
-        // --- Dequeue next task index (atomic) ---
+        // --- Dequeue next task index ---
         int idx = m_nextTask.fetchAndAddRelaxed(1);
 
-        // Guard: size may have been read before lock in a later iteration
         int taskCount;
         {
             QMutexLocker lock(&m_mutex);
@@ -241,24 +514,23 @@ void ParallelDownloader::runWorker()
         }
         if (idx >= taskCount) break;
 
-        // --- Copy task under lock ---
+        // --- Copy task ---
         DownloadTask task;
         {
             QMutexLocker lock(&m_mutex);
-            if (idx >= m_tasks.size()) break;   // double-check
+            if (idx >= m_tasks.size()) break;
             task = m_tasks[idx];
         }
 
-        // --- Download ---
+        // --- Download using chunked segmented approach ---
         bool ok = downloadSingleFile(task);
 
-        // Update global counters
+        // Update counters
         m_completedFiles.fetchAndAddRelaxed(1);
         if (!ok) {
             m_failedCount.fetchAndAddRelaxed(1);
         }
 
-        // Per-file completion signal (thread-safe cross-thread emission)
         emit fileCompleted(task.name, ok);
 
         // Aggregate progress
@@ -274,12 +546,16 @@ void ParallelDownloader::runWorker()
         emit progressChanged(completed, total, dlBytes, totBytes);
     }
 
-    // --- Last-worker-exit detection ---
+    // Last-worker-exit
     if (m_activeWorkers.deref() == 0) {
         if (!m_cancelled) {
             const int failed = m_failedCount.loadRelaxed();
             const bool success = (failed == 0);
             m_state = Done;
+
+            // Notify version-level queue that we're done
+            dequeueVersionDownload(this);
+            processNextQueued();
 
             emit allFinished(success, failed);
             emit stateChanged();
@@ -293,111 +569,171 @@ void ParallelDownloader::runWorker()
 }
 
 // ═══════════════════════════════════════════════════════════
-// Single-file download with mirror fallback
+// Single-file download — chunked multi-source segmented
 // ═══════════════════════════════════════════════════════════
 
 bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
 {
+    const QString taskName = task.name;
+    const QString finalPath = task.savePath;
+
     // ------------------------------------------------------------------
-    // Early-exit: local file already exists with matching SHA1
+    // Early-exit: local file exists with matching SHA1
     // ------------------------------------------------------------------
-    if (QFileInfo::exists(task.savePath) && !task.sha1.isEmpty()) {
-        if (verifySha1File(task.savePath, task.sha1)) {
-            const qint64 fileSize = QFileInfo(task.savePath).size();
+    if (QFileInfo::exists(finalPath) && !task.sha1.isEmpty()) {
+        if (verifySha1File(finalPath, task.sha1)) {
+            const qint64 fileSize = QFileInfo(finalPath).size();
             m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
-            emit fileProgress(task.name, fileSize, fileSize);
-            emit logMessage(QString::fromUtf8("⊘ 跳过(已存在): %1").arg(task.name));
+            emit fileProgress(taskName, fileSize, fileSize);
+            emit logMessage(QString::fromUtf8("⊘ 跳过(已存在SHA1): %1").arg(taskName));
             return true;
         }
-        // SHA1 mismatch — remove the stale file
-        QFile::remove(task.savePath);
-        emit logMessage(QString::fromUtf8("⚠ SHA1不匹配,重新下载: %1").arg(task.name));
-    } else if (QFileInfo::exists(task.savePath) && task.sha1.isEmpty()) {
-        // No SHA1 constraint but file exists — assume complete
-        const qint64 fileSize = QFileInfo(task.savePath).size();
+        // SHA1 mismatch
+        QFile::remove(finalPath);
+        emit logMessage(QString::fromUtf8("⚠ SHA1不匹配,重新下载: %1").arg(taskName));
+    } else if (QFileInfo::exists(finalPath) && task.sha1.isEmpty()) {
+        // No SHA1, file exists — assume complete
+        const qint64 fileSize = QFileInfo(finalPath).size();
         m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
-        emit fileProgress(task.name, fileSize, fileSize);
-        emit logMessage(QString::fromUtf8("⊘ 跳过(已存在): %1").arg(task.name));
+        emit fileProgress(taskName, fileSize, fileSize);
+        emit logMessage(QString::fromUtf8("⊘ 跳过(已存在): %1").arg(taskName));
         return true;
     }
 
     // Ensure target directory exists
-    QDir().mkpath(QFileInfo(task.savePath).absolutePath());
+    QDir().mkpath(QFileInfo(finalPath).absolutePath());
 
     // ------------------------------------------------------------------
-    // Build URL list: primary URL + mirrors (deduplicated, order-preserving)
+    // Get or create chunk plan
     // ------------------------------------------------------------------
-    QStringList urls;
-    urls.append(task.url);
-    for (const QString& m : task.mirrors) {
-        if (!urls.contains(m)) {
-            urls.append(m);
+    QVector<ChunkInfo> chunks;
+
+    if (hasResumeCheckpoint(taskName)) {
+        // Resume from checkpoint — reload chunk state
+        chunks = loadCheckpoint(taskName);
+        if (chunks.isEmpty()) {
+            // Corrupted checkpoint — start fresh
+            QFile::remove(checkpointPath(taskName));
         }
+        emit logMessage(QString::fromUtf8("  ↻ 断点续传: %1").arg(taskName));
+    }
+
+    if (chunks.isEmpty()) {
+        // Fresh download — build chunk plan
+        chunks = splitIntoChunks(task);
+        saveCheckpoint(taskName, chunks);
     }
 
     // ------------------------------------------------------------------
-    // Phase 1: Mirror race — try first 2 URLs in parallel
+    // Download each chunk (skip completed ones)
     // ------------------------------------------------------------------
-    if (urls.size() >= 2) {
-        emit logMessage(QString::fromUtf8("  ⚡ 镜像竞速: %1").arg(task.name));
-        if (downloadMirrorRace(urls.mid(0, 2), task.savePath, task.sha1)) {
-            const qint64 fileSize = QFileInfo(task.savePath).size();
-            m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
-            emit fileProgress(task.name, fileSize, fileSize);
-            return true;
-        }
-        urls = urls.mid(2);   // both failed — try the rest
-    }
-
-    // ------------------------------------------------------------------
-    // Phase 2: Sequential fallback for remaining URLs
-    // ------------------------------------------------------------------
-    for (const QString& url : urls) {
+    bool allChunksOk = true;
+    for (int i = 0; i < chunks.size(); ++i) {
         if (m_cancelled) return false;
 
-        emit logMessage(QString::fromUtf8("  → 尝试: %1").arg(url));
+        // Pause checkpoint
+        {
+            QMutexLocker lock(&m_mutex);
+            while (m_paused && !m_cancelled)
+                m_pauseCond.wait(&m_mutex);
+        }
+        if (m_cancelled) return false;
 
-        const QString tmpPath = task.savePath + QStringLiteral(".tmp");
-        QFile::remove(tmpPath);
+        ChunkInfo& ci = chunks[i];
+
+        // Skip already-completed chunks (resume support)
+        if (ci.completed)
+            continue;
+
+        QString chunkPath = finalPath + QStringLiteral(".chunk.")
+                            + QString::number(ci.index);
+
+        emit logMessage(QString::fromUtf8("  → 块%1/%2 [%3-%4]: %5")
+                            .arg(ci.index + 1)
+                            .arg(chunks.size())
+                            .arg(ci.start)
+                            .arg(ci.end < 0 ? QStringLiteral("END") : QString::number(ci.end))
+                            .arg(ci.mirrorUrl));
 
         qint64 bytesReceived = 0;
-        const bool ok = downloadSingleUrl(url, tmpPath, bytesReceived);
+        const bool ok = downloadSingleUrl(ci.mirrorUrl, chunkPath,
+                                           ci.start, ci.end,
+                                           bytesReceived);
 
-        if (ok && QFileInfo::exists(tmpPath)) {
-            // SHA1 verification
-            if (!task.sha1.isEmpty()) {
-                if (!verifySha1File(tmpPath, task.sha1)) {
-                    QFile::remove(tmpPath);
-                    emit logMessage(QString::fromUtf8("  ✗ SHA1不匹配: %1").arg(url));
-                    continue;
-                }
-            }
+        if (ok && QFileInfo::exists(chunkPath)) {
+            ci.completed = true;
+            m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(bytesReceived));
 
-            // Atomic rename tmp → final
-            QFile::remove(task.savePath);
-            if (QFile::rename(tmpPath, task.savePath)) {
-                const qint64 fileSize = QFileInfo(task.savePath).size();
-                m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
-                emit fileProgress(task.name, fileSize, fileSize);
-                return true;
-            }
+            // Update checkpoint after each chunk
+            saveCheckpoint(taskName, chunks);
+        } else {
+            allChunksOk = false;
+            QFile::remove(chunkPath);
+            emit logMessage(QString::fromUtf8("  ✗ 块%1 下载失败: %2")
+                                .arg(ci.index + 1)
+                                .arg(ci.mirrorUrl));
+            // Don't break — try remaining chunks from different mirrors
         }
-
-        QFile::remove(tmpPath);   // failed download cleanup
     }
 
-    return false;
+    if (!allChunksOk) {
+        // Some chunks failed; keep checkpoint for resume
+        emit logMessage(QString::fromUtf8("  ✗ 部分块失败: %1").arg(taskName));
+        // Remove any orphan chunk tmp files
+        for (const auto& ci : chunks) {
+            if (!ci.completed) {
+                QString cp = finalPath + QStringLiteral(".chunk.") + QString::number(ci.index);
+                QFile::remove(cp);
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------
+    // All chunks complete — merge
+    // ------------------------------------------------------------------
+    emit logMessage(QString::fromUtf8("  🔗 合并块: %1").arg(taskName));
+
+    QFile::remove(finalPath); // clean slate
+    if (!mergeChunks(finalPath, chunks)) {
+        emit logMessage(QString::fromUtf8("  ✗ 合并失败: %1").arg(taskName));
+        return false;
+    }
+
+    // ------------------------------------------------------------------
+    // SHA1 verification
+    // ------------------------------------------------------------------
+    if (!task.sha1.isEmpty()) {
+        if (!verifySha1File(finalPath, task.sha1)) {
+            QFile::remove(finalPath);
+            emit logMessage(QString::fromUtf8("  ✗ SHA1不匹配: %1").arg(taskName));
+            // Keep checkpoint for resume? No — SHA1 mismatch means data is bad.
+            clearCheckpoint(taskName);
+            return false;
+        }
+    }
+
+    // Success — clear checkpoint, report progress
+    clearCheckpoint(taskName);
+
+    const qint64 fileSize = QFileInfo(finalPath).size();
+    m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
+    emit fileProgress(taskName, fileSize, fileSize);
+    emit logMessage(QString::fromUtf8("  ✓ 完成: %1").arg(taskName));
+    return true;
 }
 
 // ═══════════════════════════════════════════════════════════
-// Single-URL download (blocking — runs inside a worker thread)
+// Single-URL download with HTTP Range support
 // ═══════════════════════════════════════════════════════════
 
 bool ParallelDownloader::downloadSingleUrl(const QString& url,
                                             const QString& destPath,
+                                            qint64 rangeStart,
+                                            qint64 rangeEnd,
                                             qint64& bytesReceived)
 {
-    QNetworkAccessManager mgr;          // safe: created in the calling thread
+    QNetworkAccessManager mgr;
     QUrl qurl(url);
     QNetworkRequest request(qurl);
     request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
@@ -405,7 +741,16 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
     request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
-    request.setTransferTimeout(60000);  // 60s total transfer timeout
+    request.setTransferTimeout(60000);
+
+    // HTTP Range header for chunked download
+    if (rangeStart > 0 || rangeEnd >= 0) {
+        QByteArray rangeHeader = QStringLiteral("bytes=%1-")
+                                     .arg(rangeStart).toUtf8();
+        if (rangeEnd >= 0)
+            rangeHeader += QString::number(rangeEnd).toUtf8();
+        request.setRawHeader("Range", rangeHeader);
+    }
 
     QNetworkReply* reply = mgr.get(request);
     if (!reply) return false;
@@ -420,7 +765,7 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
     QTimer timeoutTimer;
     timeoutTimer.setSingleShot(true);
 
-    // Periodic cancel/pause poll (runs in this worker thread)
+    // Periodic cancel/pause poll
     QTimer cancelTimer;
     connect(&cancelTimer, &QTimer::timeout, [&]() {
         if (m_cancelled) {
@@ -428,7 +773,6 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
             loop.quit();
             return;
         }
-        // Honour pause during download
         if (m_paused) {
             QMutexLocker lock(&m_mutex);
             while (m_paused && !m_cancelled)
@@ -440,16 +784,15 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
     // Data arrival
     connect(reply, &QNetworkReply::readyRead, [&]() {
         file.write(reply->readAll());
-        timeoutTimer.start(30000);        // reset stall-watchdog on every chunk
+        timeoutTimer.start(30000);
     });
 
-    // Download progress (omit context object so it fires on worker thread directly)
+    // Progress tracking
     connect(reply, &QNetworkReply::downloadProgress,
             [&](qint64 received, qint64 /*total*/) {
         bytesReceived = received;
     });
 
-    // Completion handlers
     connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
     connect(&timeoutTimer, &QTimer::timeout, &loop, [&]() {
         reply->abort();
@@ -457,146 +800,30 @@ bool ParallelDownloader::downloadSingleUrl(const QString& url,
     });
 
     timeoutTimer.start(30000);
-    loop.exec();               // block until download finishes, times out, or cancelled
+    loop.exec();
 
     cancelTimer.stop();
     file.close();
 
-    // --- Check result ---
     const int statusCode =
         reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QNetworkReply::NetworkError netErr = reply->error();
     reply->deleteLater();
 
-    if (netErr != QNetworkReply::NoError || statusCode >= 400) {
+    // Accept 200 (full file) or 206 (partial content for Range requests)
+    bool ok = false;
+    if (rangeStart > 0 || rangeEnd >= 0) {
+        ok = (statusCode == 206 || statusCode == 200)
+             && netErr == QNetworkReply::NoError;
+    } else {
+        ok = (statusCode == 200)
+             && netErr == QNetworkReply::NoError;
+    }
+
+    if (!ok)
         QFile::remove(destPath);
-        return false;
-    }
 
-    return true;
-}
-
-// ═══════════════════════════════════════════════════════════
-// Mirror race: first-2-URLs parallel, first success wins
-// ═══════════════════════════════════════════════════════════
-
-bool ParallelDownloader::downloadMirrorRace(const QStringList& urls,
-                                             const QString& destPath,
-                                             const QString& sha1)
-{
-    if (urls.size() < 2) return false;
-
-    // Shared state between the two racing threads
-    struct RaceState {
-        QAtomicInt winner{-1};       // -1 = no winner declared yet, 0/1 = winner index
-    };
-    RaceState state;
-    const QString tmpPath0 = destPath + QStringLiteral(".par.0");
-    const QString tmpPath1 = destPath + QStringLiteral(".par.1");
-
-    // Each racing thread runs this lambda
-    auto tryUrl = [&](const QString& url, const QString& tmpPath, int idx) {
-        // Someone already won — bail out early
-        if (state.winner.loadAcquire() >= 0) return;
-
-        QNetworkAccessManager mgr;           // created in this racing thread
-        QUrl qurl(url);
-        QNetworkRequest request(qurl);
-        request.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-        request.setRawHeader("Connection", "Keep-Alive");
-        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                             QNetworkRequest::NoLessSafeRedirectPolicy);
-        request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, true);
-        request.setTransferTimeout(60000);  // 60s total transfer timeout
-
-        QNetworkReply* reply = mgr.get(request);
-        if (!reply) return;
-
-        QFile file(tmpPath);
-        if (!file.open(QIODevice::WriteOnly)) {
-            reply->deleteLater();
-            return;
-        }
-
-        QEventLoop loop;
-        QTimer timer;
-        timer.setSingleShot(true);
-
-        connect(reply, &QNetworkReply::readyRead, [&]() {
-            file.write(reply->readAll());
-        });
-        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-        connect(&timer, &QTimer::timeout, &loop, [&]() {
-            reply->abort();
-            loop.quit();
-        });
-
-        timer.start(30000);
-        loop.exec();
-
-        file.close();
-
-        const int status =
-            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QNetworkReply::NetworkError netErr = reply->error();
-        reply->deleteLater();
-
-        if (status == 200 && netErr == QNetworkReply::NoError) {
-            // Atomically claim the winner slot
-            if (state.winner.testAndSetOrdered(-1, idx)) {
-                return;   // tmp file left on disk for caller to rename
-            }
-        }
-
-        // Lost the race or failed — clean up our tmp
-        QFile::remove(tmpPath);
-    };
-
-    // Spawn two racing threads
-    QThread* t0 = QThread::create([&]() { tryUrl(urls[0], tmpPath0, 0); });
-    QThread* t1 = QThread::create([&]() { tryUrl(urls[1], tmpPath1, 1); });
-
-    t0->start();
-    t1->start();
-
-    // Wait for both (each has a 30 s timeout internally, so 35 s is safe)
-    const bool t0done = t0->wait(35000);
-    const bool t1done = t1->wait(35000);
-    if (!t0done) t0->terminate();
-    if (!t1done) t1->terminate();
-    t0->deleteLater();
-    t1->deleteLater();
-
-    // --- Determine outcome ---
-    const int w = state.winner.loadAcquire();
-    if (w < 0) {
-        // Both failed — clean up both temp files
-        QFile::remove(tmpPath0);
-        QFile::remove(tmpPath1);
-        return false;
-    }
-
-    const QString winnerTmp = (w == 0) ? tmpPath0 : tmpPath1;
-    const QString loserTmp  = (w == 0) ? tmpPath1 : tmpPath0;
-
-    // SHA1 verification on winner
-    if (!sha1.isEmpty() && !verifySha1File(winnerTmp, sha1)) {
-        QFile::remove(winnerTmp);
-        QFile::remove(loserTmp);
-        return false;
-    }
-
-    // Atomic rename winner → final destination
-    QFile::remove(destPath);
-    if (!QFile::rename(winnerTmp, destPath)) {
-        QFile::remove(winnerTmp);
-        QFile::remove(loserTmp);
-        return false;
-    }
-
-    // Clean up loser tmp
-    QFile::remove(loserTmp);
-    return true;
+    return ok;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -617,7 +844,6 @@ bool ParallelDownloader::verifySha1File(const QString& filePath,
 {
     const QString actual = sha1Hex(filePath);
     if (actual.isEmpty()) return false;
-    // Mojang-provided hashes are lowercase; case-insensitive compare for safety
     return actual.compare(expected, Qt::CaseInsensitive) == 0;
 }
 

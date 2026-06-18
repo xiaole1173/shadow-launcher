@@ -94,10 +94,9 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(bool isModdedVersion READ isModdedVersion CONSTANT)
 
     // ── Verify ──
-    Q_PROPERTY(bool verifyRunning READ verifyRunning CONSTANT)
-    Q_PROPERTY(bool _verify_running READ verifyRunning CONSTANT)
-    Q_PROPERTY(int verifyProgressDone READ verifyProgressDone CONSTANT)
-    Q_PROPERTY(int verifyProgressTotal READ verifyProgressTotal CONSTANT)
+    Q_PROPERTY(bool verifyRunning READ verifyRunning NOTIFY verifyRunningChanged)
+    Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyCheckedChanged)
+    Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyTotalChanged)
     Q_PROPERTY(bool verifyResultOk READ verifyResultOk CONSTANT)
     Q_PROPERTY(QString verifyResultText READ verifyResultText CONSTANT)
     Q_PROPERTY(QString verifyVersion READ verifyVersion CONSTANT)
@@ -185,7 +184,10 @@ public:
     bool isModdedVersion() const { return false; }
 
     // ── Verify stubs ──
-    bool verifyRunning() const { return false; }
+    bool verifyRunning() const;
+    int verifyChecked() const;
+    int verifyTotal() const;
+    bool installPaused() const;
     int verifyProgressDone() const { return 0; }
     int verifyProgressTotal() const { return 0; }
     bool verifyResultOk() const { return true; }
@@ -293,6 +295,10 @@ signals:
     void resourceDownloadStateChanged();
     void resourceDownloadProgress(int completed, int total, const QString& fileName);
     void resourceDownloadDone(bool success);
+    void verifyRunningChanged();
+    void verifyCheckedChanged();
+    void verifyTotalChanged();
+    void installPausedChanged();
     void searchResultsReady(const QVariantList& results);
     void gameDirChanged();
     void themeChanged();

@@ -46,7 +46,7 @@ struct Account {
 
 struct DownloadTask {
     QString name;          // Display name
-    QString url;           // Download URL
+    QString url;           // Primary download URL
     QString savePath;      // Local path to save
     QString sha1;          // Expected SHA1 (Minecraft uses SHA1)
     qint64 totalBytes = 0;
@@ -55,6 +55,12 @@ struct DownloadTask {
     bool failed = false;
     QString errorMsg;
     QStringList mirrors;   // Alternative download URLs (Modrinth/CDN fallback)
+
+    // --- Chunked segmented download fields ---
+    int chunkIndex = 0;    // Which chunk this task represents (0-based)
+    int chunkTotal = 1;    // Total chunks for this file (=1 means single-chunk)
+    qint64 rangeStart = 0; // Byte range start for this chunk
+    qint64 rangeEnd = -1;  // Byte range end (inclusive, -1 = to end of file)
 };
 
 // ============================================================

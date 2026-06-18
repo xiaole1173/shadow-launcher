@@ -184,8 +184,21 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         for (const auto& t : tasks) totalEstimate += t.totalBytes;
         m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
         emit logMessage(QStringLiteral("准备下载 %1 个文件").arg(tasks.size()));
+        // Set checkpoint dir for resume support
+        const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
+        m_downloader->setCheckpointDir(versionDir);
+
         m_downloader->addTasks(tasks);
-        m_downloader->start();
+
+        // --- Version-level concurrency queue ---
+        // Enqueue this download; if a slot is available, start() is called immediately.
+        // If all 3 slots are full, the download will wait in the queue.
+        bool slotAvailable = ParallelDownloader::enqueueVersionDownload(m_downloader);
+        if (slotAvailable) {
+            m_downloader->start();
+        } else {
+            emit logMessage(QStringLiteral("⏳ 下载队列已满，等待中..."));
+        }
     };
 
     if (assetIdx.isEmpty()) { startTasks(); return; }
@@ -659,12 +672,12 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
     int checked = 0;
 
     // Start at 0 so UI sees "verify in progress" immediately
-    emit verifyProgress(0, totalItems);
+    emit verifyProgressChanged(0, totalItems);
 
     // --- 1. client.jar ---
     const QString jarPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
     checked++;
-    emit verifyProgress(checked, totalItems);
+    emit verifyProgressChanged(checked, totalItems);
     if (!QFileInfo::exists(jarPath))
         missing.append(QStringLiteral("versions/%1/%1.jar").arg(versionId));
 
@@ -672,7 +685,7 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
     for (const QJsonObject& art : libArts) {
         checked++;
         if (checked % 10 == 0)
-            emit verifyProgress(checked, totalItems);
+            emit verifyProgressChanged(checked, totalItems);
 
         QString path = art.value(QStringLiteral("path")).toString();
         QString dest = m_minecraftDir + QStringLiteral("/libraries/") + path;
@@ -692,7 +705,7 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
         checked++;
         batch++;
         if (batch % 100 == 0)
-            emit verifyProgress(checked, totalItems);
+            emit verifyProgressChanged(checked, totalItems);
 
         const QJsonObject& obj = it.value();
         QString sha1 = obj.value(QStringLiteral("hash")).toString();
@@ -706,7 +719,7 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
         }
     }
 
-    emit verifyProgress(totalItems, totalItems);
+    emit verifyProgressChanged(totalItems, totalItems);
     return missing;
 }
 

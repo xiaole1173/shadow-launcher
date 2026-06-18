@@ -138,6 +138,26 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
         return;
     }
 
+    // ── Check for resume checkpoint files in version dir ──
+    const QString versionDir = m_versionMgr->gameDir()
+                               + QStringLiteral("/versions/")
+                               + versionId;
+    const QString progressMarker = versionDir
+                                   + QStringLiteral("/.download_progress.json");
+    if (QFileInfo::exists(progressMarker)) {
+        emit logMessage(QStringLiteral("📦 发现断点续传文件: %1").arg(versionId));
+    }
+
+    // Check for individual chunk .checkpoint.json files
+    QDir vDir(versionDir);
+    const QStringList checkpointFiles = vDir.entryList(
+        {QStringLiteral("*.checkpoint.json")},
+        QDir::Files | QDir::NoDotAndDotDot);
+    if (!checkpointFiles.isEmpty()) {
+        emit logMessage(QStringLiteral("📦 发现 %1 个断点续传块文件")
+                            .arg(checkpointFiles.size()));
+    }
+
     // ── Resolve mirror source ──
     QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
     MirrorSource mirror = (sourceIndex >= 0 && sourceIndex < mirrors.size())
@@ -231,7 +251,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                         });
 
                 connect(m_downloader,
-                        &VersionDownloader::verifyProgress, this,
+                        &VersionDownloader::verifyProgressChanged, this,
                         [this](int checked, int total) {
                             setInstallPhase(
                                 QStringLiteral("校验中..."));
@@ -248,6 +268,27 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                         &VersionDownloader::downloadFinished,
                         this,
                         &VersionBackend::onVersionDownloadFinished);
+
+                // ── Create download progress marker for resume detection ──
+                const QString markerPath = m_versionMgr->gameDir()
+                    + QStringLiteral("/versions/") + versionId
+                    + QStringLiteral("/.download_progress.json");
+                QDir().mkpath(QFileInfo(markerPath).absolutePath());
+                {
+                    QFile marker(markerPath);
+                    if (marker.open(QIODevice::WriteOnly)) {
+                        QJsonObject root;
+                        root[QStringLiteral("versionId")] = versionId;
+                        root[QStringLiteral("timestamp")]
+                            = QDateTime::currentDateTime()
+                              .toString(Qt::ISODate);
+                        root[QStringLiteral("status")]
+                            = QStringLiteral("downloading");
+                        marker.write(
+                            QJsonDocument(root).toJson());
+                        marker.close();
+                    }
+                }
 
                 // ── Start install ──
                 setInstallPhase(QStringLiteral("准备中..."));
@@ -274,6 +315,7 @@ void VersionBackend::pauseInstall()
 {
     if (m_downloader) {
         m_downloader->pause();
+        emit logMessage(QStringLiteral("⏸ 安装已暂停 (断点文件已保留)"));
     }
 }
 
@@ -281,6 +323,7 @@ void VersionBackend::resumeInstall()
 {
     if (m_downloader) {
         m_downloader->resume();
+        emit logMessage(QStringLiteral("▶ 安装已恢复"));
     }
 }
 
@@ -331,11 +374,26 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     emit installFinished(success);
 
     if (success) {
+        // Clean up download progress marker on success
+        const QString markerPath = m_versionMgr->gameDir()
+            + QStringLiteral("/versions/") + m_installVersionId
+            + QStringLiteral("/.download_progress.json");
+        QFile::remove(markerPath);
+
         emit logMessage(
             QStringLiteral("✅ %1 安装完成")
                 .arg(m_installVersionId));
         refreshInstalled();
+    } else if (m_installPhase == QStringLiteral("校验中...")) {
+        // Verify failure — keep checkpoint for possible retry
+        QString errDetail = error.isEmpty()
+                                ? QStringLiteral("校验失败")
+                                : error;
+        emit logMessage(
+            QStringLiteral("❌ %1 校验失败: %2")
+                .arg(m_installVersionId, errDetail));
     } else {
+        // Download failure — keep .tmp + checkpoint for resume
         QString errDetail = error.isEmpty()
                                 ? QStringLiteral("未知错误")
                                 : error;
