@@ -59,7 +59,7 @@ Rectangle {
     Timer {
         id: hideTimer
         interval: 550  // slightly longer than animation (500ms)
-        onTriggered: { overlay.visible = false }
+        onTriggered: { _shouldShow = false }
     }
 
     // Progress state
