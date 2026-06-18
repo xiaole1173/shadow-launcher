@@ -48,8 +48,7 @@ void Downloader::start(const DownloadTask& task)
 
     qCInfo(logDownload) << "Download task created:" << task.name
                         << "url:" << task.url
-                        << "sha1:" << (task.sha1.isEmpty() ? QStringLiteral("(none)") : task.sha1.left(16) + QStringLiteral("..."))
-                        << "retries:" << task.maxRetries;
+                        << "sha1:" << (task.sha1.isEmpty() ? QStringLiteral("(none)") : task.sha1.left(16) + QStringLiteral("..."));
 
     doStart();
 }

@@ -1,5 +1,9 @@
 #include "logger.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
@@ -175,12 +179,14 @@ void installFileLogger(const QString& exeDir)
     // Install custom message handler
     qInstallMessageHandler(shadowMessageHandler);
 
-    // Enable all our categories by default
+    // Enable all our categories by default (explicit names, wildcard sometimes fails)
     QLoggingCategory::setFilterRules(
-        QStringLiteral("Shadow.*.debug=true\n"
-                       "Shadow.*.info=true\n"
-                       "Shadow.*.warning=true\n"
-                       "Shadow.*.critical=true"));
+        QStringLiteral("Shadow.App.info=true\n"
+                       "Shadow.Account.info=true\n"
+                       "Shadow.Version.info=true\n"
+                       "Shadow.Launch.info=true\n"
+                       "Shadow.Download.info=true\n"
+                       "Shadow.Mgr.info=true"));
 
     qCInfo(logApp) << "Logger initialized, log path:" << logFilePath(exeDir);
 }

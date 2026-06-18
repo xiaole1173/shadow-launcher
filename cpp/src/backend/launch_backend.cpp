@@ -28,8 +28,7 @@ LaunchBackend::LaunchBackend(QObject* parent)
     , m_launcher(new Launcher(this))
 {
     qCInfo(logLaunch) << "LaunchBackend constructed";
-}
-{
+
     connect(m_launcher, &Launcher::launchStarted,
             this, &LaunchBackend::onLaunchStarted);
     connect(m_launcher, &Launcher::launchProgress,
