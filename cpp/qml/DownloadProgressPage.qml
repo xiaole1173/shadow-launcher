@@ -106,9 +106,10 @@ Rectangle {
             }
         }
 
-        // ── Total progress (file count) ──
+        // ── Total progress (file count) — hidden during verification ──
         Rectangle {
             Layout.fillWidth: true; height: 64; radius: 8; color: "#0e111a"; border.color: "#1a1f2a"
+            visible: (!backend || !backend.verifyRunning)
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 12; spacing: 6
                 RowLayout {
@@ -130,7 +131,7 @@ Rectangle {
         // ── Single file progress ──
         Rectangle {
             Layout.fillWidth: true; height: 56; radius: 8; color: "#0e111a"; border.color: "#1a1f2a"
-            visible: (backend && backend.installing && backend.installFile !== "")
+            visible: (backend && backend.installing && backend.installFile !== "" && !backend.verifyRunning)
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 12; spacing: 4
                 RowLayout {
@@ -156,31 +157,71 @@ Rectangle {
                 return "速度: " + fmtSpeed(spd)
             }
             color: "#707888"; font.pixelSize: 11
-            visible: backend && backend.installing
+            visible: backend && backend.installing && !backend.verifyRunning
         }
 
-        // ── Verifying indicator ──
+        // ── Verifying — independent progress bar ──
         Rectangle {
-            Layout.fillWidth: true; height: 44; radius: 8; color: "#1a1a30"; border.color: "#2a2a50"
+            Layout.fillWidth: true; height: 80; radius: 8; color: "#0e111a"; border.color: "#2a2a50"
             visible: backend && backend.verifyRunning
-            RowLayout { anchors.fill: parent; anchors.margins: 12; spacing: 8
-                Rectangle { width: 12; height: 12; radius: 6; color: "#5068d8"
-                    RotationAnimator on rotation { from: 0; to: 360; duration: 1200; loops: Animation.Infinite; running: visible } }
-                Text { text: "正在校验游戏文件完整性..."; font.pixelSize: 13; color: "#a0b0e8"; Layout.fillWidth: true }
-                Text { text: backend ? backend.verifyResultText : ""; font.pixelSize: 11; color: "#606888" }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12; spacing: 8
+                RowLayout {
+                    Rectangle { width: 12; height: 12; radius: 6; color: "#5068d8"
+                        RotationAnimator on rotation { from: 0; to: 360; duration: 1200; loops: Animation.Infinite; running: parent.visible } }
+                    Text { text: "正在校验游戏文件完整性..."; font.pixelSize: 13; color: "#a0b0e8"; Layout.fillWidth: true }
+                    Text { text: (backend && backend.verifyTotal > 0) ? (backend.verifyChecked + " / " + backend.verifyTotal) : "--"; font.pixelSize: 11; color: "#606888" }
+                }
+                Rectangle { Layout.fillWidth: true; height: 8; radius: 4; color: "#1a1f2a"
+                    Rectangle {
+                        height: 8; radius: 4; color: "#5068d8"
+                        width: (backend && backend.verifyTotal > 0) ? parent.width * (backend.verifyChecked / backend.verifyTotal) : 0
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
             }
         }
 
-        // ── Cancel ──
-        Rectangle {
-            width: 100; height: 30; radius: 5
-            color: cancelMouse.containsMouse ? "#502020" : "#2a1a1a"
-            border.color: cancelMouse.containsMouse ? "#a04040" : "#603030"
-            scale: cancelMouse.pressed ? 0.9 : 1.0
-            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-            Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
-            MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.cancelInstall(); toastManager.show("已取消安装") } } }
-            visible: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed" && backend.installPhase !== "verifying"
+        // ── Pause / Resume + Cancel ──
+        RowLayout {
+            spacing: 10
+            visible: backend && backend.installing && !backend.verifyRunning
+
+            // Pause / Resume
+            Rectangle {
+                width: pauseBtnText.implicitWidth + 24; height: 30; radius: 5
+                color: pauseMouse.containsMouse ? "#202040" : "#151528"
+                border.color: pauseMouse.containsMouse ? "#5060a0" : "#303060"
+                scale: pauseMouse.pressed ? 0.9 : 1.0
+                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                Text {
+                    id: pauseBtnText
+                    anchors.centerIn: parent
+                    text: (backend && backend.installPaused) ? "继续下载" : "暂停下载"
+                    color: pauseMouse.containsMouse ? "#8090e0" : "#6068a0"
+                    font.pixelSize: 11
+                }
+                MouseArea {
+                    id: pauseMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (backend) {
+                            if (backend.installPaused) backend.resumeInstall()
+                            else backend.pauseInstall()
+                        }
+                    }
+                }
+            }
+
+            // Cancel
+            Rectangle {
+                width: 100; height: 30; radius: 5
+                color: cancelMouse.containsMouse ? "#502020" : "#2a1a1a"
+                border.color: cancelMouse.containsMouse ? "#a04040" : "#603030"
+                scale: cancelMouse.pressed ? 0.9 : 1.0
+                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
+                MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.cancelInstall(); toastManager.show("已取消安装") } } }
+            }
         }
 
         // ── Empty state ──
