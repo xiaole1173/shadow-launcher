@@ -2097,7 +2097,10 @@ Window {
         function onLogMessage(msg) { console.log("[backend]", msg) }
         function onMinecraftStarted() { killButton.visible = true }
         function onMinecraftStopped() { killButton.visible = false }
-        function onRunningCountChanged() { appWindow.runningListModel = backend ? backend.runningGames() : [] }
+        function onRunningCountChanged() {
+            appWindow.runningListModel = backend ? backend.runningGames() : []
+            console.log("[main] runningCountChanged → list refreshed: " + appWindow.runningListModel.length + " games")
+        }
     }
 
     // Confirm Dialog ===

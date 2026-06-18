@@ -109,6 +109,7 @@ void LaunchBackend::cancelLaunch()
 
 void LaunchBackend::killGameProcess()
 {
+    qCDebug(logLaunch) << "[PROCESS] killGameProcess() called —" << m_runningLaunchers.size() << "games to kill";
     for (Launcher* launcher : m_runningLaunchers) {
         launcher->killProcess();  // Kill immediately with taskkill /F /T
         launcher->deleteLater();
@@ -330,6 +331,7 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
 {
     // Add to running list
     m_runningLaunchers.append(launcher);
+    qCDebug(logLaunch) << "[PROCESS] Game added to running list (total:" << m_runningLaunchers.size() << ")";
     emit runningCountChanged();
     emit isRunningChanged();
 
@@ -397,6 +399,7 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
 {
     // Remove from running list
     m_runningLaunchers.removeOne(launcher);
+    qCDebug(logLaunch) << "[PROCESS] Game removed from running list (total:" << m_runningLaunchers.size() << ") success=" << success;
     launcher->deleteLater();
     emit runningCountChanged();
     if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
@@ -723,6 +726,7 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
 
 void LaunchBackend::killGameById(int index)
 {
+    qCDebug(logLaunch) << "[PROCESS] killGameById(" << index << ") —" << m_runningLaunchers.size() << "games total";
     if (index < 0 || index >= m_runningLaunchers.size()) return;
     Launcher* launcher = m_runningLaunchers.at(index);
     launcher->killProcess();
