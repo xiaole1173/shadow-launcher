@@ -28,7 +28,7 @@ Q_LOGGING_CATEGORY(logMgr,      "Shadow.Mgr")
 // ── Custom message handler ──
 
 // Thread-safe guard for the custom handler
-static QMutex g_logMutex;
+static QRecursiveMutex g_logMutex;
 static QFile* g_logFile = nullptr;
 static QString g_logDir;
 static QString g_currentLogDate;
