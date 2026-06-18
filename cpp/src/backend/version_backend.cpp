@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QNetworkAccessManager>
+#include <QTimer>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
@@ -55,8 +56,11 @@ VersionBackend::VersionBackend(QObject* parent)
                     QStringLiteral("获取版本列表失败: %1").arg(err));
             });
 
-    // Initial fetch
-    refreshVersionList();
+    // Initial fetch — defer to event loop so window appears before JSON parsing
+    // (loadFromCache() parses 1000+ versions with nlohmann::json, which blocks the main thread)
+    QTimer::singleShot(0, this, [this]() {
+        refreshVersionList();
+    });
     refreshInstalled();
 }
 

@@ -21,8 +21,8 @@ Window {
     property bool pageLoading: false
 
     Component.onCompleted: {
+        // refreshVersionList() 已由 VersionBackend 构造时异步触发，此处不重复
         if (backend) {
-            backend.refreshVersionList()
             backend.refreshInstalled()
         }
     }

@@ -47,6 +47,12 @@ VersionManager::~VersionManager() = default;
 
 void VersionManager::fetchVersions()
 {
+    // 0) If already loaded (cache or previous fetch), emit immediately — no re-parse
+    if (!m_versions.isEmpty()) {
+        emit versionsReady(m_versions);
+        return;
+    }
+
     // 1) Try cache first
     if (loadFromCache()) {
         emit versionsReady(m_versions);

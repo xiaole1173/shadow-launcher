@@ -85,10 +85,7 @@ def main():
     # 创建后端
     backend = ShadowBackend()
 
-    # 启动时自动检测 Java
-    backend.detectJava()
-
-    # 设置 QML 引擎
+    # 设置 QML 引擎（先加载 UI，Java 检测异步进行）
     engine = QQmlApplicationEngine()
     qml_dir = os.path.join(os.path.dirname(__file__), "shadow_launcher", "ui", "qml")
 
@@ -110,6 +107,16 @@ def main():
     if not engine.rootObjects():
         print("Error: QML failed to load", file=sys.stderr)
         sys.exit(1)
+
+    # ── 1.5 异步 Java 检测（UI 已显示后再跑，不卡启动） ──
+    from PySide6.QtCore import QTimer
+    import threading
+
+    def _async_detect_java():
+        backend.detectJava()
+
+    # 延迟 100ms，让 QML 先渲染第一帧
+    QTimer.singleShot(100, lambda: threading.Thread(target=_async_detect_java, daemon=True).start())
 
     # ── 2. QML 热重载（开发模式） ──
     _dev_mode = os.environ.get("SHADOW_DEV_MODE") == "1"

@@ -45,7 +45,11 @@ class VersionMixin:
     # ═══ 初始化 ═══
 
     def _init_versions(self):
-        # Load version manifest synchronously so it's ready before UI interacts
+        # 异步加载版本清单，不阻塞主线程（之前 t.join(5s) 导致启动卡顿）
+        # 初始化时给一个空壳列表，避免 QML 绑定报错
+        self._version_ids = []
+        self._installed_ids = get_installed_versions()
+
         def _fetch():
             try:
                 self.logMessage.emit("正在获取版本列表...")
@@ -63,13 +67,10 @@ class VersionMixin:
             except Exception as e:
                 self.logMessage.emit(f"获取版本列表失败: {e}")
 
-        # Run fetch in a thread, but initialize _version_manifest to None
-        # The DownloadPage will call refreshVersionList() which triggers this
         import threading
         t = threading.Thread(target=_fetch, daemon=True)
         t.start()
-        # Wait up to 5s for manifest to load
-        t.join(timeout=5.0)
+        # 不再 join —— 让网络请求完全异步，UI 先显示
 
     # ═══ 版本操作 ═══
 
