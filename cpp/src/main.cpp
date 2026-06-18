@@ -11,6 +11,7 @@
 #include <QWindow>
 #include <QAbstractNativeEventFilter>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <QThread>
 
 #ifdef Q_OS_WIN
@@ -142,5 +143,18 @@ int main(int argc, char *argv[])
 
     qCInfo(logApp) << "Event loop started"
                    << "— total startup:" << startupTimer.elapsed() << "ms";
+
+    // --auto-launch <version> command-line test mode
+    QStringList args = app.arguments();
+    int autoIdx = args.indexOf(QStringLiteral("--auto-launch"));
+    if (autoIdx >= 0 && autoIdx + 1 < args.size()) {
+        QString autoVersion = args[autoIdx + 1];
+        qCInfo(logApp) << "Auto-launch test mode: version" << autoVersion;
+        QTimer::singleShot(2000, backend, [backend, autoVersion]() {
+            qCInfo(logApp) << "Auto-launch: triggering launch for" << autoVersion;
+            backend->launch(autoVersion);
+        });
+    }
+
     return app.exec();
 }
