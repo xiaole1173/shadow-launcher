@@ -1782,15 +1782,22 @@ Window {
 
                                     Item { height: 12; width: 1 }
 
-                                    // Repair button (only visible when verification found issues)
+                                    // Repair button (visible when verify found failures)
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
-                                        color: repairBtnHover.hovered ? "#c07830" : "#b06820"
-                                        visible: verifyResultLabel.text.indexOf("错误") > 0 || verifyResultLabel.text.indexOf("损坏") > 0 || verifyResultLabel.text.indexOf("缺失") > 0
-                                        Text { anchors.centerIn: parent; text: "修复"; font.pixelSize: 12; color: "#e8ecf8" }
+                                        color: repairBtnHover.hovered ? "#2563EB" : "#1d4ed8"
+                                        visible: versionSettingsOverlay._verifyHasFailed && versionSettingsOverlay._verifyFailedFiles.length > 0
+                                        Text { anchors.centerIn: parent; text: "🔧 一键修复"; font.pixelSize: 12; color: "#e8ecf8" }
                                         HoverHandler { id: repairBtnHover }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.repairVersion(currentSelectedVersion) }
+                                            onClicked: {
+                                                if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                                                if (backend) {
+                                                    backend.repairVersion(currentSelectedVersion)
+                                                    versionSettingsOverlay._verifyHasFailed = false
+                                                    versionSettingsOverlay._verifyFailedFiles = []
+                                                }
+                                            }
                                         }
                                     }
 
