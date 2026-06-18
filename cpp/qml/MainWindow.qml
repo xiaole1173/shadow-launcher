@@ -1963,7 +1963,7 @@ Window {
                     Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150 } }
                     Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-                    MouseArea { id: killMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { killPressAnim.start(); killDelayTimer.start() } } }
+                    MouseArea { id: killMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { console.log("[main] killButton clicked"); if (backend) { killPressAnim.start(); killDelayTimer.start() } } }
 
                     Timer {
                         id: killDelayTimer
@@ -2095,8 +2095,14 @@ Window {
     Connections {
         target: backend; enabled: backend !== null
         function onLogMessage(msg) { console.log("[backend]", msg) }
-        function onMinecraftStarted() { killButton.visible = true }
-        function onMinecraftStopped() { killButton.visible = false }
+        function onMinecraftStarted() {
+            killButton.visible = true
+            console.log("[main] minecraftStarted → killButton shown")
+        }
+        function onMinecraftStopped() {
+            killButton.visible = false
+            console.log("[main] minecraftStopped → killButton hidden")
+        }
         function onRunningCountChanged() {
             appWindow.runningListModel = backend ? backend.runningGames() : []
             console.log("[main] runningCountChanged → list refreshed: " + appWindow.runningListModel.length + " games")

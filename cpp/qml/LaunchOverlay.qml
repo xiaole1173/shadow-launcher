@@ -14,10 +14,12 @@ Rectangle {
 
     onCheckFailedChanged: {
         if (checkFailed) {
+            console.log("[overlay] checkFailed=true phase=" + checkFailedPhase + " details=" + checkFailedDetails)
             // Show error: keep visible, stop any closing
             _animatingOut = false
             hideTimer.stop()
         } else if (!_animatingOut && !(backend && backend.launching)) {
+            console.log("[overlay] checkFailed cleared + not launching → should dismiss")
             // No reason to stay visible — start exit animation if this was a normal dismiss
             // (handled by hide() function)
         }

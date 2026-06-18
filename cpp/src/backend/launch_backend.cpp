@@ -92,6 +92,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 
 void LaunchBackend::cancelLaunch()
 {
+    qCDebug(logLaunch) << "[PROCESS] cancelLaunch() called — stopping check timer";
     m_cancelled = true;
     if (m_checkTimer) m_checkTimer->stop();
 
@@ -353,6 +354,8 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
             launcher->deleteLater();
             emit runningCountChanged();
             if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
+            emit minecraftStopped();
+            qCDebug(logLaunch) << "[PROCESS] Death check: game process died, minecraftStopped emitted";
             m_launching = false;
             emit launchStateChanged();
             return;
@@ -404,6 +407,10 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
     emit runningCountChanged();
     if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
 
+    // Always emit stopped for UI to react
+    emit minecraftStopped();
+    qCDebug(logLaunch) << "[PROCESS] minecraftStopped emitted";
+
     if (!m_launching) return;  // Already handled in handleLaunchStarted death check
 
     m_launching = false;
@@ -421,7 +428,6 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
         emit logMessage(QStringLiteral("启动失败: %1").arg(errorMsg));
     }
     emit launchStateChanged();
-    emit minecraftStopped();
 }
 
 // ============================================================
