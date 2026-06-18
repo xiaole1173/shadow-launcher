@@ -234,6 +234,9 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     }
     qCInfo(logLaunch) << "Pre-launch checks all passed — starting Minecraft";
 
+    emit launchCheckProgress(QStringLiteral("正在启动 Minecraft..."));
+    emit launchProgressChanged(55, QStringLiteral("正在启动 Minecraft..."));
+
     m_launcher->start(versionId, javaPath, maxMemoryMB);
 }
 
@@ -341,9 +344,9 @@ QVariantMap LaunchBackend::getMemoryStatus()
 
 void LaunchBackend::onLaunchStarted()
 {
-    m_launchProgress = 10;
-    m_launchStatus = QStringLiteral("Minecraft 进程已启动");
-    emit launchProgressChanged(10, m_launchStatus);
+    m_launchProgress = 100;
+    m_launchStatus = QStringLiteral("游戏已启动");
+    emit launchProgressChanged(100, m_launchStatus);
     emit minecraftStarted();
     emit isRunningChanged();
     qCInfo(logLaunch) << "Minecraft process started";
@@ -352,33 +355,23 @@ void LaunchBackend::onLaunchStarted()
 
 void LaunchBackend::onLaunchProgress(const QString& message)
 {
-    // If already at 95% (game running), don't update progress anymore
+    // Once Minecraft process has started, freeze progress at 100%
     if (m_launchProgress >= 95) {
-        emit logMessage(message);  // still log, but don't change UI
+        emit logMessage(message);
         return;
     }
 
-    static const QStringList skippable = {
-        QStringLiteral("Missing sound for event:"),
-        QStringLiteral("Missing language in:"),
-        QStringLiteral("Could not authorize you against Realms"),
-        QStringLiteral("Couldn't connect to realms"),
-    };
+    // Before Minecraft starts, only show our curated status messages
+    // Raw Minecraft log lines from Launcher::launchProgress are logged but not shown
+    if (m_launchProgress >= 50) {
+        // Post-check phase: Minecraft is starting, don't show raw log
+        emit logMessage(message);
+        return;
+    }
 
-    m_launchProgress = qMin(m_launchProgress + 5, 95);
+    m_launchProgress = qMin(m_launchProgress + 5, 50);
     m_launchStatus = message;
-
-    // 过滤 Minecraft 自身的无害噪音（Missing sound 等），仅记日志不弹进度
-    bool isNoise = false;
-    for (const QString& pattern : skippable) {
-        if (message.contains(pattern, Qt::CaseInsensitive)) {
-            isNoise = true;
-            break;
-        }
-    }
-    if (!isNoise) {
-        emit launchProgressChanged(m_launchProgress, message);
-    }
+    emit launchProgressChanged(m_launchProgress, message);
     emit logMessage(message);
 }
 
