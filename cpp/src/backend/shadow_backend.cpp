@@ -9,13 +9,16 @@
 #include "version_backend.h"
 
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStorageInfo>
 #include <QTimer>
+#include <QUrl>
 
 namespace ShadowLauncher {
 
@@ -641,6 +644,27 @@ void ShadowBackend::openGameDir() {
     m_settings->openGameDir();
 }
 
+void ShadowBackend::openLatestLog() {
+    QString logsDir = m_app->gameDir() + QStringLiteral("/logs");
+    QString latestLog = logsDir + QStringLiteral("/latest.log");
+    QDir().mkpath(logsDir);
+    if (QFileInfo::exists(latestLog)) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(latestLog));
+        emit logMessage(QStringLiteral("已打开最新日志"));
+    } else {
+        // Open the logs folder if latest.log doesn't exist
+        QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
+        emit logMessage(QStringLiteral("日志文件不存在，已打开日志目录"));
+    }
+}
+
+void ShadowBackend::openLogsFolder() {
+    QString logsDir = m_app->gameDir() + QStringLiteral("/logs");
+    QDir().mkpath(logsDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
+    emit logMessage(QStringLiteral("已打开日志目录"));
+}
+
 void ShadowBackend::openVersionDir(const QString& versionId) {
     m_settings->openVersionDir(versionId);
 }
@@ -697,6 +721,8 @@ void ShadowBackend::launch(const QString& versionId) {
     QString username = m_account->username();
     QString javaPath = m_settings->javaPath();
     int maxMemory = m_settings->maxMemoryMB();
+    m_launchVersion = versionId;
+    m_launchUsername = username;
     m_launch->launch(versionId, username, javaPath, maxMemory);
 }
 

@@ -35,6 +35,7 @@ public:
     // ---- Pre-launch checks ----
     Q_INVOKABLE QString checkJavaArchitecture(const QString& javaPath);
     Q_INVOKABLE bool checkVersionHasNatives(const QString& versionId);
+    Q_INVOKABLE QStringList checkVersionMissingNatives(const QString& versionId);
     Q_INVOKABLE QStringList checkVersionLibraries(const QString& versionId);
 
     // ---- Called by ShadowBackend to sync game directory ----

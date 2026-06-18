@@ -8,6 +8,8 @@
 #include <QElapsedTimer>
 #include <QQueue>
 #include <QPair>
+#include <QThread>
+#include <QAtomicInt>
 #include <memory>
 
 #include "../utils/types.h"
@@ -73,6 +75,7 @@ public:
 
     // ── Version management operations ──
     Q_INVOKABLE void verifyVersion(const QString& versionId);
+    Q_INVOKABLE void cancelVerify();
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
@@ -99,21 +102,17 @@ signals:
     void verifyFinished(bool allPassed);
     void verifyFailedFiles(const QStringList& failedFiles);
     void installPausedChanged(bool paused);
+    void verifyCancelled();
 
 private slots:
     void onVersionDownloadProgress(int cf, int tf, qint64 db, qint64 tb);
     void onVersionDownloadLog(const QString& msg);
     void onVersionDownloadFinished(bool success, const QString& error);
-    void processVerifyBatch();
 
 private:
     void updateInstalledList();
     void setInstalling(bool v);
     void setInstallPhase(const QString& phase);
-
-    // Batch verify state (async processing via QTimer::singleShot)
-    struct VerifyBatchState;
-    std::unique_ptr<VerifyBatchState> m_verifyState;
 
     VersionManager* m_versionMgr = nullptr;
     VersionDownloader* m_downloader = nullptr;
@@ -142,6 +141,52 @@ private:
     QQueue<QPair<QString, int>> m_installQueue;
     int m_verifyTotal = 0;
     bool m_installPaused = false;
+
+    // Background verify worker thread
+    class VerifyWorker;
+    QThread* m_verifyThread = nullptr;
+    VerifyWorker* m_verifyWorker = nullptr;
+    QStringList m_failedPathsCache;  // stored for cleanup after verify
+
+    // Deprecated — no longer used (worker manages its own cancel)
+    QAtomicInt m_verifyCancelled = 0;
+};
+
+// ============================================================
+// VerifyWorker — background SHA1 verification
+// ============================================================
+
+struct VerifyItem {
+    QString path;
+    QString sha1;
+    QString name;
+};
+
+class VersionBackend::VerifyWorker : public QObject {
+    Q_OBJECT
+public:
+    explicit VerifyWorker(QObject* parent = nullptr) : QObject(parent) {}
+
+    void setItems(const QVector<VerifyItem>& items) { m_items = items; }
+    void cancel() { m_cancelled.storeRelease(1); }
+
+public slots:
+    void process();
+
+signals:
+    void progressChecked(int checked, int total);
+    void cancelled(int checked, int total);
+    void finished(bool allPassed, const QStringList& failedFiles,
+                  const QStringList& failedPaths);
+
+private:
+    static QString sha1FileFast(const QString& filePath);
+
+    QVector<VerifyItem> m_items;
+    QAtomicInt m_cancelled = 0;
+    int m_failed = 0;
+    QStringList m_failedFiles;
+    QStringList m_failedPaths;
 };
 
 } // namespace ShadowLauncher

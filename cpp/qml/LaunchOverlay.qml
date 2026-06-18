@@ -54,11 +54,28 @@ Rectangle {
     }
 
     // Progress state
-    property int progressValue: backend ? (backend.launchProgress || 0) : 0
-    property string statusText: backend ? (backend.launchStatus || "准备启动...") : ""
-    property string versionId: backend ? (backend.launchVersion || "") : ""
-    property string username: backend ? (backend.launchUsername || "") : ""
-    property int memory: backend ? (backend.launchMemory || 0) : 0
+    property int progressValue: 0
+    property string statusText: "准备启动..."
+    property string versionId: ""
+    property string username: ""
+    property int memory: 0
+
+    // Update progress state from backend on change
+    Timer {
+        id: progressPoller
+        interval: 200
+        running: overlay.visible
+        repeat: true
+        onTriggered: {
+            if (backend) {
+                progressValue = backend.launchProgress || 0
+                statusText = backend.launchStatus || "准备启动..."
+                versionId = backend.launchVersion || ""
+                username = backend.launchUsername || ""
+                memory = 0
+            }
+        }
+    }
 
     // Check failure state
     property bool checkFailed: false
@@ -288,42 +305,80 @@ Rectangle {
             visible: statusText !== ""
         }
 
-        // Action button (changes based on state)
-        Rectangle {
+        // Action button row (changes based on state)
+        RowLayout {
             Layout.alignment: Qt.AlignHCenter
-            width: checkFailed ? 140 : 120
-            height: 34
-            radius: 6
-            color: checkFailed ? (actionMouse.containsMouse ? "#1a2a18" : "transparent")
-                               : (actionMouse.containsMouse ? "#2a1518" : "transparent")
-            border.color: checkFailed ? (actionMouse.containsMouse ? "#286028" : "#284028")
-                                      : (actionMouse.containsMouse ? "#602828" : "#402428")
-            scale: actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)
-            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
+            spacing: 12
 
-            Text {
-                anchors.centerIn: parent
-                text: checkFailed ? "返回启动页" : "取消启动"
-                font.pixelSize: 12
-                color: checkFailed ? (actionMouse.containsMouse ? "#80ff80" : "#60c060")
-                                   : (actionMouse.containsMouse ? "#ff6060" : "#c05050")
+            // "查看日志" button — visible when check fails
+            Rectangle {
+                width: 100
+                height: 34
+                radius: 6
+                color: logMouse.containsMouse ? "#1a2838" : "transparent"
+                border.color: logMouse.containsMouse ? "#2858a0" : "#283850"
+                scale: logMouse.pressed ? 0.9 : (logMouse.containsMouse ? 1.04 : 1.0)
+                visible: checkFailed
+                opacity: checkFailed ? 1 : 0
+                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+                Behavior on opacity { NumberAnimation { duration: 200 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "📋 查看日志"
+                    font.pixelSize: 12
+                    color: logMouse.containsMouse ? "#80a0ff" : "#6090d0"
+                }
+
+                MouseArea {
+                    id: logMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (backend) backend.openLatestLog()
+                    }
+                }
             }
 
-            MouseArea {
-                id: actionMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (checkFailed) {
-                        // Failed — just hide overlay to return to home
-                        overlay.hide()
-                    } else {
-                        // In progress — cancel launch
-                        overlay.hide()
-                        if (backend) backend.cancelLaunch()
+            // Main action button
+            Rectangle {
+                width: checkFailed ? 140 : 120
+                height: 34
+                radius: 6
+                color: checkFailed ? (actionMouse.containsMouse ? "#1a2a18" : "transparent")
+                                   : (actionMouse.containsMouse ? "#2a1518" : "transparent")
+                border.color: checkFailed ? (actionMouse.containsMouse ? "#286028" : "#284028")
+                                          : (actionMouse.containsMouse ? "#602828" : "#402428")
+                scale: actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: checkFailed ? "返回启动页" : "取消启动"
+                    font.pixelSize: 12
+                    color: checkFailed ? (actionMouse.containsMouse ? "#80ff80" : "#60c060")
+                                       : (actionMouse.containsMouse ? "#ff6060" : "#c05050")
+                }
+
+                MouseArea {
+                    id: actionMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (checkFailed) {
+                            // Failed — just hide overlay to return to home
+                            overlay.hide()
+                        } else {
+                            // In progress — cancel launch
+                            overlay.hide()
+                            if (backend) backend.cancelLaunch()
+                        }
                     }
                 }
             }

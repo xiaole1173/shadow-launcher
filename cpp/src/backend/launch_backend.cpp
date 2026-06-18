@@ -200,13 +200,29 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     // Check 6: Natives
     emit launchCheckProgress(QStringLiteral("检查运行库..."));
     emit launchProgressChanged(40, QStringLiteral("检查运行库..."));
-    if (!checkVersionHasNatives(versionId)) {
-        qCWarning(logLaunch) << "Pre-launch check: no natives found for" << versionId;
-        emit launchCheckWarning(
-            QStringLiteral("未检测到运行库，可能需要下载或解压 natives"));
-    } else {
-        qCInfo(logLaunch) << "Pre-launch check passed: natives found";
+    {
+        QStringList missingNatives = checkVersionMissingNatives(versionId);
+        if (!missingNatives.isEmpty()) {
+            // Build a detailed message
+            QStringList displayList = missingNatives.mid(0, 5);
+            QString detail = displayList.join(QStringLiteral(", "));
+            if (missingNatives.size() > 5) {
+                detail += QStringLiteral(" ... 等共 %1 个文件").arg(missingNatives.size());
+            }
+            m_launching = false;
+            emit launchProgressChanged(0, QStringLiteral("缺少原生库文件"));
+            emit launchCheckMissingFiles(missingNatives);
+            emit launchCheckFailed(QStringLiteral("原生库文件"),
+                                   QStringLiteral("缺少 %1 个原生库文件: %2")
+                                       .arg(missingNatives.size()).arg(detail));
+            emit launchStateChanged();
+            qCCritical(logLaunch) << "Pre-launch check FAILED:" << missingNatives.size()
+                                  << "native library files missing";
+            emit logMessage(QStringLiteral("启动失败: 原生库文件缺失 (%1 个)").arg(missingNatives.size()));
+            return;
+        }
     }
+    qCInfo(logLaunch) << "Pre-launch check passed: all native libraries present";
 
     // Check 7: Memory limits
     emit launchCheckProgress(QStringLiteral("检查内存限制..."));
@@ -546,33 +562,118 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
 
 bool LaunchBackend::checkVersionHasNatives(const QString& versionId)
 {
-    if (!m_launcher) return false;
+    return checkVersionMissingNatives(versionId).isEmpty();
+}
+
+QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
+{
+    QStringList missing;
+    if (!m_launcher) return missing;
 
     const QString gameDir = m_launcher->gameDir();
     const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
+    const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
 
-    // Check primary natives path: {versionId}-natives/
+    // First, check if extracted natives exist
     QString primaryNatives = versionDir + QStringLiteral("/") + versionId + QStringLiteral("-natives");
+    QString fallbackNatives = versionDir + QStringLiteral("/natives");
+    bool hasExtractedNatives = false;
+
     if (QDir(primaryNatives).exists()) {
         QDirIterator it(primaryNatives, QStringList() << QStringLiteral("*.dll"), QDir::Files);
         if (it.hasNext()) {
             emit logMessage(QStringLiteral("找到运行库: %1").arg(primaryNatives));
-            return true;
+            hasExtractedNatives = true;
         }
     }
-
-    // Check fallback: natives/
-    QString fallbackNatives = versionDir + QStringLiteral("/natives");
-    if (QDir(fallbackNatives).exists()) {
+    if (!hasExtractedNatives && QDir(fallbackNatives).exists()) {
         QDirIterator it(fallbackNatives, QStringList() << QStringLiteral("*.dll"), QDir::Files);
         if (it.hasNext()) {
             emit logMessage(QStringLiteral("找到运行库: %1").arg(fallbackNatives));
-            return true;
+            hasExtractedNatives = true;
         }
     }
 
-    emit logMessage(QStringLiteral("未检测到运行库文件 (.dll)"));
-    return false;
+    // If extracted natives exist, we're good
+    if (hasExtractedNatives) {
+        return missing;
+    }
+
+    // No extracted natives — check if native library JARs exist and report missing ones
+    const QString libsDir = gameDir + QStringLiteral("/libraries");
+
+    // Read version JSON to find native libraries
+    QFile jsonFile(jsonPath);
+    if (!jsonFile.open(QIODevice::ReadOnly)) {
+        emit logMessage(QStringLiteral("⚠ 无法读取版本 JSON 以检查原生库"));
+        missing.append(QStringLiteral("(无法读取版本配置)"));
+        return missing;
+    }
+
+    QJsonParseError parseErr;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll(), &parseErr);
+    jsonFile.close();
+
+    if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+        emit logMessage(QStringLiteral("⚠ 版本 JSON 解析失败"));
+        missing.append(QStringLiteral("(版本配置解析失败)"));
+        return missing;
+    }
+
+    QJsonObject versionJson = doc.object();
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+
+    bool foundAnyNative = false;
+    for (const QJsonValue& libVal : libraries) {
+        QJsonObject lib = libVal.toObject();
+
+        // Skip platform-specific rules
+        QJsonArray rules = lib.value(QStringLiteral("rules")).toArray();
+        bool skip = false;
+        for (const QJsonValue& ruleVal : rules) {
+            QJsonObject rule = ruleVal.toObject();
+            QString action = rule.value(QStringLiteral("action")).toString();
+            QJsonObject os = rule.value(QStringLiteral("os")).toObject();
+            QString osName = os.value(QStringLiteral("name")).toString();
+            if (!osName.isEmpty()) {
+                bool isWindows = osName.contains(QStringLiteral("windows"), Qt::CaseInsensitive);
+                if (action == QStringLiteral("allow") && !isWindows) { skip = true; break; }
+                if (action == QStringLiteral("disallow") && isWindows) { skip = true; break; }
+            }
+        }
+        if (skip) continue;
+
+        QJsonObject downloads = lib.value(QStringLiteral("downloads")).toObject();
+        QJsonObject classifiers = downloads.value(QStringLiteral("classifiers")).toObject();
+        for (auto it = classifiers.begin(); it != classifiers.end(); ++it) {
+            QString key = it.key().toLower();
+            if (key.contains(QStringLiteral("natives-windows"))) {
+                foundAnyNative = true;
+                QJsonObject clsArt = it.value().toObject();
+                QString path = clsArt.value(QStringLiteral("path")).toString();
+                if (!path.isEmpty()) {
+                    QString fullPath = libsDir + QStringLiteral("/") + path;
+                    if (!QFileInfo::exists(fullPath)) {
+                        missing.append(QStringLiteral("natives/%1").arg(path));
+                    }
+                }
+            }
+        }
+    }
+
+    if (!foundAnyNative) {
+        // No native libraries defined in JSON — this is fine for some versions
+        emit logMessage(QStringLiteral("版本未定义原生库 (可能无需原生库)"));
+        return missing; // empty = OK
+    }
+
+    if (!missing.isEmpty()) {
+        emit logMessage(QStringLiteral("⚠ 缺少 %1 个原生库文件").arg(missing.size()));
+    } else {
+        emit logMessage(QStringLiteral("✅ 所有原生库文件完整"));
+    }
+
+    return missing;
 }
 
 } // namespace ShadowLauncher

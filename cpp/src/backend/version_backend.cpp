@@ -535,41 +535,70 @@ void VersionBackend::setInstallPhase(const QString& phase)
 }
 
 // ============================================================
-// Version management: verify (async batched)
+// VerifyWorker — background SHA1 verification
 // ============================================================
 
-struct VersionBackend::VerifyBatchState {
-    struct Item {
-        QString path;
-        QString sha1;
-        QString name;
-    };
-    QVector<Item> items;
-    int index = 0;
-    int total = 0;
-    int failed = 0;
-    QStringList failedFiles;
-    QStringList failedPaths; // paths for cleanup
-};
-
-static QString sha1File(const QString& filePath)
-{
+QString VersionBackend::VerifyWorker::sha1FileFast(const QString& filePath) {
     QFile f(filePath);
     if (!f.open(QIODevice::ReadOnly)) return {};
     QCryptographicHash hash(QCryptographicHash::Sha1);
-    hash.addData(&f);
+    // Read in 64KB chunks to avoid memory spikes on large files
+    while (!f.atEnd()) {
+        hash.addData(f.read(65536));
+    }
     return QString::fromLatin1(hash.result().toHex());
+}
+
+void VersionBackend::VerifyWorker::process() {
+    const int REPORT_EVERY = 100;
+    m_failed = 0;
+    m_failedFiles.clear();
+    m_failedPaths.clear();
+
+    for (int i = 0; i < m_items.size(); ++i) {
+        // Check cancellation
+        if (m_cancelled.loadAcquire()) {
+            emit cancelled(i + 1, m_items.size());
+            emit finished(false, m_failedFiles, m_failedPaths);
+            return;
+        }
+
+        const auto& item = m_items[i];
+
+        if (!QFileInfo::exists(item.path)) {
+            m_failed++;
+            m_failedFiles.append(item.name + QStringLiteral(" (缺失)"));
+            m_failedPaths.append(item.path);
+        } else if (!item.sha1.isEmpty()) {
+            QString actual = sha1FileFast(item.path);
+            if (actual.compare(item.sha1, Qt::CaseInsensitive) != 0) {
+                m_failed++;
+                m_failedFiles.append(item.name + QStringLiteral(" (校验失败)"));
+                m_failedPaths.append(item.path);
+            }
+        }
+
+        // Report progress every 100 items
+        if ((i + 1) % REPORT_EVERY == 0 || (i + 1) == m_items.size()) {
+            emit progressChecked(i + 1, m_items.size());
+        }
+    }
+
+    bool allPassed = (m_failed == 0);
+    emit finished(allPassed, m_failedFiles, m_failedPaths);
 }
 
 void VersionBackend::verifyVersion(const QString& versionId)
 {
     // Guard: don't allow concurrent verify
-    if (m_verifyState) {
+    if (m_verifyThread && m_verifyThread->isRunning()) {
         emit logMessage(QStringLiteral("校验已在运行中"));
         return;
     }
 
     setInstallPhase(QStringLiteral("verifying"));
+    m_verifyChecked = 0;
+    m_verifyTotal = 0;
     emit verifyStarted();
     qCInfo(logVersion) << "Verify started:" << versionId;
     emit logMessage(QStringLiteral("正在校验版本 %1...").arg(versionId));
@@ -600,7 +629,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
     QJsonObject versionJson = doc.object();
 
     // Collect all expected files and their SHA1 hashes
-    auto state = std::make_unique<VerifyBatchState>();
+    QVector<VerifyItem> items;
 
     // --- client.jar ---
     {
@@ -609,11 +638,11 @@ void VersionBackend::verifyVersion(const QString& versionId)
                                      .value(QStringLiteral("client"))
                                      .toObject();
         if (!client.isEmpty()) {
-            VerifyBatchState::Item item;
+            VerifyItem item;
             item.path = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
             item.sha1 = client.value(QStringLiteral("sha1")).toString();
             item.name = versionId + QStringLiteral(".jar");
-            state->items.append(item);
+            items.append(item);
         }
     }
 
@@ -628,11 +657,11 @@ void VersionBackend::verifyVersion(const QString& versionId)
         QJsonObject artifact = downloads.value(QStringLiteral("artifact")).toObject();
         if (!artifact.isEmpty()) {
             QString path = artifact.value(QStringLiteral("path")).toString();
-            VerifyBatchState::Item item;
+            VerifyItem item;
             item.path = libsDir + QStringLiteral("/") + path;
             item.sha1 = artifact.value(QStringLiteral("sha1")).toString();
             item.name = QStringLiteral("libraries/%1").arg(path);
-            state->items.append(item);
+            items.append(item);
         }
 
         // Native classifiers (Windows)
@@ -641,11 +670,11 @@ void VersionBackend::verifyVersion(const QString& versionId)
             if (it.key().toLower().contains(QStringLiteral("natives-windows"))) {
                 QJsonObject clsArt = it.value().toObject();
                 QString path = clsArt.value(QStringLiteral("path")).toString();
-                VerifyBatchState::Item item;
+                VerifyItem item;
                 item.path = libsDir + QStringLiteral("/") + path;
                 item.sha1 = clsArt.value(QStringLiteral("sha1")).toString();
                 item.name = QStringLiteral("libraries/%1").arg(path);
-                state->items.append(item);
+                items.append(item);
             }
         }
     }
@@ -666,85 +695,96 @@ void VersionBackend::verifyVersion(const QString& versionId)
                     QJsonObject obj = it.value().toObject();
                     QString sha1 = obj.value(QStringLiteral("hash")).toString();
                     QString prefix = sha1.left(2);
-                    VerifyBatchState::Item item;
+                    VerifyItem item;
                     item.path = objectsDir + QStringLiteral("/") + prefix + QStringLiteral("/") + sha1;
                     item.sha1 = sha1;
                     item.name = QStringLiteral("assets/%1").arg(it.key());
-                    state->items.append(item);
+                    items.append(item);
                 }
             }
         }
     }
 
-    state->total = state->items.size();
-    m_verifyState = std::move(state);
+    const int total = items.size();
+    m_verifyTotal = total;
+    emit logMessage(QStringLiteral("校验 %1 个文件...").arg(total));
+    emit verifyProgress(0, total);
 
-    emit logMessage(QStringLiteral("校验 %1 个文件...").arg(m_verifyState->total));
-    emit verifyProgress(0, m_verifyState->total);
+    // ── Create worker + thread ──
+    m_verifyThread = new QThread(this);
+    m_verifyWorker = new VerifyWorker;
+    m_verifyWorker->setItems(items);
+    m_verifyWorker->moveToThread(m_verifyThread);
 
-    // Start first batch
-    processVerifyBatch();
+    // Progress: forward to QML
+    connect(m_verifyWorker, &VerifyWorker::progressChecked, this,
+            [this](int checked, int total) {
+                m_verifyChecked = checked;
+                m_verifyTotal = total;
+                emit verifyProgress(checked, total);
+            }, Qt::QueuedConnection);
+
+    // Cancelled
+    connect(m_verifyWorker, &VerifyWorker::cancelled, this,
+            [this](int checked, int total) {
+                m_verifyChecked = checked;
+                m_verifyTotal = total;
+                emit verifyProgress(checked, total);
+                emit logMessage(QStringLiteral("⚠ 校验已取消"));
+                setInstallPhase(QStringLiteral("idle"));
+                emit verifyCancelled();
+            }, Qt::QueuedConnection);
+
+    // Finished
+    connect(m_verifyWorker, &VerifyWorker::finished, this,
+            [this](bool allPassed, const QStringList& failedFiles,
+                   const QStringList& failedPaths) {
+                if (allPassed) {
+                    qCInfo(logVersion) << "Verify completed — all" << m_verifyTotal << "files passed";
+                    emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(m_verifyTotal));
+                } else {
+                    int failed = failedFiles.size();
+                    qCCritical(logVersion) << "Verify completed —" << failed << "/" << m_verifyTotal << "files failed";
+
+                    QString detail = failedFiles.join(QStringLiteral(", "));
+                    if (detail.length() > 250) {
+                        detail = detail.left(250) + QStringLiteral("...");
+                    }
+                    emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(m_verifyTotal));
+                    emit logMessage(QStringLiteral("   失败文件: %1").arg(detail));
+                    emit verifyFailedFiles(failedFiles);
+
+                    // Store failed paths for later cleanup
+                    m_failedPathsCache = failedPaths;
+                }
+
+                setInstallPhase(QStringLiteral("idle"));
+                emit verifyFinished(allPassed);
+
+                // Cleanup worker + thread
+                m_verifyWorker->deleteLater();
+                m_verifyWorker = nullptr;
+                if (m_verifyThread) {
+                    m_verifyThread->quit();
+                    m_verifyThread->wait(3000);
+                    m_verifyThread->deleteLater();
+                    m_verifyThread = nullptr;
+                }
+            }, Qt::QueuedConnection);
+
+    // Start worker
+    connect(m_verifyThread, &QThread::started,
+            m_verifyWorker, &VerifyWorker::process);
+    connect(m_verifyThread, &QThread::finished,
+            m_verifyWorker, &QObject::deleteLater);
+    m_verifyThread->start();
 }
 
-void VersionBackend::processVerifyBatch()
+void VersionBackend::cancelVerify()
 {
-    if (!m_verifyState) return;
-
-    const int BATCH_SIZE = 20;
-    auto& s = *m_verifyState;
-
-    int batchEnd = qMin(s.index + BATCH_SIZE, s.total);
-
-    for (int i = s.index; i < batchEnd; ++i) {
-        const auto& item = s.items[i];
-
-        if (!QFileInfo::exists(item.path)) {
-            s.failed++;
-            s.failedFiles.append(item.name + QStringLiteral(" (缺失)"));
-            s.failedPaths.append(item.path);
-        } else if (!item.sha1.isEmpty()) {
-            QString actual = sha1File(item.path);
-            if (actual.compare(item.sha1, Qt::CaseInsensitive) != 0) {
-                s.failed++;
-                s.failedFiles.append(item.name + QStringLiteral(" (校验失败)"));
-                s.failedPaths.append(item.path);
-            }
-        }
-        // Skip logging individual passed files to avoid log spam
-    }
-
-    s.index = batchEnd;
-    emit verifyProgress(s.index, s.total);
-
-    if (s.index >= s.total) {
-        // ── All batches complete ──
-        bool allPassed = (s.failed == 0);
-
-        if (allPassed) {
-            qCInfo(logVersion) << "Verify completed — all" << s.total << "files passed";
-            emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(s.total));
-        } else {
-            qCCritical(logVersion) << "Verify completed —" << s.failed << "/" << s.total << "files failed";
-
-            // Build summary (trim if too long)
-            QString detail = s.failedFiles.join(QStringLiteral(", "));
-            if (detail.length() > 250) {
-                detail = detail.left(250) + QStringLiteral("...");
-            }
-            emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(s.failed).arg(s.total));
-            emit logMessage(QStringLiteral("   失败文件: %1").arg(detail));
-
-            // Emit failed files for QML display
-            emit verifyFailedFiles(s.failedFiles);
-        }
-
-        setInstallPhase(QStringLiteral("idle"));
-        emit verifyFinished(allPassed);
-
-        m_verifyState.reset();
-    } else {
-        // Schedule next batch — yield to event loop so UI stays responsive
-        QTimer::singleShot(0, this, &VersionBackend::processVerifyBatch);
+    if (m_verifyWorker) {
+        m_verifyWorker->cancel();
+        emit logMessage(QStringLiteral("正在取消校验..."));
     }
 }
 
@@ -754,21 +794,15 @@ void VersionBackend::processVerifyBatch()
 
 void VersionBackend::cleanCorruptVersion(const QString& versionId)
 {
-    if (!m_verifyState) {
+    if (m_failedPathsCache.isEmpty()) {
         emit logMessage(QStringLiteral("没有可清理的校验结果"));
-        return;
-    }
-
-    const auto& s = *m_verifyState;
-    if (s.failedPaths.isEmpty()) {
-        emit logMessage(QStringLiteral("没有需要清理的损坏文件"));
         return;
     }
 
     int cleaned = 0;
     int removed = 0;
 
-    for (const QString& path : s.failedPaths) {
+    for (const QString& path : m_failedPathsCache) {
         if (QFileInfo::exists(path)) {
             if (QFile::remove(path)) {
                 removed++;
@@ -778,6 +812,7 @@ void VersionBackend::cleanCorruptVersion(const QString& versionId)
         }
     }
 
+    m_failedPathsCache.clear();
     emit logMessage(QStringLiteral("🧹 清理完成: 删除 %1 个损坏文件, %2 个文件已不存在")
                         .arg(removed).arg(cleaned));
     emit logMessage(QStringLiteral("💡 请重新下载版本 %1 以恢复缺失文件").arg(versionId));

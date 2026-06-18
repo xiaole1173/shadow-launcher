@@ -61,8 +61,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int launchProgress READ launchProgress NOTIFY launchProgressChanged)
     Q_PROPERTY(QString launchStatus READ launchStatus NOTIFY launchProgressChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
-    Q_PROPERTY(QString launchVersion READ launchVersion CONSTANT)
-    Q_PROPERTY(QString launchUsername READ launchUsername CONSTANT)
+    Q_PROPERTY(QString launchVersion READ launchVersion NOTIFY launchStateChanged)
+    Q_PROPERTY(QString launchUsername READ launchUsername NOTIFY launchStateChanged)
 
     // ── Resource ──
     Q_PROPERTY(bool downloading READ isResourceDownloading NOTIFY resourceDownloadStateChanged)
@@ -154,6 +154,8 @@ public:
     bool isRunning() const;
     QString launchVersion() const { return m_launchVersion; }
     QString launchUsername() const { return m_launchUsername; }
+    void setLaunchVersion(const QString& v) { m_launchVersion = v; }
+    void setLaunchUsername(const QString& u) { m_launchUsername = u; }
 
     // ── Resource getters ──
     bool isResourceDownloading() const;
@@ -248,9 +250,9 @@ public:
     Q_INVOKABLE void deleteSave(const QString&) {}
     Q_INVOKABLE void migrateVersion(const QString&) {}
     Q_INVOKABLE void openConfigFolder() { openGameDir(); }
-    Q_INVOKABLE void openCrashLog() {}
-    Q_INVOKABLE void openLatestLog() {}
-    Q_INVOKABLE void openLogsFolder() {}
+    Q_INVOKABLE void openCrashLog() { openGameDir(); }
+    Q_INVOKABLE void openLatestLog();
+    Q_INVOKABLE void openLogsFolder();
     Q_INVOKABLE void openModsFolder() {}
     Q_INVOKABLE void openResourcePacksFolder() {}
     Q_INVOKABLE void openSavesFolder() {}
