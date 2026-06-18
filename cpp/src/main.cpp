@@ -22,7 +22,7 @@
 
 using namespace ShadowLauncher;
 
-// ── Native event filter: handle taskbar minimize for frameless window ──
+// ── Native event filter: handle taskbar minimize/restore for frameless window ──
 class TaskbarMinimizeFilter : public QAbstractNativeEventFilter {
 public:
     QWindow* targetWindow = nullptr;
@@ -31,9 +31,31 @@ public:
 #ifdef Q_OS_WIN
         if (eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG") {
             MSG* msg = static_cast<MSG*>(message);
+
+            // ── Minimize: click title bar minimize button or custom window menu ──
             if (msg->message == WM_SYSCOMMAND && (msg->wParam & 0xFFF0) == SC_MINIMIZE) {
                 ShowWindow(msg->hwnd, SW_MINIMIZE);
                 return true;
+            }
+
+            // ── Restore from taskbar: taskbar click sends WM_ACTIVATE with WA_CLICKACTIVE ──
+            if (msg->message == WM_ACTIVATE && LOWORD(msg->wParam) == WA_CLICKACTIVE) {
+                if (targetWindow && targetWindow->windowState() == Qt::WindowMinimized) {
+                    targetWindow->showNormal();
+                    targetWindow->raise();
+                    targetWindow->requestActivate();
+                    return true;
+                }
+            }
+
+            // ── Also handle system restore (taskbar thumbnail preview context menu) ──
+            if (msg->message == WM_SYSCOMMAND && (msg->wParam & 0xFFF0) == SC_RESTORE) {
+                if (targetWindow) {
+                    targetWindow->showNormal();
+                    targetWindow->raise();
+                    targetWindow->requestActivate();
+                    return true;
+                }
             }
         }
 #endif

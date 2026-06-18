@@ -32,6 +32,7 @@ Item {
         visible: showVersionSettings
         onLoaded: {
             versionSettingsLoader.item.backend = backend
+            versionSettingsLoader.item.currentVersionId = currentSelectedVersion
             versionSettingsLoader.item.goBack.connect(function() { showVersionSettings = false })
         }
     }

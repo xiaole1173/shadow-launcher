@@ -717,6 +717,7 @@ Window {
                                         Layout.fillWidth: true; spacing: 8
                                         Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                                         // Refresh installed versions button
+                                        property bool verRefreshPressed: false
                                         Rectangle {
                                             id: verRefreshBtn
                                             width: verRefreshText.implicitWidth + 16; height: 28; radius: 4
@@ -748,7 +749,6 @@ Window {
                                                 }
                                             }
                                         }
-                                        property bool verRefreshPressed: false
                                         Rectangle {
                                             Layout.fillWidth: true; height: 28; radius: 4; color: "#0d1018"
                                             border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
@@ -1029,6 +1029,60 @@ Window {
                                 modListModel.clear(); var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i])
                                 rpListModel.clear(); var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i])
                                 saveListModel.clear(); var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
+                                // 重置校验状态
+                                _verifyRunning = false
+                                _verifyProgressDone = 0
+                                _verifyProgressTotal = 0
+                                _verifyResultText = ""
+                                _verifyResultOk = false
+                            }
+                        }
+
+                        // ── 校验状态（本地追踪，不依赖后端不触发的NOTIFY信号） ──
+                        property bool _verifyRunning: false
+                        property int _verifyProgressDone: 0
+                        property int _verifyProgressTotal: 0
+                        property string _verifyResultText: ""
+                        property bool _verifyResultOk: false
+
+                        // ── 信号连接 ──
+                        Connections {
+                            target: backend
+                            enabled: versionSettingsOverlay.visible
+
+                            function onVerifyStarted() {
+                                versionSettingsOverlay._verifyRunning = true
+                                versionSettingsOverlay._verifyProgressDone = 0
+                                versionSettingsOverlay._verifyProgressTotal = 0
+                                versionSettingsOverlay._verifyResultText = ""
+                                versionSettingsOverlay._verifyResultOk = false
+                            }
+
+                            function onVerifyProgress(checked, total) {
+                                versionSettingsOverlay._verifyProgressDone = checked
+                                versionSettingsOverlay._verifyProgressTotal = total
+                            }
+
+                            function onVerifyFinished(allPassed) {
+                                versionSettingsOverlay._verifyRunning = false
+                                versionSettingsOverlay._verifyResultOk = allPassed
+                                // 从日志构建结果文本 - 后端已经把每行结果通过 logMessage 发出
+                                // 这里构建摘要
+                                var total = versionSettingsOverlay._verifyProgressTotal
+                                versionSettingsOverlay._verifyResultText = allPassed
+                                    ? ("✅ 校验完成: " + total + " 个文件全部通过")
+                                    : ("❌ 校验完成: 部分文件校验失败，请查看日志")
+                            }
+
+                            function onLogMessage(msg) {
+                                // 如果正在校验并且收到日志，追加到结果文本
+                                if (versionSettingsOverlay._verifyRunning || msg.indexOf("校验") >= 0) {
+                                    if (versionSettingsOverlay._verifyResultText !== "") {
+                                        versionSettingsOverlay._verifyResultText += "\n" + msg
+                                    } else {
+                                        versionSettingsOverlay._verifyResultText = msg
+                                    }
+                                }
                             }
                         }
 
@@ -1659,15 +1713,15 @@ Window {
                                     // Start button
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
-                                        color: (backend && backend.verifyRunning) ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
-                                        scale: verifyBtnMouse.containsMouse && !(backend && backend.verifyRunning) ? 1.04 : 1.0
+                                        color: versionSettingsOverlay._verifyRunning ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
+                                        scale: verifyBtnMouse.containsMouse && !versionSettingsOverlay._verifyRunning ? 1.04 : 1.0
                                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Behavior on color { ColorAnimation { duration: 200 } }
-                                        Text { anchors.centerIn: parent; text: (backend && backend.verifyRunning) ? "校验中..." : "开始校验"; font.pixelSize: 12; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: versionSettingsOverlay._verifyRunning ? "校验中..." : "开始校验"; font.pixelSize: 12; color: "#e8ecf8" }
 
                                         MouseArea {
                                             id: verifyBtnMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                            enabled: !(backend && backend.verifyRunning)
+                                            enabled: !versionSettingsOverlay._verifyRunning
                                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) backend.verifyVersion(currentSelectedVersion) }
                                         }
                                     }
@@ -1675,23 +1729,23 @@ Window {
                                     // Progress bar
                                     ColumnLayout {
                                         Layout.fillWidth: true; spacing: 6
-                                        visible: backend ? backend.verifyRunning || backend.verifyProgressTotal > 0 : false
+                                        visible: versionSettingsOverlay._verifyRunning || versionSettingsOverlay._verifyProgressTotal > 0
                                         Rectangle {
                                             Layout.fillWidth: true; height: 8; radius: 4; color: "#1a1e28"
                                             Rectangle {
                                                 height: 8; radius: 4
-                                                width: backend && backend.verifyProgressTotal > 0 ? parent.width * (backend.verifyProgressDone / backend.verifyProgressTotal) : 0
-                                                color: backend && backend.verifyFinished !== undefined && backend._verify_running ? "#6080e8" : (backend && backend.verifyProgressDone === backend.verifyProgressTotal ? "#4bc870" : "#c05050")
+                                                width: versionSettingsOverlay._verifyProgressTotal > 0 ? parent.width * (versionSettingsOverlay._verifyProgressDone / versionSettingsOverlay._verifyProgressTotal) : 0
+                                                color: versionSettingsOverlay._verifyRunning ? "#6080e8" : (versionSettingsOverlay._verifyProgressDone === versionSettingsOverlay._verifyProgressTotal ? "#4bc870" : "#c05050")
                                                 Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             }
                                         }
                                         Text {
                                             text: {
-                                                if (backend && backend.verifyProgressTotal > 0) {
-                                                    var pct = Math.round(backend.verifyProgressDone / backend.verifyProgressTotal * 100)
-                                                    return "校验中 " + backend.verifyProgressDone + "/" + backend.verifyProgressTotal + " (" + pct + "%)"
+                                                if (versionSettingsOverlay._verifyRunning && versionSettingsOverlay._verifyProgressTotal > 0) {
+                                                    var pct = Math.round(versionSettingsOverlay._verifyProgressDone / versionSettingsOverlay._verifyProgressTotal * 100)
+                                                    return "校验中 " + versionSettingsOverlay._verifyProgressDone + "/" + versionSettingsOverlay._verifyProgressTotal + " (" + pct + "%)"
                                                 }
-                                                return backend && backend.verifyRunning ? "校验中..." : ""
+                                                return versionSettingsOverlay._verifyRunning ? "校验中..." : ""
                                             }
                                             font.pixelSize: 11; color: "#989cb0"
                                         }
@@ -1700,9 +1754,9 @@ Window {
                                     Rectangle {
                                         Layout.fillWidth: true; Layout.fillHeight: true
                                         color: "#0d1018"; radius: 6
-                                        border.color: !backend ? "#1a1e28" : (backend.verifyRunning ? "#2a3050" : (backend.verifyResultOk ? "#2a4a2a" : backend.verifyResultText !== "" ? "#4a2a2a" : "#1a1e28"))
+                                        border.color: versionSettingsOverlay._verifyRunning ? "#2a3050" : (versionSettingsOverlay._verifyResultOk ? "#2a4a2a" : (versionSettingsOverlay._verifyResultText !== "" ? "#4a2a2a" : "#1a1e28"))
                                         border.width: 1
-                                        visible: backend && backend.verifyResultText !== ""
+                                        visible: versionSettingsOverlay._verifyResultText !== ""
                                         clip: true
                                         Flickable {
                                             anchors.fill: parent; anchors.margins: 12
@@ -1710,7 +1764,7 @@ Window {
                                             Text {
                                                 id: verifyResultLabel
                                                 width: parent.width
-                                                text: backend ? backend.verifyResultText : ""
+                                                text: versionSettingsOverlay._verifyResultText
                                                 font.pixelSize: 11; color: "#b0b8c8"
                                                 font.family: "Consolas, Microsoft YaHei, monospace"
                                                 wrapMode: Text.WordWrap

@@ -134,8 +134,15 @@ Rectangle {
         else list = backend.releaseVersions
         if (!list || list.length === 0) { appWindow.pageLoading = false; return }
 
+        // Filter out undefined/null entries
+        var cleanList = []
+        for (var j = 0; j < list.length; j++) {
+            if (list[j] !== undefined && list[j] !== null) {
+                cleanList.push(list[j])
+            }
+        }
         // Batch populate to avoid UI freeze (20 items per tick)
-        page._batchList = list
+        page._batchList = cleanList
         page._batchIndex = 0
         _batchTimer.restart()
     }
@@ -151,7 +158,9 @@ Rectangle {
             var start = page._batchIndex
             var end = Math.min(start + 20, list.length)
             for (var i = start; i < end; i++) {
-                versionModel.append({versionId: list[i], vtype: page.currentFilter})
+                var vid = list[i]
+                if (vid === undefined || vid === null) continue
+                versionModel.append({versionId: vid, vtype: page.currentFilter})
             }
             page._batchIndex = end
             if (end >= list.length) {
@@ -477,7 +486,7 @@ Rectangle {
 
                         // Installed badge
                         Rectangle {
-                            visible: backend && backend.installedVersions && (backend.installedVersions.indexOf(model.versionId) >= 0)
+                            visible: model.versionId && backend && backend.installedVersions && (backend.installedVersions.indexOf(model.versionId) >= 0)
                             radius: 3; height: 18
                             width: installedTag.implicitWidth + 10
                             color: "#1a3028"
@@ -580,7 +589,9 @@ Rectangle {
                         z: -1  // below Button
                         hoverEnabled: true
                         onClicked: {
-                            page.selectedVersionId = model.versionId
+                            if (model.versionId) {
+                                page.selectedVersionId = model.versionId
+                            }
                         }
                     }
                 }
@@ -1041,24 +1052,33 @@ Rectangle {
                 clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
+                ListModel { id: shaderModel }
+
                 GridView {
                     id: shaderGrid
                     anchors.fill: parent
                     cellWidth: 224
                     cellHeight: 118
 
-                    property var shaderData: []
+                    model: shaderModel
 
                     Component.onCompleted: {
+                        populateShaderModel()
+                    }
+
+                    function populateShaderModel() {
+                        shaderModel.clear()
+                        var items = []
+                        // First try backend
                         if (backend) {
                             var shaders = backend.getShaderList()
                             if (shaders && shaders.length) {
-                                shaderData = shaders
+                                items = shaders
                             }
                         }
-                        // Fallback: hardcoded popular shaders if backend returns nothing
-                        if (!shaderData.length) {
-                            shaderData = [
+                        // Fallback: hardcoded popular shaders if backend returned nothing or errored
+                        if (!items.length) {
+                            items = [
                                 { slug: "complementary-reimagined", title: "Complementary Reimagined", desc: "高品质光影，兼容性好" },
                                 { slug: "bsl-shaders", title: "BSL Shaders", desc: "经典光影，性能优化出色" },
                                 { slug: "seus-ptgi", title: "SEUS PTGI", desc: "光线追踪级画质" },
@@ -1076,9 +1096,16 @@ Rectangle {
                                 { slug: "luminance-shaders", title: "Luminance", desc: "Natural 风格" }
                             ]
                         }
+                        for (var i = 0; i < items.length; i++) {
+                            var it = items[i]
+                            if (!it) continue
+                            shaderModel.append({
+                                slug: it.slug || "",
+                                title: it.title || "",
+                                desc: it.desc || it.description || ""
+                            })
+                        }
                     }
-
-                    model: shaderGrid.shaderData.length > 0 ? shaderGrid.shaderData.length : 0
 
                     delegate: Rectangle {
                         width: 214
@@ -1091,8 +1118,6 @@ Rectangle {
                         opacity: 0
                         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                         Component.onCompleted: { opacity = 1 }
-
-                        property var itemData: shaderGrid.shaderData[index] || {}
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -1109,16 +1134,14 @@ Rectangle {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: parent.parent.parent.parent.itemData.title
-                                            ? parent.parent.parent.parent.itemData.title[0]
-                                            : "S"
+                                        text: model.title ? model.title[0] : "S"
                                         color: "#d4b840"
                                         font.pixelSize: 14
                                         font.bold: true
                                     }
                                 }
                                 Text {
-                                    text: parent.parent.parent.parent.itemData.title || ""
+                                    text: model.title || ""
                                     color: "#d0d4e0"
                                     font.pixelSize: 13
                                     font.bold: true
@@ -1128,7 +1151,7 @@ Rectangle {
                             }
 
                             Text {
-                                text: parent.parent.parent.parent.itemData.desc || ""
+                                text: model.desc || ""
                                 color: "#606478"
                                 font.pixelSize: 11
                                 elide: Text.ElideRight
@@ -1164,11 +1187,11 @@ Rectangle {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                var d = shaderGrid.shaderData[index]
-                                if (d && d.slug && backend) {
+                                var slug = model.slug || ""
+                                if (slug && backend) {
                                     page.installingMod = true
-                                    page.installingModName = d.title || d.slug
-                                    backend.downloadShader(d.slug)
+                                    page.installingModName = model.title || slug
+                                    backend.downloadShader(slug)
                                 }
                             }
                         }
