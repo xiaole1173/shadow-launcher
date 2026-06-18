@@ -13,6 +13,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QDateTime>
+#include <future>
 
 // nlohmann/json 鈥?parse Mojang official JSON (pure C++ parsing, avoid QJsonDocument perf issues with large files)
 #include "../third_party/nlohmann/json.hpp"
@@ -53,12 +54,36 @@ void VersionManager::fetchVersions()
         return;
     }
 
-    // 1) Try cache first
-    if (loadFromCache()) {
-        emit versionsReady(m_versions);
-        return;
-    }
+    // 1) Try cache in background thread — 1000+ version JSON parsing blocks main thread
+    m_cacheLoadFuture = std::async(std::launch::async, [this]() {
+        // Do all heavy work (file I/O + JSON parse) on background thread
+        QVector<McVersion> parsed;
+        const QString path = cacheFilePath();
+        if (!path.isEmpty()) {
+            QFile file(path);
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                const QByteArray data = file.readAll();
+                file.close();
+                parsed = parseManifest(data);
+            }
+        }
+        if (!parsed.isEmpty()) {
+            // Assign m_versions on main thread to avoid data race
+            QMetaObject::invokeMethod(this, [this, parsed]() {
+                m_versions = parsed;
+                emit versionsReady(m_versions);
+            }, Qt::QueuedConnection);
+            return;
+        }
+        // Cache miss — trigger network fetch on main thread
+        QMetaObject::invokeMethod(this, [this]() {
+            doNetworkFetch();
+        }, Qt::QueuedConnection);
+    });
+}
 
+void VersionManager::doNetworkFetch()
+{
     // 2) Request Mojang API
     QUrl mojangUrl(MANIFEST_URL);
     QNetworkRequest request(mojangUrl);

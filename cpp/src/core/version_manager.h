@@ -5,6 +5,7 @@
 #include <QString>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <future>
 
 #include "../utils/types.h"
 
@@ -58,6 +59,9 @@ public:
     /// 缓存文件路径
     QString cacheFilePath() const;
 
+    /// 网络获取（无缓存时，内部使用）
+    void doNetworkFetch();
+
 signals:
     /// 版本列表就绪（数量可能为 0，表示没有可用版本）
     void versionsReady(const QVector<McVersion>& versions);
@@ -74,6 +78,7 @@ private:
     QVector<McVersion> m_versions;
     QString m_dataDir;
     QString m_gameDir;
+    std::future<void> m_cacheLoadFuture;
 };
 
 } // namespace ShadowLauncher
