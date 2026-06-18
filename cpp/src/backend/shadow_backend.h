@@ -195,9 +195,9 @@ public:
     QString verifyVersion() const { return {}; }
 
     // ── Mod/file list stubs ──
-    QVariantList listMods() const { return {}; }
-    QVariantList listResourcePacks() const { return {}; }
-    QVariantList listSaves() const { return {}; }
+    Q_INVOKABLE QVariantList listMods() const { return {}; }
+    Q_INVOKABLE QVariantList listResourcePacks() const { return {}; }
+    Q_INVOKABLE QVariantList listSaves() const { return {}; }
 
     // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
@@ -243,8 +243,7 @@ public:
     Q_INVOKABLE void setGameArgs(const QString&) {}  // stub
     Q_INVOKABLE void setJvmArgs(const QString&) {}   // stub
 
-    // ── Function versions of property-only getters (QML calls with parens) ──
-    // (listMods/listResourcePacks/listSaves are Q_PROPERTY readers above — no duplicate needed)
+    // ── Q_INVOKABLE versions of Q_PROPERTY-only getters ──
     Q_INVOKABLE bool isModdedVersion(const QString& versionId) const { Q_UNUSED(versionId); return false; }
 
     // ── Path/document stubs ──
