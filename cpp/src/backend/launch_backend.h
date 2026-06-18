@@ -3,6 +3,7 @@
 #include <QString>
 #include <QTimer>
 #include <QVariantMap>
+#include <QList>
 
 namespace ShadowLauncher {
 
@@ -14,6 +15,7 @@ class LaunchBackend : public QObject {
     Q_PROPERTY(int launchProgress READ launchProgress NOTIFY launchProgressChanged)
     Q_PROPERTY(QString launchStatus READ launchStatus NOTIFY launchProgressChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
+    Q_PROPERTY(int runningCount READ runningCount NOTIFY runningCountChanged)
 
 public:
     explicit LaunchBackend(QObject* parent = nullptr);
@@ -22,13 +24,16 @@ public:
     bool isLaunching() const { return m_launching; }
     int launchProgress() const { return m_launchProgress; }
     QString launchStatus() const { return m_launchStatus; }
-    bool isRunning() const;
+    bool isRunning() const { return !m_runningLaunchers.isEmpty(); }
+    int runningCount() const { return m_runningLaunchers.size(); }
 
     // ---- Slots ----
     Q_INVOKABLE void launch(const QString& versionId, const QString& username,
                             const QString& javaPath, int maxMemoryMB);
     Q_INVOKABLE void cancelLaunch();
-    Q_INVOKABLE void killGameProcess();
+    Q_INVOKABLE void killGameProcess();  // kill ALL running games
+    Q_INVOKABLE void killGameById(int index);  // kill one game by index
+    Q_INVOKABLE QVariantList runningGames() const;  // [{version,pid,index}, ...]
     Q_INVOKABLE int getAutoMemory();
     Q_INVOKABLE int getSystemMemory();
     Q_INVOKABLE QVariantMap getMemoryStatus();
@@ -48,6 +53,7 @@ signals:
     void minecraftStarted();
     void minecraftStopped();
     void isRunningChanged();
+    void runningCountChanged();
     void logMessage(const QString& msg);
 
     // ── Pre-launch check signals ──
@@ -57,16 +63,18 @@ signals:
     void launchCheckWarning(const QString& warning);
 
 private slots:
-    void onLaunchStarted();
     void onLaunchProgress(const QString& message);
-    void onLaunchFinished(bool success, const QString& errorMsg);
 
     // ── Async pre-launch check steps ──
     void runNextCheck();
     void abortCheck(const QString& phase, const QString& reason);
 
 private:
-    Launcher* m_launcher = nullptr;
+    void handleLaunchStarted(Launcher* launcher);
+    void handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg);
+
+    QList<Launcher*> m_runningLaunchers;
+    QString m_gameDir;
     bool m_launching = false;
     int m_launchProgress = 0;
     QString m_launchStatus;
