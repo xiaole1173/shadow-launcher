@@ -1070,10 +1070,13 @@ Window {
                             function onVerifyFinished(allPassed) {
                                 versionSettingsOverlay._verifyRunning = false
                                 versionSettingsOverlay._verifyResultOk = allPassed
-                                var total = versionSettingsOverlay._verifyProgressTotal
-                                versionSettingsOverlay._verifyResultText = allPassed
-                                    ? ("✅ 校验完成: " + total + " 个文件全部通过")
-                                    : ("❌ 校验完成: " + total + " 个文件中部分校验失败")
+                                // 不覆盖 logMessage 已积累的详细结果，仅在结果为空时显示默认文本
+                                if (versionSettingsOverlay._verifyResultText === "") {
+                                    var total = versionSettingsOverlay._verifyProgressTotal
+                                    versionSettingsOverlay._verifyResultText = allPassed
+                                        ? ("✅ 校验完成: " + total + " 个文件全部通过")
+                                        : ("❌ 校验完成: " + total + " 个文件全部通过。")
+                                }
                             }
 
                             function onVerifyFailedFiles(files) {
@@ -1782,12 +1785,14 @@ Window {
 
                                     Item { height: 12; width: 1 }
 
-                                    // Repair button (visible when verify found failures)
+                                    // Repair button (hollow orange, visible when verify found failures)
                                     Rectangle {
                                         width: 140; height: 36; radius: 6
-                                        color: repairBtnHover.hovered ? "#2563EB" : "#1d4ed8"
+                                        color: "transparent"
+                                        border.color: repairBtnHover.hovered ? "#ff8c42" : "#c06420"
+                                        border.width: 1.5
                                         visible: versionSettingsOverlay._verifyHasFailed && versionSettingsOverlay._verifyFailedFiles.length > 0
-                                        Text { anchors.centerIn: parent; text: "🔧 一键修复"; font.pixelSize: 12; color: "#e8ecf8" }
+                                        Text { anchors.centerIn: parent; text: "🔧 一键修复"; font.pixelSize: 12; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
                                         HoverHandler { id: repairBtnHover }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
