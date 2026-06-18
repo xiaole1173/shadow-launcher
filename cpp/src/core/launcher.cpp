@@ -419,6 +419,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         }
     }
 
+    // Read asset index ID from version JSON (e.g. "27", not "1.21.10")
+    QJsonObject assetIndex = versionJson[QStringLiteral("assetIndex")].toObject();
+    QString assetIndexId = assetIndex[QStringLiteral("id")].toString();
+    if (assetIndexId.isEmpty()) assetIndexId = versionId;  // legacy fallback
+
     // Process game arguments, expanding placeholders
     for (const QJsonValue& argVal : gameArgs) {
         if (argVal.isString()) {
@@ -430,7 +435,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                         m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
             arg.replace(QStringLiteral("${assets_root}"),
                         m_gameDir + QStringLiteral("/assets"));
-            arg.replace(QStringLiteral("${assets_index_name}"), versionId);
+            arg.replace(QStringLiteral("${assets_index_name}"), assetIndexId);
             arg.replace(QStringLiteral("${auth_uuid}"), QStringLiteral("00000000-0000-0000-0000-000000000000"));
             arg.replace(QStringLiteral("${auth_access_token}"), QStringLiteral("0"));
             arg.replace(QStringLiteral("${user_type}"), QStringLiteral("mojang"));
