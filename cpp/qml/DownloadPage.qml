@@ -45,6 +45,7 @@ Rectangle {
     property int rpPage: 0  // current page offset for pagination
     property bool rpLoadingMore: false
     property bool rpShowPreReleases: false
+    property int rpVersionCacheVersion: 0
     property bool rpHasMore: true
     property int rpTotalHits: 0
 
@@ -993,21 +994,6 @@ Rectangle {
                                             }
                                         }
 
-                                        // Toggle pre-release visibility
-                                        Rectangle {
-                                            Layout.fillWidth: true; height: 26; radius: 4
-                                            color: "transparent"
-                                            Layout.topMargin: 4
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: page.rpShowPreReleases ? "隐藏测试版" : "显示测试版"
-                                                color: "#505468"; font.pixelSize: 10
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -1096,6 +1082,18 @@ Rectangle {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // Row 2.5: Pre-release toggle
+                    Text {
+                        Layout.fillWidth: true
+                        text: page.rpShowPreReleases ? "\u2b07 \u9690\u85cf\u6d4b\u8bd5\u7248" : "\u25b8 \u663e\u793a\u6d4b\u8bd5\u7248"
+                        color: page.rpShowPreReleases ? "#5068c8" : "#505468"; font.pixelSize: 10
+                        horizontalAlignment: Text.AlignRight
+                        MouseArea {
+                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
                         }
                     }
 
@@ -1456,7 +1454,7 @@ Rectangle {
 
                 // Version list grouped by major, click to expand
                 property var rpDetailGrouped: {
-                    var d = page.rpVersionCache
+                    var _ver = page.rpVersionCacheVersion; var d = page.rpVersionCache
                     var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
                     var groups = {}
                     for (var i = 0; i < raw.length; i++) {
@@ -1692,7 +1690,7 @@ Rectangle {
             if (!found) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "WARN: slug not found in model:", slug)
             }
-            page.rpVersionCache[slug] = versions
+            page.rpVersionCache[slug] = versions; page.rpVersionCacheVersion++
         }
 
         function onResourcepackVersionsProgress(done, total) {
