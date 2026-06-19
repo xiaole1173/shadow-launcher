@@ -199,7 +199,9 @@ int main(int argc, char *argv[])
             } else {
                 qCCritical(logApp) << "Screenshot: window not ready";
             }
-            qApp->quit();
+            // Give async icon downloads 10s to finish before quitting
+            qCInfo(logApp) << "Screenshot: waiting 10s for icon downloads before quit";
+            QTimer::singleShot(10000, qApp, &QCoreApplication::quit);
         };
 
         if (targetPage >= 0) {
@@ -252,7 +254,7 @@ int main(int argc, char *argv[])
                 QTimer::singleShot(200, qApp, doScreenshot);
             });
             pollTimer->start(200);     // check every 200ms
-            maxTimer->start(20000);     // 20s max timeout
+            maxTimer->start(60000);    // 60s max timeout (icon download needs time)
 
         } else {
             // No navigation: take screenshot after QML render delay

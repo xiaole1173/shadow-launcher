@@ -10,14 +10,19 @@
 #include "version_backend.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QUrl>
 #include <QSettings>
 #include <QStorageInfo>
 #include <QTextStream>
@@ -879,6 +884,88 @@ void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gam
 
 void ShadowBackend::fetchResourcepackVersions(const QStringList& slugs) {
     m_resource->fetchResourcepackVersions(slugs);
+}
+
+// ── Icon cache: async download webp → ffmpeg convert to PNG → cache locally ──
+// Qt 6.5.3 on this machine lacks qwebp.dll plugin, so we pre-convert webp to PNG
+void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
+    if (webpUrl.isEmpty()) return;
+
+    // Cache dir: <appdir>/icons/
+    static QString s_cacheDir;
+    if (s_cacheDir.isEmpty()) {
+        s_cacheDir = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/");
+        QDir().mkpath(s_cacheDir);
+    }
+
+    // Derive cache filename from URL hash
+    QByteArray hash = QCryptographicHash::hash(webpUrl.toUtf8(), QCryptographicHash::Sha1).toHex().left(16);
+    QString pngPath = s_cacheDir + QString::fromLatin1(hash) + QStringLiteral(".png");
+
+    // Return cached version immediately if exists
+    if (QFile::exists(pngPath)) {
+        emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
+        return;
+    }
+
+    // Async download + convert
+    auto* mgr = new QNetworkAccessManager(this);
+    QUrl qurl(webpUrl);
+    QNetworkRequest req(qurl);
+    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply* reply = mgr->get(req);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, webpUrl, pngPath, hash]() {
+        reply->deleteLater();
+        mgr->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[ICON] download failed:" << webpUrl << reply->errorString();
+            emit iconCached(webpUrl, {});  // empty = failed
+            return;
+        }
+
+        // Save webp to temp
+        QString tempWebp = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/") 
+                         + QString::fromLatin1(hash) + QStringLiteral(".webp");
+        QFile f(tempWebp);
+        if (!f.open(QIODevice::WriteOnly)) {
+            emit iconCached(webpUrl, {});
+            return;
+        }
+        f.write(reply->readAll());
+        f.close();
+
+        // Convert webp → png using ffmpeg (async subprocess)
+        auto* ffmpeg = new QProcess(this);
+        ffmpeg->setProgram(QStringLiteral("ffmpeg"));
+        ffmpeg->setArguments({QStringLiteral("-y"), QStringLiteral("-i"), tempWebp, pngPath});
+        connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, ffmpeg, webpUrl, pngPath, tempWebp](int exitCode, QProcess::ExitStatus) {
+                ffmpeg->deleteLater();
+                QFile::remove(tempWebp);
+                if (exitCode == 0 && QFile::exists(pngPath)) {
+                    qDebug() << "[ICON] cached:" << webpUrl << "→" << pngPath;
+                    emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
+                } else {
+                    qWarning() << "[ICON] ffmpeg failed:" << webpUrl;
+                    emit iconCached(webpUrl, {});
+                }
+        });
+        ffmpeg->start();
+    });
+}
+
+QString ShadowBackend::cachedIconPath(const QString& webpUrl) const {
+    if (webpUrl.isEmpty()) return {};
+    QByteArray hash = QCryptographicHash::hash(webpUrl.toUtf8(), QCryptographicHash::Sha1).toHex().left(16);
+    QString pngPath = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/") 
+                    + QString::fromLatin1(hash) + QStringLiteral(".png");
+    if (QFile::exists(pngPath)) {
+        return QUrl::fromLocalFile(pngPath).toString();
+    }
+    return {};
 }
 
 // ============================================================

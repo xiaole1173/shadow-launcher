@@ -1274,31 +1274,49 @@ Rectangle {
                                 Image {
                                     id: rpCardIcon
                                     anchors.fill: parent
-                                    property bool rpIconFallbackDone: false
-                                    source: {
-                                        if (!model || !model.icon) return ""
-                                        var url = model.icon
-                                        // MCIM CDN: mod.mcimirror.top proxies Modrinth CDN with 302
-                                        url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                        url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                        rpIconFallbackDone = false
-                                        rpIconFallback.visible = false
-                                        return url
-                                    }
+                                    property string rpIconCacheKey: ""
+
+                                    source: ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true; cache: true
                                     autoTransform: true
                                     sourceSize.width: 88; sourceSize.height: 88
+
+                                    function triggerIconLoad() {
+                                        if (!model || !model.icon) return
+                                        var url = model.icon
+                                        url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                        url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                        rpIconCacheKey = url
+                                        rpIconFallback.visible = false
+                                        // Check if already cached
+                                        if (backend && backend.cachedIconPath) {
+                                            var cached = backend.cachedIconPath(url)
+                                            if (cached) {
+                                                source = cached
+                                                return
+                                            }
+                                            // Trigger async download+convert
+                                            backend.cacheIconAsync(url)
+                                        }
+                                    }
+                                    Component.onCompleted: triggerIconLoad()
+
+                                    Connections {
+                                        target: backend
+                                        function onIconCached(webpUrl, pngPath) {
+                                            if (webpUrl !== rpCardIcon.rpIconCacheKey) return
+                                            if (pngPath) {
+                                                rpCardIcon.source = pngPath
+                                            } else {
+                                                rpIconFallback.visible = true
+                                            }
+                                        }
+                                    }
                                     onStatusChanged: {
                                         if (status === Image.Loading) return
-                                        if (status === Image.Ready) { rpIconFallback.visible = false; return }
-                                        // Image failed — try original CDN as fallback
-                                        if (!rpIconFallbackDone && model && model.icon) {
-                                            rpIconFallbackDone = true
-                                            source = model.icon  // use original URL
-                                            return
-                                        }
-                                        rpIconFallback.visible = true
+                                        if (status === Image.Ready) { rpIconFallback.visible = false }
+                                        else if (source && source.toString() !== "") { rpIconFallback.visible = true }
                                     }
                                 }
 
