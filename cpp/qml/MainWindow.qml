@@ -131,13 +131,13 @@ Window {
             console.log("[auto-test] openModDetailRequested:", slug)
             switchPage(1)
             pendingSubTab = 1
-            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.modDetailSlug = "' + slug + '"; downloadPageLoader.item.modDetailTitle = "' + slug + '" } destroy() } }', appWindow)
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { var item = downloadPageLoader.item; if (item) { item.modDetailSlug = "' + slug + '"; item.modDetailTitle = "' + slug + '"; item.modDetailPage.modDetailExpanded = []; item.modDetailPage.modDetailSelectedVer = ""; if (item.backend) item.backend.fetchModVersions(["' + slug + '"]) } destroy() } }', appWindow)
         }
         function onOpenShaderDetailRequested(slug) {
             console.log("[auto-test] openShaderDetailRequested:", slug)
             switchPage(1)
             pendingSubTab = 2
-            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.shaderDetailSlug = "' + slug + '"; downloadPageLoader.item.shaderDetailTitle = "' + slug + '" } destroy() } }', appWindow)
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { var item = downloadPageLoader.item; if (item) { item.shaderDetailSlug = "' + slug + '"; item.shaderDetailTitle = "' + slug + '"; item.shaderDetailPage.shaderDetailExpanded = []; item.shaderDetailPage.shaderDetailSelectedVer = ""; if (item.backend) item.backend.fetchShaderVersions(["' + slug + '"]) } destroy() } }', appWindow)
         }
         // ── Auto-test: toggle pre-release switch ──
         function onSetRpShowPreReleases(show) {

@@ -1370,6 +1370,9 @@ Rectangle {
                                             page.modDetailPage.modDetailExpanded = []
                                             page.modDetailPage.modDetailSelectedVer = ""
                                             if (backend) backend.fetchModVersions([model.slug])
+                                            page.modDetailPage.modDetailExpanded = []
+                                            page.modDetailPage.modDetailSelectedVer = ""
+                                            backend.fetchModVersions([model.slug])
                                             console.log("[mod-ui] open detail: " + model.slug)
                                         }
                                     }
@@ -1748,6 +1751,9 @@ Rectangle {
                                             page.shaderDetailPage.shaderDetailExpanded = []
                                             page.shaderDetailPage.shaderDetailSelectedVer = ""
                                             if (backend) backend.fetchShaderVersions([model.slug])
+                                            page.shaderDetailPage.shaderDetailExpanded = []
+                                            page.shaderDetailPage.shaderDetailSelectedVer = ""
+                                            backend.fetchShaderVersions([model.slug])
                                             console.log("[shader-ui] open detail: " + model.slug)
                                         }
                                     }
@@ -3338,26 +3344,6 @@ Rectangle {
         if (rpDetailSlug && backend) {
             backend.fetchResourcepackVersions([rpDetailSlug])
             console.log("[RP-DEBUG] detail fetch versions for", rpDetailSlug)
-        }
-    }
-
-    onModDetailSlugChanged: {
-        console.log("[mod] modDetailSlugChanged ->", modDetailSlug)
-        modDetailPage.modDetailExpanded = []
-        modDetailPage.modDetailSelectedVer = ""
-        if (modDetailSlug && backend) {
-            backend.fetchModVersions([modDetailSlug])
-            console.log("[mod] detail fetch versions for", modDetailSlug)
-        }
-    }
-
-    onShaderDetailSlugChanged: {
-        console.log("[shader] shaderDetailSlugChanged ->", shaderDetailSlug)
-        shaderDetailPage.shaderDetailExpanded = []
-        shaderDetailPage.shaderDetailSelectedVer = ""
-        if (shaderDetailSlug && backend) {
-            backend.fetchShaderVersions([shaderDetailSlug])
-            console.log("[shader] detail fetch versions for", shaderDetailSlug)
         }
     }
 
