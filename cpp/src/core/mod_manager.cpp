@@ -611,12 +611,16 @@ QJsonArray ModManager::parseSearchResponse(const QByteArray& data, int& outTotal
         QStringList resList, featList, catList;
         for (const QJsonValue& cv : categoriesArray) {
             QString c = cv.toString().toLower();
-            // Resolution: "16x", "32x", etc.
-            if (c.endsWith(QLatin1String("x")) && c.length() <= 5) {
+            // Resolution: "16x", "32x", "8x-", "512x+", etc.
+            // Modrinth uses "8x-" (≤8x) and "512x+" (≥512x) — strip suffix for classification
+            QString cStripped = c;
+            if (cStripped.endsWith(QLatin1String("-")) || cStripped.endsWith(QLatin1String("+")))
+                cStripped.chop(1);
+            if (cStripped.endsWith(QLatin1String("x")) && cStripped.length() <= 5) {
                 bool ok = false;
-                c.chopped(1).toInt(&ok);
+                cStripped.chopped(1).toInt(&ok);
                 if (ok) {
-                    resList.append(c);
+                    resList.append(cStripped);  // store "8x" not "8x-"
                     continue;
                 }
             }
