@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -1595,8 +1595,8 @@ Rectangle {
                                         Text {
                                             text: (rpDetailPage.rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major + ".X"
                                             color: "#5068c8"; font.pixelSize: 14; font.bold: true
-                                            Layout.fillWidth: true
                                         }
+                                        Item { Layout.fillWidth: true }
                                         Text {
                                             text: modelData.versions.length + " 个版本"
                                             color: "#505468"; font.pixelSize: 10
