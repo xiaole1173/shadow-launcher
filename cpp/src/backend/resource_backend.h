@@ -30,7 +30,7 @@ public:
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& loader);
     Q_INVOKABLE void downloadShader(const QString& slug);
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0);
-    Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion);
+    Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);
     Q_INVOKABLE void cancelDownload();
 

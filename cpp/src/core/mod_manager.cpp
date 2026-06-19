@@ -592,11 +592,42 @@ QJsonArray ModManager::parseSearchResponse(const QByteArray& data, int& outTotal
         mod[QStringLiteral("author")]        = hit.value(QStringLiteral("author"));
         mod[QStringLiteral("downloads")]     = hit.value(QStringLiteral("downloads"));
         mod[QStringLiteral("updated")]       = hit.value(QStringLiteral("date_modified"));
-        mod[QStringLiteral("categories")]    = hit.value(QStringLiteral("categories"));
         mod[QStringLiteral("gameVersions")]  = hit.value(QStringLiteral("versions"));
         // Modrinth uses "categories" for loaders in search results
         mod[QStringLiteral("loaders")]       = hit.value(QStringLiteral("categories"));
         mod[QStringLiteral("latestVersion")] = hit.value(QStringLiteral("latest_version"));
+
+        // Split categories into 3 dimensions: resolution, feature, category
+        const QJsonArray categoriesArray = hit.value(QStringLiteral("categories")).toArray();
+        QStringList resList, featList, catList;
+        for (const QJsonValue& cv : categoriesArray) {
+            QString c = cv.toString().toLower();
+            // Resolution: "16x", "32x", etc.
+            if (c.endsWith(QLatin1String("x")) && c.length() <= 5) {
+                bool ok = false;
+                c.chopped(1).toInt(&ok);
+                if (ok) {
+                    resList.append(c);
+                    continue;
+                }
+            }
+            // Feature: known Modrinth feature tags
+            if (c == QLatin1String("audio") || c == QLatin1String("blocks") ||
+                c == QLatin1String("core-shaders") || c == QLatin1String("core_shaders") ||
+                c == QLatin1String("entities") || c == QLatin1String("environment") ||
+                c == QLatin1String("equipment") || c == QLatin1String("fonts") ||
+                c == QLatin1String("gui") || c == QLatin1String("items") ||
+                c == QLatin1String("locale") || c == QLatin1String("models") ||
+                c == QLatin1String("minecraft")) {
+                featList.append(c);
+                continue;
+            }
+            // Everything else → category
+            catList.append(c);
+        }
+        mod[QStringLiteral("resolutions")] = QJsonArray::fromStringList(resList);
+        mod[QStringLiteral("features")]    = QJsonArray::fromStringList(featList);
+        mod[QStringLiteral("categories")]  = QJsonArray::fromStringList(catList);
 
         results.append(mod);
     }

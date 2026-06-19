@@ -1994,34 +1994,6 @@ Window {
 
 
 
-                // ═══ Kill button overlay (bottom-right of pageContainer) ═══
-                Rectangle {
-                    id: killButton
-                    width: 48; height: 48; radius: 24
-                    anchors.right: parent.right; anchors.rightMargin: 16
-                    anchors.bottom: parent.bottom; anchors.bottomMargin: 16
-                    z: 200; color: killMouse.containsMouse ? "#e06060" : "#c05050"
-                    opacity: backend ? (backend.isRunning ? 1 : 0) : 0
-                    scale: killMouse.containsMouse ? 1.1 : (backend ? (backend.isRunning ? 1 : 0.3) : 0.3)
-                    visible: opacity > 0
-                    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Text { anchors.centerIn: parent; text: "\u25A0"; color: "#e8ecf8"; font.pixelSize: 16 }
-                    MouseArea { id: killMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { console.log("[main] killButton clicked"); if (backend) { killPressAnim.start(); killDelayTimer.start() } } }
-
-                    Timer {
-                        id: killDelayTimer
-                        interval: 300
-                        onTriggered: { if (backend) backend.killMinecraft() }
-                    }
-
-                    SequentialAnimation {
-                        id: killPressAnim
-                        NumberAnimation { target: killButton; property: "scale"; to: 0.75; duration: 80; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: killButton; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack }
-                    }
-                }
             }
         }
     }
@@ -2134,20 +2106,9 @@ Window {
         navOverlayScale.restart()
     }
 
-    // ═══ Kill button (inside pageContainer — see pageContainer above) ═══
-    // Reference to killButton via id still works from Window scope due to QML id resolution
-
     Connections {
         target: backend; enabled: backend !== null
         function onLogMessage(msg) { console.log("[backend]", msg) }
-        function onMinecraftStarted() {
-            killButton.visible = true
-            console.log("[main] minecraftStarted → killButton shown")
-        }
-        function onMinecraftStopped() {
-            killButton.visible = false
-            console.log("[main] minecraftStopped → killButton hidden")
-        }
         function onRunningCountChanged() {
             appWindow.runningListModel = backend ? backend.runningGames() : []
             console.log("[main] runningCountChanged → list refreshed: " + appWindow.runningListModel.length + " games")

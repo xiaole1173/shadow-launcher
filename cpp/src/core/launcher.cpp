@@ -257,13 +257,14 @@ void Launcher::forceKill()
     }
 
 #ifdef Q_OS_WIN
-    // Windows: kill process tree
-    QString cmd = QStringLiteral("taskkill /F /T /PID %1").arg(pid);
-    QProcess::startDetached(cmd);
+    // Windows: kill process tree (synchronous — wait for taskkill to finish)
+    QProcess killer;
+    killer.start(QStringLiteral("taskkill"), QStringList() << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid));
+    killer.waitForFinished(8000);
 
-    if (!m_process->waitForFinished(2000)) {
+    if (m_process->state() != QProcess::NotRunning) {
         m_process->kill();
-        m_process->waitForFinished(1000);
+        m_process->waitForFinished(3000);
     }
 #else
     m_process->kill();

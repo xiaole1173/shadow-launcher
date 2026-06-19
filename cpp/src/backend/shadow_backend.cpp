@@ -9,10 +9,12 @@
 #include "settings_backend.h"
 #include "version_backend.h"
 
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QGuiApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -883,8 +885,8 @@ void ShadowBackend::searchResourcepacks(const QString& query, const QString& gam
     m_resource->searchResourcepacks(query, gameVersion, offset);
 }
 
-void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gameVersion) {
-    m_resource->downloadResourcepack(slug, gameVersion);
+void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir) {
+    m_resource->downloadResourcepack(slug, gameVersion, minecraftDir);
 }
 
 void ShadowBackend::fetchResourcepackVersions(const QStringList& slugs) {
@@ -1040,6 +1042,18 @@ QVariantMap ShadowBackend::checkAll(const QString& versionId) {
                              m_settings->javaPath(),
                              m_settings->maxMemoryMB(),
                              m_app->gameDir());
+}
+
+// ============================================================
+// Q_INVOKABLE methods — Clipboard
+// ============================================================
+
+void ShadowBackend::copyToClipboard(const QString& text)
+{
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    if (clipboard) {
+        clipboard->setText(text);
+    }
 }
 
 } // namespace ShadowLauncher

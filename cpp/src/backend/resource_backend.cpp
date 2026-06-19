@@ -136,7 +136,7 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
                                   ? QStringList{} : QStringList{gameVersion}, offset);
 }
 
-void ResourceBackend::downloadResourcepack(const QString& slug, const QString& gameVersion)
+void ResourceBackend::downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir)
 {
     if (m_downloading) {
         emit logMessage(QStringLiteral("⚠️ 已有下载任务进行中"));
@@ -147,7 +147,8 @@ void ResourceBackend::downloadResourcepack(const QString& slug, const QString& g
     emit downloadStateChanged();
 
     emit logMessage(QStringLiteral("🔍 正在查找资源包 %1 ...").arg(slug));
-    m_modMgr->downloadResourcepack(slug, gameVersion, m_minecraftDir);
+    QString destDir = minecraftDir.isEmpty() ? m_minecraftDir : minecraftDir;
+    m_modMgr->downloadResourcepack(slug, gameVersion, destDir);
 }
 
 void ResourceBackend::fetchResourcepackVersions(const QStringList& slugs)

@@ -354,13 +354,17 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
             emit launchProgressChanged(0, QStringLiteral("游戏进程意外退出"));
             emit launchCheckFailed(QStringLiteral("进程存活"), QStringLiteral("游戏进程在窗口出现前退出"));
             emit logMessage(QStringLiteral("启动失败: 进程意外退出"));
-            // Remove from list
-            m_runningLaunchers.removeOne(launcher);
-            launcher->deleteLater();
-            emit runningCountChanged();
-            if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
-            emit minecraftStopped();
-            qCDebug(logLaunch) << "[PROCESS] Death check: game process died, minecraftStopped emitted";
+            // Remove from list (guard: may have been removed by killGameById)
+            if (m_runningLaunchers.contains(launcher)) {
+                m_runningLaunchers.removeOne(launcher);
+                launcher->deleteLater();
+                emit runningCountChanged();
+                if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
+                emit minecraftStopped();
+                qCDebug(logLaunch) << "[PROCESS] Death check: game process died, minecraftStopped emitted";
+            } else {
+                qCDebug(logLaunch) << "[PROCESS] Death check skipped (already removed by kill)";
+            }
             m_launching = false;
             emit launchStateChanged();
             return;
@@ -405,6 +409,12 @@ void LaunchBackend::onLaunchProgress(const QString& message)
 
 void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg)
 {
+    // Guard: launcher may have been removed by killGameById already
+    if (!m_runningLaunchers.contains(launcher)) {
+        qCDebug(logLaunch) << "[PROCESS] handleLaunchFinished skipped (already removed by kill)";
+        return;
+    }
+
     // Remove from running list
     m_runningLaunchers.removeOne(launcher);
     qCDebug(logLaunch) << "[PROCESS] Game removed from running list (total:" << m_runningLaunchers.size() << ") success=" << success;

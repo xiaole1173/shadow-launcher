@@ -48,6 +48,14 @@ Rectangle {
     property real rpLoadingProgress: 0  // 0..1 for version fetch progress
     property int rpDebugSeq: 0  // sequence counter for log correlation
     property string rpCategoryFilter: ""  // category key for filtering
+
+    // Feature translation map for resource pack detail display
+    property var rpFeatureMap: ({
+        "audio": "音频", "blocks": "方块", "core-shaders": "核心着色器",
+        "entities": "实体", "environment": "环境", "equipment": "装备",
+        "fonts": "字体", "gui": "图形界面", "items": "物品",
+        "locale": "本地化", "models": "模型", "minecraft": "Minecraft"
+    })
     property int rpPage: 0  // current page offset for pagination
     property bool rpLoadingMore: false
     property bool rpShowPreReleases: false
@@ -1414,6 +1422,53 @@ Rectangle {
                                     }
                                 }
 
+                                // Row 2.5: Feature tags (PBR, animations, etc.)
+                                Item {
+                                    Layout.fillWidth: true; Layout.preferredHeight: 18
+                                    clip: true
+                                    Row {
+                                        id: rpFeatRow
+                                        spacing: 4
+                                        property string featJson: ""
+                                        property string _featPending: ""
+                                        Timer {
+                                            id: rpFeatTimer; interval: 1
+                                            onTriggered: {
+                                                var json = rpFeatRow._featPending; rpFeatRow._featPending = ""
+                                                for (var i = rpFeatRow.children.length - 1; i >= 0; i--) {
+                                                    if (rpFeatRow.children[i] !== rpFeatComp) rpFeatRow.children[i].destroy()
+                                                }
+                                                if (!json || json === "" || json === "[]") return
+                                                var tags = []; try { tags = JSON.parse(json) } catch(e) { return }
+                                                for (var t = 0; t < Math.min(tags.length, 4); t++) {
+                                                    var en = String(tags[t]).toLowerCase()
+                                                    rpFeatComp.createObject(rpFeatRow, {
+                                                        "tagLabel": page.rpFeatureMap[en] || en
+                                                    })
+                                                }
+                                            }
+                                        }
+                                        onFeatJsonChanged: { rpFeatRow._featPending = featJson; rpFeatTimer.restart() }
+                                        Component {
+                                            id: rpFeatComp
+                                            Rectangle {
+                                                height: 16; width: tText2.implicitWidth + 10; radius: 4
+                                                color: "#1a1428"; border.color: "#382848"; border.width: 1
+                                                property string tagLabel: ""
+                                                Text {
+                                                    id: tText2; anchors.centerIn: parent
+                                                    text: tagLabel; color: "#a878c8"; font.pixelSize: 9
+                                                }
+                                            }
+                                        }
+                                        Binding {
+                                            target: rpFeatRow; property: "featJson"
+                                            value: model ? (model.features || "[]") : "[]"
+                                            when: model !== null
+                                        }
+                                    }
+                                }
+
                                 // Row 3: Description (1 line)
                                 Text {
                                     Layout.fillWidth: true
@@ -1489,6 +1544,10 @@ Rectangle {
                             onClicked: {
                                 console.log("[RP-DEBUG] card clicked:", model.slug)
                                 rpDetailSlug = model.slug; rpDetailTitle = model.title
+                                page.rpDetailAuthor = model.author || ""
+                                page.rpDetailDesc = model.desc || ""
+                                page.rpDetailDownloads = model.downloads || 0
+                                page.rpDetailUpdated = model.updated || ""
                             }
                         }
                     }
@@ -1599,14 +1658,91 @@ Rectangle {
                         onClicked: {
                             console.log("[resourcepack] detail closed")
                             rpDetailSlug = ""
+                            // Ensure we stay on RP tab (tab index 3)
+                            currentTab = 3
                         }
                     }
                 }
 
                 // Title
                 Text {
-                    text: rpDetailSlug; color: "#d0d4e0"; font.pixelSize: 18; font.bold: true
+                    text: rpDetailTitle || rpDetailSlug; color: "#d0d4e0"; font.pixelSize: 18; font.bold: true
                     elide: Text.ElideRight; Layout.fillWidth: true
+                }
+
+                // ── Detail info card (Issue #4) ──
+                Rectangle {
+                    Layout.fillWidth: true; height: rpInfoCardCol.implicitHeight + 16
+                    radius: 10; color: "#101828"
+                    border.color: "#1e2c48"; border.width: 1
+                    Column {
+                        id: rpInfoCardCol
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                        spacing: 6
+
+                        // Author
+                        Text {
+                            text: "作者: " + (page.rpDetailAuthor || "未知")
+                            color: "#7888a8"; font.pixelSize: 11
+                            elide: Text.ElideRight; width: parent.width
+                        }
+
+                        // Description
+                        Text {
+                            text: page.rpDetailDesc || "无简介"
+                            color: "#9098b0"; font.pixelSize: 11
+                            elide: Text.ElideRight; maximumLineCount: 3; width: parent.width
+                            wrapMode: Text.WordWrap
+                        }
+
+                        // Downloads + Updated
+                        Row { spacing: 24
+                            Text {
+                                text: "下载量: " + (page.rpDetailDownloads ? rpDetailPage.formatDownloads(page.rpDetailDownloads) : "-")
+                                color: "#7888a8"; font.pixelSize: 11
+                            }
+                            Text {
+                                text: "更新: " + (page.rpDetailUpdated ? rpDetailPage.formatDate(page.rpDetailUpdated) : "-")
+                                color: "#7888a8"; font.pixelSize: 11
+                            }
+                        }
+
+                        // Action buttons
+                        Row { spacing: 8
+                            Rectangle {
+                                width: rpModBtn.implicitWidth + 20; height: 28; radius: 6
+                                color: rpModBtnHov.hovered ? "#1a2a50" : "transparent"
+                                border.color: "#5068c8"; border.width: 1.5
+                                Text {
+                                    id: rpModBtn; anchors.centerIn: parent
+                                    text: "转到Modrinth"; color: "#6888e8"; font.pixelSize: 11
+                                }
+                                MouseArea {
+                                    id: rpModBtnHov; anchors.fill: parent
+                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (rpDetailSlug) Qt.openUrlExternally("https://modrinth.com/resourcepack/" + rpDetailSlug)
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                width: rpCopyBtn.implicitWidth + 20; height: 28; radius: 6
+                                color: rpCopyBtnHov.hovered ? "#282018" : "transparent"
+                                border.color: "#685040"; border.width: 1.5
+                                Text {
+                                    id: rpCopyBtn; anchors.centerIn: parent
+                                    text: "复制名称"; color: "#c89860"; font.pixelSize: 11
+                                }
+                                MouseArea {
+                                    id: rpCopyBtnHov; anchors.fill: parent
+                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (backend) backend.copyToClipboard(rpDetailTitle || rpDetailSlug)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Text {
@@ -1778,9 +1914,9 @@ Rectangle {
                                                         cursorShape: Qt.PointingHandCursor
                                                         onClicked: {
                                                             console.log("[resourcepack] L3 download:", rpDetailSlug, modelData)
-                                                            page.installingRpName = rpDetailSlug
-                                                            if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
-                                                            rpDetailSlug = ""; rpDetailPage.rpDetailSelectedVer = ""
+                                                            rpFolderDialog.slug = rpDetailSlug
+                                                            page.rpGameVersion = modelData  // store selected MC version for download
+                                                            rpFolderDialog.open()
                                                         }
                                                     }
                                                 }
@@ -1811,6 +1947,10 @@ Rectangle {
 
     property string rpDetailSlug: ""
     property string rpDetailTitle: ""
+    property string rpDetailAuthor: ""
+    property string rpDetailDesc: ""
+    property int rpDetailDownloads: 0
+    property string rpDetailUpdated: ""
     property string installingRpName: ""
     property var rpVersionCache: ({})
     property var rpVersionDetailCache: ({})  // { slug: { "1.21.11": {version_number,name,downloads,...} } }
@@ -1844,10 +1984,17 @@ Rectangle {
             for (var i = 0; i < results.length; i++) {
                 var r = results[i]
                 if (catFilter) {
+                    // Check both categories and features for filter match
                     var cats = r.categories || []
+                    var feats = r.features || []
                     var hasCat = false
                     for (var c = 0; c < cats.length; c++) {
                         if (String(cats[c]).toLowerCase() === catFilter) { hasCat = true; break }
+                    }
+                    if (!hasCat) {
+                        for (var f = 0; f < feats.length; f++) {
+                            if (String(feats[f]).toLowerCase() === catFilter) { hasCat = true; break }
+                        }
                     }
                     if (!hasCat) continue
                 }
@@ -1859,6 +2006,8 @@ Rectangle {
                     icon: r.icon || "",
                     downloads: r.downloads || 0,
                     categories: JSON.stringify(r.categories || []),
+                    features: JSON.stringify(r.features || []),
+                    resolutions: JSON.stringify(r.resolutions || []),
                     updated: r.updated || "",
                     author: r.author || "",
                     source: r.source || "Modrinth",
@@ -1954,6 +2103,28 @@ Rectangle {
             }
         }
 
+        function onResourceDownloadProgress(completed, total, fileName) {
+            if (page.installingRpName) {
+                var pct = total > 0 ? Math.round(completed / total * 100) : 0
+                console.log("[resourcepack] download progress:", page.installingRpName, completed, "/", total, "(" + pct + "%)")
+                toastManager.show("下载中 " + page.installingRpName + ": " + pct + "%")
+                if (page.mainWindow && page.mainWindow.loadingBar) {
+                    page.mainWindow.loadingBar.opacity = (completed < total) ? 1 : 0
+                }
+            }
+        }
+
+        function onResourceDownloadDone(success) {
+            if (page.installingRpName) {
+                console.log("[resourcepack] download done:", page.installingRpName, "success:", success)
+                toastManager.show(success ? ("下载完成: " + page.installingRpName) : ("下载失败: " + page.installingRpName))
+                page.installingRpName = ""
+                if (page.mainWindow && page.mainWindow.loadingBar) {
+                    page.mainWindow.loadingBar.opacity = 0
+                }
+            }
+        }
+
         function onLogMessage(msg) {
             if (msg.indexOf("[MODRINTH") >= 0) {
                 console.log("[resourcepack] " + msg)
@@ -1986,7 +2157,7 @@ Rectangle {
             // Do NOT set installingMod — that's for Mod tab progress only
             page.installingRpName = rpFolderDialog.slug
             if (backend && rpFolderDialog.slug) {
-                backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion)
+                backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion, dest)
                 toastManager.show("开始下载: " + rpFolderDialog.slug)
             }
         }

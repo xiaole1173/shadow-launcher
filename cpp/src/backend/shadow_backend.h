@@ -235,9 +235,9 @@ public:
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& loader);
     Q_INVOKABLE void downloadShader(const QString& slug);
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0);
-    Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion);
+    Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
-    Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
+    Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
@@ -248,6 +248,7 @@ public:
     Q_INVOKABLE void setAutoMemoryEnabled(bool) {}  // stub
     Q_INVOKABLE void setJvmArgs(const QString& args);
     Q_INVOKABLE void setGameArgs(const QString&) {}  // stub
+    Q_INVOKABLE void copyToClipboard(const QString& text);
 
     // ── Q_INVOKABLE versions of Q_PROPERTY-only getters ──
     Q_INVOKABLE bool isModdedVersion(const QString& versionId) const { Q_UNUSED(versionId); return false; }
@@ -334,7 +335,7 @@ signals:
 
     // ── Auto-test navigation signal ──
     // pageIndex: 0=Launch, 1=Download, 2=Settings
-    // subTab: for Download page �?0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
+    // subTab: for Download page �?0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
     void navigateToRequested(int pageIndex, int subTab);
 
     // ── Auto-test: open RP detail page ──
