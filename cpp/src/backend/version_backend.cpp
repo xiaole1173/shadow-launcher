@@ -585,8 +585,9 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         emit installSpeedChanged(0);
         emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
     } else {
-        // Still have active downloads — sync primary display
+        // Still have active downloads — sync primary display AND notify QML to re-read
         syncPrimaryProgress();
+        emit installStateChanged();
     }
 
     // ── Try to start next from queue ──
@@ -739,7 +740,6 @@ void VersionBackend::syncPrimaryProgress()
 
     emit installProgressChanged();
     emit installTotalChanged();
-    emit installStateChanged();
     emit installSpeedChanged(st.speed);
     emit installFileProgress(st.file);
     emit installBytesProgress(st.bytesDl, st.bytesTotal);
