@@ -125,8 +125,7 @@ void ResourceBackend::downloadShader(const QString& slug)
     emit downloadStateChanged();
 
     emit logMessage(QStringLiteral("🔍 正在查找 %1 光影包...").arg(slug));
-    m_modMgr->downloadMod(slug, QStringLiteral("1.20.1"), QStringLiteral("iris"),
-                          m_minecraftDir, QStringLiteral("shaderpacks"));
+    m_modMgr->downloadShader(slug, QStringLiteral("1.20.1"), m_minecraftDir);
 }
 
 void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories)

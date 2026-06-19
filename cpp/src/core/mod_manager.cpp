@@ -160,6 +160,7 @@ void ModManager::downloadMod(
 
     emit logMessage(QStringLiteral("正在查找 %1 的 %2/%3 版本...")
                         .arg(slug, loader, gameVersion));
+    emit modDownloadStarted(slug);
 
     // Fetch versions; onVersionsForDownload slot handles the download
     getModVersions(slug, {loader}, {gameVersion});
@@ -374,6 +375,92 @@ void ModManager::downloadResourcepack(
             setBusy(false);
             emit resourcepackDownloadFinished(slug, false, {});
             emit logMessage(QStringLiteral("[MODRINTH] 获取版本列表失败: %1").arg(err));
+        }
+    );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Shader packs — download (same pattern as resource packs)
+// ═══════════════════════════════════════════════════════════
+
+void ModManager::downloadShader(
+    const QString& slug,
+    const QString& gameVersion,
+    const QString& minecraftDir)
+{
+    setBusy(true);
+    m_minecraftDir = minecraftDir;
+
+    emit logMessage(QStringLiteral("[MODRINTH] 下载光影: %1 MC%2").arg(slug, gameVersion));
+
+    // Step 1: fetch versions filtered by game_version, pick matching primary file
+    QUrl versionsUrl(MODRINTH_API + "/project/" + slug + "/version");
+    QUrlQuery vp;
+    if (!gameVersion.isEmpty())
+        vp.addQueryItem(QStringLiteral("game_versions"),
+                        QStringLiteral("[\"%1\"]").arg(gameVersion));
+    versionsUrl.setQuery(vp);
+
+    HttpClient::instance().get(versionsUrl.toString(),
+        [this, slug, gameVersion, minecraftDir](int /*status*/, const QByteArray& data) {
+            QJsonArray files = parseVersionsResponse(data);
+            if (files.isEmpty()) {
+                setBusy(false);
+                emit logMessage(QStringLiteral("[MODRINTH] 无光影文件匹配 MC%1").arg(gameVersion));
+                emit shaderDownloadFinished(slug, false, {});
+                return;
+            }
+
+            // Pick best file: match game version, prefer primary
+            QJsonObject bestFile;
+            for (const QJsonValue& fv : files) {
+                QJsonObject f = fv.toObject();
+                QJsonArray gvs = f[QStringLiteral("gameVersions")].toArray();
+                bool match = false;
+                for (const QJsonValue& gv : gvs) {
+                    if (gv.toString() == gameVersion) { match = true; break; }
+                }
+                if (match) {
+                    if (f.value(QStringLiteral("isPrimary")).toBool()) { bestFile = f; break; }
+                    if (bestFile.isEmpty()) bestFile = f;
+                }
+            }
+            // Fallback: use first file if no exact match
+            if (bestFile.isEmpty()) bestFile = files.first().toObject();
+
+            QString dlUrl = bestFile[QStringLiteral("url")].toString();
+            QString filename = bestFile[QStringLiteral("filename")].toString();
+            if (filename.isEmpty()) filename = slug + QStringLiteral(".zip");
+
+            // Rewrite cdn.modrinth.com → MCIM CDN mirror
+            dlUrl.replace(QStringLiteral("cdn.modrinth.com"), MCIM_CDN);
+            dlUrl.replace(QStringLiteral("cdn-alt.modrinth.com"), MCIM_CDN);
+
+            QString destDir = minecraftDir + QStringLiteral("/shaderpacks");
+            QDir().mkpath(destDir);
+            QString destPath = destDir + QStringLiteral("/") + filename;
+
+            emit logMessage(QStringLiteral("[MODRINTH] 光影文件: %1 → %2").arg(filename, dlUrl));
+
+            HttpClient::instance().download(
+                dlUrl, destPath,
+                [this, slug](qint64 received, qint64 total) {
+                    emit downloadProgress(slug, received, total);
+                },
+                [this, slug, destPath, filename](bool ok, const QString& error) {
+                    setBusy(false);
+                    if (ok)
+                        emit logMessage(QStringLiteral("[MODRINTH] 光影下载完成: %1").arg(filename));
+                    else
+                        emit logMessage(QStringLiteral("[MODRINTH] 光影下载失败: %1").arg(error));
+                    emit shaderDownloadFinished(slug, ok, ok ? destPath : QString());
+                }
+            );
+        },
+        [this, slug](const QString& err) {
+            setBusy(false);
+            emit shaderDownloadFinished(slug, false, {});
+            emit logMessage(QStringLiteral("[MODRINTH] 获取光影版本失败: %1").arg(err));
         }
     );
 }

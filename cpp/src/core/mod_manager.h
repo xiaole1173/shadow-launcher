@@ -104,6 +104,13 @@ public:
         const QString& minecraftDir
     );
 
+    // Shader packs — download (reuses Modrinth version fetch + MCIM CDN)
+    void downloadShader(
+        const QString& slug,
+        const QString& gameVersion,
+        const QString& minecraftDir
+    );
+
     // Batch-fetch project game_versions for search result cards
     void fetchResourcepackVersions(const QStringList& slugs);
 
@@ -124,6 +131,10 @@ signals:
 
     void downloadProgress(const QString& name, qint64 received, qint64 total);
     void downloadFinished(const QString& slug, bool success, const QString& filePath);
+    void modDownloadStarted(const QString& slug);
+    void shaderSearchCompleted(const QJsonArray& results, int totalHits);
+    void shaderSearchFailed(const QString& error);
+    void shaderDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void resourcepackSearchCompleted(const QJsonArray& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);

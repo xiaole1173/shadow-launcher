@@ -28,6 +28,18 @@ Rectangle {
     property string selectedVersionId: ""
     property int currentSource: -1  // -1=自动(最优), 0..N=具体镜像索引
     property var mirrorSources: []  // 从 backend.getMirrorSources() 加载
+    property string clickedVersionId: ""  // Immediately-set on click, cleared on installPhase done
+
+    // Watch for install completion/reset to clear clickedVersionId
+    Connections {
+        target: backend; enabled: backend !== null
+        function onInstallStateChanged() {
+            if (!backend.installing && page.clickedVersionId !== "") {
+                console.log("[download-ui] install completed, clearing clickedVersionId: " + page.clickedVersionId)
+                page.clickedVersionId = ""
+            }
+        }
+    }
     property string complianceNotice: ""  // BMCLAPI 协议合规文案
 
     // Mod state
@@ -617,7 +629,7 @@ Rectangle {
                         Button {
                             id: installBtn
                             property bool isInstalled: backend && backend.installedVersions && (backend.installedVersions.indexOf(model.versionId) >= 0)
-                            property bool isInstallingThis: backend && backend.installing && backend.installVersionId === model.versionId && backend.installPhase !== "done"
+                            property bool isInstallingThis: backend && backend.installing && backend.installPhase !== "done" && (backend.installVersionId === model.versionId || page.clickedVersionId === model.versionId)
                             property bool isDownloadQueued: {
                                 if (!backend || !backend.downloadQueue) return false
                                 for (var i = 0; i < backend.downloadQueue.length; i++) {
@@ -638,7 +650,7 @@ Rectangle {
                             font.pixelSize: 10; font.weight: Font.Medium
                             z: 10
                             flat: true
-                            enabled: !isInstalled && !isInstallingThis && !isDownloadQueued && !isDownloadActive
+                            enabled: !isInstalled && !isInstallingThis && !isDownloadQueued && !isDownloadActive && page.clickedVersionId !== model.versionId
                             contentItem: Text {
                                 text: installBtn.text
                                 color: installBtn.isInstalled ? "#4bc870" :
@@ -665,6 +677,8 @@ Rectangle {
                                 if (backend) {
                                     // Log pre-install state
                                     console.log("[download-ui] pre-install: version=" + model.versionId + " installing=" + backend.installing + " versionId=" + backend.installVersionId + " phase=" + backend.installPhase)
+                                    // Immediately mark this version as clicked so UI updates before page destruction
+                                    page.clickedVersionId = model.versionId
                                     backend.installVersion(model.versionId, page.currentSource)
                                     // Row bounce animation
                                     rowBounceAnim.start()

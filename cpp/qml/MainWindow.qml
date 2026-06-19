@@ -60,12 +60,15 @@ Window {
     property bool downloadNavVisible: false
 
     function showDownloadNav() {
+        console.log("[main] showDownloadNav called: downloadNavVisible=" + downloadNavVisible + " navModel.count=" + navModel.count)
         // Always show nav AND auto-switch (silent may pre-add the nav item)
         if (!downloadNavVisible) {
             downloadNavVisible = true
             navModel.append({ label: "下载进度", pageKey: "download_progress" })
+            console.log("[main] showDownloadNav: appended nav, new count=" + navModel.count)
         }
         // Always auto-switch — critical: must not be blocked by silent pre-add
+        console.log("[main] showDownloadNav: switching to page " + (navModel.count - 1))
         switchPage(navModel.count - 1)
     }
 

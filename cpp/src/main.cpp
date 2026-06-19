@@ -166,6 +166,25 @@ int main(int argc, char *argv[])
         });
     }
 
+    // ── Test download mode: navigate to download page + auto-install ──
+    int testDownloadIdx = args.indexOf(QStringLiteral("--test-download"));
+    if (testDownloadIdx >= 0 && testDownloadIdx + 1 < args.size()) {
+        QString testVersion = args[testDownloadIdx + 1];
+        qCInfo(logApp) << "Test download mode: version" << testVersion;
+        // Navigate to download page after QML is ready
+        QTimer::singleShot(2500, backend, [&engine, backend, testVersion]() {
+            qCInfo(logApp) << "Test-download: navigating to download page";
+            if (!engine.rootObjects().isEmpty()) {
+                engine.rootObjects().first()->setProperty("navListIndex", 1);
+            }
+            // Trigger install 800ms after navigation (allow page to render)
+            QTimer::singleShot(800, backend, [backend, testVersion]() {
+                qCInfo(logApp) << "Test-download: triggering install for" << testVersion;
+                backend->installVersion(testVersion);
+            });
+        });
+    }
+
     // ── Navigate + Screenshot test mode ──
     // Smart timing: wait for content-ready signal, not fixed delay
     // Usage: --screenshot <name> [--navigate <page>:<tab>]

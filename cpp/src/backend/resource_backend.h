@@ -18,6 +18,8 @@ public:
     explicit ResourceBackend(QObject* parent = nullptr);
     ~ResourceBackend() override;
 
+    ModManager* modManager() const { return m_modMgr; }
+
     bool isDownloading() const { return m_downloading; }
     int dlProgress() const { return m_dlProgress; }
     int dlTotal() const { return m_dlTotal; }

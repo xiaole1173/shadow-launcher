@@ -14,6 +14,7 @@ class CheckBackend;
 class VersionBackend;
 class LaunchBackend;
 class ResourceBackend;
+class ModManager;
 
 class ShadowBackend : public QObject {
     Q_OBJECT
@@ -70,6 +71,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int resourceDownloadProgress READ resourceDownloadProgress NOTIFY resourceDownloadProgress)
     Q_PROPERTY(int resourceDownloadTotal READ resourceDownloadTotal NOTIFY resourceDownloadProgress)
     Q_PROPERTY(QString resourceDownloadFile READ resourceDownloadFile NOTIFY resourceDownloadProgress)
+
+    Q_PROPERTY(QObject* modManager READ modManager CONSTANT)
 
     // ── App ──
     Q_PROPERTY(QString gameDir READ gameDir NOTIFY gameDirChanged)
@@ -378,6 +381,7 @@ public:
     VersionBackend* version() const { return m_version; }
     LaunchBackend* launchBackend() const { return m_launch; }
     ResourceBackend* resource() const { return m_resource; }
+    QObject* modManager() const;  // QML exposed (returns m_resource->modManager())
 
 private:
     AppBackend* m_app = nullptr;

@@ -1,4 +1,5 @@
 #include "shadow_backend.h"
+#include "../core/mod_manager.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
@@ -728,6 +729,11 @@ QString ShadowBackend::getVersionGameDir(const QString& versionId) const {
 
 void ShadowBackend::migrateVersionToIsolated(const QString& versionId) {
     m_settings->migrateVersionToIsolated(versionId);
+}
+
+QObject* ShadowBackend::modManager() const
+{
+    return m_resource ? m_resource->modManager() : nullptr;
 }
 
 qint64 ShadowBackend::diskFree() const
