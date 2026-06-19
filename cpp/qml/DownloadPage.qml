@@ -1536,21 +1536,37 @@ Rectangle {
                                         id: rpChipRow
                                         spacing: 4
                                         property string chipsJson: ""
+                                        property string _pending: ""
+
+                                        Timer {
+                                            id: rpChipTimer
+                                            interval: 1
+                                            onTriggered: {
+                                                var json = rpChipRow._pending
+                                                rpChipRow._pending = ""
+                                                // Remove old chips (keep component + placeholder)
+                                                for (var i = rpChipRow.children.length - 1; i >= 0; i--) {
+                                                    var child = rpChipRow.children[i]
+                                                    if (child !== rpChipComp && child !== rpChipPlaceholder) {
+                                                        child.destroy()
+                                                    }
+                                                }
+                                                if (!json || json === "") return
+                                                var items = []
+                                                try { items = JSON.parse(json) } catch(e) { return }
+                                                rpChipPlaceholder.visible = (items.length === 0)
+                                                for (var j = 0; j < items.length; j++) {
+                                                    rpChipComp.createObject(rpChipRow, {
+                                                        "chipText": items[j].text,
+                                                        "chipColor": items[j].color
+                                                    })
+                                                }
+                                            }
+                                        }
 
                                         onChipsJsonChanged: {
-                                            // Remove old chips (keep component)
-                                            for (var i = children.length - 1; i >= 0; i--) {
-                                                if (children[i] !== rpChipComp) children[i].destroy()
-                                            }
-                                            if (!chipsJson || chipsJson === "") return
-                                            var items = []
-                                            try { items = JSON.parse(chipsJson) } catch(e) { return }
-                                            for (var j = 0; j < items.length; j++) {
-                                                rpChipComp.createObject(rpChipRow, {
-                                                    "chipText": items[j].text,
-                                                    "chipColor": items[j].color
-                                                })
-                                            }
+                                            rpChipRow._pending = chipsJson
+                                            rpChipTimer.restart()
                                         }
 
                                         Component {
