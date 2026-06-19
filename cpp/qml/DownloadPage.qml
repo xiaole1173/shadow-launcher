@@ -14,6 +14,12 @@ Rectangle {
     // Signal for the flying ball animation — emitted to main window
     signal triggerDownloadBall(real sourceX, real sourceY)
 
+    // ── Auto-test helpers (accessible from MainWindow loader.item) ──
+    property alias rpDetailExpanded: rpDetailPage.rpDetailExpanded
+    function toggleVersionMenu() {
+        if (rpVersionMenu.visible) { rpVersionMenu.close() } else { rpVersionMenu.open() }
+    }
+
     // Category tabs
     property int currentTab: 0  // 0=MC版本, 1=Mod, 2=光影, 3=资源包
 

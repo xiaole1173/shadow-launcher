@@ -340,6 +340,11 @@ signals:
     // ── Auto-test: open RP detail page ──
     void openRpDetailRequested(const QString& slug);
 
+    // ── Auto-test: UI interaction signals ──
+    void setRpShowPreReleases(bool show);
+    void openRpVersionMenu();
+    void expandRpDetailGroup(const QString& major);
+
     // ── Verify signals ──
     void verifyStarted();
     void verifyProgress(int checked, int total);

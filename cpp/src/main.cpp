@@ -193,6 +193,28 @@ int main(int argc, char *argv[])
             targetTab = 3;    // force RP tab
         }
 
+        // Parse --detail-expand <major> (expand a group in detail page)
+        int expandIdx = args.indexOf(QStringLiteral("--detail-expand"));
+        QString expandMajor;
+        if (expandIdx >= 0 && expandIdx + 1 < args.size()) {
+            expandMajor = args[expandIdx + 1];
+        }
+
+        // Parse --toggle-pre-release <on|off>
+        int toggleIdx = args.indexOf(QStringLiteral("--toggle-pre-release"));
+        bool togglePreRelease = false, hasToggle = false;
+        if (toggleIdx >= 0 && toggleIdx + 1 < args.size()) {
+            togglePreRelease = (args[toggleIdx + 1].toLower() == QStringLiteral("on"));
+            hasToggle = true;
+            targetPage = 1; targetTab = 3;
+        }
+
+        // Parse --open-version-menu
+        bool openVersionMenu = args.contains(QStringLiteral("--open-version-menu"));
+        if (openVersionMenu) {
+            targetPage = 1; targetTab = 3;
+        }
+
         // Shared ready flag (heap-allocated so lambdas share ownership)
         auto ready = std::make_shared<bool>(false);
         auto doScreenshot = [ssPath, &app]() {
@@ -218,13 +240,38 @@ int main(int argc, char *argv[])
                            << "tab" << targetTab;
 
             // Navigate after QML is ready
-            QTimer::singleShot(1500, backend, [backend, targetPage, targetTab, detailSlug]() {
+            QTimer::singleShot(1500, backend, [backend, targetPage, targetTab, 
+                    detailSlug, expandMajor, togglePreRelease, hasToggle, openVersionMenu]() {
                 emit backend->navigateToRequested(targetPage, targetTab);
+                
+                // --toggle-pre-release <on|off>
+                if (hasToggle) {
+                    QTimer::singleShot(500, backend, [backend, togglePreRelease]() {
+                        qCInfo(logApp) << "Screenshot: setting pre-release toggle to" << togglePreRelease;
+                        emit backend->setRpShowPreReleases(togglePreRelease);
+                    });
+                }
+                
+                // --open-version-menu
+                if (openVersionMenu) {
+                    QTimer::singleShot(1000, backend, [backend]() {
+                        qCInfo(logApp) << "Screenshot: opening version dropdown";
+                        emit backend->openRpVersionMenu();
+                    });
+                }
+                
                 // Open detail page if --detail flag was set
                 if (!detailSlug.isEmpty()) {
-                    QTimer::singleShot(2000, backend, [backend, detailSlug]() {
+                    QTimer::singleShot(2000, backend, [backend, detailSlug, expandMajor]() {
                         qCInfo(logApp) << "Screenshot: opening detail page for" << detailSlug;
                         emit backend->openRpDetailRequested(detailSlug);
+                        // --detail-expand <major>
+                        if (!expandMajor.isEmpty()) {
+                            QTimer::singleShot(3500, backend, [backend, expandMajor]() {
+                                qCInfo(logApp) << "Screenshot: expanding detail group" << expandMajor;
+                                emit backend->expandRpDetailGroup(expandMajor);
+                            });
+                        }
                     });
                 }
             });
@@ -232,9 +279,15 @@ int main(int argc, char *argv[])
             // Connect to content-ready signals based on target
             if (!detailSlug.isEmpty()) {
                 // --detail mode: wait longer for detail page to load
-                QTimer::singleShot(8000, &app, [ready]() {
+                QTimer::singleShot(10000, &app, [ready]() {
                     *ready = true;
                     qCInfo(logApp) << "Screenshot: detail page ready";
+                });
+            } else if (openVersionMenu) {
+                // --open-version-menu mode: wait for results then open menu
+                QTimer::singleShot(9000, &app, [ready]() {
+                    *ready = true;
+                    qCInfo(logApp) << "Screenshot: version menu ready";
                 });
             } else if (targetPage == 1 && targetTab == 3) {
                 // RP tab: wait for search results

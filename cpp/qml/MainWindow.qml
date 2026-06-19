@@ -111,10 +111,26 @@ Window {
         // ── Auto-test: open RP detail page ──
         function onOpenRpDetailRequested(slug) {
             console.log("[auto-test] openRpDetailRequested:", slug)
-            switchPage(1)  // navigate to Download page
-            pendingSubTab = 3  // force RP tab
-            // Set detail slug on DownloadPage after it loads
+            switchPage(1)
+            pendingSubTab = 3
             let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.rpDetailSlug = "' + slug + '"; downloadPageLoader.item.rpDetailTitle = "' + slug + '" } destroy() } }', appWindow)
+        }
+        // ── Auto-test: toggle pre-release switch ──
+        function onSetRpShowPreReleases(show) {
+            console.log("[auto-test] setRpShowPreReleases:", show)
+            switchPage(1); pendingSubTab = 3
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.rpShowPreReleases = ' + show + ' } destroy() } }', appWindow)
+        }
+        // ── Auto-test: open version dropdown ──
+        function onOpenRpVersionMenu() {
+            console.log("[auto-test] openRpVersionMenu")
+            switchPage(1); pendingSubTab = 3
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 2000; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.toggleVersionMenu() } destroy() } }', appWindow)
+        }
+        // ── Auto-test: expand detail group ──
+        function onExpandRpDetailGroup(major) {
+            console.log("[auto-test] expandRpDetailGroup:", major)
+            let t = Qt.createQmlObject('import QtQuick; Timer { interval: 500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.rpDetailExpanded = "' + major + '" } destroy() } }', appWindow)
         }
     }
 
