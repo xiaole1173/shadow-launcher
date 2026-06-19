@@ -209,6 +209,16 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
         return;
     }
 
+    // ── Set installing state BEFORE async version JSON fetch ──
+    // Critical: the UI must react immediately on click, not wait 500ms+ network RTT
+    m_activeCount++;
+    m_activeIds.append(versionId);
+    setInstallPhase(QStringLiteral("准备中..."));
+    setInstalling(true);
+    emit logMessage(QStringLiteral("正在获取 %1 版本信息...").arg(versionId));
+    qCDebug(logLaunch) << "[DOWNLOAD] state-set=" << versionId
+                        << "active=" << m_activeCount << "/" << MAX_CONCURRENT;
+
     // ── Fetch version JSON using mirror URL (BMCLAPI for China) ──
     auto* nam = new QNetworkAccessManager(this);
     // Apply mirror: replace Mojang host with BMCLAPI
@@ -229,9 +239,11 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                 nam->deleteLater();
 
                 if (reply->error() != QNetworkReply::NoError) {
+                    // Rollback: version JSON fetch failed
                     emit logMessage(
                         QStringLiteral("获取版本信息失败: %1")
                             .arg(reply->errorString()));
+                    cancelActiveDownload(versionId);
                     return;
                 }
 
@@ -241,9 +253,11 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
                 if (parseErr.error != QJsonParseError::NoError ||
                     !doc.isObject()) {
+                    // Rollback: JSON parse failed
                     emit logMessage(
                         QStringLiteral("版本信息格式错误: %1")
                             .arg(parseErr.errorString()));
+                    cancelActiveDownload(versionId);
                     return;
                 }
 
@@ -320,16 +334,10 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                     }
                 }
 
-                // ── Start install ──
-                setInstallPhase(QStringLiteral("准备中..."));
-                m_activeCount++;
-                m_activeIds.append(versionId);
-                setInstalling(true);
+                // ── Install started (state already set synchronously above) ──
                 qCInfo(logVersion) << "Install started:" << versionId
                                    << "mirror:" << mirror.name
                                    << "(active:" << m_activeCount << "/" << MAX_CONCURRENT << ")";
-                emit logMessage(
-                    QStringLiteral("开始安装 %1...").arg(versionId));
 
                 // ── Track downloader in map ──
                 m_downloaders[versionId] = downloader;
@@ -353,6 +361,26 @@ void VersionBackend::cancelInstall()
     m_activeCount = 0;
     setInstalling(false);
     emit logMessage(QStringLiteral("所有安装已取消"));
+}
+
+void VersionBackend::cancelActiveDownload(const QString& versionId)
+{
+    // Rollback an active download that has no downloader yet
+    // (used when version JSON fetch fails before downloader is created)
+    if (m_downloaders.contains(versionId)) {
+        m_downloaders[versionId]->cancel();
+        m_downloaders[versionId]->disconnect();
+        m_downloaders[versionId]->deleteLater();
+        m_downloaders.remove(versionId);
+    }
+    m_dlStates.remove(versionId);
+    m_activeIds.removeOne(versionId);
+    if (m_activeCount > 0) m_activeCount--;
+    if (m_activeCount == 0) {
+        setInstalling(false);
+        setInstallPhase(QStringLiteral("idle"));
+    }
+    emit installStateChanged();
 }
 
 void VersionBackend::cancelInstall(const QString& versionId)

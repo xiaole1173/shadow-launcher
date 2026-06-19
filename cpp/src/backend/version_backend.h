@@ -83,6 +83,7 @@ public:
     // ── Version management operations ──
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cancelVerify();
+    void cancelActiveDownload(const QString& versionId);  // Rollback sync state on fetch fail
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
     Q_INVOKABLE void repairVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
