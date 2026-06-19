@@ -1573,11 +1573,12 @@ Rectangle {
 
                 // Version list grouped by major, click to expand
                 ScrollView {
+                    id: rpDetailScroll
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                     Column {
-                        width: parent.width - 4; spacing: 4
+                        width: rpDetailScroll.availableWidth - 4; spacing: 4
 
                         Repeater {
                             model: rpDetailPage.rpDetailGrouped
@@ -1586,15 +1587,14 @@ Rectangle {
 
                                 // Group header
                                 Rectangle {
-                                    width: parent.width; height: 36; radius: 6
-                                    color: rpDetGrpArea.containsMouse ? "#1a2848" : "#11141c"
-                                    border.color: rpDetGrpArea.containsMouse ? "#5068c8" : "#1e2230"
+                                    color: rpDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
+                                    border.color: rpDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
                                     border.width: 1
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
                                             text: (rpDetailPage.rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major + ".X"
-                                            color: "#5068c8"; font.pixelSize: 14; font.bold: true
+                                            color: "#6080d8"; font.pixelSize: 14; font.bold: true
                                         }
                                         Item { Layout.fillWidth: true }
                                         Text {
@@ -1611,7 +1611,7 @@ Rectangle {
                                     }
                                 }
 
-                                // Sub-versions (only when expanded) — indented bars
+                                // Sub-versions (only when expanded)
                                 Repeater {
                                     model: (rpDetailPage.rpDetailExpanded === modelData.major) ? modelData.versions : []
                                     delegate: Rectangle {
@@ -1620,20 +1620,19 @@ Rectangle {
                                         color: rpDetSubHov.hovered ? "#1a2436" : "#111820"
                                         border.color: rpDetSubHov.hovered ? "#1e3050" : "#141c28"
                                         border.width: 1
-                                        Text {
-                                            anchors.left: parent.left; anchors.leftMargin: 12
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: modelData; color: "#8898b8"; font.pixelSize: 12
-                                            font.family: "Consolas, monospace"
-                                        }
-                                        Rectangle {
-                                            anchors.right: parent.right; anchors.rightMargin: 8
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: 48; height: 22; radius: 4
-                                            color: rpDetSubHov.hovered ? "#3858c0" : "#1a3050"
+                                        RowLayout {
+                                            anchors.fill: parent; anchors.margins: 8; spacing: 8
                                             Text {
-                                                anchors.centerIn: parent; text: "下载"
-                                                color: "#c8d0e0"; font.pixelSize: 10
+                                                text: modelData; color: "#8898b8"; font.pixelSize: 12
+                                                font.family: "Consolas, monospace"; Layout.fillWidth: true
+                                            }
+                                            Rectangle {
+                                                width: 48; height: 22; radius: 4
+                                                color: rpDetSubHov.hovered ? "#3858c0" : "#1a3050"
+                                                Text {
+                                                    anchors.centerIn: parent; text: "下载"
+                                                    color: "#c8d0e0"; font.pixelSize: 10
+                                                }
                                             }
                                         }
                                         MouseArea {

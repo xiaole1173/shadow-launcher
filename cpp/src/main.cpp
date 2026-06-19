@@ -278,8 +278,9 @@ int main(int argc, char *argv[])
 
             // Connect to content-ready signals based on target
             if (!detailSlug.isEmpty()) {
-                // --detail mode: wait longer for detail page to load
-                QTimer::singleShot(10000, &app, [ready]() {
+                // --detail mode: wait for detail page + expand to complete
+                // QML engine init takes ~10s, total chain: navigate(1.5)+detail(2)+expand(3.5)+QML timer(0.5) ≈ 7.5s after first paint
+                QTimer::singleShot(20000, &app, [ready]() {
                     *ready = true;
                     qCInfo(logApp) << "Screenshot: detail page ready";
                 });
