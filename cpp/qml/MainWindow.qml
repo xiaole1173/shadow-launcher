@@ -2119,6 +2119,10 @@ Window {
             appWindow.runningListModel = backend ? backend.runningGames() : []
             console.log("[main] runningCountChanged → list refreshed: " + appWindow.runningListModel.length + " games")
         }
+        function onCrashDetected(report) {
+            console.log("[crash] crashDetected signal received:", JSON.stringify(report))
+            crashDialog.crashData = report
+        }
     }
 
     // Confirm Dialog ===
@@ -2167,6 +2171,12 @@ Window {
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
 }
 }
+
+    // ═══ Crash detection dialog ═══
+    CrashDialog {
+        id: crashDialog
+        z: 500
+    }
 
     // ═══ Toast notification system ═══
     ToastManager {
