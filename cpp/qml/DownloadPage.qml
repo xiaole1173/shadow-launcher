@@ -1529,6 +1529,7 @@ Rectangle {
                                     clip: true
                                     Repeater {
                                         model: {
+                                            if (!model) return [{text: "加载中…", color: "#404860"}]
                                             if (model.chips && model.chips !== "") {
                                                 try { return JSON.parse(model.chips) } catch(e) {}
                                             }
