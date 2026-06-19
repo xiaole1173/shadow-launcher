@@ -1507,6 +1507,7 @@ Rectangle {
     // ════════════════════════════════════════════
     // Shared state (stands outside Item scope)
     // ════════════════════════════════════════════
+    ListModel { id: modResultsModel }
     ListModel { id: rpResultsModel }
 
     property string rpDetailSlug: ""
@@ -1518,7 +1519,7 @@ Rectangle {
         target: backend
         enabled: backend !== null && page.currentTab === 3
 
-        function onResourcepackSearchCompleted(results, totalHits) {
+        function onResourcepackSearchCompleted(results, totalHits) { try {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
             if (!results || results.length === 0) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
@@ -1569,6 +1570,7 @@ Rectangle {
             if (backend && slugs.length > 0) {
                 backend.fetchResourcepackVersions(slugs)
             }
+        } catch(e) { console.log('[RP-DEBUG] searchCompleted ERROR:', e.message); page.rpLoadingMore = false }
         }
 
         function onResourcepackSearchFailed(error) {
