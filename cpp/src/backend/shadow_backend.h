@@ -67,6 +67,9 @@ class ShadowBackend : public QObject {
 
     // ── Resource ──
     Q_PROPERTY(bool downloading READ isResourceDownloading NOTIFY resourceDownloadStateChanged)
+    Q_PROPERTY(int resourceDownloadProgress READ resourceDownloadProgress NOTIFY resourceDownloadProgress)
+    Q_PROPERTY(int resourceDownloadTotal READ resourceDownloadTotal NOTIFY resourceDownloadProgress)
+    Q_PROPERTY(QString resourceDownloadFile READ resourceDownloadFile NOTIFY resourceDownloadProgress)
 
     // ── App ──
     Q_PROPERTY(QString gameDir READ gameDir NOTIFY gameDirChanged)
@@ -161,6 +164,9 @@ public:
 
     // ── Resource getters ──
     bool isResourceDownloading() const;
+    int resourceDownloadProgress() const { return m_resourceDlProgress; }
+    int resourceDownloadTotal() const { return m_resourceDlTotal; }
+    QString resourceDownloadFile() const { return m_resourceDlFile; }
 
     // ── App getters ──
     QString gameDir() const;
@@ -386,5 +392,10 @@ private:
     QString m_gameDir;
     QVariantMap m_gameDirInfo;
     QVariantList m_versionDetails;
+
+    // ── Resource download progress tracking ──
+    int m_resourceDlProgress = 0;
+    int m_resourceDlTotal = 0;
+    QString m_resourceDlFile;
 };
 }

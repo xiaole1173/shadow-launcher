@@ -160,6 +160,46 @@ Rectangle {
             visible: backend && backend.installing && !backend.verifyRunning
         }
 
+        // ═══════════════════════════════════════════════════════
+        // ── Resource pack download ──
+        // ═══════════════════════════════════════════════════════
+        Rectangle {
+            Layout.fillWidth: true; height: 80; radius: 8; color: "#0e111a"; border.color: "#2a1f3a"
+            visible: backend && backend.downloading
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12; spacing: 6
+                RowLayout {
+                    Text { text: "资源包"; font.pixelSize: 12; color: "#a090c8"; font.bold: true }
+                    Text { 
+                        text: backend ? (backend.resourceDownloadFile || "--") : "--"
+                        font.pixelSize: 12; color: "#c8b8e8"; elide: Text.ElideRight
+                        Layout.maximumWidth: 200; Layout.fillWidth: true
+                    }
+                    Text {
+                        text: (backend && backend.resourceDownloadTotal > 0) 
+                            ? (backend.resourceDownloadProgress / backend.resourceDownloadTotal * 100).toFixed(1) + "%" 
+                            : "--"
+                        color: "#a090d0"; font.pixelSize: 12; font.bold: true
+                    }
+                }
+                RowLayout {
+                    Text { 
+                        text: backend ? fmtSize(backend.resourceDownloadProgress || 0) + " / " + fmtSize(backend.resourceDownloadTotal || 0) : ""
+                        color: "#8878a8"; font.pixelSize: 10; font.family: "Consolas, monospace"
+                        Layout.fillWidth: true
+                    }
+                }
+                Rectangle { Layout.fillWidth: true; height: 6; radius: 3; color: "#1a1f2a"
+                    Rectangle {
+                        height: 6; radius: 3; color: "#8868c8"
+                        width: (backend && backend.resourceDownloadTotal > 0) 
+                            ? parent.width * (backend.resourceDownloadProgress / backend.resourceDownloadTotal) : 0
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
+            }
+        }
+
         // ── Verifying — independent progress bar ──
         Rectangle {
             Layout.fillWidth: true; height: 80; radius: 8; color: "#0e111a"; border.color: "#2a2a50"
@@ -227,7 +267,7 @@ Rectangle {
         // ── Empty state ──
         Rectangle {
             Layout.fillWidth: true; height: 100; radius: 8; color: "#11141c"; border.color: "#1a1f2a"
-            visible: !backend || (!Boolean(backend.installing) && String(backend.installPhase) !== "done" && (!backend.downloadQueue || !Array.isArray(backend.downloadQueue) || backend.downloadQueue.length === 0))
+            visible: !backend || (!Boolean(backend.installing) && !Boolean(backend.downloading) && String(backend.installPhase) !== "done" && (!backend.downloadQueue || !Array.isArray(backend.downloadQueue) || backend.downloadQueue.length === 0))
             ColumnLayout { anchors.centerIn: parent; spacing: 6
                 Text { Layout.alignment: Qt.AlignHCenter; text: "当前没有进行中的下载"; font.pixelSize: 13; color: "#707888" }
                 Text { Layout.alignment: Qt.AlignHCenter; text: "前往下载页面选择版本开始下载"; font.pixelSize: 11; color: "#505468" }

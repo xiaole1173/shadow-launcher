@@ -211,7 +211,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_resource, &ResourceBackend::downloadStateChanged,
             this, &ShadowBackend::resourceDownloadStateChanged);
     connect(m_resource, &ResourceBackend::downloadProgressChanged,
-            this, &ShadowBackend::resourceDownloadProgress);
+            this, [this](int completed, int total, const QString& fileName) {
+                m_resourceDlProgress = completed;
+                m_resourceDlTotal = total;
+                m_resourceDlFile = fileName;
+                emit resourceDownloadProgress(completed, total, fileName);
+            });
     // downloadFinished → resourceDownloadDone
     connect(m_resource, &ResourceBackend::downloadFinished,
             this, [this](const QString&, bool success, const QString&) {

@@ -10,6 +10,8 @@
 #include <QPair>
 #include <QThread>
 #include <QAtomicInt>
+#include <QMap>
+#include <QVector>
 #include <memory>
 
 #include "../utils/types.h"
@@ -23,6 +25,7 @@ class VersionIsolation;
 class VersionBackend : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
+    Q_PROPERTY(int activeCount READ activeCount NOTIFY installStateChanged)
     Q_PROPERTY(int installProgress READ installProgress NOTIFY installProgressChanged)
     Q_PROPERTY(int installTotal READ installTotal NOTIFY installProgressChanged)
     Q_PROPERTY(QString installFile READ installFile NOTIFY installProgressChanged)
@@ -39,7 +42,8 @@ public:
     explicit VersionBackend(QObject* parent = nullptr);
     ~VersionBackend() override;
 
-    bool isInstalling() const { return m_installing; }
+    bool isInstalling() const { return m_activeCount > 0; }
+    int activeCount() const { return m_activeCount; }
 
     /// Return cached version list with id + type for QML
     QVariantList versionInfoList() const;
@@ -48,7 +52,7 @@ public:
     int installProgress() const { return m_installProgress; }
     int installTotal() const { return m_installTotal; }
     QString installFile() const { return m_installFile; }
-    QString installVersionId() const { return m_installVersionId; }
+    QString installVersionId() const { return m_activeIds.isEmpty() ? QString() : m_activeIds.first(); }
     QString installPhase() const { return m_installPhase; }
     qint64 installSpeed() const { return m_installSpeed; }
     qint64 installBytesDownloaded() const { return m_installBytesDl; }
@@ -68,6 +72,7 @@ public:
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
     Q_INVOKABLE void cancelInstall();
+    Q_INVOKABLE void cancelInstall(const QString& versionId);
     Q_INVOKABLE void pauseInstall();
     Q_INVOKABLE void resumeInstall();
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
@@ -119,7 +124,6 @@ private:
     void setInstallPhase(const QString& phase);
 
     VersionManager* m_versionMgr = nullptr;
-    VersionDownloader* m_downloader = nullptr;
     class VersionIsolation* m_isolation = nullptr;
     QString m_gameDir;
 
@@ -127,7 +131,26 @@ private:
     QStringList m_installedIds;
     QString m_selectedVersion;
 
-    bool m_installing = false;
+    // ── Concurrency: max 2 parallel MC version downloads ──
+    int m_activeCount = 0;
+    static constexpr int MAX_CONCURRENT = 2;
+    QVector<QString> m_activeIds;  // active installing version IDs (ordered)
+
+    // ── Per-download progress state ──
+    struct DlState {
+        int progress = 0;
+        int total = 0;
+        qint64 bytesDl = 0;
+        qint64 bytesTotal = 0;
+        qint64 speed = 0;
+        QString file;
+        QString phase = QStringLiteral("idle");
+    };
+    // Map versionId → per-download progress
+    QMap<QString, DlState> m_dlStates;
+    // Map versionId → active downloader
+    QMap<QString, VersionDownloader*> m_downloaders;
+
     bool m_initialFetchDone = false;
     int m_installProgress = 0;
     int m_installTotal = 0;
@@ -136,7 +159,6 @@ private:
     qint64 m_installBytesTotal = 0;
     qint64 m_installSpeed = 0;
     QString m_installPhase = "idle";
-    QString m_installVersionId;
     int m_verifyChecked = 0;
     // Speed calculation
     QElapsedTimer m_speedTimer;
@@ -145,6 +167,14 @@ private:
     QQueue<QPair<QString, int>> m_installQueue;
     int m_verifyTotal = 0;
     bool m_installPaused = false;
+
+    // Helpers for multi-downloader
+    VersionDownloader* primaryDownloader() const;
+    QString primaryVersionId() const;
+    void syncPrimaryProgress();
+    void updateDownloadProgress(const QString& versionId, int cf, int tf, qint64 db, qint64 tb);
+    void updateDownloadFile(const QString& versionId, const QString& fileName, qint64 received, qint64 total);
+    void startNextFromQueue();
 
     // Background verify worker thread
     class VerifyWorker;

@@ -137,25 +137,26 @@ void VersionBackend::refreshInstalled()
 
 void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 {
-    // ── Queue: if already installing, enqueue ──
-    if (m_installing) {
-        // Avoid duplicate queue entries
-        for (const auto& entry : m_installQueue) {
-            if (entry.first == versionId) {
-                emit logMessage(QStringLiteral("⏳ %1 已在下载队列中").arg(versionId));
-                return;
-            }
-        }
-        // Don't queue if it's the same as currently installing
-        if (m_installVersionId == versionId) {
-            emit logMessage(QStringLiteral("⚠ %1 正在下载中").arg(versionId));
+    // ── Check if already active ──
+    if (m_activeIds.contains(versionId)) {
+        emit logMessage(QStringLiteral("⚠ %1 正在下载中").arg(versionId));
+        return;
+    }
+
+    // ── Check queue for duplicates ──
+    for (const auto& entry : m_installQueue) {
+        if (entry.first == versionId) {
+            emit logMessage(QStringLiteral("⏳ %1 已在下载队列中").arg(versionId));
             return;
         }
+    }
+
+    // ── Queue: if at max concurrency, enqueue ──
+    if (m_activeCount >= MAX_CONCURRENT) {
         m_installQueue.enqueue({versionId, sourceIndex});
         emit logMessage(QStringLiteral("⏳ %1 已加入下载队列 (位置 %2)")
                             .arg(versionId)
                             .arg(m_installQueue.size()));
-        // Notify property changes for UI
         emit installStateChanged();
         emit downloadQueueChanged();
         return;
@@ -245,49 +246,52 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
                 QJsonObject versionJson = doc.object();
 
-                // ── Cancel any running download first ──
-                if (m_downloader) {
-                    m_downloader->cancel();
-                    m_downloader->disconnect();
-                    m_downloader->deleteLater();
-                    m_downloader = nullptr;
+                // ── Cancel any existing downloader for this version ──
+                if (m_downloaders.contains(versionId)) {
+                    m_downloaders[versionId]->cancel();
+                    m_downloaders[versionId]->disconnect();
+                    m_downloaders[versionId]->deleteLater();
+                    m_downloaders.remove(versionId);
                 }
 
                 // ── Create & configure downloader ──
-                m_downloader = new VersionDownloader(this);
-                m_downloader->setMirror(mirror);
-                m_downloader->setMinecraftDir(m_versionMgr->gameDir());
-                m_downloader->setMaxWorkers(32);
+                auto* downloader = new VersionDownloader(this);
+                downloader->setMirror(mirror);
+                downloader->setMinecraftDir(m_versionMgr->gameDir());
+                downloader->setMaxWorkers(32);
 
-                // ── Connect downloader signals ──
-                connect(m_downloader,
+                // ── Connect downloader signals (lambdas capture versionId) ──
+                connect(downloader,
                         &VersionDownloader::progressChanged, this,
-                        &VersionBackend::onVersionDownloadProgress);
+                        [this, versionId](int cf, int tf, qint64 db, qint64 tb) {
+                            updateDownloadProgress(versionId, cf, tf, db, tb);
+                        });
 
-                connect(m_downloader,
+                connect(downloader,
                         &VersionDownloader::fileProgress, this,
-                        [this](const QString& fileName,
-                               qint64 /*received*/,
-                               qint64 /*total*/) {
-                            m_installFile = fileName;
-                            emit installFileProgress(fileName);
+                        [this, versionId](const QString& fileName,
+                               qint64 received,
+                               qint64 total) {
+                            updateDownloadFile(versionId, fileName, received, total);
                         });
 
-                connect(m_downloader,
+                connect(downloader,
                         &VersionDownloader::verifyProgressChanged, this,
-                        [this](int checked, int total) {
-                            setInstallPhase(
-                                QStringLiteral("校验中..."));
-                            m_installProgress = checked;
-                            m_installTotal  = total;
-                            emit installProgressChanged();
+                        [this, versionId](int checked, int total) {
+                            // Update per-download state
+                            auto& st = m_dlStates[versionId];
+                            st.phase = QStringLiteral("校验中...");
+                            st.progress = checked;
+                            st.total = total;
+                            // Sync primary
+                            syncPrimaryProgress();
                         });
 
-                connect(m_downloader,
+                connect(downloader,
                         &VersionDownloader::logMessage, this,
                         &VersionBackend::onVersionDownloadLog);
 
-                connect(m_downloader,
+                connect(downloader,
                         &VersionDownloader::downloadFinished,
                         this,
                         &VersionBackend::onVersionDownloadFinished);
@@ -315,31 +319,83 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
                 // ── Start install ──
                 setInstallPhase(QStringLiteral("准备中..."));
-                m_installVersionId = versionId;
+                m_activeCount++;
+                m_activeIds.append(versionId);
                 setInstalling(true);
                 qCInfo(logVersion) << "Install started:" << versionId
-                                   << "mirror:" << mirror.name;
+                                   << "mirror:" << mirror.name
+                                   << "(active:" << m_activeCount << "/" << MAX_CONCURRENT << ")";
                 emit logMessage(
                     QStringLiteral("开始安装 %1...").arg(versionId));
 
-                m_downloader->downloadVersion(versionJson,
+                // ── Track downloader in map ──
+                m_downloaders[versionId] = downloader;
+
+                downloader->downloadVersion(versionJson,
                                               versionId);
             });
 }
 
 void VersionBackend::cancelInstall()
 {
-    if (m_downloader) {
-        m_downloader->cancel();
+    // ── Cancel all active downloads ──
+    for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
+        it.value()->cancel();
+        it.value()->disconnect();
+        it.value()->deleteLater();
     }
+    m_downloaders.clear();
+    m_dlStates.clear();
+    m_activeIds.clear();
+    m_activeCount = 0;
     setInstalling(false);
-    emit logMessage(QStringLiteral("安装已取消"));
+    emit logMessage(QStringLiteral("所有安装已取消"));
+}
+
+void VersionBackend::cancelInstall(const QString& versionId)
+{
+    if (!m_downloaders.contains(versionId)) {
+        // Check queue
+        for (int i = 0; i < m_installQueue.size(); ++i) {
+            if (m_installQueue[i].first == versionId) {
+                m_installQueue.removeAt(i);
+                emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
+                emit installStateChanged();
+                emit downloadQueueChanged();
+                return;
+            }
+        }
+        return;  // Not found
+    }
+
+    // Cancel and cleanup
+    m_downloaders[versionId]->cancel();
+    m_downloaders[versionId]->disconnect();
+    m_downloaders[versionId]->deleteLater();
+    m_downloaders.remove(versionId);
+    m_dlStates.remove(versionId);
+    m_activeIds.removeOne(versionId);
+    m_activeCount--;
+
+    emit logMessage(QStringLiteral("已取消 %1 的安装").arg(versionId));
+
+    // Update installing state
+    if (m_activeCount == 0) {
+        setInstalling(false);
+    }
+
+    // Sync primary progress display
+    syncPrimaryProgress();
+
+    // Try to start next from queue
+    startNextFromQueue();
 }
 
 void VersionBackend::pauseInstall()
 {
-    if (m_downloader) {
-        m_downloader->pause();
+    auto* dl = primaryDownloader();
+    if (dl) {
+        dl->pause();
         m_installPaused = true;
         emit installPausedChanged(true);
         emit logMessage(QStringLiteral("⏸ 安装已暂停 (断点文件已保留)"));
@@ -348,8 +404,9 @@ void VersionBackend::pauseInstall()
 
 void VersionBackend::resumeInstall()
 {
-    if (m_downloader) {
-        m_downloader->resume();
+    auto* dl = primaryDownloader();
+    if (dl) {
+        dl->resume();
         m_installPaused = false;
         emit installPausedChanged(false);
         emit logMessage(QStringLiteral("▶ 安装已恢复"));
@@ -372,6 +429,8 @@ QString VersionBackend::getVersionGameDir(const QString& versionId) const
 // Private slots — signal forwarding
 // ============================================================
 
+// NOTE: This slot is no longer directly connected (lambdas call updateDownloadProgress instead).
+// Kept for backward compatibility if anything else connects to it.
 void VersionBackend::onVersionDownloadProgress(int cf, int tf,
                                                qint64 db, qint64 tb)
 {
@@ -418,58 +477,88 @@ void VersionBackend::onVersionDownloadLog(const QString& msg)
 void VersionBackend::onVersionDownloadFinished(bool success,
                                                const QString& error)
 {
-    setInstalling(false);
-    setInstallPhase(QStringLiteral("idle"));
-    // Reset speed tracking
-    m_installSpeed = 0;
-    m_speedTimer.invalidate();
-    m_lastSpeedBytes = 0;
-    emit installSpeedChanged(0);
-    emit installFinished(success);
+    // ── Identify which downloader finished ──
+    auto* finishedDl = qobject_cast<VersionDownloader*>(sender());
+    if (!finishedDl) {
+        qCWarning(logVersion) << "onVersionDownloadFinished: unknown sender";
+        return;
+    }
 
+    // Find version ID for this downloader
+    QString finishedId;
+    for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
+        if (it.value() == finishedDl) {
+            finishedId = it.key();
+            break;
+        }
+    }
+
+    if (finishedId.isEmpty()) {
+        qCWarning(logVersion) << "onVersionDownloadFinished: downloader not found in map";
+        return;
+    }
+
+    // ── Cleanup this downloader ──
+    finishedDl->disconnect();
+    finishedDl->deleteLater();
+    m_downloaders.remove(finishedId);
+    m_dlStates.remove(finishedId);
+    m_activeIds.removeOne(finishedId);
+    m_activeCount--;
+
+    // ── Handle result ──
     if (success) {
         // Clean up download progress marker on success
         const QString markerPath = m_versionMgr->gameDir()
-            + QStringLiteral("/versions/") + m_installVersionId
+            + QStringLiteral("/versions/") + finishedId
             + QStringLiteral("/.download_progress.json");
         QFile::remove(markerPath);
 
-        qCInfo(logVersion) << "Install completed:" << m_installVersionId;
+        qCInfo(logVersion) << "Install completed:" << finishedId;
         emit logMessage(
             QStringLiteral("✅ %1 安装完成")
-                .arg(m_installVersionId));
+                .arg(finishedId));
         refreshInstalled();
-    } else if (m_installPhase == QStringLiteral("校验中...")) {
-        // Verify failure — keep checkpoint for possible retry
-        QString errDetail = error.isEmpty()
-                                ? QStringLiteral("校验失败")
-                                : error;
-        qCCritical(logVersion) << "Verify failed for" << m_installVersionId << ":" << errDetail;
-        emit logMessage(
-            QStringLiteral("❌ %1 校验失败: %2")
-                .arg(m_installVersionId, errDetail));
     } else {
-        // Download failure — keep .tmp + checkpoint for resume
-        QString errDetail = error.isEmpty()
-                                ? QStringLiteral("未知错误")
-                                : error;
-        qCCritical(logVersion) << "Install failed for" << m_installVersionId << ":" << errDetail;
-        emit logMessage(
-            QStringLiteral("❌ %1 安装失败: %2")
-                .arg(m_installVersionId, errDetail));
+        const auto& st = m_dlStates.value(finishedId);
+        bool wasVerifying = (st.phase == QStringLiteral("校验中..."));
+        if (wasVerifying) {
+            QString errDetail = error.isEmpty()
+                                    ? QStringLiteral("校验失败")
+                                    : error;
+            qCCritical(logVersion) << "Verify failed for" << finishedId << ":" << errDetail;
+            emit logMessage(
+                QStringLiteral("❌ %1 校验失败: %2")
+                    .arg(finishedId, errDetail));
+        } else {
+            QString errDetail = error.isEmpty()
+                                    ? QStringLiteral("未知错误")
+                                    : error;
+            qCCritical(logVersion) << "Install failed for" << finishedId << ":" << errDetail;
+            emit logMessage(
+                QStringLiteral("❌ %1 安装失败: %2")
+                    .arg(finishedId, errDetail));
+        }
     }
 
-    // ── Process next in queue ──
-    if (!m_installQueue.isEmpty()) {
-        auto next = m_installQueue.dequeue();
-        QString nextId = next.first;
-        int nextSource = next.second;
-        emit downloadQueueChanged();
-        emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
-        QTimer::singleShot(200, this, [this, nextId, nextSource]() {
-            installVersion(nextId, nextSource);
-        });
+    // ── Emit finished signal (per-download) ──
+    emit installFinished(success);
+
+    // ── Update overall state ──
+    if (m_activeCount == 0) {
+        setInstalling(false);
+        setInstallPhase(QStringLiteral("idle"));
+        m_installSpeed = 0;
+        m_speedTimer.invalidate();
+        m_lastSpeedBytes = 0;
+        emit installSpeedChanged(0);
+    } else {
+        // Still have active downloads — sync primary display
+        syncPrimaryProgress();
     }
+
+    // ── Try to start next from queue ──
+    startNextFromQueue();
 }
 
 void VersionBackend::cancelQueuedDownload(const QString& versionId)
@@ -484,9 +573,9 @@ void VersionBackend::cancelQueuedDownload(const QString& versionId)
             return;
         }
     }
-    // If it's currently installing, cancel entirely
-    if (m_installVersionId == versionId && m_installing) {
-        cancelInstall();
+    // If it's currently installing, cancel that specific one
+    if (m_activeIds.contains(versionId)) {
+        cancelInstall(versionId);
     }
 }
 
@@ -505,10 +594,17 @@ QVariantList VersionBackend::downloadQueue() const
 QVariantList VersionBackend::activeDownloads() const
 {
     QVariantList list;
-    if (m_installing && !m_installVersionId.isEmpty()) {
+    for (const auto& id : m_activeIds) {
         QVariantMap entry;
-        entry[QStringLiteral("versionId")] = m_installVersionId;
-        entry[QStringLiteral("phase")] = m_installPhase;
+        entry[QStringLiteral("versionId")] = id;
+        const auto& st = m_dlStates.value(id);
+        entry[QStringLiteral("progress")] = st.progress;
+        entry[QStringLiteral("total")] = st.total;
+        entry[QStringLiteral("bytesDownloaded")] = st.bytesDl;
+        entry[QStringLiteral("bytesTotal")] = st.bytesTotal;
+        entry[QStringLiteral("speed")] = st.speed;
+        entry[QStringLiteral("phase")] = st.phase;
+        entry[QStringLiteral("file")] = st.file;
         list.append(entry);
     }
     return list;
@@ -547,8 +643,12 @@ void VersionBackend::updateInstalledList()
 
 void VersionBackend::setInstalling(bool v)
 {
-    if (m_installing != v) {
-        m_installing = v;
+    bool wasInstalling = (m_activeCount > 0);
+    // When calling setInstalling(true), ensure count > 0
+    // When calling setInstalling(false), count should already be 0
+    Q_UNUSED(v);
+    bool isNowInstalling = (m_activeCount > 0);
+    if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }
 }
@@ -558,6 +658,141 @@ void VersionBackend::setInstallPhase(const QString& phase)
     if (m_installPhase != phase) {
         m_installPhase = phase;
         emit installPhaseChanged(phase);
+    }
+}
+
+// ============================================================
+// Multi-downloader helpers
+// ============================================================
+
+VersionDownloader* VersionBackend::primaryDownloader() const
+{
+    if (m_activeIds.isEmpty()) return nullptr;
+    return m_downloaders.value(m_activeIds.first(), nullptr);
+}
+
+QString VersionBackend::primaryVersionId() const
+{
+    return m_activeIds.isEmpty() ? QString() : m_activeIds.first();
+}
+
+void VersionBackend::syncPrimaryProgress()
+{
+    const QString pid = primaryVersionId();
+    if (pid.isEmpty() || !m_dlStates.contains(pid)) {
+        // No active download
+        m_installProgress = 0;
+        m_installTotal = 0;
+        m_installBytesDl = 0;
+        m_installBytesTotal = 0;
+        m_installSpeed = 0;
+        m_installFile.clear();
+        setInstallPhase(QStringLiteral("idle"));
+        emit installProgressChanged();
+        emit installTotalChanged();
+        emit installSpeedChanged(0);
+        return;
+    }
+
+    const auto& st = m_dlStates[pid];
+    m_installProgress = st.progress;
+    m_installTotal = st.total;
+    m_installBytesDl = st.bytesDl;
+    m_installBytesTotal = st.bytesTotal;
+    m_installSpeed = st.speed;
+    m_installFile = st.file;
+    setInstallPhase(st.phase);
+
+    emit installProgressChanged();
+    emit installTotalChanged();
+    emit installSpeedChanged(st.speed);
+    emit installFileProgress(st.file);
+    emit installBytesProgress(st.bytesDl, st.bytesTotal);
+}
+
+void VersionBackend::updateDownloadProgress(const QString& versionId,
+                                            int cf, int tf,
+                                            qint64 db, qint64 tb)
+{
+    // ── Update per-download state ──
+    auto& st = m_dlStates[versionId];
+    st.progress = cf;
+    st.total = tf;
+    st.bytesDl = db;
+    st.bytesTotal = tb;
+
+    // Speed calculation
+    if (!m_speedTimer.isValid()) {
+        m_speedTimer.start();
+        m_lastSpeedBytes = db;
+        st.speed = 0;
+    } else {
+        qint64 elapsedMs = m_speedTimer.elapsed();
+        if (elapsedMs >= 500) {
+            qint64 deltaBytes = db - m_lastSpeedBytes;
+            if (deltaBytes > 0 && elapsedMs > 0) {
+                st.speed = deltaBytes * 1000 / elapsedMs;
+            } else {
+                st.speed = 0;
+            }
+            m_speedTimer.restart();
+            m_lastSpeedBytes = db;
+        }
+    }
+
+    if (st.phase != QStringLiteral("校验中...")) {
+        st.phase = QStringLiteral("下载中...");
+    }
+
+    // ── If this is the primary download, sync to main properties ──
+    if (versionId == primaryVersionId()) {
+        m_installProgress = cf;
+        m_installTotal = tf;
+        m_installBytesDl = db;
+        m_installBytesTotal = tb;
+        m_installSpeed = st.speed;
+
+        if (m_installPhase != QStringLiteral("校验中...")) {
+            setInstallPhase(QStringLiteral("下载中..."));
+        }
+
+        emit installProgressChanged();
+        emit installTotalChanged();
+        emit installBytesProgress(db, tb);
+        if (st.speed > 0 || m_speedTimer.elapsed() >= 500) {
+            emit installSpeedChanged(st.speed);
+        }
+    }
+}
+
+void VersionBackend::updateDownloadFile(const QString& versionId,
+                                        const QString& fileName,
+                                        qint64 received,
+                                        qint64 total)
+{
+    auto& st = m_dlStates[versionId];
+    st.file = fileName;
+    st.bytesDl = received;
+    st.bytesTotal = total;
+
+    if (versionId == primaryVersionId()) {
+        m_installFile = fileName;
+        emit installFileProgress(fileName);
+    }
+}
+
+void VersionBackend::startNextFromQueue()
+{
+    while (m_activeCount < MAX_CONCURRENT && !m_installQueue.isEmpty()) {
+        auto next = m_installQueue.dequeue();
+        QString nextId = next.first;
+        int nextSource = next.second;
+        emit downloadQueueChanged();
+        emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
+        // Direct recursive call — installVersion will enqueue again if still full
+        QTimer::singleShot(200, this, [this, nextId, nextSource]() {
+            installVersion(nextId, nextSource);
+        });
     }
 }
 
@@ -885,9 +1120,9 @@ void VersionBackend::repairVersion(const QString& versionId)
     m_failedPathsCache.clear();
 
     // 重新下载版本 — 下载器会跳过 SHA1 匹配的文件，仅下载缺失/损坏的
-    if (m_installing && m_installVersionId == versionId) {
+    if (m_activeIds.contains(versionId)) {
         // 已在下载同一版本，先取消再重启
-        cancelInstall();
+        cancelInstall(versionId);
         // 稍等取消完成后再安装
         QTimer::singleShot(200, this, [this, versionId]() {
             installVersion(versionId);

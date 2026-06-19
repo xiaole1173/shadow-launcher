@@ -100,6 +100,11 @@ Window {
         function onInstallFinished(success) {
             // Keep nav visible for a moment, will be hidden when user switches away
         }
+        function onResourceDownloadStateChanged() {
+            if (backend && backend.downloading) {
+                if (!downloadNavVisible) showDownloadNav()
+            }
+        }
         // ── Auto-test: navigate to page + sub-tab ──
         function onNavigateToRequested(pageIndex, subTab) {
             console.log("[auto-test] navigateToRequested: page", pageIndex, "tab", subTab)
