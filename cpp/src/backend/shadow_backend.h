@@ -326,6 +326,11 @@ signals:
     void loginModeChanged();
     void logMessage(const QString& msg);
 
+    // ── Auto-test navigation signal ──
+    // pageIndex: 0=Launch, 1=Download, 2=Settings
+    // subTab: for Download page — 0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
+    void navigateToRequested(int pageIndex, int subTab);
+
     // ── Verify signals ──
     void verifyStarted();
     void verifyProgress(int checked, int total);

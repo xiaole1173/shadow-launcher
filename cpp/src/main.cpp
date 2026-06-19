@@ -153,27 +153,78 @@ int main(int argc, char *argv[])
         });
     }
 
-    // ── Screenshot test mode ──
+    // ── Navigate + Screenshot test mode ──
+    // Usage: --screenshot <name> [--navigate <page>:<tab>]
+    //   page: launch|download|settings  (or 0|1|2)
+    //   tab (download only): mc|mod|shader|rp  (or 0|1|2|3)
     int ssIdx = args.indexOf(QStringLiteral("--screenshot"));
     if (ssIdx >= 0 && ssIdx + 1 < args.size()) {
         QString ssName = args[ssIdx + 1];
         QString ssPath = QCoreApplication::applicationDirPath() + "/" + ssName + ".png";
         qCInfo(logApp) << "Screenshot mode: saving to" << ssPath;
-        QTimer::singleShot(3000, &app, [ssPath]() {
-            if (screenshotWindow && screenshotWindow->isVisible()) {
-                QScreen* screen = QGuiApplication::primaryScreen();
-                QPixmap pix = screen->grabWindow(screenshotWindow->winId());
-                if (pix.save(ssPath, "PNG")) {
-                    qCInfo(logApp) << "Screenshot saved:" << ssPath
-                                   << "size:" << pix.width() << "x" << pix.height();
-                } else {
-                    qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
-                }
-            } else {
-                qCCritical(logApp) << "Screenshot: window not ready";
+
+        // Parse --navigate argument
+        int navIdx = args.indexOf(QStringLiteral("--navigate"));
+        int targetPage = -1, targetTab = -1;
+        if (navIdx >= 0 && navIdx + 1 < args.size()) {
+            QString navArg = args[navIdx + 1];
+            QStringList parts = navArg.split(':');
+            if (parts.size() >= 1) {
+                QString pageStr = parts[0].toLower();
+                if (pageStr == "launch" || pageStr == "0") targetPage = 0;
+                else if (pageStr == "download" || pageStr == "1") targetPage = 1;
+                else if (pageStr == "settings" || pageStr == "2") targetPage = 2;
             }
-            qApp->quit();
-        });
+            if (parts.size() >= 2) {
+                QString tabStr = parts[1].toLower();
+                if (tabStr == "mc" || tabStr == "0") targetTab = 0;
+                else if (tabStr == "mod" || tabStr == "1") targetTab = 1;
+                else if (tabStr == "shader" || tabStr == "2") targetTab = 2;
+                else if (tabStr == "rp" || tabStr == "3") targetTab = 3;
+            }
+        }
+
+        if (targetPage >= 0) {
+            int delayMs = 3000;  // base delay for QML load
+            if (targetPage == 1 && targetTab >= 0) delayMs = 8000;  // download+RP needs network
+            qCInfo(logApp) << "Screenshot: navigating to page" << targetPage
+                           << "tab" << targetTab << "delay" << delayMs << "ms";
+            QTimer::singleShot(1500, backend, [backend, targetPage, targetTab]() {
+                emit backend->navigateToRequested(targetPage, targetTab);
+            });
+            QTimer::singleShot(delayMs, &app, [ssPath]() {
+                if (screenshotWindow && screenshotWindow->isVisible()) {
+                    QScreen* screen = QGuiApplication::primaryScreen();
+                    QPixmap pix = screen->grabWindow(screenshotWindow->winId());
+                    if (pix.save(ssPath, "PNG")) {
+                        qCInfo(logApp) << "Screenshot saved:" << ssPath
+                                       << "size:" << pix.width() << "x" << pix.height();
+                    } else {
+                        qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
+                    }
+                } else {
+                    qCCritical(logApp) << "Screenshot: window not ready";
+                }
+                qApp->quit();
+            });
+        } else {
+            // No navigation: take screenshot after base delay
+            QTimer::singleShot(3000, &app, [ssPath]() {
+                if (screenshotWindow && screenshotWindow->isVisible()) {
+                    QScreen* screen = QGuiApplication::primaryScreen();
+                    QPixmap pix = screen->grabWindow(screenshotWindow->winId());
+                    if (pix.save(ssPath, "PNG")) {
+                        qCInfo(logApp) << "Screenshot saved:" << ssPath
+                                       << "size:" << pix.width() << "x" << pix.height();
+                    } else {
+                        qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
+                    }
+                } else {
+                    qCCritical(logApp) << "Screenshot: window not ready";
+                }
+                qApp->quit();
+            });
+        }
     }
 
     // ── Auto-download test mode (for testing download + fallback) ──

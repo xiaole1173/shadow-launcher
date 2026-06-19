@@ -13,6 +13,7 @@ Window {
     color: "transparent"
 
     property int navListIndex: 0
+    property int pendingSubTab: -1  // for --navigate auto-test
     property string currentSelectedVersion: backend ? backend.selectedVersion : ""
     property int loginMode: backend ? backend.lastLoginMode : 0
     property bool showVersionSelect: false
@@ -98,8 +99,14 @@ Window {
         }
         function onInstallFinished(success) {
             // Keep nav visible for a moment, will be hidden when user switches away
-            // Or optionally auto-hide:
-            // hideDownloadNav()
+        }
+        // ── Auto-test: navigate to page + sub-tab ──
+        function onNavigateToRequested(pageIndex, subTab) {
+            console.log("[auto-test] navigateToRequested: page", pageIndex, "tab", subTab)
+            if (pageIndex === 1) {
+                pendingSubTab = subTab
+            }
+            switchPage(pageIndex)
         }
     }
 
@@ -552,12 +559,18 @@ Window {
 
                     // ========== DOWNLOAD & SETTINGS ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex === 1; color: "#0c0f16"
-                        Loader { anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
+                        Loader { id: downloadPageLoader; anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
                             onLoaded: {
                                 item.mainWindow = appWindow
                                 item.triggerDownloadBall.connect(function(sx, sy) {
                                     appWindow.animateDownloadBall(sx, sy)
                                 })
+                                // Apply pending sub-tab navigation from --navigate
+                                if (pendingSubTab >= 0) {
+                                    item.currentTab = pendingSubTab
+                                    console.log("[auto-test] navigateTo: download tab", pendingSubTab)
+                                    pendingSubTab = -1
+                                }
                             }
                         } }
                     Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: "#0c0f16"
