@@ -8,6 +8,7 @@
 #include "http_client.h"
 
 #include <QDir>
+#include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -821,19 +822,23 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
 
     // Start at 0 so UI sees "verify in progress" immediately
     emit verifyProgressChanged(0, totalItems);
+    QCoreApplication::processEvents();
 
     // --- 1. client.jar ---
     const QString jarPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
     checked++;
     emit verifyProgressChanged(checked, totalItems);
+    QCoreApplication::processEvents();
     if (!QFileInfo::exists(jarPath))
         missing.append(QStringLiteral("versions/%1/%1.jar").arg(versionId));
 
     // --- 2. Libraries ---
     for (const QJsonObject& art : libArts) {
         checked++;
-        if (checked % 10 == 0)
+        if (checked % 10 == 0) {
             emit verifyProgressChanged(checked, totalItems);
+            QCoreApplication::processEvents();
+        }
 
         QString path = art.value(QStringLiteral("path")).toString();
         QString dest = m_minecraftDir + QStringLiteral("/libraries/") + path;
@@ -852,8 +857,10 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
     for (auto it = assetObjects.begin(); it != assetObjects.end(); ++it) {
         checked++;
         batch++;
-        if (batch % 100 == 0)
+        if (batch % 100 == 0) {
             emit verifyProgressChanged(checked, totalItems);
+            QCoreApplication::processEvents();
+        }
 
         const QJsonObject& obj = it.value();
         QString sha1 = obj.value(QStringLiteral("hash")).toString();
@@ -868,6 +875,7 @@ QStringList VersionDownloader::verifyAllFiles(const QJsonObject& versionJson,
     }
 
     emit verifyProgressChanged(totalItems, totalItems);
+    QCoreApplication::processEvents();
     return missing;
 }
 

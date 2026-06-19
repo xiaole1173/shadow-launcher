@@ -71,6 +71,8 @@ public:
     Q_INVOKABLE void pauseInstall();
     Q_INVOKABLE void resumeInstall();
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
+    Q_INVOKABLE QVariantList downloadQueue() const;
+    Q_INVOKABLE QVariantList activeDownloads() const;
     Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
 
     // ── Version management operations ──
@@ -104,6 +106,7 @@ signals:
     void verifyFailedFiles(const QStringList& failedFiles);
     void installPausedChanged(bool paused);
     void verifyCancelled();
+    void downloadQueueChanged();
 
 private slots:
     void onVersionDownloadProgress(int cf, int tf, qint64 db, qint64 tb);

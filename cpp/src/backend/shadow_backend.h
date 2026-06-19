@@ -79,8 +79,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString currentVersionSummary READ currentVersionSummary CONSTANT)
 
     // ── Download queue ──
-    Q_PROPERTY(QVariantList downloadQueue READ downloadQueue CONSTANT)
-    Q_PROPERTY(QVariantList activeDownloads READ activeDownloads CONSTANT)
+    Q_PROPERTY(QVariantList downloadQueue READ downloadQueue NOTIFY downloadQueueChanged)
+    Q_PROPERTY(QVariantList activeDownloads READ activeDownloads NOTIFY downloadQueueChanged)
 
     // ── Game info ──
     Q_PROPERTY(QVariantMap gameDirInfo READ gameDirInfo NOTIFY gameDirChanged)
@@ -145,8 +145,8 @@ public:
     QString currentVersionSummary() const { return {}; }
 
     // ── Download queue ──
-    QVariantList downloadQueue() const { return {}; }
-    QVariantList activeDownloads() const { return {}; }
+    QVariantList downloadQueue() const;
+    QVariantList activeDownloads() const;
 
     // ── Launch getters ──
     bool isLaunching() const;
@@ -320,6 +320,7 @@ signals:
     void verifyCheckedChanged();
     void verifyTotalChanged();
     void installPausedChanged();
+    void downloadQueueChanged();
     void searchResultsReady(const QVariantList& results);
     void gameDirChanged();
     void themeChanged();

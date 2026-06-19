@@ -704,20 +704,26 @@ Rectangle {
                 anchors.margins: 12
                 spacing: 4
 
+                // FIX 5: Show verify status when verifying
                 RowLayout {
                     visible: downloadBar.hasActiveDownload
                     Text {
-                        text: "正在安装 " + (backend ? (backend.installVersionId || "") : "")
-                        color: "#d0d4e0"
+                        text: (backend && backend.installPhase === "校验中...")
+                            ? "检验完整性 " + (backend ? (backend.installVersionId || "") : "")
+                            : "正在安装 " + (backend ? (backend.installVersionId || "") : "")
+                        color: (backend && backend.installPhase === "校验中...") ? "#8aaeff" : "#d0d4e0"
                         font.pixelSize: 13
                         font.bold: true
                     }
                     Item { Layout.fillWidth: true }
                     Text {
-                        text: (backend && backend.installTotal > 0)
-                            ? Math.round((backend.installProgress / backend.installTotal) * 100) + "%"
-                            : "准备中..."
-                        color: "#9094a8"
+                        text: {
+                            if (!backend || backend.installTotal <= 0) return "准备中..."
+                            if (backend.installPhase === "校验中...")
+                                return backend.installProgress + "/" + backend.installTotal
+                            return Math.round((backend.installProgress / backend.installTotal) * 100) + "%"
+                        }
+                        color: (backend && backend.installPhase === "校验中...") ? "#8aaeff" : "#9094a8"
                         font.pixelSize: 12
                     }
                 }
@@ -1166,8 +1172,8 @@ Rectangle {
                             color: page.rpShowPreReleases ? "#5068c8" : "#505468"; font.pixelSize: 10
                             MouseArea {
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                // Keep pre-release trigger — it directly filters the version list, not an API call
-                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases; loadRpFirstPage() }
+                                // FIX 3: Pre-release toggle ONLY filters the version dropdown, not search results
+                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
                             }
                         }
                         Item { Layout.fillWidth: true }
@@ -1467,6 +1473,24 @@ Rectangle {
         z: 10  // above all other content
         visible: rpDetailSlug !== ""
 
+        // Detail page properties (must be at Item root, not inside ColumnLayout)
+        property var rpDetailGrouped: {
+            var _ver = page.rpVersionCacheVersion; var d = page.rpVersionCache
+            var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
+            var groups = {}
+            for (var i = 0; i < raw.length; i++) {
+                var v = raw[i]
+                var major = v.split(/[.\-]/)[0]
+                if (!groups[major]) groups[major] = []
+                groups[major].push(v)
+            }
+            var result = []
+            for (var k in groups) { result.push({major: k, versions: groups[k]}) }
+            result.sort(function(a,b) { return parseInt(b.major) - parseInt(a.major) })
+            return result
+        }
+        property string rpDetailExpanded: ""
+
         Rectangle {
             anchors.fill: parent
             color: "#0c0f16"
@@ -1514,24 +1538,6 @@ Rectangle {
                 }
 
                 // Version list grouped by major, click to expand
-                property var rpDetailGrouped: {
-                    var _ver = page.rpVersionCacheVersion; var d = page.rpVersionCache
-                    var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
-                    var groups = {}
-                    for (var i = 0; i < raw.length; i++) {
-                        var v = raw[i]
-                        var major = v.split(/[.\-]/)[0]
-                        if (!groups[major]) groups[major] = []
-                        groups[major].push(v)
-                    }
-                    var result = []
-                    for (var k in groups) { result.push({major: k, versions: groups[k]}) }
-                    result.sort(function(a,b) { return parseInt(b.major) - parseInt(a.major) })
-                    return result
-                }
-
-                property string rpDetailExpanded: ""
-
                 ScrollView {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
@@ -1540,7 +1546,7 @@ Rectangle {
                         width: parent.width - 4; spacing: 4
 
                         Repeater {
-                            model: rpDetailGrouped
+                            model: rpDetailPage.rpDetailGrouped
                             delegate: ColumnLayout {
                                 Layout.fillWidth: true; spacing: 2
 
@@ -1553,7 +1559,7 @@ Rectangle {
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
-                                            text: (rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major + ".X"
+                                            text: (rpDetailPage.rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major + ".X"
                                             color: "#5068c8"; font.pixelSize: 14; font.bold: true
                                             Layout.fillWidth: true
                                         }
@@ -1566,14 +1572,14 @@ Rectangle {
                                         id: rpDetGrpArea; anchors.fill: parent
                                         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            rpDetailExpanded = (rpDetailExpanded === modelData.major) ? "" : modelData.major
+                                            rpDetailPage.rpDetailExpanded = (rpDetailPage.rpDetailExpanded === modelData.major) ? "" : modelData.major
                                         }
                                     }
                                 }
 
                                 // Sub-versions (only when expanded)
                                 Repeater {
-                                    model: (rpDetailExpanded === modelData.major) ? modelData.versions : []
+                                    model: (rpDetailPage.rpDetailExpanded === modelData.major) ? modelData.versions : []
                                     delegate: Rectangle {
                                         Layout.fillWidth: true; height: 34; radius: 5
                                         Layout.leftMargin: 12
@@ -1609,7 +1615,7 @@ Rectangle {
                         }
 
                         Text {
-                            visible: rpDetailGrouped.length === 0
+                            visible: rpDetailPage.rpDetailGrouped.length === 0
                             text: "正在加载版本信息..."
                             color: "#505468"; font.pixelSize: 12
                             Layout.alignment: Qt.AlignHCenter

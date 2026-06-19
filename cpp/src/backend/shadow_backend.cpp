@@ -154,6 +154,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 }
                 emit verifyFailedFiles(failedFiles);
             });
+    connect(m_version, &VersionBackend::downloadQueueChanged,
+            this, &ShadowBackend::downloadQueueChanged);
 
     // ── Signal forwarding: LaunchBackend → ShadowBackend ──
     connect(m_launch, &LaunchBackend::launchProgressChanged,
@@ -348,7 +350,8 @@ QString ShadowBackend::installFile() const {
 }
 
 bool ShadowBackend::verifyRunning() const {
-    return m_version && m_version->installPhase() == QStringLiteral("verifying");
+    return m_version && (m_version->installPhase() == QStringLiteral("verifying")
+                        || m_version->installPhase() == QStringLiteral("校验中..."));
 }
 
 int ShadowBackend::verifyChecked() const {
@@ -381,6 +384,14 @@ qint64 ShadowBackend::installBytesDownloaded() const {
 
 qint64 ShadowBackend::installBytesTotal() const {
     return m_version ? m_version->installBytesTotal() : 0;
+}
+
+QVariantList ShadowBackend::downloadQueue() const {
+    return m_version ? m_version->downloadQueue() : QVariantList{};
+}
+
+QVariantList ShadowBackend::activeDownloads() const {
+    return m_version ? m_version->activeDownloads() : QVariantList{};
 }
 
 QStringList ShadowBackend::releaseVersions() const {

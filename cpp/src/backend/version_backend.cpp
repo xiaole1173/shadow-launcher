@@ -157,6 +157,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             .arg(m_installQueue.size()));
         // Notify property changes for UI
         emit installStateChanged();
+        emit downloadQueueChanged();
         return;
     }
 
@@ -463,6 +464,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         auto next = m_installQueue.dequeue();
         QString nextId = next.first;
         int nextSource = next.second;
+        emit downloadQueueChanged();
         emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
         QTimer::singleShot(200, this, [this, nextId, nextSource]() {
             installVersion(nextId, nextSource);
@@ -478,6 +480,7 @@ void VersionBackend::cancelQueuedDownload(const QString& versionId)
             m_installQueue.removeAt(i);
             emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
             emit installStateChanged();
+            emit downloadQueueChanged();
             return;
         }
     }
@@ -485,6 +488,30 @@ void VersionBackend::cancelQueuedDownload(const QString& versionId)
     if (m_installVersionId == versionId && m_installing) {
         cancelInstall();
     }
+}
+
+QVariantList VersionBackend::downloadQueue() const
+{
+    QVariantList list;
+    for (int i = 0; i < m_installQueue.size(); ++i) {
+        QVariantMap entry;
+        entry[QStringLiteral("versionId")] = m_installQueue[i].first;
+        entry[QStringLiteral("position")] = i + 1;
+        list.append(entry);
+    }
+    return list;
+}
+
+QVariantList VersionBackend::activeDownloads() const
+{
+    QVariantList list;
+    if (m_installing && !m_installVersionId.isEmpty()) {
+        QVariantMap entry;
+        entry[QStringLiteral("versionId")] = m_installVersionId;
+        entry[QStringLiteral("phase")] = m_installPhase;
+        list.append(entry);
+    }
+    return list;
 }
 
 // ============================================================
