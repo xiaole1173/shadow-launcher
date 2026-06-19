@@ -217,6 +217,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     m_resourceDlTotal = 0;
                     m_resourceDlFile.clear();
                 }
+                qCDebug(logLaunch) << "[RP-DOWNLOAD] stateChanged downloading=" << m_resource->isDownloading();
                 emit resourceDownloadStateChanged();
             });
     connect(m_resource, &ResourceBackend::downloadProgressChanged,
@@ -224,11 +225,13 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 m_resourceDlProgress = completed;
                 m_resourceDlTotal = total;
                 m_resourceDlFile = fileName;
+                qCDebug(logLaunch) << "[RP-DOWNLOAD] progress" << completed << "/" << total << fileName;
                 emit resourceDownloadProgress(completed, total, fileName);
             });
     // downloadFinished → resourceDownloadDone
     connect(m_resource, &ResourceBackend::downloadFinished,
             this, [this](const QString&, bool success, const QString&) {
+                qCDebug(logLaunch) << "[RP-DOWNLOAD] completed success=" << success;
                 emit resourceDownloadDone(success);
             });
     connect(m_resource, &ResourceBackend::searchResultsReady,

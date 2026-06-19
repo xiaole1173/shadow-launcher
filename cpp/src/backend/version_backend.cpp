@@ -154,6 +154,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
     // ── Queue: if at max concurrency, enqueue ──
     if (m_activeCount >= MAX_CONCURRENT) {
         m_installQueue.enqueue({versionId, sourceIndex});
+        qCDebug(logLaunch) << "[DOWNLOAD] enqueued=" << versionId << "pos=" << m_installQueue.size() << "active=" << m_activeCount;
         emit logMessage(QStringLiteral("⏳ %1 已加入下载队列 (位置 %2)")
                             .arg(versionId)
                             .arg(m_installQueue.size()));
@@ -161,6 +162,8 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
         emit downloadQueueChanged();
         return;
     }
+
+    qCDebug(logLaunch) << "[DOWNLOAD] starting=" << versionId << "active=" << m_activeCount << "/" << MAX_CONCURRENT;
 
     // ── Check for resume checkpoint files in version dir ──
     const QString versionDir = m_versionMgr->gameDir()
@@ -559,6 +562,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     // ── Try to start next from queue ──
     startNextFromQueue();
+    qCDebug(logLaunch) << "[DOWNLOAD] finished=" << finishedId << " active=" << m_activeCount << "/" << MAX_CONCURRENT << " queue=" << m_installQueue.size();
 }
 
 void VersionBackend::cancelQueuedDownload(const QString& versionId)
@@ -787,6 +791,7 @@ void VersionBackend::startNextFromQueue()
         auto next = m_installQueue.dequeue();
         QString nextId = next.first;
         int nextSource = next.second;
+        qCDebug(logLaunch) << "[DOWNLOAD] dequeue=" << nextId << " remaining=" << m_installQueue.size();
         emit downloadQueueChanged();
         emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
         // Direct recursive call — installVersion will enqueue again if still full

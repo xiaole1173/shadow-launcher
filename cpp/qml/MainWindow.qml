@@ -101,7 +101,8 @@ Window {
             // Keep nav visible for a moment, will be hidden when user switches away
         }
         function onResourceDownloadStateChanged() {
-            if (backend && backend.downloading) {
+            console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)
+            if (backend && backend.isResourceDownloading) {
                 if (!downloadNavVisible) showDownloadNav()
             }
         }

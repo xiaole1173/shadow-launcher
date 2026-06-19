@@ -165,7 +165,9 @@ Rectangle {
         // ═══════════════════════════════════════════════════════
         Rectangle {
             Layout.fillWidth: true; height: 80; radius: 8; color: "#0e111a"; border.color: "#2a1f3a"
-            visible: backend && backend.downloading
+            visible: backend && backend.isResourceDownloading
+            Component.onCompleted: { if (visible) console.log("[progress] RP download section created") }
+            onVisibleChanged: { if (visible) console.log("[progress] RP download section visible") }
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 12; spacing: 6
                 RowLayout {
