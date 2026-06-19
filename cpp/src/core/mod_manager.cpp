@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QTimer>
 #include <functional>
+#include <memory>
 
 namespace ShadowLauncher {
 
@@ -404,15 +405,15 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
         }
     };
 
-    // Recursive batch launcher
-    std::function<void()> launchBatch;
+    // Recursive batch launcher (uses shared_ptr to avoid self-capture UB)
+    auto launchBatchPtr = std::make_shared<std::function<void()>>();
     auto indexPtr = index;
-    launchBatch = [=]() {
+    *launchBatchPtr = [=]() {
         int start = *indexPtr;
         int end = qMin(start + kBatchSize, slugList->size());
-        if (start >= end) return;  // Done
+        if (start >= end) return;
 
-        *indexPtr = end;  // Advance for next batch
+        *indexPtr = end;
 
         emit logMessage(QStringLiteral("[MODRINTH-BATCH] 启动批次 [%1..%2] (共%3个)")
                         .arg(start).arg(end - 1).arg(end - start));
@@ -482,12 +483,12 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 
         // Schedule next batch after a short delay
         if (*indexPtr < slugList->size()) {
-            QTimer::singleShot(100, [launchBatch]() { launchBatch(); });
+            QTimer::singleShot(100, [launchBatchPtr]() { (*launchBatchPtr)(); });
         }
     };
 
     // Start first batch
-    launchBatch();
+    (*launchBatchPtr)();
 }
 
 // ============================================================
