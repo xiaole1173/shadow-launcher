@@ -632,6 +632,7 @@ QString ShadowBackend::jvmArgs() const {
 
 void ShadowBackend::setJvmArgs(const QString& args) {
     m_app->setJvmArgs(args);
+    emit logMessage(QStringLiteral("[JVM] GC参数已更新: %1").arg(args));
     emit jvmArgsChanged();
 }
 

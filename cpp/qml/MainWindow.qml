@@ -1543,7 +1543,13 @@ Window {
                                                         Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 11; color: "#b0b8c8" }
                                                         HoverHandler { id: presetHover }
                                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                                            onClicked: { jvmArgsInput.text = modelData.args; if (backend) backend.setJvmArgs(modelData.args) }
+                                                            onClicked: {
+                                                                jvmArgsInput.text = modelData.args
+                                                                if (backend) {
+                                                                    console.log("[jvm] GC preset:", modelData.label, modelData.args)
+                                                                    backend.setJvmArgs(modelData.args)
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }

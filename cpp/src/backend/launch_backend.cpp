@@ -66,8 +66,10 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     emit launchStateChanged();
     qCInfo(logLaunch) << "Launch requested:" << versionId
                       << "java:" << javaPath
-                      << "memory:" << maxMemoryMB << "MB";
-    emit logMessage(QStringLiteral("启动 %1 | %2").arg(versionId, username));
+                      << "memory:" << maxMemoryMB << "MB"
+                      << "jvmArgs:" << jvmArgs;
+    emit logMessage(QStringLiteral("启动 %1 | %2 | JVM: %3").arg(versionId, username,
+                      jvmArgs.isEmpty() ? QStringLiteral("默认G1GC") : jvmArgs));
 
     // ============================================================
     // Async pre-launch checks (stepped with QTimer)

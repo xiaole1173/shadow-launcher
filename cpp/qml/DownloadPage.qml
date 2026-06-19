@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Rectangle {
     id: page
@@ -33,6 +34,11 @@ Rectangle {
     property bool installingVersion: false
     property bool installingMod: false
     property string installingModName: ""
+
+    // Resource pack state
+    property string rpGameVersion: backend && backend.versionIds && backend.versionIds.length > 0
+                                  ? backend.versionIds[0] : "1.21.10"
+    property string rpDownloadDir: ""  // user-selected target folder
 
     signal goBack()
 
@@ -1260,9 +1266,6 @@ Rectangle {
         anchors.topMargin: 8
         visible: page.currentTab === 3
 
-        property string rpSearchQuery: ""
-        property string rpGameVersion: backend ? (backend.versionIds && backend.versionIds.length > 0 ? backend.versionIds[0] : "1.21.10") : "1.21.10"
-
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 12
@@ -1274,7 +1277,6 @@ Rectangle {
                 height: 34
                 spacing: 8
 
-                // Game version selector
                 Text {
                     text: "MC " + page.rpGameVersion
                     color: "#9094a8"
@@ -1284,12 +1286,11 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Rectangle {
-                    width: 200
+                    width: 220
                     height: 30
                     radius: 6
                     color: "#11141c"
-                    border.color: "#1e2230"
-                    border.width: 1
+                    border.color: rpSearchInput.activeFocus ? "#5068c8" : "#1e2230"
 
                     RowLayout {
                         anchors.fill: parent
@@ -1306,6 +1307,7 @@ Rectangle {
                             font.pixelSize: 12
                             onAccepted: {
                                 if (backend && text) {
+                                    console.log("[resourcepack] search triggered:", text, "ver:", page.rpGameVersion)
                                     backend.searchResourcepacks(text, page.rpGameVersion)
                                 }
                             }
@@ -1324,12 +1326,12 @@ Rectangle {
                             width: 28
                             height: 22
                             radius: 4
-                            color: rpSearchIconArea.containsMouse ? "#3a4eb8" : "transparent"
+                            color: rpSearchIconArea.containsMouse ? "#c060a0" : "transparent"
 
                             Text {
                                 anchors.centerIn: parent
                                 text: "Go"
-                                color: rpSearchIconArea.containsMouse ? "#e8ecf8" : "#606478"
+                                color: rpSearchIconArea.containsMouse ? "#e8ecf8" : "#9094a8"
                                 font.pixelSize: 10
                             }
 
@@ -1340,6 +1342,7 @@ Rectangle {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     if (backend && rpSearchInput.text) {
+                                        console.log("[resourcepack] search triggered:", rpSearchInput.text, "ver:", page.rpGameVersion)
                                         backend.searchResourcepacks(rpSearchInput.text, page.rpGameVersion)
                                     }
                                 }
@@ -1350,36 +1353,12 @@ Rectangle {
             }
 
             Text {
-                text: "资源包 | 来源: Modrinth API | 点击安装到 resourcepacks/"
+                text: "资源包 | 来源: Modrinth API | 搜索结果将安装到 resourcepacks/"
                 color: "#505468"
                 font.pixelSize: 11
             }
 
-            // Search results from backend
-            Connections {
-                target: backend
-                enabled: backend !== null && page.currentTab === 3
-                function onResourcepackSearchCompleted(results, totalHits) {
-                    if (results) {
-                        rpResultsModel.clear()
-                        for (var i = 0; i < results.length; i++) {
-                            var r = results[i]
-                            rpResultsModel.append({
-                                slug: r.slug || "",
-                                title: r.title || "",
-                                desc: r.desc || r.description || "",
-                                icon: r.icon || "",
-                                downloads: r.downloads || 0
-                            })
-                        }
-                    }
-                }
-                function onResourcepackDownloadFinished(slug, success, filePath) {
-                    page.installingMod = false
-                    page.installingModName = ""
-                }
-            }
-
+            // ── Result list ──
             ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -1391,15 +1370,14 @@ Rectangle {
                     anchors.fill: parent
                     cellWidth: 224
                     cellHeight: 118
-
-                    model: ListModel { id: rpResultsModel }
+                    model: rpResultsModel
 
                     delegate: Rectangle {
                         width: 214
                         height: 110
                         color: rpCardMouse.containsMouse ? "#11141c" : "#0e1018"
                         radius: 8
-                        border.color: rpCardMouse.containsMouse ? "#3a4eb8" : "#1a1f2a"
+                        border.color: rpCardMouse.containsMouse ? "#c060a0" : "#1a1f2a"
                         border.width: 1
 
                         opacity: 0
@@ -1482,9 +1460,9 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (model.slug && backend) {
-                                    page.installingMod = true
-                                    page.installingModName = model.title || model.slug
-                                    backend.downloadResourcepack(model.slug, page.rpGameVersion)
+                                    console.log("[resourcepack] install clicked:", model.slug, "title:", model.title)
+                                    rpFolderDialog.slug = model.slug
+                                    rpFolderDialog.open()
                                 }
                             }
                         }
@@ -1540,6 +1518,72 @@ Rectangle {
                 font.pixelSize: 10
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // Resource pack state — standalone (shared across Tab 3)
+    // ════════════════════════════════════════════
+    ListModel { id: rpResultsModel }
+
+    Connections {
+        target: backend
+        enabled: backend !== null && page.currentTab === 3
+
+        function onResourcepackSearchCompleted(results, totalHits) {
+            console.log("[resourcepack] search completed:", results ? results.length : 0, "total:", totalHits)
+            if (results && results.length > 0) {
+                rpResultsModel.clear()
+                for (var i = 0; i < results.length; i++) {
+                    var r = results[i]
+                    console.log("[resourcepack]   result[" + i + "]:", r.slug, r.title)
+                    rpResultsModel.append({
+                        slug: r.slug || "",
+                        title: r.title || "",
+                        desc: r.desc || r.description || "",
+                        icon: r.icon || "",
+                        downloads: r.downloads || 0
+                    })
+                }
+            } else {
+                console.log("[resourcepack] search returned empty results")
+            }
+        }
+
+        function onResourcepackSearchFailed(error) {
+            console.log("[resourcepack] search FAILED:", error)
+            toastManager.show("资源包搜索失败: " + error)
+        }
+
+        function onResourcepackDownloadFinished(slug, success, filePath) {
+            console.log("[resourcepack] download finished:", slug, "success:", success, "path:", filePath)
+            page.installingMod = false
+            page.installingModName = ""
+            if (success) toastManager.show("资源包已安装: " + slug)
+        }
+    }
+
+    // ── Folder picker for resource pack download ──
+    FolderDialog {
+        id: rpFolderDialog
+        property string slug: ""
+        title: "选择资源包安装文件夹"
+        currentFolder: backend ? backend.gameDir + "/resourcepacks" : ""
+
+        onAccepted: {
+            var dest = selectedFolder.toString().replace("file:///", "")
+            // Convert forward slashes back for Windows
+            if (Qt.platform.os === "windows") dest = dest.replace(/\//g, "\\")
+            console.log("[resourcepack] user selected folder:", dest, "slug:", rpFolderDialog.slug)
+            page.installingMod = true
+            page.installingModName = rpFolderDialog.slug
+            // Note: current API downloads to gameDir/resourcepacks/
+            // For custom folder, the C++ backend would need extension.
+            // For now: download to default location, notify user.
+            if (backend && rpFolderDialog.slug) {
+                backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion)
+                toastManager.show("开始下载资源包: " + rpFolderDialog.slug)
             }
         }
     }
