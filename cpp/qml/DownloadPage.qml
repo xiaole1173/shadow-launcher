@@ -1349,8 +1349,8 @@ Rectangle {
                                     Text {
                                         text: {
                                             var d = model ? (model.downloads || 0) : 0
-                                            if (d >= 1000000) return "↓" + (d/1000000).toFixed(1) + "M"
-                                            if (d >= 1000) return "↓" + (Math.round(d/100)/10).toFixed(1) + "K"
+                                            if (d >= 1000000) return "↓" + (d/1000).toFixed(0) + "k"
+                                            if (d >= 1000) return "↓" + (d/1000).toFixed(1) + "k"
                                             return "↓" + d
                                         }
                                         color: "#788090"; font.pixelSize: 10
@@ -1408,7 +1408,7 @@ Rectangle {
                                         }
                                         Binding {
                                             target: rpTagRow; property: "tagsJson"
-                                            value: model ? JSON.stringify(model.categories || []) : ""
+                                            value: model ? (model.categories || "[]") : "[]"
                                             when: model !== null
                                         }
                                     }
@@ -1563,9 +1563,9 @@ Rectangle {
 
         function formatDownloads(n) {
             if (!n && n !== 0) return "0"
-            if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
-            if (n >= 1000) return (n / 1000).toFixed(1) + "K"
-            return String(n)
+            if (n >= 1000000) return (n / 1000).toFixed(0) + "k 下载量"
+            if (n >= 1000) return (n / 1000).toFixed(1) + "k 下载量"
+            return String(n) + " 下载量"
         }
 
         Rectangle {
@@ -1743,7 +1743,7 @@ Rectangle {
                                                 // Downloads + Date row
                                                 Row { spacing: 16
                                                     Row { spacing: 4
-                                                        Text { text: "下载:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
+                                                        Text { text: "下载量:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
                                                         Text {
                                                             text: rpDetailPage.formatDownloads(l3Content.detail.downloads)
                                                             color: "#a0a8c0"; font.pixelSize: 10
@@ -1858,7 +1858,7 @@ Rectangle {
                     desc: r.desc || r.description || "",
                     icon: r.icon || "",
                     downloads: r.downloads || 0,
-                    categories: r.categories || [],
+                    categories: JSON.stringify(r.categories || []),
                     updated: r.updated || "",
                     author: r.author || "",
                     source: r.source || "Modrinth",
