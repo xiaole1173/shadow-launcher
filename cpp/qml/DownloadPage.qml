@@ -1227,11 +1227,33 @@ Rectangle {
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
 
-                            // Icon (network image with MCIM mirror)
+                            // Icon
                             Rectangle {
                                 width: 44; height: 44; radius: 10; color: "#1a1f2e"
                                 Layout.preferredWidth: 44; Layout.preferredHeight: 44
                                 clip: true
+
+                                // Text fallback — always visible until image loads
+                                Rectangle {
+                                    anchors.fill: parent; color: "#161c2a"; radius: 10
+                                    visible: modIconFallback.visible
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: {
+                                            if (!model) return "M"
+                                            var ic = model.icon || ""
+                                            // Show emoji if it's a single emoji char
+                                            if (ic.length <= 2) return ic
+                                            // Show first letter of title
+                                            var t = model.title || "M"
+                                            return t[0]
+                                        }
+                                        color: "#5068c8"; font.pixelSize: 18; font.bold: true
+                                    }
+                                }
+                                property alias iconFallbackVis: modIconFallback.visible
+
+                                Text { id: modIconFallback; visible: true; text: "" }
 
                                 Image {
                                     id: modCardIcon
@@ -1242,49 +1264,49 @@ Rectangle {
                                     asynchronous: true; cache: true
                                     sourceSize.width: 88; sourceSize.height: 88
 
-                                    function triggerIconLoad() {
-                                        if (!model || !model.icon || model.icon === "") {
-                                            modIconFallback.visible = true
-                                            return
-                                        }
+                                    function tryLoadIcon() {
+                                        if (!model || !model.icon || model.icon === "") return
                                         var url = model.icon
-                                        // Emoji / non-URL → show as fallback text
-                                        if (url.indexOf("http") !== 0 && url.indexOf("/") < 0) {
-                                            modIconFallback.visible = true
+                                        if (url.indexOf("http") !== 0) return  // emoji, skip
+
+                                        // Try MCIM mirror first
+                                        iconCacheKey = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                                     .replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                        modIconFallback.visible = true  // show text until image arrives
+                                        if (!backend) return
+
+                                        // Check cache
+                                        var cached = backend.cachedIconPath(iconCacheKey)
+                                        if (cached) {
+                                            source = cached
                                             return
                                         }
-                                        url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                        url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                        iconCacheKey = url
-                                        modIconFallback.visible = false
-                                        if (backend && backend.cachedIconPath) {
-                                            var cached = backend.cachedIconPath(url)
-                                            if (cached) { source = cached; return }
-                                            backend.cacheIconAsync(url)
+                                        // Also check original URL cache
+                                        cached = backend.cachedIconPath(url)
+                                        if (cached) {
+                                            source = cached
+                                            return
                                         }
+                                        // Async download via MCIM mirror
+                                        backend.cacheIconAsync(iconCacheKey)
                                     }
-                                    Component.onCompleted: triggerIconLoad()
+                                    Component.onCompleted: tryLoadIcon()
 
                                     Connections {
                                         target: backend
                                         function onIconCached(webpUrl, pngPath) {
                                             if (webpUrl !== modCardIcon.iconCacheKey) return
-                                            if (pngPath) modCardIcon.source = pngPath
-                                            else modIconFallback.visible = true
+                                            if (pngPath) {
+                                                modCardIcon.source = pngPath
+                                                modIconFallback.visible = false
+                                            }
                                         }
                                     }
                                     onStatusChanged: {
-                                        if (status === Image.Loading) return
-                                        if (status === Image.Ready) modIconFallback.visible = false
-                                        else if (source && source.toString() !== "") modIconFallback.visible = true
+                                        if (status === Image.Ready && source && source.toString() !== "") {
+                                            modIconFallback.visible = false
+                                        }
                                     }
-                                }
-
-                                Text {
-                                    id: modIconFallback
-                                    anchors.centerIn: parent
-                                    text: model ? (model.title ? model.title[0] : "M") : "M"
-                                    color: "#5068c8"; font.pixelSize: 18; font.bold: true
                                 }
                             }
 
@@ -1592,6 +1614,25 @@ Rectangle {
                                 Layout.preferredWidth: 44; Layout.preferredHeight: 44
                                 clip: true
 
+                                // Text fallback — always visible until image loads
+                                Rectangle {
+                                    anchors.fill: parent; color: "#161c2a"; radius: 10
+                                    visible: shaderIconFallback.visible
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: {
+                                            if (!model) return "S"
+                                            var ic = model.icon || ""
+                                            if (ic.length <= 2) return ic
+                                            var t = model.title || "S"
+                                            return t[0]
+                                        }
+                                        color: "#5068c8"; font.pixelSize: 18; font.bold: true
+                                    }
+                                }
+
+                                Text { id: shaderIconFallback; visible: true; text: "" }
+
                                 Image {
                                     id: shaderCardIcon
                                     anchors.fill: parent
@@ -1601,48 +1642,43 @@ Rectangle {
                                     asynchronous: true; cache: true
                                     sourceSize.width: 88; sourceSize.height: 88
 
-                                    function triggerIconLoad() {
-                                        if (!model || !model.icon || model.icon === "") {
-                                            shaderIconFallback.visible = true
-                                            return
-                                        }
+                                    function tryLoadIcon() {
+                                        if (!model || !model.icon || model.icon === "") return
                                         var url = model.icon
-                                        if (url.indexOf("http") !== 0 && url.indexOf("/") < 0) {
-                                            shaderIconFallback.visible = true
+                                        if (url.indexOf("http") !== 0) return
+                                        iconCacheKey = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                                     .replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                        shaderIconFallback.visible = true
+                                        if (!backend) return
+                                        var cached = backend.cachedIconPath(iconCacheKey)
+                                        if (cached) {
+                                            source = cached
                                             return
                                         }
-                                        url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                        url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                        iconCacheKey = url
-                                        shaderIconFallback.visible = false
-                                        if (backend && backend.cachedIconPath) {
-                                            var cached = backend.cachedIconPath(url)
-                                            if (cached) { source = cached; return }
-                                            backend.cacheIconAsync(url)
+                                        cached = backend.cachedIconPath(url)
+                                        if (cached) {
+                                            source = cached
+                                            return
                                         }
+                                        backend.cacheIconAsync(iconCacheKey)
                                     }
-                                    Component.onCompleted: triggerIconLoad()
+                                    Component.onCompleted: tryLoadIcon()
 
                                     Connections {
                                         target: backend
                                         function onIconCached(webpUrl, pngPath) {
                                             if (webpUrl !== shaderCardIcon.iconCacheKey) return
-                                            if (pngPath) shaderCardIcon.source = pngPath
-                                            else shaderIconFallback.visible = true
+                                            if (pngPath) {
+                                                shaderCardIcon.source = pngPath
+                                                shaderIconFallback.visible = false
+                                            }
                                         }
                                     }
                                     onStatusChanged: {
-                                        if (status === Image.Loading) return
-                                        if (status === Image.Ready) shaderIconFallback.visible = false
-                                        else if (source && source.toString() !== "") shaderIconFallback.visible = true
+                                        if (status === Image.Ready && source && source.toString() !== "") {
+                                            shaderIconFallback.visible = false
+                                        }
                                     }
-                                }
-
-                                Text {
-                                    id: shaderIconFallback
-                                    anchors.centerIn: parent
-                                    text: model ? (model.title ? model.title[0] : "S") : "S"
-                                    color: "#5068c8"; font.pixelSize: 18; font.bold: true
                                 }
                             }
 
