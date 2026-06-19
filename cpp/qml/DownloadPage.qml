@@ -1514,16 +1514,44 @@ Rectangle {
             var groups = {}
             for (var i = 0; i < raw.length; i++) {
                 var v = raw[i]
-                var major = v.split(/[.\-]/)[0]
+                // Group by major.minor (first two segments): "1.21.11" -> "1.21", "26.1.2" -> "26.1"
+                var segs = v.split(".")
+                var major = segs.length >= 2 ? segs[0] + "." + segs[1] : v
                 if (!groups[major]) groups[major] = []
                 groups[major].push(v)
             }
             var result = []
             for (var k in groups) { result.push({major: k, versions: groups[k]}) }
-            result.sort(function(a,b) { return parseInt(b.major) - parseInt(a.major) })
+            // Sort groups by major.minor, descending
+            result.sort(function(a,b) {
+                var as = a.major.split("."), bs = b.major.split(".")
+                var aM = parseInt(as[0])||0, bM = parseInt(bs[0])||0
+                if (aM !== bM) return bM - aM
+                return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
+            })
             return result
         }
         property string rpDetailExpanded: ""
+        property string rpDetailSelectedVer: ""  // Level 3: which game_version's detail card is open
+
+        function getVerDetail(gameVer) {
+            var cache = page.rpVersionDetailCache[rpDetailSlug]
+            if (!cache) return null
+            return cache[gameVer] || null
+        }
+
+        function formatDate(isoStr) {
+            if (!isoStr) return "-"
+            var d = isoStr.slice(0, 10)
+            return d
+        }
+
+        function formatDownloads(n) {
+            if (!n && n !== 0) return "0"
+            if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+            if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+            return String(n)
+        }
 
         Rectangle {
             anchors.fill: parent
@@ -1594,7 +1622,7 @@ Rectangle {
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
-                                            text: (rpDetailPage.rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major + ".X"
+                                            text: (rpDetailPage.rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major
                                             color: "#6080d8"; font.pixelSize: 14; font.bold: true
                                         }
                                         Item { Layout.fillWidth: true }
@@ -1612,38 +1640,134 @@ Rectangle {
                                     }
                                 }
 
-                                // Sub-versions (only when expanded)
+                                // Sub-versions (only when expanded) — Level 2 + Level 3 drill-down
                                 Repeater {
                                     model: (rpDetailPage.rpDetailExpanded === modelData.major) ? modelData.versions : []
-                                    delegate: Rectangle {
-                                        width: parent.width - 24; height: 34; radius: 6
-                                        x: 24
-                                        color: rpDetSubHov.hovered ? "#1a2436" : "#111820"
-                                        border.color: rpDetSubHov.hovered ? "#1e3050" : "#141c28"
-                                        border.width: 1
-                                        RowLayout {
-                                            anchors.fill: parent; anchors.margins: 8; spacing: 8
-                                            Text {
-                                                text: modelData; color: "#8898b8"; font.pixelSize: 12
-                                                font.family: "Consolas, monospace"; Layout.fillWidth: true
+                                    delegate: Column {
+                                        width: parent.width - 24; x: 24; spacing: 2
+
+                                        // Level 2: sub-version row (click to expand/collapse)
+                                        Rectangle {
+                                            width: parent.width; height: 34; radius: 6
+                                            color: {
+                                                if (rpDetailPage.rpDetailSelectedVer === modelData) return "#1a2848"
+                                                return rpDetSubHov.hovered ? "#1a2436" : "#111820"
                                             }
-                                            Rectangle {
-                                                width: 48; height: 22; radius: 4
-                                                color: rpDetSubHov.hovered ? "#3858c0" : "#1a3050"
+                                            border.color: {
+                                                if (rpDetailPage.rpDetailSelectedVer === modelData) return "#3858c0"
+                                                return rpDetSubHov.hovered ? "#1e3050" : "#141c28"
+                                            }
+                                            border.width: 1
+                                            RowLayout {
+                                                anchors.fill: parent; anchors.margins: 8; spacing: 8
                                                 Text {
-                                                    anchors.centerIn: parent; text: "下载"
-                                                    color: "#c8d0e0"; font.pixelSize: 10
+                                                    text: (rpDetailPage.rpDetailSelectedVer === modelData ? "\u25bc" : "\u25b8") + " " + modelData
+                                                    color: "#8898b8"; font.pixelSize: 12
+                                                    font.family: "Consolas, monospace"; Layout.fillWidth: true
+                                                }
+                                            }
+                                            MouseArea {
+                                                id: rpDetSubHov; anchors.fill: parent
+                                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    rpDetailPage.rpDetailSelectedVer = (rpDetailPage.rpDetailSelectedVer === modelData) ? "" : modelData
                                                 }
                                             }
                                         }
-                                        MouseArea {
-                                            id: rpDetSubHov; anchors.fill: parent
-                                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                console.log("[resourcepack] download:", rpDetailSlug, modelData)
-                                                page.installingRpName = rpDetailSlug
-                                                if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
-                                                rpDetailSlug = ""
+
+                                        // Level 3: Version detail card (appears when this sub-version is selected)
+                                        Rectangle {
+                                            visible: rpDetailPage.rpDetailSelectedVer === modelData
+                                            width: parent.width; height: l3Content.implicitHeight + 20; radius: 8
+                                            color: "#101828"
+                                            border.color: "#2a3a58"; border.width: 1
+
+                                            Column {
+                                                id: l3Content
+                                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                                                spacing: 6
+
+                                                property var detail: rpDetailPage.getVerDetail(modelData) || {}
+
+                                                // Pack name
+                                                Text {
+                                                    text: l3Content.detail.name || "-"
+                                                    color: "#d0d8f0"; font.pixelSize: 13; font.bold: true
+                                                    elide: Text.ElideRight; width: parent.width
+                                                }
+
+                                                // Version number row
+                                                Row { spacing: 8
+                                                    Text {
+                                                        text: "版本:"; color: "#606880"; font.pixelSize: 10
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                    Text {
+                                                        text: l3Content.detail.version_number || "-"
+                                                        color: "#c0c8e0"; font.pixelSize: 11
+                                                        font.family: "Consolas, monospace"
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                    // Type badge
+                                                    Rectangle {
+                                                        width: typeBadge.implicitWidth + 8; height: 18; radius: 3
+                                                        color: (l3Content.detail.version_type === "release") ? "#1a3a28" : "#3a2a18"
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        Text {
+                                                            id: typeBadge
+                                                            anchors.centerIn: parent
+                                                            text: (l3Content.detail.version_type === "release") ? "正式版" :
+                                                                  (l3Content.detail.version_type === "beta") ? "测试版" :
+                                                                  (l3Content.detail.version_type || "-")
+                                                            color: (l3Content.detail.version_type === "release") ? "#48d878" : "#e8a840"
+                                                            font.pixelSize: 9
+                                                        }
+                                                    }
+                                                }
+
+                                                // Downloads + Date row
+                                                Row { spacing: 16
+                                                    Row { spacing: 4
+                                                        Text { text: "⬇"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
+                                                        Text {
+                                                            text: rpDetailPage.formatDownloads(l3Content.detail.downloads)
+                                                            color: "#a0a8c0"; font.pixelSize: 10
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
+                                                    }
+                                                    Row { spacing: 4
+                                                        Text { text: "📅"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
+                                                        Text {
+                                                            text: rpDetailPage.formatDate(l3Content.detail.date_published)
+                                                            color: "#a0a8c0"; font.pixelSize: 10
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
+                                                    }
+                                                }
+
+                                                // Download button
+                                                Rectangle {
+                                                    width: l3DownloadBtn.implicitWidth + 24; height: 28; radius: 6
+                                                    color: l3DownloadHov.hovered ? "#4868d8" : "#3858c0"
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    Text {
+                                                        id: l3DownloadBtn
+                                                        anchors.centerIn: parent
+                                                        text: "⬇ 下载资源包"
+                                                        color: "#ffffff"; font.pixelSize: 12; font.weight: Font.Medium
+                                                    }
+                                                    MouseArea {
+                                                        id: l3DownloadHov
+                                                        anchors.fill: parent; hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            console.log("[resourcepack] L3 download:", rpDetailSlug, modelData)
+                                                            page.installingRpName = rpDetailSlug
+                                                            if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
+                                                            rpDetailSlug = ""; rpDetailPage.rpDetailSelectedVer = ""
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1673,6 +1797,7 @@ Rectangle {
     property string rpDetailTitle: ""
     property string installingRpName: ""
     property var rpVersionCache: ({})
+    property var rpVersionDetailCache: ({})  // { slug: { "1.21.11": {version_number,name,downloads,...} } }
 
     Connections {
         target: backend
@@ -1772,7 +1897,7 @@ Rectangle {
             }
         }
 
-        function onResourcepackVersionsPartial(slug, versions) {
+        function onResourcepackVersionsPartial(slug, versions, details) {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "PARTIAL", slug, "vers=", versions.length, "modelCount=", rpResultsModel.count)
             var chips = []
             var maxChips = Math.min(versions.length, 6)
@@ -1794,7 +1919,9 @@ Rectangle {
             if (!found) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "WARN: slug not found in model:", slug)
             }
-            page.rpVersionCache[slug] = versions; page.rpVersionCacheVersion++
+            page.rpVersionCache[slug] = versions
+            if (details) page.rpVersionDetailCache[slug] = details
+            page.rpVersionCacheVersion++
         }
 
         function onResourcepackVersionsProgress(done, total) {
@@ -1814,6 +1941,8 @@ Rectangle {
     // Show detail when slug is set (triggers version fetch)
     onRpDetailSlugChanged: {
         console.log("[RP-DEBUG] rpDetailSlugChanged ->", rpDetailSlug)
+        rpDetailPage.rpDetailExpanded = ""
+        rpDetailPage.rpDetailSelectedVer = ""
         if (rpDetailSlug && backend) {
             backend.fetchResourcepackVersions([rpDetailSlug])
             console.log("[RP-DEBUG] detail fetch versions for", rpDetailSlug)

@@ -127,7 +127,7 @@ signals:
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);  // slug → QStringList (major versions)
-    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions);  // incremental: per slug
+    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);  // incremental: per slug + version details
     void resourcepackVersionsProgress(int done, int total);  // 0..total
     void logMessage(const QString& msg);
 

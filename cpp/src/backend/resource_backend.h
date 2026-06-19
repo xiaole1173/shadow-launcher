@@ -43,7 +43,7 @@ signals:
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
-    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions);
+    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void resourcepackVersionsProgress(int done, int total);
     void logMessage(const QString& msg);
 

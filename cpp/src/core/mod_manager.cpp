@@ -297,7 +297,7 @@ void ModManager::downloadResourcepack(
 
     emit logMessage(QStringLiteral("[MODRINTH] 下载资源包: %1 MC%2").arg(slug, gameVersion));
 
-    // Step 1: fetch versions, pick matching one, download primary file
+    // Step 1: fetch versions filtered by game_version, pick matching primary file
     QUrl versionsUrl(MODRINTH_API + "/project/" + slug + "/version");
     QUrlQuery vp;
     if (!gameVersion.isEmpty())
@@ -310,11 +310,12 @@ void ModManager::downloadResourcepack(
             QJsonArray files = parseVersionsResponse(data);
             if (files.isEmpty()) {
                 setBusy(false);
+                emit logMessage(QStringLiteral("[MODRINTH] 无文件匹配 MC%1").arg(gameVersion));
                 emit resourcepackDownloadFinished(slug, false, {});
                 return;
             }
 
-            // Pick best file: match game version, or first
+            // Pick best file: match game version, prefer primary
             QJsonObject bestFile;
             for (const QJsonValue& fv : files) {
                 QJsonObject f = fv.toObject();
@@ -323,17 +324,13 @@ void ModManager::downloadResourcepack(
                 for (const QJsonValue& gv : gvs) {
                     if (gv.toString() == gameVersion) { match = true; break; }
                 }
-                if (match || bestFile.isEmpty()) {
-                    bestFile = f;
-                    if (match) break;
+                if (match) {
+                    if (f.value(QStringLiteral("isPrimary")).toBool()) { bestFile = f; break; }
+                    if (bestFile.isEmpty()) bestFile = f;
                 }
             }
-
-            if (bestFile.isEmpty()) {
-                setBusy(false);
-                emit resourcepackDownloadFinished(slug, false, {});
-                return;
-            }
+            // Fallback: use first file if no exact match
+            if (bestFile.isEmpty()) bestFile = files.first().toObject();
 
             QString dlUrl = bestFile[QStringLiteral("url")].toString();
             QString filename = bestFile[QStringLiteral("filename")].toString();
@@ -426,50 +423,63 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
                 [this, slug, i, results, processOne](int status, const QByteArray& data) {
                     emit logMessage(QStringLiteral("[MODRINTH-BATCH] #%1 slug=%2 HTTP=%3 size=%4")
                                     .arg(i).arg(slug).arg(status).arg(data.size()));
-                    QJsonArray versions = parseVersionsResponse(data);
-                    QStringList majorVersions;
+                    // Collect all unique game_versions (MC versions this pack supports)
+                    QJsonDocument doc = QJsonDocument::fromJson(data);
+                    QJsonArray verObjs = doc.array();
                     QSet<QString> seen;
+                    QStringList allGameVersions;
 
-                    for (const QJsonValue& v : versions) {
-                        QJsonObject ver = v.toObject();
-                        QJsonArray gvs = ver[QStringLiteral("gameVersions")].toArray();
+                    for (const QJsonValue& vv : verObjs) {
+                        QJsonObject ver = vv.toObject();
+                        QJsonArray gvs = ver.value(QStringLiteral("game_versions")).toArray();
                         for (const QJsonValue& gv : gvs) {
                             QString gvStr = gv.toString();
-                            static QRegularExpression majorRe(QStringLiteral("^(\\d+\\.\\d+)"));
-                            auto match = majorRe.match(gvStr);
-                            if (match.hasMatch()) {
-                                QString major = match.captured(1);  // "1.21" not "1.21.X"
-                                if (!seen.contains(major)) {
-                                    seen.insert(major);
-                                    majorVersions.append(major);
-                                }
-                            } else {
-                                if (!seen.contains(gvStr)) {
-                                    seen.insert(gvStr);
-                                    majorVersions.append(gvStr);
-                                }
+                            if (!seen.contains(gvStr)) {
+                                seen.insert(gvStr);
+                                allGameVersions.append(gvStr);
                             }
                         }
                     }
 
-                    std::sort(majorVersions.begin(), majorVersions.end(),
+                    // Sort by MC version (newest first)
+                    std::sort(allGameVersions.begin(), allGameVersions.end(),
                         [](const QString& a, const QString& b) {
-                            if (a == QStringLiteral("全版本")) return true;
-                            if (b == QStringLiteral("全版本")) return false;
-                            static QRegularExpression verRe(QStringLiteral("^(\\d+)\\.(\\d+)"));
-                            auto ma = verRe.match(a);
-                            auto mb = verRe.match(b);
-                            if (ma.hasMatch() && mb.hasMatch()) {
-                                int aMaj = ma.captured(1).toInt();
-                                int bMaj = mb.captured(1).toInt();
-                                if (aMaj != bMaj) return aMaj > bMaj;
-                                return ma.captured(2).toInt() > mb.captured(2).toInt();
-                            }
-                            return a > b;
+                            auto parse = [](const QString& v) -> std::tuple<int,int,int> {
+                                auto pts = v.split('.');
+                                return {
+                                    pts.size() > 0 ? pts[0].toInt() : 0,
+                                    pts.size() > 1 ? pts[1].toInt() : 0,
+                                    pts.size() > 2 ? pts[2].toInt() : 0
+                                };
+                            };
+                            return parse(a) > parse(b);
                         });
 
-                    (*results)[slug] = majorVersions;
-                    emit resourcepackVersionsPartial(slug, majorVersions);
+                    // Build detailMap: for each game_version, find the newest pack version that supports it
+                    QVariantMap detailMap;
+                    for (const QString& gv : allGameVersions) {
+                        for (const QJsonValue& vv : verObjs) {
+                            QJsonObject ver = vv.toObject();
+                            QJsonArray gvs = ver["game_versions"].toArray();
+                            bool found = false;
+                            for (const QJsonValue& g : gvs) {
+                                if (g.toString() == gv) { found = true; break; }
+                            }
+                            if (found) {
+                                QVariantMap detail;
+                                detail["version_number"] = ver["version_number"].toString();
+                                detail["name"] = ver["name"].toString();
+                                detail["downloads"] = ver["downloads"].toInt();
+                                detail["date_published"] = ver["date_published"].toString();
+                                detail["version_type"] = ver["version_type"].toString();
+                                detailMap[gv] = detail;
+                                break;
+                            }
+                        }
+                    }
+
+                    (*results)[slug] = allGameVersions;
+                    emit resourcepackVersionsPartial(slug, allGameVersions, detailMap);
                     processOne();
                 },
                 [this, slug, processOne](const QString& err) {
@@ -622,6 +632,7 @@ QJsonArray ModManager::parseVersionsResponse(const QByteArray& data)
             file[QStringLiteral("gameVersions")] = gameVersions;
             file[QStringLiteral("loaders")]      = loaders;
             file[QStringLiteral("isPrimary")]    = f.value(QStringLiteral("primary"));
+            file[QStringLiteral("versionNumber")] = verNumber;  // "1.21.11"
 
             files.append(file);
         }
