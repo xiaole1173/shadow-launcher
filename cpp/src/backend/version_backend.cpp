@@ -696,6 +696,7 @@ void VersionBackend::syncPrimaryProgress()
         emit installProgressChanged();
         emit installTotalChanged();
         emit installSpeedChanged(0);
+        emit installStateChanged();
         return;
     }
 
