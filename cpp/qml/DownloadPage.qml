@@ -54,6 +54,7 @@ Rectangle {
         page.rpPage = 0
         page.rpLoadingMore = false
         page.rpHasMore = true
+        page.rpCategoryFilter = ""
         rpResultsModel.clear()
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
@@ -963,7 +964,7 @@ Rectangle {
                                                 var groups = []
                                                 for (var i = 0; i < backend.versionIds.length; i++) {
                                                     var v = backend.versionIds[i]
-                                                    var major = v.split(".").slice(0, 2).join(".")
+                                                    var major = v.split(/[.\-]/).slice(0, 2).join(".")
                                                     if (!seen.has(major)) {
                                                         seen.add(major)
                                                         groups.push(major)
