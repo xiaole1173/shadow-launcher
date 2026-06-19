@@ -9,6 +9,7 @@
 #include <QStandardPaths>
 #include <QFile>
 #include <QWindow>
+#include <QQuickWindow>
 #include <QAbstractNativeEventFilter>
 #include <QElapsedTimer>
 #include <QTimer>
@@ -218,9 +219,12 @@ int main(int argc, char *argv[])
         // Shared ready flag (heap-allocated so lambdas share ownership)
         auto ready = std::make_shared<bool>(false);
         auto doScreenshot = [ssPath, &app]() {
-            if (screenshotWindow && screenshotWindow->isVisible()) {
-                QScreen* screen = QGuiApplication::primaryScreen();
-                QPixmap pix = screen->grabWindow(screenshotWindow->winId());
+            // Use QQuickWindow::grabWindow() — renders window content off-screen
+            // (QScreen::grabWindow captures screen compositor + overlapping windows on Windows)
+            auto* qw = qobject_cast<QQuickWindow*>(screenshotWindow);
+            if (qw && qw->isVisible()) {
+                QImage img = qw->grabWindow();
+                QPixmap pix = QPixmap::fromImage(img);
                 if (pix.save(ssPath, "PNG")) {
                     qCInfo(logApp) << "Screenshot saved:" << ssPath
                                    << "size:" << pix.width() << "x" << pix.height();
