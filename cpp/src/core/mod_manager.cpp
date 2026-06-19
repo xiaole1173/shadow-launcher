@@ -660,6 +660,249 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 }
 
 // ============================================================
+// fetchModVersions() — clone of fetchResourcepackVersions
+// for Mod tab detail page
+// ============================================================
+
+void ModManager::fetchModVersions(const QStringList& slugs)
+{
+    if (slugs.isEmpty()) return;
+
+    auto results = std::make_shared<QVariantMap>();
+    auto total = std::make_shared<int>(slugs.size());
+    auto pending = std::make_shared<int>(slugs.size());
+    auto resolved = std::make_shared<int>(0);
+    auto slugList = std::make_shared<QStringList>(slugs);
+    auto index = std::make_shared<int>(0);
+
+    static const int kBatchSize = 5;
+
+    emit logMessage(QStringLiteral("[MODRINTH-MOD] 获取 %1 个Mod版本 (批量 %2/次)")
+                    .arg(slugs.size()).arg(kBatchSize));
+    emit modVersionsProgress(0, slugs.size());
+
+    auto processOne = [this, results, pending, resolved, total, slugList]() {
+        int done = ++(*resolved);
+        emit logMessage(QStringLiteral("[MODRINTH-MOD-BATCH] 完成 %1/%2").arg(done).arg(*total));
+        emit modVersionsProgress(done, *total);
+        if (done >= *total) {
+            emit modVersionsLoaded(*results);
+            emit logMessage(QStringLiteral("[MODRINTH-MOD-BATCH] 全部完成 (%1 个)").arg(*total));
+        }
+    };
+
+    auto launchBatchPtr = std::make_shared<std::function<void()>>();
+    auto indexPtr = index;
+    *launchBatchPtr = [=]() {
+        int start = *indexPtr;
+        int end = qMin(start + kBatchSize, slugList->size());
+        if (start >= end) return;
+        *indexPtr = end;
+
+        for (int i = start; i < end; ++i) {
+            const QString& slug = (*slugList)[i];
+            QUrl url(MODRINTH_API + "/project/" + slug + "/version");
+
+            emit logMessage(QStringLiteral("[MODRINTH-MOD-BATCH] HTTP GET #%1 slug=%2").arg(i).arg(slug));
+
+            HttpClient::instance().get(url.toString(),
+                [this, slug, i, results, processOne](int status, const QByteArray& data) {
+                    QJsonDocument doc = QJsonDocument::fromJson(data);
+                    QJsonArray verObjs = doc.array();
+                    QSet<QString> seen;
+                    QStringList allGameVersions;
+
+                    for (const QJsonValue& vv : verObjs) {
+                        QJsonObject ver = vv.toObject();
+                        QJsonArray gvs = ver.value(QStringLiteral("game_versions")).toArray();
+                        for (const QJsonValue& gv : gvs) {
+                            QString gvStr = gv.toString();
+                            if (!seen.contains(gvStr)) {
+                                seen.insert(gvStr);
+                                allGameVersions.append(gvStr);
+                            }
+                        }
+                    }
+
+                    std::sort(allGameVersions.begin(), allGameVersions.end(),
+                        [](const QString& a, const QString& b) {
+                            auto parse = [](const QString& v) -> std::tuple<int,int,int> {
+                                auto pts = v.split('.');
+                                return {
+                                    pts.size() > 0 ? pts[0].toInt() : 0,
+                                    pts.size() > 1 ? pts[1].toInt() : 0,
+                                    pts.size() > 2 ? pts[2].toInt() : 0
+                                };
+                            };
+                            return parse(a) > parse(b);
+                        });
+
+                    QVariantMap detailMap;
+                    for (const QString& gv : allGameVersions) {
+                        for (const QJsonValue& vv : verObjs) {
+                            QJsonObject ver = vv.toObject();
+                            QJsonArray gvs = ver["game_versions"].toArray();
+                            bool found = false;
+                            for (const QJsonValue& g : gvs) {
+                                if (g.toString() == gv) { found = true; break; }
+                            }
+                            if (found) {
+                                QVariantMap detail;
+                                detail["version_number"] = ver["version_number"].toString();
+                                detail["name"] = ver["name"].toString();
+                                detail["downloads"] = ver["downloads"].toInt();
+                                detail["date_published"] = ver["date_published"].toString();
+                                detail["version_type"] = ver["version_type"].toString();
+                                // Include loaders info
+                                QJsonArray loaders = ver["loaders"].toArray();
+                                QStringList loaderList;
+                                for (const QJsonValue& l : loaders) loaderList << l.toString();
+                                detail["loaders"] = loaderList;
+                                detailMap[gv] = detail;
+                                break;
+                            }
+                        }
+                    }
+
+                    (*results)[slug] = allGameVersions;
+                    emit modVersionsPartial(slug, allGameVersions, detailMap);
+                    processOne();
+                },
+                [this, slug, processOne](const QString& err) {
+                    Q_UNUSED(err); Q_UNUSED(slug);
+                    processOne();
+                }
+            );
+        }
+
+        if (*indexPtr < slugList->size()) {
+            QTimer::singleShot(100, [launchBatchPtr]() { (*launchBatchPtr)(); });
+        }
+    };
+
+    (*launchBatchPtr)();
+}
+
+// ============================================================
+// fetchShaderVersions() — clone of fetchResourcepackVersions
+// for Shader tab detail page
+// ============================================================
+
+void ModManager::fetchShaderVersions(const QStringList& slugs)
+{
+    if (slugs.isEmpty()) return;
+
+    auto results = std::make_shared<QVariantMap>();
+    auto total = std::make_shared<int>(slugs.size());
+    auto pending = std::make_shared<int>(slugs.size());
+    auto resolved = std::make_shared<int>(0);
+    auto slugList = std::make_shared<QStringList>(slugs);
+    auto index = std::make_shared<int>(0);
+
+    static const int kBatchSize = 5;
+
+    emit logMessage(QStringLiteral("[MODRINTH-SHADER] 获取 %1 个光影版本 (批量 %2/次)")
+                    .arg(slugs.size()).arg(kBatchSize));
+    emit shaderVersionsProgress(0, slugs.size());
+
+    auto processOne = [this, results, pending, resolved, total, slugList]() {
+        int done = ++(*resolved);
+        emit logMessage(QStringLiteral("[MODRINTH-SHADER-BATCH] 完成 %1/%2").arg(done).arg(*total));
+        emit shaderVersionsProgress(done, *total);
+        if (done >= *total) {
+            emit shaderVersionsLoaded(*results);
+            emit logMessage(QStringLiteral("[MODRINTH-SHADER-BATCH] 全部完成 (%1 个)").arg(*total));
+        }
+    };
+
+    auto launchBatchPtr = std::make_shared<std::function<void()>>();
+    auto indexPtr = index;
+    *launchBatchPtr = [=]() {
+        int start = *indexPtr;
+        int end = qMin(start + kBatchSize, slugList->size());
+        if (start >= end) return;
+        *indexPtr = end;
+
+        for (int i = start; i < end; ++i) {
+            const QString& slug = (*slugList)[i];
+            QUrl url(MODRINTH_API + "/project/" + slug + "/version");
+
+            emit logMessage(QStringLiteral("[MODRINTH-SHADER-BATCH] HTTP GET #%1 slug=%2").arg(i).arg(slug));
+
+            HttpClient::instance().get(url.toString(),
+                [this, slug, i, results, processOne](int status, const QByteArray& data) {
+                    QJsonDocument doc = QJsonDocument::fromJson(data);
+                    QJsonArray verObjs = doc.array();
+                    QSet<QString> seen;
+                    QStringList allGameVersions;
+
+                    for (const QJsonValue& vv : verObjs) {
+                        QJsonObject ver = vv.toObject();
+                        QJsonArray gvs = ver.value(QStringLiteral("game_versions")).toArray();
+                        for (const QJsonValue& gv : gvs) {
+                            QString gvStr = gv.toString();
+                            if (!seen.contains(gvStr)) {
+                                seen.insert(gvStr);
+                                allGameVersions.append(gvStr);
+                            }
+                        }
+                    }
+
+                    std::sort(allGameVersions.begin(), allGameVersions.end(),
+                        [](const QString& a, const QString& b) {
+                            auto parse = [](const QString& v) -> std::tuple<int,int,int> {
+                                auto pts = v.split('.');
+                                return {
+                                    pts.size() > 0 ? pts[0].toInt() : 0,
+                                    pts.size() > 1 ? pts[1].toInt() : 0,
+                                    pts.size() > 2 ? pts[2].toInt() : 0
+                                };
+                            };
+                            return parse(a) > parse(b);
+                        });
+
+                    QVariantMap detailMap;
+                    for (const QString& gv : allGameVersions) {
+                        for (const QJsonValue& vv : verObjs) {
+                            QJsonObject ver = vv.toObject();
+                            QJsonArray gvs = ver["game_versions"].toArray();
+                            bool found = false;
+                            for (const QJsonValue& g : gvs) {
+                                if (g.toString() == gv) { found = true; break; }
+                            }
+                            if (found) {
+                                QVariantMap detail;
+                                detail["version_number"] = ver["version_number"].toString();
+                                detail["name"] = ver["name"].toString();
+                                detail["downloads"] = ver["downloads"].toInt();
+                                detail["date_published"] = ver["date_published"].toString();
+                                detail["version_type"] = ver["version_type"].toString();
+                                detailMap[gv] = detail;
+                                break;
+                            }
+                        }
+                    }
+
+                    (*results)[slug] = allGameVersions;
+                    emit shaderVersionsPartial(slug, allGameVersions, detailMap);
+                    processOne();
+                },
+                [this, slug, processOne](const QString& err) {
+                    Q_UNUSED(err); Q_UNUSED(slug);
+                    processOne();
+                }
+            );
+        }
+
+        if (*indexPtr < slugList->size()) {
+            QTimer::singleShot(100, [launchBatchPtr]() { (*launchBatchPtr)(); });
+        }
+    };
+
+    (*launchBatchPtr)();
+}
+
+// ============================================================
 // cancel()
 // ============================================================
 

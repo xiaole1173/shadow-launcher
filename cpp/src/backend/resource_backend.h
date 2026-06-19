@@ -30,11 +30,13 @@ public:
     Q_INVOKABLE QVariantList getShaderList();
     Q_INVOKABLE void searchMods(const QString& query, const QString& loader = {});
     Q_INVOKABLE void searchShaders(const QString& query, const QString& gameVersion = {});
-    Q_INVOKABLE void downloadMod(const QString& slug, const QString& loader);
-    Q_INVOKABLE void downloadShader(const QString& slug);
+    Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
+    Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);
+    Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
+    Q_INVOKABLE void fetchShaderVersions(const QStringList& slugs);
     Q_INVOKABLE void cancelDownload();
 
 signals:
@@ -48,6 +50,14 @@ signals:
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
     void resourcepackVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void resourcepackVersionsProgress(int done, int total);
+
+    void modVersionsLoaded(const QVariantMap& slugToVersions);
+    void modVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
+    void modVersionsProgress(int done, int total);
+
+    void shaderVersionsLoaded(const QVariantMap& slugToVersions);
+    void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
+    void shaderVersionsProgress(int done, int total);
     void logMessage(const QString& msg);
 
 private slots:
@@ -55,6 +65,8 @@ private slots:
     void onResourcepackSearchCompleted(const QJsonArray& results, int totalHits);
     void onResourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void onResourcepackVersionsLoaded(const QVariantMap& slugToVersions);
+    void onModVersionsLoaded(const QVariantMap& slugToVersions);
+    void onShaderVersionsLoaded(const QVariantMap& slugToVersions);
     void onDownloadProgress(const QString& name, qint64 received, qint64 total);
     void onDownloadFinished(const QString& slug, bool success, const QString& filePath);
 

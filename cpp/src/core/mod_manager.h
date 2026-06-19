@@ -124,6 +124,8 @@ public:
 
     // Batch-fetch project game_versions for search result cards
     void fetchResourcepackVersions(const QStringList& slugs);
+    void fetchModVersions(const QStringList& slugs);
+    void fetchShaderVersions(const QStringList& slugs);
 
     // Popular mods (offline data)
     static QMap<QString, QJsonObject> getPopularMods(const QString& loader);
@@ -152,6 +154,15 @@ signals:
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);  // slug → QStringList (major versions)
     void resourcepackVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);  // incremental: per slug + version details
     void resourcepackVersionsProgress(int done, int total);  // 0..total
+
+    // Mod & Shader version detail signals
+    void modVersionsLoaded(const QVariantMap& slugToVersions);
+    void modVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
+    void modVersionsProgress(int done, int total);
+    void shaderVersionsLoaded(const QVariantMap& slugToVersions);
+    void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
+    void shaderVersionsProgress(int done, int total);
+
     void logMessage(const QString& msg);
 
     void busyChanged();

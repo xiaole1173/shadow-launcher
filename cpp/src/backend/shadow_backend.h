@@ -245,11 +245,13 @@ public:
     Q_INVOKABLE QVariantList getShaderList();
     Q_INVOKABLE void searchMods(const QString& query, const QString& loader = {});
     Q_INVOKABLE void searchShaders(const QString& query, const QString& gameVersion = {});
-    Q_INVOKABLE void downloadMod(const QString& slug, const QString& loader);
-    Q_INVOKABLE void downloadShader(const QString& slug);
+    Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
+    Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
+    Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
+    Q_INVOKABLE void fetchShaderVersions(const QStringList& slugs);
     Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
@@ -332,6 +334,14 @@ signals:
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
     void resourcepackVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void resourcepackVersionsProgress(int done, int total);
+
+    void modVersionsLoaded(const QVariantMap& slugToVersions);
+    void modVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
+    void modVersionsProgress(int done, int total);
+
+    void shaderVersionsLoaded(const QVariantMap& slugToVersions);
+    void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
+    void shaderVersionsProgress(int done, int total);
     void resourceDownloadProgress(int completed, int total, const QString& fileName);
     void resourceDownloadDone(bool success);
     void verifyRunningChanged();

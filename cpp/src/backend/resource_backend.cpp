@@ -32,6 +32,18 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::resourcepackVersionsPartial);
     connect(m_modMgr, &ModManager::resourcepackVersionsProgress,
             this, &ResourceBackend::resourcepackVersionsProgress);
+    connect(m_modMgr, &ModManager::modVersionsLoaded,
+            this, &ResourceBackend::onModVersionsLoaded);
+    connect(m_modMgr, &ModManager::modVersionsPartial,
+            this, &ResourceBackend::modVersionsPartial);
+    connect(m_modMgr, &ModManager::modVersionsProgress,
+            this, &ResourceBackend::modVersionsProgress);
+    connect(m_modMgr, &ModManager::shaderVersionsLoaded,
+            this, &ResourceBackend::onShaderVersionsLoaded);
+    connect(m_modMgr, &ModManager::shaderVersionsPartial,
+            this, &ResourceBackend::shaderVersionsPartial);
+    connect(m_modMgr, &ModManager::shaderVersionsProgress,
+            this, &ResourceBackend::shaderVersionsProgress);
     connect(m_modMgr, &ModManager::logMessage,
             this, &ResourceBackend::logMessage);
 }
@@ -111,33 +123,35 @@ void ResourceBackend::searchShaders(const QString& query, const QString& gameVer
 // Public Slots — Download
 // ============================================================
 
-void ResourceBackend::downloadMod(const QString& slug, const QString& loader)
+void ResourceBackend::downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir)
 {
     if (m_downloading) {
-        emit logMessage(QStringLiteral("⚠️ 已有下载任务进行中"));
+        emit logMessage(QStringLiteral("已有下载任务进行中"));
         return;
     }
 
     m_downloading = true;
     emit downloadStateChanged();
 
-    emit logMessage(QStringLiteral("🔍 正在查找 %1 (%2) 的最新版本...").arg(slug, loader));
-    m_modMgr->downloadMod(slug, QStringLiteral("1.20.1"), loader, m_minecraftDir,
+    QString destDir = minecraftDir.isEmpty() ? m_minecraftDir : minecraftDir;
+    emit logMessage(QStringLiteral("正在查找 %1 MC%2 的最新版本...").arg(slug, gameVersion));
+    m_modMgr->downloadMod(slug, gameVersion, QStringLiteral("fabric"), destDir,
                           QStringLiteral("mods"));
 }
 
-void ResourceBackend::downloadShader(const QString& slug)
+void ResourceBackend::downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir)
 {
     if (m_downloading) {
-        emit logMessage(QStringLiteral("⚠️ 已有下载任务进行中"));
+        emit logMessage(QStringLiteral("已有下载任务进行中"));
         return;
     }
 
     m_downloading = true;
     emit downloadStateChanged();
 
-    emit logMessage(QStringLiteral("🔍 正在查找 %1 光影包...").arg(slug));
-    m_modMgr->downloadShader(slug, QStringLiteral("1.20.1"), m_minecraftDir);
+    QString destDir = minecraftDir.isEmpty() ? m_minecraftDir : minecraftDir;
+    emit logMessage(QStringLiteral("正在查找 %1 MC%2 的最新版本...").arg(slug, gameVersion));
+    m_modMgr->downloadShader(slug, gameVersion, destDir);
 }
 
 void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories)
@@ -166,6 +180,16 @@ void ResourceBackend::downloadResourcepack(const QString& slug, const QString& g
 void ResourceBackend::fetchResourcepackVersions(const QStringList& slugs)
 {
     m_modMgr->fetchResourcepackVersions(slugs);
+}
+
+void ResourceBackend::fetchModVersions(const QStringList& slugs)
+{
+    m_modMgr->fetchModVersions(slugs);
+}
+
+void ResourceBackend::fetchShaderVersions(const QStringList& slugs)
+{
+    m_modMgr->fetchShaderVersions(slugs);
 }
 
 void ResourceBackend::cancelDownload()
@@ -278,6 +302,16 @@ void ResourceBackend::onResourcepackDownloadFinished(const QString& slug, bool s
 void ResourceBackend::onResourcepackVersionsLoaded(const QVariantMap& slugToVersions)
 {
     emit resourcepackVersionsLoaded(slugToVersions);
+}
+
+void ResourceBackend::onModVersionsLoaded(const QVariantMap& slugToVersions)
+{
+    emit modVersionsLoaded(slugToVersions);
+}
+
+void ResourceBackend::onShaderVersionsLoaded(const QVariantMap& slugToVersions)
+{
+    emit shaderVersionsLoaded(slugToVersions);
 }
 
 } // namespace ShadowLauncher

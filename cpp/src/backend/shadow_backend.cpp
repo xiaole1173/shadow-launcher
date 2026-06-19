@@ -264,6 +264,18 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::resourcepackVersionsPartial);
     connect(m_resource, &ResourceBackend::resourcepackVersionsProgress,
             this, &ShadowBackend::resourcepackVersionsProgress);
+    connect(m_resource, &ResourceBackend::modVersionsLoaded,
+            this, &ShadowBackend::modVersionsLoaded);
+    connect(m_resource, &ResourceBackend::modVersionsPartial,
+            this, &ShadowBackend::modVersionsPartial);
+    connect(m_resource, &ResourceBackend::modVersionsProgress,
+            this, &ShadowBackend::modVersionsProgress);
+    connect(m_resource, &ResourceBackend::shaderVersionsLoaded,
+            this, &ShadowBackend::shaderVersionsLoaded);
+    connect(m_resource, &ResourceBackend::shaderVersionsPartial,
+            this, &ShadowBackend::shaderVersionsPartial);
+    connect(m_resource, &ResourceBackend::shaderVersionsProgress,
+            this, &ShadowBackend::shaderVersionsProgress);
     connect(m_resource, &ResourceBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
@@ -912,12 +924,12 @@ void ShadowBackend::searchShaders(const QString& query, const QString& gameVersi
     m_resource->searchShaders(query, gameVersion);
 }
 
-void ShadowBackend::downloadMod(const QString& slug, const QString& loader) {
-    m_resource->downloadMod(slug, loader);
+void ShadowBackend::downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir) {
+    m_resource->downloadMod(slug, gameVersion, minecraftDir);
 }
 
-void ShadowBackend::downloadShader(const QString& slug) {
-    m_resource->downloadShader(slug);
+void ShadowBackend::downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir) {
+    m_resource->downloadShader(slug, gameVersion, minecraftDir);
 }
 
 void ShadowBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories) {
@@ -930,6 +942,14 @@ void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gam
 
 void ShadowBackend::fetchResourcepackVersions(const QStringList& slugs) {
     m_resource->fetchResourcepackVersions(slugs);
+}
+
+void ShadowBackend::fetchModVersions(const QStringList& slugs) {
+    m_resource->fetchModVersions(slugs);
+}
+
+void ShadowBackend::fetchShaderVersions(const QStringList& slugs) {
+    m_resource->fetchShaderVersions(slugs);
 }
 
 // ── Icon cache: async download webp → ffmpeg convert to PNG → cache locally ──
