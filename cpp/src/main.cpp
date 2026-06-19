@@ -155,6 +155,17 @@ int main(int argc, char *argv[])
         });
     }
 
+    // ── Auto-install test mode (trigger download click programmatically) ──
+    int autoInstallIdx = args.indexOf(QStringLiteral("--auto-install"));
+    if (autoInstallIdx >= 0 && autoInstallIdx + 1 < args.size()) {
+        QString autoVersion = args[autoInstallIdx + 1];
+        qCInfo(logApp) << "Auto-install test mode: version" << autoVersion;
+        QTimer::singleShot(1500, backend, [backend, autoVersion]() {
+            qCInfo(logApp) << "Auto-install: triggering install for" << autoVersion;
+            backend->installVersion(autoVersion);
+        });
+    }
+
     // ── Navigate + Screenshot test mode ──
     // Smart timing: wait for content-ready signal, not fixed delay
     // Usage: --screenshot <name> [--navigate <page>:<tab>]
