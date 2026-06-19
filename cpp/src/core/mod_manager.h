@@ -75,6 +75,17 @@ public:
         const QString& sort = "downloads"
     );
 
+    // Search with raw facets (e.g., "project_type:mod", "project_type:shader")
+    void searchModrinthProjects(
+        const QString& query,
+        const QStringList& facets = {},
+        const QStringList& gameVersions = {},
+        const QStringList& loaders = {},
+        int offset = 0,
+        int limit = 20,
+        const QString& sort = "downloads"
+    );
+
     void getModVersions(
         const QString& slug,
         const QStringList& loaders = {},

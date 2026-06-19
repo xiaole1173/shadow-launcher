@@ -129,29 +129,8 @@ Rectangle {
         page.modHasMore = false
         page.modTotalHits = 0
         var q = modSearchInput.text.trim()
-        if (q) {
-            console.log("[mod-ui] search query=\"" + q + "\" loader=" + page.modLoader)
-            backend.searchMods(q, page.modLoader)
-        } else {
-            console.log("[mod-ui] load hot mods loader=" + page.modLoader)
-            var popular = backend.getPopularMods(page.modLoader)
-            if (popular && popular.length) {
-                for (var i = 0; i < popular.length; i++) {
-                    var p = popular[i]
-                    modResultsModel.append({
-                        slug: p.slug || "",
-                        title: p.title || p.slug || "Unknown",
-                        desc: p.desc || p.description || "",
-                        icon: p.icon || "",
-                        downloads: p.downloads || 0,
-                        loader: page.modLoader || "fabric"
-                    })
-                }
-                page.modTotalHits = popular.length
-                console.log("[mod-ui] loaded " + popular.length + " popular mods")
-            }
-            page.modSearching = false
-        }
+        console.log("[mod-ui] searchMods query=\"" + q + "\" loader=" + page.modLoader)
+        backend.searchMods(q, page.modLoader)
     }
 
     function loadNextModPage() {
@@ -159,7 +138,6 @@ Rectangle {
         page.modLoadingMore = true
         var q = modSearchInput.text.trim()
         // FIXME: backend.searchMods doesn't support offset yet
-        // For now just show loaded
         page.modLoadingMore = false
         console.log("[mod-ui] loadNextModPage offset=" + page.modCurrentOffset)
     }
@@ -172,30 +150,8 @@ Rectangle {
         page.shaderHasMore = false
         page.shaderTotalHits = 0
         var q = shaderSearchInput.text.trim()
-        if (q) {
-            console.log("[shader-ui] search query=\"" + q + "\"")
-            if (backend.modManager && backend.modManager.searchModrinth) {
-                backend.modManager.searchModrinth(q, [], ["project_type:shader"], [], 0, 20, "relevance")
-            }
-        } else {
-            console.log("[shader-ui] load hot shaders")
-            var list = backend.getShaderList()
-            if (list && list.length) {
-                for (var i = 0; i < list.length; i++) {
-                    var s = list[i]
-                    shaderResultsModel.append({
-                        slug: s.slug || "",
-                        title: s.title || s.slug || "Unknown",
-                        desc: s.desc || s.description || "",
-                        icon: s.icon || "",
-                        downloads: s.downloads || 0
-                    })
-                }
-                page.shaderTotalHits = list.length
-                console.log("[shader-ui] loaded " + list.length + " shaders")
-            }
-            page.shaderSearching = false
-        }
+        console.log("[shader-ui] searchShaders query=\"" + q + "\" gv=" + (page.shaderGameVersion || ""))
+        backend.searchShaders(q, page.shaderGameVersion || "")
     }
 
     function loadNextShaderPage() {
@@ -1241,10 +1197,6 @@ Rectangle {
                                         anchors.centerIn: parent
                                         text: {
                                             if (!model) return "M"
-                                            var ic = model.icon || ""
-                                            // Show emoji if it's a single emoji char
-                                            if (ic.length <= 2) return ic
-                                            // Show first letter of title
                                             var t = model.title || "M"
                                             return t[0]
                                         }
@@ -1622,8 +1574,6 @@ Rectangle {
                                         anchors.centerIn: parent
                                         text: {
                                             if (!model) return "S"
-                                            var ic = model.icon || ""
-                                            if (ic.length <= 2) return ic
                                             var t = model.title || "S"
                                             return t[0]
                                         }

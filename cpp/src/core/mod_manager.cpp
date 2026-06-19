@@ -95,6 +95,70 @@ void ModManager::searchModrinth(
     );
 }
 
+void ModManager::searchModrinthProjects(
+    const QString& query,
+    const QStringList& facets,
+    const QStringList& gameVersions,
+    const QStringList& loaders,
+    int offset,
+    int limit,
+    const QString& sort)
+{
+    setBusy(true);
+    emit logMessage(QStringLiteral("正在搜索 Modrinth (facets=%1)...").arg(facets.join(",")));
+
+    QJsonArray facetArr;
+    if (!facets.isEmpty()) {
+        for (const QString& f : facets) {
+            QJsonArray single;
+            single.append(f);
+            facetArr.append(single);
+        }
+    }
+    if (!gameVersions.isEmpty()) {
+        QJsonArray verFacet;
+        for (const QString& v : gameVersions)
+            verFacet.append(QStringLiteral("versions:") + v);
+        facetArr.append(verFacet);
+    }
+    if (!loaders.isEmpty()) {
+        QJsonArray ldFacet;
+        for (const QString& l : loaders)
+            ldFacet.append(QStringLiteral("categories:") + l);
+        facetArr.append(ldFacet);
+    }
+
+    QUrl url(MODRINTH_API + "/search");
+    QUrlQuery params;
+    if (!query.isEmpty())
+        params.addQueryItem(QStringLiteral("query"), query);
+    params.addQueryItem(QStringLiteral("facets"),
+                        QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
+    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    params.addQueryItem(QStringLiteral("index"), sort);
+    url.setQuery(params);
+
+    HttpClient::instance().get(url.toString(),
+        [this](int status, const QByteArray& body) {
+            if (status == 200) {
+                int totalHits = 0;
+                QJsonArray results = parseSearchResponse(body, totalHits);
+                m_lastTotalHits = totalHits;
+                emit searchCompleted(results, totalHits);
+                emit logMessage(QStringLiteral("搜索完成，共 %1 个结果").arg(totalHits));
+            } else {
+                emit searchFailed(QStringLiteral("搜索失败: HTTP %1").arg(status));
+            }
+            setBusy(false);
+        },
+        [this](const QString& error) {
+            emit searchFailed(QStringLiteral("网络错误: %1").arg(error));
+            setBusy(false);
+        }
+    );
+}
+
 // ============================================================
 // getModVersions()
 // ============================================================

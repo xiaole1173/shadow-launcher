@@ -908,6 +908,10 @@ void ShadowBackend::searchMods(const QString& query, const QString& loader) {
     m_resource->searchMods(query, loader);
 }
 
+void ShadowBackend::searchShaders(const QString& query, const QString& gameVersion) {
+    m_resource->searchShaders(query, gameVersion);
+}
+
 void ShadowBackend::downloadMod(const QString& slug, const QString& loader) {
     m_resource->downloadMod(slug, loader);
 }

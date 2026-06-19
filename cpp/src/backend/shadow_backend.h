@@ -244,6 +244,7 @@ public:
     Q_INVOKABLE QVariantList getPopularMods(const QString& loader);
     Q_INVOKABLE QVariantList getShaderList();
     Q_INVOKABLE void searchMods(const QString& query, const QString& loader = {});
+    Q_INVOKABLE void searchShaders(const QString& query, const QString& gameVersion = {});
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& loader);
     Q_INVOKABLE void downloadShader(const QString& slug);
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});

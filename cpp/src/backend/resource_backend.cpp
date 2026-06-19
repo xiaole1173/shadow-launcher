@@ -90,9 +90,21 @@ void ResourceBackend::searchMods(const QString& query, const QString& loader)
     if (!loader.isEmpty())
         loaders << loader;
 
-    emit logMessage(QStringLiteral("🔍 正在搜索: %1 (%2)...").arg(query, loader));
-    m_modMgr->searchModrinth(query, {}, {}, loaders, 0, 20,
+    emit logMessage(QStringLiteral("🔍 正在搜索Mod: %1 (%2)...").arg(query, loader));
+    // Use dedicated search with project_type:mod facet
+    m_modMgr->searchModrinthProjects(query, {QStringLiteral("project_type:mod")}, {}, loaders, 0, 20,
                              QStringLiteral("relevance"));
+}
+
+void ResourceBackend::searchShaders(const QString& query, const QString& gameVersion)
+{
+    QStringList versions;
+    if (!gameVersion.isEmpty())
+        versions << gameVersion;
+
+    emit logMessage(QStringLiteral("🔍 正在搜索光影: %1...").arg(query));
+    m_modMgr->searchModrinthProjects(query, {QStringLiteral("project_type:shader")}, versions, {}, 0, 20,
+                             QStringLiteral("downloads"));
 }
 
 // ============================================================
