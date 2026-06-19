@@ -60,11 +60,13 @@ Window {
     property bool downloadNavVisible: false
 
     function showDownloadNav() {
+        // Always show nav AND auto-switch (silent may pre-add the nav item)
         if (!downloadNavVisible) {
             downloadNavVisible = true
             navModel.append({ label: "下载进度", pageKey: "download_progress" })
-            switchPage(navModel.count - 1)  // auto-switch to the new page
         }
+        // Always auto-switch — critical: must not be blocked by silent pre-add
+        switchPage(navModel.count - 1)
     }
 
     function showDownloadNavSilent() {
@@ -95,6 +97,7 @@ Window {
     Connections {
         target: backend; enabled: backend !== null
         function onInstallingChanged() {
+            console.log("[main] onInstallingChanged: installing=", backend.installing, "downloadNavVisible=", downloadNavVisible)
             if (backend.installing) showDownloadNav()
         }
         function onInstallFinished(success) {
