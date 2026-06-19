@@ -179,6 +179,11 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::minecraftStarted);
     connect(m_launch, &LaunchBackend::minecraftStopped,
             this, &ShadowBackend::minecraftStopped);
+    connect(m_launch, &LaunchBackend::crashDetected,
+            this, [this](const QVariantMap& report) {
+                m_lastCrash = report;
+                emit crashDetected(report);
+            });
     connect(m_launch, &LaunchBackend::isRunningChanged,
             this, &ShadowBackend::isRunningChanged);
     connect(m_launch, &LaunchBackend::runningCountChanged,

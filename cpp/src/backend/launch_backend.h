@@ -8,6 +8,7 @@
 namespace ShadowLauncher {
 
 class Launcher;
+class CrashDetector;
 
 class LaunchBackend : public QObject {
     Q_OBJECT
@@ -53,6 +54,7 @@ signals:
     void launchStateChanged();
     void minecraftStarted();
     void minecraftStopped();
+    void crashDetected(const QVariantMap& report);
     void isRunningChanged();
     void runningCountChanged();
     void logMessage(const QString& msg);

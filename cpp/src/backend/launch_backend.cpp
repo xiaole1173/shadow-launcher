@@ -441,6 +441,22 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
         emit launchProgressChanged(0, errorMsg);
         qCCritical(logLaunch) << "Minecraft launch failed:" << errorMsg;
         emit logMessage(QStringLiteral("启动失败: %1").arg(errorMsg));
+
+        // ── Crash detection: scan for crash reports ──
+        CrashDetector detector;
+        CrashReport cr = detector.scanLatestCrash(m_gameDir);
+        if (cr.isValid) {
+            QVariantMap report;
+            report[QStringLiteral("type")] = cr.type;
+            report[QStringLiteral("reason")] = cr.reason;
+            report[QStringLiteral("description")] = cr.description;
+            report[QStringLiteral("suspectedMods")] = cr.suspectedMods;
+            report[QStringLiteral("filePath")] = cr.filePath;
+            report[QStringLiteral("timestamp")] = cr.timestamp;
+            report[QStringLiteral("isValid")] = true;
+            qCDebug(logLaunch) << "[CRASH] emitting crashDetected" << cr.type << cr.reason;
+            emit crashDetected(report);
+        }
     }
     emit launchStateChanged();
 }

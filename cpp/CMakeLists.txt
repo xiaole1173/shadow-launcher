@@ -53,6 +53,7 @@ set(SOURCES
     src/core/launcher.cpp
     src/core/mod_manager.cpp
     src/core/version_isolation.cpp
+    src/core/crash_detector.cpp
 
     # Backend (Phase 3 — added progressively)
     src/backend/app_backend.cpp
@@ -79,6 +80,7 @@ set(HEADERS
     src/core/launcher.h
     src/core/mod_manager.h
     src/core/version_isolation.h
+    src/core/crash_detector.h
     src/backend/app_backend.h
     src/backend/settings_backend.h
     src/backend/account_backend.h

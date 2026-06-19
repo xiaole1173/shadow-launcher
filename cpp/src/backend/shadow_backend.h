@@ -58,7 +58,7 @@ class ShadowBackend : public QObject {
 
     // ── Launch ──
     Q_PROPERTY(bool launching READ isLaunching NOTIFY launchStateChanged)
-    Q_PROPERTY(int launchProgress READ launchProgress NOTIFY launchProgressChanged)
+    Q_PROPERTY(QVariantMap lastCrash READ lastCrash NOTIFY crashDetected)
     Q_PROPERTY(QString launchStatus READ launchStatus NOTIFY launchProgressChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
     Q_PROPERTY(int runningCount READ runningCount NOTIFY runningCountChanged)
@@ -161,6 +161,9 @@ public:
     QString launchUsername() const { return m_launchUsername; }
     void setLaunchVersion(const QString& v) { m_launchVersion = v; }
     void setLaunchUsername(const QString& u) { m_launchUsername = u; }
+
+    // ── Crash getters ──
+    QVariantMap lastCrash() const { return m_lastCrash; }
 
     // ── Resource getters ──
     bool isResourceDownloading() const;
@@ -314,8 +317,8 @@ signals:
     void launchStateChanged();
     void minecraftStarted();
     void minecraftStopped();
-    void isRunningChanged();
-    void runningCountChanged();
+    // ── Crash detection ──
+    void crashDetected(const QVariantMap& report);
     void resourceDownloadStateChanged();
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
@@ -387,6 +390,7 @@ private:
     int m_lastLoginMode = 1;
     QString m_launchVersion;
     QString m_launchUsername;
+    QVariantMap m_lastCrash;
     QString m_verifyReportPath;
     bool m_closeOnLaunch = false;
     QString m_gameDir;
