@@ -16,6 +16,7 @@
 #include <QScreen>
 #include <QPixmap>
 #include <QWindow>
+#include <memory>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
@@ -154,9 +155,8 @@ int main(int argc, char *argv[])
     }
 
     // ── Navigate + Screenshot test mode ──
+    // Smart timing: wait for content-ready signal, not fixed delay
     // Usage: --screenshot <name> [--navigate <page>:<tab>]
-    //   page: launch|download|settings  (or 0|1|2)
-    //   tab (download only): mc|mod|shader|rp  (or 0|1|2|3)
     int ssIdx = args.indexOf(QStringLiteral("--screenshot"));
     if (ssIdx >= 0 && ssIdx + 1 < args.size()) {
         QString ssName = args[ssIdx + 1];
@@ -184,46 +184,79 @@ int main(int argc, char *argv[])
             }
         }
 
+        // Shared ready flag (heap-allocated so lambdas share ownership)
+        auto ready = std::make_shared<bool>(false);
+        auto doScreenshot = [ssPath, &app]() {
+            if (screenshotWindow && screenshotWindow->isVisible()) {
+                QScreen* screen = QGuiApplication::primaryScreen();
+                QPixmap pix = screen->grabWindow(screenshotWindow->winId());
+                if (pix.save(ssPath, "PNG")) {
+                    qCInfo(logApp) << "Screenshot saved:" << ssPath
+                                   << "size:" << pix.width() << "x" << pix.height();
+                } else {
+                    qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
+                }
+            } else {
+                qCCritical(logApp) << "Screenshot: window not ready";
+            }
+            qApp->quit();
+        };
+
         if (targetPage >= 0) {
-            int delayMs = 3000;  // base delay for QML load
-            if (targetPage == 1 && targetTab >= 0) delayMs = 8000;  // download+RP needs network
             qCInfo(logApp) << "Screenshot: navigating to page" << targetPage
-                           << "tab" << targetTab << "delay" << delayMs << "ms";
+                           << "tab" << targetTab;
+
+            // Navigate after QML is ready
             QTimer::singleShot(1500, backend, [backend, targetPage, targetTab]() {
                 emit backend->navigateToRequested(targetPage, targetTab);
             });
-            QTimer::singleShot(delayMs, &app, [ssPath]() {
-                if (screenshotWindow && screenshotWindow->isVisible()) {
-                    QScreen* screen = QGuiApplication::primaryScreen();
-                    QPixmap pix = screen->grabWindow(screenshotWindow->winId());
-                    if (pix.save(ssPath, "PNG")) {
-                        qCInfo(logApp) << "Screenshot saved:" << ssPath
-                                       << "size:" << pix.width() << "x" << pix.height();
-                    } else {
-                        qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
-                    }
-                } else {
-                    qCCritical(logApp) << "Screenshot: window not ready";
+
+            // Connect to content-ready signals based on target
+            if (targetPage == 1 && targetTab == 3) {
+                // RP tab: wait for search results
+                QObject::connect(backend, &ShadowBackend::resourcepackSearchCompleted,
+                    &app, [ready](const QVariantList&, int) {
+                        *ready = true;
+                        qCInfo(logApp) << "Screenshot: RP search completed, ready";
+                    });
+            } else if (targetPage == 1 && targetTab == 1) {
+                // Mod tab: wait for mod search results
+                QObject::connect(backend, &ShadowBackend::searchResultsReady,
+                    &app, [ready](const QVariantList&) {
+                        *ready = true;
+                        qCInfo(logApp) << "Screenshot: Mod search completed, ready";
+                    });
+            } else {
+                // Launch/Settings: ready after base render delay
+                QTimer::singleShot(3000, &app, [ready]() {
+                    *ready = true;
+                });
+            }
+
+            // Poll until ready or timeout
+            auto pollTimer = new QTimer(&app);
+            auto maxTimer = new QTimer(&app);
+            QObject::connect(pollTimer, &QTimer::timeout, &app, [ready, pollTimer, maxTimer, doScreenshot]() {
+                if (*ready) {
+                    qCInfo(logApp) << "Screenshot: content ready, capturing...";
+                    pollTimer->stop();
+                    maxTimer->stop();
+                    // Small delay for final rendering
+                    QTimer::singleShot(500, qApp, doScreenshot);
                 }
-                qApp->quit();
             });
+            QObject::connect(maxTimer, &QTimer::timeout, &app, [ready, pollTimer, doScreenshot]() {
+                qCWarning(logApp) << "Screenshot: timeout waiting for content, capturing anyway";
+                pollTimer->stop();
+                *ready = true;  // force
+                QTimer::singleShot(200, qApp, doScreenshot);
+            });
+            pollTimer->start(200);     // check every 200ms
+            maxTimer->start(20000);     // 20s max timeout
+
         } else {
-            // No navigation: take screenshot after base delay
-            QTimer::singleShot(3000, &app, [ssPath]() {
-                if (screenshotWindow && screenshotWindow->isVisible()) {
-                    QScreen* screen = QGuiApplication::primaryScreen();
-                    QPixmap pix = screen->grabWindow(screenshotWindow->winId());
-                    if (pix.save(ssPath, "PNG")) {
-                        qCInfo(logApp) << "Screenshot saved:" << ssPath
-                                       << "size:" << pix.width() << "x" << pix.height();
-                    } else {
-                        qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
-                    }
-                } else {
-                    qCCritical(logApp) << "Screenshot: window not ready";
-                }
-                qApp->quit();
-            });
+            // No navigation: take screenshot after QML render delay
+            QTimer::singleShot(3000, &app, doScreenshot);
         }
     }
 
