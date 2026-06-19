@@ -1529,16 +1529,10 @@ Rectangle {
                                     clip: true
                                     Repeater {
                                         model: {
-                                            if (!model) return [{text: "加载中…", color: "#404860"}]
-                                            var vers = page.rpVersionCache[model.slug] || []
-                                            if (vers.length === 0) return [{text: "加载中…", color: "#404860"}]
-                                            var chips = []
-                                            var maxChips = Math.min(vers.length, 6)
-                                            for (var i = 0; i < maxChips; i++) {
-                                                chips.push({text: vers[i], color: "#90a0c8"})
+                                            if (model.chips && model.chips !== "") {
+                                                try { return JSON.parse(model.chips) } catch(e) {}
                                             }
-                                            if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#c060a0"})
-                                            return chips
+                                            return [{text: "加载中…", color: "#404860"}]
                                         }
                                         Rectangle {
                                             height: 18; width: chipText.implicitWidth + 10; radius: 9
@@ -1767,6 +1761,25 @@ Rectangle {
             console.log("[resourcepack] versions loaded, keys:", data ? Object.keys(data).length : 0)
             if (data) {
                 page.rpVersionCache = data
+                // Also set chips on model items (for cards already rendered)
+                var slugs = Object.keys(data)
+                for (var s = 0; s < slugs.length; s++) {
+                    var slug = slugs[s]
+                    var vers = data[slug]
+                    var chips = []
+                    var maxChips = Math.min(vers.length, 6)
+                    for (var j = 0; j < maxChips; j++) {
+                        chips.push({text: vers[j], color: "#90a0c8"})
+                    }
+                    if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#c060a0"})
+                    var chipsJson = JSON.stringify(chips)
+                    for (var i = 0; i < rpResultsModel.count; i++) {
+                        if (rpResultsModel.get(i).slug === slug) {
+                            rpResultsModel.setProperty(i, "chips", chipsJson)
+                            break
+                        }
+                    }
+                }
                 if (rpDetailSlug && data[rpDetailSlug]) {
                     console.log("[resourcepack] detail versions:", data[rpDetailSlug])
                 }
@@ -1774,14 +1787,22 @@ Rectangle {
         }
 
         function onResourcepackVersionsPartial(slug, versions) {
-            // Incremental update: show version chips as they arrive
+            // Compute chips and store on model item (avoids binding loop)
+            var chips = []
+            var maxChips = Math.min(versions.length, 6)
+            for (var j = 0; j < maxChips; j++) {
+                chips.push({text: versions[j], color: "#90a0c8"})
+            }
+            if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: "#c060a0"})
+            var chipsJson = JSON.stringify(chips)
+
             for (var i = 0; i < rpResultsModel.count; i++) {
-                var item = rpResultsModel.get(i)
-                if (item.slug === slug) {
-                    page.rpVersionCache[slug] = versions
+                if (rpResultsModel.get(i).slug === slug) {
+                    rpResultsModel.setProperty(i, "chips", chipsJson)
                     break
                 }
             }
+            page.rpVersionCache[slug] = versions
         }
 
         function onResourcepackVersionsProgress(done, total) {
