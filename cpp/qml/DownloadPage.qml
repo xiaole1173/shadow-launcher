@@ -922,7 +922,7 @@ Rectangle {
                             MouseArea {
                                 id: rpVerHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: rpVersionMenu.open()
+                                onClicked: { if (rpVersionMenu.visible) { rpVersionMenu.close() } else { rpVersionMenu.open() } }
                             }
 
                             Popup {
@@ -1023,7 +1023,7 @@ Rectangle {
                             MouseArea {
                                 id: rpTypeHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: rpTypeMenu.open()
+                                onClicked: { if (rpTypeMenu.visible) { rpTypeMenu.close() } else { rpTypeMenu.open() } }
                             }
 
                             Popup {
