@@ -38,7 +38,14 @@ Rectangle {
     // Resource pack state
     property string rpGameVersion: backend && backend.versionIds && backend.versionIds.length > 0
                                   ? backend.versionIds[0] : "1.21.10"
-    property string rpDownloadDir: ""  // user-selected target folder
+    property string rpDownloadDir: ""
+    property bool rpResultsReady: false
+
+    function loadResourcepackResults() {
+        if (!backend) return
+        console.log("[resourcepack] auto-loading popular packs, ver:", page.rpGameVersion)
+        backend.searchResourcepacks("", page.rpGameVersion)
+    }  // user-selected target folder
 
     signal goBack()
 
@@ -63,6 +70,7 @@ Rectangle {
     onCurrentTabChanged: {
         if (currentTab === 0) refreshVersionModel()
         if (currentTab === 1 && !modResultsReady) { loadModResults(); modResultsReady = true }
+        if (currentTab === 3 && !rpResultsReady) { loadResourcepackResults(); rpResultsReady = true }
     }
 
     // ──── Animations ────
@@ -1277,10 +1285,84 @@ Rectangle {
                 height: 34
                 spacing: 8
 
-                Text {
-                    text: "MC " + page.rpGameVersion
-                    color: "#9094a8"
-                    font.pixelSize: 12
+                // ── Version filter pill (clickable dropdown) ──
+                Rectangle {
+                    height: 26; radius: 13
+                    width: rpVerLabel.implicitWidth + 20
+                    color: rpVerMouse.containsMouse ? "#1a2848" : "#11141c"
+                    border.color: page.rpGameVersion !== backend.versionIds[0] ? "#c060a0" : "#5068c8"
+                    border.width: 1
+                    scale: rpVerMouse.containsMouse ? 1.04 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Text {
+                            id: rpVerLabel
+                            text: "MC " + page.rpGameVersion
+                            color: "#d0d4e0"
+                            font.pixelSize: 11
+                            font.weight: Font.Medium
+                        }
+                        Text {
+                            text: "▼"
+                            color: "#505468"
+                            font.pixelSize: 8
+                        }
+                    }
+
+                    MouseArea {
+                        id: rpVerMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rpVersionMenu.open()
+                    }
+
+                    // Version menu popup
+                    Popup {
+                        id: rpVersionMenu
+                        y: parent.height + 4
+                        width: 140
+                        implicitHeight: rpVerList.contentHeight + 8
+                        padding: 4
+                        background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
+
+                        ListView {
+                            id: rpVerList
+                            anchors.fill: parent
+                            model: backend ? backend.versionIds.slice(0, 15) : ["1.21.10", "1.20.6", "1.19.4"]
+                            delegate: Item {
+                                width: 132; height: 28
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 4
+                                    color: verItemMouse.containsMouse ? "#1a2848" : "transparent"
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: modelData === page.rpGameVersion ? "#c060a0" : "#9094a8"
+                                        font.pixelSize: 11
+                                        font.weight: modelData === page.rpGameVersion ? Font.Bold : Font.Normal
+                                    }
+                                    MouseArea {
+                                        id: verItemMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            page.rpGameVersion = modelData
+                                            rpVersionMenu.close()
+                                            console.log("[resourcepack] version filter changed:", modelData)
+                                            // Re-search with new version
+                                            if (backend) backend.searchResourcepacks(rpSearchInput.text || "", modelData)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
