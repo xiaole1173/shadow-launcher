@@ -1702,7 +1702,7 @@ Rectangle {
                                                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                                                 spacing: 6
 
-                                                property var detail: rpDetailPage.getVerDetail(modelData) || {}
+                                                property var detail: { var slugCache = page.rpVersionDetailCache[page.rpDetailSlug]; return slugCache ? (slugCache[modelData] || {}) : {} }
 
                                                 // Pack name
                                                 Text {

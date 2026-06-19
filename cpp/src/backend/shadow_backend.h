@@ -237,7 +237,7 @@ public:
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0);
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion);
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
-    Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp → ffmpeg → PNG, emits iconCached
+    Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
@@ -314,7 +314,7 @@ signals:
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
-    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions);
+    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void resourcepackVersionsProgress(int done, int total);
     void resourceDownloadProgress(int completed, int total, const QString& fileName);
     void resourceDownloadDone(bool success);
@@ -334,7 +334,7 @@ signals:
 
     // ── Auto-test navigation signal ──
     // pageIndex: 0=Launch, 1=Download, 2=Settings
-    // subTab: for Download page — 0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
+    // subTab: for Download page �?0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
     void navigateToRequested(int pageIndex, int subTab);
 
     // ── Auto-test: open RP detail page ──
@@ -344,6 +344,7 @@ signals:
     void setRpShowPreReleases(bool show);
     void openRpVersionMenu();
     void expandRpDetailGroup(const QString& major);
+    void selectRpDetailSubVer(const QString& version);
 
     // ── Verify signals ──
     void verifyStarted();
