@@ -42,6 +42,22 @@ Rectangle {
     property real rpLoadingProgress: 0  // 0..1 for version fetch progress
     property int rpDebugSeq: 0  // sequence counter for log correlation
     property string rpCategoryFilter: ""  // category key for filtering
+    property int rpPage: 0  // current page offset for pagination
+    property bool rpLoadingMore: false
+    property bool rpHasMore: true
+    property int rpTotalHits: 0
+
+    // Load next page of resource packs
+    function loadNextRpPage() {
+        if (!backend || rpLoadingMore || !rpHasMore) return
+        rpLoadingMore = true
+        page.rpPage++
+        var offset = page.rpPage * 20
+        var q = rpSearchInput.text || ""
+        var ver = page.rpGameVersion || ""
+        console.log("[RP-DEBUG] loadNextPage p=", page.rpPage, "offset=", offset)
+        backend.searchResourcepacks(q, ver, offset)
+    }
 
     function filterRpResults() {
         var cat = page.rpCategoryFilter
@@ -62,6 +78,9 @@ Rectangle {
     function loadResourcepackResults() {
         if (!backend) return
         page.rpDebugSeq++
+        page.rpPage = 0
+        page.rpLoadingMore = false
+        page.rpHasMore = true
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
         }
@@ -1530,6 +1549,32 @@ Rectangle {
                     id: rpListView
                     anchors.fill: parent; spacing: 6
                     model: rpResultsModel
+                    cacheBuffer: 200
+
+                    // Footer: load more indicator
+                    footer: Rectangle {
+                        width: rpListView.width; height: rpHasMore ? 40 : 0
+                        color: "transparent"; visible: rpHasMore
+                        Text {
+                            anchors.centerIn: parent
+                            text: rpLoadingMore ? "加载中..." : "加载更多"
+                            color: "#5068c8"; font.pixelSize: 11
+                        }
+                        MouseArea {
+                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (!rpLoadingMore && rpHasMore) loadNextRpPage() }
+                        }
+                    }
+
+                    // Auto-load when scrolled near bottom
+                    onContentYChanged: {
+                        if (!rpLoadingMore && rpHasMore && rpListView.count > 0) {
+                            var bottomEdge = contentHeight - height
+                            if (contentY >= bottomEdge - 100) {
+                                loadNextRpPage()
+                            }
+                        }
+                    }
 
                     delegate: Rectangle {
                         width: rpListView.width - 8; height: 105
@@ -1894,49 +1939,54 @@ Rectangle {
 
         function onResourcepackSearchCompleted(results, totalHits) {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
-            if (results && results.length > 0) {
-                rpResultsModel.clear()
-                var slugs = []
-                var catFilter = page.rpCategoryFilter.toLowerCase()
-                for (var i = 0; i < results.length; i++) {
-                    var r = results[i]
-                    // Client-side category filter
-                    if (catFilter) {
-                        var cats = r.categories || []
-                        var hasCat = false
-                        for (var c = 0; c < cats.length; c++) {
-                            if (String(cats[c]).toLowerCase() === catFilter) { hasCat = true; break }
-                        }
-                        if (!hasCat) continue
-                    }
-                    slugs.push(r.slug)
-                    rpResultsModel.append({
-                        slug: r.slug || "",
-                        title: r.title || "",
-                        desc: r.desc || r.description || "",
-                        icon: r.icon || "",
-                        downloads: r.downloads || 0,
-                        categories: r.categories || [],
-                        updated: r.updated || "",
-                        author: r.author || "",
-                        source: r.source || "Modrinth",
-                        chips: ""
-                    })
-                }
-                console.log("[RP-DEBUG]", page.rpDebugSeq, "APPEND done (after filter), now", rpResultsModel.count, "slugs=", slugs.length)
-                if (backend && slugs.length > 0) {
-                    console.log("[RP-DEBUG]", page.rpDebugSeq, "FETCH versions for", slugs.length, "slugs")
-                    backend.fetchResourcepackVersions(slugs)
-                }
-                // Hide main loading bar
-                if (page.mainWindow && page.mainWindow.loadingBar) {
-                    page.mainWindow.loadingBar.opacity = (slugs.length > 0) ? 0 : 1
-                }
-            } else {
+            if (!results || results.length === 0) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
+                page.rpHasMore = false
+                return
+            }
+            page.rpTotalHits = totalHits
+            page.rpLoadingMore = false
+
+            var isFirstPage = (page.rpPage === 0)
+            if (isFirstPage) {
+                rpResultsModel.clear()
+                page.rpHasMore = (totalHits > 20)
                 if (page.mainWindow && page.mainWindow.loadingBar) {
                     page.mainWindow.loadingBar.opacity = 0
                 }
+            } else {
+                page.rpHasMore = ((page.rpPage + 1) * 20 < totalHits)
+            }
+
+            var slugs = []
+            var catFilter = page.rpCategoryFilter.toLowerCase()
+            for (var i = 0; i < results.length; i++) {
+                var r = results[i]
+                if (catFilter) {
+                    var cats = r.categories || []
+                    var hasCat = false
+                    for (var c = 0; c < cats.length; c++) {
+                        if (String(cats[c]).toLowerCase() === catFilter) { hasCat = true; break }
+                    }
+                    if (!hasCat) continue
+                }
+                slugs.push(r.slug)
+                rpResultsModel.append({
+                    slug: r.slug || "",
+                    title: r.title || "",
+                    desc: r.desc || r.description || "",
+                    icon: r.icon || "",
+                    downloads: r.downloads || 0,
+                    categories: r.categories || [],
+                    updated: r.updated || "",
+                    author: r.author || "",
+                    source: r.source || "Modrinth",
+                    chips: ""
+                })
+            }
+            console.log("[RP-DEBUG]", page.rpDebugSeq, "model now", rpResultsModel.count, "/", totalHits)
+            if (backend && slugs.length > 0) {
+                backend.fetchResourcepackVersions(slugs)
             }
         }
 

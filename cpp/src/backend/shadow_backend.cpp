@@ -855,8 +855,8 @@ void ShadowBackend::downloadShader(const QString& slug) {
     m_resource->downloadShader(slug);
 }
 
-void ShadowBackend::searchResourcepacks(const QString& query, const QString& gameVersion) {
-    m_resource->searchResourcepacks(query, gameVersion);
+void ShadowBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset) {
+    m_resource->searchResourcepacks(query, gameVersion, offset);
 }
 
 void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gameVersion) {

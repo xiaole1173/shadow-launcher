@@ -129,11 +129,11 @@ void ResourceBackend::downloadShader(const QString& slug)
                           m_minecraftDir, QStringLiteral("shaderpacks"));
 }
 
-void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion)
+void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset)
 {
-    emit logMessage(QStringLiteral("🔍 正在搜索资源包: %1...").arg(query));
+    emit logMessage(QStringLiteral("[MODRINTH] 搜索资源包: q=%1 gv=%2 offset=%3").arg(query, gameVersion).arg(offset));
     m_modMgr->searchResourcepacks(query, gameVersion.isEmpty()
-                                  ? QStringList{} : QStringList{gameVersion});
+                                  ? QStringList{} : QStringList{gameVersion}, offset);
 }
 
 void ResourceBackend::downloadResourcepack(const QString& slug, const QString& gameVersion)
