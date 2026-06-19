@@ -119,6 +119,7 @@ qt_add_qml_module(ShadowLauncher
         qml/ShadowButton.qml
         qml/SubPageOverlays.qml
         qml/ToastManager.qml
+        qml/CrashDialog.qml
 )
 
 target_include_directories(ShadowLauncher PRIVATE src)
