@@ -103,6 +103,9 @@ public:
         const QString& minecraftDir
     );
 
+    // Batch-fetch project game_versions for search result cards
+    void fetchResourcepackVersions(const QStringList& slugs);
+
     // Popular mods (offline data)
     static QMap<QString, QJsonObject> getPopularMods(const QString& loader);
     static QMap<QString, QJsonObject> getShaderList();
@@ -123,6 +126,7 @@ signals:
     void resourcepackSearchCompleted(const QJsonArray& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
+    void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);  // slug → QStringList (major versions)
     void logMessage(const QString& msg);
 
     void busyChanged();

@@ -25,6 +25,8 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::onResourcepackSearchCompleted);
     connect(m_modMgr, &ModManager::resourcepackDownloadFinished,
             this, &ResourceBackend::onResourcepackDownloadFinished);
+    connect(m_modMgr, &ModManager::resourcepackVersionsLoaded,
+            this, &ResourceBackend::onResourcepackVersionsLoaded);
     connect(m_modMgr, &ModManager::logMessage,
             this, &ResourceBackend::logMessage);
 }
@@ -143,6 +145,11 @@ void ResourceBackend::downloadResourcepack(const QString& slug, const QString& g
     m_modMgr->downloadResourcepack(slug, gameVersion, m_minecraftDir);
 }
 
+void ResourceBackend::fetchResourcepackVersions(const QStringList& slugs)
+{
+    m_modMgr->fetchResourcepackVersions(slugs);
+}
+
 void ResourceBackend::cancelDownload()
 {
     m_modMgr->cancel();
@@ -222,6 +229,11 @@ void ResourceBackend::onResourcepackDownloadFinished(const QString& slug, bool s
     m_dlFile.clear();
     emit downloadStateChanged();
     emit resourcepackDownloadFinished(slug, success, filePath);
+}
+
+void ResourceBackend::onResourcepackVersionsLoaded(const QVariantMap& slugToVersions)
+{
+    emit resourcepackVersionsLoaded(slugToVersions);
 }
 
 } // namespace ShadowLauncher

@@ -365,6 +365,87 @@ void ModManager::downloadResourcepack(
     );
 }
 
+void ModManager::fetchResourcepackVersions(const QStringList& slugs)
+{
+    if (slugs.isEmpty()) return;
+
+    // Shared state for batch fetch
+    auto results = std::make_shared<QVariantMap>();
+    auto pending = std::make_shared<int>(slugs.size());
+
+    emit logMessage(QStringLiteral("[MODRINTH] 获取 %1 个资源包的版本信息...").arg(slugs.size()));
+
+    for (const QString& slug : slugs) {
+        QUrl url(MODRINTH_API + "/project/" + slug + "/version");
+
+        HttpClient::instance().get(url.toString(),
+            [this, slug, results, pending](int /*status*/, const QByteArray& data) {
+                QJsonArray versions = parseVersionsResponse(data);
+                QStringList majorVersions;
+                QSet<QString> seen;
+
+                for (const QJsonValue& v : versions) {
+                    QJsonObject ver = v.toObject();
+                    QJsonArray gvs = ver[QStringLiteral("game_versions")].toArray();
+                    for (const QJsonValue& gv : gvs) {
+                        QString gvStr = gv.toString();
+                        // Group to major version: 1.21.3 → 1.21.X
+                        static QRegularExpression majorRe(QStringLiteral("^(\\d+\\.\\d+)"));
+                        auto match = majorRe.match(gvStr);
+                        if (match.hasMatch()) {
+                            QString major = match.captured(1) + QStringLiteral(".X");
+                            if (!seen.contains(major)) {
+                                seen.insert(major);
+                                majorVersions.append(major);
+                            }
+                        } else {
+                            if (!seen.contains(gvStr)) {
+                                seen.insert(gvStr);
+                                majorVersions.append(gvStr);
+                            }
+                        }
+                    }
+                }
+
+                // Sort naturally (newest first)
+                std::sort(majorVersions.begin(), majorVersions.end(),
+                    [](const QString& a, const QString& b) {
+                        // 全版本 first
+                        if (a == QStringLiteral("全版本")) return true;
+                        if (b == QStringLiteral("全版本")) return false;
+                        // Sort descending by version number
+                        static QRegularExpression verRe(QStringLiteral("^(\\d+)\\.(\\d+)"));
+                        auto ma = verRe.match(a);
+                        auto mb = verRe.match(b);
+                        if (ma.hasMatch() && mb.hasMatch()) {
+                            int aMajor = ma.captured(1).toInt();
+                            int bMajor = mb.captured(1).toInt();
+                            if (aMajor != bMajor) return aMajor > bMajor;
+                            return ma.captured(2).toInt() > mb.captured(2).toInt();
+                        }
+                        return a > b;
+                    });
+
+                (*results)[slug] = majorVersions;
+                (*pending)--;
+
+                if (*pending <= 0) {
+                    emit resourcepackVersionsLoaded(*results);
+                    emit logMessage(QStringLiteral("[MODRINTH] 版本信息加载完成"));
+                }
+            },
+            [this, slug, results, pending](const QString& err) {
+                Q_UNUSED(err)
+                Q_UNUSED(slug)
+                (*pending)--;
+                if (*pending <= 0) {
+                    emit resourcepackVersionsLoaded(*results);
+                }
+            }
+        );
+    }
+}
+
 // ============================================================
 // cancel()
 // ============================================================

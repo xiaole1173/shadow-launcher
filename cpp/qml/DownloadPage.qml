@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -36,8 +36,7 @@ Rectangle {
     property string installingModName: ""
 
     // Resource pack state
-    property string rpGameVersion: backend && backend.versionIds && backend.versionIds.length > 0
-                                  ? backend.versionIds[0] : "1.21.10"
+    property string rpGameVersion: ""  // "" = 全部, 默认不筛选版本
     property string rpDownloadDir: ""
     property bool rpResultsReady: false
 
@@ -1264,6 +1263,7 @@ Rectangle {
     }
 
     // ════════════════════════════════════════════
+    // ════════════════════════════════════════════
     // TAB 3: 资源包下载
     // ════════════════════════════════════════════
     Item {
@@ -1285,77 +1285,83 @@ Rectangle {
                 height: 34
                 spacing: 8
 
-                // ── Version filter pill (clickable dropdown) ──
+                // Version filter pill
                 Rectangle {
+                    id: rpVerPill
                     height: 26; radius: 13
                     width: rpVerLabel.implicitWidth + 20
                     color: rpVerMouse.containsMouse ? "#1a2848" : "#11141c"
-                    border.color: page.rpGameVersion !== backend.versionIds[0] ? "#c060a0" : "#5068c8"
+                    border.color: page.rpGameVersion === "" ? "#c060a0" : "#5068c8"
                     border.width: 1
                     scale: rpVerMouse.containsMouse ? 1.04 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                     Row {
-                        anchors.centerIn: parent
-                        spacing: 4
+                        anchors.centerIn: parent; spacing: 4
                         Text {
                             id: rpVerLabel
-                            text: "MC " + page.rpGameVersion
-                            color: "#d0d4e0"
-                            font.pixelSize: 11
-                            font.weight: Font.Medium
+                            text: page.rpGameVersion === "" ? "全部" : ("MC " + page.rpGameVersion)
+                            color: "#d0d4e0"; font.pixelSize: 11; font.weight: Font.Medium
                         }
-                        Text {
-                            text: "▼"
-                            color: "#505468"
-                            font.pixelSize: 8
-                        }
+                        Text { text: "▼"; color: "#505468"; font.pixelSize: 8 }
                     }
 
                     MouseArea {
                         id: rpVerMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: rpVersionMenu.open()
                     }
 
-                    // Version menu popup
                     Popup {
                         id: rpVersionMenu
-                        y: parent.height + 4
-                        width: 140
-                        implicitHeight: rpVerList.contentHeight + 8
+                        y: parent.height + 4; width: 140
+                        implicitHeight: rpVerCol.implicitHeight + 8
                         padding: 4
                         background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
-                        ListView {
-                            id: rpVerList
-                            anchors.fill: parent
-                            model: backend ? backend.versionIds.slice(0, 15) : ["1.21.10", "1.20.6", "1.19.4"]
-                            delegate: Item {
-                                width: 132; height: 28
+                        ColumnLayout {
+                            id: rpVerCol
+                            width: parent.width - 8; spacing: 2
+
+                            // "全部" option
+                            Rectangle {
+                                Layout.fillWidth: true; height: 28; radius: 4
+                                color: verAllHov.hovered ? "#1a2848" : "transparent"
+                                Text {
+                                    anchors.centerIn: parent; text: "全部"
+                                    color: page.rpGameVersion === "" ? "#c060a0" : "#9094a8"
+                                    font.pixelSize: 11
+                                    font.weight: page.rpGameVersion === "" ? Font.Bold : Font.Normal
+                                }
+                                MouseArea {
+                                    id: verAllHov
+                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        page.rpGameVersion = ""; rpVersionMenu.close()
+                                        console.log("[resourcepack] filter: ALL")
+                                        if (backend) backend.searchResourcepacks(rpSearchInput.text || "", "")
+                                    }
+                                }
+                            }
+
+                            // Version list
+                            Repeater {
+                                model: backend ? backend.versionIds.slice(0, 15) : ["1.21.10","1.20.6","1.19.4"]
                                 Rectangle {
-                                    anchors.fill: parent
-                                    radius: 4
-                                    color: verItemMouse.containsMouse ? "#1a2848" : "transparent"
+                                    Layout.fillWidth: true; height: 28; radius: 4
+                                    color: verItemHov.hovered ? "#1a2848" : "transparent"
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: modelData
+                                        anchors.centerIn: parent; text: modelData
                                         color: modelData === page.rpGameVersion ? "#c060a0" : "#9094a8"
                                         font.pixelSize: 11
                                         font.weight: modelData === page.rpGameVersion ? Font.Bold : Font.Normal
                                     }
                                     MouseArea {
-                                        id: verItemMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
+                                        id: verItemHov
+                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            page.rpGameVersion = modelData
-                                            rpVersionMenu.close()
-                                            console.log("[resourcepack] version filter changed:", modelData)
-                                            // Re-search with new version
+                                            page.rpGameVersion = modelData; rpVersionMenu.close()
+                                            console.log("[resourcepack] filter:", modelData)
                                             if (backend) backend.searchResourcepacks(rpSearchInput.text || "", modelData)
                                         }
                                     }
@@ -1368,63 +1374,44 @@ Rectangle {
                 Item { Layout.fillWidth: true }
 
                 Rectangle {
-                    width: 220
-                    height: 30
-                    radius: 6
-                    color: "#11141c"
-                    border.color: rpSearchInput.activeFocus ? "#5068c8" : "#1e2230"
+                    width: 220; height: 30; radius: 6
+                    color: "#11141c"; border.color: rpSearchInput.activeFocus ? "#c060a0" : "#1e2230"
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 4
-                        spacing: 4
+                        anchors.leftMargin: 10; anchors.rightMargin: 4; spacing: 4
 
                         TextInput {
                             id: rpSearchInput
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            color: "#d0d4e0"
-                            verticalAlignment: TextInput.AlignVCenter
-                            font.pixelSize: 12
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: 12
                             onAccepted: {
-                                if (backend && text) {
-                                    console.log("[resourcepack] search triggered:", text, "ver:", page.rpGameVersion)
+                                if (backend) {
+                                    console.log("[resourcepack] search:", text, "ver:", page.rpGameVersion)
                                     backend.searchResourcepacks(text, page.rpGameVersion)
                                 }
                             }
 
                             Text {
-                                anchors.fill: parent
-                                verticalAlignment: Text.AlignVCenter
-                                text: "搜索 Modrinth 资源包..."
-                                color: "#505468"
-                                font.pixelSize: 12
+                                anchors.fill: parent; verticalAlignment: Text.AlignVCenter
+                                text: "搜索 Modrinth 资源包..."; color: "#505468"; font.pixelSize: 12
                                 visible: !rpSearchInput.text
                             }
                         }
 
                         Rectangle {
-                            width: 28
-                            height: 22
-                            radius: 4
-                            color: rpSearchIconArea.containsMouse ? "#c060a0" : "transparent"
-
+                            width: 28; height: 22; radius: 4
+                            color: rpGoHov.hovered ? "#c060a0" : "transparent"
                             Text {
-                                anchors.centerIn: parent
-                                text: "Go"
-                                color: rpSearchIconArea.containsMouse ? "#e8ecf8" : "#9094a8"
-                                font.pixelSize: 10
+                                anchors.centerIn: parent; text: "Go"
+                                color: rpGoHov.hovered ? "#e8ecf8" : "#9094a8"; font.pixelSize: 10
                             }
-
                             MouseArea {
-                                id: rpSearchIconArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                id: rpGoHov
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     if (backend && rpSearchInput.text) {
-                                        console.log("[resourcepack] search triggered:", rpSearchInput.text, "ver:", page.rpGameVersion)
+                                        console.log("[resourcepack] search:", rpSearchInput.text)
                                         backend.searchResourcepacks(rpSearchInput.text, page.rpGameVersion)
                                     }
                                 }
@@ -1435,117 +1422,122 @@ Rectangle {
             }
 
             Text {
-                text: "资源包 | 来源: Modrinth API | 搜索结果将安装到 resourcepacks/"
-                color: "#505468"
-                font.pixelSize: 11
+                text: "资源包 | 来源: Modrinth API | " + (rpResultsModel.count || 0) + " 个结果"
+                color: "#505468"; font.pixelSize: 11
             }
 
-            // ── Result list ──
+            // ── Results: vertical full-width cards ──
             ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                GridView {
-                    id: rpGrid
-                    anchors.fill: parent
-                    cellWidth: 224
-                    cellHeight: 118
+                ListView {
+                    id: rpListView
+                    anchors.fill: parent; spacing: 6
                     model: rpResultsModel
 
                     delegate: Rectangle {
-                        width: 214
-                        height: 110
-                        color: rpCardMouse.containsMouse ? "#11141c" : "#0e1018"
-                        radius: 8
-                        border.color: rpCardMouse.containsMouse ? "#c060a0" : "#1a1f2a"
-                        border.width: 1
+                        width: rpListView.width - 8; height: 108
+                        color: rpCardHov.hovered ? "#121620" : "#0e1018"
+                        radius: 10; border.color: rpCardHov.hovered ? "#c060a0" : "#1a1f2a"; border.width: 1
 
                         opacity: 0
                         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                         Component.onCompleted: { opacity = 1 }
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            spacing: 4
+                        RowLayout {
+                            anchors.fill: parent; anchors.margins: 10; spacing: 10
 
-                            RowLayout {
-                                spacing: 6
-                                Rectangle {
-                                    width: 28
-                                    height: 28
-                                    radius: 6
-                                    color: "#1a1f2e"
+                            // Icon
+                            Rectangle {
+                                width: 48; height: 48; radius: 10; color: "#1a1f2e"
+                                Layout.preferredWidth: 48
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: model.title ? model.title[0] : "R"
-                                        color: "#c060a0"
-                                        font.pixelSize: 14
-                                        font.bold: true
+                                Image {
+                                    anchors.fill: parent; anchors.margins: 2
+                                    source: model.icon || ""; fillMode: Image.PreserveAspectFit
+                                    // Fallback: first letter if no icon
+                                    onStatusChanged: {
+                                        if (status === Image.Error || status === Image.Null) {
+                                            source = ""
+                                        }
                                     }
                                 }
+
                                 Text {
-                                    text: model.title || ""
-                                    color: "#d0d4e0"
-                                    font.pixelSize: 13
-                                    font.bold: true
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
+                                    anchors.centerIn: parent
+                                    text: model.title ? model.title[0] : "R"
+                                    color: "#c060a0"; font.pixelSize: 18; font.bold: true
+                                    visible: !model.icon || model.icon === ""
                                 }
                             }
 
-                            Text {
-                                text: model.desc || "暂无简介"
-                                color: "#606478"
-                                font.pixelSize: 11
-                                elide: Text.ElideRight
-                                maximumLineCount: 2
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                            }
+                            // Content column
+                            ColumnLayout {
+                                Layout.fillWidth: true; Layout.fillHeight: true; spacing: 4
 
-                            RowLayout {
-                                Text {
-                                    visible: model.downloads > 0
-                                    text: model.downloads >= 1000000 ? "DL " + (model.downloads / 1000000).toFixed(1) + "M" :
-                                          model.downloads >= 1000 ? "DL " + Math.round(model.downloads / 1000) + "K" : ""
-                                    color: "#505468"
-                                    font.pixelSize: 10
-                                }
-                                Item { Layout.fillWidth: true }
-                                Rectangle {
-                                    width: 44
-                                    height: 22
-                                    radius: 4
-                                    color: rpCardMouse.containsMouse ? "#c060a0" : "transparent"
-                                    border.color: rpCardMouse.containsMouse ? "#c060a0" : "#1e2230"
-                                    border.width: 1
-
+                                // Title + download count
+                                RowLayout {
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: "安装"
-                                        color: rpCardMouse.containsMouse ? "#e8ecf8" : "#606478"
-                                        font.pixelSize: 10
+                                        text: model.title || ""; color: "#d0d4e0"
+                                        font.pixelSize: 14; font.bold: true; elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        visible: model.downloads > 0
+                                        text: model.downloads >= 1000000 ? "↓" + (model.downloads / 1000000).toFixed(1) + "M" :
+                                              model.downloads >= 1000 ? "↓" + Math.round(model.downloads / 1000) + "K" : "↓" + model.downloads
+                                        color: "#505468"; font.pixelSize: 11
+                                    }
+                                }
+
+                                // Description
+                                Text {
+                                    text: model.desc || "暂无简介"; color: "#606478"; font.pixelSize: 11
+                                    elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true; Layout.fillHeight: true
+                                }
+
+                                // Version chips
+                                RowLayout {
+                                    spacing: 4; Layout.fillWidth: true
+                                    clip: true
+                                    Repeater {
+                                        model: {
+                                            var vers = model.versions || []
+                                            if (vers.length === 0) return [{text: "加载中…", color: "#404860"}]
+                                            var chips = []
+                                            var maxChips = Math.min(vers.length, 6)
+                                            for (var i = 0; i < maxChips; i++) {
+                                                chips.push({text: vers[i], color: "#404860"})
+                                            }
+                                            if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#c060a0"})
+                                            return chips
+                                        }
+                                        Rectangle {
+                                            height: 18; width: chipText.implicitWidth + 10; radius: 9
+                                            color: "#151922"; border.color: modelData.color; border.width: 1
+                                            Text {
+                                                id: chipText
+                                                anchors.centerIn: parent
+                                                text: modelData.text; color: modelData.color
+                                                font.pixelSize: 9; font.family: "Consolas, monospace"
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
 
                         MouseArea {
-                            id: rpCardMouse
+                            id: rpCardHov
                             anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (model.slug && backend) {
-                                    console.log("[resourcepack] install clicked:", model.slug, "title:", model.title)
-                                    rpFolderDialog.slug = model.slug
-                                    rpFolderDialog.open()
-                                }
+                                console.log("[resourcepack] card clicked:", model.slug)
+                                rpDetailSlug = model.slug
+                                rpDetailTitle = model.title
+                                rpDetailView.open()
                             }
                         }
                     }
@@ -1555,98 +1547,212 @@ Rectangle {
             // Download progress bar
             Rectangle {
                 visible: page.installingMod
-                Layout.fillWidth: true
-                Layout.preferredHeight: 4
-                radius: 2
-                color: "#1a1f2a"
-
+                Layout.fillWidth: true; Layout.preferredHeight: 4; radius: 2; color: "#1a1f2a"
                 Rectangle {
-                    height: 4
-                    radius: 2
-                    color: "#c060a0"
-                    width: parent.width * 0.4
+                    height: 4; radius: 2; color: "#c060a0"; width: parent.width * 0.4
                     NumberAnimation on x {
-                        from: 0
-                        to: parent.width * 0.6
-                        duration: 1200
-                        loops: Animation.Infinite
-                        running: page.installingMod
+                        from: 0; to: parent.width * 0.6; duration: 1200
+                        loops: Animation.Infinite; running: page.installingMod
                     }
                 }
             }
             Text {
                 visible: page.installingMod
                 text: "正在安装 " + (page.installingModName || "资源包...")
-                color: "#606478"
-                font.pixelSize: 11
-            }
-        }
-
-        // ── BMCLAPI 协议合规标注 ──
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: complianceText.implicitHeight + 16
-            color: "#0a0d14"
-            visible: page.complianceNotice !== "" && page.currentTab === 0
-
-            Text {
-                id: complianceText
-                anchors.centerIn: parent
-                width: parent.width - 24
-                text: page.complianceNotice
-                color: "#505468"
-                font.pixelSize: 10
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
+                color: "#606478"; font.pixelSize: 11
             }
         }
     }
 
     // ════════════════════════════════════════════
-    // Resource pack state — standalone (shared across Tab 3)
+    // Resource pack detail page (overlay)
+    // ════════════════════════════════════════════
+    Popup {
+        id: rpDetailView
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 480)
+        implicitHeight: rpDetailCol.implicitHeight + 40
+        padding: 16
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle { color: "#10131c"; radius: 12; border.color: "#1e2230" }
+
+        property string slug: ""
+        property string title: ""
+        property var versionData: ({})  // slug → [{name, game_versions:[]}]
+
+        onOpened: {
+            // Fetch version details when opened
+            console.log("[resourcepack] detail opened:", rpDetailSlug)
+            if (backend && rpDetailSlug) {
+                backend.fetchResourcepackVersions([rpDetailSlug])
+            }
+        }
+
+        Connections {
+            target: backend
+            enabled: rpDetailView.opened
+            function onResourcepackVersionsLoaded(data) {
+                if (data) {
+                    rpDetailView.versionData = data
+                    console.log("[resourcepack] version data loaded:", JSON.stringify(data))
+                }
+            }
+        }
+
+        ColumnLayout {
+            id: rpDetailCol
+            width: parent.width - 32
+            spacing: 12
+
+            // Title + close
+            RowLayout {
+                Text {
+                    text: rpDetailSlug; color: "#d0d4e0"; font.pixelSize: 16; font.bold: true
+                    Layout.fillWidth: true; elide: Text.ElideRight
+                }
+                Text {
+                    text: "✕"; color: "#606478"; font.pixelSize: 16
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: rpDetailView.close()
+                    }
+                }
+            }
+
+            Text {
+                text: "可用游戏版本 | 点击安装"
+                color: "#505468"; font.pixelSize: 11
+            }
+
+            // Version list grouped by game version
+            Repeater {
+                model: {
+                    var data = rpDetailView.versionData
+                    if (!data || !data[rpDetailSlug]) return []
+                    return data[rpDetailSlug]  // array of major versions like ["1.21.X","1.20.X"]
+                }
+                delegate: Rectangle {
+                    Layout.fillWidth: true; height: 36; radius: 6
+                    color: verItemHov1.containsMouse ? "#1a2848" : "#11141c"
+                    border.color: "#1e2230"; border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 8; spacing: 8
+                        Text {
+                            text: modelData; color: "#c060a0"; font.pixelSize: 13; font.bold: true
+                            font.family: "Consolas, monospace"
+                        }
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            width: 50; height: 24; radius: 4
+                            color: verItemHov1.containsMouse ? "#c060a0" : "transparent"
+                            border.color: verItemHov1.containsMouse ? "#c060a0" : "#1e2230"
+                            Text {
+                                anchors.centerIn: parent; text: "安装"
+                                color: verItemHov1.containsMouse ? "#e8ecf8" : "#606478"; font.pixelSize: 10
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: verItemHov1
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            page.installingMod = true
+                            page.installingModName = rpDetailTitle || rpDetailSlug
+                            if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
+                            rpDetailView.close()
+                        }
+                    }
+                }
+            }
+
+            Text {
+                visible: {
+                    var d = rpDetailView.versionData
+                    return d && (!d[rpDetailSlug] || d[rpDetailSlug].length === 0)
+                }
+                text: "正在加载版本信息..."
+                color: "#505468"; font.pixelSize: 12
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // Shared state (stands outside Item scope)
     // ════════════════════════════════════════════
     ListModel { id: rpResultsModel }
+
+    property string rpDetailSlug: ""
+    property string rpDetailTitle: ""
+
+    // Version chips cache: maps slug → major version list
+    property var rpVersionCache: ({})
 
     Connections {
         target: backend
         enabled: backend !== null && page.currentTab === 3
 
         function onResourcepackSearchCompleted(results, totalHits) {
-            console.log("[resourcepack] search completed:", results ? results.length : 0, "total:", totalHits)
+            console.log("[resourcepack] search:", results ? results.length : 0, "total:", totalHits)
             if (results && results.length > 0) {
                 rpResultsModel.clear()
+                var slugs = []
                 for (var i = 0; i < results.length; i++) {
                     var r = results[i]
-                    console.log("[resourcepack]   result[" + i + "]:", r.slug, r.title)
+                    slugs.push(r.slug)
                     rpResultsModel.append({
                         slug: r.slug || "",
                         title: r.title || "",
                         desc: r.desc || r.description || "",
                         icon: r.icon || "",
-                        downloads: r.downloads || 0
+                        downloads: r.downloads || 0,
+                        versions: []  // will be filled by versionsLoaded
                     })
                 }
+                // Batch-fetch version info for card chips
+                if (backend && slugs.length > 0) {
+                    console.log("[resourcepack] fetching versions for", slugs.length, "slugs")
+                    backend.fetchResourcepackVersions(slugs)
+                }
             } else {
-                console.log("[resourcepack] search returned empty results")
+                console.log("[resourcepack] empty results")
             }
         }
 
         function onResourcepackSearchFailed(error) {
             console.log("[resourcepack] search FAILED:", error)
-            toastManager.show("资源包搜索失败: " + error)
+            toastManager.show("搜索失败: " + error)
         }
 
         function onResourcepackDownloadFinished(slug, success, filePath) {
-            console.log("[resourcepack] download finished:", slug, "success:", success, "path:", filePath)
+            console.log("[resourcepack] download:", slug, success, filePath)
             page.installingMod = false
             page.installingModName = ""
             if (success) toastManager.show("资源包已安装: " + slug)
         }
+
+        function onResourcepackVersionsLoaded(data) {
+            console.log("[resourcepack] versions loaded")
+            if (data) {
+                // Update cards with version chips
+                for (var i = 0; i < rpResultsModel.count; i++) {
+                    var item = rpResultsModel.get(i)
+                    var slugs = Object.keys(data)
+                    for (var s = 0; s < slugs.length; s++) {
+                        if (item.slug === slugs[s]) {
+                            rpResultsModel.setProperty(i, "versions", data[slugs[s]])
+                            break
+                        }
+                    }
+                }
+                // Save to cache for detail page
+                page.rpVersionCache = data
+            }
+        }
     }
 
-    // ── Folder picker for resource pack download ──
+    // ── Folder picker ──
     FolderDialog {
         id: rpFolderDialog
         property string slug: ""
@@ -1655,17 +1761,13 @@ Rectangle {
 
         onAccepted: {
             var dest = selectedFolder.toString().replace("file:///", "")
-            // Convert forward slashes back for Windows
             if (Qt.platform.os === "windows") dest = dest.replace(/\//g, "\\")
-            console.log("[resourcepack] user selected folder:", dest, "slug:", rpFolderDialog.slug)
+            console.log("[resourcepack] folder selected:", dest)
             page.installingMod = true
             page.installingModName = rpFolderDialog.slug
-            // Note: current API downloads to gameDir/resourcepacks/
-            // For custom folder, the C++ backend would need extension.
-            // For now: download to default location, notify user.
             if (backend && rpFolderDialog.slug) {
                 backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion)
-                toastManager.show("开始下载资源包: " + rpFolderDialog.slug)
+                toastManager.show("开始下载: " + rpFolderDialog.slug)
             }
         }
     }

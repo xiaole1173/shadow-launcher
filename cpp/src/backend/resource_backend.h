@@ -31,6 +31,7 @@ public:
     Q_INVOKABLE void downloadShader(const QString& slug);
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {});
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion);
+    Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);
     Q_INVOKABLE void cancelDownload();
 
 signals:
@@ -41,12 +42,14 @@ signals:
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
+    void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
     void logMessage(const QString& msg);
 
 private slots:
     void onSearchCompleted(const QJsonArray& results, int totalHits);
     void onResourcepackSearchCompleted(const QJsonArray& results, int totalHits);
     void onResourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
+    void onResourcepackVersionsLoaded(const QVariantMap& slugToVersions);
     void onDownloadProgress(const QString& name, qint64 received, qint64 total);
     void onDownloadFinished(const QString& slug, bool success, const QString& filePath);
 

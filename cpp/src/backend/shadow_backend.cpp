@@ -211,6 +211,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::resourcepackSearchFailed);
     connect(m_resource, &ResourceBackend::resourcepackDownloadFinished,
             this, &ShadowBackend::resourcepackDownloadFinished);
+    connect(m_resource, &ResourceBackend::resourcepackVersionsLoaded,
+            this, &ShadowBackend::resourcepackVersionsLoaded);
     connect(m_resource, &ResourceBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
@@ -857,7 +859,12 @@ void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gam
     m_resource->downloadResourcepack(slug, gameVersion);
 }
 
+void ShadowBackend::fetchResourcepackVersions(const QStringList& slugs) {
+    m_resource->fetchResourcepackVersions(slugs);
+}
+
 // ============================================================
+// fetchResourcepackVersions
 // Q_INVOKABLE methods — App
 // ============================================================
 

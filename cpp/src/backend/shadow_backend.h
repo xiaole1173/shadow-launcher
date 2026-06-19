@@ -236,6 +236,7 @@ public:
     Q_INVOKABLE void downloadShader(const QString& slug);
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {});
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion);
+    Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);
@@ -310,6 +311,7 @@ signals:
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
+    void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
     void resourceDownloadProgress(int completed, int total, const QString& fileName);
     void resourceDownloadDone(bool success);
     void verifyRunningChanged();
