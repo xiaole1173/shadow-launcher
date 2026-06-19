@@ -108,6 +108,14 @@ Window {
             }
             switchPage(pageIndex)
         }
+        // ── Auto-test: open RP detail page ──
+        function onOpenRpDetailRequested(slug) {
+            console.log("[auto-test] openRpDetailRequested:", slug)
+            switchPage(1)  // navigate to Download page
+            pendingSubTab = 3  // force RP tab
+            // Set detail slug on DownloadPage after it loads
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.rpDetailSlug = "' + slug + '"; downloadPageLoader.item.rpDetailTitle = "' + slug + '" } destroy() } }', appWindow)
+        }
     }
 
     // ── Rounded window container ──

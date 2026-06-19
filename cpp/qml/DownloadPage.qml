@@ -1046,7 +1046,7 @@ Rectangle {
                                                 var groups = []
                                                 for (var i = 0; i < backend.versionIds.length; i++) {
                                                     var v = backend.versionIds[i]
-                                                    if (!page.rpShowPreReleases && v.indexOf("-") >= 0) continue
+                                                    if (!page.rpShowPreReleases && !/^[0-9.]+$/.test(v)) continue
                                                     var major = v.split(/[.\-]/).slice(0, 2).join(".")
                                                     if (!seen.has(major)) {
                                                         seen.add(major)
@@ -1530,8 +1530,8 @@ Rectangle {
 
                 // ← Back button
                 Rectangle {
-                    Layout.preferredHeight: 32
-                    width: rpBackLabel.implicitWidth + 20; height: 30; radius: 6
+                    Layout.preferredHeight: 30
+                    width: rpBackLabel.implicitWidth + 20; radius: 6
                     color: rpBackHov.hovered ? "#1a2848" : "transparent"
                     border.color: rpBackHov.hovered ? "#5068c8" : "#1e2230"
                     border.width: 1
@@ -1570,17 +1570,17 @@ Rectangle {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                    ColumnLayout {
+                    Column {
                         width: parent.width - 4; spacing: 4
 
                         Repeater {
                             model: rpDetailPage.rpDetailGrouped
-                            delegate: ColumnLayout {
-                                Layout.fillWidth: true; spacing: 2
+                            delegate: Column {
+                                width: parent.width; spacing: 2
 
                                 // Group header
                                 Rectangle {
-                                    Layout.fillWidth: true; height: 36; radius: 6
+                                    width: parent.width; height: 36; radius: 6
                                     color: rpDetGrpArea.containsMouse ? "#1a2848" : "#11141c"
                                     border.color: rpDetGrpArea.containsMouse ? "#5068c8" : "#1e2230"
                                     border.width: 1
@@ -1609,8 +1609,8 @@ Rectangle {
                                 Repeater {
                                     model: (rpDetailPage.rpDetailExpanded === modelData.major) ? modelData.versions : []
                                     delegate: Rectangle {
-                                        Layout.fillWidth: true; height: 34; radius: 5
-                                        Layout.leftMargin: 12
+                                        width: parent.width - 12; height: 34; radius: 5
+                                        x: 12
                                         color: rpDetSubHov.hovered ? "#151d2e" : "#0c0e14"
                                         RowLayout {
                                             anchors.fill: parent; anchors.margins: 8; spacing: 8

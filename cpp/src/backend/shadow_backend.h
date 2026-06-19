@@ -337,6 +337,9 @@ signals:
     // subTab: for Download page — 0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
     void navigateToRequested(int pageIndex, int subTab);
 
+    // ── Auto-test: open RP detail page ──
+    void openRpDetailRequested(const QString& slug);
+
     // ── Verify signals ──
     void verifyStarted();
     void verifyProgress(int checked, int total);

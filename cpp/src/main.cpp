@@ -184,6 +184,15 @@ int main(int argc, char *argv[])
             }
         }
 
+        // Parse --detail argument (force-open RP detail page)
+        int detailIdx = args.indexOf(QStringLiteral("--detail"));
+        QString detailSlug;
+        if (detailIdx >= 0 && detailIdx + 1 < args.size()) {
+            detailSlug = args[detailIdx + 1];
+            targetPage = 1;  // force download page
+            targetTab = 3;    // force RP tab
+        }
+
         // Shared ready flag (heap-allocated so lambdas share ownership)
         auto ready = std::make_shared<bool>(false);
         auto doScreenshot = [ssPath, &app]() {
@@ -209,12 +218,25 @@ int main(int argc, char *argv[])
                            << "tab" << targetTab;
 
             // Navigate after QML is ready
-            QTimer::singleShot(1500, backend, [backend, targetPage, targetTab]() {
+            QTimer::singleShot(1500, backend, [backend, targetPage, targetTab, detailSlug]() {
                 emit backend->navigateToRequested(targetPage, targetTab);
+                // Open detail page if --detail flag was set
+                if (!detailSlug.isEmpty()) {
+                    QTimer::singleShot(2000, backend, [backend, detailSlug]() {
+                        qCInfo(logApp) << "Screenshot: opening detail page for" << detailSlug;
+                        emit backend->openRpDetailRequested(detailSlug);
+                    });
+                }
             });
 
             // Connect to content-ready signals based on target
-            if (targetPage == 1 && targetTab == 3) {
+            if (!detailSlug.isEmpty()) {
+                // --detail mode: wait longer for detail page to load
+                QTimer::singleShot(8000, &app, [ready]() {
+                    *ready = true;
+                    qCInfo(logApp) << "Screenshot: detail page ready";
+                });
+            } else if (targetPage == 1 && targetTab == 3) {
                 // RP tab: wait for search results
                 QObject::connect(backend, &ShadowBackend::resourcepackSearchCompleted,
                     &app, [ready](const QVariantList&, int) {
