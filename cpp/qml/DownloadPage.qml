@@ -3371,7 +3371,7 @@ Rectangle {
     // ════════════════════════════════════════════
     // Mod detail page (full-screen overlay)
     // ════════════════════════════════════════════
-Item {
+    Item {
         id: modDetailPage
         anchors.fill: parent
         z: 10  // above all other content
@@ -3818,7 +3818,7 @@ FolderDialog {
     // ════════════════════════════════════════════
     // Shader detail page (full-screen overlay)
     // ════════════════════════════════════════════
-Item {
+    Item {
         id: shaderDetailPage
         anchors.fill: parent
         z: 10  // above all other content
