@@ -1539,11 +1539,29 @@ Rectangle {
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
 
-                            // Icon (text placeholder, no network image)
+                            // Icon (text placeholder + network image)
                             Rectangle {
                                 width: 44; height: 44; radius: 10; color: "#1a1f2e"
                                 Layout.preferredWidth: 44; Layout.preferredHeight: 44
+                                clip: true
+
+                                Image {
+                                    anchors.fill: parent
+                                    source: model.icon || ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    cache: false
+                                    onStatusChanged: {
+                                        if (status === Image.Error || status === Image.Null) {
+                                            rpIconFallback.visible = true
+                                        } else if (status === Image.Ready) {
+                                            rpIconFallback.visible = false
+                                        }
+                                    }
+                                }
+
                                 Text {
+                                    id: rpIconFallback
                                     anchors.centerIn: parent
                                     text: model.title ? model.title[0] : "R"
                                     color: "#5068c8"; font.pixelSize: 18; font.bold: true
@@ -1563,9 +1581,12 @@ Rectangle {
                                         Layout.fillWidth: true
                                     }
                                     Text {
-                                        visible: model.downloads >= 0
-                                        text: model.downloads >= 1000000 ? "↓" + (model.downloads/1000000).toFixed(1) + "M" :
-                                              model.downloads >= 1000 ? "↓" + (Math.round(model.downloads/100)/10).toFixed(1) + "K" : "↓" + model.downloads
+                                        text: {
+                                            var d = model ? (model.downloads || 0) : 0
+                                            if (d >= 1000000) return "↓" + (d/1000000).toFixed(1) + "M"
+                                            if (d >= 1000) return "↓" + (Math.round(d/100)/10).toFixed(1) + "K"
+                                            return "↓" + d
+                                        }
                                         color: "#788090"; font.pixelSize: 10
                                     }
                                 }
@@ -1576,6 +1597,7 @@ Rectangle {
                                     Repeater {
                                         id: tagRowRepeater
                                         model: {
+                                            if (!model) return []
                                             var tags = model.categories || []
                                             var result = []
                                             var map = {
