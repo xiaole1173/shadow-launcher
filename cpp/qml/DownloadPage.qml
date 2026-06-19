@@ -1767,7 +1767,18 @@ Rectangle {
                                 var iconUrl = model.icon || ""
                                 iconUrl = iconUrl.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                 iconUrl = iconUrl.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                page.rpDetailIconUrl = iconUrl
+                                // Use same icon cache as main page cards (Qt lacks webp support)
+                                if (backend && backend.cachedIconPath) {
+                                    var cached = backend.cachedIconPath(iconUrl)
+                                    if (cached) {
+                                        page.rpDetailIconUrl = cached
+                                    } else {
+                                        page.rpDetailIconUrl = iconUrl  // temporary, will update after cache
+                                        backend.cacheIconAsync(iconUrl)
+                                    }
+                                } else {
+                                    page.rpDetailIconUrl = iconUrl
+                                }
                                 page.rpDetailAuthor = model.author || ""
                                 page.rpDetailDesc = model.desc || ""
                                 page.rpDetailDownloads = model.downloads || 0
@@ -1912,6 +1923,17 @@ Rectangle {
                                     rpDetailIconFallback.visible = true
                                 } else if (status === Image.Ready) {
                                     rpDetailIconFallback.visible = false
+                                }
+                            }
+
+                            Connections {
+                                target: backend
+                                function onIconCached(webpUrl, pngPath) {
+                                    if (webpUrl !== page.rpDetailIconUrl) return
+                                    if (pngPath) {
+                                        rpDetailIcon.source = pngPath
+                                        rpDetailIconFallback.visible = false
+                                    }
                                 }
                             }
                         }
