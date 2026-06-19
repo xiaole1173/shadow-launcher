@@ -252,22 +252,47 @@ Rectangle {
         }
 
         function onSearchResultsReady(results) {
-            console.log("[mod-ui] searchResultsReady results=" + (results ? results.length : 0))
-            modResultsModel.clear()
-            page.modSearching = false
-            if (results && results.length > 0) {
-                for (var i = 0; i < results.length; i++) {
-                    var r = results[i]
-                    modResultsModel.append({
-                        slug: r.slug || "",
-                        title: r.title || r.slug || "Unknown",
-                        desc: r.desc || r.description || "",
-                        icon: r.icon || "",
-                        downloads: r.downloads || 0
-                    })
+            console.log("[mod-ui] searchResultsReady results=" + (results ? results.length : 0) + " currentTab=" + page.currentTab)
+            if (page.currentTab === 2) {
+                // Shader search results
+                page.shaderSearching = false
+                page.shaderLoadingMore = false
+                if (!page.shaderCurrentOffset) shaderResultsModel.clear()
+                if (results && results.length > 0) {
+                    for (var i = 0; i < results.length; i++) {
+                        var r = results[i]
+                        shaderResultsModel.append({
+                            slug: r.slug || "",
+                            title: r.title || r.slug || "Unknown",
+                            desc: r.desc || r.description || "",
+                            icon: r.icon || "",
+                            downloads: r.downloads || 0
+                        })
+                    }
+                    page.shaderCurrentOffset += results.length
                 }
+                console.log("[shader-ui] model now has " + shaderResultsModel.count + " items")
+            } else {
+                // Mod search results
+                page.modSearching = false
+                page.modLoadingMore = false
+                if (!page.modCurrentOffset) modResultsModel.clear()
+                if (results && results.length > 0) {
+                    for (var i = 0; i < results.length; i++) {
+                        var r = results[i]
+                        modResultsModel.append({
+                            slug: r.slug || "",
+                            title: r.title || r.slug || "Unknown",
+                            desc: r.desc || r.description || "",
+                            icon: r.icon || "",
+                            downloads: r.downloads || 0,
+                            loader: r.loader || page.modLoader || "fabric"
+                        })
+                    }
+                    page.modCurrentOffset += results.length
+                }
+                console.log("[mod-ui] model now has " + modResultsModel.count + " items")
             }
-            console.log("[mod-ui] model now has " + modResultsModel.count + " items")
         }
 
         function onInstallFinished(success) {
