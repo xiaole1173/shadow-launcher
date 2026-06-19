@@ -1527,28 +1527,67 @@ Rectangle {
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                 }
 
-                                // Version chips
-                                RowLayout {
-                                    spacing: 4; Layout.fillWidth: true
+                                // Version chips (imperative, no Repeater binding)
+                                Item {
+                                    Layout.fillWidth: true; Layout.preferredHeight: 22
                                     clip: true
-                                    Repeater {
-                                        model: {
-                                            if (!model) return [{text: "加载中…", color: "#404860"}]
-                                            if (model.chips && model.chips !== "") {
-                                                try { return JSON.parse(model.chips) } catch(e) {}
+
+                                    Row {
+                                        id: rpChipRow
+                                        spacing: 4
+                                        property string chipsJson: ""
+
+                                        onChipsJsonChanged: {
+                                            // Remove old chips (keep component)
+                                            for (var i = children.length - 1; i >= 0; i--) {
+                                                if (children[i] !== rpChipComp) children[i].destroy()
                                             }
-                                            return [{text: "加载中…", color: "#404860"}]
+                                            if (!chipsJson || chipsJson === "") return
+                                            var items = []
+                                            try { items = JSON.parse(chipsJson) } catch(e) { return }
+                                            for (var j = 0; j < items.length; j++) {
+                                                rpChipComp.createObject(rpChipRow, {
+                                                    "chipText": items[j].text,
+                                                    "chipColor": items[j].color
+                                                })
+                                            }
                                         }
+
+                                        Component {
+                                            id: rpChipComp
+                                            Rectangle {
+                                                height: 18; width: textLabel.implicitWidth + 10; radius: 9
+                                                color: "#151922"; border.color: chipColor; border.width: 1
+                                                property string chipColor: "#90a0c8"
+                                                property string chipText: ""
+                                                Text {
+                                                    id: textLabel
+                                                    anchors.centerIn: parent
+                                                    text: chipText; color: chipColor
+                                                    font.pixelSize: 9; font.family: "Consolas, monospace"
+                                                }
+                                            }
+                                        }
+
+                                        // Initial placeholder (shown until chipsJson changes)
                                         Rectangle {
-                                            height: 18; width: chipText.implicitWidth + 10; radius: 9
-                                            color: "#151922"; border.color: modelData.color; border.width: 1
+                                            id: rpChipPlaceholder
+                                            height: 18; width: 52; radius: 9
+                                            color: "#151922"; border.color: "#404860"; border.width: 1
                                             Text {
-                                                id: chipText
                                                 anchors.centerIn: parent
-                                                text: modelData.text; color: modelData.color
+                                                text: "加载中…"; color: "#404860"
                                                 font.pixelSize: 9; font.family: "Consolas, monospace"
                                             }
                                         }
+                                    }
+
+                                    // Drive chipsJson from model.chips (one-way binding, no loop)
+                                    Binding {
+                                        target: rpChipRow
+                                        property: "chipsJson"
+                                        value: model ? (model.chips || "") : ""
+                                        when: model !== null
                                     }
                                 }
                             }
