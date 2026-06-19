@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
         if (detailIdx >= 0 && detailIdx + 1 < args.size()) {
             detailSlug = args[detailIdx + 1];
             targetPage = 1;  // force download page
-            targetTab = 3;    // force RP tab
+            if (targetTab < 0) targetTab = 3;  // default to RP tab
         }
 
         // Parse --detail-expand <major> (expand a group in detail page)
@@ -237,13 +237,13 @@ int main(int argc, char *argv[])
         if (toggleIdx >= 0 && toggleIdx + 1 < args.size()) {
             togglePreRelease = (args[toggleIdx + 1].toLower() == QStringLiteral("on"));
             hasToggle = true;
-            targetPage = 1; targetTab = 3;
+            targetPage = 1; if (targetTab < 0) targetTab = 3;
         }
 
         // Parse --open-version-menu
         bool openVersionMenu = args.contains(QStringLiteral("--open-version-menu"));
         if (openVersionMenu) {
-            targetPage = 1; targetTab = 3;
+            targetPage = 1; if (targetTab < 0) targetTab = 3;
         }
 
         // Shared ready flag (heap-allocated so lambdas share ownership)
