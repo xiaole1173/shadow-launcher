@@ -221,6 +221,8 @@ public:
     Q_INVOKABLE void refreshGameDirInfo();
     Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
     Q_INVOKABLE void cancelInstall();
+    Q_INVOKABLE QVariantList getMirrorSources();
+    Q_INVOKABLE QString bmclapiComplianceNotice();
     Q_INVOKABLE void launch(const QString& versionId);
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();

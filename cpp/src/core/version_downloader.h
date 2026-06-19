@@ -27,11 +27,22 @@ struct MirrorSource {
     QString jarHost;
     bool isDefault = false;
 
+    // BMCLAPI 协议合规相关
+    QString healthCheckUrl;     // 用于镜像健康检测的探测 URL
+    QString attribution;        // 使用协议标注文案（BMCLAPI/MCBBS 必须标注来源）
+    bool isAvailable = true;    // 运行时可用状态
+
     static MirrorSource bmclapi();
     static MirrorSource mojang();
     static MirrorSource mcbbs();
     static QVector<MirrorSource> allMirrors();
 };
+
+// BMCLAPI 协议合规公告（下载页面必须展示）
+constexpr const char* kBMCLAPIComplianceNotice =
+    "📦 下载加速由 BMCLAPI / MCBBS 镜像提供\n"
+    "文件归源站点 (Mojang/Fabric/Forge 等) 所有\n"
+    "Shadow Launcher 不对镜像文件内容承担责任";
 
 // ============================================================
 // VersionDownloader — Minecraft version install pipeline

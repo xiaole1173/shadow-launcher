@@ -34,6 +34,8 @@ MirrorSource MirrorSource::bmclapi()
     m.libraryBase    = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
     m.jarHost        = QStringLiteral("bmclapi2.bangbang93.com");
     m.isDefault      = true;
+    m.healthCheckUrl = QStringLiteral("https://bmclapi2.bangbang93.com/");
+    m.attribution    = QStringLiteral("资源由 BMCLAPI 镜像加速 | 文件归源站点所有");
     return m;
 }
 
@@ -47,6 +49,8 @@ MirrorSource MirrorSource::mojang()
     m.resourceBase   = QStringLiteral("https://resources.download.minecraft.net");
     m.libraryBase    = QStringLiteral("https://libraries.minecraft.net");
     m.jarHost        = QStringLiteral("launcher.mojang.com");
+    m.healthCheckUrl = QStringLiteral("https://launchermeta.mojang.com/");
+    // Mojang 官方源不需要标注
     return m;
 }
 
@@ -60,6 +64,8 @@ MirrorSource MirrorSource::mcbbs()
     m.resourceBase   = QStringLiteral("https://download.mcbbs.net/assets");
     m.libraryBase    = QStringLiteral("https://download.mcbbs.net/maven");
     m.jarHost        = QStringLiteral("download.mcbbs.net");
+    m.healthCheckUrl = QStringLiteral("https://download.mcbbs.net/");
+    m.attribution    = QStringLiteral("资源由 MCBBS 镜像加速 | 文件归源站点所有");
     return m;
 }
 

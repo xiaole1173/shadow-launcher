@@ -1,4 +1,5 @@
 #include "shadow_backend.h"
+#include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
 #include "account_backend.h"
 #include "app_backend.h"
@@ -727,6 +728,27 @@ void ShadowBackend::refreshInstalledList() {
 
 void ShadowBackend::installVersion(const QString& versionId, int sourceIndex) {
     m_version->installVersion(versionId, sourceIndex);
+}
+
+QVariantList ShadowBackend::getMirrorSources() {
+    QVariantList result;
+    const auto mirrors = MirrorSource::allMirrors();
+    for (int i = 0; i < mirrors.size(); ++i) {
+        const auto& m = mirrors[i];
+        QVariantMap item;
+        item[QStringLiteral("index")] = i;
+        item[QStringLiteral("name")] = m.name;
+        item[QStringLiteral("desc")] = m.desc;
+        item[QStringLiteral("isDefault")] = m.isDefault;
+        item[QStringLiteral("attribution")] = m.attribution;
+        item[QStringLiteral("isAvailable")] = m.isAvailable;
+        result.append(item);
+    }
+    return result;
+}
+
+QString ShadowBackend::bmclapiComplianceNotice() {
+    return QString::fromUtf8(kBMCLAPIComplianceNotice);
 }
 
 void ShadowBackend::cancelInstall() {

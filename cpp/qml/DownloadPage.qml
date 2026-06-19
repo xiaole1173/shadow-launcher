@@ -19,7 +19,9 @@ Rectangle {
     // MC Version state
     property string currentFilter: "release"  // release, snapshot, old
     property string selectedVersionId: ""
-    property int currentSource: -1  // -1=multi-source, 0=BMCLAPI, 1=official
+    property int currentSource: -1  // -1=自动(最优), 0..N=具体镜像索引
+    property var mirrorSources: []  // 从 backend.getMirrorSources() 加载
+    property string complianceNotice: ""  // BMCLAPI 协议合规文案
 
     // Mod state
     property string modSearchQuery: ""
@@ -64,6 +66,11 @@ Rectangle {
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Component.onCompleted: {
         opacity = 1; y = 0
+        // Load mirror sources for download source selector
+        if (backend) {
+            page.mirrorSources = backend.getMirrorSources()
+            page.complianceNotice = backend.bmclapiComplianceNotice()
+        }
         // Initial load of version list if already available
         refreshVersionModel()
     }
@@ -344,7 +351,7 @@ Rectangle {
                 spacing: 4
                 visible: page.currentTab === 0
 
-                // Multi-source mode (default)
+                // Auto (default)
                 Rectangle {
                     height: 26; radius: 5
                     width: multiLabel.implicitWidth + 14
@@ -352,25 +359,23 @@ Rectangle {
                     border.color: page.currentSource === -1 ? "#5068d8" : "#1e2230"
                     scale: multiSrcMouse.containsMouse ? 1.04 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { id: multiLabel; anchors.centerIn: parent; text: "多源"; color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
+                    Text { id: multiLabel; anchors.centerIn: parent; text: "自动"; color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
                     MouseArea { id: multiSrcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = -1 }
                 }
                 // Divider
                 Rectangle { width: 1; height: 16; color: "#1e2230" }
+                // Dynamic mirror sources from backend
                 Repeater {
-                    model: [
-                        { key: 0, label: "BMCLAPI" },
-                        { key: 1, label: "官方" }
-                    ]
+                    model: page.mirrorSources
                     Rectangle {
                         height: 26; radius: 5
                         width: srcLabel.implicitWidth + 14
-                        color: page.currentSource === modelData.key ? "#5068d8" : "#11141c"
-                        border.color: page.currentSource === modelData.key ? "#5068d8" : "#1e2230"
+                        color: page.currentSource === modelData.index ? "#5068d8" : "#11141c"
+                        border.color: page.currentSource === modelData.index ? "#5068d8" : "#1e2230"
                         scale: srcMouse.containsMouse ? 1.04 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { id: srcLabel; anchors.centerIn: parent; text: modelData.label; color: page.currentSource === modelData.key ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
-                        MouseArea { id: srcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = modelData.key }
+                        Text { id: srcLabel; anchors.centerIn: parent; text: modelData.name; color: page.currentSource === modelData.index ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
+                        MouseArea { id: srcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = modelData.index }
                     }
                 }
             }
@@ -1318,6 +1323,27 @@ Rectangle {
             }
 
             Item { Layout.fillHeight: true }
+        }
+
+        // ── BMCLAPI 协议合规标注 ──
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: complianceText.implicitHeight + 16
+            color: "#0a0d14"
+            visible: page.complianceNotice !== "" && page.currentTab === 0
+
+            Text {
+                id: complianceText
+                anchors.centerIn: parent
+                width: parent.width - 24
+                text: page.complianceNotice
+                color: "#505468"
+                font.pixelSize: 10
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+            }
         }
     }
 }
