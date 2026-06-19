@@ -44,6 +44,7 @@ Rectangle {
     property string rpCategoryFilter: ""  // category key for filtering
     property int rpPage: 0  // current page offset for pagination
     property bool rpLoadingMore: false
+    property bool rpShowPreReleases: false
     property bool rpHasMore: true
     property int rpTotalHits: 0
 
@@ -865,7 +866,7 @@ Rectangle {
                             }
 
                             Popup {
-                                id: rpSourceMenu
+                                id: rpSourceMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 160
                                 padding: 4
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
@@ -927,7 +928,7 @@ Rectangle {
                             }
 
                             Popup {
-                                id: rpVersionMenu
+                                id: rpVersionMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 140
                                 height: Math.min(rpVerFlick.contentHeight + 8, 220)
                                 padding: 0
@@ -964,6 +965,7 @@ Rectangle {
                                                 var groups = []
                                                 for (var i = 0; i < backend.versionIds.length; i++) {
                                                     var v = backend.versionIds[i]
+                                                    if (!page.rpShowPreReleases && v.indexOf("-") >= 0) continue
                                                     var major = v.split(/[.\-]/).slice(0, 2).join(".")
                                                     if (!seen.has(major)) {
                                                         seen.add(major)
@@ -988,6 +990,22 @@ Rectangle {
                                                         loadRpFirstPage()
                                                     }
                                                 }
+                                            }
+                                        }
+
+                                        // Toggle pre-release visibility
+                                        Rectangle {
+                                            Layout.fillWidth: true; height: 26; radius: 4
+                                            color: "transparent"
+                                            Layout.topMargin: 4
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: page.rpShowPreReleases ? "隐藏测试版" : "显示测试版"
+                                                color: "#505468"; font.pixelSize: 10
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
                                             }
                                         }
                                     }
@@ -1028,7 +1046,7 @@ Rectangle {
                             }
 
                             Popup {
-                                id: rpTypeMenu
+                                id: rpTypeMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 160
                                 height: Math.min(rpTypeFlick.contentHeight + 8, 240)
                                 padding: 0
@@ -1436,65 +1454,103 @@ Rectangle {
                     color: "#505468"; font.pixelSize: 11
                 }
 
-                // Version list
+                // Version list grouped by major, click to expand
+                property var rpDetailGrouped: {
+                    var d = page.rpVersionCache
+                    var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
+                    var groups = {}
+                    for (var i = 0; i < raw.length; i++) {
+                        var v = raw[i]
+                        var major = v.split(/[.\-]/)[0]
+                        if (!groups[major]) groups[major] = []
+                        groups[major].push(v)
+                    }
+                    var result = []
+                    for (var k in groups) { result.push({major: k, versions: groups[k]}) }
+                    result.sort(function(a,b) { return parseInt(b.major) - parseInt(a.major) })
+                    return result
+                }
+
+                property string rpDetailExpanded: ""
+
                 ScrollView {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                     ColumnLayout {
-                        width: parent.width - 4; spacing: 6
+                        width: parent.width - 4; spacing: 4
 
-                        // Loaded versions
                         Repeater {
-                            model: {
-                                var d = page.rpVersionCache
-                                if (!d || !d[rpDetailSlug]) return []
-                                return d[rpDetailSlug]
-                            }
-                            delegate: Rectangle {
-                                Layout.fillWidth: true; height: 40; radius: 8
-                                color: rpDetVerHov.hovered ? "#1a2848" : "#11141c"
-                                border.color: rpDetVerHov.hovered ? "#5068c8" : "#1e2230"
-                                border.width: 1
+                            model: rpDetailGrouped
+                            delegate: ColumnLayout {
+                                Layout.fillWidth: true; spacing: 2
 
-                                RowLayout {
-                                    anchors.fill: parent; anchors.margins: 10; spacing: 10
-                                    Text {
-                                        text: modelData; color: "#5068c8"; font.pixelSize: 14; font.bold: true
-                                        font.family: "Consolas, monospace"; Layout.fillWidth: true
-                                    }
-                                    Rectangle {
-                                        width: 56; height: 26; radius: 5
-                                        color: rpDetVerHov.hovered ? "#5068c8" : "transparent"
-                                        border.color: rpDetVerHov.hovered ? "#5068c8" : "#1e2230"
-                                        border.width: 1
+                                // Group header
+                                Rectangle {
+                                    Layout.fillWidth: true; height: 36; radius: 6
+                                    color: rpDetGrpArea.containsMouse ? "#1a2848" : "#11141c"
+                                    border.color: rpDetGrpArea.containsMouse ? "#5068c8" : "#1e2230"
+                                    border.width: 1
+                                    RowLayout {
+                                        anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
-                                            anchors.centerIn: parent; text: "安装"
-                                            color: rpDetVerHov.hovered ? "#e8ecf8" : "#606478"
-                                            font.pixelSize: 10
+                                            text: (rpDetailExpanded === modelData.major ? "\u25bc" : "\u25b8") + "  MC " + modelData.major + ".X"
+                                            color: "#5068c8"; font.pixelSize: 14; font.bold: true
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: modelData.versions.length + " 个版本"
+                                            color: "#505468"; font.pixelSize: 10
+                                        }
+                                    }
+                                    MouseArea {
+                                        id: rpDetGrpArea; anchors.fill: parent
+                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            rpDetailExpanded = (rpDetailExpanded === modelData.major) ? "" : modelData.major
                                         }
                                     }
                                 }
-                                MouseArea {
-                                    id: rpDetVerHov
-                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        console.log("[resourcepack] install from detail:", rpDetailSlug, "ver:", modelData)
-                                        page.installingMod = true
-                                        page.installingModName = rpDetailSlug
-                                        if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
-                                        rpDetailSlug = ""
+
+                                // Sub-versions (only when expanded)
+                                Repeater {
+                                    model: (rpDetailExpanded === modelData.major) ? modelData.versions : []
+                                    delegate: Rectangle {
+                                        Layout.fillWidth: true; height: 34; radius: 5
+                                        Layout.leftMargin: 12
+                                        color: rpDetSubHov.hovered ? "#151d2e" : "#0c0e14"
+                                        RowLayout {
+                                            anchors.fill: parent; anchors.margins: 8; spacing: 8
+                                            Text {
+                                                text: modelData; color: "#90a0c8"; font.pixelSize: 12
+                                                font.family: "Consolas, monospace"; Layout.fillWidth: true
+                                            }
+                                            Rectangle {
+                                                width: 52; height: 22; radius: 4
+                                                color: rpDetSubHov.hovered ? "#5068c8" : "#1a2848"
+                                                Text {
+                                                    anchors.centerIn: parent; text: "下载"
+                                                    color: "#d0d4e0"; font.pixelSize: 10
+                                                }
+                                            }
+                                        }
+                                        MouseArea {
+                                            id: rpDetSubHov; anchors.fill: parent
+                                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                console.log("[resourcepack] download:", rpDetailSlug, modelData)
+                                                page.installingRpName = rpDetailSlug
+                                                if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
+                                                rpDetailSlug = ""
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        // Loading indicator
                         Text {
-                            visible: {
-                                var d = page.rpVersionCache
-                                return !d || !d[rpDetailSlug] || d[rpDetailSlug].length === 0
-                            }
+                            visible: rpDetailGrouped.length === 0
                             text: "正在加载版本信息..."
                             color: "#505468"; font.pixelSize: 12
                             Layout.alignment: Qt.AlignHCenter
