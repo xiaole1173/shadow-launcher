@@ -153,6 +153,15 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     m_totalBytes.storeRelaxed(0);
     m_downloadedBytes.storeRelaxed(0);
 
+    m_fallbackIndex = 0;
+    m_fallbackChain.clear();
+    m_fallbackChain.append(m_mirror);
+    const auto all = MirrorSource::allMirrors();
+    for (const auto& m : all) {
+        if (m.name != m_mirror.name)
+            m_fallbackChain.append(m);
+    }
+
     emit stateChanged();
 
     // --- Step 1: Save version JSON to disk ---
@@ -307,6 +316,17 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
         emit downloadFailedFiles(failedFiles);
         emit logMessage(QStringLiteral("⚠ 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
                             .arg(failedFiles.size()));
+
+        // ── Mirror fallback: significant failures → retry with next mirror ──
+        const double failRate = static_cast<double>(failedCount) / m_totalFiles.loadRelaxed();
+        if (m_fallbackIndex + 1 < m_fallbackChain.size() && failRate >= kFallbackThreshold) {
+            const auto& next = m_fallbackChain[m_fallbackIndex + 1];
+            emit logMessage(QStringLiteral("🔄 %1%% 文件下载失败, 切换到 %2 重试...")
+                                .arg(static_cast<int>(failRate * 100))
+                                .arg(next.name));
+            retryWithNextMirror();
+            return;
+        }
     }
 
     // --- Integrity verification ---
@@ -326,8 +346,17 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
         if (missing.size() > 10)
             emit logMessage(QStringLiteral("  ... 共 %1 个").arg(missing.size()));
 
-        // Emit missing files too so QML can show a retry/download-missing button
         emit downloadFailedFiles(missing);
+
+        // ── Mirror fallback: missing files → retry with next mirror ──
+        if (m_fallbackIndex + 1 < m_fallbackChain.size()) {
+            const auto& next = m_fallbackChain[m_fallbackIndex + 1];
+            emit logMessage(QStringLiteral("🔄 完整性校验未通过 (%1 缺失), 切换到 %2 重试...")
+                                .arg(missing.size())
+                                .arg(next.name));
+            retryWithNextMirror();
+            return;
+        }
 
         m_state = Failed;
         emit stateChanged();
@@ -509,6 +538,77 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         tasks.append(assetTask);
         m_taskDestPaths.append(dest);
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Mirror fallback: switch to next mirror and retry
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::retryWithNextMirror()
+{
+    if (m_fallbackIndex + 1 >= m_fallbackChain.size())
+        return;
+
+    m_fallbackIndex++;
+    const auto& next = m_fallbackChain[m_fallbackIndex];
+    setMirror(next);
+
+    // Reset counters
+    m_completedFiles.storeRelaxed(0);
+    m_downloadedBytes.storeRelaxed(0);
+    m_taskDestPaths.clear();
+
+    // Create fresh downloader (old one is in Done/Failed state, can't reuse)
+    if (m_downloader) {
+        m_downloader->deleteLater();
+        m_downloader = nullptr;
+    }
+    m_downloader = new ParallelDownloader(m_maxWorkers, this);
+    connect(m_downloader, &ParallelDownloader::progressChanged,
+            this, [this](int completed, int total, qint64 rx, qint64 totalBytes) {
+        m_completedFiles.storeRelaxed(completed);
+        m_totalFiles.storeRelaxed(total);
+        m_downloadedBytes.storeRelaxed(rx);
+        m_totalBytes.storeRelaxed(totalBytes);
+        emit progressChanged(completed, total, rx, totalBytes);
+    });
+    connect(m_downloader, &ParallelDownloader::fileProgress,
+            this, &VersionDownloader::fileProgress);
+    connect(m_downloader, &ParallelDownloader::logMessage,
+            this, &VersionDownloader::logMessage);
+    connect(m_downloader, &ParallelDownloader::allFinished,
+            this, &VersionDownloader::onAllFinished);
+
+    // Re-collect tasks with the new mirror
+    QVector<DownloadTask> tasks;
+    collectTasks(m_currentVersionJson, m_currentVersionId, m_assetObjects, tasks);
+    m_totalFiles.storeRelaxed(tasks.size());
+
+    if (tasks.isEmpty()) {
+        m_state = Done;
+        emit downloadFinished(true, QString());
+        emit stateChanged();
+        return;
+    }
+
+    qint64 totalEstimate = 0;
+    for (const auto& t : tasks) totalEstimate += t.totalBytes;
+    m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+
+    const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + m_currentVersionId;
+    m_downloader->setCheckpointDir(versionDir);
+    m_downloader->addTasks(tasks);
+
+    m_state = Running;
+    emit stateChanged();
+    emit logMessage(QStringLiteral("🔄 已切换到 %1 (%2/%3), 重新下载 %4 个文件")
+                        .arg(next.name)
+                        .arg(m_fallbackIndex + 1)
+                        .arg(m_fallbackChain.size())
+                        .arg(tasks.size()));
+
+    ParallelDownloader::enqueueVersionDownload(m_downloader);
+    m_downloader->start();
 }
 
 // ═══════════════════════════════════════════════════════════

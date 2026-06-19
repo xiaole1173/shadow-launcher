@@ -124,10 +124,18 @@ private:
     static QString formatSize(qint64 bytes);
     void emitProgress(const QString& name);
 
+    // --- Mirror fallback ---
+    void retryWithNextMirror();
+
     // --- Members ---
     MirrorSource m_mirror;
     QString m_minecraftDir;
     int m_maxWorkers = 32;
+
+    // Mirror fallback: tracks current position in fallback chain
+    QVector<MirrorSource> m_fallbackChain;
+    int m_fallbackIndex = 0;
+    static constexpr double kFallbackThreshold = 0.3;
 
     ParallelDownloader* m_downloader = nullptr;
 
