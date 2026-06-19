@@ -241,6 +241,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
 void ModManager::searchResourcepacks(
     const QString& query,
     const QStringList& gameVersions,
+    const QStringList& categories,
     int offset, int limit)
 {
     setBusy(true);
@@ -256,6 +257,14 @@ void ModManager::searchResourcepacks(
         for (const QString& v : gameVersions)
             verFacet.append(QStringLiteral("versions:") + v);
         facets.append(verFacet);
+    }
+
+    if (!categories.isEmpty()) {
+        QJsonArray catFacet;
+        for (const QString& cat : categories)
+            catFacet.append(QStringLiteral("categories:") + cat);
+        // Use OR facet (multiple values in one array = OR)
+        facets.append(catFacet);
     }
 
     QUrl url(MODRINTH_API + "/search");

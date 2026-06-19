@@ -93,6 +93,7 @@ public:
     void searchResourcepacks(
         const QString& query,
         const QStringList& gameVersions = {},
+        const QStringList& categories = {},
         int offset = 0,
         int limit = 20
     );

@@ -78,8 +78,13 @@ Rectangle {
         }
         var q = rpSearchInput.text || ""
         var ver = page.rpGameVersion || ""
-        console.log("[RP-DEBUG]", page.rpDebugSeq, "FIRSTPAGE gv=", ver, "q=", q)
-        backend.searchResourcepacks(q, ver, 0)
+        // Collect all 3 filter dimensions for backend facets
+        var cats = []
+        if (page.rpCategoryFilter) cats.push(page.rpCategoryFilter)
+        if (page.rpFeatureFilter) cats.push(page.rpFeatureFilter)
+        if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
+        console.log("[RP-DEBUG]", page.rpDebugSeq, "FIRSTPAGE gv=", ver, "q=", q, "cats=", cats)
+        backend.searchResourcepacks(q, ver, 0, cats)
     }
 
     // Load next page of resource packs
@@ -1710,7 +1715,10 @@ Rectangle {
                             onClicked: {
                                 console.log("[RP-DEBUG] card clicked:", model.slug)
                                 rpDetailSlug = model.slug; rpDetailTitle = model.title
-                                page.rpDetailIconUrl = model.icon || ""
+                                var iconUrl = model.icon || ""
+                                iconUrl = iconUrl.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                iconUrl = iconUrl.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                page.rpDetailIconUrl = iconUrl
                                 page.rpDetailAuthor = model.author || ""
                                 page.rpDetailDesc = model.desc || ""
                                 page.rpDetailDownloads = model.downloads || 0
