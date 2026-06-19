@@ -315,7 +315,7 @@ void ModManager::downloadResourcepack(
             QJsonObject bestFile;
             for (const QJsonValue& fv : files) {
                 QJsonObject f = fv.toObject();
-                QJsonArray gvs = f[QStringLiteral("game_versions")].toArray();
+                QJsonArray gvs = f[QStringLiteral("gameVersions")].toArray();
                 bool match = false;
                 for (const QJsonValue& gv : gvs) {
                     if (gv.toString() == gameVersion) { match = true; break; }
@@ -386,7 +386,7 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 
                 for (const QJsonValue& v : versions) {
                     QJsonObject ver = v.toObject();
-                    QJsonArray gvs = ver[QStringLiteral("game_versions")].toArray();
+                    QJsonArray gvs = ver[QStringLiteral("gameVersions")].toArray();
                     for (const QJsonValue& gv : gvs) {
                         QString gvStr = gv.toString();
                         // Group to major version: 1.21.3 → 1.21.X

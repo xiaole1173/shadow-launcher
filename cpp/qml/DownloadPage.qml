@@ -1285,25 +1285,20 @@ Rectangle {
                 height: 34
                 spacing: 8
 
-                // Version filter pill
+                // Version filter pill — grouped by major version
                 Rectangle {
                     id: rpVerPill
                     height: 26; radius: 13
-                    width: rpVerLabel.implicitWidth + 20
+                    width: rpVerLabel.implicitWidth + 24
                     color: rpVerMouse.containsMouse ? "#1a2848" : "#11141c"
-                    border.color: page.rpGameVersion === "" ? "#c060a0" : "#5068c8"
+                    border.color: page.rpGameVersion === "" ? "#a0a8c0" : "#c060a0"
                     border.width: 1
-                    scale: rpVerMouse.containsMouse ? 1.04 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
-                    Row {
-                        anchors.centerIn: parent; spacing: 4
-                        Text {
-                            id: rpVerLabel
-                            text: page.rpGameVersion === "" ? "全部" : ("MC " + page.rpGameVersion)
-                            color: "#d0d4e0"; font.pixelSize: 11; font.weight: Font.Medium
-                        }
-                        Text { text: "▼"; color: "#505468"; font.pixelSize: 8 }
+                    Text {
+                        id: rpVerLabel
+                        anchors.centerIn: parent
+                        text: page.rpGameVersion === "" ? "全部" : ("MC " + page.rpGameVersion)
+                        color: "#d0d4e0"; font.pixelSize: 12; font.weight: Font.Medium
                     }
 
                     MouseArea {
@@ -1314,55 +1309,73 @@ Rectangle {
 
                     Popup {
                         id: rpVersionMenu
-                        y: parent.height + 4; width: 140
-                        implicitHeight: rpVerCol.implicitHeight + 8
-                        padding: 4
+                        y: parent.height + 4; width: 150
+                        height: Math.min(rpVerFlick.contentHeight + 8, 260)
+                        padding: 0
                         background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
-                        ColumnLayout {
-                            id: rpVerCol
-                            width: parent.width - 8; spacing: 2
+                        Flickable {
+                            id: rpVerFlick
+                            anchors.fill: parent; anchors.margins: 4
+                            contentHeight: rpVerInner.implicitHeight; clip: true
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                            // "全部" option
-                            Rectangle {
-                                Layout.fillWidth: true; height: 28; radius: 4
-                                color: verAllHov.hovered ? "#1a2848" : "transparent"
-                                Text {
-                                    anchors.centerIn: parent; text: "全部"
-                                    color: page.rpGameVersion === "" ? "#c060a0" : "#9094a8"
-                                    font.pixelSize: 11
-                                    font.weight: page.rpGameVersion === "" ? Font.Bold : Font.Normal
-                                }
-                                MouseArea {
-                                    id: verAllHov
-                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        page.rpGameVersion = ""; rpVersionMenu.close()
-                                        console.log("[resourcepack] filter: ALL")
-                                        if (backend) backend.searchResourcepacks(rpSearchInput.text || "", "")
-                                    }
-                                }
-                            }
+                            ColumnLayout {
+                                id: rpVerInner
+                                width: parent.width; spacing: 2
 
-                            // Version list
-                            Repeater {
-                                model: backend ? backend.versionIds.slice(0, 15) : ["1.21.10","1.20.6","1.19.4"]
+                                // "全部" option
                                 Rectangle {
                                     Layout.fillWidth: true; height: 28; radius: 4
-                                    color: verItemHov.hovered ? "#1a2848" : "transparent"
+                                    color: page.rpGameVersion === "" ? "#1a2848" : "transparent"
                                     Text {
-                                        anchors.centerIn: parent; text: modelData
-                                        color: modelData === page.rpGameVersion ? "#c060a0" : "#9094a8"
-                                        font.pixelSize: 11
-                                        font.weight: modelData === page.rpGameVersion ? Font.Bold : Font.Normal
+                                        anchors.centerIn: parent; text: "全部"; font.pixelSize: 11
+                                        color: page.rpGameVersion === "" ? "#c060a0" : "#9094a8"
+                                        font.weight: page.rpGameVersion === "" ? Font.Bold : Font.Normal
                                     }
                                     MouseArea {
-                                        id: verItemHov
                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            page.rpGameVersion = modelData; rpVersionMenu.close()
-                                            console.log("[resourcepack] filter:", modelData)
-                                            if (backend) backend.searchResourcepacks(rpSearchInput.text || "", modelData)
+                                            page.rpGameVersion = ""; rpVersionMenu.close()
+                                            console.log("[resourcepack] filter: ALL")
+                                            if (backend) backend.searchResourcepacks(rpSearchInput.text || "", "")
+                                        }
+                                    }
+                                }
+
+                                // Major-version grouped list
+                                Repeater {
+                                    model: {
+                                        if (!backend || !backend.versionIds) return ["1.26.2","1.25.5","1.21.10","1.20.6"]
+                                        // Group by major version
+                                        var seen = new Set()
+                                        var groups = []
+                                        for (var i = 0; i < backend.versionIds.length; i++) {
+                                            var v = backend.versionIds[i]
+                                            var major = v.split(".").slice(0, 2).join(".")
+                                            if (!seen.has(major)) {
+                                                seen.add(major)
+                                                groups.push(major)
+                                            }
+                                            if (groups.length >= 30) break
+                                        }
+                                        return groups
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true; height: 28; radius: 4
+                                        color: modelData === page.rpGameVersion ? "#1a2848" : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent; text: modelData; font.pixelSize: 11
+                                            color: modelData === page.rpGameVersion ? "#c060a0" : "#9094a8"
+                                            font.weight: modelData === page.rpGameVersion ? Font.Bold : Font.Normal
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                page.rpGameVersion = modelData; rpVersionMenu.close()
+                                                console.log("[resourcepack] filter:", modelData)
+                                                if (backend) backend.searchResourcepacks(rpSearchInput.text || "", modelData)
+                                            }
                                         }
                                     }
                                 }
@@ -1484,10 +1497,10 @@ Rectangle {
                                         Layout.fillWidth: true
                                     }
                                     Text {
-                                        visible: model.downloads > 0
+                                        visible: model.downloads >= 0
                                         text: model.downloads >= 1000000 ? "↓" + (model.downloads / 1000000).toFixed(1) + "M" :
-                                              model.downloads >= 1000 ? "↓" + Math.round(model.downloads / 1000) + "K" : "↓" + model.downloads
-                                        color: "#505468"; font.pixelSize: 11
+                                              model.downloads >= 1000 ? "↓" + (Math.round(model.downloads / 100) / 10).toFixed(1) + "K" : "↓" + model.downloads
+                                        color: "#788090"; font.pixelSize: 11
                                     }
                                 }
 
@@ -1504,12 +1517,13 @@ Rectangle {
                                     clip: true
                                     Repeater {
                                         model: {
-                                            var vers = model.versions || []
+                                            if (!model) return [{text: "加载中…", color: "#404860"}]
+                                            var vers = page.rpVersionCache[model.slug] || []
                                             if (vers.length === 0) return [{text: "加载中…", color: "#404860"}]
                                             var chips = []
                                             var maxChips = Math.min(vers.length, 6)
                                             for (var i = 0; i < maxChips; i++) {
-                                                chips.push({text: vers[i], color: "#404860"})
+                                                chips.push({text: vers[i], color: "#90a0c8"})
                                             }
                                             if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#c060a0"})
                                             return chips
@@ -1713,8 +1727,7 @@ Rectangle {
                         title: r.title || "",
                         desc: r.desc || r.description || "",
                         icon: r.icon || "",
-                        downloads: r.downloads || 0,
-                        versions: []
+                        downloads: r.downloads || 0
                     })
                 }
                 console.log("[resourcepack] populating", rpResultsModel.count, "cards, fetching versions for", slugs.length)
@@ -1741,14 +1754,9 @@ Rectangle {
         function onResourcepackVersionsLoaded(data) {
             console.log("[resourcepack] versions loaded, keys:", data ? Object.keys(data).length : 0)
             if (data) {
-                for (var i = 0; i < rpResultsModel.count; i++) {
-                    var item = rpResultsModel.get(i)
-                    if (data[item.slug]) {
-                        rpResultsModel.setProperty(i, "versions", data[item.slug])
-                    }
-                }
                 page.rpVersionCache = data
-                // Also load detail page if open
+                // Trigger list view refresh by setting a dummy property
+                rpResultsModel.setProperty(0, "downloads", rpResultsModel.get(0).downloads)
                 if (rpDetailSlug && data[rpDetailSlug]) {
                     console.log("[resourcepack] detail versions:", data[rpDetailSlug])
                 }
