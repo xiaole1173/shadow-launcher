@@ -14,15 +14,15 @@ namespace ShadowLauncher {
 // Modrinth API constants
 // ============================================================
 
-static const QString MODRINTH_API = QStringLiteral("https://api.modrinth.com/v2");
-static const QString USER_AGENT = QStringLiteral("ShadowLauncher/1.0");
+// Primary: MCIM mirror (faster for China mainland users)
+//   Modrinth: api.modrinth.com → mod.mcimirror.top/modrinth
+//   CDN:      cdn.modrinth.com → mcim-files.pysio.online
+static const QString MODRINTH_API = QStringLiteral("https://mod.mcimirror.top/modrinth/v2");
+// Fallback URL for when MCIM is down
+static const QString MODRINTH_API_FALLBACK = QStringLiteral("https://api.modrinth.com/v2");
 
-// 中文社区常用镜像（非官方，但下载快）
-// TODO: integrate with ParallelDownloader when mirror support is added
-static const QStringList MODRINTH_MIRRORS = {
-    QStringLiteral("https://modrinth.thisisxd.top"),
-    QStringLiteral("https://ghfast.top/https://cdn.modrinth.com"),
-};
+// MCIM download mirror
+static const QString MCIM_DOWNLOAD = QStringLiteral("https://mcim-files.pysio.online");
 
 // ============================================================
 // Constructor
@@ -336,9 +336,15 @@ void ModManager::downloadResourcepack(
             QString filename = bestFile[QStringLiteral("filename")].toString();
             if (filename.isEmpty()) filename = slug + QStringLiteral(".zip");
 
+            // Rewrite cdn.modrinth.com → MCIM download mirror
+            dlUrl.replace(QStringLiteral("cdn.modrinth.com"),
+                          QStringLiteral("mcim-files.pysio.online"));
+
             QString destDir = minecraftDir + QStringLiteral("/resourcepacks");
             QDir().mkpath(destDir);
             QString destPath = destDir + QStringLiteral("/") + filename;
+
+            emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
 
             emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1").arg(filename));
 
