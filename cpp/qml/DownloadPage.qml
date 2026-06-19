@@ -1260,69 +1260,266 @@ Rectangle {
         anchors.topMargin: 8
         visible: page.currentTab === 3
 
+        property string rpSearchQuery: ""
+        property string rpGameVersion: backend ? (backend.versionIds && backend.versionIds.length > 0 ? backend.versionIds[0] : "1.21.10") : "1.21.10"
+
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 24
+            anchors.margins: 12
+            spacing: 8
 
-            Item { Layout.fillHeight: true }
+            // Search bar
+            RowLayout {
+                Layout.fillWidth: true
+                height: 34
+                spacing: 8
 
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                width: 200
-                height: 200
-                radius: 16
-                color: "#11141c"
-                border.color: "#1e2230"
-                border.width: 1
+                // Game version selector
+                Text {
+                    text: "MC " + page.rpGameVersion
+                    color: "#9094a8"
+                    font.pixelSize: 12
+                }
 
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: 12
+                Item { Layout.fillWidth: true }
 
-                    Rectangle {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: 48
-                        height: 48
-                        radius: 12
-                        color: "#1a1f2e"
-                        border.color: "#1e2230"
-                        border.width: 1
+                Rectangle {
+                    width: 200
+                    height: 30
+                    radius: 6
+                    color: "#11141c"
+                    border.color: "#1e2230"
+                    border.width: 1
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: "..."
-                            color: "#505468"
-                            font.pixelSize: 20
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 4
+                        spacing: 4
+
+                        TextInput {
+                            id: rpSearchInput
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            color: "#d0d4e0"
+                            verticalAlignment: TextInput.AlignVCenter
+                            font.pixelSize: 12
+                            onAccepted: {
+                                if (backend && text) {
+                                    backend.searchResourcepacks(text, page.rpGameVersion)
+                                }
+                            }
+
+                            Text {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                text: "搜索 Modrinth 资源包..."
+                                color: "#505468"
+                                font.pixelSize: 12
+                                visible: !rpSearchInput.text
+                            }
                         }
-                    }
 
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "资源包下载"
-                        color: "#d0d4e0"
-                        font.pixelSize: 14
-                        font.bold: true
-                    }
+                        Rectangle {
+                            width: 28
+                            height: 22
+                            radius: 4
+                            color: rpSearchIconArea.containsMouse ? "#3a4eb8" : "transparent"
 
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "即将支持"
-                        color: "#606478"
-                        font.pixelSize: 12
-                    }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Go"
+                                color: rpSearchIconArea.containsMouse ? "#e8ecf8" : "#606478"
+                                font.pixelSize: 10
+                            }
 
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: 160
-                        text: "资源包下载功能正在开发中\n敬请期待"
-                        color: "#505468"
-                        font.pixelSize: 11
-                        horizontalAlignment: Text.AlignHCenter
+                            MouseArea {
+                                id: rpSearchIconArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (backend && rpSearchInput.text) {
+                                        backend.searchResourcepacks(rpSearchInput.text, page.rpGameVersion)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            Item { Layout.fillHeight: true }
+            Text {
+                text: "资源包 | 来源: Modrinth API | 点击安装到 resourcepacks/"
+                color: "#505468"
+                font.pixelSize: 11
+            }
+
+            // Search results from backend
+            Connections {
+                target: backend
+                enabled: backend !== null && page.currentTab === 3
+                function onResourcepackSearchCompleted(results, totalHits) {
+                    if (results) {
+                        rpResultsModel.clear()
+                        for (var i = 0; i < results.length; i++) {
+                            var r = results[i]
+                            rpResultsModel.append({
+                                slug: r.slug || "",
+                                title: r.title || "",
+                                desc: r.desc || r.description || "",
+                                icon: r.icon || "",
+                                downloads: r.downloads || 0
+                            })
+                        }
+                    }
+                }
+                function onResourcepackDownloadFinished(slug, success, filePath) {
+                    page.installingMod = false
+                    page.installingModName = ""
+                }
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                GridView {
+                    id: rpGrid
+                    anchors.fill: parent
+                    cellWidth: 224
+                    cellHeight: 118
+
+                    model: ListModel { id: rpResultsModel }
+
+                    delegate: Rectangle {
+                        width: 214
+                        height: 110
+                        color: rpCardMouse.containsMouse ? "#11141c" : "#0e1018"
+                        radius: 8
+                        border.color: rpCardMouse.containsMouse ? "#3a4eb8" : "#1a1f2a"
+                        border.width: 1
+
+                        opacity: 0
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                        Component.onCompleted: { opacity = 1 }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 4
+
+                            RowLayout {
+                                spacing: 6
+                                Rectangle {
+                                    width: 28
+                                    height: 28
+                                    radius: 6
+                                    color: "#1a1f2e"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: model.title ? model.title[0] : "R"
+                                        color: "#c060a0"
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                    }
+                                }
+                                Text {
+                                    text: model.title || ""
+                                    color: "#d0d4e0"
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            Text {
+                                text: model.desc || "暂无简介"
+                                color: "#606478"
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                                maximumLineCount: 2
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                            }
+
+                            RowLayout {
+                                Text {
+                                    visible: model.downloads > 0
+                                    text: model.downloads >= 1000000 ? "DL " + (model.downloads / 1000000).toFixed(1) + "M" :
+                                          model.downloads >= 1000 ? "DL " + Math.round(model.downloads / 1000) + "K" : ""
+                                    color: "#505468"
+                                    font.pixelSize: 10
+                                }
+                                Item { Layout.fillWidth: true }
+                                Rectangle {
+                                    width: 44
+                                    height: 22
+                                    radius: 4
+                                    color: rpCardMouse.containsMouse ? "#c060a0" : "transparent"
+                                    border.color: rpCardMouse.containsMouse ? "#c060a0" : "#1e2230"
+                                    border.width: 1
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "安装"
+                                        color: rpCardMouse.containsMouse ? "#e8ecf8" : "#606478"
+                                        font.pixelSize: 10
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: rpCardMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (model.slug && backend) {
+                                    page.installingMod = true
+                                    page.installingModName = model.title || model.slug
+                                    backend.downloadResourcepack(model.slug, page.rpGameVersion)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Download progress bar
+            Rectangle {
+                visible: page.installingMod
+                Layout.fillWidth: true
+                Layout.preferredHeight: 4
+                radius: 2
+                color: "#1a1f2a"
+
+                Rectangle {
+                    height: 4
+                    radius: 2
+                    color: "#c060a0"
+                    width: parent.width * 0.4
+                    NumberAnimation on x {
+                        from: 0
+                        to: parent.width * 0.6
+                        duration: 1200
+                        loops: Animation.Infinite
+                        running: page.installingMod
+                    }
+                }
+            }
+            Text {
+                visible: page.installingMod
+                text: "正在安装 " + (page.installingModName || "资源包...")
+                color: "#606478"
+                font.pixelSize: 11
+            }
         }
 
         // ── BMCLAPI 协议合规标注 ──
