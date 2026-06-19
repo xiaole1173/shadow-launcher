@@ -17,12 +17,17 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QUrl>
+
+// libwebp: in-process webp→PNG decoding
+#include <webp/decode.h>
+#include <webp/encode.h>
 #include <QSettings>
 #include <QStorageInfo>
 #include <QTextStream>
@@ -925,48 +930,41 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
             return;
         }
 
-        // Convert webp → png via ffmpeg pipe (zero disk I/O)
+        // Decode webp → QImage → save PNG (libwebp, zero subprocess overhead)
         QByteArray webpData = reply->readAll();
         reply->deleteLater();
         mgr->deleteLater();
 
-        auto* ffmpeg = new QProcess(this);
-        ffmpeg->setProgram(QStringLiteral("ffmpeg"));
-        ffmpeg->setArguments({QStringLiteral("-y"),
-                              QStringLiteral("-i"), QStringLiteral("pipe:0"),
-                              QStringLiteral("-f"), QStringLiteral("image2pipe"),
-                              QStringLiteral("pipe:1")});
-        ffmpeg->setProcessChannelMode(QProcess::SeparateChannels);
+        QImage img;
+        int w = 0, h = 0;
+        uint8_t* rgba = WebPDecodeRGBA(
+            reinterpret_cast<const uint8_t*>(webpData.constData()),
+            webpData.size(), &w, &h);
 
-        QObject::connect(ffmpeg, &QProcess::started, ffmpeg, [ffmpeg, webpData]() {
-            ffmpeg->write(webpData);
-            ffmpeg->closeWriteChannel();
-        });
+        if (rgba && w > 0 && h > 0) {
+            // WebP decoded successfully
+            img = QImage(rgba, w, h, QImage::Format_RGBA8888,
+                         [](void* p) { WebPFree(p); }, rgba);
+        } else {
+            // Not webp? Try loading directly (e.g., already PNG)
+            WebPFree(rgba);  // safe to free null
+            img = QImage::fromData(webpData);
+            if (img.isNull()) {
+                qWarning() << "[ICON] decode failed:" << webpUrl;
+                emit iconCached(webpUrl, {});
+                return;
+            }
+        }
 
-        QObject::connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, ffmpeg, webpUrl, pngPath](int exitCode, QProcess::ExitStatus) {
-                if (exitCode == 0) {
-                    QByteArray pngData = ffmpeg->readAllStandardOutput();
-                    if (pngData.size() > 100) {
-                        // Write to disk cache for future instant loads
-                        QFile f(pngPath);
-                        if (f.open(QIODevice::WriteOnly)) {
-                            f.write(pngData);
-                            f.close();
-                        }
-                        qDebug() << "[ICON] cached (pipe):" << webpUrl << "→" << pngPath;
-                        emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
-                    } else {
-                        qWarning() << "[ICON] ffmpeg produced empty output:" << webpUrl;
-                        emit iconCached(webpUrl, {});
-                    }
-                } else {
-                    qWarning() << "[ICON] ffmpeg failed:" << webpUrl;
-                    emit iconCached(webpUrl, {});
-                }
-                ffmpeg->deleteLater();
-        });
-        ffmpeg->start();
+        // Save PNG to disk cache for future instant loads
+        if (img.save(pngPath, "PNG")) {
+            qDebug() << "[ICON] cached (libwebp):" << webpUrl << "→" << pngPath
+                     << "(" << img.width() << "x" << img.height() << ")";
+            emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
+        } else {
+            qWarning() << "[ICON] PNG save failed:" << pngPath;
+            emit iconCached(webpUrl, {});
+        }
     });
 }
 

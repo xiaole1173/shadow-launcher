@@ -121,6 +121,14 @@ qt_add_qml_module(ShadowLauncher
 
 target_include_directories(ShadowLauncher PRIVATE src)
 
+# ── libwebp (static, for webp→PNG icon decoding) ──
+set(WEBP_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/libwebp")
+target_include_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/include")
+target_link_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/lib")
+
+# Define WEBP_STATIC_LINK for static lib (needed on Windows)
+target_compile_definitions(ShadowLauncher PRIVATE WEBP_STATIC_LINK)
+
 target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -131,6 +139,7 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Network
     Qt6::Widgets
     nlohmann_json
+    libwebp
 )
 # cpr::cpr — added when libcurl is installed
 
