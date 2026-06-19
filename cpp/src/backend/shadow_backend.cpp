@@ -916,42 +916,55 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     QNetworkReply* reply = mgr->get(req);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, webpUrl, pngPath, hash]() {
-        reply->deleteLater();
-        mgr->deleteLater();
-
+    connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, webpUrl, pngPath]() {
         if (reply->error() != QNetworkReply::NoError) {
             qWarning() << "[ICON] download failed:" << webpUrl << reply->errorString();
-            emit iconCached(webpUrl, {});  // empty = failed
-            return;
-        }
-
-        // Save webp to temp
-        QString tempWebp = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/") 
-                         + QString::fromLatin1(hash) + QStringLiteral(".webp");
-        QFile f(tempWebp);
-        if (!f.open(QIODevice::WriteOnly)) {
+            reply->deleteLater();
+            mgr->deleteLater();
             emit iconCached(webpUrl, {});
             return;
         }
-        f.write(reply->readAll());
-        f.close();
 
-        // Convert webp → png using ffmpeg (async subprocess)
+        // Convert webp → png via ffmpeg pipe (zero disk I/O)
+        QByteArray webpData = reply->readAll();
+        reply->deleteLater();
+        mgr->deleteLater();
+
         auto* ffmpeg = new QProcess(this);
         ffmpeg->setProgram(QStringLiteral("ffmpeg"));
-        ffmpeg->setArguments({QStringLiteral("-y"), QStringLiteral("-i"), tempWebp, pngPath});
-        connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, ffmpeg, webpUrl, pngPath, tempWebp](int exitCode, QProcess::ExitStatus) {
-                ffmpeg->deleteLater();
-                QFile::remove(tempWebp);
-                if (exitCode == 0 && QFile::exists(pngPath)) {
-                    qDebug() << "[ICON] cached:" << webpUrl << "→" << pngPath;
-                    emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
+        ffmpeg->setArguments({QStringLiteral("-y"),
+                              QStringLiteral("-i"), QStringLiteral("pipe:0"),
+                              QStringLiteral("-f"), QStringLiteral("image2pipe"),
+                              QStringLiteral("pipe:1")});
+        ffmpeg->setProcessChannelMode(QProcess::SeparateChannels);
+
+        QObject::connect(ffmpeg, &QProcess::started, ffmpeg, [ffmpeg, webpData]() {
+            ffmpeg->write(webpData);
+            ffmpeg->closeWriteChannel();
+        });
+
+        QObject::connect(ffmpeg, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, ffmpeg, webpUrl, pngPath](int exitCode, QProcess::ExitStatus) {
+                if (exitCode == 0) {
+                    QByteArray pngData = ffmpeg->readAllStandardOutput();
+                    if (pngData.size() > 100) {
+                        // Write to disk cache for future instant loads
+                        QFile f(pngPath);
+                        if (f.open(QIODevice::WriteOnly)) {
+                            f.write(pngData);
+                            f.close();
+                        }
+                        qDebug() << "[ICON] cached (pipe):" << webpUrl << "→" << pngPath;
+                        emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
+                    } else {
+                        qWarning() << "[ICON] ffmpeg produced empty output:" << webpUrl;
+                        emit iconCached(webpUrl, {});
+                    }
                 } else {
                     qWarning() << "[ICON] ffmpeg failed:" << webpUrl;
                     emit iconCached(webpUrl, {});
                 }
+                ffmpeg->deleteLater();
         });
         ffmpeg->start();
     });
