@@ -1537,7 +1537,6 @@ Rectangle {
                                 console.log("[resourcepack] card clicked:", model.slug)
                                 rpDetailSlug = model.slug
                                 rpDetailTitle = model.title
-                                rpDetailView.open()
                             }
                         }
                     }
@@ -1565,115 +1564,125 @@ Rectangle {
     }
 
     // ════════════════════════════════════════════
-    // Resource pack detail page (overlay)
+    // Resource pack detail page (full-screen overlay)
     // ════════════════════════════════════════════
-    Popup {
-        id: rpDetailView
-        anchors.centerIn: parent
-        width: Math.min(parent.width - 40, 480)
-        implicitHeight: rpDetailCol.implicitHeight + 40
-        padding: 16
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { color: "#10131c"; radius: 12; border.color: "#1e2230" }
+    Item {
+        id: rpDetailPage
+        anchors.fill: parent
+        z: 10  // above all other content
+        visible: rpDetailSlug !== ""
 
-        property string slug: ""
-        property string title: ""
-        property var versionData: ({})  // slug → [{name, game_versions:[]}]
+        Rectangle {
+            anchors.fill: parent
+            color: "#0c0f16"
 
-        onOpened: {
-            // Fetch version details when opened
-            console.log("[resourcepack] detail opened:", rpDetailSlug)
-            if (backend && rpDetailSlug) {
-                backend.fetchResourcepackVersions([rpDetailSlug])
-            }
-        }
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
 
-        Connections {
-            target: backend
-            enabled: rpDetailView.opened
-            function onResourcepackVersionsLoaded(data) {
-                if (data) {
-                    rpDetailView.versionData = data
-                    console.log("[resourcepack] version data loaded:", JSON.stringify(data))
-                }
-            }
-        }
+                // ← Back button
+                Rectangle {
+                    Layout.preferredHeight: 32
+                    width: rpBackLabel.implicitWidth + 20; height: 30; radius: 6
+                    color: rpBackHov.hovered ? "#1a2848" : "transparent"
+                    border.color: rpBackHov.hovered ? "#5068c8" : "#1e2230"
+                    border.width: 1
 
-        ColumnLayout {
-            id: rpDetailCol
-            width: parent.width - 32
-            spacing: 12
-
-            // Title + close
-            RowLayout {
-                Text {
-                    text: rpDetailSlug; color: "#d0d4e0"; font.pixelSize: 16; font.bold: true
-                    Layout.fillWidth: true; elide: Text.ElideRight
-                }
-                Text {
-                    text: "✕"; color: "#606478"; font.pixelSize: 16
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: rpDetailView.close()
-                    }
-                }
-            }
-
-            Text {
-                text: "可用游戏版本 | 点击安装"
-                color: "#505468"; font.pixelSize: 11
-            }
-
-            // Version list grouped by game version
-            Repeater {
-                model: {
-                    var data = rpDetailView.versionData
-                    if (!data || !data[rpDetailSlug]) return []
-                    return data[rpDetailSlug]  // array of major versions like ["1.21.X","1.20.X"]
-                }
-                delegate: Rectangle {
-                    Layout.fillWidth: true; height: 36; radius: 6
-                    color: verItemHov1.containsMouse ? "#1a2848" : "#11141c"
-                    border.color: "#1e2230"; border.width: 1
-
-                    RowLayout {
-                        anchors.fill: parent; anchors.margins: 8; spacing: 8
+                    Row {
+                        anchors.centerIn: parent; spacing: 4
+                        Text { text: "←"; color: "#9094a8"; font.pixelSize: 14 }
                         Text {
-                            text: modelData; color: "#c060a0"; font.pixelSize: 13; font.bold: true
-                            font.family: "Consolas, monospace"
-                        }
-                        Item { Layout.fillWidth: true }
-                        Rectangle {
-                            width: 50; height: 24; radius: 4
-                            color: verItemHov1.containsMouse ? "#c060a0" : "transparent"
-                            border.color: verItemHov1.containsMouse ? "#c060a0" : "#1e2230"
-                            Text {
-                                anchors.centerIn: parent; text: "安装"
-                                color: verItemHov1.containsMouse ? "#e8ecf8" : "#606478"; font.pixelSize: 10
-                            }
+                            id: rpBackLabel
+                            text: "返回"; color: "#9094a8"; font.pixelSize: 12
                         }
                     }
-
                     MouseArea {
-                        id: verItemHov1
+                        id: rpBackHov
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            page.installingMod = true
-                            page.installingModName = rpDetailTitle || rpDetailSlug
-                            if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
-                            rpDetailView.close()
+                            console.log("[resourcepack] detail closed")
+                            rpDetailSlug = ""
                         }
                     }
                 }
-            }
 
-            Text {
-                visible: {
-                    var d = rpDetailView.versionData
-                    return d && (!d[rpDetailSlug] || d[rpDetailSlug].length === 0)
+                // Title
+                Text {
+                    text: rpDetailSlug; color: "#d0d4e0"; font.pixelSize: 18; font.bold: true
+                    elide: Text.ElideRight; Layout.fillWidth: true
                 }
-                text: "正在加载版本信息..."
-                color: "#505468"; font.pixelSize: 12
+
+                Text {
+                    text: "所有可用游戏版本 | 大版本分组 | 点击安装"
+                    color: "#505468"; font.pixelSize: 11
+                }
+
+                // Version list
+                ScrollView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    ColumnLayout {
+                        width: parent.width - 4; spacing: 6
+
+                        // Loaded versions
+                        Repeater {
+                            model: {
+                                var d = page.rpVersionCache
+                                if (!d || !d[rpDetailSlug]) return []
+                                return d[rpDetailSlug]
+                            }
+                            delegate: Rectangle {
+                                Layout.fillWidth: true; height: 40; radius: 8
+                                color: rpDetVerHov.hovered ? "#1a2848" : "#11141c"
+                                border.color: rpDetVerHov.hovered ? "#c060a0" : "#1e2230"
+                                border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent; anchors.margins: 10; spacing: 10
+                                    Text {
+                                        text: modelData; color: "#c060a0"; font.pixelSize: 14; font.bold: true
+                                        font.family: "Consolas, monospace"; Layout.fillWidth: true
+                                    }
+                                    Rectangle {
+                                        width: 56; height: 26; radius: 5
+                                        color: rpDetVerHov.hovered ? "#c060a0" : "transparent"
+                                        border.color: rpDetVerHov.hovered ? "#c060a0" : "#1e2230"
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent; text: "安装"
+                                            color: rpDetVerHov.hovered ? "#e8ecf8" : "#606478"
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    id: rpDetVerHov
+                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        console.log("[resourcepack] install from detail:", rpDetailSlug, "ver:", modelData)
+                                        page.installingMod = true
+                                        page.installingModName = rpDetailSlug
+                                        if (backend) backend.downloadResourcepack(rpDetailSlug, modelData)
+                                        rpDetailSlug = ""
+                                    }
+                                }
+                            }
+                        }
+
+                        // Loading indicator
+                        Text {
+                            visible: {
+                                var d = page.rpVersionCache
+                                return !d || !d[rpDetailSlug] || d[rpDetailSlug].length === 0
+                            }
+                            text: "正在加载版本信息..."
+                            color: "#505468"; font.pixelSize: 12
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                    }
+                }
             }
         }
     }
@@ -1685,8 +1694,6 @@ Rectangle {
 
     property string rpDetailSlug: ""
     property string rpDetailTitle: ""
-
-    // Version chips cache: maps slug → major version list
     property var rpVersionCache: ({})
 
     Connections {
@@ -1707,12 +1714,11 @@ Rectangle {
                         desc: r.desc || r.description || "",
                         icon: r.icon || "",
                         downloads: r.downloads || 0,
-                        versions: []  // will be filled by versionsLoaded
+                        versions: []
                     })
                 }
-                // Batch-fetch version info for card chips
+                console.log("[resourcepack] populating", rpResultsModel.count, "cards, fetching versions for", slugs.length)
                 if (backend && slugs.length > 0) {
-                    console.log("[resourcepack] fetching versions for", slugs.length, "slugs")
                     backend.fetchResourcepackVersions(slugs)
                 }
             } else {
@@ -1722,33 +1728,45 @@ Rectangle {
 
         function onResourcepackSearchFailed(error) {
             console.log("[resourcepack] search FAILED:", error)
-            toastManager.show("搜索失败: " + error)
+            toastManager.show("资源包搜索失败: " + error)
         }
 
         function onResourcepackDownloadFinished(slug, success, filePath) {
-            console.log("[resourcepack] download:", slug, success, filePath)
+            console.log("[resourcepack] download:", slug, "success:", success, "path:", filePath)
             page.installingMod = false
             page.installingModName = ""
             if (success) toastManager.show("资源包已安装: " + slug)
         }
 
         function onResourcepackVersionsLoaded(data) {
-            console.log("[resourcepack] versions loaded")
+            console.log("[resourcepack] versions loaded, keys:", data ? Object.keys(data).length : 0)
             if (data) {
-                // Update cards with version chips
                 for (var i = 0; i < rpResultsModel.count; i++) {
                     var item = rpResultsModel.get(i)
-                    var slugs = Object.keys(data)
-                    for (var s = 0; s < slugs.length; s++) {
-                        if (item.slug === slugs[s]) {
-                            rpResultsModel.setProperty(i, "versions", data[slugs[s]])
-                            break
-                        }
+                    if (data[item.slug]) {
+                        rpResultsModel.setProperty(i, "versions", data[item.slug])
                     }
                 }
-                // Save to cache for detail page
                 page.rpVersionCache = data
+                // Also load detail page if open
+                if (rpDetailSlug && data[rpDetailSlug]) {
+                    console.log("[resourcepack] detail versions:", data[rpDetailSlug])
+                }
             }
+        }
+
+        function onLogMessage(msg) {
+            if (msg.indexOf("[MODRINTH") >= 0) {
+                console.log("[resourcepack] " + msg)
+            }
+        }
+    }
+
+    // Show detail when slug is set (triggers version fetch)
+    onRpDetailSlugChanged: {
+        if (rpDetailSlug && backend) {
+            console.log("[resourcepack] detail opened:", rpDetailSlug)
+            backend.fetchResourcepackVersions([rpDetailSlug])
         }
     }
 
