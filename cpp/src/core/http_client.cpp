@@ -16,6 +16,10 @@
 #include <QDir>
 #include <QUrl>
 #include <QPointer>
+#include <QElapsedTimer>
+#include <QDebug>
+
+#include <memory>
 
 namespace ShadowLauncher {
 
@@ -103,18 +107,26 @@ void HttpClient::get(const QString& url,
     QNetworkRequest req = buildRequest(m_config, QUrl(url));
     QNetworkReply* reply = m_manager->get(req);
 
+    auto timer = std::make_shared<QElapsedTimer>();
+    timer->start();
+
     // Handle both success and error in finished (avoids double-callback)
     QObject::connect(reply, &QNetworkReply::finished, this,
-        [reply, callback = std::move(callback), onError = std::move(onError)]() {
+        [reply, callback = std::move(callback), onError = std::move(onError), timer, url]() {
+            qint64 elapsed = timer->elapsed();
             if (reply->error() != QNetworkReply::NoError) {
-                // Network-level error → onError callback
+                qDebug().noquote() << QStringLiteral("[NET] GET %1 → ERROR (%2ms): %3")
+                                 .arg(url, QString::number(elapsed), reply->errorString());
                 if (onError)
                     onError(reply->errorString());
             } else {
-                // HTTP response (any status code) → main callback
                 const int status = reply->attribute(
                     QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 const QByteArray body = reply->readAll();
+                qDebug().noquote() << QStringLiteral("[NET] GET %1 → %2 (%3ms, %4B)")
+                                 .arg(url, QString::number(status),
+                                      QString::number(elapsed),
+                                      QString::number(body.size()));
                 if (callback)
                     callback(status, body);
             }
