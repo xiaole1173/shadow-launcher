@@ -550,11 +550,12 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     // ── Update overall state ──
     if (m_activeCount == 0) {
         setInstalling(false);
-        setInstallPhase(QStringLiteral("idle"));
+        setInstallPhase(QStringLiteral("done"));
         m_installSpeed = 0;
         m_speedTimer.invalidate();
         m_lastSpeedBytes = 0;
         emit installSpeedChanged(0);
+        emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
     } else {
         // Still have active downloads — sync primary display
         syncPrimaryProgress();
@@ -709,6 +710,7 @@ void VersionBackend::syncPrimaryProgress()
 
     emit installProgressChanged();
     emit installTotalChanged();
+    emit installStateChanged();
     emit installSpeedChanged(st.speed);
     emit installFileProgress(st.file);
     emit installBytesProgress(st.bytesDl, st.bytesTotal);

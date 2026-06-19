@@ -222,6 +222,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     m_resourceDlProgress = 0;
                     m_resourceDlTotal = 0;
                     m_resourceDlFile.clear();
+                    emit resourceDownloadProgress(0, 0, QString());
+                } else {
+                    // Reset on start to clear stale data from previous download
+                    m_resourceDlProgress = 0;
+                    m_resourceDlTotal = 0;
+                    m_resourceDlFile.clear();
                 }
                 qCDebug(logLaunch) << "[RP-DOWNLOAD] stateChanged downloading=" << m_resource->isDownloading();
                 emit resourceDownloadStateChanged();
