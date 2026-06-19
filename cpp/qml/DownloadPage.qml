@@ -1611,26 +1611,29 @@ Rectangle {
                                     }
                                 }
 
-                                // Sub-versions (only when expanded)
+                                // Sub-versions (only when expanded) — indented bars
                                 Repeater {
                                     model: (rpDetailPage.rpDetailExpanded === modelData.major) ? modelData.versions : []
                                     delegate: Rectangle {
-                                        width: parent.width - 12; height: 34; radius: 5
-                                        x: 12
-                                        color: rpDetSubHov.hovered ? "#151d2e" : "#0c0e14"
-                                        RowLayout {
-                                            anchors.fill: parent; anchors.margins: 8; spacing: 8
+                                        width: parent.width - 24; height: 34; radius: 6
+                                        x: 24
+                                        color: rpDetSubHov.hovered ? "#1a2436" : "#111820"
+                                        border.color: rpDetSubHov.hovered ? "#1e3050" : "#141c28"
+                                        border.width: 1
+                                        Text {
+                                            anchors.left: parent.left; anchors.leftMargin: 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: modelData; color: "#8898b8"; font.pixelSize: 12
+                                            font.family: "Consolas, monospace"
+                                        }
+                                        Rectangle {
+                                            anchors.right: parent.right; anchors.rightMargin: 8
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 48; height: 22; radius: 4
+                                            color: rpDetSubHov.hovered ? "#3858c0" : "#1a3050"
                                             Text {
-                                                text: modelData; color: "#90a0c8"; font.pixelSize: 12
-                                                font.family: "Consolas, monospace"; Layout.fillWidth: true
-                                            }
-                                            Rectangle {
-                                                width: 52; height: 22; radius: 4
-                                                color: rpDetSubHov.hovered ? "#5068c8" : "#1a2848"
-                                                Text {
-                                                    anchors.centerIn: parent; text: "下载"
-                                                    color: "#d0d4e0"; font.pixelSize: 10
-                                                }
+                                                anchors.centerIn: parent; text: "下载"
+                                                color: "#c8d0e0"; font.pixelSize: 10
                                             }
                                         }
                                         MouseArea {
