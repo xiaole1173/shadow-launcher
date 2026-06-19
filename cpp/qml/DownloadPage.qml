@@ -1435,7 +1435,7 @@ Rectangle {
                     }
 
                     delegate: Rectangle {
-                        width: rpListView.width - 8; height: 105; clip: true
+                        width: rpListView.width - 8; height: 130; clip: true
                         color: rpCardHov.hovered ? "#121620" : "#0e1018"
                         radius: 10; border.color: rpCardHov.hovered ? "#5068c8" : "#1a1f2a"; border.width: 1
 
