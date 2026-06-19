@@ -1248,6 +1248,11 @@ Rectangle {
                                             return
                                         }
                                         var url = model.icon
+                                        // Emoji / non-URL → show as fallback text
+                                        if (url.indexOf("http") !== 0 && url.indexOf("/") < 0) {
+                                            modIconFallback.visible = true
+                                            return
+                                        }
                                         url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                         url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                                         iconCacheKey = url
@@ -1602,6 +1607,10 @@ Rectangle {
                                             return
                                         }
                                         var url = model.icon
+                                        if (url.indexOf("http") !== 0 && url.indexOf("/") < 0) {
+                                            shaderIconFallback.visible = true
+                                            return
+                                        }
                                         url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                         url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                                         iconCacheKey = url
