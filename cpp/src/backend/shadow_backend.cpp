@@ -213,6 +213,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::resourcepackDownloadFinished);
     connect(m_resource, &ResourceBackend::resourcepackVersionsLoaded,
             this, &ShadowBackend::resourcepackVersionsLoaded);
+    connect(m_resource, &ResourceBackend::resourcepackVersionsPartial,
+            this, &ShadowBackend::resourcepackVersionsPartial);
+    connect(m_resource, &ResourceBackend::resourcepackVersionsProgress,
+            this, &ShadowBackend::resourcepackVersionsProgress);
     connect(m_resource, &ResourceBackend::logMessage,
             this, &ShadowBackend::logMessage);
 

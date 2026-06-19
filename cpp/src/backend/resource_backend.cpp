@@ -27,6 +27,10 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::onResourcepackDownloadFinished);
     connect(m_modMgr, &ModManager::resourcepackVersionsLoaded,
             this, &ResourceBackend::onResourcepackVersionsLoaded);
+    connect(m_modMgr, &ModManager::resourcepackVersionsPartial,
+            this, &ResourceBackend::resourcepackVersionsPartial);
+    connect(m_modMgr, &ModManager::resourcepackVersionsProgress,
+            this, &ResourceBackend::resourcepackVersionsProgress);
     connect(m_modMgr, &ModManager::logMessage,
             this, &ResourceBackend::logMessage);
 }

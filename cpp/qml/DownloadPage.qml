@@ -39,6 +39,7 @@ Rectangle {
     property string rpGameVersion: ""  // "" = 全部, 默认不筛选版本
     property string rpDownloadDir: ""
     property bool rpResultsReady: false
+    property real rpLoadingProgress: 0  // 0..1 for version fetch progress
 
     function loadResourcepackResults() {
         if (!backend) return
@@ -1435,8 +1436,19 @@ Rectangle {
             }
 
             Text {
-                text: "资源包 | 来源: Modrinth API | " + (rpResultsModel.count || 0) + " 个结果"
+                text: "资源包 | 来源: MCIM (mcimirror.top) | " + (rpResultsModel.count || 0) + " 个结果"
                 color: "#505468"; font.pixelSize: 11
+            }
+
+            // Version fetch progress
+            Rectangle {
+                visible: page.rpLoadingProgress > 0 && page.rpLoadingProgress < 1
+                Layout.fillWidth: true; height: 3; radius: 2; color: "#1a1f2a"
+                Rectangle {
+                    height: 3; radius: 2; color: "#c060a0"
+                    width: parent.width * page.rpLoadingProgress
+                    Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                }
             }
 
             // ── Results: vertical full-width cards ──
@@ -1755,12 +1767,26 @@ Rectangle {
             console.log("[resourcepack] versions loaded, keys:", data ? Object.keys(data).length : 0)
             if (data) {
                 page.rpVersionCache = data
-                // Trigger list view refresh by setting a dummy property
-                rpResultsModel.setProperty(0, "downloads", rpResultsModel.get(0).downloads)
                 if (rpDetailSlug && data[rpDetailSlug]) {
                     console.log("[resourcepack] detail versions:", data[rpDetailSlug])
                 }
             }
+        }
+
+        function onResourcepackVersionsPartial(slug, versions) {
+            // Incremental update: show version chips as they arrive
+            for (var i = 0; i < rpResultsModel.count; i++) {
+                var item = rpResultsModel.get(i)
+                if (item.slug === slug) {
+                    page.rpVersionCache[slug] = versions
+                    break
+                }
+            }
+        }
+
+        function onResourcepackVersionsProgress(done, total) {
+            console.log("[resourcepack] versions progress:", done, "/", total)
+            page.rpLoadingProgress = done / total
         }
 
         function onLogMessage(msg) {

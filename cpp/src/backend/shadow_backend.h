@@ -312,6 +312,8 @@ signals:
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void resourcepackVersionsLoaded(const QVariantMap& slugToVersions);
+    void resourcepackVersionsPartial(const QString& slug, const QStringList& versions);
+    void resourcepackVersionsProgress(int done, int total);
     void resourceDownloadProgress(int completed, int total, const QString& fileName);
     void resourceDownloadDone(bool success);
     void verifyRunningChanged();

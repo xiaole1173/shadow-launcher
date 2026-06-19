@@ -7,6 +7,8 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QDir>
+#include <QTimer>
+#include <functional>
 
 namespace ShadowLauncher {
 
@@ -375,81 +377,109 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 {
     if (slugs.isEmpty()) return;
 
-    // Shared state for batch fetch
+    // Shared state across all batches
     auto results = std::make_shared<QVariantMap>();
+    auto total = std::make_shared<int>(slugs.size());
     auto pending = std::make_shared<int>(slugs.size());
+    auto resolved = std::make_shared<int>(0);
+    auto slugList = std::make_shared<QStringList>(slugs);
+    auto index = std::make_shared<int>(0);
 
-    emit logMessage(QStringLiteral("[MODRINTH] 获取 %1 个资源包的版本信息...").arg(slugs.size()));
+    static const int kBatchSize = 5;  // Max concurrent version fetches
 
-    for (const QString& slug : slugs) {
-        QUrl url(MODRINTH_API + "/project/" + slug + "/version");
+    emit logMessage(QStringLiteral("[MODRINTH] 获取 %1 个资源包版本 (批量 %2/次)")
+                    .arg(slugs.size()).arg(kBatchSize));
 
-        HttpClient::instance().get(url.toString(),
-            [this, slug, results, pending](int /*status*/, const QByteArray& data) {
-                QJsonArray versions = parseVersionsResponse(data);
-                QStringList majorVersions;
-                QSet<QString> seen;
+    // Emit progress signal so QML can show loading
+    emit resourcepackVersionsProgress(0, slugs.size());
 
-                for (const QJsonValue& v : versions) {
-                    QJsonObject ver = v.toObject();
-                    QJsonArray gvs = ver[QStringLiteral("gameVersions")].toArray();
-                    for (const QJsonValue& gv : gvs) {
-                        QString gvStr = gv.toString();
-                        // Group to major version: 1.21.3 → 1.21.X
-                        static QRegularExpression majorRe(QStringLiteral("^(\\d+\\.\\d+)"));
-                        auto match = majorRe.match(gvStr);
-                        if (match.hasMatch()) {
-                            QString major = match.captured(1) + QStringLiteral(".X");
-                            if (!seen.contains(major)) {
-                                seen.insert(major);
-                                majorVersions.append(major);
-                            }
-                        } else {
-                            if (!seen.contains(gvStr)) {
-                                seen.insert(gvStr);
-                                majorVersions.append(gvStr);
+    // Shared version parser (avoids code duplication)
+    auto processOne = [this, results, pending, resolved, total, slugList]() {
+        int done = ++(*resolved);
+        emit resourcepackVersionsProgress(done, *total);
+        if (done >= *total) {
+            emit resourcepackVersionsLoaded(*results);
+            emit logMessage(QStringLiteral("[MODRINTH] 版本信息全部加载完成 (%1 个)").arg(*total));
+        }
+    };
+
+    // Recursive batch launcher
+    std::function<void()> launchBatch;
+    auto indexPtr = index;
+    launchBatch = [=]() {
+        int start = *indexPtr;
+        int end = qMin(start + kBatchSize, slugList->size());
+        if (start >= end) return;  // Done
+
+        *indexPtr = end;  // Advance for next batch
+
+        for (int i = start; i < end; ++i) {
+            const QString& slug = (*slugList)[i];
+            QUrl url(MODRINTH_API + "/project/" + slug + "/version");
+
+            HttpClient::instance().get(url.toString(),
+                [this, slug, results, processOne](int /*status*/, const QByteArray& data) {
+                    QJsonArray versions = parseVersionsResponse(data);
+                    QStringList majorVersions;
+                    QSet<QString> seen;
+
+                    for (const QJsonValue& v : versions) {
+                        QJsonObject ver = v.toObject();
+                        QJsonArray gvs = ver[QStringLiteral("gameVersions")].toArray();
+                        for (const QJsonValue& gv : gvs) {
+                            QString gvStr = gv.toString();
+                            static QRegularExpression majorRe(QStringLiteral("^(\\d+\\.\\d+)"));
+                            auto match = majorRe.match(gvStr);
+                            if (match.hasMatch()) {
+                                QString major = match.captured(1) + QStringLiteral(".X");
+                                if (!seen.contains(major)) {
+                                    seen.insert(major);
+                                    majorVersions.append(major);
+                                }
+                            } else {
+                                if (!seen.contains(gvStr)) {
+                                    seen.insert(gvStr);
+                                    majorVersions.append(gvStr);
+                                }
                             }
                         }
                     }
-                }
 
-                // Sort naturally (newest first)
-                std::sort(majorVersions.begin(), majorVersions.end(),
-                    [](const QString& a, const QString& b) {
-                        // 全版本 first
-                        if (a == QStringLiteral("全版本")) return true;
-                        if (b == QStringLiteral("全版本")) return false;
-                        // Sort descending by version number
-                        static QRegularExpression verRe(QStringLiteral("^(\\d+)\\.(\\d+)"));
-                        auto ma = verRe.match(a);
-                        auto mb = verRe.match(b);
-                        if (ma.hasMatch() && mb.hasMatch()) {
-                            int aMajor = ma.captured(1).toInt();
-                            int bMajor = mb.captured(1).toInt();
-                            if (aMajor != bMajor) return aMajor > bMajor;
-                            return ma.captured(2).toInt() > mb.captured(2).toInt();
-                        }
-                        return a > b;
-                    });
+                    std::sort(majorVersions.begin(), majorVersions.end(),
+                        [](const QString& a, const QString& b) {
+                            if (a == QStringLiteral("全版本")) return true;
+                            if (b == QStringLiteral("全版本")) return false;
+                            static QRegularExpression verRe(QStringLiteral("^(\\d+)\\.(\\d+)"));
+                            auto ma = verRe.match(a);
+                            auto mb = verRe.match(b);
+                            if (ma.hasMatch() && mb.hasMatch()) {
+                                int aMaj = ma.captured(1).toInt();
+                                int bMaj = mb.captured(1).toInt();
+                                if (aMaj != bMaj) return aMaj > bMaj;
+                                return ma.captured(2).toInt() > mb.captured(2).toInt();
+                            }
+                            return a > b;
+                        });
 
-                (*results)[slug] = majorVersions;
-                (*pending)--;
+                    (*results)[slug] = majorVersions;
+                    emit resourcepackVersionsPartial(slug, majorVersions);
+                    processOne();
+                },
+                [this, slug, processOne](const QString& err) {
+                    Q_UNUSED(err); Q_UNUSED(slug);
+                    processOne();  // Count failures too
+                }
+            );
+        }
 
-                if (*pending <= 0) {
-                    emit resourcepackVersionsLoaded(*results);
-                    emit logMessage(QStringLiteral("[MODRINTH] 版本信息加载完成"));
-                }
-            },
-            [this, slug, results, pending](const QString& err) {
-                Q_UNUSED(err)
-                Q_UNUSED(slug)
-                (*pending)--;
-                if (*pending <= 0) {
-                    emit resourcepackVersionsLoaded(*results);
-                }
-            }
-        );
-    }
+        // Schedule next batch after a short delay
+        if (*indexPtr < slugList->size()) {
+            QTimer::singleShot(100, [launchBatch]() { launchBatch(); });
+        }
+    };
+
+    // Start first batch
+    launchBatch();
 }
 
 // ============================================================
