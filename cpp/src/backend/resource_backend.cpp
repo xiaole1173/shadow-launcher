@@ -186,7 +186,7 @@ void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHi
         entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
         entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
         entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
-        entry[QStringLiteral("icon")]      = obj[QStringLiteral("icon_url")].toString();
+        entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
         entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
         list.append(entry);
     }

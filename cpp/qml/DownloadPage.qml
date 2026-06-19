@@ -1217,29 +1217,38 @@ Rectangle {
                                     sourceSize.width: 88; sourceSize.height: 88
 
                                     function tryLoadIcon() {
-                                        if (!model || !model.icon || model.icon === "") return
+                                        console.log("[icon-mod] tryLoad model.icon=" + (model ? JSON.stringify(model.icon) : "null") + " title=" + (model ? model.title : "?"))
+                                        if (!model || !model.icon || model.icon === "") {
+                                            console.log("[icon-mod] no icon url, fallback")
+                                            return
+                                        }
                                         var url = model.icon
-                                        if (url.indexOf("http") !== 0) return  // emoji, skip
-
-                                        // Try MCIM mirror first
+                                        console.log("[icon-mod] original url=" + url.substring(0, 80))
+                                        if (url.indexOf("http") !== 0) {
+                                            console.log("[icon-mod] not a URL, skip")
+                                            return
+                                        }
                                         iconCacheKey = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                                      .replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                        modIconFallback.visible = true  // show text until image arrives
-                                        if (!backend) return
-
-                                        // Check cache
+                                        console.log("[icon-mod] MCIM url=" + iconCacheKey.substring(0, 80))
+                                        modIconFallback.visible = true
+                                        if (!backend) {
+                                            console.log("[icon-mod] no backend!")
+                                            return
+                                        }
                                         var cached = backend.cachedIconPath(iconCacheKey)
                                         if (cached) {
+                                            console.log("[icon-mod] cached hit: " + cached.substring(0, 60))
                                             source = cached
                                             return
                                         }
-                                        // Also check original URL cache
                                         cached = backend.cachedIconPath(url)
                                         if (cached) {
+                                            console.log("[icon-mod] cached hit (origin): " + cached.substring(0, 60))
                                             source = cached
                                             return
                                         }
-                                        // Async download via MCIM mirror
+                                        console.log("[icon-mod] triggering async download")
                                         backend.cacheIconAsync(iconCacheKey)
                                     }
                                     Component.onCompleted: tryLoadIcon()
@@ -1593,23 +1602,38 @@ Rectangle {
                                     sourceSize.width: 88; sourceSize.height: 88
 
                                     function tryLoadIcon() {
-                                        if (!model || !model.icon || model.icon === "") return
+                                        console.log("[icon-shader] tryLoad model.icon=" + (model ? JSON.stringify(model.icon) : "null") + " title=" + (model ? model.title : "?"))
+                                        if (!model || !model.icon || model.icon === "") {
+                                            console.log("[icon-shader] no icon url, fallback")
+                                            return
+                                        }
                                         var url = model.icon
-                                        if (url.indexOf("http") !== 0) return
+                                        console.log("[icon-shader] original url=" + url.substring(0, 80))
+                                        if (url.indexOf("http") !== 0) {
+                                            console.log("[icon-shader] not a URL, skip")
+                                            return
+                                        }
                                         iconCacheKey = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                                      .replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                        console.log("[icon-shader] MCIM url=" + iconCacheKey.substring(0, 80))
                                         shaderIconFallback.visible = true
-                                        if (!backend) return
+                                        if (!backend) {
+                                            console.log("[icon-shader] no backend!")
+                                            return
+                                        }
                                         var cached = backend.cachedIconPath(iconCacheKey)
                                         if (cached) {
+                                            console.log("[icon-shader] cached hit: " + cached.substring(0, 60))
                                             source = cached
                                             return
                                         }
                                         cached = backend.cachedIconPath(url)
                                         if (cached) {
+                                            console.log("[icon-shader] cached hit (origin): " + cached.substring(0, 60))
                                             source = cached
                                             return
                                         }
+                                        console.log("[icon-shader] triggering async download")
                                         backend.cacheIconAsync(iconCacheKey)
                                     }
                                     Component.onCompleted: tryLoadIcon()

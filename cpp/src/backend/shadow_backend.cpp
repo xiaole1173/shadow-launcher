@@ -937,11 +937,14 @@ void ShadowBackend::fetchResourcepackVersions(const QStringList& slugs) {
 void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
     if (webpUrl.isEmpty()) return;
 
+    qCDebug(logApp) << "[ICON] cacheIconAsync called for:" << webpUrl.left(100);
+
     // Cache dir: <appdir>/icons/
     static QString s_cacheDir;
     if (s_cacheDir.isEmpty()) {
         s_cacheDir = QCoreApplication::applicationDirPath() + QStringLiteral("/icons/");
         QDir().mkpath(s_cacheDir);
+        qCDebug(logApp) << "[ICON] cache dir:" << s_cacheDir;
     }
 
     // Derive cache filename from URL hash
@@ -950,9 +953,12 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
 
     // Return cached version immediately if exists
     if (QFile::exists(pngPath)) {
+        qCDebug(logApp) << "[ICON] cached exists:" << pngPath;
         emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
         return;
     }
+
+    qCDebug(logApp) << "[ICON] downloading:" << webpUrl.left(120);
 
     // Async download + convert
     auto* mgr = new QNetworkAccessManager(this);
@@ -964,7 +970,7 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, webpUrl, pngPath]() {
         if (reply->error() != QNetworkReply::NoError) {
-            qWarning() << "[ICON] download failed:" << webpUrl << reply->errorString();
+            qCWarning(logApp) << "[ICON] download failed:" << webpUrl.left(100) << reply->errorString();
             reply->deleteLater();
             mgr->deleteLater();
             emit iconCached(webpUrl, {});
@@ -991,7 +997,7 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
             WebPFree(rgba);  // safe to free null
             img = QImage::fromData(webpData);
             if (img.isNull()) {
-                qWarning() << "[ICON] decode failed:" << webpUrl;
+                qCWarning(logApp) << "[ICON] decode failed:" << webpUrl.left(100);
                 emit iconCached(webpUrl, {});
                 return;
             }
@@ -999,11 +1005,11 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
 
         // Save PNG to disk cache for future instant loads
         if (img.save(pngPath, "PNG")) {
-            qDebug() << "[ICON] cached (libwebp):" << webpUrl << "→" << pngPath
+            qCDebug(logApp) << "[ICON] cached (libwebp):" << webpUrl.left(100) << "→" << pngPath
                      << "(" << img.width() << "x" << img.height() << ")";
             emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
         } else {
-            qWarning() << "[ICON] PNG save failed:" << pngPath;
+            qCWarning(logApp) << "[ICON] PNG save failed:" << pngPath;
             emit iconCached(webpUrl, {});
         }
     });
