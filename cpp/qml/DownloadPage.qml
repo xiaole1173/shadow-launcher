@@ -56,7 +56,6 @@ Rectangle {
         page.rpPage = 0
         page.rpLoadingMore = false
         page.rpHasMore = true
-        page.rpCategoryFilter = ""
         rpResultsModel.clear()
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
@@ -809,9 +808,82 @@ Rectangle {
             anchors.margins: 12
             spacing: 8
 
+            Text {
+                Layout.fillWidth: true
+                text: "热门 Mod 推荐"
+                color: "#d0d4e0"; font.pixelSize: 14; font.bold: true
+            }
+
+            // Mod placeholder
+            Rectangle {
+                Layout.fillWidth: true; Layout.preferredHeight: 120; radius: 10
+                color: "#11141c"; border.color: "#1e2230"
+                Text {
+                    anchors.centerIn: parent
+                    text: "Mod 下载功能开发中，敬请期待..."
+                    color: "#606478"; font.pixelSize: 13
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+
+            // Download progress bar (Mod install)
+            Rectangle {
+                visible: page.installingMod
+                Layout.fillWidth: true; Layout.preferredHeight: 4; radius: 2; color: "#1a1f2a"
+                Rectangle {
+                    height: 4; radius: 2; color: "#5068c8"; width: parent.width * 0.4
+                    NumberAnimation on x {
+                        from: 0; to: parent.width * 0.6; duration: 1200
+                        loops: Animation.Infinite; running: page.installingMod
+                    }
+                }
+            }
+            Text {
+                visible: page.installingMod
+                text: "正在安装 " + (page.installingModName || "...")
+                color: "#606478"; font.pixelSize: 11
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // TAB 2: 光影
+    // ════════════════════════════════════════════
+    Item {
+        anchors.top: tabBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 8
+        visible: page.currentTab === 2
+
+        Text {
+            anchors.centerIn: parent
+            text: "光影功能即将支持"
+            color: "#606478"; font.pixelSize: 14
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // TAB 3: 资源包
+    // ════════════════════════════════════════════
+    Item {
+        anchors.top: tabBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 8
+        visible: page.currentTab === 3
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
             // ── Filter Card ──
             Rectangle {
-                Layout.fillWidth: true; height: 125; radius: 10
+                Layout.fillWidth: true; height: 150; radius: 10
                 color: "#11141c"; border.color: "#1e2230"
 
                 ColumnLayout {
@@ -833,7 +905,7 @@ Rectangle {
                                 id: rpSearchInput
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
                                 color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: 12
-                                onAccepted: loadRpFirstPage()
+                                // REMOVED onAccepted trigger — search only on button click (Fix 1)
 
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
@@ -890,7 +962,8 @@ Rectangle {
                                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     rpSourceMenu.close()
-                                                    // Currently only MCIM is operational
+                                                    // FIX 4: Only MCIM source is currently operational.
+                                                    // modrinth-direct is non-functional — no action on click.
                                                 }
                                             }
                                         }
@@ -955,7 +1028,8 @@ Rectangle {
                                             }
                                             MouseArea {
                                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { page.rpGameVersion = ""; rpVersionMenu.close(); loadRpFirstPage() }
+                                                // FIX 1: Removed loadRpFirstPage() — selection only, search on button click
+                                                onClicked: { page.rpGameVersion = ""; rpVersionMenu.close() }
                                             }
                                         }
 
@@ -986,10 +1060,8 @@ Rectangle {
                                                 }
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        page.rpGameVersion = modelData; rpVersionMenu.close()
-                                                        loadRpFirstPage()
-                                                    }
+                                                    // FIX 1: Removed loadRpFirstPage() — selection only, search on button click
+                                                    onClicked: { page.rpGameVersion = modelData; rpVersionMenu.close() }
                                                 }
                                             }
                                         }
@@ -1071,10 +1143,11 @@ Rectangle {
                                                 }
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    // FIX 1+2: Set filter value directly, search on button click.
+                                                    // No longer calls filterRpResults() which incorrectly cleared rpCategoryFilter.
                                                     onClicked: {
                                                         page.rpCategoryFilter = modelData.key
                                                         rpTypeMenu.close()
-                                                        filterRpResults()
                                                     }
                                                 }
                                             }
@@ -1085,16 +1158,19 @@ Rectangle {
                         }
                     }
 
-                    // Row 2.5: Pre-release toggle
-                    Text {
-                        Layout.fillWidth: true
-                        text: page.rpShowPreReleases ? "\u2b07 \u9690\u85cf\u6d4b\u8bd5\u7248" : "\u25b8 \u663e\u793a\u6d4b\u8bd5\u7248"
-                        color: page.rpShowPreReleases ? "#5068c8" : "#505468"; font.pixelSize: 10
-                        horizontalAlignment: Text.AlignRight
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
+                    // Row 2.5: Pre-release toggle — FIX 3: moved below version/type row, left-aligned
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 8
+                        Text {
+                            text: page.rpShowPreReleases ? "\u2b07 \u9690\u85cf\u6d4b\u8bd5\u7248" : "\u25b8 \u663e\u793a\u6d4b\u8bd5\u7248"
+                            color: page.rpShowPreReleases ? "#5068c8" : "#505468"; font.pixelSize: 10
+                            MouseArea {
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                // Keep pre-release trigger — it directly filters the version list, not an API call
+                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases; loadRpFirstPage() }
+                            }
                         }
+                        Item { Layout.fillWidth: true }
                     }
 
                     // Row 3: Buttons
@@ -1108,6 +1184,7 @@ Rectangle {
                             Text { anchors.centerIn: parent; text: "搜索"; color: "#e8ecf8"; font.pixelSize: 12 }
                             MouseArea {
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                // FIX 1: Search button — the ONLY trigger for loadRpFirstPage() from filter changes
                                 onClicked: loadRpFirstPage()
                             }
                         }
@@ -1125,6 +1202,7 @@ Rectangle {
                                     page.rpCategoryFilter = ""
                                     page.rpGameVersion = ""
                                     rpSearchInput.text = ""
+                                    // FIX 1: Clear all filters, then trigger search
                                     loadRpFirstPage()
                                 }
                             }
@@ -1376,26 +1454,9 @@ Rectangle {
                     }
                 }
             }
-
-            // Download progress bar
-            Rectangle {
-                visible: page.installingMod
-                Layout.fillWidth: true; Layout.preferredHeight: 4; radius: 2; color: "#1a1f2a"
-                Rectangle {
-                    height: 4; radius: 2; color: "#5068c8"; width: parent.width * 0.4
-                    NumberAnimation on x {
-                        from: 0; to: parent.width * 0.6; duration: 1200
-                        loops: Animation.Infinite; running: page.installingMod
-                    }
-                }
-            }
-            Text {
-                visible: page.installingMod
-                text: "正在安装 " + (page.installingModName || "资源包...")
-                color: "#606478"; font.pixelSize: 11
-            }
         }
     }
+
 
     // ════════════════════════════════════════════
     // Resource pack detail page (full-screen overlay)
