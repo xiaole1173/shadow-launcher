@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
     qCInfo(logApp) << "Event loop started"
                    << "— total startup:" << startupTimer.elapsed() << "ms";
 
-    // --auto-launch <version> command-line test mode
+    // ── Auto-launch test mode ──
     QStringList args = app.arguments();
     int autoIdx = args.indexOf(QStringLiteral("--auto-launch"));
     if (autoIdx >= 0 && autoIdx + 1 < args.size()) {
@@ -136,6 +136,21 @@ int main(int argc, char *argv[])
         QTimer::singleShot(2000, backend, [backend, autoVersion]() {
             qCInfo(logApp) << "Auto-launch: triggering launch for" << autoVersion;
             backend->launch(autoVersion);
+        });
+    }
+
+    // ── Auto-download test mode (for testing download + fallback) ──
+    int dlIdx = args.indexOf(QStringLiteral("--auto-download"));
+    if (dlIdx >= 0 && dlIdx + 1 < args.size()) {
+        QString dlVersion = args[dlIdx + 1];
+        int sourceIdx = (dlIdx + 2 < args.size())
+            ? args[dlIdx + 2].toInt()
+            : 0;  // default: BMCLAPI
+        qCInfo(logApp) << "Auto-download test mode: version" << dlVersion
+                       << "sourceIndex" << sourceIdx;
+        QTimer::singleShot(5000, backend, [backend, dlVersion, sourceIdx]() {
+            qCInfo(logApp) << "Auto-download: triggering installVersion for" << dlVersion;
+            backend->installVersion(dlVersion, sourceIdx);
         });
     }
 
