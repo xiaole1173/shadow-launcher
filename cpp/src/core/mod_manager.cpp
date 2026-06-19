@@ -438,7 +438,7 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
                             static QRegularExpression majorRe(QStringLiteral("^(\\d+\\.\\d+)"));
                             auto match = majorRe.match(gvStr);
                             if (match.hasMatch()) {
-                                QString major = match.captured(1) + QStringLiteral(".X");
+                                QString major = match.captured(1);  // "1.21" not "1.21.X"
                                 if (!seen.contains(major)) {
                                     seen.insert(major);
                                     majorVersions.append(major);

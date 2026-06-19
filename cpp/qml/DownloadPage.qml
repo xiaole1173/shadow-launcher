@@ -1587,6 +1587,7 @@ Rectangle {
 
                                 // Group header
                                 Rectangle {
+                                    width: parent.width; height: 40; radius: 8
                                     color: rpDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
                                     border.color: rpDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
                                     border.width: 1
