@@ -14,6 +14,7 @@
         <file alias="qml/LaunchOverlay.qml">qml/LaunchOverlay.qml</file>
         <file alias="qml/SubPageOverlays.qml">qml/SubPageOverlays.qml</file>
         <file alias="qml/ToastManager.qml">qml/ToastManager.qml</file>
+        <file alias="qml/CrashDialog.qml">qml/CrashDialog.qml</file>
         <file alias="qml/KillButton.qml">qml/KillButton.qml</file>
         <file alias="qml/ShadowButton.qml">qml/ShadowButton.qml</file>
     </qresource>
