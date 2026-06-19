@@ -85,6 +85,7 @@ Rectangle {
                         toastManager.show("正在刷新...")
                         if (mainWindow) mainWindow.pageLoading = true
                         versionModel.clear()
+                        backend.refreshInstalled()
                         backend.refreshVersionList()
                     }
                 }
