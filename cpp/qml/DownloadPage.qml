@@ -1274,21 +1274,31 @@ Rectangle {
                                 Image {
                                     id: rpCardIcon
                                     anchors.fill: parent
+                                    property bool rpIconFallbackDone: false
                                     source: {
                                         if (!model || !model.icon) return ""
                                         var url = model.icon
-                                        // MCIM CDN: mod.mcimirror.top proxies Modrinth CDN with 302 → works
+                                        // MCIM CDN: mod.mcimirror.top proxies Modrinth CDN with 302
                                         url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                         url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                        rpIconFallbackDone = false
+                                        rpIconFallback.visible = false
                                         return url
                                     }
                                     fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true; cache: false
+                                    asynchronous: true; cache: true
                                     autoTransform: true
                                     sourceSize.width: 88; sourceSize.height: 88
                                     onStatusChanged: {
                                         if (status === Image.Loading) return
-                                        rpIconFallback.visible = (status !== Image.Ready)
+                                        if (status === Image.Ready) { rpIconFallback.visible = false; return }
+                                        // Image failed — try original CDN as fallback
+                                        if (!rpIconFallbackDone && model && model.icon) {
+                                            rpIconFallbackDone = true
+                                            source = model.icon  // use original URL
+                                            return
+                                        }
+                                        rpIconFallback.visible = true
                                     }
                                 }
 
