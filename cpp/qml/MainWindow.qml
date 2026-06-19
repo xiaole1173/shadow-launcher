@@ -1526,16 +1526,18 @@ Window {
                                                 }
                                             }
 
-                                            // 预设顔?
-                                            Text { text: "预设"; font.pixelSize: 10; color: "#a8b0c0" }
+                                            // GC 预设
+                                            Text { text: "GC 预设"; font.pixelSize: 10; color: "#a8b0c0" }
                                             Flow {
                                                 Layout.fillWidth: true; spacing: 8
                                                 Repeater {
                                                     model: [
-                                                        { label: "默认平衡", args: "-Xmx2G -XX:+UseG1GC" },
-                                                        { label: "性能优先", args: "-Xmx4G -XX:+UseG1GC -XX:+AggressiveOpts" },
-                                                        { label: "低延迟", args: "-Xmx2G -XX:+UseZGC" }
-
+                                                        { label: "G1GC 平衡", args: "-XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:MaxGCPauseMillis=50" },
+                                                        { label: "ZGC 低延迟", args: "-XX:+UseZGC -XX:+UnlockExperimentalVMOptions" },
+                                                        { label: "Shenandoah", args: "-XX:+UseShenandoahGC" },
+                                                        { label: "Parallel", args: "-XX:+UseParallelGC" },
+                                                        { label: "Serial", args: "-XX:+UseSerialGC" },
+                                                        { label: "清空自定", args: "" }
                                                     ]
                                                     Rectangle { width: 90; height: 26; radius: 4; color: presetHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
                                                         Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 11; color: "#b0b8c8" }
