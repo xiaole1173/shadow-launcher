@@ -41,10 +41,30 @@ Rectangle {
     property bool rpResultsReady: false
     property real rpLoadingProgress: 0  // 0..1 for version fetch progress
     property int rpDebugSeq: 0  // sequence counter for log correlation
+    property string rpCategoryFilter: ""  // category key for filtering
+
+    function filterRpResults() {
+        var cat = page.rpCategoryFilter
+        var ver = page.rpGameVersion
+        var q = rpSearchInput.text || ""
+        console.log("[RP-DEBUG] filterRpResults cat=", cat, "ver=", ver, "q=", q)
+        if (cat) {
+            // Category filter: call search with facets
+            // Modrinth facets: [["categories:{cat}"],["project_type:resourcepack"]]
+            // For now, re-search with query to work around facet complexity
+            backend.searchResourcepacks(q || "", ver || "")
+            // After results come back, we apply client-side category filter
+        } else {
+            backend.searchResourcepacks(q || "", ver || "")
+        }
+    }
 
     function loadResourcepackResults() {
         if (!backend) return
         page.rpDebugSeq++
+        if (page.mainWindow && page.mainWindow.loadingBar) {
+            page.mainWindow.loadingBar.opacity = 1
+        }
         console.log("[RP-DEBUG]", page.rpDebugSeq, "loadResourcepackResults START gv=", page.rpGameVersion, "ready=", rpResultsReady, "count=", rpResultsModel.count)
         backend.searchResourcepacks("", page.rpGameVersion)
         console.log("[RP-DEBUG]", page.rpDebugSeq, "searchResourcepacks CALLED")
@@ -1296,7 +1316,7 @@ Rectangle {
                     height: 26; radius: 13
                     width: rpVerLabel.implicitWidth + 24
                     color: rpVerMouse.containsMouse ? "#1a2848" : "#11141c"
-                    border.color: page.rpGameVersion === "" ? "#a0a8c0" : "#c060a0"
+                    border.color: page.rpGameVersion === "" ? "#a0a8c0" : "#5068c8"
                     border.width: 1
 
                     Text {
@@ -1335,7 +1355,7 @@ Rectangle {
                                     color: page.rpGameVersion === "" ? "#1a2848" : "transparent"
                                     Text {
                                         anchors.centerIn: parent; text: "全部"; font.pixelSize: 11
-                                        color: page.rpGameVersion === "" ? "#c060a0" : "#9094a8"
+                                        color: page.rpGameVersion === "" ? "#5068c8" : "#9094a8"
                                         font.weight: page.rpGameVersion === "" ? Font.Bold : Font.Normal
                                     }
                                     MouseArea {
@@ -1371,7 +1391,7 @@ Rectangle {
                                         color: modelData === page.rpGameVersion ? "#1a2848" : "transparent"
                                         Text {
                                             anchors.centerIn: parent; text: modelData; font.pixelSize: 11
-                                            color: modelData === page.rpGameVersion ? "#c060a0" : "#9094a8"
+                                            color: modelData === page.rpGameVersion ? "#5068c8" : "#9094a8"
                                             font.weight: modelData === page.rpGameVersion ? Font.Bold : Font.Normal
                                         }
                                         MouseArea {
@@ -1393,7 +1413,7 @@ Rectangle {
 
                 Rectangle {
                     width: 220; height: 30; radius: 6
-                    color: "#11141c"; border.color: rpSearchInput.activeFocus ? "#c060a0" : "#1e2230"
+                    color: "#11141c"; border.color: rpSearchInput.activeFocus ? "#5068c8" : "#1e2230"
 
                     RowLayout {
                         anchors.fill: parent
@@ -1419,7 +1439,7 @@ Rectangle {
 
                         Rectangle {
                             width: 28; height: 22; radius: 4
-                            color: rpGoHov.hovered ? "#c060a0" : "transparent"
+                            color: rpGoHov.hovered ? "#5068c8" : "transparent"
                             Text {
                                 anchors.centerIn: parent; text: "Go"
                                 color: rpGoHov.hovered ? "#e8ecf8" : "#9094a8"; font.pixelSize: 10
@@ -1444,14 +1464,60 @@ Rectangle {
                 color: "#505468"; font.pixelSize: 11
             }
 
-            // Version fetch progress
-            Rectangle {
-                visible: page.rpLoadingProgress > 0 && page.rpLoadingProgress < 1
-                Layout.fillWidth: true; height: 3; radius: 2; color: "#1a1f2a"
+            // ── Category filter tags ──
+            RowLayout {
+                Layout.fillWidth: true; spacing: 6
+                visible: rpResultsModel.count > 0
+
+                Repeater {
+                    model: [
+                        {key:"", label:"全部"},
+                        {key:"realistic", label:"写实"},
+                        {key:"simplistic", label:"简约"},
+                        {key:"themed", label:"主题"},
+                        {key:"vanilla-like", label:"原版"},
+                        {key:"pvp", label:"PVP"},
+                        {key:"gui", label:"界面"},
+                        {key:"font", label:"字体"},
+                        {key:"utility", label:"实用"},
+                        {key:"decoration", label:"装饰"}
+                    ]
+                    Rectangle {
+                        height: 22; width: labelTxt.implicitWidth + 14; radius: 11
+                        color: page.rpCategoryFilter === modelData.key ? "#5068c8" : "#151922"
+                        border.color: page.rpCategoryFilter === modelData.key ? "#5068c8" : "#2a3040"
+                        border.width: 1
+                        Text {
+                            id: labelTxt; anchors.centerIn: parent
+                            text: modelData.label; font.pixelSize: 10
+                            color: page.rpCategoryFilter === modelData.key ? "#e8ecf8" : "#788090"
+                        }
+                        MouseArea {
+                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                page.rpCategoryFilter = modelData.key
+                                filterRpResults()
+                            }
+                        }
+                    }
+                }
+
+                // Reset filter button
                 Rectangle {
-                    height: 3; radius: 2; color: "#c060a0"
-                    width: parent.width * page.rpLoadingProgress
-                    Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                    visible: page.rpCategoryFilter !== "" || page.rpGameVersion !== "" || rpSearchInput.text !== ""
+                    height: 22; width: 48; radius: 11; color: "#1a2848"
+                    border.color: "#5068c8"; border.width: 1
+                    Text { anchors.centerIn: parent; text: "重置"; color: "#9098c0"; font.pixelSize: 10 }
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            page.rpCategoryFilter = ""
+                            page.rpGameVersion = ""
+                            rpSearchInput.text = ""
+                            console.log("[RP-DEBUG] reset filters")
+                            if (backend) backend.searchResourcepacks("", "")
+                        }
+                    }
                 }
             }
 
@@ -1466,157 +1532,155 @@ Rectangle {
                     model: rpResultsModel
 
                     delegate: Rectangle {
-                        width: rpListView.width - 8; height: 108
+                        width: rpListView.width - 8; height: 105
                         color: rpCardHov.hovered ? "#121620" : "#0e1018"
-                        radius: 10; border.color: rpCardHov.hovered ? "#c060a0" : "#1a1f2a"; border.width: 1
-
-                        opacity: 0
-                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                        Component.onCompleted: { opacity = 1 }
+                        radius: 10; border.color: rpCardHov.hovered ? "#5068c8" : "#1a1f2a"; border.width: 1
 
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
 
-                            // Icon
+                            // Icon (text placeholder, no network image)
                             Rectangle {
-                                width: 48; height: 48; radius: 10; color: "#1a1f2e"
-                                Layout.preferredWidth: 48
-
-                                Image {
-                                    anchors.fill: parent; anchors.margins: 2
-                                    source: model.icon || ""; fillMode: Image.PreserveAspectFit
-                                    // Fallback: first letter if no icon
-                                    onStatusChanged: {
-                                        if (status === Image.Error || status === Image.Null) {
-                                            source = ""
-                                        }
-                                    }
-                                }
-
+                                width: 44; height: 44; radius: 10; color: "#1a1f2e"
+                                Layout.preferredWidth: 44; Layout.preferredHeight: 44
                                 Text {
                                     anchors.centerIn: parent
                                     text: model.title ? model.title[0] : "R"
-                                    color: "#c060a0"; font.pixelSize: 18; font.bold: true
-                                    visible: !model.icon || model.icon === ""
+                                    color: "#5068c8"; font.pixelSize: 18; font.bold: true
                                 }
                             }
 
-                            // Content column
+                            // Content
                             ColumnLayout {
-                                Layout.fillWidth: true; Layout.fillHeight: true; spacing: 4
+                                Layout.fillWidth: true; spacing: 3
 
-                                // Title + download count
+                                // Row 1: Title + downloads
                                 RowLayout {
+                                    Layout.fillWidth: true; spacing: 6
                                     Text {
                                         text: model.title || ""; color: "#d0d4e0"
-                                        font.pixelSize: 14; font.bold: true; elide: Text.ElideRight
+                                        font.pixelSize: 13; font.bold: true; elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }
                                     Text {
                                         visible: model.downloads >= 0
-                                        text: model.downloads >= 1000000 ? "↓" + (model.downloads / 1000000).toFixed(1) + "M" :
-                                              model.downloads >= 1000 ? "↓" + (Math.round(model.downloads / 100) / 10).toFixed(1) + "K" : "↓" + model.downloads
-                                        color: "#788090"; font.pixelSize: 11
+                                        text: model.downloads >= 1000000 ? "↓" + (model.downloads/1000000).toFixed(1) + "M" :
+                                              model.downloads >= 1000 ? "↓" + (Math.round(model.downloads/100)/10).toFixed(1) + "K" : "↓" + model.downloads
+                                        color: "#788090"; font.pixelSize: 10
                                     }
                                 }
 
-                                // Description
-                                Text {
-                                    text: model.desc || "暂无简介"; color: "#606478"; font.pixelSize: 11
-                                    elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.WordWrap
-                                    Layout.fillWidth: true; Layout.fillHeight: true
+                                // Row 2: Chinese tags
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 4; visible: tagRowRepeater.count > 0
+                                    Repeater {
+                                        id: tagRowRepeater
+                                        model: {
+                                            var tags = model.categories || []
+                                            var result = []
+                                            var map = {
+                                                "combat":"战斗", "cursed":"猎奇", "decoration":"装饰",
+                                                "modded":"模组适配", "realistic":"写实", "simplistic":"简约",
+                                                "themed":"主题", "tweaks":"微调", "utility":"实用",
+                                                "vanilla-like":"原版", "fantasy":"幻想", "modern":"现代",
+                                                "medieval":"中世纪", "futuristic":"未来", "cartoon":"卡通",
+                                                "pvp":"PVP", "minigame":"小游戏", "gui":"界面", "font":"字体",
+                                                "hd":"高清", "photorealism":"照片", "cute":"可爱",
+                                                "dark":"暗色", "light":"亮色", "clean":"简洁"
+                                            }
+                                            for (var t = 0; t < Math.min(tags.length, 4); t++) {
+                                                var en = String(tags[t]).toLowerCase()
+                                                result.push({label: map[en] || en})
+                                            }
+                                            return result
+                                        }
+                                        Rectangle {
+                                            height: 16; width: labelText.implicitWidth + 10; radius: 4
+                                            color: "#151922"; border.color: "#2a3040"; border.width: 1
+                                            Text {
+                                                id: labelText
+                                                anchors.centerIn: parent
+                                                text: modelData.label; color: "#788090"; font.pixelSize: 9
+                                            }
+                                        }
+                                    }
                                 }
 
-                                // Version chips (imperative, no Repeater binding)
-                                Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: 22
-                                    clip: true
+                                // Row 3: Description (1 line)
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: model.desc || ""; color: "#505468"; font.pixelSize: 10
+                                    elide: Text.ElideRight; maximumLineCount: 1
+                                }
 
-                                    Row {
-                                        id: rpChipRow
-                                        spacing: 4
-                                        property string chipsJson: ""
-                                        property string _pending: ""
-
-                                        Timer {
-                                            id: rpChipTimer
-                                            interval: 1
-                                            onTriggered: {
-                                                var json = rpChipRow._pending
-                                                rpChipRow._pending = ""
-                                                // Remove old chips (keep component + placeholder)
-                                                for (var i = rpChipRow.children.length - 1; i >= 0; i--) {
-                                                    var child = rpChipRow.children[i]
-                                                    if (child !== rpChipComp && child !== rpChipPlaceholder) {
-                                                        child.destroy()
+                                // Row 4: Version chips + date
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 6
+                                    Item {
+                                        Layout.fillWidth: true; Layout.preferredHeight: 18
+                                        clip: true
+                                        Row {
+                                            id: rpChipRow
+                                            spacing: 3
+                                            property string chipsJson: ""
+                                            property string _pending: ""
+                                            Timer {
+                                                id: rpChipTimer; interval: 1
+                                                onTriggered: {
+                                                    var json = rpChipRow._pending; rpChipRow._pending = ""
+                                                    for (var i = rpChipRow.children.length - 1; i >= 0; i--) {
+                                                        if (rpChipRow.children[i] !== rpChipComp && rpChipRow.children[i] !== rpChipPlaceholder)
+                                                            rpChipRow.children[i].destroy()
+                                                    }
+                                                    if (!json || json === "") return
+                                                    var items = []; try { items = JSON.parse(json) } catch(e) { return }
+                                                    rpChipPlaceholder.visible = (items.length === 0)
+                                                    for (var j = 0; j < items.length; j++) {
+                                                        rpChipComp.createObject(rpChipRow, {
+                                                            "chipText": items[j].text, "chipColor": items[j].color
+                                                        })
                                                     }
                                                 }
-                                                if (!json || json === "") return
-                                                var items = []
-                                                try { items = JSON.parse(json) } catch(e) { return }
-                                                rpChipPlaceholder.visible = (items.length === 0)
-                                                for (var j = 0; j < items.length; j++) {
-                                                    rpChipComp.createObject(rpChipRow, {
-                                                        "chipText": items[j].text,
-                                                        "chipColor": items[j].color
-                                                    })
+                                            }
+                                            onChipsJsonChanged: { rpChipRow._pending = chipsJson; rpChipTimer.restart() }
+                                            Component {
+                                                id: rpChipComp
+                                                Rectangle {
+                                                    height: 16; width: cText.implicitWidth + 8; radius: 4
+                                                    color: "#151922"; border.color: chipColor; border.width: 1
+                                                    property string chipColor: "#90a0c8"; property string chipText: ""
+                                                    Text {
+                                                        id: cText; anchors.centerIn: parent
+                                                        text: chipText; color: chipColor; font.pixelSize: 8
+                                                        font.family: "Consolas, monospace"
+                                                    }
                                                 }
                                             }
-                                        }
-
-                                        onChipsJsonChanged: {
-                                            rpChipRow._pending = chipsJson
-                                            rpChipTimer.restart()
-                                        }
-
-                                        Component {
-                                            id: rpChipComp
                                             Rectangle {
-                                                height: 18; width: textLabel.implicitWidth + 10; radius: 9
-                                                color: "#151922"; border.color: chipColor; border.width: 1
-                                                property string chipColor: "#90a0c8"
-                                                property string chipText: ""
-                                                Text {
-                                                    id: textLabel
-                                                    anchors.centerIn: parent
-                                                    text: chipText; color: chipColor
-                                                    font.pixelSize: 9; font.family: "Consolas, monospace"
-                                                }
+                                                id: rpChipPlaceholder; height: 16; width: 48; radius: 4
+                                                color: "#151922"; border.color: "#404860"; border.width: 1
+                                                Text { anchors.centerIn: parent; text: "加载中"; color: "#404860"; font.pixelSize: 8 }
                                             }
-                                        }
-
-                                        // Initial placeholder (shown until chipsJson changes)
-                                        Rectangle {
-                                            id: rpChipPlaceholder
-                                            height: 18; width: 52; radius: 9
-                                            color: "#151922"; border.color: "#404860"; border.width: 1
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "加载中…"; color: "#404860"
-                                                font.pixelSize: 9; font.family: "Consolas, monospace"
+                                            Binding {
+                                                target: rpChipRow; property: "chipsJson"
+                                                value: model ? (model.chips || "") : ""
+                                                when: model !== null
                                             }
                                         }
                                     }
-
-                                    // Drive chipsJson from model.chips (one-way binding, no loop)
-                                    Binding {
-                                        target: rpChipRow
-                                        property: "chipsJson"
-                                        value: model ? (model.chips || "") : ""
-                                        when: model !== null
+                                    Text {
+                                        text: model.updated ? String(model.updated).slice(0, 10) : ""
+                                        color: "#404860"; font.pixelSize: 9; visible: model.updated !== undefined
                                     }
                                 }
                             }
                         }
 
                         MouseArea {
-                            id: rpCardHov
-                            anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            id: rpCardHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                console.log("[resourcepack] card clicked:", model.slug)
-                                rpDetailSlug = model.slug
-                                rpDetailTitle = model.title
+                                console.log("[RP-DEBUG] card clicked:", model.slug)
+                                rpDetailSlug = model.slug; rpDetailTitle = model.title
                             }
                         }
                     }
@@ -1628,7 +1692,7 @@ Rectangle {
                 visible: page.installingMod
                 Layout.fillWidth: true; Layout.preferredHeight: 4; radius: 2; color: "#1a1f2a"
                 Rectangle {
-                    height: 4; radius: 2; color: "#c060a0"; width: parent.width * 0.4
+                    height: 4; radius: 2; color: "#5068c8"; width: parent.width * 0.4
                     NumberAnimation on x {
                         from: 0; to: parent.width * 0.6; duration: 1200
                         loops: Animation.Infinite; running: page.installingMod
@@ -1716,19 +1780,19 @@ Rectangle {
                             delegate: Rectangle {
                                 Layout.fillWidth: true; height: 40; radius: 8
                                 color: rpDetVerHov.hovered ? "#1a2848" : "#11141c"
-                                border.color: rpDetVerHov.hovered ? "#c060a0" : "#1e2230"
+                                border.color: rpDetVerHov.hovered ? "#5068c8" : "#1e2230"
                                 border.width: 1
 
                                 RowLayout {
                                     anchors.fill: parent; anchors.margins: 10; spacing: 10
                                     Text {
-                                        text: modelData; color: "#c060a0"; font.pixelSize: 14; font.bold: true
+                                        text: modelData; color: "#5068c8"; font.pixelSize: 14; font.bold: true
                                         font.family: "Consolas, monospace"; Layout.fillWidth: true
                                     }
                                     Rectangle {
                                         width: 56; height: 26; radius: 5
-                                        color: rpDetVerHov.hovered ? "#c060a0" : "transparent"
-                                        border.color: rpDetVerHov.hovered ? "#c060a0" : "#1e2230"
+                                        color: rpDetVerHov.hovered ? "#5068c8" : "transparent"
+                                        border.color: rpDetVerHov.hovered ? "#5068c8" : "#1e2230"
                                         border.width: 1
                                         Text {
                                             anchors.centerIn: parent; text: "安装"
@@ -1783,12 +1847,20 @@ Rectangle {
         function onResourcepackSearchCompleted(results, totalHits) {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
             if (results && results.length > 0) {
-                console.log("[RP-DEBUG]", page.rpDebugSeq, "CLEAR model, was", rpResultsModel.count)
                 rpResultsModel.clear()
-                console.log("[RP-DEBUG]", page.rpDebugSeq, "CLEAR done, now", rpResultsModel.count)
                 var slugs = []
+                var catFilter = page.rpCategoryFilter.toLowerCase()
                 for (var i = 0; i < results.length; i++) {
                     var r = results[i]
+                    // Client-side category filter
+                    if (catFilter) {
+                        var cats = r.categories || []
+                        var hasCat = false
+                        for (var c = 0; c < cats.length; c++) {
+                            if (String(cats[c]).toLowerCase() === catFilter) { hasCat = true; break }
+                        }
+                        if (!hasCat) continue
+                    }
                     slugs.push(r.slug)
                     rpResultsModel.append({
                         slug: r.slug || "",
@@ -1796,16 +1868,27 @@ Rectangle {
                         desc: r.desc || r.description || "",
                         icon: r.icon || "",
                         downloads: r.downloads || 0,
+                        categories: r.categories || [],
+                        updated: r.updated || "",
+                        author: r.author || "",
+                        source: r.source || "Modrinth",
                         chips: ""
                     })
                 }
-                console.log("[RP-DEBUG]", page.rpDebugSeq, "APPEND done, now", rpResultsModel.count, "slugs=", slugs.length)
+                console.log("[RP-DEBUG]", page.rpDebugSeq, "APPEND done (after filter), now", rpResultsModel.count, "slugs=", slugs.length)
                 if (backend && slugs.length > 0) {
                     console.log("[RP-DEBUG]", page.rpDebugSeq, "FETCH versions for", slugs.length, "slugs")
                     backend.fetchResourcepackVersions(slugs)
                 }
+                // Hide main loading bar
+                if (page.mainWindow && page.mainWindow.loadingBar) {
+                    page.mainWindow.loadingBar.opacity = (slugs.length > 0) ? 0 : 1
+                }
             } else {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
+                if (page.mainWindow && page.mainWindow.loadingBar) {
+                    page.mainWindow.loadingBar.opacity = 0
+                }
             }
         }
 
@@ -1835,7 +1918,7 @@ Rectangle {
                     for (var j = 0; j < maxChips; j++) {
                         chips.push({text: vers[j], color: "#90a0c8"})
                     }
-                    if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#c060a0"})
+                    if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#5068c8"})
                     var chipsJson = JSON.stringify(chips)
                     for (var i = 0; i < rpResultsModel.count; i++) {
                         if (rpResultsModel.get(i).slug === slug) {
@@ -1857,7 +1940,7 @@ Rectangle {
             for (var j = 0; j < maxChips; j++) {
                 chips.push({text: versions[j], color: "#90a0c8"})
             }
-            if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: "#c060a0"})
+            if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: "#5068c8"})
             var chipsJson = JSON.stringify(chips)
 
             var found = false
@@ -1877,7 +1960,9 @@ Rectangle {
 
         function onResourcepackVersionsProgress(done, total) {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "progress", done, "/", total)
-            page.rpLoadingProgress = done / total
+            if (page.mainWindow && page.mainWindow.loadingBar) {
+                page.mainWindow.loadingBar.opacity = (done < total) ? 1 : 0
+            }
         }
 
         function onLogMessage(msg) {

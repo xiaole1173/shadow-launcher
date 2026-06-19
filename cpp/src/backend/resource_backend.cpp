@@ -3,6 +3,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QStringList>
 #include <QVariantMap>
 
 namespace ShadowLauncher {
@@ -218,6 +219,16 @@ void ResourceBackend::onResourcepackSearchCompleted(const QJsonArray& results, i
         entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
         entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
         entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+        entry[QStringLiteral("author")]    = obj[QStringLiteral("author")].toString();
+        entry[QStringLiteral("updated")]   = obj[QStringLiteral("updated")].toString();
+        entry[QStringLiteral("source")]    = QStringLiteral("Modrinth");
+        // Categories as QVariant string list
+        QJsonArray cats = obj[QStringLiteral("categories")].toArray();
+        QStringList catList;
+        for (const QJsonValue& catVal : cats) {
+            catList.append(catVal.toString());
+        }
+        entry[QStringLiteral("categories")] = catList;
         list.append(entry);
     }
     emit logMessage(QStringLiteral("找到 %1 个资源包").arg(list.size()));

@@ -583,6 +583,7 @@ QJsonArray ModManager::parseSearchResponse(const QByteArray& data, int& outTotal
         mod[QStringLiteral("iconUrl")]       = hit.value(QStringLiteral("icon_url"));
         mod[QStringLiteral("author")]        = hit.value(QStringLiteral("author"));
         mod[QStringLiteral("downloads")]     = hit.value(QStringLiteral("downloads"));
+        mod[QStringLiteral("updated")]       = hit.value(QStringLiteral("date_modified"));
         mod[QStringLiteral("categories")]    = hit.value(QStringLiteral("categories"));
         mod[QStringLiteral("gameVersions")]  = hit.value(QStringLiteral("versions"));
         // Modrinth uses "categories" for loaders in search results
