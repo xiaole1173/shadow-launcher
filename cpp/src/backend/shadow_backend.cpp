@@ -206,7 +206,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_resource, &ResourceBackend::searchResultsReady,
             this, &ShadowBackend::searchResultsReady);
     connect(m_resource, &ResourceBackend::resourcepackSearchCompleted,
-            this, &ShadowBackend::resourcepackSearchCompleted);
+            this, [this](const QVariantList& results, int totalHits) {
+                qDebug().noquote() << "[BACKEND] RP searchCompleted SIGNAL emitted, hits=" << results.size() << "total=" << totalHits;
+                emit resourcepackSearchCompleted(results, totalHits);
+            });
     connect(m_resource, &ResourceBackend::resourcepackSearchFailed,
             this, &ShadowBackend::resourcepackSearchFailed);
     connect(m_resource, &ResourceBackend::resourcepackDownloadFinished,

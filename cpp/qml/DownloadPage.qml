@@ -1517,9 +1517,8 @@ Rectangle {
 
     Connections {
         target: backend
-        enabled: backend !== null && page.currentTab === 3
 
-        function onResourcepackSearchCompleted(results, totalHits) { try {
+        function onResourcepackSearchCompleted(results, totalHits) { console.log('[RP-DEBUG] >>> SIGNAL RECEIVED, enter handler'); try {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
             if (!results || results.length === 0) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
