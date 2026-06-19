@@ -21,6 +21,10 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::onDownloadProgress);
     connect(m_modMgr, &ModManager::downloadFinished,
             this, &ResourceBackend::onDownloadFinished);
+    connect(m_modMgr, &ModManager::resourcepackSearchCompleted,
+            this, &ResourceBackend::onResourcepackSearchCompleted);
+    connect(m_modMgr, &ModManager::resourcepackDownloadFinished,
+            this, &ResourceBackend::onResourcepackDownloadFinished);
     connect(m_modMgr, &ModManager::logMessage,
             this, &ResourceBackend::logMessage);
 }
@@ -118,6 +122,27 @@ void ResourceBackend::downloadShader(const QString& slug)
                           m_minecraftDir, QStringLiteral("shaderpacks"));
 }
 
+void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion)
+{
+    emit logMessage(QStringLiteral("🔍 正在搜索资源包: %1...").arg(query));
+    m_modMgr->searchResourcepacks(query, gameVersion.isEmpty()
+                                  ? QStringList{} : QStringList{gameVersion});
+}
+
+void ResourceBackend::downloadResourcepack(const QString& slug, const QString& gameVersion)
+{
+    if (m_downloading) {
+        emit logMessage(QStringLiteral("⚠️ 已有下载任务进行中"));
+        return;
+    }
+
+    m_downloading = true;
+    emit downloadStateChanged();
+
+    emit logMessage(QStringLiteral("🔍 正在查找资源包 %1 ...").arg(slug));
+    m_modMgr->downloadResourcepack(slug, gameVersion, m_minecraftDir);
+}
+
 void ResourceBackend::cancelDownload()
 {
     m_modMgr->cancel();
@@ -169,6 +194,34 @@ void ResourceBackend::onDownloadFinished(const QString& slug, bool success,
     }
 
     emit downloadFinished(slug, success, filePath);
+}
+
+void ResourceBackend::onResourcepackSearchCompleted(const QJsonArray& results, int totalHits)
+{
+    QVariantList list;
+    for (const QJsonValue& item : results) {
+        const QJsonObject obj = item.toObject();
+        QVariantMap entry;
+        entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
+        entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
+        entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
+        entry[QStringLiteral("icon")]      = obj[QStringLiteral("icon_url")].toString();
+        entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+        list.append(entry);
+    }
+    emit logMessage(QStringLiteral("找到 %1 个资源包").arg(list.size()));
+    emit resourcepackSearchCompleted(list, totalHits);
+}
+
+void ResourceBackend::onResourcepackDownloadFinished(const QString& slug, bool success,
+                                                      const QString& filePath)
+{
+    m_downloading = false;
+    m_dlProgress  = 0;
+    m_dlTotal     = 0;
+    m_dlFile.clear();
+    emit downloadStateChanged();
+    emit resourcepackDownloadFinished(slug, success, filePath);
 }
 
 } // namespace ShadowLauncher

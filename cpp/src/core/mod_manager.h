@@ -43,6 +43,18 @@ struct ModSearchResult {
     int limit = 0;
 };
 
+// --- Resource pack specific ---
+
+struct ResourcepackInfo {
+    QString slug;
+    QString title;
+    QString description;
+    QString iconUrl;
+    int downloads = 0;
+    QStringList categories;
+    QStringList gameVersions;
+};
+
 // --- Main class ---
 
 class ModManager : public QObject {
@@ -77,6 +89,20 @@ public:
         const QString& targetDir = "mods"
     );
 
+    // Resource packs
+    void searchResourcepacks(
+        const QString& query,
+        const QStringList& gameVersions = {},
+        int offset = 0,
+        int limit = 20
+    );
+
+    void downloadResourcepack(
+        const QString& slug,
+        const QString& gameVersion,
+        const QString& minecraftDir
+    );
+
     // Popular mods (offline data)
     static QMap<QString, QJsonObject> getPopularMods(const QString& loader);
     static QMap<QString, QJsonObject> getShaderList();
@@ -94,6 +120,9 @@ signals:
 
     void downloadProgress(const QString& name, qint64 received, qint64 total);
     void downloadFinished(const QString& slug, bool success, const QString& filePath);
+    void resourcepackSearchCompleted(const QJsonArray& results, int totalHits);
+    void resourcepackSearchFailed(const QString& error);
+    void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void logMessage(const QString& msg);
 
     void busyChanged();

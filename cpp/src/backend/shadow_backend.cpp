@@ -205,6 +205,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_resource, &ResourceBackend::searchResultsReady,
             this, &ShadowBackend::searchResultsReady);
+    connect(m_resource, &ResourceBackend::resourcepackSearchCompleted,
+            this, &ShadowBackend::resourcepackSearchCompleted);
+    connect(m_resource, &ResourceBackend::resourcepackSearchFailed,
+            this, &ShadowBackend::resourcepackSearchFailed);
+    connect(m_resource, &ResourceBackend::resourcepackDownloadFinished,
+            this, &ShadowBackend::resourcepackDownloadFinished);
     connect(m_resource, &ResourceBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
@@ -840,6 +846,14 @@ void ShadowBackend::downloadMod(const QString& slug, const QString& loader) {
 
 void ShadowBackend::downloadShader(const QString& slug) {
     m_resource->downloadShader(slug);
+}
+
+void ShadowBackend::searchResourcepacks(const QString& query, const QString& gameVersion) {
+    m_resource->searchResourcepacks(query, gameVersion);
+}
+
+void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gameVersion) {
+    m_resource->downloadResourcepack(slug, gameVersion);
 }
 
 // ============================================================

@@ -234,6 +234,8 @@ public:
     Q_INVOKABLE void searchMods(const QString& query, const QString& loader = {});
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& loader);
     Q_INVOKABLE void downloadShader(const QString& slug);
+    Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {});
+    Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion);
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);
@@ -305,6 +307,9 @@ signals:
     void isRunningChanged();
     void runningCountChanged();
     void resourceDownloadStateChanged();
+    void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
+    void resourcepackSearchFailed(const QString& error);
+    void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
     void resourceDownloadProgress(int completed, int total, const QString& fileName);
     void resourceDownloadDone(bool success);
     void verifyRunningChanged();

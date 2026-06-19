@@ -231,6 +231,140 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
     );
 }
 
+// ═══════════════════════════════════════════════════════════
+// Resource packs — search + download
+// ═══════════════════════════════════════════════════════════
+
+void ModManager::searchResourcepacks(
+    const QString& query,
+    const QStringList& gameVersions,
+    int offset, int limit)
+{
+    setBusy(true);
+
+    // Build facets: force project_type=resourcepack
+    QJsonArray facets;
+    QJsonArray typeFacet;
+    typeFacet.append(QStringLiteral("project_type:resourcepack"));
+    facets.append(typeFacet);
+
+    if (!gameVersions.isEmpty()) {
+        QJsonArray verFacet;
+        for (const QString& v : gameVersions)
+            verFacet.append(QStringLiteral("versions:") + v);
+        facets.append(verFacet);
+    }
+
+    QUrl url(MODRINTH_API + "/search");
+    QUrlQuery params;
+    if (!query.isEmpty())
+        params.addQueryItem(QStringLiteral("query"), query);
+    params.addQueryItem(QStringLiteral("facets"),
+                        QJsonDocument(facets).toJson(QJsonDocument::Compact));
+    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
+    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+    url.setQuery(params);
+
+    emit logMessage(QStringLiteral("[MODRINTH] 搜索资源包: %1").arg(url.toString()));
+
+    HttpClient::instance().get(url.toString(),
+        [this](int /*status*/, const QByteArray& data) {
+            setBusy(false);
+            int total = 0;
+            QJsonArray hits = parseSearchResponse(data, total);
+            emit resourcepackSearchCompleted(hits, total);
+            emit logMessage(QStringLiteral("[MODRINTH] 资源包搜索结果: %1/%2").arg(hits.size()).arg(total));
+        },
+        [this](const QString& err) {
+            setBusy(false);
+            emit resourcepackSearchFailed(err);
+            emit logMessage(QStringLiteral("[MODRINTH] 资源包搜索失败: %1").arg(err));
+        }
+    );
+}
+
+void ModManager::downloadResourcepack(
+    const QString& slug,
+    const QString& gameVersion,
+    const QString& minecraftDir)
+{
+    setBusy(true);
+    m_minecraftDir = minecraftDir;
+
+    emit logMessage(QStringLiteral("[MODRINTH] 下载资源包: %1 MC%2").arg(slug, gameVersion));
+
+    // Step 1: fetch versions, pick matching one, download primary file
+    QUrl versionsUrl(MODRINTH_API + "/project/" + slug + "/version");
+    QUrlQuery vp;
+    if (!gameVersion.isEmpty())
+        vp.addQueryItem(QStringLiteral("game_versions"),
+                        QStringLiteral("[\"%1\"]").arg(gameVersion));
+    versionsUrl.setQuery(vp);
+
+    HttpClient::instance().get(versionsUrl.toString(),
+        [this, slug, gameVersion, minecraftDir](int /*status*/, const QByteArray& data) {
+            QJsonArray files = parseVersionsResponse(data);
+            if (files.isEmpty()) {
+                setBusy(false);
+                emit resourcepackDownloadFinished(slug, false, {});
+                return;
+            }
+
+            // Pick best file: match game version, or first
+            QJsonObject bestFile;
+            for (const QJsonValue& fv : files) {
+                QJsonObject f = fv.toObject();
+                QJsonArray gvs = f[QStringLiteral("game_versions")].toArray();
+                bool match = false;
+                for (const QJsonValue& gv : gvs) {
+                    if (gv.toString() == gameVersion) { match = true; break; }
+                }
+                if (match || bestFile.isEmpty()) {
+                    bestFile = f;
+                    if (match) break;
+                }
+            }
+
+            if (bestFile.isEmpty()) {
+                setBusy(false);
+                emit resourcepackDownloadFinished(slug, false, {});
+                return;
+            }
+
+            QString dlUrl = bestFile[QStringLiteral("url")].toString();
+            QString filename = bestFile[QStringLiteral("filename")].toString();
+            if (filename.isEmpty()) filename = slug + QStringLiteral(".zip");
+
+            QString destDir = minecraftDir + QStringLiteral("/resourcepacks");
+            QDir().mkpath(destDir);
+            QString destPath = destDir + QStringLiteral("/") + filename;
+
+            emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1").arg(filename));
+
+            HttpClient::instance().download(
+                dlUrl, destPath,
+                [this, slug](qint64 received, qint64 total) {
+                    emit downloadProgress(slug, received, total);
+                },
+                [this, slug, destPath, filename](bool ok, const QString& error) {
+                    setBusy(false);
+                    if (ok)
+                        emit logMessage(QStringLiteral("[MODRINTH] 资源包下载完成: %1").arg(filename));
+                    else
+                        emit logMessage(QStringLiteral("[MODRINTH] 资源包下载失败: %1").arg(error));
+                    emit resourcepackDownloadFinished(slug, ok, ok ? destPath : QString());
+                }
+            );
+        },
+        [this, slug](const QString& err) {
+            setBusy(false);
+            emit resourcepackDownloadFinished(slug, false, {});
+            emit logMessage(QStringLiteral("[MODRINTH] 获取版本列表失败: %1").arg(err));
+        }
+    );
+}
+
 // ============================================================
 // cancel()
 // ============================================================

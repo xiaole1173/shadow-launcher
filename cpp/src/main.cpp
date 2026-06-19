@@ -20,6 +20,7 @@
 
 #include "utils/logger.h"
 #include "backend/shadow_backend.h"
+#include "core/http_client.h"
 
 using namespace ShadowLauncher;
 
@@ -87,6 +88,12 @@ int main(int argc, char *argv[])
     checkpoint(QStringLiteral("Data directory created"));
 
     // Create unified backend — owns all 7 sub-backends
+
+    // Modrinth API: uniquely-identifying User-Agent header (mandatory)
+    HttpClient::instance().setUserAgent(
+        QStringLiteral("xiaole1173/ShadowLauncher/1.0.0"
+                       " (https://github.com/xiaole1173/shadow-launcher)"));
+
     ShadowBackend* backend = new ShadowBackend(&app);
     checkpoint(QStringLiteral("ShadowBackend constructed"));
 
