@@ -18,14 +18,14 @@ namespace ShadowLauncher {
 // ============================================================
 
 // Primary: MCIM mirror (faster for China mainland users)
-//   Modrinth: api.modrinth.com → mod.mcimirror.top/modrinth
-//   CDN:      cdn.modrinth.com → mcim-files.pysio.online
+//   API:  api.modrinth.com  → mod.mcimirror.top/modrinth
+//   CDN:  cdn.modrinth.com  → mod.mcimirror.top
+//   Note: mcim-files.pysio.online is DEAD, use mod.mcimirror.top for CDN
 static const QString MODRINTH_API = QStringLiteral("https://mod.mcimirror.top/modrinth/v2");
-// Fallback URL for when MCIM is down
 static const QString MODRINTH_API_FALLBACK = QStringLiteral("https://api.modrinth.com/v2");
 
-// MCIM download mirror
-static const QString MCIM_DOWNLOAD = QStringLiteral("https://mcim-files.pysio.online");
+// MCIM CDN mirror (for file/image downloads)
+static const QString MCIM_CDN = QStringLiteral("https://mod.mcimirror.top");
 
 // ============================================================
 // Constructor
@@ -339,17 +339,15 @@ void ModManager::downloadResourcepack(
             QString filename = bestFile[QStringLiteral("filename")].toString();
             if (filename.isEmpty()) filename = slug + QStringLiteral(".zip");
 
-            // Rewrite cdn.modrinth.com → MCIM download mirror
-            dlUrl.replace(QStringLiteral("cdn.modrinth.com"),
-                          QStringLiteral("mcim-files.pysio.online"));
+            // Rewrite cdn.modrinth.com → MCIM CDN mirror
+            dlUrl.replace(QStringLiteral("cdn.modrinth.com"), MCIM_CDN);
+            dlUrl.replace(QStringLiteral("cdn-alt.modrinth.com"), MCIM_CDN);
 
             QString destDir = minecraftDir + QStringLiteral("/resourcepacks");
             QDir().mkpath(destDir);
             QString destPath = destDir + QStringLiteral("/") + filename;
 
             emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
-
-            emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1").arg(filename));
 
             HttpClient::instance().download(
                 dlUrl, destPath,
