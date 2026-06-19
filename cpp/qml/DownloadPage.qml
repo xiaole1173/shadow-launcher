@@ -1134,7 +1134,7 @@ Rectangle {
                                 MouseArea {
                                     id: rpCatHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: { if (rpCatMenu.visible) rpCatMenu.close(); else rpCatMenu.open() }
+                                    onClicked: { rpFeatMenu.close(); rpResMenu.close(); if (rpCatMenu.visible) rpCatMenu.close(); else rpCatMenu.open() }
                                 }
                                 Popup {
                                     id: rpCatMenu; closePolicy: Popup.NoAutoClose
@@ -1223,7 +1223,7 @@ Rectangle {
                                 MouseArea {
                                     id: rpFeatHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: { if (rpFeatMenu.visible) rpFeatMenu.close(); else rpFeatMenu.open() }
+                                    onClicked: { rpCatMenu.close(); rpResMenu.close(); if (rpFeatMenu.visible) rpFeatMenu.close(); else rpFeatMenu.open() }
                                 }
                                 Popup {
                                     id: rpFeatMenu; closePolicy: Popup.NoAutoClose
@@ -1292,7 +1292,7 @@ Rectangle {
                                 MouseArea {
                                     id: rpResHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: { if (rpResMenu.visible) rpResMenu.close(); else rpResMenu.open() }
+                                    onClicked: { rpCatMenu.close(); rpFeatMenu.close(); if (rpResMenu.visible) rpResMenu.close(); else rpResMenu.open() }
                                 }
                                 Popup {
                                     id: rpResMenu; closePolicy: Popup.NoAutoClose

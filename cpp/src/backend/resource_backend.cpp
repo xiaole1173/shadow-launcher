@@ -231,6 +231,22 @@ void ResourceBackend::onResourcepackSearchCompleted(const QJsonArray& results, i
             catList.append(catVal.toString());
         }
         entry[QStringLiteral("categories")] = catList;
+
+        // Features (split by parseSearchResponse)
+        QJsonArray feats = obj[QStringLiteral("features")].toArray();
+        QStringList featList;
+        for (const QJsonValue& fv : feats) {
+            featList.append(fv.toString());
+        }
+        entry[QStringLiteral("features")] = featList;
+
+        // Resolutions (split by parseSearchResponse)
+        QJsonArray resos = obj[QStringLiteral("resolutions")].toArray();
+        QStringList resList;
+        for (const QJsonValue& rv : resos) {
+            resList.append(rv.toString());
+        }
+        entry[QStringLiteral("resolutions")] = resList;
         list.append(entry);
     }
     emit logMessage(QStringLiteral("找到 %1 个资源包").arg(list.size()));
