@@ -68,7 +68,6 @@ CrashReport CrashDetector::parseJvmCrash(const QString& filePath)
         return r;
 
     QTextStream in(&f);
-    in.setCodec("UTF-8");
     QStringList lines;
     while (!in.atEnd()) {
         lines.append(in.readLine());
@@ -132,7 +131,6 @@ CrashReport CrashDetector::parseMinecraftCrash(const QString& filePath)
         return r;
 
     QTextStream in(&f);
-    in.setCodec("UTF-8");
     QStringList lines;
     while (!in.atEnd()) {
         lines.append(in.readLine());

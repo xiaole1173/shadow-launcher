@@ -319,6 +319,8 @@ signals:
     void minecraftStopped();
     // ── Crash detection ──
     void crashDetected(const QVariantMap& report);
+    void isRunningChanged();
+    void runningCountChanged();
     void resourceDownloadStateChanged();
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);

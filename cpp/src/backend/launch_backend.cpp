@@ -1,6 +1,7 @@
 #include "launch_backend.h"
-#include "../utils/logger.h"
 #include "../core/launcher.h"
+#include "../core/crash_detector.h"
+#include "../utils/logger.h"
 
 #include <QDir>
 #include <QDirIterator>
