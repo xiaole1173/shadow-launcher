@@ -1640,23 +1640,51 @@ Rectangle {
                                     }
                                 }
 
-                                // Row 2.6: Resolution tags (no translation needed)
+                                // Row 2.6: Resolution tags
                                 Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: rpResRepeater.visible ? 18 : 0
+                                    Layout.fillWidth: true; Layout.preferredHeight: rpResTagRow2.hasRes ? 18 : 0
+                                    visible: rpResTagRow2.hasRes
                                     clip: true
                                     Row {
-                                        id: rpResTagRow; spacing: 4
-                                        Repeater {
-                                            id: rpResRepeater
-                                            model: model ? (function() { try { var r = JSON.parse((model.resolutions || '[]')); rpResTagRow.visible = (r.length > 0); return r } catch(e) { rpResTagRow.visible = false; return [] } })() : []
-                                            Rectangle {
-                                                height: 16; width: tRes.implicitWidth + 10; radius: 4
-                                                color: "#282218"; border.color: "#504828"; border.width: 1
-                                                Text {
-                                                    id: tRes; anchors.centerIn: parent
-                                                    text: modelData; color: "#c8a860"; font.pixelSize: 9
+                                        id: rpResTagRow2
+                                        spacing: 4
+                                        property bool hasRes: false
+                                        property string resJson: ""
+                                        property string _resPending: ""
+                                        Timer {
+                                            id: rpResTimer; interval: 1
+                                            onTriggered: {
+                                                var json = rpResTagRow2._resPending; rpResTagRow2._resPending = ""
+                                                for (var i = rpResTagRow2.children.length - 1; i >= 0; i--) {
+                                                    if (rpResTagRow2.children[i] !== rpResComp) rpResTagRow2.children[i].destroy()
+                                                }
+                                                if (!json || json === "" || json === "[]") { rpResTagRow2.hasRes = false; return }
+                                                var tags = []; try { tags = JSON.parse(json) } catch(e) { rpResTagRow2.hasRes = false; return }
+                                                rpResTagRow2.hasRes = (tags.length > 0)
+                                                for (var t = 0; t < Math.min(tags.length, 4); t++) {
+                                                    rpResComp.createObject(rpResTagRow2, {
+                                                        "tagLabel": String(tags[t])
+                                                    })
                                                 }
                                             }
+                                        }
+                                        onResJsonChanged: { rpResTagRow2._resPending = resJson; rpResTimer.restart() }
+                                        Component {
+                                            id: rpResComp
+                                            Rectangle {
+                                                height: 16; width: tText3.implicitWidth + 10; radius: 4
+                                                color: "#282218"; border.color: "#504828"; border.width: 1
+                                                property string tagLabel: ""
+                                                Text {
+                                                    id: tText3; anchors.centerIn: parent
+                                                    text: tagLabel; color: "#c8a860"; font.pixelSize: 9
+                                                }
+                                            }
+                                        }
+                                        Binding {
+                                            target: rpResTagRow2; property: "resJson"
+                                            value: model ? (model.resolutions || "[]") : "[]"
+                                            when: model !== null
                                         }
                                     }
                                 }
