@@ -40,11 +40,14 @@ Rectangle {
     property string rpDownloadDir: ""
     property bool rpResultsReady: false
     property real rpLoadingProgress: 0  // 0..1 for version fetch progress
+    property int rpDebugSeq: 0  // sequence counter for log correlation
 
     function loadResourcepackResults() {
         if (!backend) return
-        console.log("[resourcepack] auto-loading popular packs, ver:", page.rpGameVersion)
+        page.rpDebugSeq++
+        console.log("[RP-DEBUG]", page.rpDebugSeq, "loadResourcepackResults START gv=", page.rpGameVersion, "ready=", rpResultsReady, "count=", rpResultsModel.count)
         backend.searchResourcepacks("", page.rpGameVersion)
+        console.log("[RP-DEBUG]", page.rpDebugSeq, "searchResourcepacks CALLED")
     }  // user-selected target folder
 
     signal goBack()
@@ -68,6 +71,7 @@ Rectangle {
     }
 
     onCurrentTabChanged: {
+        console.log("[RP-DEBUG] onCurrentTabChanged tab=", currentTab, "rpReady=", rpResultsReady)
         if (currentTab === 0) refreshVersionModel()
         if (currentTab === 1 && !modResultsReady) { loadModResults(); modResultsReady = true }
         if (currentTab === 3 && !rpResultsReady) { loadResourcepackResults(); rpResultsReady = true }
@@ -1722,9 +1726,11 @@ Rectangle {
         enabled: backend !== null && page.currentTab === 3
 
         function onResourcepackSearchCompleted(results, totalHits) {
-            console.log("[resourcepack] search:", results ? results.length : 0, "total:", totalHits)
+            console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
             if (results && results.length > 0) {
+                console.log("[RP-DEBUG]", page.rpDebugSeq, "CLEAR model, was", rpResultsModel.count)
                 rpResultsModel.clear()
+                console.log("[RP-DEBUG]", page.rpDebugSeq, "CLEAR done, now", rpResultsModel.count)
                 var slugs = []
                 for (var i = 0; i < results.length; i++) {
                     var r = results[i]
@@ -1734,15 +1740,17 @@ Rectangle {
                         title: r.title || "",
                         desc: r.desc || r.description || "",
                         icon: r.icon || "",
-                        downloads: r.downloads || 0
+                        downloads: r.downloads || 0,
+                        chips: ""
                     })
                 }
-                console.log("[resourcepack] populating", rpResultsModel.count, "cards, fetching versions for", slugs.length)
+                console.log("[RP-DEBUG]", page.rpDebugSeq, "APPEND done, now", rpResultsModel.count, "slugs=", slugs.length)
                 if (backend && slugs.length > 0) {
+                    console.log("[RP-DEBUG]", page.rpDebugSeq, "FETCH versions for", slugs.length, "slugs")
                     backend.fetchResourcepackVersions(slugs)
                 }
             } else {
-                console.log("[resourcepack] empty results")
+                console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
             }
         }
 
@@ -1788,7 +1796,7 @@ Rectangle {
         }
 
         function onResourcepackVersionsPartial(slug, versions) {
-            // Compute chips and store on model item (avoids binding loop)
+            console.log("[RP-DEBUG]", page.rpDebugSeq, "PARTIAL", slug, "vers=", versions.length, "modelCount=", rpResultsModel.count)
             var chips = []
             var maxChips = Math.min(versions.length, 6)
             for (var j = 0; j < maxChips; j++) {
@@ -1797,17 +1805,23 @@ Rectangle {
             if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: "#c060a0"})
             var chipsJson = JSON.stringify(chips)
 
+            var found = false
             for (var i = 0; i < rpResultsModel.count; i++) {
                 if (rpResultsModel.get(i).slug === slug) {
+                    console.log("[RP-DEBUG]", page.rpDebugSeq, "SET chips on index", i, "slug=", slug, "chipsJson len=", chipsJson.length)
                     rpResultsModel.setProperty(i, "chips", chipsJson)
+                    found = true
                     break
                 }
+            }
+            if (!found) {
+                console.log("[RP-DEBUG]", page.rpDebugSeq, "WARN: slug not found in model:", slug)
             }
             page.rpVersionCache[slug] = versions
         }
 
         function onResourcepackVersionsProgress(done, total) {
-            console.log("[resourcepack] versions progress:", done, "/", total)
+            console.log("[RP-DEBUG]", page.rpDebugSeq, "progress", done, "/", total)
             page.rpLoadingProgress = done / total
         }
 
@@ -1820,9 +1834,10 @@ Rectangle {
 
     // Show detail when slug is set (triggers version fetch)
     onRpDetailSlugChanged: {
+        console.log("[RP-DEBUG] rpDetailSlugChanged ->", rpDetailSlug)
         if (rpDetailSlug && backend) {
-            console.log("[resourcepack] detail opened:", rpDetailSlug)
             backend.fetchResourcepackVersions([rpDetailSlug])
+            console.log("[RP-DEBUG] detail fetch versions for", rpDetailSlug)
         }
     }
 

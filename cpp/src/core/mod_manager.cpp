@@ -396,10 +396,11 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
     // Shared version parser (avoids code duplication)
     auto processOne = [this, results, pending, resolved, total, slugList]() {
         int done = ++(*resolved);
+        emit logMessage(QStringLiteral("[MODRINTH-BATCH] 完成 %1/%2").arg(done).arg(*total));
         emit resourcepackVersionsProgress(done, *total);
         if (done >= *total) {
             emit resourcepackVersionsLoaded(*results);
-            emit logMessage(QStringLiteral("[MODRINTH] 版本信息全部加载完成 (%1 个)").arg(*total));
+            emit logMessage(QStringLiteral("[MODRINTH-BATCH] 全部完成 (%1 个)").arg(*total));
         }
     };
 
@@ -413,12 +414,19 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 
         *indexPtr = end;  // Advance for next batch
 
+        emit logMessage(QStringLiteral("[MODRINTH-BATCH] 启动批次 [%1..%2] (共%3个)")
+                        .arg(start).arg(end - 1).arg(end - start));
+
         for (int i = start; i < end; ++i) {
             const QString& slug = (*slugList)[i];
             QUrl url(MODRINTH_API + "/project/" + slug + "/version");
 
+            emit logMessage(QStringLiteral("[MODRINTH-BATCH] HTTP GET #%1 slug=%2").arg(i).arg(slug));
+
             HttpClient::instance().get(url.toString(),
-                [this, slug, results, processOne](int /*status*/, const QByteArray& data) {
+                [this, slug, i, results, processOne](int status, const QByteArray& data) {
+                    emit logMessage(QStringLiteral("[MODRINTH-BATCH] #%1 slug=%2 HTTP=%3 size=%4")
+                                    .arg(i).arg(slug).arg(status).arg(data.size()));
                     QJsonArray versions = parseVersionsResponse(data);
                     QStringList majorVersions;
                     QSet<QString> seen;
