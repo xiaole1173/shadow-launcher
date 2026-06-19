@@ -29,7 +29,8 @@ public:
 
     // ---- Slots ----
     Q_INVOKABLE void launch(const QString& versionId, const QString& username,
-                            const QString& javaPath, int maxMemoryMB);
+                            const QString& javaPath, int maxMemoryMB,
+                            const QString& jvmArgs = {});
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();  // kill ALL running games
     Q_INVOKABLE void killGameById(int index);  // kill one game by index
@@ -86,6 +87,7 @@ private:
     QString m_pendingVersionId;
     QString m_pendingJavaPath;
     int m_pendingMaxMemory = 0;
+    QString m_pendingJvmArgs;
 };
 
 } // namespace ShadowLauncher

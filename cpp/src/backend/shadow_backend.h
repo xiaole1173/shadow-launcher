@@ -91,7 +91,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(bool autoMemoryEnabled READ autoMemoryEnabled NOTIFY memorySettingsChanged)
     Q_PROPERTY(QVariantMap systemMemoryInfo READ systemMemoryInfo NOTIFY memorySettingsChanged)
     Q_PROPERTY(QString gameArgs READ gameArgs CONSTANT)
-    Q_PROPERTY(QString jvmArgs READ jvmArgs CONSTANT)
+    Q_PROPERTY(QString jvmArgs READ jvmArgs NOTIFY jvmArgsChanged)
     Q_PROPERTY(QString javaCompatibility READ javaCompatibility CONSTANT)
 
     // ── Verify ──
@@ -177,7 +177,7 @@ public:
     bool autoMemoryEnabled() const { return true; }
     QVariantMap systemMemoryInfo() const;
     QString gameArgs() const { return {}; }
-    QString jvmArgs() const { return {}; }
+    QString jvmArgs() const;
     QString javaCompatibility() const { return QStringLiteral("OK"); }
 
     // ── Verify stubs ──
@@ -241,8 +241,8 @@ public:
     Q_INVOKABLE int getAutoMemory();
     Q_INVOKABLE void setCloseOnLaunch(bool v) { m_closeOnLaunch = v; emit generalSettingsChanged(); }
     Q_INVOKABLE void setAutoMemoryEnabled(bool) {}  // stub
+    Q_INVOKABLE void setJvmArgs(const QString& args);
     Q_INVOKABLE void setGameArgs(const QString&) {}  // stub
-    Q_INVOKABLE void setJvmArgs(const QString&) {}   // stub
 
     // ── Q_INVOKABLE versions of Q_PROPERTY-only getters ──
     Q_INVOKABLE bool isModdedVersion(const QString& versionId) const { Q_UNUSED(versionId); return false; }
@@ -283,6 +283,7 @@ signals:
     void javaPathChanged();
     void javaReadyChanged();
     void memorySettingsChanged();
+    void jvmArgsChanged();
     void generalSettingsChanged();
     void isolationChanged();
     void versionListReady();

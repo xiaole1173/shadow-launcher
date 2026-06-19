@@ -50,7 +50,8 @@ void LaunchBackend::setGameDir(const QString& dir)
 // ============================================================
 
 void LaunchBackend::launch(const QString& versionId, const QString& username,
-                           const QString& javaPath, int maxMemoryMB)
+                           const QString& javaPath, int maxMemoryMB,
+                           const QString& jvmArgs)
 {
     if (m_launching) {
         emit logMessage(QStringLiteral("已在启动中"));
@@ -76,6 +77,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     m_pendingVersionId = versionId;
     m_pendingJavaPath = javaPath;
     m_pendingMaxMemory = maxMemoryMB;
+    m_pendingJvmArgs = jvmArgs;
     m_checkStep = 0;
 
     if (!m_checkTimer) {
@@ -312,7 +314,8 @@ void LaunchBackend::runNextCheck()
         connect(launcher, &Launcher::launchProgress, this, &LaunchBackend::onLaunchProgress);
         connect(launcher, &Launcher::launchStarted, this, [this, launcher]() { handleLaunchStarted(launcher); });
         connect(launcher, &Launcher::launchFinished, this, [this, launcher](bool ok, const QString& err) { handleLaunchFinished(launcher, ok, err); });
-        launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory);
+        launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory,
+                        m_pendingJvmArgs);
         return;
     }
     default:

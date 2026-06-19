@@ -620,6 +620,15 @@ QString ShadowBackend::detectJava() {
     return m_settings->autoSelectJava();
 }
 
+QString ShadowBackend::jvmArgs() const {
+    return m_app->jvmArgs();
+}
+
+void ShadowBackend::setJvmArgs(const QString& args) {
+    m_app->setJvmArgs(args);
+    emit jvmArgsChanged();
+}
+
 QString ShadowBackend::browseJava() {
     return m_settings->browseJava();
 }
@@ -779,9 +788,10 @@ void ShadowBackend::launch(const QString& versionId) {
     QString username = m_account->username();
     QString javaPath = m_settings->javaPath();
     int maxMemory = m_settings->maxMemoryMB();
+    QString jvmArgs = m_app->jvmArgs();
     m_launchVersion = versionId;
     m_launchUsername = username;
-    m_launch->launch(versionId, username, javaPath, maxMemory);
+    m_launch->launch(versionId, username, javaPath, maxMemory, jvmArgs);
 }
 
 void ShadowBackend::cancelLaunch() {

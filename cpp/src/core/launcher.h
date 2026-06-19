@@ -16,7 +16,8 @@ public:
     ~Launcher() override;
 
     // ---- API ----
-    void start(const QString& versionId, const QString& javaPath, int maxMemoryMB);
+    void start(const QString& versionId, const QString& javaPath,
+               int maxMemoryMB, const QString& jvmArgs = {});
     void cancel();
     void killProcess();
     bool isRunning() const { return m_process && m_process->state() != QProcess::NotRunning; }
@@ -24,6 +25,8 @@ public:
     // ---- Configuration ----
     void setGameDir(const QString& dir) { m_gameDir = dir; }
     QString gameDir() const { return m_gameDir; }
+    void setJvmArgs(const QString& args) { m_jvmArgs = args; }
+    QString jvmArgs() const { return m_jvmArgs; }
 
 signals:
     void launchProgress(const QString& message);
@@ -47,6 +50,7 @@ private:
     QProcess* m_process = nullptr;
     QString m_gameDir;
     QString m_currentVersionId;
+    QString m_jvmArgs;
     bool m_cancelling = false;
 };
 

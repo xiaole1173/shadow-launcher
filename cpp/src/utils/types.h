@@ -89,6 +89,7 @@ struct AppSettings {
     QString javaPath;
     int minMemoryMB = 2048;
     int maxMemoryMB = 4096;
+    QString jvmArgs;  // custom JVM arguments (space-separated)
 
     // Game
     QString gameDir;

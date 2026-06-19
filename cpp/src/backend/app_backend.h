@@ -23,6 +23,8 @@ public:
     QString dataDir() const { return m_dataDir; }
     QString gameDir() const { return m_gameDir; }
     QString theme() const { return m_theme; }
+    QString jvmArgs() const { return m_jvmArgs; }
+    void setJvmArgs(const QString& args) { m_jvmArgs = args; }
     bool devMode() const { return m_devMode; }
 
     void setTheme(const QString &theme);
@@ -41,6 +43,7 @@ private:
     QString m_dataDir;
     QString m_gameDir;
     QString m_theme = QStringLiteral("dark");
+    QString m_jvmArgs;
     bool m_devMode = false;
 };
 

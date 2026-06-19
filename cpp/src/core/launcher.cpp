@@ -58,7 +58,8 @@ Launcher::~Launcher()
 // Public API
 // ============================================================
 
-void Launcher::start(const QString& versionId, const QString& javaPath, int maxMemoryMB)
+void Launcher::start(const QString& versionId, const QString& javaPath, int maxMemoryMB,
+                     const QString& jvmArgs)
 {
     // --- Validate ---
     QString errorMsg;
@@ -73,6 +74,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         return;
     }
 
+    m_jvmArgs = jvmArgs;
     m_currentVersionId = versionId;
     m_cancelling = false;
 
@@ -375,9 +377,19 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     args << QStringLiteral("-Xmx%1M").arg(maxMemoryMB);
     args << QStringLiteral("-Xms%1M").arg(qMin(512, maxMemoryMB / 2));
 
-    // ── Optimized JVM flags ──
-    for (const char* arg : DEFAULT_JVM_ARGS) {
-        args << QString::fromLatin1(arg);
+    // ── JVM flags: custom args replace defaults, otherwise use optimized G1GC ──
+    if (!m_jvmArgs.isEmpty()) {
+        // User-provided custom JVM args (space-separated tokens)
+        const QStringList customArgs = m_jvmArgs.split(QRegularExpression(QStringLiteral("\\s+")),
+                                                       Qt::SkipEmptyParts);
+        for (const auto& arg : customArgs) {
+            args << arg;
+        }
+    } else {
+        // Default optimized G1GC flags
+        for (const char* arg : DEFAULT_JVM_ARGS) {
+            args << QString::fromLatin1(arg);
+        }
     }
 
     // ── Version jar path for Forge ──
