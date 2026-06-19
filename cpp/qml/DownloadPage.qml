@@ -77,19 +77,7 @@ Rectangle {
     }
 
     function filterRpResults() {
-        var cat = page.rpCategoryFilter
-        var ver = page.rpGameVersion
-        var q = rpSearchInput.text || ""
-        console.log("[RP-DEBUG] filterRpResults cat=", cat, "ver=", ver, "q=", q)
-        if (cat) {
-            // Category filter: call search with facets
-            // Modrinth facets: [["categories:{cat}"],["project_type:resourcepack"]]
-            // For now, re-search with query to work around facet complexity
-            backend.searchResourcepacks(q || "", ver || "")
-            // After results come back, we apply client-side category filter
-        } else {
-            backend.searchResourcepacks(q || "", ver || "")
-        }
+        loadRpFirstPage()
     }
 
     function loadResourcepackResults() {
@@ -872,7 +860,7 @@ Rectangle {
                             MouseArea {
                                 id: rpSrcHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: rpSourceMenu.open()
+                                onClicked: { if (rpSourceMenu.visible) rpSourceMenu.close(); else rpSourceMenu.open() }
                             }
 
                             Popup {
@@ -1523,6 +1511,7 @@ Rectangle {
 
     property string rpDetailSlug: ""
     property string rpDetailTitle: ""
+    property string installingRpName: ""
     property var rpVersionCache: ({})
 
     Connections {
@@ -1682,8 +1671,8 @@ Rectangle {
             var dest = selectedFolder.toString().replace("file:///", "")
             if (Qt.platform.os === "windows") dest = dest.replace(/\//g, "\\")
             console.log("[resourcepack] folder selected:", dest)
-            page.installingMod = true
-            page.installingModName = rpFolderDialog.slug
+            // Do NOT set installingMod — that's for Mod tab progress only
+            page.installingRpName = rpFolderDialog.slug
             if (backend && rpFolderDialog.slug) {
                 backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion)
                 toastManager.show("开始下载: " + rpFolderDialog.slug)
