@@ -1539,7 +1539,7 @@ Rectangle {
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
 
-                            // Icon (text placeholder + network image)
+                            // Icon (network image with MCIM fallback)
                             Rectangle {
                                 width: 44; height: 44; radius: 10; color: "#1a1f2e"
                                 Layout.preferredWidth: 44; Layout.preferredHeight: 44
@@ -1547,10 +1547,16 @@ Rectangle {
 
                                 Image {
                                     anchors.fill: parent
-                                    source: model.icon || ""
+                                    source: {
+                                        var url = model ? (model.icon || "") : ""
+                                        if (!url) return ""
+                                        // Rewrite Modrinth CDN URLs to MCIM mirror
+                                        url = url.replace("cdn.modrinth.com", "mcim-files.pysio.online")
+                                        url = url.replace("cdn-alt.modrinth.com", "mcim-files.pysio.online")
+                                        return url
+                                    }
                                     fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                    cache: false
+                                    asynchronous: true; cache: false
                                     onStatusChanged: {
                                         if (status === Image.Error || status === Image.Null) {
                                             rpIconFallback.visible = true
@@ -1563,7 +1569,7 @@ Rectangle {
                                 Text {
                                     id: rpIconFallback
                                     anchors.centerIn: parent
-                                    text: model.title ? model.title[0] : "R"
+                                    text: model ? (model.title ? model.title[0] : "R") : "R"
                                     color: "#5068c8"; font.pixelSize: 18; font.bold: true
                                 }
                             }
@@ -1591,39 +1597,59 @@ Rectangle {
                                     }
                                 }
 
-                                // Row 2: Chinese tags
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 4; visible: tagRowRepeater.count > 0
-                                    Repeater {
-                                        id: tagRowRepeater
-                                        model: {
-                                            if (!model) return []
-                                            var tags = model.categories || []
-                                            var result = []
-                                            var map = {
-                                                "combat":"战斗", "cursed":"猎奇", "decoration":"装饰",
-                                                "modded":"模组适配", "realistic":"写实", "simplistic":"简约",
-                                                "themed":"主题", "tweaks":"微调", "utility":"实用",
-                                                "vanilla-like":"原版", "fantasy":"幻想", "modern":"现代",
-                                                "medieval":"中世纪", "futuristic":"未来", "cartoon":"卡通",
-                                                "pvp":"PVP", "minigame":"小游戏", "gui":"界面", "font":"字体",
-                                                "hd":"高清", "photorealism":"照片", "cute":"可爱",
-                                                "dark":"暗色", "light":"亮色", "clean":"简洁"
+                                // Row 2: Chinese tags (imperative, no Repeater binding)
+                                Item {
+                                    Layout.fillWidth: true; Layout.preferredHeight: 18
+                                    clip: true
+                                    Row {
+                                        id: rpTagRow
+                                        spacing: 4
+                                        property string tagsJson: ""
+                                        property string _tagPending: ""
+                                        property var tagMap: ({
+                                            "combat":"战斗", "cursed":"猎奇", "decoration":"装饰",
+                                            "modded":"模组适配", "realistic":"写实", "simplistic":"简约",
+                                            "themed":"主题", "tweaks":"微调", "utility":"实用",
+                                            "vanilla-like":"原版", "fantasy":"幻想", "modern":"现代",
+                                            "medieval":"中世纪", "futuristic":"未来", "cartoon":"卡通",
+                                            "pvp":"PVP", "minigame":"小游戏", "gui":"界面", "font":"字体",
+                                            "hd":"高清", "photorealism":"照片", "cute":"可爱",
+                                            "dark":"暗色", "light":"亮色", "clean":"简洁"
+                                        })
+                                        Timer {
+                                            id: rpTagTimer; interval: 1
+                                            onTriggered: {
+                                                var json = rpTagRow._tagPending; rpTagRow._tagPending = ""
+                                                for (var i = rpTagRow.children.length - 1; i >= 0; i--) {
+                                                    if (rpTagRow.children[i] !== rpTagComp) rpTagRow.children[i].destroy()
+                                                }
+                                                if (!json || json === "" || json === "[]") return
+                                                var tags = []; try { tags = JSON.parse(json) } catch(e) { return }
+                                                for (var t = 0; t < Math.min(tags.length, 4); t++) {
+                                                    var en = String(tags[t]).toLowerCase()
+                                                    rpTagComp.createObject(rpTagRow, {
+                                                        "tagLabel": rpTagRow.tagMap[en] || en
+                                                    })
+                                                }
                                             }
-                                            for (var t = 0; t < Math.min(tags.length, 4); t++) {
-                                                var en = String(tags[t]).toLowerCase()
-                                                result.push({label: map[en] || en})
-                                            }
-                                            return result
                                         }
-                                        Rectangle {
-                                            height: 16; width: labelText.implicitWidth + 10; radius: 4
-                                            color: "#151922"; border.color: "#2a3040"; border.width: 1
-                                            Text {
-                                                id: labelText
-                                                anchors.centerIn: parent
-                                                text: modelData.label; color: "#788090"; font.pixelSize: 9
+                                        onTagsJsonChanged: { rpTagRow._tagPending = tagsJson; rpTagTimer.restart() }
+                                        Component {
+                                            id: rpTagComp
+                                            Rectangle {
+                                                height: 16; width: tText.implicitWidth + 10; radius: 4
+                                                color: "#151922"; border.color: "#2a3040"; border.width: 1
+                                                property string tagLabel: ""
+                                                Text {
+                                                    id: tText; anchors.centerIn: parent
+                                                    text: tagLabel; color: "#788090"; font.pixelSize: 9
+                                                }
                                             }
+                                        }
+                                        Binding {
+                                            target: rpTagRow; property: "tagsJson"
+                                            value: model ? JSON.stringify(model.categories || []) : ""
+                                            when: model !== null
                                         }
                                     }
                                 }
