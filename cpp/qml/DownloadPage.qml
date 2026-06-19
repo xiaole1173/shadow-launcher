@@ -1906,7 +1906,7 @@ Rectangle {
 
                 // Title row with icon
                 RowLayout {
-                    Layout.fillWidth: true; spacing: 10
+                    Layout.fillWidth: true; spacing: 14
                     Rectangle {
                         width: 48; height: 48; radius: 10; color: "#1a1f2e"
                         Layout.preferredWidth: 48; Layout.preferredHeight: 48
