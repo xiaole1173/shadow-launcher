@@ -1640,6 +1640,27 @@ Rectangle {
                                     }
                                 }
 
+                                // Row 2.6: Resolution tags (no translation needed)
+                                Item {
+                                    Layout.fillWidth: true; Layout.preferredHeight: rpResRepeater.visible ? 18 : 0
+                                    clip: true
+                                    Row {
+                                        id: rpResTagRow; spacing: 4
+                                        Repeater {
+                                            id: rpResRepeater
+                                            model: model ? (function() { try { var r = JSON.parse((model.resolutions || '[]')); rpResTagRow.visible = (r.length > 0); return r } catch(e) { rpResTagRow.visible = false; return [] } })() : []
+                                            Rectangle {
+                                                height: 16; width: tRes.implicitWidth + 10; radius: 4
+                                                color: "#282218"; border.color: "#504828"; border.width: 1
+                                                Text {
+                                                    id: tRes; anchors.centerIn: parent
+                                                    text: modelData; color: "#c8a860"; font.pixelSize: 9
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 // Row 3: Description (1 line)
                                 Text {
                                     Layout.fillWidth: true
@@ -2220,9 +2241,12 @@ Rectangle {
                 // Filter by resolution
                 if (resFilter) {
                     var resos = r.resolutions || []
+                    // Also check categories for resolution patterns (safety net)
+                    var resosFromCats = (r.categories && resFilter) ? r.categories.filter(function(x) { return String(x).toLowerCase() === resFilter }) : []
+                    var allResos = resos.concat(resosFromCats)
                     var hasRes = false
-                    for (var x = 0; x < resos.length; x++) {
-                        if (String(resos[x]).toLowerCase() === resFilter) { hasRes = true; break }
+                    for (var x = 0; x < allResos.length; x++) {
+                        if (String(allResos[x]).toLowerCase() === resFilter) { hasRes = true; break }
                     }
                     if (!hasRes) continue
                 }
