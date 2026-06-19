@@ -209,7 +209,16 @@ ShadowBackend::ShadowBackend(QObject* parent)
 
     // ── Signal forwarding: ResourceBackend → ShadowBackend ──
     connect(m_resource, &ResourceBackend::downloadStateChanged,
-            this, &ShadowBackend::resourceDownloadStateChanged);
+            this, [this]() {
+                bool downloading = m_resource->isDownloading();
+                if (!downloading) {
+                    // Reset progress when download stops
+                    m_resourceDlProgress = 0;
+                    m_resourceDlTotal = 0;
+                    m_resourceDlFile.clear();
+                }
+                emit resourceDownloadStateChanged();
+            });
     connect(m_resource, &ResourceBackend::downloadProgressChanged,
             this, [this](int completed, int total, const QString& fileName) {
                 m_resourceDlProgress = completed;
