@@ -1546,23 +1546,20 @@ Rectangle {
                                 clip: true
 
                                 Image {
+                                    id: rpCardIcon
                                     anchors.fill: parent
                                     source: {
-                                        var url = model ? (model.icon || "") : ""
-                                        if (!url) return ""
-                                        // Rewrite Modrinth CDN URLs to MCIM mirror
-                                        url = url.replace("cdn.modrinth.com", "mcim-files.pysio.online")
-                                        url = url.replace("cdn-alt.modrinth.com", "mcim-files.pysio.online")
-                                        return url
+                                        if (!model || !model.icon) return ""
+                                        // Use direct Modrinth CDN (MCIM file mirror currently broken)
+                                        return model.icon
                                     }
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true; cache: false
+                                    autoTransform: true
+                                    sourceSize.width: 88; sourceSize.height: 88
                                     onStatusChanged: {
-                                        if (status === Image.Error || status === Image.Null) {
-                                            rpIconFallback.visible = true
-                                        } else if (status === Image.Ready) {
-                                            rpIconFallback.visible = false
-                                        }
+                                        if (status === Image.Loading) return
+                                        rpIconFallback.visible = (status !== Image.Ready)
                                     }
                                 }
 
