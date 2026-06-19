@@ -34,6 +34,7 @@ Rectangle {
         // ── Header ──
         RowLayout {
             Layout.fillWidth: true
+            Component.onCompleted: console.log("[progress-ui] page loaded")
             Text { text: "下载进度"; font.pixelSize: 18; font.bold: true; color: "#e8ecf8"; Layout.fillWidth: true }
             Rectangle {
                 radius: 4; height: 24; width: statusText.implicitWidth + 16
@@ -43,6 +44,7 @@ Rectangle {
                     text: (backend && backend.installing) ? "下载中" : "空闲"
                     color: (backend && backend.installing) ? "#4bc870" : "#886060"
                     font.pixelSize: 11
+                    onTextChanged: console.log("[progress-ui] status badge changed to:", text)
                 }
             }
         }

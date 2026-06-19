@@ -663,6 +663,8 @@ Rectangle {
                             onClicked: {
                                 console.log("[DownloadPage] Install clicked for " + model.versionId + " source=" + page.currentSource)
                                 if (backend) {
+                                    // Log pre-install state
+                                    console.log("[download-ui] pre-install: version=" + model.versionId + " installing=" + backend.installing + " versionId=" + backend.installVersionId + " phase=" + backend.installPhase)
                                     backend.installVersion(model.versionId, page.currentSource)
                                     // Row bounce animation
                                     rowBounceAnim.start()
