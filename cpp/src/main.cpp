@@ -296,9 +296,14 @@ int main(int argc, char *argv[])
                 
                 // Open detail page if --detail flag was set
                 if (!detailSlug.isEmpty()) {
-                    QTimer::singleShot(2000, backend, [backend, detailSlug, expandMajor]() {
-                        qCInfo(logApp) << "Screenshot: opening detail page for" << detailSlug;
-                        emit backend->openRpDetailRequested(detailSlug);
+                    QTimer::singleShot(2000, backend, [backend, detailSlug, expandMajor, targetTab]() {
+                        qCInfo(logApp) << "Screenshot: opening detail page for" << detailSlug << "tab" << targetTab;
+                        if (targetTab == 1)
+                            emit backend->openModDetailRequested(detailSlug);
+                        else if (targetTab == 2)
+                            emit backend->openShaderDetailRequested(detailSlug);
+                        else
+                            emit backend->openRpDetailRequested(detailSlug);
                         // --detail-expand <major>
                         if (!expandMajor.isEmpty()) {
                             QTimer::singleShot(3500, backend, [backend, expandMajor]() {

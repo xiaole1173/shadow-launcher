@@ -127,6 +127,18 @@ Window {
             pendingSubTab = 3
             let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.rpDetailSlug = "' + slug + '"; downloadPageLoader.item.rpDetailTitle = "' + slug + '" } destroy() } }', appWindow)
         }
+        function onOpenModDetailRequested(slug) {
+            console.log("[auto-test] openModDetailRequested:", slug)
+            switchPage(1)
+            pendingSubTab = 1
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.modDetailSlug = "' + slug + '"; downloadPageLoader.item.modDetailTitle = "' + slug + '" } destroy() } }', appWindow)
+        }
+        function onOpenShaderDetailRequested(slug) {
+            console.log("[auto-test] openShaderDetailRequested:", slug)
+            switchPage(1)
+            pendingSubTab = 2
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.shaderDetailSlug = "' + slug + '"; downloadPageLoader.item.shaderDetailTitle = "' + slug + '" } destroy() } }', appWindow)
+        }
         // ── Auto-test: toggle pre-release switch ──
         function onSetRpShowPreReleases(show) {
             console.log("[auto-test] setRpShowPreReleases:", show)

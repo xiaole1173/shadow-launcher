@@ -365,6 +365,8 @@ signals:
 
     // ── Auto-test: open RP detail page ──
     void openRpDetailRequested(const QString& slug);
+    void openModDetailRequested(const QString& slug);
+    void openShaderDetailRequested(const QString& slug);
 
     // ── Auto-test: UI interaction signals ──
     void setRpShowPreReleases(bool show);

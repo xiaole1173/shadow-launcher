@@ -3328,7 +3328,6 @@ Rectangle {
     // Show detail when slug is set (triggers version fetch)
     onRpDetailSlugChanged: {
         console.log("[RP-DEBUG] rpDetailSlugChanged ->", rpDetailSlug)
-        // Close any open filter card popups so they don't overlap the detail page
         if (rpSourceMenu) rpSourceMenu.close()
         if (rpVersionMenu) rpVersionMenu.close()
         if (rpCatMenu) rpCatMenu.close()
@@ -3341,34 +3340,24 @@ Rectangle {
             console.log("[RP-DEBUG] detail fetch versions for", rpDetailSlug)
         }
     }
-onModDetailSlugChanged: {
-        console.log("[RP-DEBUG] modDetailSlugChanged ->", modDetailSlug)
-        // Close any open filter card popups so they don't overlap the detail page
-        if (rpSourceMenu) rpSourceMenu.close()
-        if (rpVersionMenu) rpVersionMenu.close()
-        if (rpCatMenu) rpCatMenu.close()
-        if (rpFeatMenu) rpFeatMenu.close()
-        if (rpResMenu) rpResMenu.close()
+
+    onModDetailSlugChanged: {
+        console.log("[mod] modDetailSlugChanged ->", modDetailSlug)
         modDetailPage.modDetailExpanded = []
         modDetailPage.modDetailSelectedVer = ""
         if (modDetailSlug && backend) {
             backend.fetchModVersions([modDetailSlug])
-            console.log("[RP-DEBUG] detail fetch versions for", modDetailSlug)
+            console.log("[mod] detail fetch versions for", modDetailSlug)
         }
     }
-onShaderDetailSlugChanged: {
-        console.log("[RP-DEBUG] shaderDetailSlugChanged ->", shaderDetailSlug)
-        // Close any open filter card popups so they don't overlap the detail page
-        if (rpSourceMenu) rpSourceMenu.close()
-        if (rpVersionMenu) rpVersionMenu.close()
-        if (rpCatMenu) rpCatMenu.close()
-        if (rpFeatMenu) rpFeatMenu.close()
-        if (rpResMenu) rpResMenu.close()
+
+    onShaderDetailSlugChanged: {
+        console.log("[shader] shaderDetailSlugChanged ->", shaderDetailSlug)
         shaderDetailPage.shaderDetailExpanded = []
         shaderDetailPage.shaderDetailSelectedVer = ""
         if (shaderDetailSlug && backend) {
             backend.fetchShaderVersions([shaderDetailSlug])
-            console.log("[RP-DEBUG] detail fetch versions for", shaderDetailSlug)
+            console.log("[shader] detail fetch versions for", shaderDetailSlug)
         }
     }
 
@@ -3475,21 +3464,21 @@ Item {
                 // ← Back button
                 Rectangle {
                     Layout.preferredHeight: 30
-                    width: rpBackLabel.implicitWidth + 20; radius: 6
-                    color: rpBackHov.hovered ? "#1a2848" : "transparent"
-                    border.color: rpBackHov.hovered ? "#5068c8" : "#1e2230"
+                    width: modBackLabel.implicitWidth + 20; radius: 6
+                    color: modBackHov.hovered ? "#1a2848" : "transparent"
+                    border.color: modBackHov.hovered ? "#5068c8" : "#1e2230"
                     border.width: 1
 
                     Row {
                         anchors.centerIn: parent; spacing: 4
                         Text { text: "←"; color: "#9094a8"; font.pixelSize: 14 }
                         Text {
-                            id: rpBackLabel
+                            id: modBackLabel
                             text: "返回"; color: "#9094a8"; font.pixelSize: 12
                         }
                     }
                     MouseArea {
-                        id: rpBackHov
+                        id: modBackHov
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             console.log("[resourcepack] detail closed")
@@ -3552,12 +3541,12 @@ Item {
                 // ── Detail info card (Issue #4) ──
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: rpInfoCardCol.implicitHeight + 24
+                    implicitHeight: modInfoCardCol.implicitHeight + 24
                     radius: 10; color: "#101828"
                     border.color: "#1e2c48"; border.width: 1
                     clip: true
                     Column {
-                        id: rpInfoCardCol
+                        id: modInfoCardCol
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                         spacing: 6
 
@@ -3591,15 +3580,15 @@ Item {
                         // Action buttons
                         Row { spacing: 8
                             Rectangle {
-                                width: Math.max(rpModBtn.implicitWidth + 24, 110); height: 28; radius: 6
-                                color: rpModBtnHov.hovered ? "#1a2a50" : "transparent"
+                                width: Math.max(modModBtn.implicitWidth + 24, 110); height: 28; radius: 6
+                                color: modModBtnHov.hovered ? "#1a2a50" : "transparent"
                                 border.color: "#5068c8"; border.width: 1.5
                                 Text {
-                                    id: rpModBtn; anchors.centerIn: parent
+                                    id: modModBtn; anchors.centerIn: parent
                                     text: "转到Modrinth"; color: "#6888e8"; font.pixelSize: 11
                                 }
                                 MouseArea {
-                                    id: rpModBtnHov; anchors.fill: parent
+                                    id: modModBtnHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (modDetailSlug) Qt.openUrlExternally("https://modrinth.com/resourcepack/" + modDetailSlug)
@@ -3607,15 +3596,15 @@ Item {
                                 }
                             }
                             Rectangle {
-                                width: Math.max(rpCopyBtn.implicitWidth + 24, 90); height: 28; radius: 6
-                                color: rpCopyBtnHov.hovered ? "#282018" : "transparent"
+                                width: Math.max(modCopyBtn.implicitWidth + 24, 90); height: 28; radius: 6
+                                color: modCopyBtnHov.hovered ? "#282018" : "transparent"
                                 border.color: "#685040"; border.width: 1.5
                                 Text {
-                                    id: rpCopyBtn; anchors.centerIn: parent
+                                    id: modCopyBtn; anchors.centerIn: parent
                                     text: "复制名称"; color: "#c89860"; font.pixelSize: 11
                                 }
                                 MouseArea {
-                                    id: rpCopyBtnHov; anchors.fill: parent
+                                    id: modCopyBtnHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (backend) backend.copyToClipboard(modDetailTitle || modDetailSlug)
@@ -3648,8 +3637,8 @@ Item {
                                 // Group header
                                 Rectangle {
                                     width: parent.width; height: 40; radius: 8
-                                    color: rpDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
-                                    border.color: rpDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
+                                    color: modDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
+                                    border.color: modDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
                                     border.width: 1
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
@@ -3664,7 +3653,7 @@ Item {
                                         }
                                     }
                                     MouseArea {
-                                        id: rpDetGrpArea; anchors.fill: parent
+                                        id: modDetGrpArea; anchors.fill: parent
                                         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             modDetailPage.toggleGroupExpanded(modelData.major)
@@ -3683,11 +3672,11 @@ Item {
                                             width: parent.width; height: 34; radius: 6
                                             color: {
                                                 if (modDetailPage.modDetailSelectedVer === modelData) return "#1a2848"
-                                                return rpDetSubHov.hovered ? "#1a2436" : "#111820"
+                                                return modDetSubHov.hovered ? "#1a2436" : "#111820"
                                             }
                                             border.color: {
                                                 if (modDetailPage.modDetailSelectedVer === modelData) return "#3858c0"
-                                                return rpDetSubHov.hovered ? "#1e3050" : "#141c28"
+                                                return modDetSubHov.hovered ? "#1e3050" : "#141c28"
                                             }
                                             border.width: 1
                                             RowLayout {
@@ -3699,7 +3688,7 @@ Item {
                                                 }
                                             }
                                             MouseArea {
-                                                id: rpDetSubHov; anchors.fill: parent
+                                                id: modDetSubHov; anchors.fill: parent
                                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     modDetailPage.modDetailSelectedVer = (modDetailPage.modDetailSelectedVer === modelData) ? "" : modelData
@@ -3710,12 +3699,12 @@ Item {
                                         // Level 3: Version detail card (appears when this sub-version is selected)
                                         Rectangle {
                                             visible: modDetailPage.modDetailSelectedVer === modelData
-                                            width: parent.width; height: l3Content.implicitHeight + 20; radius: 8
+                                            width: parent.width; height: modL3Content.implicitHeight + 20; radius: 8
                                             color: "#101828"
                                             border.color: "#2a3a58"; border.width: 1
 
                                             Column {
-                                                id: l3Content
+                                                id: modL3Content
                                                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                                                 spacing: 6
 
@@ -3723,7 +3712,7 @@ Item {
 
                                                 // Pack name
                                                 Text {
-                                                    text: l3Content.detail.name || "-"
+                                                    text: modL3Content.detail.name || "-"
                                                     color: "#d0d8f0"; font.pixelSize: 13; font.bold: true
                                                     elide: Text.ElideRight; width: parent.width
                                                 }
@@ -3735,23 +3724,23 @@ Item {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                     }
                                                     Text {
-                                                        text: l3Content.detail.version_number || "-"
+                                                        text: modL3Content.detail.version_number || "-"
                                                         color: "#c0c8e0"; font.pixelSize: 11
                                                         font.family: "Consolas, monospace"
                                                         anchors.verticalCenter: parent.verticalCenter
                                                     }
                                                     // Type badge
                                                     Rectangle {
-                                                        width: typeBadge.implicitWidth + 8; height: 18; radius: 3
-                                                        color: (l3Content.detail.version_type === "release") ? "#1a3a28" : "#3a2a18"
+                                                        width: modTypeBadge.implicitWidth + 8; height: 18; radius: 3
+                                                        color: (modL3Content.detail.version_type === "release") ? "#1a3a28" : "#3a2a18"
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         Text {
-                                                            id: typeBadge
+                                                            id: modTypeBadge
                                                             anchors.centerIn: parent
-                                                            text: (l3Content.detail.version_type === "release") ? "正式版" :
-                                                                  (l3Content.detail.version_type === "beta") ? "测试版" :
-                                                                  (l3Content.detail.version_type || "-")
-                                                            color: (l3Content.detail.version_type === "release") ? "#48d878" : "#e8a840"
+                                                            text: (modL3Content.detail.version_type === "release") ? "正式版" :
+                                                                  (modL3Content.detail.version_type === "beta") ? "测试版" :
+                                                                  (modL3Content.detail.version_type || "-")
+                                                            color: (modL3Content.detail.version_type === "release") ? "#48d878" : "#e8a840"
                                                             font.pixelSize: 9
                                                         }
                                                     }
@@ -3762,7 +3751,7 @@ Item {
                                                     Row { spacing: 4
                                                         Text { text: "下载量:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
                                                         Text {
-                                                            text: modDetailPage.formatDownloads(l3Content.detail.downloads)
+                                                            text: modDetailPage.formatDownloads(modL3Content.detail.downloads)
                                                             color: "#a0a8c0"; font.pixelSize: 10
                                                             anchors.verticalCenter: parent.verticalCenter
                                                         }
@@ -3770,7 +3759,7 @@ Item {
                                                     Row { spacing: 4
                                                         Text { text: "日期:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
                                                         Text {
-                                                            text: modDetailPage.formatDate(l3Content.detail.date_published)
+                                                            text: modDetailPage.formatDate(modL3Content.detail.date_published)
                                                             color: "#a0a8c0"; font.pixelSize: 10
                                                             anchors.verticalCenter: parent.verticalCenter
                                                         }
@@ -3779,18 +3768,18 @@ Item {
 
                                                 // Download button - blue outline style
                                                 Rectangle {
-                                                    width: l3DownloadBtn.implicitWidth + 24; height: 28; radius: 6
-                                                    color: l3DownloadHov.hovered ? "#1a2a50" : "transparent"
+                                                    width: modL3DownloadBtn.implicitWidth + 24; height: 28; radius: 6
+                                                    color: modL3DownloadHov.hovered ? "#1a2a50" : "transparent"
                                                     border.color: "#5068c8"; border.width: 2
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     Text {
-                                                        id: l3DownloadBtn
+                                                        id: modL3DownloadBtn
                                                         anchors.centerIn: parent
                                                         text: "下载"
                                                         color: "#5068c8"; font.pixelSize: 12; font.weight: Font.Medium
                                                     }
                                                     MouseArea {
-                                                        id: l3DownloadHov
+                                                        id: modL3DownloadHov
                                                         anchors.fill: parent; hoverEnabled: true
                                                         cursorShape: Qt.PointingHandCursor
                                                         onClicked: {
@@ -3922,21 +3911,21 @@ Item {
                 // ← Back button
                 Rectangle {
                     Layout.preferredHeight: 30
-                    width: rpBackLabel.implicitWidth + 20; radius: 6
-                    color: rpBackHov.hovered ? "#1a2848" : "transparent"
-                    border.color: rpBackHov.hovered ? "#5068c8" : "#1e2230"
+                    width: shaderBackLabel.implicitWidth + 20; radius: 6
+                    color: shaderBackHov.hovered ? "#1a2848" : "transparent"
+                    border.color: shaderBackHov.hovered ? "#5068c8" : "#1e2230"
                     border.width: 1
 
                     Row {
                         anchors.centerIn: parent; spacing: 4
                         Text { text: "←"; color: "#9094a8"; font.pixelSize: 14 }
                         Text {
-                            id: rpBackLabel
+                            id: shaderBackLabel
                             text: "返回"; color: "#9094a8"; font.pixelSize: 12
                         }
                     }
                     MouseArea {
-                        id: rpBackHov
+                        id: shaderBackHov
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             console.log("[resourcepack] detail closed")
@@ -3999,12 +3988,12 @@ Item {
                 // ── Detail info card (Issue #4) ──
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: rpInfoCardCol.implicitHeight + 24
+                    implicitHeight: shaderInfoCardCol.implicitHeight + 24
                     radius: 10; color: "#101828"
                     border.color: "#1e2c48"; border.width: 1
                     clip: true
                     Column {
-                        id: rpInfoCardCol
+                        id: shaderInfoCardCol
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                         spacing: 6
 
@@ -4038,15 +4027,15 @@ Item {
                         // Action buttons
                         Row { spacing: 8
                             Rectangle {
-                                width: Math.max(rpModBtn.implicitWidth + 24, 110); height: 28; radius: 6
-                                color: rpModBtnHov.hovered ? "#1a2a50" : "transparent"
+                                width: Math.max(shaderModBtn.implicitWidth + 24, 110); height: 28; radius: 6
+                                color: shaderModBtnHov.hovered ? "#1a2a50" : "transparent"
                                 border.color: "#5068c8"; border.width: 1.5
                                 Text {
-                                    id: rpModBtn; anchors.centerIn: parent
+                                    id: shaderModBtn; anchors.centerIn: parent
                                     text: "转到Modrinth"; color: "#6888e8"; font.pixelSize: 11
                                 }
                                 MouseArea {
-                                    id: rpModBtnHov; anchors.fill: parent
+                                    id: shaderModBtnHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (shaderDetailSlug) Qt.openUrlExternally("https://modrinth.com/resourcepack/" + shaderDetailSlug)
@@ -4054,15 +4043,15 @@ Item {
                                 }
                             }
                             Rectangle {
-                                width: Math.max(rpCopyBtn.implicitWidth + 24, 90); height: 28; radius: 6
-                                color: rpCopyBtnHov.hovered ? "#282018" : "transparent"
+                                width: Math.max(shaderCopyBtn.implicitWidth + 24, 90); height: 28; radius: 6
+                                color: shaderCopyBtnHov.hovered ? "#282018" : "transparent"
                                 border.color: "#685040"; border.width: 1.5
                                 Text {
-                                    id: rpCopyBtn; anchors.centerIn: parent
+                                    id: shaderCopyBtn; anchors.centerIn: parent
                                     text: "复制名称"; color: "#c89860"; font.pixelSize: 11
                                 }
                                 MouseArea {
-                                    id: rpCopyBtnHov; anchors.fill: parent
+                                    id: shaderCopyBtnHov; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         if (backend) backend.copyToClipboard(shaderDetailTitle || shaderDetailSlug)
@@ -4095,8 +4084,8 @@ Item {
                                 // Group header
                                 Rectangle {
                                     width: parent.width; height: 40; radius: 8
-                                    color: rpDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
-                                    border.color: rpDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
+                                    color: shaderDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
+                                    border.color: shaderDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
                                     border.width: 1
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
@@ -4111,7 +4100,7 @@ Item {
                                         }
                                     }
                                     MouseArea {
-                                        id: rpDetGrpArea; anchors.fill: parent
+                                        id: shaderDetGrpArea; anchors.fill: parent
                                         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             shaderDetailPage.toggleGroupExpanded(modelData.major)
@@ -4130,11 +4119,11 @@ Item {
                                             width: parent.width; height: 34; radius: 6
                                             color: {
                                                 if (shaderDetailPage.shaderDetailSelectedVer === modelData) return "#1a2848"
-                                                return rpDetSubHov.hovered ? "#1a2436" : "#111820"
+                                                return shaderDetSubHov.hovered ? "#1a2436" : "#111820"
                                             }
                                             border.color: {
                                                 if (shaderDetailPage.shaderDetailSelectedVer === modelData) return "#3858c0"
-                                                return rpDetSubHov.hovered ? "#1e3050" : "#141c28"
+                                                return shaderDetSubHov.hovered ? "#1e3050" : "#141c28"
                                             }
                                             border.width: 1
                                             RowLayout {
@@ -4146,7 +4135,7 @@ Item {
                                                 }
                                             }
                                             MouseArea {
-                                                id: rpDetSubHov; anchors.fill: parent
+                                                id: shaderDetSubHov; anchors.fill: parent
                                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     shaderDetailPage.shaderDetailSelectedVer = (shaderDetailPage.shaderDetailSelectedVer === modelData) ? "" : modelData
@@ -4157,12 +4146,12 @@ Item {
                                         // Level 3: Version detail card (appears when this sub-version is selected)
                                         Rectangle {
                                             visible: shaderDetailPage.shaderDetailSelectedVer === modelData
-                                            width: parent.width; height: l3Content.implicitHeight + 20; radius: 8
+                                            width: parent.width; height: shaderL3Content.implicitHeight + 20; radius: 8
                                             color: "#101828"
                                             border.color: "#2a3a58"; border.width: 1
 
                                             Column {
-                                                id: l3Content
+                                                id: shaderL3Content
                                                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                                                 spacing: 6
 
@@ -4170,7 +4159,7 @@ Item {
 
                                                 // Pack name
                                                 Text {
-                                                    text: l3Content.detail.name || "-"
+                                                    text: shaderL3Content.detail.name || "-"
                                                     color: "#d0d8f0"; font.pixelSize: 13; font.bold: true
                                                     elide: Text.ElideRight; width: parent.width
                                                 }
@@ -4182,23 +4171,23 @@ Item {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                     }
                                                     Text {
-                                                        text: l3Content.detail.version_number || "-"
+                                                        text: shaderL3Content.detail.version_number || "-"
                                                         color: "#c0c8e0"; font.pixelSize: 11
                                                         font.family: "Consolas, monospace"
                                                         anchors.verticalCenter: parent.verticalCenter
                                                     }
                                                     // Type badge
                                                     Rectangle {
-                                                        width: typeBadge.implicitWidth + 8; height: 18; radius: 3
-                                                        color: (l3Content.detail.version_type === "release") ? "#1a3a28" : "#3a2a18"
+                                                        width: shaderTypeBadge.implicitWidth + 8; height: 18; radius: 3
+                                                        color: (shaderL3Content.detail.version_type === "release") ? "#1a3a28" : "#3a2a18"
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         Text {
-                                                            id: typeBadge
+                                                            id: shaderTypeBadge
                                                             anchors.centerIn: parent
-                                                            text: (l3Content.detail.version_type === "release") ? "正式版" :
-                                                                  (l3Content.detail.version_type === "beta") ? "测试版" :
-                                                                  (l3Content.detail.version_type || "-")
-                                                            color: (l3Content.detail.version_type === "release") ? "#48d878" : "#e8a840"
+                                                            text: (shaderL3Content.detail.version_type === "release") ? "正式版" :
+                                                                  (shaderL3Content.detail.version_type === "beta") ? "测试版" :
+                                                                  (shaderL3Content.detail.version_type || "-")
+                                                            color: (shaderL3Content.detail.version_type === "release") ? "#48d878" : "#e8a840"
                                                             font.pixelSize: 9
                                                         }
                                                     }
@@ -4209,7 +4198,7 @@ Item {
                                                     Row { spacing: 4
                                                         Text { text: "下载量:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
                                                         Text {
-                                                            text: shaderDetailPage.formatDownloads(l3Content.detail.downloads)
+                                                            text: shaderDetailPage.formatDownloads(shaderL3Content.detail.downloads)
                                                             color: "#a0a8c0"; font.pixelSize: 10
                                                             anchors.verticalCenter: parent.verticalCenter
                                                         }
@@ -4217,7 +4206,7 @@ Item {
                                                     Row { spacing: 4
                                                         Text { text: "日期:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
                                                         Text {
-                                                            text: shaderDetailPage.formatDate(l3Content.detail.date_published)
+                                                            text: shaderDetailPage.formatDate(shaderL3Content.detail.date_published)
                                                             color: "#a0a8c0"; font.pixelSize: 10
                                                             anchors.verticalCenter: parent.verticalCenter
                                                         }
@@ -4226,18 +4215,18 @@ Item {
 
                                                 // Download button - blue outline style
                                                 Rectangle {
-                                                    width: l3DownloadBtn.implicitWidth + 24; height: 28; radius: 6
-                                                    color: l3DownloadHov.hovered ? "#1a2a50" : "transparent"
+                                                    width: shaderL3DownloadBtn.implicitWidth + 24; height: 28; radius: 6
+                                                    color: shaderL3DownloadHov.hovered ? "#1a2a50" : "transparent"
                                                     border.color: "#5068c8"; border.width: 2
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     Text {
-                                                        id: l3DownloadBtn
+                                                        id: shaderL3DownloadBtn
                                                         anchors.centerIn: parent
                                                         text: "下载"
                                                         color: "#5068c8"; font.pixelSize: 12; font.weight: Font.Medium
                                                     }
                                                     MouseArea {
-                                                        id: l3DownloadHov
+                                                        id: shaderL3DownloadHov
                                                         anchors.fill: parent; hoverEnabled: true
                                                         cursorShape: Qt.PointingHandCursor
                                                         onClicked: {
