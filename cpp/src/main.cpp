@@ -13,6 +13,9 @@
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QThread>
+#include <QScreen>
+#include <QPixmap>
+#include <QWindow>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
@@ -55,6 +58,9 @@ public:
         return false;
     }
 };
+
+// Global for screenshot mode
+static QWindow* screenshotWindow = nullptr;
 
 int main(int argc, char *argv[])
 {
@@ -116,6 +122,7 @@ int main(int argc, char *argv[])
         &app, [taskbarFilter](QObject* obj, const QUrl&) {
             if (QWindow* win = qobject_cast<QWindow*>(obj)) {
                 taskbarFilter->targetWindow = win;
+                screenshotWindow = win;
             }
         }, Qt::QueuedConnection);
 
@@ -143,6 +150,29 @@ int main(int argc, char *argv[])
         QTimer::singleShot(2000, backend, [backend, autoVersion]() {
             qCInfo(logApp) << "Auto-launch: triggering launch for" << autoVersion;
             backend->launch(autoVersion);
+        });
+    }
+
+    // ── Screenshot test mode ──
+    int ssIdx = args.indexOf(QStringLiteral("--screenshot"));
+    if (ssIdx >= 0 && ssIdx + 1 < args.size()) {
+        QString ssName = args[ssIdx + 1];
+        QString ssPath = QCoreApplication::applicationDirPath() + "/" + ssName + ".png";
+        qCInfo(logApp) << "Screenshot mode: saving to" << ssPath;
+        QTimer::singleShot(3000, &app, [ssPath]() {
+            if (screenshotWindow && screenshotWindow->isVisible()) {
+                QScreen* screen = QGuiApplication::primaryScreen();
+                QPixmap pix = screen->grabWindow(screenshotWindow->winId());
+                if (pix.save(ssPath, "PNG")) {
+                    qCInfo(logApp) << "Screenshot saved:" << ssPath
+                                   << "size:" << pix.width() << "x" << pix.height();
+                } else {
+                    qCCritical(logApp) << "Screenshot save FAILED:" << ssPath;
+                }
+            } else {
+                qCCritical(logApp) << "Screenshot: window not ready";
+            }
+            qApp->quit();
         });
     }
 
