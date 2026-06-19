@@ -1,6 +1,7 @@
 #include "shadow_backend.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
+#include "../utils/logger.h"
 #include "account_backend.h"
 #include "app_backend.h"
 #include "check_backend.h"
