@@ -1550,8 +1550,11 @@ Rectangle {
                                     anchors.fill: parent
                                     source: {
                                         if (!model || !model.icon) return ""
-                                        // Use direct Modrinth CDN (MCIM file mirror currently broken)
-                                        return model.icon
+                                        var url = model.icon
+                                        // MCIM CDN: mod.mcimirror.top proxies Modrinth CDN with 302 → works
+                                        url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                        url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                        return url
                                     }
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true; cache: false
