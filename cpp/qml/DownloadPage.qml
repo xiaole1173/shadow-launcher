@@ -3394,10 +3394,17 @@ Rectangle {
             if (/-rc/i.test(v)) return "发布候选版"
             return ""
         }
+        function isTestVersion(v) {
+            return /^\d{1,2}w\d{2}[a-z]$/i.test(v)
+        }
+        function testMajor(v) {
+            var m = v.match(/^(\d{1,2}w)/i)
+            return m ? m[1] : v
+        }
 
-        // ── Group versions by major.minor (strip pre-release suffixes first) ──
+        property bool showTestVersions: false
+
         property var grouped: {
-            console.log("[mod-detail] grouped computed, raw=", page.modDetailRawVersions.length, "items")
             var groups = {}
             var raw = page.modDetailRawVersions || []
             var map = page.modDetailVersionMap || {}
@@ -3408,12 +3415,17 @@ Rectangle {
                 if (gvs.length === 0) gvs = [v]
                 var first = gvs[0] || v
                 var base = stripSuffix(first)
-                var parts = base.split(".")
-                var major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
+                if (!showTestVersions && isTestVersion(base)) continue
+                var major
+                if (isTestVersion(base)) {
+                    major = testMajor(base)
+                } else {
+                    var parts = base.split(".")
+                    major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
+                }
                 if (!groups[major]) groups[major] = []
                 groups[major].push(v)
             }
-            // Sort within each group by date descending
             for (var k in groups) {
                 groups[k].sort(function(a,b){
                     var da = modDetailOverlay.getVersionDetail(a); var db = modDetailOverlay.getVersionDetail(b)
@@ -3424,6 +3436,13 @@ Rectangle {
             var result = []
             for (var k in groups) { result.push({major: k, versions: groups[k]}) }
             result.sort(function(a,b){
+                // Test groups (XXw) sort before numbered versions
+                var aTest = /w$/i.test(a.major), bTest = /w$/i.test(b.major)
+                if (aTest && !bTest) return -1
+                if (!aTest && bTest) return 1
+                if (aTest && bTest) {
+                    return parseInt(a.major) - parseInt(b.major)
+                }
                 var as = a.major.split("."), bs = b.major.split(".")
                 var am = parseInt(as[0])||0, bm = parseInt(bs[0])||0
                 if (am !== bm) return bm - am
@@ -3551,7 +3570,23 @@ Rectangle {
                     }
                 }
 
-                Text { text: "所有版本 | 按MC版本分组 | 点击展开"; color: "#505468"; font.pixelSize: 11 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text { text: "所有版本 | 按MC版本分组 | 点击展开"; color: "#505468"; font.pixelSize: 11 }
+                    Item { Layout.fillWidth: true }
+                    Rectangle {
+                        width: testBtn.implicitWidth + 14; height: 22; radius: 4
+                        color: modDetailOverlay.showTestVersions ? "#1a3a68" : "#11141c"
+                        border.color: modDetailOverlay.showTestVersions ? "#4068c8" : "#2a3040"; border.width: 1
+                        Text { id: testBtn; anchors.centerIn: parent; font.pixelSize: 10
+                            text: modDetailOverlay.showTestVersions ? "✓ 显示测试版" : "✕ 隐藏测试版"
+                            color: modDetailOverlay.showTestVersions ? "#8aaeff" : "#505468"
+                        }
+                        MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { modDetailOverlay.showTestVersions = !modDetailOverlay.showTestVersions }
+                        }
+                    }
+                }
 
                 // Spacer — absorbs excess space when loading or no data
                 Item {
@@ -3568,7 +3603,7 @@ Rectangle {
                     Layout.fillHeight: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
                     Layout.preferredHeight: 0
                     clip: true
-                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                    ScrollBar.vertical.policy: ScrollBar.AlwaysOn
                     visible: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
                     enabled: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
 
