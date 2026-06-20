@@ -12,6 +12,9 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QRandomGenerator>
+#include <QTimer>
+#include <QEventLoop>
+#include <QNetworkAccessManager>
 
 namespace ShadowLauncher {
 
@@ -70,7 +73,10 @@ void MicrosoftAuth::startLogin(const QString& clientId)
             m_localServer = nullptr;
 
             emit loginProgress(QStringLiteral("验证中"), QStringLiteral("正在换取访问令牌..."));
-            exchangeCode(code);
+            // Defer to next event loop iteration to avoid nested loop issues
+            QTimer::singleShot(0, this, [this, code]() {
+                exchangeCode(code);
+            });
         }
     });
 
@@ -133,45 +139,51 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     postData.addQueryItem(QStringLiteral("redirect_uri"), redirectUri);
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
-    qCInfo(logApp) << "[MSA] Token request body:" << body;
+    qCInfo(logApp) << "[MSA] Token request body len:" << body.size();
 
+    // Use synchronous event loop to avoid async callback crash
+    QNetworkAccessManager mgr;
     QNetworkRequest req(QUrl(QString::fromLatin1(kTokenUrl)));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
+    req.setTransferTimeout(15000);
 
-    auto* reply = HttpClient::instance().post(req, body);
+    QNetworkReply* reply = mgr.post(req, body);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        QByteArray raw = reply->readAll();
-        int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        qCInfo(logApp) << "[MSA] Token response HTTP" << status << "body:" << raw.left(500);
+    QEventLoop loop;
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QTimer::singleShot(15000, &loop, &QEventLoop::quit);  // safety timeout
+    loop.exec();
 
-        QJsonDocument doc = QJsonDocument::fromJson(raw);
-        QJsonObject obj = doc.object();
+    QByteArray raw = reply->readAll();
+    int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    qCInfo(logApp) << "[MSA] Token response HTTP" << status << "body:" << raw.left(500);
+    reply->deleteLater();
 
-        if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
-            QString err = obj[QStringLiteral("error")].toString(QStringLiteral("unknown"));
-            QString desc = obj[QStringLiteral("error_description")].toString(QString::fromLatin1(raw));
-            qCWarning(logApp) << "[MSA] Token exchange FAILED" << err << desc;
-            m_busy = false;
-            emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.left(200)));
-            return;
-        }
+    QJsonDocument doc = QJsonDocument::fromJson(raw);
+    QJsonObject obj = doc.object();
 
-        m_msAccessToken = obj[QStringLiteral("access_token")].toString();
-        m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
+    if (status < 200 || status >= 300 || !obj[QStringLiteral("access_token")].isString()) {
+        QString err = obj[QStringLiteral("error")].toString(QString::fromLatin1("unknown"));
+        QString desc = obj[QStringLiteral("error_description")].toString(QString::fromLatin1(raw).left(200));
+        qCWarning(logApp) << "[MSA] Token exchange FAILED:" << err << desc;
+        m_busy = false;
+        emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.isEmpty() ? err : desc));
+        return;
+    }
 
-        if (m_msAccessToken.isEmpty()) {
-            qCWarning(logApp) << "[MSA] No access_token in response:" << raw.left(500);
-            m_busy = false;
-            emit loginFailed(QStringLiteral("未获取到访问令牌"));
-            return;
-        }
+    m_msAccessToken = obj[QStringLiteral("access_token")].toString();
+    m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
 
-        qCInfo(logApp) << "[MSA] Token obtained!";
-        emit loginProgress(QStringLiteral("Xbox 验证"), QStringLiteral("正在验证 Xbox Live..."));
-        authenticateXbl(m_msAccessToken);
-    });
+    if (m_msAccessToken.isEmpty()) {
+        qCWarning(logApp) << "[MSA] No access_token in response:" << raw.left(500);
+        m_busy = false;
+        emit loginFailed(QStringLiteral("未获取到访问令牌"));
+        return;
+    }
+
+    qCInfo(logApp) << "[MSA] Token obtained!";
+    emit loginProgress(QStringLiteral("Xbox 验证"), QStringLiteral("正在验证 Xbox Live..."));
+    authenticateXbl(m_msAccessToken);
 }
 
 // ═══════════════════════════════════════════════════
