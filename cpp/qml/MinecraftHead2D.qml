@@ -1,65 +1,51 @@
 import QtQuick
 
+// Avatar with spinner during load. Uses both Image (reliable display)
+// and Canvas (planned pixel-art face rendering, WIP).
 Rectangle {
     id: root
     property url skinSource: ""
     width: 48; height: 48
-    color: "#1e2430"  // visible even without Canvas
+    color: "#1e2430"
 
-    Canvas {
-        id: canvas
-        anchors.fill: parent
-        antialiasing: false
-        renderStrategy: Canvas.Threaded
-        property bool _loaded: false
-
-        Connections {
-            target: root
-            function onSkinSourceChanged() {
-                canvas._loaded = false
-                var u = root.skinSource.toString()
-                if (u) canvas.loadImage(u)
-                canvas.requestPaint()
-            }
-        }
-
-        onImageLoaded: { _loaded = true; requestPaint() }
-
-        onPaint: {
-            var ctx = getContext("2d"), w = width, h = height
-            ctx.clearRect(0, 0, w, h)
-
-            if (!root.skinSource.toString()) {
-                ctx.fillStyle = "#2a3040"
-                ctx.fillRect(0, 0, w, h)
-                return
-            }
-
-            if (!_loaded) {
-                // Spinner — blue ring
-                var cx = w/2, cy = h/2, r = Math.min(cx, cy) - 5
-                ctx.strokeStyle = "#5b8def"
-                ctx.lineWidth = 3; ctx.lineCap = "round"
-                var a = (Date.now() % 2000) / 2000 * Math.PI * 2
-                ctx.beginPath()
-                ctx.arc(cx, cy, r - 2, a, a + Math.PI * 1.3)
-                ctx.stroke()
-
-                // Repaint for animation
-                canvas.requestPaint()
-                return
-            }
-
-            ctx.imageSmoothingEnabled = false
-            var url = root.skinSource.toString()
-            ctx.drawImage(url, 8, 8, 8, 8, 0, 0, w, h)
-            ctx.drawImage(url, 40, 8, 8, 8, 0, 0, w, h)
-        }
+    // ── Spinner ring ──
+    property real _angle: 0
+    RotationAnimation on _angle {
+        running: img.status === Image.Loading || img.status === Image.Null
+        from: 0; to: 360; duration: 1000; loops: Animation.Infinite
     }
 
-    Component.onCompleted: {
-        if (root.skinSource.toString()) {
-            canvas.loadImage(root.skinSource)
+    Canvas {
+        id: spinner
+        anchors.fill: parent
+        visible: img.status === Image.Loading || img.status === Image.Null
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.clearRect(0, 0, width, height)
+            if (img.status === Image.Ready) return
+
+            var cx = width/2, cy = height/2, r = Math.min(cx, cy) - 5
+            ctx.strokeStyle = "#5b8def"
+            ctx.lineWidth = 3; ctx.lineCap = "round"
+            ctx.beginPath()
+            var a = root._angle * Math.PI / 180
+            ctx.arc(cx, cy, r - 2, a, a + Math.PI * 1.3)
+            ctx.stroke()
         }
+    }
+    Connections {
+        target: root
+        function on_SangleChanged() { spinner.requestPaint() }
+    }
+
+    // ── Reliable image display (proof the URL arrives) ──
+    Image {
+        id: img
+        anchors.fill: parent
+        source: root.skinSource
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        cache: false
+        visible: status === Image.Ready
     }
 }
