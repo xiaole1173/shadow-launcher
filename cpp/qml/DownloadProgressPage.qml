@@ -293,7 +293,11 @@ Rectangle {
                             width: 50; height: 20; radius: 4; color: resumeBtnHov.hovered ? "#283818" : "#182810"
                             Text { anchors.centerIn: parent; text: "继续"; font.pixelSize: 9; color: "#70c040" }
                             MouseArea { id: resumeBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { backend.resumeModFileDownload(model.dlId); modDownloadModel.setProperty(index, "paused", false); modDownloadModel.setProperty(index, "received", 0); modDownloadModel.setProperty(index, "lastBytes", 0); modDownloadModel.setProperty(index, "lastTime", Date.now()); }
+                                onClicked: {
+                                                    var dlId = model.dlId
+                                                    modDownloadModel.remove(index)
+                                                    backend.resumeModFileDownload(dlId)
+                                                }
                             }
                         }
                         // Skip button (error only)

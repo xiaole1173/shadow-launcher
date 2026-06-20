@@ -980,8 +980,8 @@ void ShadowBackend::fetchShaderVersions(const QStringList& slugs) {
 // ── Mod file download proxy ──
 int ShadowBackend::downloadModFile(const QString& url, const QString& savePath,
                                     const QString& displayName, qint64 expectedSize,
-                                    const QString& sha1, int resumeId) {
-    return m_resource->downloadModFile(url, savePath, displayName, expectedSize, sha1, resumeId);
+                                    const QString& sha1) {
+    return m_resource->downloadModFile(url, savePath, displayName, expectedSize, sha1);
 }
 void ShadowBackend::cancelModFileDownload(int downloadId) {
     m_resource->cancelModFileDownload(downloadId);
