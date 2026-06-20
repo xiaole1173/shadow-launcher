@@ -42,6 +42,7 @@ public:
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void updateOfflineSkin(const QString &username);
+    Q_INVOKABLE void setOnlineMode();
     Q_INVOKABLE void logout();
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
 

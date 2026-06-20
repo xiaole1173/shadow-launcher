@@ -82,14 +82,11 @@ void AccountBackend::offlineLogin(const QString &username)
         return;
     }
 
-    // Preserve MS session username/uuid if already logged in online
-    bool hadMsSession = m_loggedIn && m_isOnline && !m_msMcToken.isEmpty();
-    if (!hadMsSession) {
-        m_username = name;
-        m_uuid = generateOfflineUuid(name);
-    }
+    // Offline mode: always generate UUID from name (never reuse MS identity)
+    m_username = name;
+    m_uuid = generateOfflineUuid(name);
     m_loggedIn = true;
-    m_isOnline = hadMsSession;  // don't flip online→offline if MS session exists
+    m_isOnline = false;
 
     // Track offline username history (most recent first, max 20)
     m_offlineUsernames.removeAll(name);
@@ -109,6 +106,15 @@ void AccountBackend::offlineLogin(const QString &username)
     emit logMessage(QStringLiteral("离线登录: %1").arg(name));
 
     // Skin handled by updateOfflineSkin() above — no downloadSkin() call here
+}
+
+void AccountBackend::setOnlineMode()
+{
+    // Restore online status when premium tab is active and MS session exists
+    if (!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) {
+        m_isOnline = true;
+        m_loggedIn = true;
+    }
 }
 
 // ────────────────────────────────────────────────────────────

@@ -807,6 +807,10 @@ void ShadowBackend::updateOfflineSkin(const QString& username) {
     m_account->updateOfflineSkin(username);
 }
 
+void ShadowBackend::setOnlineMode() {
+    m_account->setOnlineMode();
+}
+
 void ShadowBackend::microsoftLogin() {
     m_account->microsoftLogin();
 }

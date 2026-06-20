@@ -757,6 +757,10 @@ Window {
                                                 var name = offlineNameInput.text.trim() || "Player"
                                                 backend.offlineLogin(name)
                                             }
+                                            // Premium mode: ensure online status (might have been flipped by offline)
+                                            if (loginMode === 0) {
+                                                backend.setOnlineMode()
+                                            }
                                             if (!backend.username) {
                                                 toastManager.show("请先登录账号")
                                                 return
