@@ -338,9 +338,6 @@ Rectangle {
                     Text {
                         visible: model.reconnecting; color: "#50a0d0"; font.pixelSize: 10
                         text: `↻ 重连中...`
-                        NumberAnimation on opacity {
-                            from: 0.4; to: 1.0; duration: 600; loops: Animation.Infinite; easing.type: Easing.InOutSine
-                        }
                     }
                     Text {
                         visible: model.total > 0
