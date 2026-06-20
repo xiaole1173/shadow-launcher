@@ -3071,7 +3071,6 @@ Rectangle {
     // ════════════════════════════════════════════
     ListModel { id: modResultsModel }
     ListModel { id: shaderResultsModel }
-    ListModel { id: shaderResultsModel }
     ListModel { id: rpResultsModel }
 
     // Mod & Shader state
