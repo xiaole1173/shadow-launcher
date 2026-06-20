@@ -3384,7 +3384,7 @@ Rectangle {
 
         // ── Helpers ──
         function stripSuffix(v) {
-            var re = /-(?:snapshot|pre|rc|alpha|beta)[\d.]*$/i
+            var re = /-(?:snapshot|pre|rc|alpha|beta)[\d.\-]*$/i
             var m = v.match(re)
             return m ? v.slice(0, m.index) : v
         }
@@ -3397,6 +3397,7 @@ Rectangle {
 
         // ── Group versions by major.minor (strip pre-release suffixes first) ──
         property var grouped: {
+            console.log("[mod-detail] grouped computed, raw=", page.modDetailRawVersions.length, "items")
             var groups = {}
             var raw = page.modDetailRawVersions || []
             var map = page.modDetailVersionMap || {}
@@ -3428,10 +3429,19 @@ Rectangle {
                 if (am !== bm) return bm - am
                 return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
             })
+            console.log("[mod-detail] grouped:", result.length, "groups")
+            for (var ri = 0; ri < result.length; ri++) console.log("[mod-detail]   group", result[ri].major, "=", result[ri].versions.length, "versions")
             return result
         }
         property var expandedGroups: []
         property string selectedVersion: ""
+
+        // Auto-expand all groups when data arrives
+        onGroupedChanged: {
+            var exp = []
+            for (var gi = 0; gi < grouped.length; gi++) exp.push(grouped[gi].major)
+            expandedGroups = exp
+        }
 
         function isExpanded(major) { return expandedGroups.indexOf(major) >= 0 }
         function toggleGroup(major) {
@@ -3573,8 +3583,8 @@ Rectangle {
                                 // Group header
                                 Rectangle {
                                     width: parent.width; height: 40; radius: 8
-                                    color: grpHover.containsMouse ? "#1e2c50" : "#141c2c"
-                                    border.color: grpHover.containsMouse ? "#3858c0" : "#1a2848"; border.width: 1
+                                    color: grpHover.containsMouse ? "#283860" : "#1a2848"
+                                    border.color: grpHover.containsMouse ? "#5068c8" : "#3858c0"; border.width: 1
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
