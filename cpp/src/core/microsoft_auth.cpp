@@ -16,6 +16,69 @@
 #include <QEventLoop>
 #include <QNetworkAccessManager>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <winhttp.h>
+#pragma comment(lib, "winhttp.lib")
+
+static QByteArray httpPostSync(const QString& url, const QByteArray& body, int* outStatus)
+{
+    QByteArray result;
+    *outStatus = 0;
+
+    QUrl qurl(url);
+    QString host = qurl.host();
+    int port = qurl.port(443);
+    bool https = qurl.scheme() == QStringLiteral("https");
+    QString path = qurl.path();
+    if (qurl.hasQuery()) path += QLatin1Char('?') + qurl.query();
+
+    HINTERNET hSession = WinHttpOpen(L"ShadowLauncher/1.0",
+                                      WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                      WINHTTP_NO_PROXY_NAME,
+                                      WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return result;
+
+    HINTERNET hConnect = WinHttpConnect(hSession,
+                                         reinterpret_cast<LPCWSTR>(host.utf16()),
+                                         port, 0);
+    if (!hConnect) { WinHttpCloseHandle(hSession); return result; }
+
+    LPCWSTR types[2] = { L"text/*", nullptr };
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST",
+                                             reinterpret_cast<LPCWSTR>(path.utf16()),
+                                             nullptr, WINHTTP_NO_REFERER,
+                                             types,
+                                             https ? WINHTTP_FLAG_SECURE : 0);
+    if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return result; }
+
+    LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n";
+    if (!WinHttpSendRequest(hRequest, headers, static_cast<DWORD>(wcslen(headers)),
+                            const_cast<char*>(body.data()), static_cast<DWORD>(body.size()),
+                            static_cast<DWORD>(body.size()), 0)) {
+        WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+        return result;
+    }
+
+    if (WinHttpReceiveResponse(hRequest, nullptr)) {
+        DWORD dwSize = sizeof(DWORD);
+        WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                            WINHTTP_HEADER_NAME_BY_INDEX, outStatus, &dwSize, WINHTTP_NO_HEADER_INDEX);
+
+        DWORD bytesRead = 0;
+        QByteArray buf(4096, Qt::Uninitialized);
+        while (WinHttpReadData(hRequest, buf.data(), static_cast<DWORD>(buf.size()), &bytesRead) && bytesRead > 0) {
+            result.append(buf.constData(), static_cast<int>(bytesRead));
+        }
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    return result;
+}
+#endif
+
 namespace ShadowLauncher {
 
 static const char* kAuthUrl = "https://login.live.com/oauth20_authorize.srf";
@@ -139,25 +202,37 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     postData.addQueryItem(QStringLiteral("redirect_uri"), redirectUri);
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
-    qCInfo(logApp) << "[MSA] Token request body len:" << body.size();
+    qCInfo(logApp) << "[MSA] Token POST body len:" << body.size();
 
-    // Use synchronous event loop to avoid async callback crash
-    QNetworkAccessManager mgr;
-    QNetworkRequest req(QUrl(QString::fromLatin1(kTokenUrl)));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
-    req.setTransferTimeout(15000);
+    // Use WinHTTP to avoid Qt network stack crash
+    QByteArray raw;
+    int status = 0;
 
-    QNetworkReply* reply = mgr.post(req, body);
+    // Try WinHTTP first, fallback to Qt
+#ifdef Q_OS_WIN
+    raw = httpPostSync(QString::fromLatin1(kTokenUrl), body, &status);
+#endif
 
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    QTimer::singleShot(15000, &loop, &QEventLoop::quit);  // safety timeout
-    loop.exec();
+    if (raw.isEmpty()) {
+        // Fallback: use local event loop with plain QNetworkAccessManager
+        qCInfo(logApp) << "[MSA] WinHTTP failed, trying Qt fallback...";
+        QNetworkAccessManager mgr;
+        QNetworkRequest req(QUrl(QString::fromLatin1(kTokenUrl)));
+        req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
+        req.setTransferTimeout(15000);
+        QNetworkReply* reply = mgr.post(req, body);
+        QEventLoop loop;
+        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
+        if (reply) {
+            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+            loop.exec();
+            raw = reply->readAll();
+            status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            reply->deleteLater();
+        }
+    }
 
-    QByteArray raw = reply->readAll();
-    int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     qCInfo(logApp) << "[MSA] Token response HTTP" << status << "body:" << raw.left(500);
-    reply->deleteLater();
 
     QJsonDocument doc = QJsonDocument::fromJson(raw);
     QJsonObject obj = doc.object();
