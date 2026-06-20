@@ -3446,6 +3446,7 @@ Rectangle {
                 // Back button (clone RP)
                 Rectangle {
                     Layout.preferredHeight: 30
+                    Layout.fillWidth: false
                     width: backLabel.implicitWidth + 20; radius: 6
                     color: backHov.hovered ? "#1a2848" : "transparent"
                     border.color: backHov.hovered ? "#5068c8" : "#1e2230"
@@ -3541,7 +3542,10 @@ Rectangle {
                 // Version list (clone RP ScrollView + Column + Repeater)
                 ScrollView {
                     id: modDetailScroll
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    Layout.fillWidth: true
+                    Layout.fillHeight: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
+                    Layout.preferredHeight: (!page.modDetailLoading && modDetailOverlay.grouped.length > 0) ? undefined : 0
+                    clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
                     visible: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
                     enabled: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
