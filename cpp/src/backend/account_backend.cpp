@@ -51,6 +51,7 @@ AccountBackend::AccountBackend(QObject *parent)
         emit accountChanged();
         emit logMessage(QStringLiteral("正版登录成功: %1").arg(username));
         downloadSkin(username);
+    });
     connect(m_msAuth, &MicrosoftAuth::loginFailed, this, [this](const QString& error) {
         m_msStatus.clear();
         qCWarning(logAccount) << "Microsoft login FAILED:" << error;
