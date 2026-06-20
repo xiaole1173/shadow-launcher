@@ -101,10 +101,15 @@ void AccountBackend::offlineLogin(const QString &username)
 
     emit accountChanged();
     emit offlineHistoryChanged();
+    // Skin: always use offline head render (Steve/Alex by UUID hash)
+    // Never call downloadSkin() here — it would go online if MS token exists
+    m_skinGeneration++;
+    updateOfflineSkin(name);
+
     qCInfo(logAccount) << "Offline login:" << name << "UUID:" << m_uuid;
     emit logMessage(QStringLiteral("离线登录: %1").arg(name));
 
-    downloadSkin(name);
+    // Skin handled by updateOfflineSkin() above — no downloadSkin() call here
 }
 
 // ────────────────────────────────────────────────────────────
@@ -114,6 +119,9 @@ void AccountBackend::offlineLogin(const QString &username)
 void AccountBackend::updateOfflineSkin(const QString &username)
 {
     QString name = username.trimmed();
+
+    // Track generation so async callback can detect stale downloads
+    m_skinGeneration++;
 
     // Default to Steve model when name is empty
     QString modelName = QStringLiteral("steve");
@@ -485,32 +493,34 @@ void AccountBackend::downloadOnlineSkin()
         }
 
         qCInfo(logAccount) << "Downloading skin from Mojang CDN:" << skinUrl;
+        m_skinGeneration++;  // compared in callback
+        int skinGen = m_skinGeneration;
         QNetworkRequest skinReq(skinUrl);
         QNetworkReply* skinReply = HttpClient::instance().getRaw(skinReq);
-        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply]() {
+        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply, skinGen]() {
             skinReply->deleteLater();
+            if (skinGen != m_skinGeneration) {
+                qCInfo(logAccount) << "Online skin finished, but offline skin was set after — discarding";
+                return;
+            }
             if (skinReply->error() != QNetworkReply::NoError) {
                 qCWarning(logAccount) << "Skin texture download failed:" << skinReply->errorString();
                 setFallbackSkin();
-            } else {
-                // Only apply if user is still in online mode (prevents race with offline login)
-                if (!m_isOnline) {
-                    qCInfo(logAccount) << "Online skin download finished, but user switched to offline — discarding";
-                    return;
-                }
-                QString cachePath = skinCachePath(m_username);
-                QFileInfo fi(cachePath);
-                QDir().mkpath(fi.absolutePath());
-                QFile file(cachePath);
-                if (file.open(QIODevice::WriteOnly)) {
-                    file.write(skinReply->readAll());
-                    file.close();
-                    QString facePath = renderHead3D(cachePath);
-                    m_skinPath = toImageUrl(facePath.isEmpty() ? cachePath : facePath);
-                    qCInfo(logAccount) << "Online skin + face:" << m_skinPath;
-                    emit skinReady();
-                }
+                emit skinReady();
+                return;
             }
+            QString cachePath = skinCachePath(m_username);
+            QFileInfo fi(cachePath);
+            QDir().mkpath(fi.absolutePath());
+            QFile file(cachePath);
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(skinReply->readAll());
+                file.close();
+                QString facePath = renderHead3D(cachePath);
+                m_skinPath = toImageUrl(facePath.isEmpty() ? cachePath : facePath);
+                qCInfo(logAccount) << "Online skin + face:" << m_skinPath;
+            }
+            emit skinReady();
         });
     });
 }

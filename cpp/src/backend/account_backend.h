@@ -88,6 +88,7 @@ private:
     QString m_capePath;
     bool m_loggedIn = false;
     bool m_isOnline = false;
+    int m_skinGeneration = 0;  // 防异步正版皮肤覆盖离线头像
     QStringList m_offlineUsernames;
     QString m_dataDir;
 };
