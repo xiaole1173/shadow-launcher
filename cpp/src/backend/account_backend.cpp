@@ -102,7 +102,7 @@ void AccountBackend::offlineLogin(const QString &username)
     // Writes to m_offlineSkinPath (dedicated, never touches m_skinPath)
     updateOfflineSkin(name);
 
-    qCInfo(logAccount) << "Offline login:" << name << "UUID:" << m_uuid;
+    qCInfo(logAccount) << "Offline login:" << name << "UUID:" << m_offlineUuid;
     emit logMessage(QStringLiteral("离线登录: %1").arg(name));
 
     // Skin handled by updateOfflineSkin() above — no downloadSkin() call here
@@ -651,9 +651,8 @@ void AccountBackend::refreshMicrosoftToken()
         m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString(m_msRefreshToken);
         qCInfo(logAccount) << "Microsoft token refreshed!";
 
-        // Auto-login with refreshed token (skin already downloaded from loadMicrosoftSession)
+        // Token refreshed — keep alive, but DON'T flip login mode
         m_loggedIn = true;
-        m_isOnline = true;
         saveMicrosoftSession();
         emit accountChanged();
         emit logMessage(QStringLiteral("已自动登录: %1").arg(m_username));
