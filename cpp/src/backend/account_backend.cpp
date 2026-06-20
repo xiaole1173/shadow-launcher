@@ -28,6 +28,40 @@ AccountBackend::AccountBackend(QObject *parent)
     qCInfo(logAccount) << "AccountBackend constructed";
 
     loadOfflineHistory();
+
+    // ── MicrosoftAuth ──
+    m_msAuth = new MicrosoftAuth(this);
+    connect(m_msAuth, &MicrosoftAuth::loginProgress, this, [this](const QString& step, const QString& detail) {
+        m_msStatus = step + QStringLiteral(": ") + detail;
+        emit microsoftLoginProgress(step, detail);
+    });
+    connect(m_msAuth, &MicrosoftAuth::userCodeReady, this, [this](const QString& code, const QString& url) {
+        Q_UNUSED(url)
+        m_msUserCode = code;
+        emit microsoftUserCodeReady(code);
+        emit logMessage(QStringLiteral("[MSA] 验证码: %1").arg(code));
+    });
+    connect(m_msAuth, &MicrosoftAuth::loginSuccess, this, [this](const QString& mcToken, const QString& username, const QString& uuid, const QString& refreshToken) {
+        m_msMcToken = mcToken;
+        m_msRefreshToken = refreshToken;
+        m_username = username;
+        m_uuid = uuid;
+        m_loggedIn = true;
+        m_isOnline = true;
+        m_msStatus.clear();
+        m_msUserCode.clear();
+        qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
+        emit microsoftLoginSuccess(username, uuid);
+        emit accountChanged();
+        emit logMessage(QStringLiteral("正版登录成功: %1").arg(username));
+    });
+    connect(m_msAuth, &MicrosoftAuth::loginFailed, this, [this](const QString& error) {
+        m_msStatus.clear();
+        m_msUserCode.clear();
+        qCWarning(logAccount) << "Microsoft login FAILED:" << error;
+        emit microsoftLoginFailed(error);
+        emit microsoftLoginBusyChanged();
+    });
 }
 
 // ────────────────────────────────────────────────────────────
@@ -79,6 +113,29 @@ void AccountBackend::logout()
     emit accountChanged();
     qCInfo(logAccount) << "Logged out";
     emit logMessage(QStringLiteral("已登出"));
+}
+
+// ────────────────────────────────────────────────────────────
+// Microsoft Login
+// ────────────────────────────────────────────────────────────
+
+void AccountBackend::microsoftLogin()
+{
+    if (!m_msAuth) return;
+    if (m_msAuth->isBusy()) {
+        emit logMessage(QStringLiteral("Microsoft 登录已在进行中"));
+        return;
+    }
+    emit microsoftLoginBusyChanged();
+    // Use the Azure app Client ID
+    m_msAuth->startLogin(QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f"));
+}
+
+void AccountBackend::cancelMicrosoftLogin()
+{
+    if (!m_msAuth) return;
+    m_msAuth->cancelLogin();
+    emit microsoftLoginBusyChanged();
 }
 
 // ────────────────────────────────────────────────────────────

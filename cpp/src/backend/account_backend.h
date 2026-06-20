@@ -6,6 +6,7 @@
 #include <QTimer>
 
 #include "utils/types.h"
+#include "../core/microsoft_auth.h"
 
 namespace ShadowLauncher {
 
@@ -18,6 +19,7 @@ class AccountBackend : public QObject {
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
     Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinReady)
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
+    Q_PROPERTY(bool microsoftLoginBusy READ isMicrosoftLoginBusy NOTIFY microsoftLoginBusyChanged)
 
 public:
     explicit AccountBackend(QObject *parent = nullptr);
@@ -32,8 +34,17 @@ public:
 
     // ── Slots ──
     Q_INVOKABLE void offlineLogin(const QString &username);
+    Q_INVOKABLE void microsoftLogin();
+    Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();
     Q_INVOKABLE QString getSkinUrl(const QString &username = {}) const;
+    Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
+
+    // Microsoft login state
+    Q_PROPERTY(QString msStatus READ msStatus NOTIFY microsoftLoginProgress)
+    Q_PROPERTY(QString msUserCode READ msUserCode NOTIFY microsoftUserCodeReady)
+    QString msStatus() const { return m_msStatus; }
+    QString msUserCode() const { return m_msUserCode; }
 
 signals:
     void accountChanged();
@@ -41,12 +52,26 @@ signals:
     void offlineHistoryChanged();
     void logMessage(const QString &msg);
 
+    // Microsoft login signals
+    void microsoftLoginProgress(const QString& step, const QString& detail);
+    void microsoftUserCodeReady(const QString& userCode);
+    void microsoftLoginSuccess(const QString& username, const QString& uuid);
+    void microsoftLoginFailed(const QString& error);
+    void microsoftLoginBusyChanged();
+
 private:
     void downloadSkin(const QString &username);
     void loadOfflineHistory();
     void saveOfflineHistory();
     QString generateOfflineUuid(const QString &username) const;
     QString skinCachePath(const QString &username) const;
+
+    // Microsoft login state
+    MicrosoftAuth* m_msAuth = nullptr;
+    QString m_msStatus;
+    QString m_msUserCode;
+    QString m_msRefreshToken;   // for silent refresh
+    QString m_msMcToken;         // Minecraft bearer token (for game launch)
 
     QString m_username;
     QString m_uuid;

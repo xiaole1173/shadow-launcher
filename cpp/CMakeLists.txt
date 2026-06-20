@@ -53,6 +53,7 @@ set(SOURCES
     src/core/version_downloader.cpp
     src/core/launcher.cpp
     src/core/mod_manager.cpp
+    src/core/microsoft_auth.cpp
     src/core/version_isolation.cpp
     src/core/crash_detector.cpp
 

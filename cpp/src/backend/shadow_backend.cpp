@@ -81,6 +81,14 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::offlineHistoryChanged);
     connect(m_account, &AccountBackend::logMessage,
             this, &ShadowBackend::logMessage);
+    connect(m_account, &AccountBackend::microsoftLoginProgress,
+            this, &ShadowBackend::microsoftLoginProgress);
+    connect(m_account, &AccountBackend::microsoftUserCodeReady,
+            this, &ShadowBackend::microsoftUserCodeReady);
+    connect(m_account, &AccountBackend::microsoftLoginSuccess,
+            this, &ShadowBackend::microsoftLoginSuccess);
+    connect(m_account, &AccountBackend::microsoftLoginFailed,
+            this, &ShadowBackend::microsoftLoginFailed);
     // Persist username on every login
     connect(m_account, &AccountBackend::accountChanged,
             this, [this]() {
@@ -699,6 +707,14 @@ bool ShadowBackend::devMode() const {
 
 void ShadowBackend::offlineLogin(const QString& username) {
     m_account->offlineLogin(username);
+}
+
+void ShadowBackend::microsoftLogin() {
+    m_account->microsoftLogin();
+}
+
+void ShadowBackend::cancelMicrosoftLogin() {
+    m_account->cancelMicrosoftLogin();
 }
 
 void ShadowBackend::logout() {

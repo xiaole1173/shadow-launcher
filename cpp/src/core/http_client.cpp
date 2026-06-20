@@ -310,6 +310,30 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
     return reply;
 }
 
+// ═══════════════════════════════════════════════════
+// POST with raw body
+// ═══════════════════════════════════════════════════
+QNetworkReply* HttpClient::post(const QNetworkRequest& request, const QByteArray& body)
+{
+    QNetworkRequest req = request;
+    req.setRawHeader("User-Agent",
+                     QString::fromStdString(m_config.userAgent).toUtf8());
+    req.setTransferTimeout(m_config.totalTimeoutMs);
+    return m_manager->post(req, body);
+}
+
+// ═══════════════════════════════════════════════════
+// GET with custom request
+// ═══════════════════════════════════════════════════
+QNetworkReply* HttpClient::getRaw(const QNetworkRequest& request)
+{
+    QNetworkRequest req = request;
+    req.setRawHeader("User-Agent",
+                     QString::fromStdString(m_config.userAgent).toUtf8());
+    req.setTransferTimeout(m_config.totalTimeoutMs);
+    return m_manager->get(req);
+}
+
 void HttpClient::abortDownload(QNetworkReply* reply)
 {
     if (reply) reply->abort();

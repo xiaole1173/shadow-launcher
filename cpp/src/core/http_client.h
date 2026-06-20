@@ -60,6 +60,12 @@ public:
                   std::function<void(bool ok, const QString& error)> done,
                   qint64 resumeFrom = -1);
 
+    // POST with raw body (returns QNetworkReply* for async handling)
+    QNetworkReply* post(const QNetworkRequest& request, const QByteArray& body);
+
+    // GET with custom request (returns QNetworkReply* for async handling)
+    QNetworkReply* getRaw(const QNetworkRequest& request);
+
     void abortDownload(QNetworkReply* reply);
 
 signals:
