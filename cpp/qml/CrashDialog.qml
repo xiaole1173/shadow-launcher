@@ -81,7 +81,7 @@ Popup {
             }
             // Suspected mods
             ColumnLayout {
-                visible: crashData.suspectedMods && crashData.suspectedMods.length > 0
+                visible: !!crashData && crashData.suspectedMods && crashData.suspectedMods.length > 0
                 spacing: 4; Layout.fillWidth: true
                 Text {
                     text: "⚠ 可疑模组:"

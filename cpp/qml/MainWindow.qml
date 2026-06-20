@@ -719,9 +719,11 @@ Window {
                         Loader { id: downloadPageLoader; anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
                             onLoaded: {
                                 item.mainWindow = appWindow
-                                item.triggerDownloadBall.connect(function(sx, sy) {
-                                    appWindow.animateDownloadBall(sx, sy)
-                                })
+                                if (item.triggerDownloadBall) {
+                                    item.triggerDownloadBall.connect(function(sx, sy) {
+                                        appWindow.animateDownloadBall(sx, sy)
+                                    })
+                                }
                                 // Apply pending sub-tab navigation from --navigate
                                 if (pendingSubTab >= 0) {
                                     item.currentTab = pendingSubTab
