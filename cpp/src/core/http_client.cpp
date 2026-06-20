@@ -11,6 +11,8 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QNetworkProxy>
+#include <QNetworkDiskCache>
+#include <QStandardPaths>
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -42,6 +44,14 @@ HttpClient::HttpClient()
 {
     m_manager = new QNetworkAccessManager(this);
     m_manager->setTransferTimeout(m_config.totalTimeoutMs);
+
+    // Persist HTTP cache (webp icons, API responses) to disk
+    auto* diskCache = new QNetworkDiskCache(this);
+    QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                        + QStringLiteral("/httpcache");
+    diskCache->setCacheDirectory(cachePath);
+    diskCache->setMaximumCacheSize(128 * 1024 * 1024);  // 128 MB
+    m_manager->setCache(diskCache);
 }
 
 HttpClient::~HttpClient()
@@ -89,12 +99,16 @@ void HttpClient::setUserAgent(const QString& ua)
 
 // --------------- helpers ---------------
 
-static QNetworkRequest buildRequest(const NetworkConfig& cfg, const QUrl& url)
+static QNetworkRequest buildRequest(const NetworkConfig& cfg, const QUrl& url,
+                                     bool useCache = true)
 {
     QNetworkRequest req(url);
     req.setRawHeader("User-Agent",
                      QString::fromStdString(cfg.userAgent).toUtf8());
     req.setTransferTimeout(cfg.totalTimeoutMs);
+    if (!useCache)
+        req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
+                         QNetworkRequest::AlwaysNetwork);
     return req;
 }
 
@@ -227,7 +241,7 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
     // Only remove stale tmp on fresh download; keep on resume
     if (resumeFrom <= 0) QFile::remove(tmpPath);
 
-    QNetworkRequest req = buildRequest(m_config, QUrl(url));
+    QNetworkRequest req = buildRequest(m_config, QUrl(url), false);
     if (resumeFrom > 0) {
         req.setRawHeader("Range", QStringLiteral("bytes=%1-").arg(resumeFrom).toUtf8());
     }
