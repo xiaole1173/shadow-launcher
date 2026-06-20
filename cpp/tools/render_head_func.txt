@@ -18,7 +18,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     int tW = skin.width(), tH = skin.height();
     float dV = (float)tH;
     // 64x32 also has hat in right-half (cols 32-63), same UV offset +32
-    bool hat = (tH >= 32);  // always try hat; alpha<64 filter handles transparency
+    bool hat = false; // DEBUG: force off  // always try hat; alpha<64 filter handles transparency
     float pad = 0.30f;
 
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
@@ -34,7 +34,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     {
         float sx[4],sy[4],sd[4];
         for(int i=0;i<4;++i) prj(cx[i],cy[i],cz[i],sx[i],sy[i],sd[i]);
-        float us[4]={(float)u1/tW,(float)u0/tW,(float)u0/tW,(float)u1/tW};
+        float us[4]={(float)u0/tW,(float)u1/tW,(float)u1/tW,(float)u0/tW};
         float vs[4]={(float)v1/dV,(float)v1/dV,(float)v0/dV,(float)v0/dV};
         if(tc+2>24)return;
         tri[tc]={sx[0],sy[0],sx[1],sy[1],sx[2],sy[2],us[0],vs[0],us[1],vs[1],us[2],vs[2],(sd[0]+sd[1]+sd[2])/3.f,isHat};tc++;
