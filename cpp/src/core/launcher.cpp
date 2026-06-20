@@ -427,16 +427,41 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     QJsonArray gameArgs;
 
     if (!arguments.isEmpty()) {
-        // Modern format (1.13+): arguments.game
-        gameArgs = arguments[QStringLiteral("game")].toArray();
+        // Modern format (1.13+): arguments.game — filter by rules, then expand
+        const QJsonArray raw = arguments[QStringLiteral("game")].toArray();
+        for (const QJsonValue& val : raw) {
+            if (val.isString()) {
+                gameArgs.append(val.toString());
+            } else if (val.isObject()) {
+                QJsonObject obj = val.toObject();
+                QJsonArray rulesArr = obj[QStringLiteral("rules")].toArray();
+                if (!rulesArr.isEmpty()) {
+                    bool include = evaluateRules(rulesArr);
+                    if (!include) continue;
+                }
+                QJsonValue value = obj[QStringLiteral("value")];
+                if (value.isString()) {
+                    gameArgs.append(value.toString());
+                } else if (value.isArray()) {
+                    for (const QJsonValue& v : value.toArray()) {
+                        if (v.isString()) gameArgs.append(v.toString());
+                    }
+                }
+            }
+        }
     } else {
         // Legacy format: minecraftArguments string
         QString mcArgs = versionJson[QStringLiteral("minecraftArguments")].toString();
         if (!mcArgs.isEmpty()) {
             // Split by spaces, respecting quoted strings
-            // Simplified: just split by spaces for common args
-            const QStringList parts = mcArgs.split(QLatin1Char(' '));
-            for (const QString& part : parts) {
+            static const QRegularExpression argSplitter(
+                QStringLiteral(R"("(?:[^"\\]|\\.)*"|\S+)"));
+            QRegularExpressionMatchIterator it = argSplitter.globalMatch(mcArgs);
+            while (it.hasNext()) {
+                QRegularExpressionMatch m = it.next();
+                QString part = m.captured(1);
+                if (part.startsWith(QLatin1Char('"')) && part.endsWith(QLatin1Char('"')))
+                    part = part.mid(1, part.size() - 2);
                 if (!part.isEmpty()) gameArgs.append(part);
             }
         }
@@ -446,6 +471,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     QJsonObject assetIndex = versionJson[QStringLiteral("assetIndex")].toObject();
     QString assetIndexId = assetIndex[QStringLiteral("id")].toString();
     if (assetIndexId.isEmpty()) assetIndexId = versionId;  // legacy fallback
+
+    // Build legacy virtual asset directory for 1.7.2
+    if (assetIndexId == QStringLiteral("legacy")) {
+        const_cast<Launcher*>(this)->ensureLegacyAssets();
+    }
 
     // Process game arguments, expanding placeholders
     for (const QJsonValue& argVal : gameArgs) {
@@ -464,6 +494,16 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${user_type}"), m_isOnline ? QStringLiteral("msa") : QStringLiteral("mojang"));
             arg.replace(QStringLiteral("${version_type}"),
                         versionJson[QStringLiteral("type")].toString(QStringLiteral("release")));
+            arg.replace(QStringLiteral("${game_assets}"),
+                        m_gameDir + QStringLiteral("/assets/virtual/legacy"));  // 1.7.2 legacy
+            arg.replace(QStringLiteral("${user_properties}"), QStringLiteral("{}"));
+            arg.replace(QStringLiteral("${auth_session}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);  // pre-1.6
+            arg.replace(QStringLiteral("${resolution_width}"), QStringLiteral("854"));
+            arg.replace(QStringLiteral("${resolution_height}"), QStringLiteral("480"));
+            arg.replace(QStringLiteral("${launcher_name}"), QStringLiteral("ShadowLauncher"));
+            arg.replace(QStringLiteral("${launcher_version}"), QStringLiteral("1.0"));
+            arg.replace(QStringLiteral("${profile_name}"), versionId);
+            arg.replace(QStringLiteral("${quickPlayPath}"), QString());  // not used
 
             if (!arg.isEmpty()) args << arg;
         }
@@ -691,6 +731,122 @@ void Launcher::ensureOptionsTxt(const QString& versionId)
     } else {
         qCWarning(logLaunch) << "Failed to write options.txt:" << optionsPath;
     }
+}
+
+// ============================================================
+// Helpers — Rules Evaluation (1.13+ arguments)
+// ============================================================
+
+bool Launcher::evaluateRule(const QJsonObject& rule)
+{
+    QString action = rule[QStringLiteral("action")].toString(QStringLiteral("allow"));
+
+    // Check OS constraints
+    if (rule.contains(QStringLiteral("os"))) {
+        QJsonObject os = rule[QStringLiteral("os")].toObject();
+        QString osName = os[QStringLiteral("name")].toString();
+#ifdef Q_OS_WIN
+        bool osMatch = (osName == QStringLiteral("windows"));
+#elif defined(Q_OS_MACOS)
+        bool osMatch = (osName == QStringLiteral("osx"));
+#else
+        bool osMatch = (osName == QStringLiteral("linux"));
+#endif
+        if (!osMatch) return false;
+    }
+
+    // Check feature constraints — we are NOT a demo/realm/quickPlay user
+    if (rule.contains(QStringLiteral("features"))) {
+        QJsonObject features = rule[QStringLiteral("features")].toObject();
+        if (features.contains(QStringLiteral("is_demo_user")))
+            return false;  // normal user is not demo
+        if (features.contains(QStringLiteral("has_custom_resolution")))
+            return false;
+        if (features.contains(QStringLiteral("is_quick_play_singleplayer")))
+            return false;
+        if (features.contains(QStringLiteral("is_quick_play_multiplayer")))
+            return false;
+        if (features.contains(QStringLiteral("is_quick_play_realms")))
+            return false;
+    }
+
+    return (action == QStringLiteral("allow"));
+}
+
+bool Launcher::evaluateRules(const QJsonArray& rules)
+{
+    // Default: include
+    // If any rule matches with "allow", include
+    // If any rule matches with "disallow", exclude
+    for (const QJsonValue& val : rules) {
+        QJsonObject rule = val.toObject();
+        if (evaluateRule(rule)) {
+            return rule[QStringLiteral("action")].toString() == QStringLiteral("allow");
+        }
+    }
+    return true;  // no rule matched → default allow
+}
+
+// ============================================================
+// Legacy Asset Virtual Directory (1.7.2)
+// ============================================================
+
+void Launcher::ensureLegacyAssets()
+{
+    // Reads assets/indexes/legacy.json and builds assets/virtual/legacy/
+    // from the hash-based assets/objects/ directory.
+    // This is only needed for Minecraft 1.7.2 (assetIndex.id == "legacy").
+
+    QString legacyDir = m_gameDir + QStringLiteral("/assets/virtual/legacy");
+    QString indexFile = m_gameDir + QStringLiteral("/assets/indexes/legacy.json");
+
+    // Already done
+    if (QDir(legacyDir).exists() && !QDir(legacyDir).isEmpty(QDir::Dirs | QDir::Files))
+        return;
+
+    if (!QFileInfo::exists(indexFile)) {
+        qCWarning(logLaunch) << "Legacy asset index not found:" << indexFile;
+        return;
+    }
+
+    QFile file(indexFile);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qCWarning(logLaunch) << "Cannot open legacy.json";
+        return;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    if (!doc.isObject()) return;
+    QJsonObject objects = doc.object()[QStringLiteral("objects")].toObject();
+    if (objects.isEmpty()) return;
+
+    QString objectsDir = m_gameDir + QStringLiteral("/assets/objects");
+    int created = 0;
+
+    qCInfo(logLaunch) << "Building legacy asset virtual directory...";
+
+    for (auto it = objects.begin(); it != objects.end(); ++it) {
+        QString virtualPath = it.key();  // e.g. "minecraft/lang/zh_cn.lang"
+        QJsonObject info = it->toObject();
+        QString hash = info[QStringLiteral("hash")].toString();
+        if (hash.isEmpty()) continue;
+
+        QString sourcePath = objectsDir + QLatin1Char('/')
+                           + hash.left(2) + QLatin1Char('/') + hash;
+        QString destPath = legacyDir + QLatin1Char('/') + virtualPath;
+
+        QFileInfo destFi(destPath);
+        QDir().mkpath(destFi.absolutePath());
+
+        if (!QFileInfo::exists(destPath) && QFileInfo::exists(sourcePath)) {
+            if (QFile::copy(sourcePath, destPath))
+                created++;
+        }
+    }
+
+    qCInfo(logLaunch) << "Legacy assets built:" << created << "files →" << legacyDir;
 }
 
 } // namespace ShadowLauncher

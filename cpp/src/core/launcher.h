@@ -52,6 +52,9 @@ private:
     QStringList buildArgs(const QString& versionId, int maxMemoryMB, const QJsonObject& versionJson) const;
     bool extractNatives(const QString& versionId, const QJsonObject& versionJson);
     void ensureOptionsTxt(const QString& versionId);
+    static bool evaluateRules(const QJsonArray& rules);
+    static bool evaluateRule(const QJsonObject& rule);
+    void ensureLegacyAssets();
 
     QProcess* m_process = nullptr;
     QString m_gameDir;
