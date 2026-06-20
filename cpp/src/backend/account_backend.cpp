@@ -82,9 +82,13 @@ void AccountBackend::offlineLogin(const QString &username)
         return;
     }
 
-    // Offline mode: always generate UUID from name (never reuse MS identity)
-    m_username = name;
-    m_uuid = generateOfflineUuid(name);
+    // Preserve MS identity (username/UUID) for premium mode if MS session exists
+    bool hasMsSession = !m_msMcToken.isEmpty();
+    if (!hasMsSession) {
+        m_username = name;
+        m_uuid = generateOfflineUuid(name);
+    }
+    // m_isOnline = false ensures offline auth, but MS identity is preserved for premium
     m_loggedIn = true;
     m_isOnline = false;
 
