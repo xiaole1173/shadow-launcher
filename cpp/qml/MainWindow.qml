@@ -673,7 +673,7 @@ Window {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.top: loginSwitch.bottom; anchors.topMargin: 20
                             width: 300
-                            property bool showState: homePage.loggedIn && homePage.backendLoginType === loginMode
+                            property bool showState: homePage.loggedIn && loginMode === 0
                             opacity: showState ? 1 : 0
                             visible: opacity > 0
                             scale: showState ? 1 : 0.85
