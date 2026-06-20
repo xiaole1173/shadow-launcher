@@ -513,15 +513,15 @@ void AccountBackend::downloadOnlineSkin()
 
 void AccountBackend::setFallbackSkin()
 {
-    QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
-    if (QFileInfo::exists(placeholder)) {
-        m_skinPath = toImageUrl(placeholder);
-    }
-    // Also try qrc fallback
-    if (m_skinPath.isEmpty()) {
+    // Use rendered offline Steve head (always exists after initOfflineHeads)
+    QString headPath = m_dataDir + QStringLiteral("/assets/skins/steve_head.png");
+    if (QFileInfo::exists(headPath)) {
+        m_skinPath = toImageUrl(headPath);
+    } else {
+        // Last resort: qrc placeholder
         m_skinPath = QStringLiteral("qrc:/ShadowLauncher/assets/steve.png");
     }
-    m_capePath.clear();  // no cape for fallback
+    m_capePath.clear();
 }
 
 // ────────────────────────────────────────────────────────────
