@@ -231,6 +231,21 @@ void AccountBackend::downloadOnlineSkin()
 
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
         QJsonObject profile = doc.object();
+
+        // Update UUID and username from Mojang profile (fixes offline UUID leak)
+        QString profileUuid = profile[QStringLiteral("id")].toString();
+        QString profileName = profile[QStringLiteral("name")].toString();
+        if (!profileUuid.isEmpty() && !profileName.isEmpty()) {
+            bool changed = (m_uuid != profileUuid || m_username != profileName);
+            m_uuid = profileUuid;
+            m_username = profileName;
+            if (changed) {
+                saveMicrosoftSession();
+                emit accountChanged();
+                qCInfo(logAccount) << "UUID corrected from Mojang:" << profileUuid;
+            }
+        }
+
         QJsonArray skins = profile[QStringLiteral("skins")].toArray();
 
         QString skinUrl;
