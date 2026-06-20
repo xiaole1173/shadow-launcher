@@ -1,4 +1,4 @@
-#include "resource_backend.h"
+﻿#include "resource_backend.h"
 #include "core/mod_manager.h"
 #include "core/http_client.h"
 
@@ -505,9 +505,9 @@ void ResourceBackend::onShaderVersionsLoaded(const QVariantMap& slugToVersions)
 
 int ResourceBackend::downloadModFile(const QString& url, const QString& savePath,
                                       const QString& displayName, qint64 expectedSize,
-                                      const QString& sha1)
+                                      const QString& sha1, int resumeId)
 {
-    return m_modMgr->downloadModFile(url, savePath, displayName, expectedSize, sha1);
+    return m_modMgr->downloadModFile(url, savePath, displayName, expectedSize, sha1, resumeId);
 }
 
 void ResourceBackend::cancelModFileDownload(int downloadId)

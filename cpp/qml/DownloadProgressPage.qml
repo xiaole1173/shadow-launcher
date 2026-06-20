@@ -301,6 +301,15 @@ Rectangle {
                                 onClicked: { backend.pauseModFileDownload(model.dlId); modDownloadModel.setProperty(index, "paused", true) }
                             }
                         }
+                        // Cancel button (active or paused)
+                        Rectangle {
+                            visible: !model.done && !model.error
+                            width: 50; height: 20; radius: 4; color: cancelHov.hovered ? "#3a1818" : "#2a1010"
+                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 9; color: "#c06060" }
+                            MouseArea { id: cancelHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { backend.cancelModFileDownload(model.dlId); modDownloadModel.remove(index) }
+                            }
+                        }
                         // Resume button (paused only)
                         Rectangle {
                             visible: model.paused && !model.done && !model.error

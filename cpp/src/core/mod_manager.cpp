@@ -309,7 +309,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
 
 int ModManager::downloadModFile(const QString& url, const QString& savePath,
                                  const QString& displayName, qint64 expectedSize,
-                                 const QString& sha1)
+                                 const QString& sha1, int resumeId)
 {
     int id = m_nextModDownloadId++;
     ActiveModDownload dl;
@@ -322,7 +322,9 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
     m_activeModDownloads[id] = dl;
 
     emit logMessage(QStringLiteral("📦 开始下载 Mod: %1 → %2").arg(displayName, savePath));
-    emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
+        bool isResume = (resumeId >= 0);
+    if (resumeId >= 0) id = resumeId;
+    if (!isResume) emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
 
     QNetworkReply* reply = HttpClient::instance().downloadWithReply(
         url, savePath,
@@ -426,7 +428,7 @@ void ModManager::resumeModFileDownload(int downloadId)
     QString sha1 = it->sha1;
     int oldId = it->id;
     m_activeModDownloads.erase(it);
-    int newId = downloadModFile(url, savePath, displayName, expectedSize, sha1);
+    int newId = downloadModFile(url, savePath, displayName, expectedSize, sha1, oldId);
     Q_UNUSED(oldId); Q_UNUSED(newId);
 }
 
