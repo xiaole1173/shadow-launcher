@@ -119,10 +119,42 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // ── Signal forwarding: VersionBackend → ShadowBackend ──
     connect(m_version, &VersionBackend::versionListReady,
             this, &ShadowBackend::versionListReady);
+    connect(m_version, &VersionBackend::versionListReady,
+            this, [this]() {
+                QString last = m_settings->lastLaunchedVersion();
+                if (!last.isEmpty() && m_version->versionIds().contains(last)) {
+                    m_version->setSelectedVersion(last);
+                    qCInfo(logLaunch) << "Restored last version:" << last;
+                }
+            });
     connect(m_version, &VersionBackend::installedVersionsChanged,
             this, &ShadowBackend::installedVersionsChanged);
     connect(m_version, &VersionBackend::selectedVersionChanged,
             this, &ShadowBackend::selectedVersionChanged);
+    connect(m_version, &VersionBackend::selectedVersionChanged, this, [this]() {
+        QString vid = m_version->selectedVersion();
+        if (vid.isEmpty()) { m_currentVersionSummary = QStringLiteral("-"); emit currentVersionSummaryChanged(); return; }
+        QString gameDir = getVersionGameDir(vid);
+        qint64 totalSize = 0;
+        if (QDir(gameDir).exists()) {
+            QDirIterator it(gameDir, QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
+        }
+        // Also count versions/{vid}/ files
+        QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + vid;
+        if (QDir(versionDir).exists()) {
+            QDirIterator it(versionDir, QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
+        }
+        // Format
+        if (totalSize < 1024 * 1024)
+            m_currentVersionSummary = QString::number(totalSize / 1024.0, 'f', 1) + QStringLiteral(" KB");
+        else if (totalSize < 1024LL * 1024 * 1024)
+            m_currentVersionSummary = QString::number(totalSize / (1024.0 * 1024), 'f', 1) + QStringLiteral(" MB");
+        else
+            m_currentVersionSummary = QString::number(totalSize / (1024.0 * 1024 * 1024), 'f', 2) + QStringLiteral(" GB");
+        emit currentVersionSummaryChanged();
+    });
     connect(m_version, &VersionBackend::installStateChanged,
             this, &ShadowBackend::installStateChanged);
     connect(m_version, &VersionBackend::installProgressChanged,
@@ -616,6 +648,12 @@ void ShadowBackend::refreshGameDirInfo()
 
             QDirIterator it(versionsDir.filePath(versionId), QDir::Files, QDirIterator::Subdirectories);
             while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
+            // Also count isolated game directory
+            QString gamePath = versionsDir.filePath(versionId + QStringLiteral("/game"));
+            if (QDir(gamePath).exists()) {
+                QDirIterator git(gamePath, QDir::Files, QDirIterator::Subdirectories);
+                while (git.hasNext()) { git.next(); totalSize += git.fileInfo().size(); }
+            }
         }
     }
     info[QStringLiteral("versionCount")] = versionCount;
@@ -813,29 +851,105 @@ int ShadowBackend::diskPercent() const
     return 30;
 }
 
-void ShadowBackend::openGameDir() {
-    m_settings->openGameDir();
+// ── Helper: get the game directory for a given version ID ──
+QString ShadowBackend::gameDirForVersion(const QString& versionId) const {
+    if (versionId.isEmpty()) return m_app->gameDir();
+    return getVersionGameDir(versionId);
 }
 
-void ShadowBackend::openLatestLog() {
-    QString logsDir = m_app->gameDir() + QStringLiteral("/logs");
-    QString latestLog = logsDir + QStringLiteral("/latest.log");
-    QDir().mkpath(logsDir);
+bool ShadowBackend::openGameDir(const QString& versionId) {
+    QString dir = gameDirForVersion(versionId);
+    QDir().mkpath(dir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+    emit logMessage(QStringLiteral("已打开游戏目录") + (versionId.isEmpty() ? QString() : QStringLiteral(" (") + versionId + QStringLiteral(")")));
+    return true;
+}
+
+bool ShadowBackend::openLatestLog(const QString& versionId) {
+    QString gameDir = gameDirForVersion(versionId);
+    QString latestLog = gameDir + QStringLiteral("/logs/latest.log");
     if (QFileInfo::exists(latestLog)) {
         QDesktopServices::openUrl(QUrl::fromLocalFile(latestLog));
         emit logMessage(QStringLiteral("已打开最新日志"));
-    } else {
-        // Open the logs folder if latest.log doesn't exist
-        QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
-        emit logMessage(QStringLiteral("日志文件不存在，已打开日志目录"));
+        return true;
     }
+    return false;
 }
 
-void ShadowBackend::openLogsFolder() {
-    QString logsDir = m_app->gameDir() + QStringLiteral("/logs");
+bool ShadowBackend::openLogsFolder(const QString& versionId) {
+    QString logsDir = gameDirForVersion(versionId) + QStringLiteral("/logs");
     QDir().mkpath(logsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
     emit logMessage(QStringLiteral("已打开日志目录"));
+    return true;
+}
+
+bool ShadowBackend::openCrashLog(const QString& versionId) {
+    QString gameDir = gameDirForVersion(versionId);
+    QString crashDir = gameDir + QStringLiteral("/crash-reports");
+    QDir cd(crashDir);
+    if (cd.exists()) {
+        QStringList filters; filters << QStringLiteral("*.txt");
+        QFileInfoList entries = cd.entryInfoList(filters, QDir::Files, QDir::Time);
+        if (!entries.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(entries.first().absoluteFilePath()));
+            emit logMessage(QStringLiteral("已打开崩溃日志"));
+            return true;
+        }
+    }
+    // Fallback: check versions/{versionId}/game/crash-reports/
+    QString altCrashDir = m_app->gameDir() + QStringLiteral("/versions/") + versionId + QStringLiteral("/game/crash-reports");
+    QDir acd(altCrashDir);
+    if (acd.exists()) {
+        QStringList filters; filters << QStringLiteral("*.txt");
+        QFileInfoList entries = acd.entryInfoList(filters, QDir::Files, QDir::Time);
+        if (!entries.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(entries.first().absoluteFilePath()));
+            emit logMessage(QStringLiteral("已打开崩溃日志 (隔离目录)"));
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ShadowBackend::openSavesFolder(const QString& versionId) {
+    QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
+    QDir().mkpath(savesDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(savesDir));
+    emit logMessage(QStringLiteral("已打开存档文件夹"));
+    return true;
+}
+
+bool ShadowBackend::openScreenshotsFolder(const QString& versionId) {
+    QString screenshotsDir = gameDirForVersion(versionId) + QStringLiteral("/screenshots");
+    QDir().mkpath(screenshotsDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(screenshotsDir));
+    emit logMessage(QStringLiteral("已打开截图文件夹"));
+    return true;
+}
+
+bool ShadowBackend::openModsFolder(const QString& versionId) {
+    QString modsDir = gameDirForVersion(versionId) + QStringLiteral("/mods");
+    QDir().mkpath(modsDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(modsDir));
+    emit logMessage(QStringLiteral("已打开 Mod 文件夹"));
+    return true;
+}
+
+bool ShadowBackend::openResourcePacksFolder(const QString& versionId) {
+    QString rpDir = gameDirForVersion(versionId) + QStringLiteral("/resourcepacks");
+    QDir().mkpath(rpDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(rpDir));
+    emit logMessage(QStringLiteral("已打开资源包文件夹"));
+    return true;
+}
+
+bool ShadowBackend::openShaderPacksFolder(const QString& versionId) {
+    QString spDir = gameDirForVersion(versionId) + QStringLiteral("/shaderpacks");
+    QDir().mkpath(spDir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(spDir));
+    emit logMessage(QStringLiteral("已打开光影包文件夹"));
+    return true;
 }
 
 void ShadowBackend::openVersionDir(const QString& versionId) {
@@ -920,6 +1034,9 @@ void ShadowBackend::launch(const QString& versionId) {
 
     // Determine required Java version from version JSON
     int requiredMajor = requiredJavaMajor(versionId);
+    
+    // Remember last launched version
+    m_settings->setLastLaunchedVersion(versionId);
     
     // Find best matching Java
     QString javaPath = m_settings->findJavaForVersion(requiredMajor);

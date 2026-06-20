@@ -50,13 +50,6 @@ VersionManager::~VersionManager() = default;
 
 void VersionManager::fetchVersions()
 {
-    // 0) If already loaded (cache or previous fetch), emit immediately — no re-parse
-    if (!m_versions.isEmpty()) {
-        qCInfo(logMgr) << "Version list already loaded — emitting immediately (" << m_versions.size() << "versions)";
-        emit versionsReady(m_versions);
-        return;
-    }
-
     // 1) Try cache in background thread — 1000+ version JSON parsing blocks main thread
     qCInfo(logMgr) << "Fetching version list — trying cache first";
     m_cacheLoadFuture = std::async(std::launch::async, [this]() {

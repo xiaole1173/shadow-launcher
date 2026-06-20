@@ -50,7 +50,7 @@ AccountBackend::AccountBackend(QObject *parent)
         emit microsoftLoginSuccess(username, uuid);
         emit accountChanged();
         emit logMessage(QStringLiteral("正版登录成功: %1").arg(username));
-    });
+        downloadSkin(username);
     connect(m_msAuth, &MicrosoftAuth::loginFailed, this, [this](const QString& error) {
         m_msStatus.clear();
         qCWarning(logAccount) << "Microsoft login FAILED:" << error;
@@ -339,6 +339,9 @@ void AccountBackend::loadMicrosoftSession()
 
     if (!m_msRefreshToken.isEmpty()) {
         qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
+        m_loggedIn = true;
+        m_isOnline = true;
+        downloadSkin(m_username);
         QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
     }
 }

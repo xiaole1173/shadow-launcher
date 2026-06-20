@@ -82,7 +82,7 @@ class ShadowBackend : public QObject {
 
     // ── Version details/summary ──
     Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionDetailsReady)
-    Q_PROPERTY(QString currentVersionSummary READ currentVersionSummary CONSTANT)
+    Q_PROPERTY(QString currentVersionSummary READ currentVersionSummary NOTIFY currentVersionSummaryChanged)
 
     // ── Download queue ──
     Q_PROPERTY(QVariantList downloadQueue READ downloadQueue NOTIFY downloadQueueChanged)
@@ -148,7 +148,7 @@ public:
     qint64 installBytesDownloaded() const;
     qint64 installBytesTotal() const;
     QVariantList versionDetails() const { return m_versionDetails; }
-    QString currentVersionSummary() const { return {}; }
+    QString currentVersionSummary() const { return m_currentVersionSummary; }
 
     // ── Download queue ──
     QVariantList downloadQueue() const;
@@ -225,7 +225,15 @@ public:
     Q_INVOKABLE void setIsolationEnabled(bool enabled);
     Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
     Q_INVOKABLE void migrateVersionToIsolated(const QString& versionId);
-    Q_INVOKABLE void openGameDir();
+    Q_INVOKABLE bool openGameDir(const QString& versionId = {});
+    Q_INVOKABLE bool openLatestLog(const QString& versionId = {});
+    Q_INVOKABLE bool openLogsFolder(const QString& versionId = {});
+    Q_INVOKABLE bool openCrashLog(const QString& versionId = {});
+    Q_INVOKABLE bool openSavesFolder(const QString& versionId = {});
+    Q_INVOKABLE bool openScreenshotsFolder(const QString& versionId = {});
+    Q_INVOKABLE bool openModsFolder(const QString& versionId = {});
+    Q_INVOKABLE bool openResourcePacksFolder(const QString& versionId = {});
+    Q_INVOKABLE bool openShaderPacksFolder(const QString& versionId = {});
     Q_INVOKABLE void openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
     Q_INVOKABLE void refreshVersionList();
@@ -291,15 +299,7 @@ public:
     Q_INVOKABLE void deleteResourcePack(const QString&) {}
     Q_INVOKABLE void deleteSave(const QString&) {}
     Q_INVOKABLE void migrateVersion(const QString&) {}
-    Q_INVOKABLE void openConfigFolder() { openGameDir(); }
-    Q_INVOKABLE void openCrashLog() { openGameDir(); }
-    Q_INVOKABLE void openLatestLog();
-    Q_INVOKABLE void openLogsFolder();
-    Q_INVOKABLE void openModsFolder() {}
-    Q_INVOKABLE void openResourcePacksFolder() {}
-    Q_INVOKABLE void openSavesFolder() {}
-    Q_INVOKABLE void openScreenshotsFolder() {}
-    Q_INVOKABLE void openShaderPacksFolder() {}
+    Q_INVOKABLE void openConfigFolder() { openGameDir({}); }
     Q_INVOKABLE void removeGameDir(int) {}
     Q_INVOKABLE void pauseInstall();
     Q_INVOKABLE void resumeInstall();
@@ -329,6 +329,7 @@ signals:
     void versionDetailsReady();
     void installedVersionsChanged();
     void selectedVersionChanged();
+    void currentVersionSummaryChanged();
     void installStateChanged();
     void installProgressChanged();
     void installTotalChanged();
@@ -422,6 +423,7 @@ public:
 
 private:
     int requiredJavaMajor(const QString& versionId);
+    QString gameDirForVersion(const QString& versionId) const;
 
     AppBackend* m_app = nullptr;
     AccountBackend* m_account = nullptr;
@@ -441,6 +443,7 @@ private:
     QString m_gameDir;
     QVariantMap m_gameDirInfo;
     QVariantList m_versionDetails;
+    QString m_currentVersionSummary;
 
     // ── Resource download progress tracking ──
     int m_resourceDlProgress = 0;

@@ -231,7 +231,21 @@ void LaunchBackend::runNextCheck()
 
     switch (m_checkStep) {
     case 0: {
-        // Step 0 (10%): Java environment
+        // Step 0 (5%): Login status
+        emit launchCheckProgress(QStringLiteral("检查登录状态..."));
+        m_launchProgress = 5;
+        emit launchProgressChanged(5, QStringLiteral("检查登录状态..."));
+        qCDebug(logLaunch) << "[PROGRESS] 5% - 检查登录状态...";
+        if (m_authName.isEmpty()) {
+            abortCheck(QStringLiteral("登录状态"),
+                       QStringLiteral("请先登录后再启动游戏"));
+            return;
+        }
+        qCInfo(logLaunch) << "Pre-launch check passed: login status";
+        break;
+    }
+    case 1: {
+        // Step 1 (10%): Java environment
         emit launchCheckProgress(QStringLiteral("检查 Java 环境..."));
         m_launchProgress = 10;
         emit launchProgressChanged(10, QStringLiteral("检查 Java 环境..."));
@@ -251,8 +265,8 @@ void LaunchBackend::runNextCheck()
         qCInfo(logLaunch) << "Pre-launch check passed: Java executable";
         break;
     }
-    case 1: {
-        // Step 1 (30%): Version core files
+    case 2: {
+        // Step 2 (30%): Version core files
         emit launchCheckProgress(QStringLiteral("检查版本文件..."));
         m_launchProgress = 30;
         emit launchProgressChanged(30, QStringLiteral("检查版本文件..."));
@@ -278,8 +292,8 @@ void LaunchBackend::runNextCheck()
         qCInfo(logLaunch) << "Pre-launch check passed: version directory and JAR exist";
         break;
     }
-    case 2: {
-        // Step 2 (50%): Dependencies
+    case 3: {
+        // Step 3 (50%): Dependencies
         emit launchCheckProgress(QStringLiteral("检查依赖文件..."));
         m_launchProgress = 50;
         emit launchProgressChanged(50, QStringLiteral("检查依赖文件..."));
@@ -301,8 +315,8 @@ void LaunchBackend::runNextCheck()
         qCInfo(logLaunch) << "Pre-launch check passed: all library files present";
         break;
     }
-    case 3: {
-        // Step 3 (65%): Memory
+    case 4: {
+        // Step 4 (65%): Memory
         emit launchCheckProgress(QStringLiteral("检查内存分配..."));
         m_launchProgress = 65;
         emit launchProgressChanged(65, QStringLiteral("检查内存分配..."));
@@ -312,8 +326,8 @@ void LaunchBackend::runNextCheck()
         qCInfo(logLaunch) << "Pre-launch checks all passed — starting Minecraft";
         break;
     }
-    case 4: {
-        // Step 4 (75%): Launch
+    case 5: {
+        // Step 5 (75%): Launch
         m_checkTimer->stop();
         emit launchCheckProgress(QStringLiteral("正在启动..."));
         m_launchProgress = 75;

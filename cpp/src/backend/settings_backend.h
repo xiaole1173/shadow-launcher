@@ -31,6 +31,11 @@ public:
     int minMemoryMB() const { return m_minMemoryMB; }
     int maxMemoryMB() const { return m_maxMemoryMB; }
     bool closeAfterLaunch() const { return m_closeAfterLaunch; }
+    QString lastLaunchedVersion() const { return m_lastLaunchedVersion; }
+    void setLastLaunchedVersion(const QString& v) {
+        m_lastLaunchedVersion = v;
+        saveSettings();
+    }
     bool isJavaReady() const { return m_javaReady; }
 
     void setJavaPath(const QString& path);
@@ -94,6 +99,7 @@ private:
     int m_minMemoryMB = 512;
     int m_maxMemoryMB = 2048;
     bool m_closeAfterLaunch = false;
+    QString m_lastLaunchedVersion;
     bool m_javaReady = false;
     QString m_gameDir;
     VersionIsolation* m_isolation = nullptr;

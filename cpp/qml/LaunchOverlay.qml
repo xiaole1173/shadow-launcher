@@ -372,7 +372,7 @@ Rectangle {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (backend) backend.openLatestLog()
+                        if (backend) backend.openLatestLog(versionId)
                     }
                 }
             }
