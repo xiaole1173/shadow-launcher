@@ -215,17 +215,11 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     bool hat = (tH >= 32);
     float pad = 0.30f;
 
-    const float CAM_DIST = 100.0f;  // far camera → subtle perspective
-    // Center face in frame: project (0,0,4) and compute offsets dynamically
-    float crx=0*cosYf-4*sinYf, crz=0*sinYf+4*cosYf, cdz=crz+CAM_DIST;
-    float OFFX = (float)SZ*0.5f - crx/cdz*CAM_DIST*SC;
-    float OFFY = (float)SZ*0.5f - HW/cdz*CAM_DIST*SC;
+    // Orthographic projection — no perspective, edge-on faces invisible
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
         float rx=x*cosYf-z*sinYf, rz=x*sinYf+z*cosYf, ry2=y*cosPf-rz*sinPf;
         dep=y*sinPf+rz*cosPf;
-        float dz = rz + CAM_DIST; if (dz<0.5f) dz=0.5f;
-        sx = (rx/dz) * CAM_DIST * SC + OFFX;
-        sy = ((HW-ry2)/dz) * CAM_DIST * SC + OFFY;
+        sx=(rx+HW)*SC+OFF; sy=(HW-ry2)*SC+OFF;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep, br; bool ht; };
@@ -251,14 +245,11 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
 
     // Head inner faces
     {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,-HW,-HW},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,8,0,16,8,false,faceBright(0,-1,0));}
-    {const float X[4]={HW,HW,HW,HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,0,8,8,16,false,faceBright(1,0,0));}
     {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,HW,HW,HW};emitQuad(X,Y,Z,8,8,16,16,false,faceBright(0,0,1));}
     // Hat outer faces — works for both 64x32 and 64x64 (alpha<64 filter)
     if(hat){
         {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,40,0,48,8,true,faceBright(0,-1,0));}
-        {const float X[4]={HW+pad,HW+pad,HW+pad,HW+pad},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,32,8,40,16,true,faceBright(1,0,0));}
-    {const float X[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Y[4]={-HW,-HW,HW,HW},Z[4]={-HW,HW,HW,-HW};emitQuad(X,Y,Z,48,8,56,16,true,faceBright(-1,0,0));}
-        {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW+pad,HW+pad,HW+pad,HW+pad};emitQuad(X,Y,Z,40,8,48,16,true,faceBright(0,0,1));}
+            {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW+pad,HW+pad,HW+pad,HW+pad};emitQuad(X,Y,Z,40,8,48,16,true,faceBright(0,0,1));}
     }
 
     std::sort(tri,tri+tc,[](const Tri&a,const Tri&b){return a.dep<b.dep;});
