@@ -214,7 +214,7 @@ Rectangle {
                 console.log("[progress] mod dl started:", dlId, displayName)
                 modDownloadModel.append({dlId: dlId, name: displayName, fileName: fileName,
                     received: 0, total: fileSize, done: false, error: "", speed: 0, paused: false,
-                    lastBytes: 0, lastTime: Date.now()})
+                    reconnecting: false, lastBytes: 0, lastTime: Date.now()})
             }
             function onModFileDownloadProgress(dlId, received, total) {
                 for (var i = 0; i < modDownloadModel.count; i++) {
@@ -230,6 +230,7 @@ Rectangle {
                         }
                         modDownloadModel.setProperty(i, "received", received)
                         modDownloadModel.setProperty(i, "total", total)
+                        modDownloadModel.setProperty(i, "reconnecting", false)
                         return
                     }
                 }
@@ -295,6 +296,7 @@ Rectangle {
                             MouseArea { id: resumeBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                                     modDownloadModel.setProperty(index, "paused", false)
+                                                    modDownloadModel.setProperty(index, "reconnecting", true)
                                                     backend.resumeModFileDownload(model.dlId)
                                                 }
                             }
@@ -332,6 +334,13 @@ Rectangle {
                     Text {
                         visible: model.paused; color: "#c0a030"; font.pixelSize: 10
                         text: "⏸ 已暂停 — " + fmtSize(model.received) + " / " + fmtSize(model.total)
+                    }
+                    Text {
+                        visible: model.reconnecting; color: "#50a0d0"; font.pixelSize: 10
+                        text: `↻ 重连中...`
+                        NumberAnimation on opacity {
+                            from: 0.4; to: 1.0; duration: 600; loops: Animation.Infinite; easing.type: Easing.InOutSine
+                        }
                     }
                     Text {
                         visible: model.total > 0
