@@ -39,6 +39,7 @@ public:
     Q_INVOKABLE void offlineLogin(const QString &username);
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
+    Q_INVOKABLE void updateOfflineSkin(const QString &username);
     Q_INVOKABLE void logout();
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
 
@@ -73,6 +74,7 @@ private:
     QString generateOfflineUuid(const QString &username) const;
     QString skinCachePath(const QString &username) const;
     QString capeCachePath(const QString &username) const;
+    void initOfflineHeads();
 
     // Microsoft login state
     MicrosoftAuth* m_msAuth = nullptr;

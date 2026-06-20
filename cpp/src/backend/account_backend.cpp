@@ -38,6 +38,9 @@ AccountBackend::AccountBackend(QObject *parent)
     loadOfflineHistory();
     loadMicrosoftSession();
 
+    // Pre-render Steve and Alex offline heads (once, persistent)
+    initOfflineHeads();
+
     // ── MicrosoftAuth ──
     m_msAuth = new MicrosoftAuth(this);
     connect(m_msAuth, &MicrosoftAuth::loginProgress, this, [this](const QString& step, const QString& detail) {
@@ -102,6 +105,78 @@ void AccountBackend::offlineLogin(const QString &username)
     emit logMessage(QStringLiteral("离线登录: %1").arg(name));
 
     downloadSkin(name);
+}
+
+// ────────────────────────────────────────────────────────────
+// Update Offline Skin (real-time avatar preview by UUID hash)
+// ────────────────────────────────────────────────────────────
+
+void AccountBackend::updateOfflineSkin(const QString &username)
+{
+    QString name = username.trimmed();
+    if (name.isEmpty()) {
+        setFallbackSkin();
+        emit skinReady();
+        return;
+    }
+
+    // Generate offline UUID → hash LSB determines Steve/Alex
+    QByteArray input = QStringLiteral("OfflinePlayer:").toUtf8() + name.toUtf8();
+    QByteArray hash = QCryptographicHash::hash(input, QCryptographicHash::Md5);
+    bool isAlex = (static_cast<unsigned char>(hash[0]) & 1) == 1;
+
+    QString modelName = isAlex ? QStringLiteral("alex") : QStringLiteral("steve");
+    QString headPath = m_dataDir + QStringLiteral("/assets/skins/") + modelName + QStringLiteral("_head.png");
+
+    if (!QFileInfo::exists(headPath)) {
+        qCWarning(logAccount) << "Offline head not rendered:" << headPath;
+        setFallbackSkin();
+        emit skinReady();
+        return;
+    }
+
+    m_skinPath = toImageUrl(headPath);
+    emit skinReady();
+    qCInfo(logAccount) << "Offline skin preview:" << name << "→" << modelName << "(hash[0]&1=" << (hash[0] & 1) << ")";
+}
+
+// ────────────────────────────────────────────────────────────
+// Init Offline Heads — pre-render Steve & Alex heads once
+// ────────────────────────────────────────────────────────────
+
+void AccountBackend::initOfflineHeads()
+{
+    const QString skinsDir = QStringLiteral("D:/MC_Project/shadow-launcher/skins");
+    QStringList models = {QStringLiteral("steve"), QStringLiteral("alex")};
+
+    for (const QString& model : models) {
+        QString headPath = m_dataDir + QStringLiteral("/assets/skins/") + model + QStringLiteral("_head.png");
+        if (QFileInfo::exists(headPath)) {
+            qCInfo(logAccount) << "Offline head already cached:" << model;
+            continue;
+        }
+
+        QString skinSource = skinsDir + QStringLiteral("/") + model + QStringLiteral(".png");
+        if (!QFileInfo::exists(skinSource)) {
+            qCWarning(logAccount) << "Skin source not found:" << skinSource;
+            continue;
+        }
+
+        QString rendered = renderHead3D(skinSource);
+        if (rendered.isEmpty()) {
+            qCWarning(logAccount) << "Failed to render head for:" << model;
+            continue;
+        }
+
+        if (QFile::rename(rendered, headPath)) {
+            qCInfo(logAccount) << "Offline head rendered + saved:" << headPath;
+        } else {
+            // fallback: copy + delete
+            QFile::copy(rendered, headPath);
+            QFile::remove(rendered);
+            qCInfo(logAccount) << "Offline head copied:" << headPath;
+        }
+    }
 }
 
 // ────────────────────────────────────────────────────────────

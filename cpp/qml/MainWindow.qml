@@ -548,7 +548,7 @@ Window {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.top: loginSwitch.bottom; anchors.topMargin: 20
                             width: 300
-                            property bool showForm: loginMode === 1 && !(homePage.loggedIn && homePage.backendLoginType === 1)
+                            property bool showForm: loginMode === 1
                             opacity: showForm ? 1 : 0
                             visible: opacity > 0
                             scale: showForm ? 1 : 0.9
@@ -557,7 +557,16 @@ Window {
                             Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
                             height: childrenRect.height; color: "transparent"
                             ColumnLayout {
-                                width: parent.width; spacing: 12
+                                anchors.horizontalCenter: parent.horizontalCenter; spacing: 12
+
+                                // Avatar (updates in real-time as name changes)
+                                MinecraftHead2D {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    width: 48; height: 48
+                                    skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
+                                }
+
+                                // Name input
                                 Rectangle {
                                     Layout.fillWidth: true; height: 40; radius: 7
                                     color: "#11141c"; border.color: "#1e2230"
@@ -566,6 +575,9 @@ Window {
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
                                         color: "#e4e8f2"; font.pixelSize: 13
                                         verticalAlignment: TextInput.AlignVCenter
+                                        onTextChanged: {
+                                            if (backend) backend.updateOfflineSkin(text)
+                                        }
                                     }
                                     Text {
                                         anchors.left: parent.left; anchors.leftMargin: 12
@@ -573,21 +585,6 @@ Window {
                                         text: "输入用户名"; color: "#a8b0c0"
                                         font.pixelSize: 13
                                         visible: !offlineNameInput.text
-                                    }
-                                }
-                                Rectangle {
-                                    Layout.alignment: Qt.AlignHCenter; width: 100; height: 36; radius: 7
-                                    color: "#3a4eb8"
-                                    Text { anchors.centerIn: parent; text: "登录"; color: "#e8ecf8"; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            if (backend) {
-                                                var name = offlineNameInput.text.trim() || "Player"
-                                                backend.offlineLogin(name)
-                                                addOfflineHistory(name)
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -609,26 +606,13 @@ Window {
                             ColumnLayout {
                                 anchors.horizontalCenter: parent.horizontalCenter; spacing: 8
 
-                                // Avatar + Name (with cape)
+                                // Avatar + Name
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 10
-                                    ColumnLayout {
-                                        spacing: 2
+                                    MinecraftHead2D {
                                         Layout.alignment: Qt.AlignVCenter
-                                        MinecraftHead2D {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            width: 48; height: 48
-                                            skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
-                                        }
-                                        // Cape indicator (below head)
-                                        Image {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            visible: backend && backend.capePath !== ""
-                                            source: (backend && backend.capePath) ? backend.capePath : ""
-                                            width: 32; height: 20
-                                            fillMode: Image.PreserveAspectFit
-                                            smooth: false
-                                        }
+                                        width: 48; height: 48
+                                        skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
                                     }
                                     Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
                                 }
@@ -689,6 +673,11 @@ Window {
                                             if (!currentSelectedVersion) {
                                                 toastManager.show("请先选择版本")
                                                 return
+                                            }
+                                            // Offline mode: auto-login with entered name
+                                            if (loginMode === 1 && !homePage.loggedIn) {
+                                                var name = offlineNameInput.text.trim() || "Player"
+                                                backend.offlineLogin(name)
                                             }
                                             if (!backend.username) {
                                                 toastManager.show("请先登录账号")
