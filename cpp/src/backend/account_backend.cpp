@@ -210,8 +210,8 @@ QString AccountBackend::cropFaceTexture(const QString& skinPath)
         }
     }
 
-    // Scale up to 64×64 for a crisp avatar
-    QImage avatar = head.scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    // Scale up to 64×64 using nearest-neighbour (preserves pixel-art sharpness)
+    QImage avatar = head.scaled(64, 64, Qt::KeepAspectRatio, Qt::FastTransformation);
 
     QString facePath = skinPath.left(skinPath.length() - 4) + QStringLiteral("_face.png");
     if (avatar.save(facePath, "PNG")) {
