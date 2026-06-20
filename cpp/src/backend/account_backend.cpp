@@ -199,7 +199,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     constexpr int  SZ = 64 * SS;
     constexpr float HW = 4.0f;
     constexpr float DEG = 0.01745329252f;
-    const float yr = 18.0f*DEG, pr = 0.0f;
+    const float yr = 0.0f*DEG, pr = 0.0f;  // pure front view
     const float cosYf=cosf(yr),sinYf=sinf(yr), cosPf=cosf(pr),sinPf=sinf(pr);
     const float SC = (float)SZ / 12.0f;
     const float OFF = (SZ - SC*8.0f) * 0.5f;
