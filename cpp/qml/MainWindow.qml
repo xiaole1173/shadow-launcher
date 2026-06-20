@@ -426,7 +426,7 @@ Window {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.top: loginSwitch.bottom; anchors.topMargin: 20
                             width: 300
-                            property bool showForm: loginMode === 0 && !(homePage.loggedIn && homePage.backendLoginType === 0)
+                            property bool showForm: loginMode === 0 && !homePage.loggedIn
                             opacity: showForm ? 1 : 0
                             visible: opacity > 0
                             scale: showForm ? 1 : 0.9
