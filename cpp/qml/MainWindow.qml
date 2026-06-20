@@ -752,23 +752,17 @@ Window {
                                                 toastManager.show("请先选择版本")
                                                 return
                                             }
-                                            // Offline mode: auto-login with entered name
-                                            if (loginMode === 1 && !homePage.loggedIn) {
+                                            // Offline mode: auto-login with name if needed
+                                            if (loginMode === 1 && !backend.offlineUsername) {
                                                 var name = offlineNameInput.text.trim() || "Player"
                                                 backend.offlineLogin(name)
                                             }
-                                            if (!backend.username) {
+                                            // Check correct login based on mode
+                                            if (loginMode === 0 && !backend.username) {
                                                 toastManager.show("请先完成正版登录")
                                                 return
                                             }
-                                            backend.launch(currentSelectedVersion)
-                                        }
-                                    }
-
-                                    // Offline/passthrough: click text itself launches
-                                    onClicked: {
-                                        if (loginMode === 1) {
-                                            if (!backend.offlineUsername) {
+                                            if (loginMode === 1 && !backend.offlineUsername) {
                                                 toastManager.show("请先输入用户名")
                                                 return
                                             }
