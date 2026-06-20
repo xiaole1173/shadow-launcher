@@ -158,7 +158,7 @@ void MicrosoftAuth::startLogin(const QString& clientId)
         return;
     }
 
-    m_localRedirectUri = QStringLiteral("http://127.0.0.1:%1").arg(port);
+    m_localRedirectUri = QStringLiteral("http://localhost:%1").arg(port);
     qCInfo(logApp) << "[MSA] Server listening:" << m_localRedirectUri;
 
     QString url = QStringLiteral("%1"
