@@ -755,19 +755,9 @@ bool Launcher::evaluateRule(const QJsonObject& rule)
         if (!osMatch) return false;
     }
 
-    // Check feature constraints — we are NOT a demo/realm/quickPlay user
-    if (rule.contains(QStringLiteral("features"))) {
-        QJsonObject features = rule[QStringLiteral("features")].toObject();
-        if (features.contains(QStringLiteral("is_demo_user")))
-            return false;  // normal user is not demo
-        if (features.contains(QStringLiteral("has_custom_resolution")))
-            return false;
-        if (features.contains(QStringLiteral("is_quick_play_singleplayer")))
-            return false;
-        if (features.contains(QStringLiteral("is_quick_play_multiplayer")))
-            return false;
-        if (features.contains(QStringLiteral("is_quick_play_realms")))
-            return false;
+    // Check feature constraints — normal user has ZERO special features
+    if (rule.contains(QStringLiteral("features")) && !rule[QStringLiteral("features")].toObject().isEmpty()) {
+        return false;  // any unknown feature → not a match for normal user
     }
 
     return (action == QStringLiteral("allow"));
