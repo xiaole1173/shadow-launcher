@@ -12,8 +12,8 @@
 
 namespace ShadowLauncher {
 
-static const char* kDeviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode";
-static const char* kTokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+static const char* kDeviceCodeUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
+static const char* kTokenUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
 static const char* kXblAuthUrl = "https://user.auth.xboxlive.com/user/authenticate";
 static const char* kXstsAuthUrl = "https://xsts.auth.xboxlive.com/xsts/authorize";
 static const char* kMcAuthUrl = "https://api.minecraftservices.com/authentication/login_with_xbox";
@@ -68,8 +68,13 @@ void MicrosoftAuth::requestDeviceCode(const QString& clientId)
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            qCWarning(logApp) << "[MSA] Device code request failed:" << reply->errorString();
-            emit loginFailed(QStringLiteral("无法连接 Microsoft 服务器: %1").arg(reply->errorString()));
+            QByteArray respBody = reply->readAll();
+            qCWarning(logApp) << "[MSA] Device code request failed:" << reply->errorString()
+                             << "status:" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
+                             << "body:" << respBody.left(500);
+            emit loginFailed(QStringLiteral("无法连接 Microsoft 服务器: %1 (HTTP %2)")
+                                 .arg(reply->errorString())
+                                 .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()));
             return;
         }
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
