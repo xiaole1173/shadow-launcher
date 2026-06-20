@@ -1121,6 +1121,8 @@ ColumnLayout {
                                 id: ldrMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 3; width: 95; height: 190; padding: 2
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
+                                property var opts: loaderOpts
+                                property var rp: rootPage
 
                                 ColumnLayout {
                                     anchors.left: parent.left; anchors.right: parent.right
@@ -1171,6 +1173,7 @@ ColumnLayout {
                             Popup {
                                 id: verMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 3; width: 120; height: 200; padding: 0
+                                property var rp: rootPage
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
@@ -1243,6 +1246,8 @@ ColumnLayout {
                             Popup {
                                 id: catMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 3; width: 140; height: 300; padding: 0
+                                property var opts: catOpts
+                                property var rp: rootPage
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
@@ -1315,6 +1320,8 @@ ColumnLayout {
                             Popup {
                                 id: envMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 3; width: 110; height: 120; padding: 2
+                                property var opts: envOpts
+                                property var rp: rootPage
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 ColumnLayout {
