@@ -407,14 +407,20 @@ void AccountBackend::downloadSkin(const QString &username)
 
 void AccountBackend::downloadOnlineSkin()
 {
-    qCInfo(logAccount) << "Skin: fetching from Mojang API...";
+    m_skinGeneration++;
+    int gen = m_skinGeneration;
+    qCInfo(logAccount) << "Skin: fetching from Mojang API... [gen=" << gen << "]";
     QNetworkRequest req(QUrl(QStringLiteral("https://api.minecraftservices.com/minecraft/profile")));
     req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(m_msMcToken).toUtf8());
 
     QNetworkReply* reply = HttpClient::instance().getRaw(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, gen]() {
         reply->deleteLater();
 
+        if (gen != m_skinGeneration) {
+            qCInfo(logAccount) << "Online skin cancelled (offline skin superseded) [gen=" << gen << ", now=" << m_skinGeneration << "]";
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError) {
             qCWarning(logAccount) << "Mojang profile fetch failed:" << reply->errorString();
             setFallbackSkin();
@@ -493,13 +499,11 @@ void AccountBackend::downloadOnlineSkin()
         }
 
         qCInfo(logAccount) << "Downloading skin from Mojang CDN:" << skinUrl;
-        m_skinGeneration++;  // compared in callback
-        int skinGen = m_skinGeneration;
         QNetworkRequest skinReq(skinUrl);
         QNetworkReply* skinReply = HttpClient::instance().getRaw(skinReq);
-        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply, skinGen]() {
+        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply, gen]() {
             skinReply->deleteLater();
-            if (skinGen != m_skinGeneration) {
+            if (gen != m_skinGeneration) {
                 qCInfo(logAccount) << "Online skin finished, but offline skin was set after — discarding";
                 return;
             }
@@ -665,13 +669,12 @@ void AccountBackend::refreshMicrosoftToken()
         m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString(m_msRefreshToken);
         qCInfo(logAccount) << "Microsoft token refreshed!";
 
-        // Auto-login with refreshed token
+        // Auto-login with refreshed token (skin already downloaded from loadMicrosoftSession)
         m_loggedIn = true;
         m_isOnline = true;
         saveMicrosoftSession();
         emit accountChanged();
         emit logMessage(QStringLiteral("已自动登录: %1").arg(m_username));
-        downloadSkin(m_username);
     });
 }
 
