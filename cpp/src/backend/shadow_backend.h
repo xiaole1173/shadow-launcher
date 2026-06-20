@@ -260,7 +260,7 @@ public:
 
     // Mod file download
     Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
-                                    qint64 expectedSize, const QString& sha1, qint64 receivedOffset = 0);
+                                    qint64 expectedSize, const QString& sha1, qint64 receivedOffset = 0, int resumeId = -1);
     Q_INVOKABLE void cancelModFileDownload(int downloadId);
     Q_INVOKABLE void pauseModFileDownload(int downloadId);
     Q_INVOKABLE void resumeModFileDownload(int downloadId);

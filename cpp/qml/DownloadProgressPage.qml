@@ -295,7 +295,6 @@ Rectangle {
                             MouseArea { id: resumeBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                                     modDownloadModel.setProperty(index, "paused", false)
-                                                    modDownloadModel.setProperty(index, "done", false)
                                                     backend.resumeModFileDownload(model.dlId)
                                                 }
                             }
@@ -325,10 +324,14 @@ Rectangle {
                         visible: !(model.done && model.error)
                         Rectangle {
                             height: 6; radius: 3
-                            color: model.done ? "#4bc870" : "#5068c8"
+                            color: model.paused ? "#c0a030" : (model.done ? "#4bc870" : "#5068c8")
                             width: model.total > 0 ? parent.width * (model.received / model.total) : 0
                             Behavior on width { NumberAnimation { duration: 200 } }
                         }
+                    }
+                    Text {
+                        visible: model.paused; color: "#c0a030"; font.pixelSize: 10
+                        text: "⏸ 已暂停 — " + fmtSize(model.received) + " / " + fmtSize(model.total)
                     }
                     Text {
                         visible: model.total > 0

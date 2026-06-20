@@ -309,9 +309,9 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
 
 int ModManager::downloadModFile(const QString& url, const QString& savePath,
                                  const QString& displayName, qint64 expectedSize,
-                                 const QString& sha1, qint64 receivedOffset)
+                                 const QString& sha1, qint64 receivedOffset, int resumeId)
 {
-    int id = m_nextModDownloadId++;
+    int id = (resumeId >= 0) ? resumeId : m_nextModDownloadId++;
     ActiveModDownload dl;
     dl.id = id;
     dl.url = url;
@@ -322,12 +322,14 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
     m_activeModDownloads[id] = dl;
 
     emit logMessage(QStringLiteral("📦 开始下载 Mod: %1 → %2").arg(displayName, savePath));
-    emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
+    if (resumeId < 0) {
+        emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
+    }
 
-    qint64 resumeFrom = receivedOffset;
+    qint64 offset = receivedOffset;
     QNetworkReply* reply = HttpClient::instance().downloadWithReply(
         url, savePath,
-        [this, id, resumeFrom](qint64 received, qint64 total) {
+        [this, id, offset](qint64 received, qint64 total) {
             auto it = m_activeModDownloads.find(id);
             if (it == m_activeModDownloads.end() || it->cancelled || it->finished || it->paused) return;
             it->received = received;
@@ -338,6 +340,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
             if (it == m_activeModDownloads.end()) return;
             if (it->cancelled) {
                 QFile::remove(savePath);
+                QFile::remove(savePath + ".tmp");
                 m_activeModDownloads.erase(it);
                 return;
             }
@@ -371,6 +374,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
                 emit modFileDownloadFinished(id, true, savePath, displayName);
             } else {
                 QFile::remove(savePath);
+                QFile::remove(savePath + ".tmp");
                 QString errDetail = error.isEmpty()
                     ? QStringLiteral("网络连接失败，请检查网络后重试")
                     : QStringLiteral("下载错误: %1").arg(error);
@@ -379,12 +383,13 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
                 it->errorDetail = errDetail;
                 emit modFileDownloadFailed(id, errDetail, displayName);
             }
-        }
-    , resumeFrom);
+        },
+        offset
+    );
 
     if (reply) {
-        auto it = m_activeModDownloads.find(id);
-        if (it != m_activeModDownloads.end()) it->reply = reply;
+        auto it2 = m_activeModDownloads.find(id);
+        if (it2 != m_activeModDownloads.end()) it2->reply = reply;
     }
     return id;
 }
@@ -399,39 +404,38 @@ void ModManager::cancelModFileDownload(int downloadId)
         it->reply = nullptr;
     }
     QFile::remove(it->savePath);
+    QFile::remove(it->savePath + ".tmp");
     emit logMessage(QStringLiteral("🚫 已取消 Mod 下载: %1").arg(it->displayName));
 }
 
 void ModManager::pauseModFileDownload(int downloadId)
-{    auto it = m_activeModDownloads.find(downloadId);
-    if (it == m_activeModDownloads.end() || it->finished || it->failed) {        return;
-    }    it->paused = true;
+{
+    auto it = m_activeModDownloads.find(downloadId);
+    if (it == m_activeModDownloads.end() || it->finished || it->failed) return;
+    it->paused = true;
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
     }
-    emit logMessage(QStringLiteral("⏸ 已暂停 Mod 下载: %1").arg(it->displayName));
-    if (it->reply) {
-        HttpClient::instance().abortDownload(it->reply);
-        it->reply = nullptr;
-    }
-    // Keep .tmp file and entry for resume
-    emit logMessage(QStringLiteral("\u23f8 已暂停 Mod 下载: %1 (%2/%3)").arg(it->displayName).arg(it->received).arg(it->expectedSize));
+    emit logMessage(QStringLiteral("⏸ 已暂停 Mod 下载: %1 (%2/%3)")
+        .arg(it->displayName).arg(it->received).arg(it->expectedSize));
     emit modFileDownloadProgress(downloadId, it->received, it->expectedSize);
 }
 
 void ModManager::resumeModFileDownload(int downloadId)
-{    auto it = m_activeModDownloads.find(downloadId);
-    if (it == m_activeModDownloads.end() || !it->paused) {        return;
-    }    emit logMessage(QStringLiteral("▶ 继续 Mod 下载: %1").arg(it->displayName));
+{
+    auto it = m_activeModDownloads.find(downloadId);
+    if (it == m_activeModDownloads.end() || !it->paused) return;
+    emit logMessage(QStringLiteral("▶ 继续 Mod 下载: %1").arg(it->displayName));
     QString url = it->url;
     QString savePath = it->savePath;
     QString displayName = it->displayName;
     qint64 expectedSize = it->expectedSize;
     QString sha1 = it->sha1;
+    qint64 received = it->received;
     int oldId = it->id;
-    qint64 offset = it->received;
-    downloadModFile(url, savePath, displayName, expectedSize, sha1, offset);
+    m_activeModDownloads.erase(it);
+    downloadModFile(url, savePath, displayName, expectedSize, sha1, received, oldId);
 }
 
 void ModManager::retryModFileDownload(int downloadId)
