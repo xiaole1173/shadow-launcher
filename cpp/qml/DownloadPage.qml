@@ -42,11 +42,26 @@ Rectangle {
     }
     property string complianceNotice: ""  // BMCLAPI 协议合规文案
 
+    // ListModels (must be before usage)
+    ListModel { id: modResultsModel }
+    ListModel { id: shaderResultsModel }
+    ListModel { id: rpResultsModel }
+    property bool shaderResultsReady: false
+
     // Mod state
     property string modSearchQuery: ""
     property string modLoader: "fabric"
     property var modSearchResults: []
     property bool modResultsReady: false
+
+    // Mod pagination & search state
+    property bool modSearching: false
+    property bool modHasMore: false
+    property bool modLoadingMore: false
+    property int modTotalHits: 0
+    property int modCurrentOffset: 0
+    property string modGameVersion: ""
+    property var modDownloadingSlugs: ({})
 
     // Install state
     property bool installingVersion: false
@@ -100,8 +115,30 @@ Rectangle {
     property var shaderVersionCache: ({})
     property var shaderVersionDetailCache: ({})
     property int shaderVersionCacheVersion: 0
+
+    // Shader pagination & search state
+    property bool shaderSearching: false
+    property bool shaderHasMore: false
+    property bool shaderLoadingMore: false
+    property int shaderTotalHits: 0
+    property int shaderCurrentOffset: 0
+    property string shaderGameVersion: ""
+    property var shaderDownloadingSlugs: ({})
+
     property bool rpHasMore: true
     property int rpTotalHits: 0
+
+    // RP detail page state (must be before detail page bindings)
+    property string rpDetailSlug: ""
+    property string rpDetailTitle: ""
+    property string rpDetailIconUrl: ""
+    property string rpDetailAuthor: ""
+    property string rpDetailDesc: ""
+    property int rpDetailDownloads: 0
+    property string rpDetailUpdated: ""
+    property string installingRpName: ""
+    property var rpVersionCache: ({})
+    property var rpVersionDetailCache: ({})
 
     // Fresh search (reset page + clear)
     function loadRpFirstPage() {
@@ -191,14 +228,18 @@ Rectangle {
     function loadModResults() { loadModFirstPage() }
     function loadShaderResults() { loadShaderFirstPage() }
 
-    property bool shaderResultsReady: false
-
     onCurrentTabChanged: {
         console.log("[RP-DEBUG] onCurrentTabChanged tab=", currentTab, "rpReady=", rpResultsReady)
         if (currentTab === 0) refreshVersionModel()
         if (currentTab === 1 && !modResultsReady) { loadModResults(); modResultsReady = true }
         if (currentTab === 2 && !shaderResultsReady) { loadShaderResults(); shaderResultsReady = true }
         if (currentTab === 3 && !rpResultsReady) { loadResourcepackResults(); rpResultsReady = true }
+
+        // Control all tab visibility
+        tab0Item.visible = (currentTab === 0)
+        tab1Item.visible = (currentTab === 1)
+        shaderTabItem.visible = (currentTab === 2)
+        rpTabItem.visible = (currentTab === 3)
     }
 
     // ──── Animations ────
@@ -432,12 +473,12 @@ Rectangle {
     // TAB 0: MC 版本下载
     // ════════════════════════════════════════════
     Item {
+        id: tab0Item
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        visible: page.currentTab === 0
 
         // ── Filter pills ──
         RowLayout {
@@ -939,12 +980,12 @@ Rectangle {
     // TAB 1: Mod 下载
     // ════════════════════════════════════════════
     Item {
+        id: tab1Item
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        visible: page.currentTab === 1
 
         ColumnLayout {
             anchors.fill: parent
@@ -1392,12 +1433,13 @@ Rectangle {
     // TAB 2: 光影
     // ════════════════════════════════════════════
     Item {
+        id: shaderTabItem
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        visible: page.currentTab === 2
+        visible: currentTab === 2
 
         ColumnLayout {
             anchors.fill: parent
@@ -1773,12 +1815,12 @@ Rectangle {
     // TAB 3: 资源包
     // ════════════════════════════════════════════
     Item {
+        id: rpTabItem
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        visible: page.currentTab === 3
 
         ColumnLayout {
             anchors.fill: parent
@@ -3101,42 +3143,8 @@ Rectangle {
     }
 
     // ════════════════════════════════════════════
-    // Shared state (stands outside Item scope)
-    // ════════════════════════════════════════════
-    ListModel { id: modResultsModel }
-    ListModel { id: shaderResultsModel }
-    ListModel { id: rpResultsModel }
-
-    // Mod & Shader state
-    property bool modSearching: false
-    property var modDownloadingSlugs: ({})
-    property bool shaderSearching: false
-    property var shaderDownloadingSlugs: ({})
-
-    // Mod pagination
-    property bool modHasMore: false
-    property bool modLoadingMore: false
-    property int modTotalHits: 0
-    property int modCurrentOffset: 0
-    property string modGameVersion: ""
-    // Shader pagination
-    property bool shaderHasMore: false
-    property bool shaderLoadingMore: false
-    property int shaderTotalHits: 0
-    property int shaderCurrentOffset: 0
-    property string shaderGameVersion: ""
-
-    property string rpDetailSlug: ""
-    property string rpDetailTitle: ""
-    property string rpDetailIconUrl: ""
-    property string rpDetailAuthor: ""
-    property string rpDetailDesc: ""
-    property int rpDetailDownloads: 0
-    property string rpDetailUpdated: ""
-    property string installingRpName: ""
-    property var rpVersionCache: ({})
-    property var rpVersionDetailCache: ({})  // { slug: { "1.21.11": {version_number,name,downloads,...} } }
-
+    // RP signal handlers & detail functions
+    // 
     Connections {
         target: backend
 
@@ -3332,18 +3340,21 @@ Rectangle {
     }
 
     // Show detail when slug is set (triggers version fetch)
-    onRpDetailSlugChanged: {
-        console.log("[RP-DEBUG] rpDetailSlugChanged ->", rpDetailSlug)
-        if (rpSourceMenu) rpSourceMenu.close()
-        if (rpVersionMenu) rpVersionMenu.close()
-        if (rpCatMenu) rpCatMenu.close()
-        if (rpFeatMenu) rpFeatMenu.close()
-        if (rpResMenu) rpResMenu.close()
-        rpDetailPage.rpDetailExpanded = []
-        rpDetailPage.rpDetailSelectedVer = ""
-        if (rpDetailSlug && backend) {
-            backend.fetchResourcepackVersions([rpDetailSlug])
-            console.log("[RP-DEBUG] detail fetch versions for", rpDetailSlug)
+    Connections {
+        target: page
+        function onRpDetailSlugChanged() {
+            console.log("[RP-DEBUG] rpDetailSlugChanged ->", page.rpDetailSlug)
+            if (rpSourceMenu) rpSourceMenu.close()
+            if (rpVersionMenu) rpVersionMenu.close()
+            if (rpCatMenu) rpCatMenu.close()
+            if (rpFeatMenu) rpFeatMenu.close()
+            if (rpResMenu) rpResMenu.close()
+            rpDetailPage.rpDetailExpanded = []
+            rpDetailPage.rpDetailSelectedVer = ""
+            if (page.rpDetailSlug && backend) {
+                backend.fetchResourcepackVersions([page.rpDetailSlug])
+                console.log("[RP-DEBUG] detail fetch versions for", page.rpDetailSlug)
+            }
         }
     }
 
