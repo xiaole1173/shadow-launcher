@@ -3455,13 +3455,6 @@ Rectangle {
         property var expandedGroups: []
         property string selectedVersion: ""
 
-        // Auto-expand all groups when data arrives
-        onGroupedChanged: {
-            var exp = []
-            for (var gi = 0; gi < grouped.length; gi++) exp.push(grouped[gi].major)
-            expandedGroups = exp
-        }
-
         function isExpanded(major) { return expandedGroups.indexOf(major) >= 0 }
         function toggleGroup(major) {
             var arr = expandedGroups.slice(); var idx = arr.indexOf(major)
@@ -3748,6 +3741,12 @@ Rectangle {
             }
             page.modDetailRawVersions = arr
             page.modDetailVersionMap = map
+            // Auto-expand all groups (deferred to let grouped compute)
+            Qt.callLater(function(){
+                var exp = []; var grp = modDetailOverlay.grouped || []
+                for (var gi = 0; gi < grp.length; gi++) exp.push(grp[gi].major)
+                modDetailOverlay.expandedGroups = exp
+            })
         }
         function onModVersionsProgress(done, total) {
             if (page.modDetailSlug === "") return
