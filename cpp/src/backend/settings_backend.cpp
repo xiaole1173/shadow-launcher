@@ -1,5 +1,6 @@
 #include "settings_backend.h"
 #include "../core/version_isolation.h"
+#include "../utils/logger.h"
 
 #include <QDesktopServices>
 #include <QDir>
@@ -260,6 +261,48 @@ QString SettingsBackend::autoSelectJava()
         return best->path;
     }
     emit logMessage(QStringLiteral("⚠ 未找到合适的 Java，请手动指定"));
+    return {};
+}
+
+QString SettingsBackend::findJavaForVersion(int requiredMajor)
+{
+    // Searches cached Java list for best match to required major version.
+    // For Java 8: MUST match exactly (Java 9+ breaks LaunchWrapper for pre-1.6)
+    // For higher: any Java >= requiredMajor, prefer closest match.
+    const auto& results = cachedJavaList();
+    
+    if (results.isEmpty()) return {};
+    
+    // Prefer exact match first
+    const JavaInfo* best = nullptr;
+    for (const auto& j : results) {
+        if (j.major == requiredMajor) {
+            best = &j;
+            break;
+        }
+    }
+    
+    // For Java 8, exact match is mandatory
+    if (!best && requiredMajor == 8) {
+        return {};
+    }
+    
+    // For higher versions, find any compatible Java (>= required)
+    if (!best) {
+        for (const auto& j : results) {
+            if (j.major > requiredMajor) {
+                best = &j;
+                break;
+            }
+        }
+    }
+    
+    if (best) {
+        qCInfo(logLaunch) << QStringLiteral("[JAVA] Required Java %1 → found Java %2 at %3")
+                            .arg(requiredMajor).arg(best->major).arg(best->path);
+        return best->path;
+    }
+    
     return {};
 }
 

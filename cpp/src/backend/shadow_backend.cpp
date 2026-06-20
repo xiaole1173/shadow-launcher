@@ -17,6 +17,8 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QGuiApplication>
 #include <QDir>
 #include <QDirIterator>
@@ -911,11 +913,24 @@ void ShadowBackend::setSelectedVersion(const QString& versionId) {
 
 void ShadowBackend::launch(const QString& versionId) {
     QString username = m_account->username();
-    QString javaPath = m_settings->javaPath();
     int maxMemory = m_settings->maxMemoryMB();
     QString jvmArgs = m_app->jvmArgs();
     m_launchVersion = versionId;
     m_launchUsername = username;
+
+    // Determine required Java version from version JSON
+    int requiredMajor = requiredJavaMajor(versionId);
+    
+    // Find best matching Java
+    QString javaPath = m_settings->findJavaForVersion(requiredMajor);
+    
+    if (javaPath.isEmpty()) {
+        emit logMessage(QStringLiteral("❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
+                            .arg(requiredMajor));
+        emit logMessage(QStringLiteral(
+            "👉 请安装 Java %1 后在设置中手动选择").arg(requiredMajor));
+        return;
+    }
 
     // Pass online auth info if using Microsoft login
     if (m_account->isOnline()) {
@@ -930,6 +945,38 @@ void ShadowBackend::launch(const QString& versionId) {
 
 void ShadowBackend::cancelLaunch() {
     m_launch->cancelLaunch();
+}
+
+int ShadowBackend::requiredJavaMajor(const QString& versionId)
+{
+    // Reads version JSON to determine required Java major version.
+    // Returns: 8 for pre-1.17, 16 for 1.17, 17 for 1.18~1.20.4, 21 for 1.20.5+
+    QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + versionId;
+    QFile f(versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json"));
+    if (!f.open(QIODevice::ReadOnly)) {
+        qCWarning(logLaunch) << "[JAVA] Cannot read version JSON, defaulting to Java 8";
+        return 8;
+    }
+    
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+    QJsonObject versionJson = doc.object();
+    
+    // Check javaVersion field (1.17+)
+    QJsonObject javaVer = versionJson[QStringLiteral("javaVersion")].toObject();
+    if (!javaVer.isEmpty()) {
+        int major = javaVer[QStringLiteral("majorVersion")].toInt(0);
+        if (major > 0) {
+            qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 requires Java %2")
+                                .arg(versionId).arg(major);
+            return major;
+        }
+    }
+    
+    // Pre-1.17 → Java 8 (required for LaunchWrapper compatibility)
+    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 pre-1.17 → default Java 8")
+                        .arg(versionId);
+    return 8;
 }
 
 void ShadowBackend::killGameProcess() {

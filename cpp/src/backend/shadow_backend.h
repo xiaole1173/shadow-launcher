@@ -421,6 +421,8 @@ public:
     QObject* modManager() const;  // QML exposed (returns m_resource->modManager())
 
 private:
+    int requiredJavaMajor(const QString& versionId);
+
     AppBackend* m_app = nullptr;
     AccountBackend* m_account = nullptr;
     SettingsBackend* m_settings = nullptr;
