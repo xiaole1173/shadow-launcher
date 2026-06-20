@@ -204,6 +204,102 @@ Rectangle {
             }
         }
 
+        // ═══════════════════════════════════════════════════════
+        // ── Mod file download ──
+        // ═══════════════════════════════════════════════════════
+        ListModel { id: modDownloadModel }
+        Connections {
+            target: backend
+            function onModFileDownloadStarted(dlId, fileName, fileSize, displayName) {
+                console.log("[progress] mod dl started:", dlId, displayName)
+                modDownloadModel.append({dlId: dlId, name: displayName, fileName: fileName,
+                    received: 0, total: fileSize, done: false, error: ""})
+            }
+            function onModFileDownloadProgress(dlId, received, total) {
+                for (var i = 0; i < modDownloadModel.count; i++) {
+                    if (modDownloadModel.get(i).dlId === dlId) {
+                        modDownloadModel.setProperty(i, "received", received)
+                        modDownloadModel.setProperty(i, "total", total)
+                        return
+                    }
+                }
+            }
+            function onModFileDownloadFinished(dlId, success, filePath, displayName) {
+                console.log("[progress] mod dl finished:", dlId, success)
+                for (var i = 0; i < modDownloadModel.count; i++) {
+                    if (modDownloadModel.get(i).dlId === dlId) {
+                        modDownloadModel.setProperty(i, "done", true)
+                        if (success) modDownloadModel.setProperty(i, "received", modDownloadModel.get(i).total)
+                        return
+                    }
+                }
+            }
+            function onModFileDownloadFailed(dlId, errorDetail, displayName) {
+                console.log("[progress] mod dl failed:", dlId, errorDetail)
+                for (var i = 0; i < modDownloadModel.count; i++) {
+                    if (modDownloadModel.get(i).dlId === dlId) {
+                        modDownloadModel.setProperty(i, "done", true)
+                        modDownloadModel.setProperty(i, "error", errorDetail)
+                        return
+                    }
+                }
+            }
+        }
+
+        Repeater {
+            model: modDownloadModel
+            delegate: Rectangle {
+                width: parent ? parent.width : 200
+                height: dlCol.implicitHeight + 16; radius: 8; color: "#0e111a"; border.color: "#1a202a"
+                ColumnLayout {
+                    id: dlCol
+                    anchors.fill: parent; anchors.margins: 10; spacing: 5
+                    RowLayout {
+                        Text { text: model.done ? (model.error ? "❌" : "✅") : "📦"; font.pixelSize: 14; color: model.error ? "#e06060" : (model.done ? "#4bc870" : "#5068c8") }
+                        Text { text: model.name; font.pixelSize: 12; color: "#c0c8e0"; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Rectangle {
+                            id: skipBtn; visible: model.done && model.error
+                            width: 50; height: 20; radius: 4; color: skipHov.hovered ? "#3a1818" : "#2a1010"
+                            Text { anchors.centerIn: parent; text: "跳过"; font.pixelSize: 9; color: "#c06060" }
+                            MouseArea { id: skipHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { modDownloadModel.remove(index) }
+                            }
+                        }
+                        Rectangle {
+                            id: retryBtn; visible: model.done && model.error
+                            width: 50; height: 20; radius: 4; color: retryHov.hovered ? "#2a2818" : "#1a1810"
+                            Text { anchors.centerIn: parent; text: "重试"; font.pixelSize: 9; color: "#c0a030" }
+                            MouseArea { id: retryHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { backend.retryModFileDownload(model.dlId) }
+                            }
+                        }
+                    }
+                    // Progress bar (only when not done with error)
+                    Rectangle {
+                        Layout.fillWidth: true; height: 6; radius: 3; color: "#1a1f2a"
+                        visible: !(model.done && model.error)
+                        Rectangle {
+                            height: 6; radius: 3
+                            color: model.done ? "#4bc870" : "#5068c8"
+                            width: model.total > 0 ? parent.width * (model.received / model.total) : 0
+                            Behavior on width { NumberAnimation { duration: 200 } }
+                        }
+                    }
+                    Text {
+                        visible: model.total > 0
+                        text: fmtSize(model.received) + " / " + fmtSize(model.total)
+                            + (model.done ? "" : ("  ") + fmtSpeed(model.received > 0 && model.lastSpeed ? model.lastSpeed : 0))
+                        color: "#707888"; font.pixelSize: 10; font.family: "Consolas, monospace"
+                    }
+                    Text {
+                        visible: model.error !== ""
+                        text: model.error; color: "#d08080"; font.pixelSize: 10
+                        wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    }
+                }
+            }
+        }
+
         // ── Verifying — independent progress bar ──
         Rectangle {
             Layout.fillWidth: true; height: 80; radius: 8; color: "#0e111a"; border.color: "#2a2a50"

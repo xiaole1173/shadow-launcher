@@ -22,6 +22,10 @@ Window {
     property bool pageLoading: false
     property var runningListModel: []
 
+    // Mod download error dialog state
+    property bool showModDlError: false
+    property var modDlErrorInfo: ({})
+
     Component.onCompleted: {
         // refreshVersionList() 已由 VersionBackend 构造时异步触发，此处不重复
         if (backend) {
@@ -95,6 +99,15 @@ Window {
                 switchPage(0)
             }
         }
+    }
+
+    function showModDownloadProgress() {
+        // Show download nav item for mod downloads too
+        if (!downloadNavVisible) {
+            downloadNavVisible = true
+            navModel.append({ label: "下载进度", pageKey: "download_progress" })
+        }
+        switchPage(navModel.count - 1)
     }
 
     Connections {
@@ -2189,6 +2202,53 @@ Window {
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
 }
 }
+
+    // Mod download error dialog
+    Rectangle {
+        id: modDlErrorDialog; z: 400
+        anchors.centerIn: parent; width: 400; height: 200; radius: 10
+        color: "#141820"; border.color: "#3a1a1a"; border.width: 1
+        visible: showModDlError
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 20; spacing: 12
+            Text { text: "⚠ 下载失败"; font.pixelSize: 15; font.bold: true; color: "#e06060" }
+            Text { text: modDlErrorInfo.displayName || ""; font.pixelSize: 13; color: "#c0c8e0" }
+            Text {
+                Layout.fillWidth: true
+                text: modDlErrorInfo.errorDetail || "未知错误"
+                color: "#d08080"; font.pixelSize: 11; wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                spacing: 10; Layout.alignment: Qt.AlignRight
+                Rectangle {
+                    width: 80; height: 30; radius: 5
+                    color: skipHov.hovered ? "#3a1818" : "#2a1010"
+                    border.color: skipHov.hovered ? "#803838" : "#502020"
+                    Text { anchors.centerIn: parent; text: "跳过"; color: "#c06060"; font.pixelSize: 12 }
+                    MouseArea { id: skipHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: { backend.cancelModFileDownload(modDlErrorInfo.dlId || 0); showModDlError = false }
+                    }
+                }
+                Rectangle {
+                    width: 80; height: 30; radius: 5
+                    color: retryHov.hovered ? "#3a3020" : "#2a2010"
+                    border.color: retryHov.hovered ? "#907030" : "#604820"
+                    Text { anchors.centerIn: parent; text: "重试"; color: "#e0a040"; font.pixelSize: 12 }
+                    MouseArea { id: retryHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: { backend.retryModFileDownload(modDlErrorInfo.dlId || 0); showModDlError = false }
+                    }
+                }
+            }
+        }
+    }
+    Rectangle {
+        anchors.fill: parent; z: 399; color: "#000000"
+        opacity: showModDlError ? 0.5 : 0
+        visible: showModDlError
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        MouseArea { anchors.fill: parent; onClicked: { showModDlError = false } }
+    }
 
     // ═══ Crash detection dialog ═══
     CrashDialog {

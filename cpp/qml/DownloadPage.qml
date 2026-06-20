@@ -57,6 +57,7 @@ Rectangle {
     property bool installingVersion: false
     property bool installingMod: false
     property string installingModName: ""
+    property var pendingModDownload: ({})  // {slug, title, versionNumber, loader, gameVersion, url, filename, size, sha1, defaultPath, displayName}
 
     // Common versions (for mod/Shader/RP tabs)
     property var commonVersions: []
@@ -3689,7 +3690,22 @@ Rectangle {
                                                         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                         onClicked: {
                                                             var d = modDetailOverlay.getVersionDetail(modelData)
-                                                            if (d && d.url) Qt.openUrlExternally(d.url)
+                                                            if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
+                                                            var loaders = d.loaders || []
+                                                            var loader = loaders.length > 0 ? loaders[0] : ""
+                                                            var vn = d.version_number || modelData
+                                                            var title = page.modDetailTitle || page.modDetailSlug || "mod"
+                                                            // Build filename: title-versionNumber-loader-gameVersion.jar
+                                                            var safeTitle = title.replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
+                                                            var fn = safeTitle + "-" + vn + (loader ? ("-" + loader) : "") + (modelData ? ("-" + modelData) : "") + ".jar"
+                                                            var mineDir = String(backend ? (backend.minecraftDir || "") : "")
+                                                            var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
+                                                            page.pendingModDownload = {slug: page.modDetailSlug, title: title,
+                                                                versionNumber: vn, loader: loader, gameVersion: modelData,
+                                                                url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
+                                                                defaultPath: defaultPath, displayName: title + " " + vn}
+                                                            modFileDialog.currentFile = new URL(defaultPath)
+                                                            modFileDialog.open()
                                                         }
                                                     }
                                                 }
@@ -3745,6 +3761,39 @@ Rectangle {
         function onModVersionsProgress(done, total) {
             if (page.modDetailSlug === "") return
             page.modDetailLoading = done < total
+        }
+        function onModFileDownloadFailed(dlId, errorDetail, displayName) {
+            console.log("[mod-download] FAILED:", dlId, displayName, errorDetail)
+            if (mainWindow) {
+                mainWindow.modDlErrorInfo = {dlId: dlId, displayName: displayName, errorDetail: errorDetail}
+                mainWindow.showModDlError = true
+            }
+        }
+    }
+
+    // ── Mod download file dialog ──
+    FileDialog {
+        id: modFileDialog
+        fileMode: FileDialog.SaveFile
+        title: "保存 Mod 文件"
+        nameFilters: ["JAR 文件 (*.jar)", "所有文件 (*.*)"]
+        selectedNameFilter: "JAR 文件 (*.jar)"
+        onAccepted: {
+            var p = page.pendingModDownload
+            if (!p || !p.url) return
+            var savePath = String(selectedFile).replace(/^(file:\/{2,3})/i, "")
+            // Ensure .jar extension
+            if (!/\.jar$/i.test(savePath)) savePath += ".jar"
+            console.log("[mod-download] saving to:", savePath)
+            var dlId = backend.downloadModFile(p.url, savePath, p.displayName, p.size || 0, p.sha1 || "")
+            console.log("[mod-download] started, id:", dlId)
+            toastManager.show("开始下载 " + p.displayName)
+            // Show download progress nav item
+            mainWindow.showModDownloadProgress()
+            page.pendingModDownload = {}
+        }
+        onRejected: {
+            page.pendingModDownload = {}
         }
     }
 
