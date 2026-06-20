@@ -200,7 +200,6 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     constexpr float DEG = 0.01745329252f;
     const float yr = 22.0f*DEG, pr = -8.0f*DEG;
     const float cy=cosf(yr),sy=sinf(yr), cp=cosf(pr),sp=sinf(pr);
-    // Head (8u) → ~43px, centred in 64px → ~10px margin
     const float SC = (float)SZ / 12.0f;
     const float OFF = (SZ - SC*8.0f) * 0.5f;
 
@@ -209,7 +208,8 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
 
     int tW = skin.width(), tH = skin.height();
     float dV = (float)tH;
-    bool hat = (tH >= 64);
+    // 64x32 also has hat in right-half (cols 32-63), same UV offset +32
+    bool hat = (tH >= 32);  // always try hat; alpha<64 filter handles transparency
     float pad = 0.30f;
 
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
@@ -232,11 +232,11 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
         tri[tc]={sx[0],sy[0],sx[2],sy[2],sx[3],sy[3],us[0],vs[0],us[2],vs[2],us[3],vs[3],(sd[0]+sd[2]+sd[3])/3.f,isHat};tc++;
     };
 
-    // Head faces (top, right, front)
+    // Head inner faces
     {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,-HW,-HW},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,8,0,16,8,false);}
     {const float X[4]={HW,HW,HW,HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,0,8,8,16,false);}
     {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,HW,HW,HW};emitQuad(X,Y,Z,8,8,16,16,false);}
-    // Hat faces (64x64 only)
+    // Hat outer faces — works for both 64x32 and 64x64 (alpha<64 filter)
     if(hat){
         {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,40,0,48,8,true);}
         {const float X[4]={HW+pad,HW+pad,HW+pad,HW+pad},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,32,8,40,16,true);}
