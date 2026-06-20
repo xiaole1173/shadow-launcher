@@ -784,7 +784,7 @@ bool Launcher::evaluateRules(const QJsonArray& rules)
             return rule[QStringLiteral("action")].toString() == QStringLiteral("allow");
         }
     }
-    return true;  // no rule matched → default allow
+    return false;  // no rule matched → exclude (Minecraft spec)
 }
 
 // ============================================================
