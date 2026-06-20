@@ -614,7 +614,7 @@ Window {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 10
                                     MinecraftHead2D {
                                         width: 48; height: 48
-                                        skinSource: backend ? (backend.skinPath || "") : ""
+                                        skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
                                     }
                                     Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
                                 }
