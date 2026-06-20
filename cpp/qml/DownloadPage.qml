@@ -918,6 +918,28 @@ Rectangle {
 
         // ── ColumnLayout ──
         ColumnLayout {
+            // ── Search results handler ──
+            Connections {
+                target: backend
+                enabled: backend !== null
+                function onSearchResultsReady(results) {
+                    console.log("[mod] results ready: " + results.length)
+                    modResultsModel.clear()
+                    for (var j = 0; j < results.length; j++) {
+                        var r = results[j]
+                        modResultsModel.append({
+                            slug: r.slug || "",
+                            title: r.title || r.slug || "Unknown",
+                            desc: r.desc || "",
+                            icon: r.icon || "",
+                            downloads: r.downloads || 0
+                        })
+                    }
+                    page.modSearching = false
+                }
+            }
+
+
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
