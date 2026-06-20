@@ -421,6 +421,7 @@ Window {
 
                         // Premium login form
                         Rectangle {
+                            id: msLoginForm
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.top: loginSwitch.bottom; anchors.topMargin: 20
                             width: 300
@@ -432,20 +433,147 @@ Window {
                             Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
                             height: childrenRect.height; color: "transparent"
+
+                            property bool msInProgress: false
+                            property string msUserCode: ""
+                            property string msStatusText: ""
+
                             ColumnLayout {
                                 width: parent.width; spacing: 12
+
+                                // Start button
                                 Rectangle {
-                                    Layout.fillWidth: true; height: 40; radius: 7
-                                    color: "#11141c"; border.color: "#1e2230"
-                                    Text { anchors.centerIn: parent; text: "选择已登录账号"; color: "#9498a8"; font.pixelSize: 13 }
-                                    MouseArea { anchors.fill: parent }
+                                    Layout.alignment: Qt.AlignHCenter; width: 200; height: 40; radius: 8
+                                    color: msLoginForm.msInProgress ? "#1a1f2e" : (startMsBtn.containsMouse ? "#3a4aa0" : "#2a3878")
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: msLoginForm.msInProgress ? "登录中..." : "Microsoft 登录"
+                                        color: msLoginForm.msInProgress ? "#9498a8" : "#e4e8f2"
+                                        font.pixelSize: 14; font.weight: Font.DemiBold
+                                    }
+                                    MouseArea {
+                                        id: startMsBtn
+                                        anchors.fill: parent
+                                        hoverEnabled: !msLoginForm.msInProgress
+                                        cursorShape: msLoginForm.msInProgress ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                        enabled: !msLoginForm.msInProgress
+                                        onClicked: {
+                                            if (backend) {
+                                                msLoginForm.msInProgress = true
+                                                msLoginForm.msStatusText = "正在请求验证码..."
+                                                backend.microsoftLogin()
+                                            }
+                                        }
+                                    }
                                 }
+
+                                // Progress area
                                 Rectangle {
-                                    Layout.alignment: Qt.AlignHCenter; width: 160; height: 36; radius: 7
-                                    color: "#2a3878"
-                                    Text { anchors.centerIn: parent; text: "Microsoft 登录"; color: "#e4e8f2"; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                    MouseArea { anchors.fill: parent }
+                                    Layout.fillWidth: true; height: msLoginForm.msInProgress ? 100 : 0
+                                    visible: msLoginForm.msInProgress
+                                    color: "#11141c"; radius: 8; border.color: "#1e2230"
+                                    Behavior on height { NumberAnimation { duration: 300 } }
+
+                                    ColumnLayout {
+                                        anchors.centerIn: parent; spacing: 8; width: parent.width - 24
+
+                                        // User code display
+                                        Rectangle {
+                                            visible: msLoginForm.msUserCode !== ""
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.preferredWidth: msCodeText.implicitWidth + 24
+                                            Layout.preferredHeight: 32; radius: 6
+                                            color: "#1a2a1a"; border.color: "#2a4a2a"
+                                            Text {
+                                                id: msCodeText
+                                                anchors.centerIn: parent
+                                                text: msLoginForm.msUserCode
+                                                color: "#70d070"; font.pixelSize: 16
+                                                font.weight: Font.Bold; font.letterSpacing: 2
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                onClicked: toastManager.show("打开浏览器输入: " + msLoginForm.msUserCode)
+                                            }
+                                        }
+
+                                        // Status text
+                                        Text {
+                                            visible: msLoginForm.msStatusText !== ""
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: msLoginForm.msStatusText
+                                            color: "#8088a0"; font.pixelSize: 11
+                                            horizontalAlignment: Text.AlignHCenter
+                                            wrapMode: Text.Wrap; Layout.maximumWidth: 260
+                                        }
+
+                                        // Loading bar
+                                        Rectangle {
+                                            visible: msLoginForm.msInProgress
+                                            Layout.fillWidth: true; Layout.preferredHeight: 3; radius: 2
+                                            color: "#1a1f2a"
+                                            Rectangle {
+                                                height: 3; radius: 2; color: "#6080e8"
+                                                width: parent.width * 0.5
+                                                SequentialAnimation on x {
+                                                    running: msLoginForm.msInProgress
+                                                    loops: Animation.Infinite
+                                                    NumberAnimation { from: 0; to: 120; duration: 1200; easing.type: Easing.InOutSine }
+                                                    NumberAnimation { from: 120; to: 0; duration: 1200; easing.type: Easing.InOutSine }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
+
+                                // Cancel button
+                                Rectangle {
+                                    visible: msLoginForm.msInProgress
+                                    Layout.alignment: Qt.AlignHCenter; width: 80; height: 28; radius: 6
+                                    color: cancelMsBtn.containsMouse ? "#3a1a1a" : "#1a1114"
+                                    border.color: "#2a1a1a"
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "取消"; color: "#e06060"; font.pixelSize: 11
+                                    }
+                                    MouseArea {
+                                        id: cancelMsBtn
+                                        anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            backend.cancelMicrosoftLogin()
+                                            msLoginForm.msInProgress = false
+                                            msLoginForm.msUserCode = ""
+                                            msLoginForm.msStatusText = ""
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Microsoft login signal handlers
+                        Connections {
+                            target: backend; enabled: backend !== null && msLoginForm.msInProgress
+                            function onMicrosoftLoginProgress(step, detail) {
+                                msLoginForm.msStatusText = step + ": " + detail
+                            }
+                            function onMicrosoftUserCodeReady(code) {
+                                msLoginForm.msUserCode = code
+                                msLoginForm.msStatusText = "请在浏览器中完成登录，或点击验证码复制"
+                            }
+                            function onMicrosoftLoginSuccess(username, uuid) {
+                                msLoginForm.msInProgress = false
+                                msLoginForm.msUserCode = ""
+                                msLoginForm.msStatusText = ""
+                                homePage.displayName = username
+                                toastManager.show("正版登录成功: " + username)
+                            }
+                            function onMicrosoftLoginFailed(error) {
+                                msLoginForm.msInProgress = false
+                                msLoginForm.msUserCode = ""
+                                msLoginForm.msStatusText = ""
+                                toastManager.show("登录失败: " + error)
                             }
                         }
 
