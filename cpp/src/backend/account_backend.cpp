@@ -195,7 +195,8 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     QImage skin(skinPath);
     if (skin.isNull()) { qCWarning(logAccount)<<"renderHead3D: load fail"<<skinPath; return {}; }
 
-    constexpr int  SZ = 64;
+    constexpr int  SS = 4;
+    constexpr int  SZ = 64 * SS;
     constexpr float HW = 4.0f;
     constexpr float DEG = 0.01745329252f;
     const float yr = 18.0f*DEG, pr = 0.0f;
@@ -268,8 +269,9 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
         }
     }
 
+    QImage final = out.scaled(64, 64, Qt::IgnoreAspectRatio, Qt::FastTransformation);
     QString hp=skinPath.left(skinPath.length()-4)+QStringLiteral("_head.png");
-    if(out.save(hp,"PNG")){qCInfo(logAccount)<<"3D head:"<<hp;return hp;}
+    if(final.save(hp,"PNG")){qCInfo(logAccount)<<"3D head:"<<hp;return hp;}
     qCWarning(logAccount)<<"renderHead3D: save fail"<<hp;
     return {};
 }
