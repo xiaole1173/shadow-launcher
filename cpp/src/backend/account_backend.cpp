@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QStandardPaths>
+#include <QUrlQuery>
 
 #include "core/http_client.h"
 
@@ -28,6 +29,7 @@ AccountBackend::AccountBackend(QObject *parent)
     qCInfo(logAccount) << "AccountBackend constructed";
 
     loadOfflineHistory();
+    loadMicrosoftSession();
 
     // ── MicrosoftAuth ──
     m_msAuth = new MicrosoftAuth(this);
@@ -44,6 +46,7 @@ AccountBackend::AccountBackend(QObject *parent)
         m_isOnline = true;
         m_msStatus.clear();
         qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
+        saveMicrosoftSession();
         emit microsoftLoginSuccess(username, uuid);
         emit accountChanged();
         emit logMessage(QStringLiteral("正版登录成功: %1").arg(username));
@@ -293,6 +296,91 @@ void AccountBackend::saveOfflineHistory()
     QJsonDocument doc(arr);
     file.write(doc.toJson(QJsonDocument::Indented));
     file.close();
+}
+
+// ────────────────────────────────────────────────────────────
+// Microsoft Session Persistence
+// ────────────────────────────────────────────────────────────
+
+void AccountBackend::saveMicrosoftSession()
+{
+    QJsonObject obj;
+    obj[QStringLiteral("username")] = m_username;
+    obj[QStringLiteral("uuid")] = m_uuid;
+    obj[QStringLiteral("mcToken")] = m_msMcToken;
+    obj[QStringLiteral("refreshToken")] = m_msRefreshToken;
+
+    QString path = m_dataDir + QStringLiteral("/microsoft_session.json");
+    QFileInfo fi(path);
+    QDir().mkpath(fi.absolutePath());
+
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+        qCInfo(logAccount) << "Microsoft session saved:" << path;
+    }
+}
+
+void AccountBackend::loadMicrosoftSession()
+{
+    QString path = m_dataDir + QStringLiteral("/microsoft_session.json");
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return;
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    QJsonObject obj = doc.object();
+    m_username = obj[QStringLiteral("username")].toString();
+    m_uuid = obj[QStringLiteral("uuid")].toString();
+    m_msMcToken = obj[QStringLiteral("mcToken")].toString();
+    m_msRefreshToken = obj[QStringLiteral("refreshToken")].toString();
+
+    if (!m_msRefreshToken.isEmpty()) {
+        qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
+        QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
+    }
+}
+
+void AccountBackend::refreshMicrosoftToken()
+{
+    if (m_msRefreshToken.isEmpty()) return;
+    qCInfo(logAccount) << "Attempting Microsoft token refresh...";
+
+    QUrlQuery postData;
+    postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f"));
+    postData.addQueryItem(QStringLiteral("refresh_token"), m_msRefreshToken);
+    postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
+    postData.addQueryItem(QStringLiteral("redirect_uri"), QStringLiteral("http://localhost"));
+
+    QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
+
+    QNetworkRequest req(QUrl(QStringLiteral("https://login.live.com/oauth20_token.srf")));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
+    req.setTransferTimeout(10000);
+
+    QNetworkReply* reply = HttpClient::instance().post(req, body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        QByteArray raw = reply->readAll();
+        QJsonObject obj = QJsonDocument::fromJson(raw).object();
+
+        if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
+            qCInfo(logAccount) << "Microsoft token refresh failed (need re-login):" << raw.left(200);
+            return;
+        }
+
+        m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString(m_msRefreshToken);
+        qCInfo(logAccount) << "Microsoft token refreshed!";
+
+        // Auto-login with refreshed token
+        m_loggedIn = true;
+        m_isOnline = true;
+        saveMicrosoftSession();
+        emit accountChanged();
+        emit logMessage(QStringLiteral("已自动登录: %1").arg(m_username));
+    });
 }
 
 } // namespace ShadowLauncher

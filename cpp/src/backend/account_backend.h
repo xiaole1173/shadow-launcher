@@ -61,6 +61,9 @@ private:
     void downloadSkin(const QString &username);
     void loadOfflineHistory();
     void saveOfflineHistory();
+    void saveMicrosoftSession();
+    void loadMicrosoftSession();
+    void refreshMicrosoftToken();
     QString generateOfflineUuid(const QString &username) const;
     QString skinCachePath(const QString &username) const;
 
