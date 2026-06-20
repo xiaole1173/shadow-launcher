@@ -5,9 +5,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QPainter>
 #include <QStandardPaths>
+#include <QUrl>
 #include <QUrlQuery>
 
 #include "core/http_client.h"
@@ -180,6 +183,53 @@ QString AccountBackend::skinCachePath(const QString &username) const
 }
 
 // ────────────────────────────────────────────────────────────
+// Face Cropping — extract 8×8 head from skin atlas, alpha-blend hat
+// ────────────────────────────────────────────────────────────
+
+QString AccountBackend::cropFaceTexture(const QString& skinPath)
+{
+    QImage skin(skinPath);
+    if (skin.isNull()) {
+        qCWarning(logAccount) << "cropFace: cannot load skin from" << skinPath;
+        return {};
+    }
+
+    int w = skin.width();
+    int h = skin.height();
+    // MC skin atlas: head face at (8,8) → 8×8, hat overlay at (40,8) → 8×8
+    QImage head = skin.copy(8, 8, 8, 8);
+
+    if (w >= 64) {
+        // Overlay hat with alpha blending
+        QImage hat = skin.copy(40, 8, 8, 8);
+        if (!hat.isNull()) {
+            QPainter p(&head);
+            p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            p.drawImage(0, 0, hat);
+            p.end();
+        }
+    }
+
+    // Scale up to 64×64 for a crisp avatar
+    QImage avatar = head.scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+    QString facePath = skinPath.left(skinPath.length() - 4) + QStringLiteral("_face.png");
+    if (avatar.save(facePath, "PNG")) {
+        qCInfo(logAccount) << "Face avatar cropped:" << facePath;
+        return facePath;
+    }
+    qCWarning(logAccount) << "cropFace: failed to save" << facePath;
+    return {};
+}
+
+QString AccountBackend::toImageUrl(const QString& filePath)
+{
+    if (filePath.isEmpty()) return {};
+    if (filePath.startsWith(QStringLiteral("qrc:"))) return filePath;
+    return QUrl::fromLocalFile(filePath).toString();
+}
+
+// ────────────────────────────────────────────────────────────
 // Download Skin
 // ────────────────────────────────────────────────────────────
 
@@ -196,7 +246,7 @@ void AccountBackend::downloadSkin(const QString &username)
     // ── Check cache first ──
     QFileInfo cacheInfo(cachePath);
     if (cacheInfo.exists() && cacheInfo.size() > 0) {
-        m_skinPath = cachePath;
+        m_skinPath = toImageUrl(cachePath);
         qCInfo(logAccount) << "Skin loaded from cache:" << cachePath;
         emit skinReady();
         return;
@@ -280,7 +330,9 @@ void AccountBackend::downloadOnlineSkin()
                 if (file.open(QIODevice::WriteOnly)) {
                     file.write(skinReply->readAll());
                     file.close();
-                    m_skinPath = cachePath;
+                    // Crop face avatar from full skin texture
+                    QString facePath = cropFaceTexture(cachePath);
+                    m_skinPath = toImageUrl(facePath.isEmpty() ? cachePath : facePath);
                     qCInfo(logAccount) << "Online skin saved:" << cachePath;
                 }
             }
@@ -293,7 +345,7 @@ void AccountBackend::setFallbackSkin()
 {
     QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
     if (QFileInfo::exists(placeholder)) {
-        m_skinPath = placeholder;
+        m_skinPath = toImageUrl(placeholder);
     }
     // Also try qrc fallback
     if (m_skinPath.isEmpty()) {

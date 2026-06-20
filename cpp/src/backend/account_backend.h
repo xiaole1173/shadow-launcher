@@ -60,6 +60,8 @@ private:
     void downloadSkin(const QString &username);
     void downloadOnlineSkin();
     void setFallbackSkin();
+    QString cropFaceTexture(const QString& skinPath);
+    static QString toImageUrl(const QString& filePath);
     void loadOfflineHistory();
     void saveOfflineHistory();
     void saveMicrosoftSession();
