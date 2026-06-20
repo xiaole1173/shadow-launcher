@@ -1118,7 +1118,7 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
                               m_account->mcToken(), true);
     } else {
         qCInfo(logLaunch) << "[AUTH] Launching with OFFLINE auth: username=" << m_account->offlineUsername() << " uuid=" << m_account->offlineUuid();
-        m_launch->setAuthInfo(QString(), QString(), QString(), false);
+        m_launch->setAuthInfo(m_account->offlineUsername(), m_account->offlineUuid(), QString(), false);
     }
 
     m_launch->launch(versionId, username, javaPath, maxMemory, jvmArgs);

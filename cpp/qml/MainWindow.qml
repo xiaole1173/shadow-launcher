@@ -756,14 +756,11 @@ Window {
                                             if (loginMode === 1 && !backend.offlineUsername) {
                                                 var name = offlineNameInput.text.trim() || "Player"
                                                 backend.offlineLogin(name)
+                                                // offlineLogin is synchronous — offlineUsername is now set
                                             }
-                                            // Check correct login based on mode
+                                            // Premium mode: must be logged in
                                             if (loginMode === 0 && !backend.username) {
                                                 toastManager.show("请先完成正版登录")
-                                                return
-                                            }
-                                            if (loginMode === 1 && !backend.offlineUsername) {
-                                                toastManager.show("请先输入用户名")
                                                 return
                                             }
                                             backend.launch(currentSelectedVersion, loginMode === 0)
