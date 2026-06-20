@@ -246,7 +246,12 @@ void AccountBackend::downloadSkin(const QString &username)
     // ── Check cache first ──
     QFileInfo cacheInfo(cachePath);
     if (cacheInfo.exists() && cacheInfo.size() > 0) {
-        m_skinPath = toImageUrl(cachePath);
+        // Check for existing face crop first
+        QString facePath = cachePath.left(cachePath.length() - 4) + QStringLiteral("_face.png");
+        if (!QFileInfo::exists(facePath)) {
+            facePath = cropFaceTexture(cachePath);
+        }
+        m_skinPath = toImageUrl(facePath.isEmpty() ? cachePath : facePath);
         qCInfo(logAccount) << "Skin loaded from cache:" << cachePath;
         emit skinReady();
         return;
