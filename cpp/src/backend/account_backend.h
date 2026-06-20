@@ -59,6 +59,9 @@ signals:
 
 private:
     void downloadSkin(const QString &username);
+    void downloadOnlineSkin();
+    void downloadSkinFromNameMC();
+    void setFallbackSkin();
     void loadOfflineHistory();
     void saveOfflineHistory();
     void saveMicrosoftSession();

@@ -190,6 +190,12 @@ QString AccountBackend::skinCachePath(const QString &username) const
 
 void AccountBackend::downloadSkin(const QString &username)
 {
+    // ── Online mode: fetch from Mojang API with mcToken ──
+    if (m_isOnline && !m_msMcToken.isEmpty()) {
+        downloadOnlineSkin();
+        return;
+    }
+
     QString cachePath = skinCachePath(username);
 
     // ── Check cache first ──
@@ -249,6 +255,113 @@ void AccountBackend::downloadSkin(const QString &username)
             emit skinReady();
         }
     );
+}
+
+// ────────────────────────────────────────────────────────────
+// Online Skin (Mojang API)
+// ────────────────────────────────────────────────────────────
+
+void AccountBackend::downloadOnlineSkin()
+{
+    qCInfo(logAccount) << "Skin: fetching from Mojang API...";
+    QNetworkRequest req(QUrl(QStringLiteral("https://api.minecraftservices.com/minecraft/profile")));
+    req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(m_msMcToken).toUtf8());
+
+    QNetworkReply* reply = HttpClient::instance().getRaw(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            qCWarning(logAccount) << "Mojang profile fetch failed:" << reply->errorString()
+                                  << "→ falling back to NameMC";
+            downloadSkinFromNameMC();
+            return;
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QJsonObject profile = doc.object();
+        QJsonArray skins = profile[QStringLiteral("skins")].toArray();
+
+        QString skinUrl;
+        for (const QJsonValue& sv : skins) {
+            QJsonObject s = sv.toObject();
+            if (s[QStringLiteral("state")].toString() == QStringLiteral("ACTIVE")) {
+                skinUrl = s[QStringLiteral("url")].toString();
+                break;
+            }
+        }
+
+        if (skinUrl.isEmpty()) {
+            qCInfo(logAccount) << "No active skin in Mojang profile, using default";
+            setFallbackSkin();
+            emit skinReady();
+            return;
+        }
+
+        qCInfo(logAccount) << "Downloading skin from Mojang CDN:" << skinUrl;
+        QNetworkRequest skinReq(skinUrl);
+        QNetworkReply* skinReply = HttpClient::instance().getRaw(skinReq);
+        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply]() {
+            skinReply->deleteLater();
+            if (skinReply->error() != QNetworkReply::NoError) {
+                qCWarning(logAccount) << "Skin texture download failed:" << skinReply->errorString();
+                setFallbackSkin();
+            } else {
+                QString cachePath = skinCachePath(m_username);
+                QFileInfo fi(cachePath);
+                QDir().mkpath(fi.absolutePath());
+                QFile file(cachePath);
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(skinReply->readAll());
+                    file.close();
+                    m_skinPath = cachePath;
+                    qCInfo(logAccount) << "Online skin saved:" << cachePath;
+                }
+            }
+            emit skinReady();
+        });
+    });
+}
+
+void AccountBackend::downloadSkinFromNameMC()
+{
+    QString url = getSkinUrl(m_username);
+    QString cachePath = skinCachePath(m_username);
+    HttpClient::instance().get(url,
+        [this, cachePath](int status, const QByteArray &body) {
+            if (status == 200 && !body.isEmpty()) {
+                QFileInfo fi(cachePath);
+                QDir().mkpath(fi.absolutePath());
+                QFile file(cachePath);
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(body);
+                    file.close();
+                    m_skinPath = cachePath;
+                }
+                qCInfo(logAccount) << "Skin downloaded from NameMC";
+            } else {
+                setFallbackSkin();
+            }
+            emit skinReady();
+        },
+        [this](const QString &error) {
+            qCWarning(logAccount) << "NameMC skin download failed:" << error;
+            setFallbackSkin();
+            emit skinReady();
+        }
+    );
+}
+
+void AccountBackend::setFallbackSkin()
+{
+    QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
+    if (QFileInfo::exists(placeholder)) {
+        m_skinPath = placeholder;
+    }
+    // Also try qrc fallback
+    if (m_skinPath.isEmpty()) {
+        m_skinPath = QStringLiteral("qrc:/ShadowLauncher/assets/steve.png");
+    }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -384,6 +497,7 @@ void AccountBackend::refreshMicrosoftToken()
         saveMicrosoftSession();
         emit accountChanged();
         emit logMessage(QStringLiteral("已自动登录: %1").arg(m_username));
+        downloadSkin(m_username);
     });
 }
 

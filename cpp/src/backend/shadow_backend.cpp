@@ -133,26 +133,43 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::selectedVersionChanged);
     connect(m_version, &VersionBackend::selectedVersionChanged, this, [this]() {
         QString vid = m_version->selectedVersion();
-        if (vid.isEmpty()) { m_currentVersionSummary = QStringLiteral("-"); emit currentVersionSummaryChanged(); return; }
+        if (vid.isEmpty()) {
+            m_currentVersionSummary.clear();
+            emit currentVersionSummaryChanged();
+            return;
+        }
+
         QString gameDir = getVersionGameDir(vid);
+        QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + vid;
         qint64 totalSize = 0;
+
+        // Count game directory (worlds, mods, saves, screenshots, etc.)
         if (QDir(gameDir).exists()) {
             QDirIterator it(gameDir, QDir::Files, QDirIterator::Subdirectories);
             while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
         }
-        // Also count versions/{vid}/ files
-        QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + vid;
+        // Add version files (jar, json, libraries) — but NOT game/ subdir (already counted)
         if (QDir(versionDir).exists()) {
             QDirIterator it(versionDir, QDir::Files, QDirIterator::Subdirectories);
-            while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
+            while (it.hasNext()) {
+                QString fp = it.next();
+                // Skip game/ subdirectory for isolated versions (already counted via gameDir)
+                if (fp.contains(QStringLiteral("/game/")) || fp.contains(QStringLiteral("\\game\\")))
+                    continue;
+                totalSize += it.fileInfo().size();
+            }
         }
-        // Format
+
+        QVariantMap summary;
         if (totalSize < 1024 * 1024)
-            m_currentVersionSummary = QString::number(totalSize / 1024.0, 'f', 1) + QStringLiteral(" KB");
+            summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / 1024.0, 'f', 1) + QStringLiteral(" KB");
         else if (totalSize < 1024LL * 1024 * 1024)
-            m_currentVersionSummary = QString::number(totalSize / (1024.0 * 1024), 'f', 1) + QStringLiteral(" MB");
+            summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / (1024.0 * 1024), 'f', 1) + QStringLiteral(" MB");
         else
-            m_currentVersionSummary = QString::number(totalSize / (1024.0 * 1024 * 1024), 'f', 2) + QStringLiteral(" GB");
+            summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / (1024.0 * 1024 * 1024), 'f', 2) + QStringLiteral(" GB");
+
+        summary[QStringLiteral("modCount")] = 0;
+        m_currentVersionSummary = summary;
         emit currentVersionSummaryChanged();
     });
     connect(m_version, &VersionBackend::installStateChanged,
@@ -1019,6 +1036,7 @@ void ShadowBackend::cancelQueuedDownload(const QString& versionId) {
 
 void ShadowBackend::setSelectedVersion(const QString& versionId) {
     m_version->setSelectedVersion(versionId);
+    m_settings->setLastLaunchedVersion(versionId);
 }
 
 // ============================================================
@@ -1034,9 +1052,6 @@ void ShadowBackend::launch(const QString& versionId) {
 
     // Determine required Java version from version JSON
     int requiredMajor = requiredJavaMajor(versionId);
-    
-    // Remember last launched version
-    m_settings->setLastLaunchedVersion(versionId);
     
     // Find best matching Java
     QString javaPath = m_settings->findJavaForVersion(requiredMajor);

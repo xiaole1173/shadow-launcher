@@ -82,7 +82,7 @@ class ShadowBackend : public QObject {
 
     // ── Version details/summary ──
     Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionDetailsReady)
-    Q_PROPERTY(QString currentVersionSummary READ currentVersionSummary NOTIFY currentVersionSummaryChanged)
+    Q_PROPERTY(QVariantMap currentVersionSummary READ currentVersionSummary NOTIFY currentVersionSummaryChanged)
 
     // ── Download queue ──
     Q_PROPERTY(QVariantList downloadQueue READ downloadQueue NOTIFY downloadQueueChanged)
@@ -148,7 +148,7 @@ public:
     qint64 installBytesDownloaded() const;
     qint64 installBytesTotal() const;
     QVariantList versionDetails() const { return m_versionDetails; }
-    QString currentVersionSummary() const { return m_currentVersionSummary; }
+    QVariantMap currentVersionSummary() const { return m_currentVersionSummary; }
 
     // ── Download queue ──
     QVariantList downloadQueue() const;
@@ -443,7 +443,7 @@ private:
     QString m_gameDir;
     QVariantMap m_gameDirInfo;
     QVariantList m_versionDetails;
-    QString m_currentVersionSummary;
+    QVariantMap m_currentVersionSummary;
 
     // ── Resource download progress tracking ──
     int m_resourceDlProgress = 0;
