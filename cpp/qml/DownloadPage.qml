@@ -132,7 +132,7 @@ Rectangle {
         console.log("[mod-ui] loadModResults loader=" + page.modLoader)
         page.modSearching = true
         backend.searchModsEx(
-            modSearchInput.text ? modSearchInput.text.trim() : "", page.modLoader,
+            "", page.modLoader,
             page.modCategory, page.modGameVersion,
             page.modEnvironment, page.modLicense,
             0, 30
