@@ -399,6 +399,25 @@ void AccountBackend::downloadSkin(const QString &username)
 
 void AccountBackend::downloadOnlineSkin()
 {
+    // Check cache first — if we have a rendered face for this username, use it immediately
+    QString cachePath = skinCachePath(m_username);
+    QString facePath = cachePath + QStringLiteral("_head.png");
+    if (QFileInfo::exists(facePath)) {
+        m_skinPath = toImageUrl(facePath);
+        qCInfo(logAccount) << "Skin: using cached face:" << m_skinPath;
+        emit skinReady();
+        return;
+    }
+    if (QFileInfo::exists(cachePath)) {
+        // Raw skin exists but no rendered face — render and use
+        facePath = renderHead3D(cachePath);
+        m_skinPath = toImageUrl(facePath.isEmpty() ? cachePath : facePath);
+        qCInfo(logAccount) << "Skin: rendered from cached raw:" << m_skinPath;
+        emit skinReady();
+        return;
+    }
+
+    // No cache — fetch from Mojang API
     qCInfo(logAccount) << "Skin: fetching from Mojang API...";
     QNetworkRequest req(QUrl(QStringLiteral("https://api.minecraftservices.com/minecraft/profile")));
     req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(m_msMcToken).toUtf8());
