@@ -558,15 +558,19 @@ Window {
                             Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
                             height: childrenRect.height; color: "transparent"
 
-                            // Refresh avatar when switching to offline tab
+                            // Refresh avatar + auto-fill when switching to offline tab
                             onVisibleChanged: {
                                 if (visible && backend) {
+                                    // Auto-fill last used username if input is empty
+                                    if (!offlineNameInput.text && backend.offlineUsernames.length > 0) {
+                                        offlineNameInput.text = backend.offlineUsernames[0]
+                                    }
                                     backend.updateOfflineSkin(offlineNameInput.text)
                                 }
                             }
 
                             ColumnLayout {
-                                anchors.horizontalCenter: parent.horizontalCenter; spacing: 12
+                                width: parent.width; spacing: 12
 
                                 // Avatar (updates in real-time as name changes)
                                 MinecraftHead2D {
@@ -575,26 +579,83 @@ Window {
                                     skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
                                 }
 
-                                // Name input
-                                Rectangle {
-                                    Layout.fillWidth: true; height: 40; radius: 7
-                                    color: "#11141c"; border.color: "#1e2230"
-                                    clip: true
-                                    TextInput {
-                                        id: offlineNameInput
-                                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                                        color: "#e4e8f2"; font.pixelSize: 13
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        onTextChanged: {
-                                            if (backend) backend.updateOfflineSkin(text)
+                                // Name input + dropdown
+                                Item {
+                                    Layout.fillWidth: true; height: 40
+                                    Rectangle {
+                                        anchors.fill: parent; radius: 7
+                                        color: "#11141c"; border.color: "#1e2230"
+                                        clip: true
+                                        TextInput {
+                                            id: offlineNameInput
+                                            anchors.left: parent.left; anchors.right: dropdownBtn.left
+                                            anchors.leftMargin: 12; anchors.rightMargin: 4
+                                            height: parent.height
+                                            color: "#e4e8f2"; font.pixelSize: 13
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            onTextChanged: {
+                                                if (backend) backend.updateOfflineSkin(text)
+                                            }
+                                        }
+                                        Text {
+                                            anchors.left: parent.left; anchors.leftMargin: 12
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "输入用户名"; color: "#a8b0c0"
+                                            font.pixelSize: 13
+                                            visible: !offlineNameInput.text
                                         }
                                     }
-                                    Text {
-                                        anchors.left: parent.left; anchors.leftMargin: 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "输入用户名"; color: "#a8b0c0"
-                                        font.pixelSize: 13
-                                        visible: !offlineNameInput.text
+                                    // Dropdown arrow button
+                                    Rectangle {
+                                        id: dropdownBtn
+                                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                        anchors.rightMargin: 4
+                                        width: 28; height: 32; radius: 4
+                                        color: offlineHistoryPopup.visible ? "#1e2840" : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "▼"; color: "#a8b0c0"; font.pixelSize: 10
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: {
+                                                offlineHistoryPopup.visible = !offlineHistoryPopup.visible
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // History dropdown popup
+                                Rectangle {
+                                    id: offlineHistoryPopup
+                                    Layout.fillWidth: true
+                                    visible: false
+                                    height: Math.min(backend ? backend.offlineUsernames.length * 32 : 0, 160)
+                                    color: "#141820"; radius: 6
+                                    border.color: "#1e2840"
+                                    clip: true
+                                    z: 10
+                                    ListView {
+                                        anchors.fill: parent
+                                        model: backend ? backend.offlineUsernames : []
+                                        delegate: Rectangle {
+                                            width: offlineHistoryPopup.width; height: 32
+                                            color: mouseArea.containsMouse ? "#1a2840" : "transparent"
+                                            Text {
+                                                anchors.left: parent.left; anchors.leftMargin: 12
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData; color: "#e4e8f2"; font.pixelSize: 13
+                                            }
+                                            MouseArea {
+                                                id: mouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                onClicked: {
+                                                    offlineNameInput.text = modelData
+                                                    offlineHistoryPopup.visible = false
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

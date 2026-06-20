@@ -114,30 +114,39 @@ void AccountBackend::offlineLogin(const QString &username)
 void AccountBackend::updateOfflineSkin(const QString &username)
 {
     QString name = username.trimmed();
-    if (name.isEmpty()) {
-        setFallbackSkin();
-        emit skinReady();
-        return;
+
+    // Default to Steve model when name is empty
+    QString modelName = QStringLiteral("steve");
+
+    if (!name.isEmpty()) {
+        // Generate offline UUID → hash LSB determines Steve/Alex
+        QByteArray input = QStringLiteral("OfflinePlayer:").toUtf8() + name.toUtf8();
+        QByteArray hash = QCryptographicHash::hash(input, QCryptographicHash::Md5);
+        modelName = (static_cast<unsigned char>(hash[0]) & 1) == 1
+                        ? QStringLiteral("alex") : QStringLiteral("steve");
+        qCInfo(logAccount) << "Offline skin preview:" << name << "→" << modelName
+                           << "(hash[0]&1=" << (hash[0] & 1) << ")";
     }
 
-    // Generate offline UUID → hash LSB determines Steve/Alex
-    QByteArray input = QStringLiteral("OfflinePlayer:").toUtf8() + name.toUtf8();
-    QByteArray hash = QCryptographicHash::hash(input, QCryptographicHash::Md5);
-    bool isAlex = (static_cast<unsigned char>(hash[0]) & 1) == 1;
-
-    QString modelName = isAlex ? QStringLiteral("alex") : QStringLiteral("steve");
     QString headPath = m_dataDir + QStringLiteral("/assets/skins/") + modelName + QStringLiteral("_head.png");
 
     if (!QFileInfo::exists(headPath)) {
-        qCWarning(logAccount) << "Offline head not rendered:" << headPath;
-        setFallbackSkin();
-        emit skinReady();
-        return;
+        // Heads should have been rendered at init; retry once
+        initOfflineHeads();
+        if (!QFileInfo::exists(headPath)) {
+            qCWarning(logAccount) << "Offline head still missing:" << headPath;
+            setFallbackSkin();
+            emit skinReady();
+            return;
+        }
     }
 
+    // Force update even if same path (QML may have stale bindings)
+    if (m_skinPath == toImageUrl(headPath)) {
+        m_skinPath.clear();
+    }
     m_skinPath = toImageUrl(headPath);
     emit skinReady();
-    qCInfo(logAccount) << "Offline skin preview:" << name << "→" << modelName << "(hash[0]&1=" << (hash[0] & 1) << ")";
 }
 
 // ────────────────────────────────────────────────────────────
