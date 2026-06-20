@@ -208,12 +208,43 @@ Rectangle {
         // ── Mod file download ──
         // ═══════════════════════════════════════════════════════
         ListModel { id: modDownloadModel }
+        property var modDlSpeeds: ({})  // dlId -> {lastReceived, lastTime, speed}
+        Timer {
+            id: modDlSpeedTimer; interval: 1000; repeat: true; running: false
+            onTriggered: {
+                var now = Date.now()
+                for (var i = 0; i < modDownloadModel.count; i++) {
+                    var dl = modDownloadModel.get(i)
+                    if (dl.done) continue
+                    var s = modDlSpeeds[dl.dlId]
+                    if (s) {
+                        var elapsed = (now - s.lastTime) / 1000
+                        if (elapsed > 0) {
+                            s.speed = Math.round((dl.received - s.lastReceived) / elapsed)
+                            modDownloadModel.setProperty(i, "speed", s.speed)
+                            s.lastReceived = dl.received
+                            s.lastTime = now
+                        }
+                    }
+                }
+            }
+        }
+        function modDlSpeedOn() {
+            modDlSpeedTimer.running = true
+        }
+        function modDlSpeedOff() {
+            var active = false
+            for (var i = 0; i < modDownloadModel.count; i++) { if (!modDownloadModel.get(i).done) { active = true; break } }
+            if (!active) modDlSpeedTimer.running = false
+        }
         Connections {
             target: backend
             function onModFileDownloadStarted(dlId, fileName, fileSize, displayName) {
                 console.log("[progress] mod dl started:", dlId, displayName)
                 modDownloadModel.append({dlId: dlId, name: displayName, fileName: fileName,
-                    received: 0, total: fileSize, done: false, error: ""})
+                    received: 0, total: fileSize, done: false, error: "", speed: 0})
+                modDlSpeeds[dlId] = {lastReceived: 0, lastTime: Date.now(), speed: 0}
+                modDlSpeedOn()
             }
             function onModFileDownloadProgress(dlId, received, total) {
                 for (var i = 0; i < modDownloadModel.count; i++) {
@@ -230,6 +261,8 @@ Rectangle {
                     if (modDownloadModel.get(i).dlId === dlId) {
                         modDownloadModel.setProperty(i, "done", true)
                         if (success) modDownloadModel.setProperty(i, "received", modDownloadModel.get(i).total)
+                        delete modDlSpeeds[dlId]
+                        modDlSpeedOff()
                         return
                     }
                 }
@@ -240,6 +273,8 @@ Rectangle {
                     if (modDownloadModel.get(i).dlId === dlId) {
                         modDownloadModel.setProperty(i, "done", true)
                         modDownloadModel.setProperty(i, "error", errorDetail)
+                        delete modDlSpeeds[dlId]
+                        modDlSpeedOff()
                         return
                     }
                 }
@@ -257,17 +292,28 @@ Rectangle {
                     RowLayout {
                         Text { text: model.done ? (model.error ? "❌" : "✅") : "📦"; font.pixelSize: 14; color: model.error ? "#e06060" : (model.done ? "#4bc870" : "#5068c8") }
                         Text { text: model.name; font.pixelSize: 12; color: "#c0c8e0"; Layout.fillWidth: true; elide: Text.ElideRight }
+                        // Cancel button (active only)
                         Rectangle {
-                            id: skipBtn; visible: model.done && model.error
+                            visible: !model.done && !model.error
+                            width: 50; height: 20; radius: 4; color: cancelHov.hovered ? "#3a1818" : "#2a1010"
+                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 9; color: "#c06060" }
+                            MouseArea { id: cancelHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { backend.cancelModFileDownload(model.dlId); modDownloadModel.remove(index) }
+                            }
+                        }
+                        // Skip button (error only)
+                        Rectangle {
+                            visible: model.done && model.error
                             width: 50; height: 20; radius: 4; color: skipHov.hovered ? "#3a1818" : "#2a1010"
                             Text { anchors.centerIn: parent; text: "跳过"; font.pixelSize: 9; color: "#c06060" }
                             MouseArea { id: skipHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: { modDownloadModel.remove(index) }
                             }
                         }
+                        // Retry button (error only)
                         Rectangle {
-                            id: retryBtn; visible: model.done && model.error
-                            width: 50; height: 20; radius: 4; color: retryHov.hovered ? "#2a2818" : "#1a1810"
+                            visible: model.done && model.error
+                            width: 50; height: 20; radius: 4; color: retryHov.hovered ? "#3a3020" : "#2a2010"
                             Text { anchors.centerIn: parent; text: "重试"; font.pixelSize: 9; color: "#c0a030" }
                             MouseArea { id: retryHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: { backend.retryModFileDownload(model.dlId) }
@@ -288,7 +334,7 @@ Rectangle {
                     Text {
                         visible: model.total > 0
                         text: fmtSize(model.received) + " / " + fmtSize(model.total)
-                            + (model.done ? "" : ("  ") + fmtSpeed(model.received > 0 && model.lastSpeed ? model.lastSpeed : 0))
+                            + (model.done ? "" : ("  " + fmtSpeed(model.speed || 0)))
                         color: "#707888"; font.pixelSize: 10; font.family: "Consolas, monospace"
                     }
                     Text {
