@@ -9,12 +9,14 @@
 #include <QUrlQuery>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QRandomGenerator>
 
 namespace ShadowLauncher {
 
 static const char* kAuthUrl = "https://login.live.com/oauth20_authorize.srf";
 static const char* kTokenUrl = "https://login.live.com/oauth20_token.srf";
-static const char* kRedirectUri = "https://login.live.com/oauth20_desktop.srf";
 static const char* kXblAuthUrl = "https://user.auth.xboxlive.com/user/authenticate";
 static const char* kXstsAuthUrl = "https://xsts.auth.xboxlive.com/xsts/authorize";
 static const char* kMcAuthUrl = "https://api.minecraftservices.com/authentication/login_with_xbox";
@@ -28,7 +30,62 @@ void MicrosoftAuth::startLogin(const QString& clientId)
     m_clientId = clientId;
     m_busy = true;
 
-    // Build the authorization URL
+    // Pick a local port and start HTTP server to capture the OAuth callback
+    int port = 58000 + (QRandomGenerator::global()->bounded(2000)); // 58000-59999
+    m_localServer = new QTcpServer(this);
+
+    connect(m_localServer, &QTcpServer::newConnection, this, [this]() {
+        while (m_localServer->hasPendingConnections()) {
+            auto* sock = m_localServer->nextPendingConnection();
+            sock->waitForReadyRead(2000);
+            QByteArray data = sock->readAll();
+            sock->close();
+            sock->deleteLater();
+
+            qCInfo(logApp) << "[MSA] Received callback:" << data.left(300);
+
+            // Extract GET /?code=*** HTTP/1.1
+            int codeIdx = data.indexOf(QByteArrayLiteral("code="));
+            if (codeIdx < 0) {
+                qCWarning(logApp) << "[MSA] No code in callback";
+                m_localServer->close();
+                m_localServer->deleteLater();
+                m_localServer = nullptr;
+                m_busy = false;
+                emit loginFailed(QStringLiteral("浏览器回调中未找到验证码"));
+                return;
+            }
+
+            // Extract code value
+            int valStart = codeIdx + 5;
+            int valEnd = data.indexOf(' ', valStart);
+            if (valEnd < 0) valEnd = data.indexOf('&', valStart);
+            if (valEnd < 0) valEnd = data.size();
+            QString code = QString::fromUtf8(data.mid(valStart, valEnd - valStart));
+
+            qCInfo(logApp) << "[MSA] Extracted code:" << code;
+
+            m_localServer->close();
+            m_localServer->deleteLater();
+            m_localServer = nullptr;
+
+            emit loginProgress(QStringLiteral("验证中"), QStringLiteral("正在换取访问令牌..."));
+            exchangeCode(code);
+        }
+    });
+
+    if (!m_localServer->listen(QHostAddress::LocalHost, port)) {
+        qCWarning(logApp) << "[MSA] Local server failed to listen on port" << port;
+        m_busy = false;
+        emit loginFailed(QStringLiteral("本地回调服务启动失败"));
+        return;
+    }
+
+    QString redirectUri = QStringLiteral("http://localhost:%1").arg(port);
+    m_localRedirectUri = redirectUri;
+    qCInfo(logApp) << "[MSA] Local server listening on" << redirectUri;
+
+    // Build the authorization URL with localhost redirect
     QString url = QStringLiteral("%1"
         "?client_id=%2"
         "&response_type=code"
@@ -36,51 +93,29 @@ void MicrosoftAuth::startLogin(const QString& clientId)
         "&scope=XboxLive.signin%20offline_access")
         .arg(QString::fromLatin1(kAuthUrl),
              clientId,
-             QString::fromLatin1(kRedirectUri));
+             redirectUri);
 
     qCInfo(logApp) << "[MSA] Auth URL:" << url;
     emit loginProgress(QStringLiteral("浏览器登录"), QStringLiteral("请在浏览器中登录 Microsoft 账号"));
     emit authUrlReady(url);
 
-    // Auto-open browser
     QDesktopServices::openUrl(QUrl(url));
 }
 
 void MicrosoftAuth::cancelLogin()
 {
+    if (m_localServer) {
+        m_localServer->close();
+        m_localServer->deleteLater();
+        m_localServer = nullptr;
+    }
     m_busy = false;
     emit loginFailed(QStringLiteral("用户取消登录"));
 }
 
-void MicrosoftAuth::submitCode(const QString& codeOrUrl)
+void MicrosoftAuth::submitCode(const QString&)
 {
-    if (!m_busy) {
-        emit loginFailed(QStringLiteral("没有进行中的登录"));
-        return;
-    }
-
-    // Extract code from URL or use as-is
-    QString code = codeOrUrl;
-    if (codeOrUrl.contains(QStringLiteral("?code="))) {
-        QUrl url(codeOrUrl);
-        QUrlQuery query(url);
-        code = query.queryItemValue(QStringLiteral("code"));
-    } else if (codeOrUrl.contains(QStringLiteral("&code="))) {
-        // Handle fragments: extract ?code= or &code=
-        int idx = codeOrUrl.indexOf(QStringLiteral("code="));
-        int end = codeOrUrl.indexOf(QLatin1Char('&'), idx + 5);
-        code = (end > 0) ? codeOrUrl.mid(idx + 5, end - idx - 5)
-                         : codeOrUrl.mid(idx + 5);
-    }
-
-    if (code.isEmpty()) {
-        emit loginFailed(QStringLiteral("未能从输入中提取验证码，请复制浏览器地址栏完整 URL"));
-        return;
-    }
-
-    qCInfo(logApp) << "[MSA] Got auth code, exchanging...";
-    emit loginProgress(QStringLiteral("验证中"), QStringLiteral("正在换取访问令牌..."));
-    exchangeCode(code);
+    // No longer needed — code captured by local server
 }
 
 // ═══════════════════════════════════════════════════
@@ -88,11 +123,13 @@ void MicrosoftAuth::submitCode(const QString& codeOrUrl)
 // ═══════════════════════════════════════════════════
 void MicrosoftAuth::exchangeCode(const QString& code)
 {
+    QString redirectUri = m_localRedirectUri;
+
     QUrlQuery postData;
     postData.addQueryItem(QStringLiteral("client_id"), m_clientId);
     postData.addQueryItem(QStringLiteral("code"), code);
     postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("authorization_code"));
-    postData.addQueryItem(QStringLiteral("redirect_uri"), QString::fromLatin1(kRedirectUri));
+    postData.addQueryItem(QStringLiteral("redirect_uri"), redirectUri);
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
 
@@ -103,15 +140,15 @@ void MicrosoftAuth::exchangeCode(const QString& code)
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
-        QByteArray data = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(data);
+        QByteArray raw = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(raw);
         QJsonObject obj = doc.object();
 
         if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("error"))) {
             QString err = obj[QStringLiteral("error")].toString();
             QString desc = obj[QStringLiteral("error_description")].toString();
             qCWarning(logApp) << "[MSA] Token exchange failed:" << reply->errorString()
-                             << "body:" << data.left(500);
+                             << "body:" << raw.left(500);
             m_busy = false;
             emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.isEmpty() ? err : desc));
             return;
@@ -121,7 +158,7 @@ void MicrosoftAuth::exchangeCode(const QString& code)
         m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
 
         if (m_msAccessToken.isEmpty()) {
-            qCWarning(logApp) << "[MSA] No access_token in response:" << data.left(500);
+            qCWarning(logApp) << "[MSA] No access_token in response:" << raw.left(500);
             m_busy = false;
             emit loginFailed(QStringLiteral("未获取到访问令牌"));
             return;

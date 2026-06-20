@@ -10,6 +10,10 @@
 #include <QObject>
 #include <QString>
 
+QT_BEGIN_NAMESPACE
+class QTcpServer;
+QT_END_NAMESPACE
+
 namespace ShadowLauncher {
 
 class MicrosoftAuth : public QObject {
@@ -41,6 +45,8 @@ private:
     QString m_msAccessToken;
     QString m_msRefreshToken;
     QString m_msMcToken;
+    QString m_localRedirectUri;
+    QTcpServer* m_localServer = nullptr;
 
     void exchangeCode(const QString& code);
     void authenticateXbl(const QString& accessToken);
