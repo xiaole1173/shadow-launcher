@@ -1113,9 +1113,11 @@ void ShadowBackend::launch(const QString& versionId) {
 
     // Pass online auth info if using Microsoft login
     if (m_account->isOnline()) {
+        qCInfo(logLaunch) << "[AUTH] Launching with ONLINE auth: username=" << m_account->username() << " uuid=" << m_account->accountUuid();
         m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
                               m_account->mcToken(), true);
     } else {
+        qCInfo(logLaunch) << "[AUTH] Launching with OFFLINE auth: username=" << m_account->offlineUsername() << " uuid=" << m_account->offlineUuid();
         m_launch->setAuthInfo(QString(), QString(), QString(), false);
     }
 
