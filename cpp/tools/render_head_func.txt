@@ -6,7 +6,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     constexpr int  SS = 4, SZ = 64 * SS;
     constexpr float HW = 4.0f, DEG = 0.01745329252f;
     const float yr = 22.0f*DEG, pr = 0.0f;
-    const float cy=cosf(yr),sy=sinf(yr), cp=cosf(pr),sp=sinf(pr);
+    const float cosY=cosf(yr),sinY=sinf(yr), cosP=cosf(pr),sinP=sinf(pr);
     const float SC = (float)SZ / 12.0f, OFF = (SZ - SC*8.0f) * 0.5f;
     const float CAMZ = 10.0f;
 
@@ -23,8 +23,8 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     float pad = 0.30f;
 
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
-        float rx=x*cy-z*sy, rz=x*sy+z*cy, ry2=y*cp-rz*sp;
-        dep=y*sp+rz*cp;
+        float rx=x*cosY-z*sinY, rz=x*sinY+z*cosY, ry2=y*cosP-rz*sinP;
+        dep=y*sinP+rz*cosP;
         float dz = rz + CAMZ; if (dz<0.5f) dz=0.5f;
         sx = (rx/dz) * CAMZ * SC + OFF;
         sy = (-ry2/dz) * CAMZ * SC + OFF;
@@ -37,7 +37,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
                          float nx,float ny,float nz, int u0,int v0,int u1,int v1, bool isHat)
     {
         // Rotate face normal for lighting
-        float rnx=nx*cy-nz*sy, rnz=nx*sy+nz*cy, rny2=ny*cp-rnz*sp;
+        float rnx=nx*cosY-nz*sinY, rnz=nx*sinY+nz*cosY, rny2=ny*cosP-rnz*sinP;
         float br = 0.3f + 0.7f * fmaxf(0.0f, (rnx*Lx + rny2*Ly + rnz*Lz) / Llen);
         if (br > 1.0f) br = 1.0f;
 

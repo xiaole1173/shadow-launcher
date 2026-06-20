@@ -1,0 +1,15 @@
+﻿閫傜敤浜?.NET Framework MSBuild 鐗堟湰 17.14.40+3e7442088
+
+  1>Checking Build System
+  Building Custom Rule D:/MC_Project/shadow-launcher/cpp/CMakeLists.txt
+  Building Custom Rule D:/MC_Project/shadow-launcher/cpp/CMakeLists.txt
+  Building Custom Rule D:/MC_Project/shadow-launcher/cpp/CMakeLists.txt
+  1>Automatic MOC for target ShadowLauncher
+  Building Custom Rule D:/MC_Project/shadow-launcher/cpp/CMakeLists.txt
+  Running AUTOMOC file extraction for target ShadowLauncher
+  Building Custom Rule D:/MC_Project/shadow-launcher/cpp/CMakeLists.txt
+  Running moc --collect-json for target ShadowLauncher
+  Building Custom Rule D:/MC_Project/shadow-launcher/cpp/CMakeLists.txt
+  account_backend.cpp
+D:\MC_Project\shadow-launcher\cpp\src\backend\account_backend.cpp(232,21): error C2297: 鈥?鈥? 鏃犳晥锛屽洜涓哄彸鎿嶄綔鏁扮殑绫诲瀷涓衡€渃onst float []鈥?[D:\MC_Project\shadow-launcher\cpp\build\ShadowLauncher.vcxproj]
+D:\MC_Project\shadow-launcher\cpp\src\backend\account_backend.cpp(232,44): error C2297: 鈥?鈥? 鏃犳晥锛屽洜涓哄彸鎿嶄綔鏁扮殑绫诲瀷涓衡€渃onst float []鈥?[D:\MC_Project\shadow-launcher\cpp\build\ShadowLauncher.vcxproj]
