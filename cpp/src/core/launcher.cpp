@@ -459,7 +459,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             QRegularExpressionMatchIterator it = argSplitter.globalMatch(mcArgs);
             while (it.hasNext()) {
                 QRegularExpressionMatch m = it.next();
-                QString part = m.captured(1);
+                QString part = m.captured(0);  // whole match
                 if (part.startsWith(QLatin1Char('"')) && part.endsWith(QLatin1Char('"')))
                     part = part.mid(1, part.size() - 2);
                 if (!part.isEmpty()) gameArgs.append(part);
