@@ -6,9 +6,10 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     constexpr int  SZ = 64;
     constexpr float HW = 4.0f;
     constexpr float DEG = 0.01745329252f;
-    const float yr = 20.0f*DEG, pr = -8.0f*DEG;
+    const float yr = 25.0f*DEG, pr = -10.0f*DEG;
     const float cy=cosf(yr),sy=sinf(yr), cp=cosf(pr),sp=sinf(pr);
-    const float SC = (float)SZ / 8.0f;
+    // Scale: head (8u) → ~48px centered in 64px canvas, leaving hat margin
+    const float SC = (float)SZ / 10.5f;  // head ~49px, hat ~52px, margin ~6px
 
     QImage out(SZ, SZ, QImage::Format_ARGB32_Premultiplied);
     out.fill(0);
@@ -16,63 +17,46 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     int tW = skin.width(), tH = skin.height();
     float dV = (float)tH;
     bool hat = (tH >= 64);
-    const float PD = 0.25f;
+    float pad = 0.35f;
 
-    // rotate + ortho project → sx,sy + depth
+    // rotate + ortho project
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
         float rx=x*cy-z*sy, rz=x*sy+z*cy, ry2=y*cp-rz*sp;
-        dep=y*sp+rz*cp; sx=(rx+HW)*SC; sy=(HW-ry2)*SC;
+        dep=y*sp+rz*cp;
+        sx = (rx + HW) * SC + (SZ - SC*8.0f) / 2.0f;  // center in frame
+        sy = (HW - ry2) * SC + (SZ - SC*8.0f) / 2.0f;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep; bool ht; };
     Tri tri[24]; int tc=0;
 
     auto emitQuad = [&](const float cx[4],const float cy[4],const float cz[4],
-                         int u0,int v0,int u1,int v1, bool isHat)
+                         int u0,int v0,int u1,int v1, bool isHt)
     {
         float sx[4],sy[4],sd[4];
         for(int i=0;i<4;++i) prj(cx[i],cy[i],cz[i],sx[i],sy[i],sd[i]);
         float US[4]={(float)u1/tW,(float)u0/tW,(float)u0/tW,(float)u1/tW};
         float VS[4]={(float)v1/dV,(float)v1/dV,(float)v0/dV,(float)v0/dV};
-        // emit triangles 0-1-2 and 0-2-3
-        if (tc+2 > 24) return;
-        tri[tc]={sx[0],sy[0],sx[1],sy[1],sx[2],sy[2], US[0],VS[0],US[1],VS[1],US[2],VS[2], (sd[0]+sd[1]+sd[2])/3.0f, isHat}; tc++;
-        tri[tc]={sx[0],sy[0],sx[2],sy[2],sx[3],sy[3], US[0],VS[0],US[2],VS[2],US[3],VS[3], (sd[0]+sd[2]+sd[3])/3.0f, isHat}; tc++;
+        if (tc+2>24) return;
+        tri[tc]={sx[0],sy[0],sx[1],sy[1],sx[2],sy[2], US[0],VS[0],US[1],VS[1],US[2],VS[2], (sd[0]+sd[1]+sd[2])/3.0f, isHt}; tc++;
+        tri[tc]={sx[0],sy[0],sx[2],sy[2],sx[3],sy[3], US[0],VS[0],US[2],VS[2],US[3],VS[3], (sd[0]+sd[2]+sd[3])/3.0f, isHt}; tc++;
     };
 
-    // ── Head layer ──
-    {   // Top (Y=-HW): UV(8,0)-(16,8)
-        const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,-HW,-HW}, Z[4]={HW,HW,-HW,-HW};
-        emitQuad(X,Y,Z, 8,0,16,8, false);
-    }
-    {   // Right (X=+HW): UV(0,8)-(8,16)
-        const float X[4]={HW,HW,HW,HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,-HW,-HW,HW};
-        emitQuad(X,Y,Z, 0,8,8,16, false);
-    }
-    {   // Front (Z=+HW): UV(8,8)-(16,16)
-        const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,HW,HW,HW};
-        emitQuad(X,Y,Z, 8,8,16,16, false);
-    }
-    // ── Hat layer ──
+    // ── Head faces ──
+    { const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,-HW,-HW}, Z[4]={HW,HW,-HW,-HW}; emitQuad(X,Y,Z, 8,0,16,8, false); }
+    { const float X[4]={HW,HW,HW,HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,-HW,-HW,HW}; emitQuad(X,Y,Z, 0,8,8,16, false); }
+    { const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,HW,HW,HW}; emitQuad(X,Y,Z, 8,8,16,16, false); }
+    // ── Hat faces ──
     if (hat) {
-        {   // Top hat (Y=-HW-PD): UV(40,0)-(48,8)
-            const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW-PD,-HW-PD,-HW-PD,-HW-PD}, Z[4]={HW,HW,-HW,-HW};
-            emitQuad(X,Y,Z, 40,0,48,8, true);
-        }
-        {   // Right hat (X=+HW+PD): UV(32,8)-(40,16)
-            const float X[4]={HW+PD,HW+PD,HW+PD,HW+PD}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,-HW,-HW,HW};
-            emitQuad(X,Y,Z, 32,8,40,16, true);
-        }
-        {   // Front hat (Z=+HW+PD): UV(40,8)-(48,16)
-            const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW+PD,HW+PD,HW+PD,HW+PD};
-            emitQuad(X,Y,Z, 40,8,48,16, true);
-        }
+        { const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad}, Z[4]={HW,HW,-HW,-HW}; emitQuad(X,Y,Z, 40,0,48,8, true); }
+        { const float X[4]={HW+pad,HW+pad,HW+pad,HW+pad}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,-HW,-HW,HW}; emitQuad(X,Y,Z, 32,8,40,16, true); }
+        { const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW+pad,HW+pad,HW+pad,HW+pad}; emitQuad(X,Y,Z, 40,8,48,16, true); }
     }
 
-    // ── Depth sort (back-to-front) ──
+    // Depth sort back-to-front
     std::sort(tri, tri+tc, [](const Tri&a,const Tri&b){ return a.dep < b.dep; });
 
-    // ── Rasterise ──
+    // Rasterise
     for (int ti=0; ti<tc; ++ti) {
         auto& t = tri[ti];
         float dn = (t.by-t.cy)*(t.ax-t.cx)+(t.cx-t.bx)*(t.ay-t.cy);
