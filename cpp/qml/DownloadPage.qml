@@ -3415,7 +3415,7 @@ Rectangle {
             // Sort within each group by date descending
             for (var k in groups) {
                 groups[k].sort(function(a,b){
-                    var da = getVersionDetail(a); var db = getVersionDetail(b)
+                    var da = modDetailOverlay.getVersionDetail(a); var db = modDetailOverlay.getVersionDetail(b)
                     var dateA = da ? da.date : ""; var dateB = db ? db.date : ""
                     if (dateA > dateB) return -1; if (dateA < dateB) return 1; return 0
                 })
