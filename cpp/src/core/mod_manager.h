@@ -92,6 +92,12 @@ public:
         const QStringList& gameVersions = {}
     );
 
+    // Download a specific mod file to user-chosen path
+    Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
+                                    qint64 expectedSize, const QString& sha1);
+    Q_INVOKABLE void cancelModFileDownload(int downloadId);
+    Q_INVOKABLE void retryModFileDownload(int downloadId);
+
     void downloadMod(
         const QString& slug,
         const QString& gameVersion,
@@ -159,6 +165,13 @@ signals:
     void modVersionsLoaded(const QVariantMap& slugToVersions);
     void modVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void modVersionsProgress(int done, int total);
+
+    // Mod file download (user-chosen save path)
+    void modFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
+    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
+    void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
+
     void shaderVersionsLoaded(const QVariantMap& slugToVersions);
     void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void shaderVersionsProgress(int done, int total);
@@ -194,6 +207,25 @@ private:
     PendingDownload m_pendingDownload;
     QString m_minecraftDir;
     int m_lastTotalHits = 0;
+
+    // Mod file download tracking
+    struct ActiveModDownload {
+        int id = 0;
+        QString url;
+        QString savePath;
+        QString displayName;
+        qint64 expectedSize = 0;
+        QString sha1;
+        qint64 received = 0;
+        bool cancelled = false;
+        bool finished = false;
+        bool failed = false;
+        QString errorDetail;
+        qint64 lastSpeedCalc = 0;
+        qint64 lastSpeedBytes = 0;
+    };
+    QMap<int, ActiveModDownload> m_activeModDownloads;
+    int m_nextModDownloadId = 1;
 };
 
 } // namespace ShadowLauncher

@@ -7,6 +7,9 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QCryptographicHash>
 #include <QTimer>
 #include <functional>
 #include <memory>
@@ -297,6 +300,118 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
             emit downloadFinished(slug, ok, ok ? destPath : QString());
         }
     );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Mod file download — user-chosen save path
+// ═══════════════════════════════════════════════════════════
+
+int ModManager::downloadModFile(const QString& url, const QString& savePath,
+                                 const QString& displayName, qint64 expectedSize,
+                                 const QString& sha1)
+{
+    int id = m_nextModDownloadId++;
+    ActiveModDownload dl;
+    dl.id = id;
+    dl.url = url;
+    dl.savePath = savePath;
+    dl.displayName = displayName;
+    dl.expectedSize = expectedSize;
+    dl.sha1 = sha1;
+    m_activeModDownloads[id] = dl;
+
+    emit logMessage(QStringLiteral("📦 开始下载 Mod: %1 → %2").arg(displayName, savePath));
+    emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
+
+    HttpClient::instance().download(
+        url, savePath,
+        [this, id](qint64 received, qint64 total) {
+            auto it = m_activeModDownloads.find(id);
+            if (it == m_activeModDownloads.end() || it->cancelled || it->finished) return;
+            it->received = received;
+            it->lastSpeedCalc++;
+            emit modFileDownloadProgress(id, received, total);
+        },
+        [this, id, savePath, displayName, sha1](bool ok, const QString& error) {
+            auto it = m_activeModDownloads.find(id);
+            if (it == m_activeModDownloads.end()) return;
+            if (it->cancelled) {
+                // Cleanup residual file
+                QFile::remove(savePath);
+                m_activeModDownloads.erase(it);
+                return;
+            }
+            if (ok) {
+                // SHA1 verification
+                if (!sha1.isEmpty()) {
+                    QFile f(savePath);
+                    if (f.open(QIODevice::ReadOnly)) {
+                        QCryptographicHash hash(QCryptographicHash::Sha1);
+                        hash.addData(&f);
+                        QString actual = hash.result().toHex().toLower();
+                        f.close();
+                        if (actual != sha1.toLower()) {
+                            QFile::remove(savePath);
+                            QString errMsg = QStringLiteral(
+                                "SHA1 校验失败\n期望: %1\n实际: %2\n文件已损坏，已被删除")
+                                .arg(sha1, actual);
+                            emit logMessage(QStringLiteral("❌ %1 — %2").arg(displayName, errMsg.replace("\n", " ")));
+                            it->failed = true;
+                            it->errorDetail = errMsg;
+                            emit modFileDownloadFailed(id, errMsg, displayName);
+                            return;
+                        }
+                    }
+                }
+                it->finished = true;
+                emit logMessage(QStringLiteral("✅ Mod 下载完成: %1").arg(displayName));
+                emit modFileDownloadFinished(id, true, savePath, displayName);
+            } else {
+                // Preserve partial file for retry? No, clean up
+                QFile::remove(savePath);
+                QString errDetail = error.isEmpty()
+                    ? QStringLiteral("网络连接失败，请检查网络后重试")
+                    : QStringLiteral("下载错误: %1").arg(error);
+                emit logMessage(QStringLiteral("❌ Mod 下载失败: %1 — %2").arg(displayName, errDetail));
+                it->failed = true;
+                it->errorDetail = errDetail;
+                emit modFileDownloadFailed(id, errDetail, displayName);
+            }
+        }
+    );
+
+    return id;
+}
+
+void ModManager::cancelModFileDownload(int downloadId)
+{
+    auto it = m_activeModDownloads.find(downloadId);
+    if (it == m_activeModDownloads.end()) return;
+    it->cancelled = true;
+    // HttpClient cancellation — note: HttpClient::cancel() may need to be implemented
+    // For now, the progress callback will detect cancelled and cleanup
+    emit logMessage(QStringLiteral("🚫 已取消 Mod 下载: %1").arg(it->displayName));
+}
+
+void ModManager::retryModFileDownload(int downloadId)
+{
+    auto it = m_activeModDownloads.find(downloadId);
+    if (it == m_activeModDownloads.end()) return;
+    QString url = it->url;
+    QString savePath = it->savePath;
+    QString displayName = it->displayName;
+    qint64 expectedSize = it->expectedSize;
+    QString sha1 = it->sha1;
+
+    // Remove residual file
+    QFile::remove(savePath);
+    // Remove old entry
+    m_activeModDownloads.erase(it);
+
+    emit logMessage(QStringLiteral("🔄 重试下载 Mod: %1").arg(displayName));
+
+    // Re-download with new id
+    downloadModFile(url, savePath, displayName, expectedSize, sha1);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -753,6 +868,28 @@ void ModManager::fetchModVersions(const QStringList& slugs)
                                 detail["downloads"] = ver["downloads"].toInt();
                                 detail["date_published"] = ver["date_published"].toString();
                                 detail["version_type"] = ver["version_type"].toString();
+                                detail["id"] = ver["id"].toString();
+                                // Primary file
+                                QJsonArray files = ver["files"].toArray();
+                                for (const QJsonValue& fv : files) {
+                                    QJsonObject f = fv.toObject();
+                                    if (f["primary"].toBool()) {
+                                        detail["url"] = f["url"].toString();
+                                        detail["filename"] = f["filename"].toString();
+                                        detail["size"] = static_cast<qint64>(f["size"].toDouble());
+                                        QJsonObject hashes = f["hashes"].toObject();
+                                        detail["sha1"] = hashes["sha1"].toString();
+                                        break;
+                                    }
+                                }
+                                if (!detail.contains("url") && !files.isEmpty()) {
+                                    QJsonObject f = files.first().toObject();
+                                    detail["url"] = f["url"].toString();
+                                    detail["filename"] = f["filename"].toString();
+                                    detail["size"] = static_cast<qint64>(f["size"].toDouble());
+                                    QJsonObject hashes = f["hashes"].toObject();
+                                    detail["sha1"] = hashes["sha1"].toString();
+                                }
                                 // Include loaders info
                                 QJsonArray loaders = ver["loaders"].toArray();
                                 QStringList loaderList;

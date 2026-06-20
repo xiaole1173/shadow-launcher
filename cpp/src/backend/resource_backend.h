@@ -44,10 +44,20 @@ public:
     Q_INVOKABLE void fetchShaderVersions(const QStringList& slugs);
     Q_INVOKABLE void cancelDownload();
 
+    // Mod file download (user-chosen path)
+    Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
+                                    qint64 expectedSize, const QString& sha1);
+    Q_INVOKABLE void cancelModFileDownload(int downloadId);
+    Q_INVOKABLE void retryModFileDownload(int downloadId);
+
 signals:
     void downloadProgressChanged(int completed, int total, const QString& fileName);
     void downloadStateChanged();
     void downloadFinished(const QString& slug, bool success, const QString& filePath);
+    void modFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
+    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
+    void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     void searchResultsReady(const QVariantList& results);
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
@@ -74,6 +84,12 @@ private slots:
     void onShaderVersionsLoaded(const QVariantMap& slugToVersions);
     void onDownloadProgress(const QString& name, qint64 received, qint64 total);
     void onDownloadFinished(const QString& slug, bool success, const QString& filePath);
+
+    // Mod file download forwarding
+    void onModFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
+    void onModFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void onModFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
+    void onModFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
 
 private:
     ModManager* m_modMgr = nullptr;

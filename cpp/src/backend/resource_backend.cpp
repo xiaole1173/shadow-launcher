@@ -50,6 +50,16 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::shaderVersionsProgress);
     connect(m_modMgr, &ModManager::logMessage,
             this, &ResourceBackend::logMessage);
+
+    // Mod file download
+    connect(m_modMgr, &ModManager::modFileDownloadStarted,
+            this, &ResourceBackend::onModFileDownloadStarted);
+    connect(m_modMgr, &ModManager::modFileDownloadProgress,
+            this, &ResourceBackend::onModFileDownloadProgress);
+    connect(m_modMgr, &ModManager::modFileDownloadFinished,
+            this, &ResourceBackend::onModFileDownloadFinished);
+    connect(m_modMgr, &ModManager::modFileDownloadFailed,
+            this, &ResourceBackend::onModFileDownloadFailed);
 }
 
 ResourceBackend::~ResourceBackend() = default;
@@ -487,6 +497,50 @@ void ResourceBackend::onModVersionsLoaded(const QVariantMap& slugToVersions)
 void ResourceBackend::onShaderVersionsLoaded(const QVariantMap& slugToVersions)
 {
     emit shaderVersionsLoaded(slugToVersions);
+}
+
+// ============================================================
+// Mod file download — proxy + forwarding
+// ============================================================
+
+int ResourceBackend::downloadModFile(const QString& url, const QString& savePath,
+                                      const QString& displayName, qint64 expectedSize,
+                                      const QString& sha1)
+{
+    return m_modMgr->downloadModFile(url, savePath, displayName, expectedSize, sha1);
+}
+
+void ResourceBackend::cancelModFileDownload(int downloadId)
+{
+    m_modMgr->cancelModFileDownload(downloadId);
+}
+
+void ResourceBackend::retryModFileDownload(int downloadId)
+{
+    m_modMgr->retryModFileDownload(downloadId);
+}
+
+void ResourceBackend::onModFileDownloadStarted(int downloadId, const QString& fileName,
+                                                qint64 fileSize, const QString& displayName)
+{
+    emit modFileDownloadStarted(downloadId, fileName, fileSize, displayName);
+}
+
+void ResourceBackend::onModFileDownloadProgress(int downloadId, qint64 received, qint64 total)
+{
+    emit modFileDownloadProgress(downloadId, received, total);
+}
+
+void ResourceBackend::onModFileDownloadFinished(int downloadId, bool success,
+                                                 const QString& filePath, const QString& displayName)
+{
+    emit modFileDownloadFinished(downloadId, success, filePath, displayName);
+}
+
+void ResourceBackend::onModFileDownloadFailed(int downloadId, const QString& errorDetail,
+                                               const QString& displayName)
+{
+    emit modFileDownloadFailed(downloadId, errorDetail, displayName);
 }
 
 } // namespace ShadowLauncher
