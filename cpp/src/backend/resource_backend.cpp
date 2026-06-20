@@ -201,6 +201,27 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
                     entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
                     entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
                     entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+                    // Extract loader + categories + client_side for badges
+                    QJsonArray cats = obj[QStringLiteral("categories")].toArray();
+                    QStringList catList, typeList;
+                    QStringList knownLoaders = {QLatin1String("fabric"), QLatin1String("forge"),
+                                                QLatin1String("quilt"), QLatin1String("neoforge"),
+                                                QLatin1String("rift"), QLatin1String("liteloader")};
+                    QString loader;
+                    for (const QJsonValue& cv : cats) {
+                        QString c = cv.toString();
+                        catList << c;
+                        if (knownLoaders.contains(c)) {
+                            if (loader.isEmpty()) loader = c;
+                        } else {
+                            typeList << c;
+                        }
+                    }
+                    entry[QStringLiteral("loader")]     = loader;
+                    entry[QStringLiteral("categories")] = QVariant(catList);
+                    entry[QStringLiteral("typeList")]   = QVariant(typeList);
+                    entry[QStringLiteral("clientSide")] = obj[QStringLiteral("client_side")].toString();
+                    entry[QStringLiteral("license")]    = obj[QStringLiteral("license")].toVariant();
                     list.append(entry);
                 }
                 emit searchResultsReady(list);
@@ -346,6 +367,26 @@ void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHi
         entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
         entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
         entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+        QJsonArray cats = obj[QStringLiteral("categories")].toArray();
+        QStringList catList, typeList;
+        QStringList knownLoaders = {QLatin1String("fabric"), QLatin1String("forge"),
+                                    QLatin1String("quilt"), QLatin1String("neoforge"),
+                                    QLatin1String("rift"), QLatin1String("liteloader")};
+        QString loader;
+        for (const QJsonValue& cv : cats) {
+            QString c = cv.toString();
+            catList << c;
+            if (knownLoaders.contains(c)) {
+                if (loader.isEmpty()) loader = c;
+            } else {
+                typeList << c;
+            }
+        }
+        entry[QStringLiteral("loader")]     = loader;
+        entry[QStringLiteral("categories")] = QVariant(catList);
+        entry[QStringLiteral("typeList")]   = QVariant(typeList);
+        entry[QStringLiteral("clientSide")] = obj[QStringLiteral("client_side")].toString();
+        entry[QStringLiteral("license")]    = obj[QStringLiteral("license")].toVariant();
         list.append(entry);
     }
 

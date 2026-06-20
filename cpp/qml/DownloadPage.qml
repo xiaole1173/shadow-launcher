@@ -964,7 +964,7 @@ Rectangle {
                         icon: r.icon || "",
                         downloads: r.downloads || 0,
                         loader: r.loader || "",
-                        gameVer: r.gameVersion || r.game_versions ? (Array.isArray(r.game_versions) ? r.game_versions[0] : "") : "",
+                        clientSide: r.clientSide || "",
                         categories: r.categories || [],
                         license: r.license || ""
                     })
@@ -1067,8 +1067,7 @@ Rectangle {
                             Popup {
                                 id: modLdrMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 100
-                                height: ldrContent.implicitHeight + 12
-                                padding: 4
+                                height: 190; padding: 4
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 ColumnLayout {
@@ -1343,7 +1342,7 @@ Rectangle {
                                         Layout.fillWidth: true; spacing: 1
                                         Layout.alignment: Qt.AlignVCenter
 
-                                        // Title row: title + loader badge + version badge
+                                        // Title row: title + loader badge + client badge
                                         RowLayout {
                                             Layout.fillWidth: true; spacing: 4
                                             Text {
@@ -1363,15 +1362,18 @@ Rectangle {
                                                     text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 9
                                                 }
                                             }
-                                            // Version badge
+                                            // Client side badge
                                             Rectangle {
-                                                visible: model.gameVer
-                                                width: verLabel.implicitWidth + 8; height: 16; radius: 3
+                                                visible: model.clientSide
+                                                width: cliLabel.implicitWidth + 8; height: 16; radius: 3
                                                 color: "#282038"
                                                 Text {
-                                                    id: verLabel
+                                                    id: cliLabel
                                                     anchors.centerIn: parent
-                                                    text: model.gameVer || ""; color: "#c0a0e0"; font.pixelSize: 9
+                                                    text: model.clientSide === "required" ? "客户端"
+                                                          : model.clientSide === "optional" ? "可选客户端"
+                                                          : model.clientSide || ""
+                                                    color: "#c0a0e0"; font.pixelSize: 9
                                                 }
                                             }
                                         }
