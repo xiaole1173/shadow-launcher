@@ -3741,12 +3741,6 @@ Rectangle {
             }
             page.modDetailRawVersions = arr
             page.modDetailVersionMap = map
-            // Auto-expand all groups (deferred to let grouped compute)
-            Qt.callLater(function(){
-                var exp = []; var grp = modDetailOverlay.grouped || []
-                for (var gi = 0; gi < grp.length; gi++) exp.push(grp[gi].major)
-                modDetailOverlay.expandedGroups = exp
-            })
         }
         function onModVersionsProgress(done, total) {
             if (page.modDetailSlug === "") return
