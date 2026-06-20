@@ -1831,49 +1831,23 @@ Rectangle {
                                 Image {
                                     id: rpCardIcon
                                     anchors.fill: parent
-                                    property string rpIconCacheKey: ""
 
-                                    source: ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true; cache: true
                                     autoTransform: true
                                     sourceSize.width: 88; sourceSize.height: 88
 
-                                    function triggerIconLoad() {
-                                        if (!model || !model.icon) return
-                                        var url = model.icon
-                                        url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                        url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                        rpIconCacheKey = url
-                                        rpIconFallback.visible = false
-                                        // Check if already cached
-                                        if (backend && backend.cachedIconPath) {
-                                            var cached = backend.cachedIconPath(url)
-                                            if (cached) {
-                                                source = cached
-                                                return
-                                            }
-                                            // Trigger async download+convert
-                                            backend.cacheIconAsync(url)
-                                        }
-                                    }
-                                    Component.onCompleted: triggerIconLoad()
-
-                                    Connections {
-                                        target: backend
-                                        function onIconCached(webpUrl, pngPath) {
-                                            if (webpUrl !== rpCardIcon.rpIconCacheKey) return
-                                            if (pngPath) {
-                                                rpCardIcon.source = pngPath
-                                            } else {
-                                                rpIconFallback.visible = true
-                                            }
+                                    Component.onCompleted: {
+                                        if (model && model.icon) {
+                                            var url = model.icon
+                                            url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                            url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                            source = url
                                         }
                                     }
                                     onStatusChanged: {
-                                        if (status === Image.Loading) return
                                         if (status === Image.Ready) { rpIconFallback.visible = false }
-                                        else if (source && source.toString() !== "") { rpIconFallback.visible = true }
+                                        else if (status === Image.Error) { rpIconFallback.visible = true }
                                     }
                                 }
 
@@ -2147,18 +2121,8 @@ Rectangle {
                                 var iconUrl = model.icon || ""
                                 iconUrl = iconUrl.replace("cdn.modrinth.com", "mod.mcimirror.top")
                                 iconUrl = iconUrl.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                // Use same icon cache as main page cards (Qt lacks webp support)
-                                if (backend && backend.cachedIconPath) {
-                                    var cached = backend.cachedIconPath(iconUrl)
-                                    if (cached) {
-                                        page.rpDetailIconUrl = cached
-                                    } else {
-                                        page.rpDetailIconUrl = iconUrl  // temporary, will update after cache
-                                        backend.cacheIconAsync(iconUrl)
-                                    }
-                                } else {
-                                    page.rpDetailIconUrl = iconUrl
-                                }
+                                // Qt 6.8 natively supports WebP — use URL directly
+                                page.rpDetailIconUrl = iconUrl
                                 page.rpDetailAuthor = model.author || ""
                                 page.rpDetailDesc = model.desc || ""
                                 page.rpDetailDownloads = model.downloads || 0
@@ -2303,17 +2267,6 @@ Rectangle {
                                     rpDetailIconFallback.visible = true
                                 } else if (status === Image.Ready) {
                                     rpDetailIconFallback.visible = false
-                                }
-                            }
-
-                            Connections {
-                                target: backend
-                                function onIconCached(webpUrl, pngPath) {
-                                    if (webpUrl !== page.rpDetailIconUrl) return
-                                    if (pngPath) {
-                                        rpDetailIcon.source = pngPath
-                                        rpDetailIconFallback.visible = false
-                                    }
                                 }
                             }
                         }
