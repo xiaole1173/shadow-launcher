@@ -106,6 +106,10 @@ qt_add_qml_module(ShadowLauncher
         qml/MainWindow.qml
         qml/HomePage.qml
         qml/DownloadPage.qml
+        qml/McTab.qml
+        qml/ModTab.qml
+        qml/ShaderTab.qml
+        qml/RpTab.qml
         qml/DownloadProgressPage.qml
         qml/SettingsPage.qml
         qml/SettingsGeneralPage.qml
