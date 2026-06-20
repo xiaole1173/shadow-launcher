@@ -3543,13 +3543,13 @@ Rectangle {
                     id: modDetailScroll
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                    visible: !page.modDetailLoading && grouped.length > 0
+                    visible: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
 
                     Column {
                         width: modDetailScroll.availableWidth - 4; spacing: 4
 
                         Repeater {
-                            model: grouped
+                            model: modDetailOverlay.grouped
                             delegate: Column {
                                 width: parent.width; spacing: 2
 
