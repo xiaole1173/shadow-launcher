@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -208,47 +208,26 @@ Rectangle {
         // ── Mod file download ──
         // ═══════════════════════════════════════════════════════
         ListModel { id: modDownloadModel }
-        property var modDlSpeeds: ({})  // dlId -> {lastReceived, lastTime, speed}
-        Timer {
-            id: modDlSpeedTimer; interval: 1000; repeat: true; running: false
-            onTriggered: {
-                var now = Date.now()
-                for (var i = 0; i < modDownloadModel.count; i++) {
-                    var dl = modDownloadModel.get(i)
-                    if (dl.done) continue
-                    var s = modDlSpeeds[dl.dlId]
-                    if (s) {
-                        var elapsed = (now - s.lastTime) / 1000
-                        if (elapsed > 0) {
-                            s.speed = Math.round((dl.received - s.lastReceived) / elapsed)
-                            modDownloadModel.setProperty(i, "speed", s.speed)
-                            s.lastReceived = dl.received
-                            s.lastTime = now
-                        }
-                    }
-                }
-            }
-        }
-        function modDlSpeedOn() {
-            modDlSpeedTimer.running = true
-        }
-        function modDlSpeedOff() {
-            var active = false
-            for (var i = 0; i < modDownloadModel.count; i++) { if (!modDownloadModel.get(i).done) { active = true; break } }
-            if (!active) modDlSpeedTimer.running = false
-        }
         Connections {
             target: backend
             function onModFileDownloadStarted(dlId, fileName, fileSize, displayName) {
                 console.log("[progress] mod dl started:", dlId, displayName)
                 modDownloadModel.append({dlId: dlId, name: displayName, fileName: fileName,
-                    received: 0, total: fileSize, done: false, error: "", speed: 0, paused: false})
-                modDlSpeeds[dlId] = {lastReceived: 0, lastTime: Date.now(), speed: 0}
-                modDlSpeedOn()
+                    received: 0, total: fileSize, done: false, error: "", speed: 0, paused: false,
+                    lastBytes: 0, lastTime: Date.now()})
             }
             function onModFileDownloadProgress(dlId, received, total) {
                 for (var i = 0; i < modDownloadModel.count; i++) {
                     if (modDownloadModel.get(i).dlId === dlId) {
+                        var dl = modDownloadModel.get(i)
+                        var now = Date.now()
+                        var elapsed = (now - dl.lastTime) / 1000
+                        if (elapsed > 0.3) {
+                            var spd = Math.round((received - dl.lastBytes) / elapsed)
+                            modDownloadModel.setProperty(i, "speed", spd)
+                            modDownloadModel.setProperty(i, "lastBytes", received)
+                            modDownloadModel.setProperty(i, "lastTime", now)
+                        }
                         modDownloadModel.setProperty(i, "received", received)
                         modDownloadModel.setProperty(i, "total", total)
                         return
@@ -262,7 +241,6 @@ Rectangle {
                         modDownloadModel.setProperty(i, "done", true)
                         if (success) modDownloadModel.setProperty(i, "received", modDownloadModel.get(i).total)
                         delete modDlSpeeds[dlId]
-                        modDlSpeedOff()
                         return
                     }
                 }
@@ -274,7 +252,6 @@ Rectangle {
                         modDownloadModel.setProperty(i, "done", true)
                         modDownloadModel.setProperty(i, "error", errorDetail)
                         delete modDlSpeeds[dlId]
-                        modDlSpeedOff()
                         return
                     }
                 }
