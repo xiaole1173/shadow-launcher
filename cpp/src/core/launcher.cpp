@@ -475,6 +475,37 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // Build legacy virtual asset directory for 1.7.2 and pre-1.6
     if (assetIndexId == QStringLiteral("legacy") || assetIndexId == QStringLiteral("pre-1.6")) {
         const_cast<Launcher*>(this)->ensureLegacyAssets(assetIndexId);
+
+        // Also populate game resources/ for pre-1.6 (s3.amazonaws.com is dead)
+        if (assetIndexId == QStringLiteral("pre-1.6")) {
+            QString gameResDir = m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game/resources");
+            QString virtualDir = m_gameDir + QStringLiteral("/assets/virtual/") + assetIndexId;
+            QDir().mkpath(gameResDir);
+            // Copy sound/music/newsound/sound3 from virtual assets to game resources
+            const QStringList resDirs = {QStringLiteral("sound"), QStringLiteral("newsound"),
+                                         QStringLiteral("sound3"), QStringLiteral("music"),
+                                         QStringLiteral("newmusic"), QStringLiteral("streaming")};
+            int resCopied = 0;
+            for (const QString& sub : resDirs) {
+                QString srcDir = virtualDir + QLatin1Char('/') + sub;
+                QString dstDir = gameResDir + QLatin1Char('/') + sub;
+                if (!QDir(srcDir).exists()) continue;
+                QDir().mkpath(dstDir);
+                QDirIterator it(srcDir, QDir::Files, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    it.next();
+                    QString rel = QDir(srcDir).relativeFilePath(it.filePath());
+                    QString dst = dstDir + QLatin1Char('/') + rel;
+                    if (!QFileInfo::exists(dst)) {
+                        QDir().mkpath(QFileInfo(dst).absolutePath());
+                        QFile::copy(it.filePath(), dst);
+                        resCopied++;
+                    }
+                }
+            }
+            if (resCopied > 0)
+                qCInfo(logLaunch) << "Populated game resources:" << resCopied << "files →" << gameResDir;
+        }
     }
 
     // Process game arguments, expanding placeholders
