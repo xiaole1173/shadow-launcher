@@ -20,8 +20,10 @@ class ShadowBackend : public QObject {
     Q_OBJECT
     // ── Account ──
     Q_PROPERTY(QString username READ username NOTIFY accountChanged)
+    Q_PROPERTY(QString offlineUsername READ offlineUsername NOTIFY accountChanged)
     Q_PROPERTY(bool isOnline READ isOnline NOTIFY accountChanged)
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
+    Q_PROPERTY(QString offlineUuid READ offlineUuid NOTIFY accountChanged)
     Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinReady)
     Q_PROPERTY(QString offlineSkinPath READ offlineSkinPath NOTIFY offlineSkinReady)
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
@@ -113,8 +115,10 @@ public:
 
     // ── Account getters ──
     QString username() const;
+    QString offlineUsername() const;
     bool isOnline() const;
     QString accountUuid() const;
+    QString offlineUuid() const;
     QString skinPath() const;
     QString offlineSkinPath() const;
     QStringList offlineUsernames() const;
@@ -213,7 +217,6 @@ public:
     // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
     Q_INVOKABLE void updateOfflineSkin(const QString& username);
-    Q_INVOKABLE void setOnlineMode();
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();

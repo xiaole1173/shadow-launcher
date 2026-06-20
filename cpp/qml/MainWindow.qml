@@ -367,8 +367,8 @@ Window {
                             GradientStop { position: 1.0; color: "#0e111a" }
                         }
 
-                        property string displayName: backend ? (backend.username || "") : ""
-                        property bool loggedIn: backend ? backend.username !== "" : false
+                        property string displayName: backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""
+                        property bool loggedIn: backend ? (loginMode === 0 ? backend.username !== "" : backend.offlineUsername !== "") : false
                         property int backendLoginType: backend ? (backend.isOnline ? 0 : 1) : -1
 
                         Connections {
@@ -757,12 +757,19 @@ Window {
                                                 var name = offlineNameInput.text.trim() || "Player"
                                                 backend.offlineLogin(name)
                                             }
-                                            // Premium mode: ensure online status (might have been flipped by offline)
-                                            if (loginMode === 0) {
-                                                backend.setOnlineMode()
-                                            }
                                             if (!backend.username) {
-                                                toastManager.show("请先登录账号")
+                                                toastManager.show("请先完成正版登录")
+                                                return
+                                            }
+                                            backend.launch(currentSelectedVersion)
+                                        }
+                                    }
+
+                                    // Offline/passthrough: click text itself launches
+                                    onClicked: {
+                                        if (loginMode === 1) {
+                                            if (!backend.offlineUsername) {
+                                                toastManager.show("请先输入用户名")
                                                 return
                                             }
                                             backend.launch(currentSelectedVersion)

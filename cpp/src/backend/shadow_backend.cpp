@@ -386,12 +386,20 @@ QString ShadowBackend::username() const {
     return m_account->username();
 }
 
+QString ShadowBackend::offlineUsername() const {
+    return m_account->offlineUsername();
+}
+
 bool ShadowBackend::isOnline() const {
     return m_account->isOnline();
 }
 
 QString ShadowBackend::accountUuid() const {
     return m_account->accountUuid();
+}
+
+QString ShadowBackend::offlineUuid() const {
+    return m_account->offlineUuid();
 }
 
 QString ShadowBackend::skinPath() const {
@@ -805,10 +813,6 @@ void ShadowBackend::offlineLogin(const QString& username) {
 
 void ShadowBackend::updateOfflineSkin(const QString& username) {
     m_account->updateOfflineSkin(username);
-}
-
-void ShadowBackend::setOnlineMode() {
-    m_account->setOnlineMode();
 }
 
 void ShadowBackend::microsoftLogin() {

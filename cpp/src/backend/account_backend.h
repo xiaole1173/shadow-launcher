@@ -14,9 +14,11 @@ class AccountBackend : public QObject {
     Q_OBJECT
 
     Q_PROPERTY(QString username READ username NOTIFY accountChanged)
+    Q_PROPERTY(QString offlineUsername READ offlineUsername NOTIFY accountChanged)
     Q_PROPERTY(bool isLoggedIn READ isLoggedIn NOTIFY accountChanged)
     Q_PROPERTY(bool isOnline READ isOnline NOTIFY accountChanged)
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
+    Q_PROPERTY(QString offlineUuid READ offlineUuid NOTIFY accountChanged)
     Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinReady)
     Q_PROPERTY(QString offlineSkinPath READ offlineSkinPath NOTIFY offlineSkinReady)
     Q_PROPERTY(QString capePath READ capePath NOTIFY capeReady)
@@ -28,9 +30,11 @@ public:
 
     // ── Property getters ──
     QString username() const { return m_username; }
+    QString offlineUsername() const { return m_offlineUsername; }
     bool isLoggedIn() const { return m_loggedIn; }
     bool isOnline() const { return m_isOnline; }
     QString accountUuid() const { return m_uuid; }
+    QString offlineUuid() const { return m_offlineUuid; }
     QString mcToken() const { return m_msMcToken; }
     QString skinPath() const { return m_skinPath; }
     QString offlineSkinPath() const { return m_offlineSkinPath; }
@@ -42,7 +46,6 @@ public:
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void updateOfflineSkin(const QString &username);
-    Q_INVOKABLE void setOnlineMode();
     Q_INVOKABLE void logout();
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
 
@@ -88,6 +91,8 @@ private:
 
     QString m_username;
     QString m_uuid;
+    QString m_offlineUsername;
+    QString m_offlineUuid;
     QString m_skinPath;
     QString m_offlineSkinPath;
     QString m_capePath;
