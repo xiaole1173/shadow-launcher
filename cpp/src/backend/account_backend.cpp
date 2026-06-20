@@ -215,10 +215,13 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     bool hat = (tH >= 32);
     float pad = 0.30f;
 
+    const float CAM_DIST = 25.0f;  // camera distance → mild perspective
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
         float rx=x*cosYf-z*sinYf, rz=x*sinYf+z*cosYf, ry2=y*cosPf-rz*sinPf;
         dep=y*sinPf+rz*cosPf;
-        sx=(rx+HW)*SC+OFF; sy=(HW-ry2)*SC+OFF;
+        float dz = rz + CAM_DIST; if (dz<0.5f) dz=0.5f;
+        sx = (rx/dz) * CAM_DIST * SC + OFF;
+        sy = ((HW-ry2)/dz) * CAM_DIST * SC + OFF;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep, br; bool ht; };
