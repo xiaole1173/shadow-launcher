@@ -279,6 +279,16 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_resource, &ResourceBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
+    // ── Mod file download forwarding ──
+    connect(m_resource, &ResourceBackend::modFileDownloadStarted,
+            this, &ShadowBackend::modFileDownloadStarted);
+    connect(m_resource, &ResourceBackend::modFileDownloadProgress,
+            this, &ShadowBackend::modFileDownloadProgress);
+    connect(m_resource, &ResourceBackend::modFileDownloadFinished,
+            this, &ShadowBackend::modFileDownloadFinished);
+    connect(m_resource, &ResourceBackend::modFileDownloadFailed,
+            this, &ShadowBackend::modFileDownloadFailed);
+
     // ── Signal forwarding: AppBackend → ShadowBackend ──
     connect(m_app, &AppBackend::gameDirChanged,
             this, &ShadowBackend::gameDirChanged);
@@ -965,6 +975,19 @@ void ShadowBackend::fetchModVersions(const QStringList& slugs) {
 
 void ShadowBackend::fetchShaderVersions(const QStringList& slugs) {
     m_resource->fetchShaderVersions(slugs);
+}
+
+// ── Mod file download proxy ──
+int ShadowBackend::downloadModFile(const QString& url, const QString& savePath,
+                                    const QString& displayName, qint64 expectedSize,
+                                    const QString& sha1) {
+    return m_resource->downloadModFile(url, savePath, displayName, expectedSize, sha1);
+}
+void ShadowBackend::cancelModFileDownload(int downloadId) {
+    m_resource->cancelModFileDownload(downloadId);
+}
+void ShadowBackend::retryModFileDownload(int downloadId) {
+    m_resource->retryModFileDownload(downloadId);
 }
 
 // ── Icon cache: async download webp → ffmpeg convert to PNG → cache locally ──

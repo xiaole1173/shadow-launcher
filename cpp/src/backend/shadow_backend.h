@@ -257,6 +257,12 @@ public:
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
     Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
     Q_INVOKABLE void fetchShaderVersions(const QStringList& slugs);
+
+    // Mod file download
+    Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
+                                    qint64 expectedSize, const QString& sha1);
+    Q_INVOKABLE void cancelModFileDownload(int downloadId);
+    Q_INVOKABLE void retryModFileDownload(int downloadId);
     Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
@@ -343,6 +349,12 @@ signals:
     void modVersionsLoaded(const QVariantMap& slugToVersions);
     void modVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void modVersionsProgress(int done, int total);
+
+    // Mod file download signals
+    void modFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
+    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
+    void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
 
     void shaderVersionsLoaded(const QVariantMap& slugToVersions);
     void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);

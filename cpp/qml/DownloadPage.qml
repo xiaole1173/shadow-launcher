@@ -3777,7 +3777,6 @@ Rectangle {
         fileMode: FileDialog.SaveFile
         title: "保存 Mod 文件"
         nameFilters: ["JAR 文件 (*.jar)", "所有文件 (*.*)"]
-        selectedNameFilter: "JAR 文件 (*.jar)"
         onAccepted: {
             var p = page.pendingModDownload
             if (!p || !p.url) return
