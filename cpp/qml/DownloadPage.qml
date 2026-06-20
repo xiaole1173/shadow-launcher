@@ -912,58 +912,38 @@ Rectangle {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        visible: page.currentTab === 1
-        property var rootPage: page  // stable ref for Popup/Repeater scope
+        opacity: page.currentTab === 1 ? 1 : 0
+        enabled: page.currentTab === 1
 
-        // ── Helpers ──
-        function formatLoaderName(ldr) {
-            var map = { "fabric": "Fabric", "forge": "Forge", "quilt": "Quilt",
-                        "neoforge": "NeoForge", "rift": "Rift", "liteloader": "LiteLoader" }
-            return map[ldr] || ldr
-        }
-        property var modFilteredVersions: {
-            if (rootPage.modShowPreReleases) return rootPage.commonVersions
-            var arr = []
-            var src = rootPage.commonVersions || []
-            for (var i = 0; i < src.length; i++) {
-                if (/^[0-9.]+$/.test(src[i])) arr.push(src[i])
-            }
-            return arr
-        }
         function doModSearch() {
             if (!backend) return
-            rootPage.modSearching = true
+            page.modSearching = true
             modResultsModel.clear()
             var q = modInput.text ? modInput.text.trim() : ""
-            console.log("[mod] search q=" + q + " loader=" + rootPage.modLoader + " cat=" + rootPage.modCategory + " ver=" + rootPage.modGameVersion + " env=" + rootPage.modEnvironment + " lic=" + rootPage.modLicense)
-            backend.searchModsEx(q, rootPage.modLoader, rootPage.modCategory, rootPage.modGameVersion, rootPage.modEnvironment, rootPage.modLicense, 0, 30)
-        }
-        function formatCat(cat) {
-            if (!backend) return cat
-            var map = backend.getModCategories()
-            return map[cat] || cat
+            backend.searchModsEx(q, page.modLoader, page.modCategory, page.modGameVersion, page.modEnvironment, "", 0, 30)
         }
 
-        function formatEnv(env) {
-            var map = { "client": "仅客户端", "server": "仅服务端", "both": "客户端+服务端" }
-            return map[env] || env
-        }
-        function formatLicense(lic) {
-            var map = { "open_source": "开源", "mit": "MIT", "gpl": "GPL", "lgpl": "LGPL", "apache": "Apache" }
-            return map[lic] || lic
-        }
         function formatDownloads(n) {
             if (n >= 1000000) return (n / 1000000).toFixed(1) + "M 下载"
             if (n >= 1000) return (n / 1000).toFixed(1) + "K 下载"
             return n + " 下载"
         }
 
-        // ── Search results handler ──
+        // Filtered version list
+        property var modFilteredVersions: {
+            if (page.modShowPreReleases) return page.commonVersions
+            var arr = []
+            var src = page.commonVersions || []
+            for (var i = 0; i < src.length; i++) {
+                if (/^[0-9.]+$/.test(src[i])) arr.push(src[i])
+            }
+            return arr
+        }
+
         Connections {
             target: backend
             enabled: backend !== null
             function onSearchResultsReady(results) {
-                console.log("[mod] results ready: " + results.length)
                 modResultsModel.clear()
                 for (var j = 0; j < results.length; j++) {
                     var r = results[j]
@@ -974,61 +954,19 @@ Rectangle {
                         icon: r.icon || "",
                         downloads: r.downloads || 0,
                         loader: r.loader || "",
-                        clientSide: r.clientSide || "",
-                        categories: r.categories || [],
-                        license: r.license || ""
+                        clientSide: r.clientSide || ""
                     })
                 }
-                rootPage.modSearching = false
+                page.modSearching = false
             }
         }
 
-        
-        // ── Dropdown data (embedded to avoid Popup scope issues) ──
-        property var loaderOpts: [
-            {v:"", t:"全部"},
-            {v:"fabric", t:"Fabric"},
-            {v:"forge", t:"Forge"},
-            {v:"quilt", t:"Quilt"},
-            {v:"neoforge", t:"NeoForge"},
-            {v:"rift", t:"Rift"},
-            {v:"liteloader", t:"LiteLoader"}
-        ]
-        property var catOpts: [
-            {v:"", t:"全部"},
-            {v:"adventure", t:"冒险类"},
-            {v:"cursed", t:"猎奇诡异类"},
-            {v:"decoration", t:"装饰类"},
-            {v:"economy", t:"经济系统类"},
-            {v:"equipment", t:"装备武器类"},
-            {v:"food", t:"食物食材类"},
-            {v:"game-mechanics", t:"游戏机制类"},
-            {v:"library", t:"前置依赖库"},
-            {v:"magic", t:"魔法类"},
-            {v:"management", t:"管理辅助类"},
-            {v:"minigame", t:"迷你小游戏类"},
-            {v:"mobs", t:"生物怪物类"},
-            {v:"optimization", t:"性能优化类"},
-            {v:"social", t:"社交交互类"},
-            {v:"storage", t:"仓储存储类"},
-            {v:"technology", t:"科技工业类"},
-            {v:"transportation", t:"交通载具类"},
-            {v:"utility", t:"实用工具类"},
-            {v:"world-generation", t:"世界生成类"}
-        ]
-        property var envOpts: [
-            {v:"", t:"全部"},
-            {v:"required", t:"客户端"},
-            {v:"optional", t:"客户端+服务端"},
-            {v:"unsupported", t:"纯服务端"}
-        ]
-
-ColumnLayout {
+        ColumnLayout {
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
 
-                        // ── Filter Card ──
+            // ── Filter Card ──
             Rectangle {
                 Layout.fillWidth: true; height: 86; radius: 10
                 color: "#11141c"; border.color: "#1e2230"
@@ -1036,7 +974,7 @@ ColumnLayout {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 4
 
-                    // Row 1: search + search / reset
+                    // Row 1: search + buttons
                     RowLayout {
                         Layout.fillWidth: true; spacing: 5
 
@@ -1072,41 +1010,39 @@ ColumnLayout {
 
                         Rectangle {
                             width: 44; height: 26; radius: 4
-                            color: modRSBtn2.hovered ? "#2a2030" : "#1a1420"
+                            color: modResetBtn.hovered ? "#2a2030" : "#1a1420"
                             border.color: "#3a2840"; border.width: 1
                             Text { anchors.centerIn: parent; text: "重置"; color: "#b090c8"; font.pixelSize: 10 }
                             MouseArea {
-                                id: modRSBtn2; anchors.fill: parent
+                                id: modResetBtn; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    rootPage.modLoader = ""; rootPage.modGameVersion = ""
-                                    rootPage.modCategory = ""; rootPage.modEnvironment = ""
+                                    page.modLoader = ""; page.modGameVersion = ""
+                                    page.modCategory = ""; page.modEnvironment = ""
                                     modInput.text = ""; modResultsModel.clear()
                                 }
                             }
                         }
                     }
 
-                    // Row 2: 加载器 | 版本 | 类型 | 环境 | 含预发布
+                    // Row 2: 加载器 | 版本 | 类型 | 环境 | 预发布
                     RowLayout {
                         Layout.fillWidth: true; spacing: 3
 
                         // ── 加载器 ──
-                        Text { text: "加载器"; color: "#9094a8"; font.pixelSize: 10 }
+                        Text { text: "加载器"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 38 }
                         Rectangle {
-                            Layout.preferredWidth: 80; height: 24; radius: 4
+                            id: modLdrPill
+                            Layout.preferredWidth: 78; height: 24; radius: 4
                             color: ldrHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: rootPage.modLoader ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: page.modLoader ? "#5068c8" : "#2a3040"; border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
                                 Text {
                                     Layout.fillWidth: true
-                                    text: {
-                                        var f = loaderOpts.find(function(o){return o.v===rootPage.modLoader})
-                                        return f ? f.t : "全部"
-                                    }
-                                    color: rootPage.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    text: page.modLoaderLabels[page.modLoader] || "全部"
+                                    color: page.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: 10
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
@@ -1119,27 +1055,34 @@ ColumnLayout {
 
                             Popup {
                                 id: ldrMenu; closePolicy: Popup.NoAutoClose
-                                y: parent.height + 3; width: 95; height: 190; padding: 2
+                                y: parent.height + 4; width: 110
+                                height: Math.min(ldrMenuFlick.contentHeight + 8, 220)
+                                padding: 0
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
-                                property var opts: loaderOpts
-                                property var rp: rootPage
 
-                                ColumnLayout {
-                                    anchors.left: parent.left; anchors.right: parent.right
-                                    anchors.leftMargin: 3; anchors.rightMargin: 3; spacing: 1
-                                    Repeater {
-                                        model: loaderOpts
-                                        Rectangle {
-                                            Layout.fillWidth: true; height: 24; radius: 4
-                                            color: modelData.v === rootPage.modLoader ? "#1a2848" : "transparent"
-                                            Text {
-                                                anchors.centerIn: parent; text: modelData.t
-                                                color: modelData.v === rootPage.modLoader ? "#5068c8" : "#9094a8"; font.pixelSize: 11
-                                                font.weight: modelData.v === rootPage.modLoader ? Font.Bold : Font.Normal
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { rootPage.modLoader = modelData.v; ldrMenu.close() }
+                                Flickable {
+                                    id: ldrMenuFlick
+                                    anchors.fill: parent; anchors.margins: 4
+                                    contentHeight: ldrContent.implicitHeight; clip: true
+                                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                                    ColumnLayout {
+                                        id: ldrContent; width: parent.width; spacing: 1
+                                        Repeater {
+                                            model: ["", "fabric", "forge", "quilt", "neoforge", "rift", "liteloader"]
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: modelData === page.modLoader ? "#1a2848" : "transparent"
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: page.modLoaderLabels[modelData] || modelData
+                                                    color: modelData === page.modLoader ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                    font.weight: modelData === page.modLoader ? Font.Bold : Font.Normal
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { page.modLoader = modelData; ldrMenu.close() }
+                                                }
                                             }
                                         }
                                     }
@@ -1148,18 +1091,19 @@ ColumnLayout {
                         }
 
                         // ── 版本 ──
-                        Text { text: "版本"; color: "#9094a8"; font.pixelSize: 10 }
+                        Text { text: "版本"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
                         Rectangle {
-                            Layout.preferredWidth: 82; height: 24; radius: 4
+                            id: modVerPill
+                            Layout.preferredWidth: 78; height: 24; radius: 4
                             color: verHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: rootPage.modGameVersion ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: page.modGameVersion ? "#5068c8" : "#2a3040"; border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
                                 Text {
                                     Layout.fillWidth: true
-                                    text: rootPage.modGameVersion || "全部"
-                                    color: rootPage.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    text: page.modGameVersion || "全部"
+                                    color: page.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: 10
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
@@ -1172,11 +1116,13 @@ ColumnLayout {
 
                             Popup {
                                 id: verMenu; closePolicy: Popup.NoAutoClose
-                                y: parent.height + 3; width: 120; height: 200; padding: 0
-                                property var rp: rootPage
+                                y: parent.height + 4; width: 130
+                                height: Math.min(verFlick.contentHeight + 8, 220)
+                                padding: 0
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
+                                    id: verFlick
                                     anchors.fill: parent; anchors.margins: 4
                                     contentHeight: verContent.implicitHeight; clip: true
                                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
@@ -1184,31 +1130,31 @@ ColumnLayout {
                                     ColumnLayout {
                                         id: verContent; width: parent.width; spacing: 1
                                         Rectangle {
-                                            Layout.fillWidth: true; height: 24; radius: 4
-                                            color: !rootPage.modGameVersion ? "#1a2848" : "transparent"
+                                            Layout.fillWidth: true; height: 26; radius: 4
+                                            color: !page.modGameVersion ? "#1a2848" : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: "全部"
-                                                color: !rootPage.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
-                                                font.weight: !rootPage.modGameVersion ? Font.Bold : Font.Normal
+                                                color: !page.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                font.weight: !page.modGameVersion ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
                                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { rootPage.modGameVersion = ""; verMenu.close() }
+                                                onClicked: { page.modGameVersion = ""; verMenu.close() }
                                             }
                                         }
                                         Repeater {
                                             model: modFilteredVersions
                                             Rectangle {
-                                                Layout.fillWidth: true; height: 24; radius: 4
-                                                color: modelData === rootPage.modGameVersion ? "#1a2848" : "transparent"
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: modelData === page.modGameVersion ? "#1a2848" : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent; text: modelData
-                                                    color: modelData === rootPage.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
-                                                    font.weight: modelData === rootPage.modGameVersion ? Font.Bold : Font.Normal
+                                                    color: modelData === page.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                    font.weight: modelData === page.modGameVersion ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: { rootPage.modGameVersion = modelData; verMenu.close() }
+                                                    onClicked: { page.modGameVersion = modelData; verMenu.close() }
                                                 }
                                             }
                                         }
@@ -1218,21 +1164,19 @@ ColumnLayout {
                         }
 
                         // ── 类型 ──
-                        Text { text: "类型"; color: "#9094a8"; font.pixelSize: 10 }
+                        Text { text: "类型"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
                         Rectangle {
-                            Layout.fillWidth: true; Layout.maximumWidth: 95; height: 24; radius: 4
+                            id: modCatPill
+                            Layout.fillWidth: true; Layout.maximumWidth: 90; height: 24; radius: 4
                             color: catHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: rootPage.modCategory ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: page.modCategory ? "#5068c8" : "#2a3040"; border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
                                 Text {
                                     Layout.fillWidth: true
-                                    text: {
-                                        var f = catOpts.find(function(o){return o.v===rootPage.modCategory})
-                                        return f ? f.t : "全部"
-                                    }
-                                    color: rootPage.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    text: page.modCatLabels[page.modCategory] || "全部"
+                                    color: page.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: 10
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
@@ -1245,12 +1189,13 @@ ColumnLayout {
 
                             Popup {
                                 id: catMenu; closePolicy: Popup.NoAutoClose
-                                y: parent.height + 3; width: 140; height: 300; padding: 0
-                                property var opts: catOpts
-                                property var rp: rootPage
+                                y: parent.height + 4; width: 140
+                                height: Math.min(catFlick.contentHeight + 8, 300)
+                                padding: 0
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
+                                    id: catFlick
                                     anchors.fill: parent; anchors.margins: 4
                                     contentHeight: catContent.implicitHeight; clip: true
                                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
@@ -1258,31 +1203,32 @@ ColumnLayout {
                                     ColumnLayout {
                                         id: catContent; width: parent.width; spacing: 1
                                         Rectangle {
-                                            Layout.fillWidth: true; height: 24; radius: 4
-                                            color: !rootPage.modCategory ? "#1a2848" : "transparent"
+                                            Layout.fillWidth: true; height: 26; radius: 4
+                                            color: !page.modCategory ? "#1a2848" : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: "全部"
-                                                color: !rootPage.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
-                                                font.weight: !rootPage.modCategory ? Font.Bold : Font.Normal
+                                                color: !page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                font.weight: !page.modCategory ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
                                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { rootPage.modCategory = ""; catMenu.close() }
+                                                onClicked: { page.modCategory = ""; catMenu.close() }
                                             }
                                         }
                                         Repeater {
-                                            model: catOpts
+                                            model: ["adventure","cursed","decoration","economy","equipment","food","game-mechanics","library","magic","management","minigame","mobs","optimization","social","storage","technology","transportation","utility","world-generation"]
                                             Rectangle {
-                                                Layout.fillWidth: true; height: 24; radius: 4
-                                                color: modelData.v === rootPage.modCategory ? "#1a2848" : "transparent"
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: modelData === page.modCategory ? "#1a2848" : "transparent"
                                                 Text {
-                                                    anchors.centerIn: parent; text: modelData.t
-                                                    color: modelData.v === rootPage.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
-                                                    font.weight: modelData.v === rootPage.modCategory ? Font.Bold : Font.Normal
+                                                    anchors.centerIn: parent
+                                                    text: page.modCatLabels[modelData] || modelData
+                                                    color: modelData === page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                    font.weight: modelData === page.modCategory ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: { rootPage.modCategory = modelData.v; catMenu.close() }
+                                                    onClicked: { page.modCategory = modelData; catMenu.close() }
                                                 }
                                             }
                                         }
@@ -1292,21 +1238,19 @@ ColumnLayout {
                         }
 
                         // ── 环境 ──
-                        Text { text: "环境"; color: "#9094a8"; font.pixelSize: 10 }
+                        Text { text: "环境"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
                         Rectangle {
-                            Layout.preferredWidth: 85; height: 24; radius: 4
+                            id: modEnvPill
+                            Layout.preferredWidth: 72; height: 24; radius: 4
                             color: envHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: rootPage.modEnvironment ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: page.modEnvironment ? "#5068c8" : "#2a3040"; border.width: 1
 
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
+                                anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 2; spacing: 1
                                 Text {
                                     Layout.fillWidth: true
-                                    text: {
-                                        var f = envOpts.find(function(o){return o.v===rootPage.modEnvironment})
-                                        return f ? f.t : "全部"
-                                    }
-                                    color: rootPage.modEnvironment ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    text: page.modEnvLabels[page.modEnvironment] || "全部"
+                                    color: page.modEnvironment ? "#8aaeff" : "#788090"; font.pixelSize: 10
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
@@ -1319,27 +1263,34 @@ ColumnLayout {
 
                             Popup {
                                 id: envMenu; closePolicy: Popup.NoAutoClose
-                                y: parent.height + 3; width: 110; height: 120; padding: 2
-                                property var opts: envOpts
-                                property var rp: rootPage
+                                y: parent.height + 4; width: 120
+                                height: Math.min(envFlick.contentHeight + 8, 160)
+                                padding: 0
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
-                                ColumnLayout {
-                                    anchors.left: parent.left; anchors.right: parent.right
-                                    anchors.leftMargin: 3; anchors.rightMargin: 3; spacing: 1
-                                    Repeater {
-                                        model: envOpts
-                                        Rectangle {
-                                            Layout.fillWidth: true; height: 24; radius: 4
-                                            color: modelData.v === rootPage.modEnvironment ? "#1a2848" : "transparent"
-                                            Text {
-                                                anchors.centerIn: parent; text: modelData.t
-                                                color: modelData.v === rootPage.modEnvironment ? "#5068c8" : "#9094a8"; font.pixelSize: 11
-                                                font.weight: modelData.v === rootPage.modEnvironment ? Font.Bold : Font.Normal
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { rootPage.modEnvironment = modelData.v; envMenu.close() }
+                                Flickable {
+                                    id: envFlick
+                                    anchors.fill: parent; anchors.margins: 4
+                                    contentHeight: envContent.implicitHeight; clip: true
+                                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                                    ColumnLayout {
+                                        id: envContent; width: parent.width; spacing: 1
+                                        Repeater {
+                                            model: ["", "required", "optional", "unsupported"]
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: modelData === page.modEnvironment ? "#1a2848" : "transparent"
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: page.modEnvLabels[modelData] || modelData
+                                                    color: modelData === page.modEnvironment ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                    font.weight: modelData === page.modEnvironment ? Font.Bold : Font.Normal
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { page.modEnvironment = modelData; envMenu.close() }
+                                                }
                                             }
                                         }
                                     }
@@ -1350,38 +1301,39 @@ ColumnLayout {
                         // ── 含预发布 ──
                         Rectangle {
                             width: 20; height: 24; radius: 4
-                            color: rootPage.modShowPreReleases ? "#1a2848" : "#0c0e14"
-                            border.color: rootPage.modShowPreReleases ? "#5068c8" : "#2a3040"; border.width: 1
+                            color: page.modShowPreReleases ? "#1a2848" : "#0c0e14"
+                            border.color: page.modShowPreReleases ? "#5068c8" : "#2a3040"; border.width: 1
                             Text {
                                 anchors.centerIn: parent
-                                text: rootPage.modShowPreReleases ? "✓" : "✕"
-                                color: rootPage.modShowPreReleases ? "#8aaeff" : "#505468"; font.pixelSize: 9
+                                text: page.modShowPreReleases ? "✓" : "✕"
+                                color: page.modShowPreReleases ? "#8aaeff" : "#505468"; font.pixelSize: 9
                             }
                             MouseArea {
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { rootPage.modShowPreReleases = !rootPage.modShowPreReleases }
+                                onClicked: { page.modShowPreReleases = !page.modShowPreReleases }
                             }
                         }
                     }
                 }
-            }// ── Results ──
+            }
+
+            // ── Results ──
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
                 Text {
-                    visible: rootPage.modSearching
+                    visible: page.modSearching
                     anchors.centerIn: parent
                     text: "搜索中…"; color: "#606478"; font.pixelSize: 12
                 }
                 Text {
-                    visible: !rootPage.modSearching && modResultsModel.count === 0
+                    visible: !page.modSearching && modResultsModel.count === 0
                     anchors.centerIn: parent
                     text: "输入关键词搜索 Mod"; color: "#606478"; font.pixelSize: 12
                 }
 
                 Flickable {
-                    id: modFlick
                     anchors.fill: parent
                     contentHeight: modGrid.implicitHeight
                     clip: true
@@ -1396,17 +1348,14 @@ ColumnLayout {
 
                             Rectangle {
                                 Layout.fillWidth: true
-                                height: 68; radius: 8
+                                height: 64; radius: 8
                                 color: "#161922"
                                 border.color: "#1e2230"; border.width: 1
 
                                 MouseArea {
                                     anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        console.log("[mod] card clicked: " + model.slug)
-                                        // TODO: detail overlay
-                                    }
+                                    onClicked: console.log("[mod] open " + model.slug)
                                 }
 
                                 RowLayout {
@@ -1414,17 +1363,14 @@ ColumnLayout {
 
                                     // Icon
                                     Rectangle {
-                                        Layout.preferredWidth: 40; Layout.preferredHeight: 40; radius: 6
-                                        color: "#0c0e14"
-                                        clip: true
+                                        Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 6
+                                        color: "#0c0e14"; clip: true
 
                                         Image {
-                                            id: modCardIcon
                                             anchors.fill: parent; anchors.margins: 2
                                             fillMode: Image.PreserveAspectFit
                                             asynchronous: true; cache: true
-                                            sourceSize.width: 80; sourceSize.height: 80
-
+                                            sourceSize.width: 72; sourceSize.height: 72
                                             Component.onCompleted: {
                                                 if (model && model.icon) {
                                                     var url = model.icon
@@ -1433,15 +1379,15 @@ ColumnLayout {
                                                 }
                                             }
                                             onStatusChanged: {
-                                                if (status === Image.Error) modIconFallback.visible = true
-                                                else if (status === Image.Ready) modIconFallback.visible = false
+                                                if (status === Image.Error) iconFallback.visible = true
+                                                else if (status === Image.Ready) iconFallback.visible = false
                                             }
                                         }
                                         Text {
-                                            id: modIconFallback
+                                            id: iconFallback
                                             anchors.centerIn: parent
                                             text: model ? (model.title ? model.title[0] : "M") : "M"
-                                            color: "#5068c8"; font.pixelSize: 18; font.bold: true
+                                            color: "#5068c8"; font.pixelSize: 16; font.bold: true
                                             visible: !model || !model.icon
                                         }
                                     }
@@ -1451,53 +1397,41 @@ ColumnLayout {
                                         Layout.fillWidth: true; spacing: 1
                                         Layout.alignment: Qt.AlignVCenter
 
-                                        // Title row: title + loader badge + client badge
                                         RowLayout {
                                             Layout.fillWidth: true; spacing: 4
                                             Text {
                                                 Layout.fillWidth: true
-                                                text: model.title || "Unknown"; color: "#d0d4e0"
-                                                font.pixelSize: 12; font.bold: true
-                                                elide: Text.ElideRight
+                                                text: model.title || ""; color: "#d0d4e0"
+                                                font.pixelSize: 12; font.bold: true; elide: Text.ElideRight
                                             }
-                                            // Loader badge
                                             Rectangle {
                                                 visible: model.loader
-                                                width: ldrLabel.implicitWidth + 8; height: 16; radius: 3
+                                                width: ldrBadge.implicitWidth + 8; height: 15; radius: 3
                                                 color: "#1a2848"
                                                 Text {
-                                                    id: ldrLabel
-                                                    anchors.centerIn: parent
-                                                    text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 9
+                                                    id: ldrBadge; anchors.centerIn: parent
+                                                    text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 8
                                                 }
                                             }
-                                            // Client side badge
                                             Rectangle {
                                                 visible: model.clientSide
-                                                width: cliLabel.implicitWidth + 8; height: 16; radius: 3
+                                                width: cliBadge.implicitWidth + 8; height: 15; radius: 3
                                                 color: "#282038"
                                                 Text {
-                                                    id: cliLabel
-                                                    anchors.centerIn: parent
-                                                    text: model.clientSide === "required" ? "客户端"
-                                                          : model.clientSide === "optional" ? "可选客户端"
-                                                          : model.clientSide || ""
-                                                    color: "#c0a0e0"; font.pixelSize: 9
+                                                    id: cliBadge; anchors.centerIn: parent
+                                                    text: page.modEnvLabels[model.clientSide] || model.clientSide || ""
+                                                    color: "#c0a0e0"; font.pixelSize: 8
                                                 }
                                             }
                                         }
 
-                                        // Description
                                         Text {
                                             Layout.fillWidth: true
                                             text: model.desc || ""; color: "#606478"
                                             font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
                                         }
-
-                                        // Downloads
                                         Text {
-                                            text: formatDownloads(model.downloads || 0); color: "#788090"
-                                            font.pixelSize: 10
+                                            text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
                                         }
                                     }
                                 }
@@ -3005,6 +2939,24 @@ ColumnLayout {
     property bool shaderSearching: false
     property var shaderDownloadingSlugs: ({})
 
+
+    // Label maps for dropdowns (on root page for id-based access)
+    property var modLoaderLabels: ({
+        "": "全部", "fabric": "Fabric", "forge": "Forge",
+        "quilt": "Quilt", "neoforge": "NeoForge", "rift": "Rift", "liteloader": "LiteLoader"
+    })
+    property var modCatLabels: ({
+        "adventure": "冒险类", "cursed": "猎奇诡异类", "decoration": "装饰类",
+        "economy": "经济系统类", "equipment": "装备武器类", "food": "食物食材类",
+        "game-mechanics": "游戏机制类", "library": "前置依赖库", "magic": "魔法类",
+        "management": "管理辅助类", "minigame": "迷你小游戏类", "mobs": "生物怪物类",
+        "optimization": "性能优化类", "social": "社交交互类", "storage": "仓储存储类",
+        "technology": "科技工业类", "transportation": "交通载具类", "utility": "实用工具类",
+        "world-generation": "世界生成类"
+    })
+    property var modEnvLabels: ({
+        "": "全部", "required": "客户端", "optional": "客户端+服务端", "unsupported": "纯服务端"
+    })
     property string rpDetailSlug: ""
     property string rpDetailTitle: ""
     property string rpDetailIconUrl: ""
