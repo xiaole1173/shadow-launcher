@@ -198,7 +198,7 @@ Window {
             opacity: pageLoading ? 1 : 0
             color: "transparent"
             clip: true
-            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
             Rectangle {
                 id: loadingSlider
@@ -245,7 +245,7 @@ Window {
                             // Expose window-position for fly ball animation
                             property var windowRoot: appWindow
                             scale: navMouse.containsMouse ? 1.03 : 1.0
-                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
                             Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
@@ -280,7 +280,7 @@ Window {
                                         width: 20; height: 20; radius: 10
                                         color: runningKillHover.containsMouse ? "#e06060" : "#c05050"
                                         scale: runningKillHover.containsMouse ? 1.15 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "\u2715"; font.pixelSize: 10; color: "#fff" }
                                         MouseArea {
                                             id: runningKillHover
@@ -328,8 +328,8 @@ Window {
                             width: 28; height: 28; radius: 14
                             color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
                             scale: hdrMin.pressed ? 0.85 : (hdrMin.containsMouse ? 1.12 : 1.0)
-                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Text { anchors.centerIn: parent; text: "\u2014"; color: hdrMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
                             MouseArea { id: hdrMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
                         }
@@ -338,8 +338,8 @@ Window {
                             width: 28; height: 28; radius: 14
                             color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
                             scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
-                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Text { anchors.centerIn: parent; text: "\u2715"; color: hdrClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
                             MouseArea { id: hdrClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
                         }
@@ -359,7 +359,7 @@ Window {
                         opacity: navListIndex === 0 && !showVersionSelect && !showVersionSettings ? 1 : 0
                         visible: opacity > 0
                         enabled: opacity >= 1
-                        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+                        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "#0c0f16" }
@@ -397,7 +397,7 @@ Window {
                                         Behavior on width { NumberAnimation { duration: 200 } }
                                         Behavior on height { NumberAnimation { duration: 200 } }
                                         Behavior on radius { NumberAnimation { duration: 200 } }
-                                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                     }
                                     Text { anchors.centerIn: parent; text: "正版登录"; font.pixelSize: 13; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
                                     MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
@@ -412,7 +412,7 @@ Window {
                                         Behavior on width { NumberAnimation { duration: 200 } }
                                         Behavior on height { NumberAnimation { duration: 200 } }
                                         Behavior on radius { NumberAnimation { duration: 200 } }
-                                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                     }
                                     Text { anchors.centerIn: parent; text: "离线模式"; font.pixelSize: 13; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
                                     MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
@@ -431,7 +431,7 @@ Window {
                             visible: opacity > 0
                             scale: showForm ? 1 : 0.9
                             transformOrigin: Item.Top
-                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                            Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
                             height: childrenRect.height; color: "transparent"
 
@@ -445,7 +445,7 @@ Window {
                                 Rectangle {
                                     Layout.alignment: Qt.AlignHCenter; width: 200; height: 40; radius: 8
                                     color: msLoginForm.msInProgress ? "#1a1f2e" : (startMsBtn.containsMouse ? "#3a4aa0" : "#2a3878")
-                                    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                     Text {
                                         anchors.centerIn: parent
                                         text: msLoginForm.msInProgress ? "登录中..." : "Microsoft 登录"
@@ -553,7 +553,7 @@ Window {
                             visible: opacity > 0
                             scale: showForm ? 1 : 0.9
                             transformOrigin: Item.Top
-                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                            Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
                             height: childrenRect.height; color: "transparent"
                             ColumnLayout {
@@ -603,7 +603,7 @@ Window {
                             visible: opacity > 0
                             scale: showState ? 1 : 0.85
                             transformOrigin: Item.Center
-                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                            Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 500; easing.type: Easing.OutElastic } }
                             height: childrenRect.height; color: "transparent"
                             ColumnLayout {
@@ -745,7 +745,7 @@ Window {
                         anchors.fill: parent; color: "#0c0f16"; z: 5
                         opacity: showVersionSelect ? 1 : 0
                         visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                         property int activeGameDirIndex: 0
 
                         // Refresh installed versions when overlay opens
@@ -767,7 +767,7 @@ Window {
 
                         Rectangle { x: 16; y: 16; height: 28; width: 80; radius: 5; color: "transparent"
                             scale: vsBackHover.containsMouse ? 1.06 : 1.0
-                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#a8b0c0"; font.pixelSize: 12 }
                             MouseArea { id: vsBackHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSelect = false } }
                         }
@@ -810,7 +810,7 @@ Window {
                                                 color: dirMouse.containsMouse ? "#1a1f2e" : (versionSelectOverlay.activeGameDirIndex === index ? "#0e131a" : "transparent")
                                                 border.color: versionSelectOverlay.activeGameDirIndex === index ? "#2a4eb8" : "transparent"
                                                 scale: dirMouse.containsMouse ? 1.02 : 1.0
-                                                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                                 Text {
                                                     anchors.left: parent.left; anchors.leftMargin: 12
                                                     anchors.right: parent.right; anchors.rightMargin: 8
@@ -881,7 +881,7 @@ Window {
                                     Item { height: 4; width: 1 }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
                                         scale: addDirHover.containsMouse ? 1.03 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: addDirHover.containsMouse ? "#b0b8e0" : "#9498a8" }
                                         MouseArea {
                                             id: addDirHover
@@ -891,7 +891,7 @@ Window {
                                     }
                                     Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
                                         scale: importHover.containsMouse ? 1.03 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: importHover.containsMouse ? "#b0b8e0" : "#9498a8" }
                                         MouseArea {
                                             id: importHover
@@ -942,9 +942,9 @@ Window {
                                             border.color: verRefreshHover.hovered ? "#5068c8" : "#1a1f2e"
                                             border.width: 1
                                             scale: versionRightPanel.verRefreshPressed ? 0.88 : (verRefreshHover.hovered ? 1.06 : 1.0)
-                                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text {
                                                 id: verRefreshText
                                                 anchors.centerIn: parent
@@ -985,7 +985,7 @@ Window {
                                         Rectangle {
                                             width: 28; height: 28; radius: 4; color: installBtnHover.hovered ? "#2553a8" : "#3a4eb8"
                                             scale: versionRightPanel.installBtnPressed ? 0.9 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 18; font.weight: Font.Bold; color: "#e8ecf8" }
                                             HoverHandler { id: installBtnHover }
                                             ToolTip { visible: installBtnHover.hovered; text: "安装新版本"; delay: 500 }
@@ -1001,7 +1001,7 @@ Window {
                                             width: 70; height: 28; radius: 4; color: sortHover.hovered ? "#1a2848" : "#0d1018"
                                             border.color: sortHover.hovered ? "#5068c8" : "#1a1f2e"
                                             scale: sortPressed ? 0.92 : (sortHover.hovered ? 1.03 : 1.0)
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             property int versionSortIndex: 0
                                             RowLayout {
                                                 anchors.centerIn: parent; spacing: 4
@@ -1026,7 +1026,7 @@ Window {
                                             width: 80; height: 28; radius: 4; color: loaderFiltHover.hovered ? "#1a2848" : "#0d1018"
                                             border.color: loaderFiltHover.hovered ? "#5068c8" : "#1a1f2e"
                                             scale: loadFiltPressed ? 0.92 : (loaderFiltHover.hovered ? 1.03 : 1.0)
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             property int loaderFilterIndex: 0  // 0=全部 1=原版 2=Forge 3=Fabric 4=NeoForge 5=Quilt
                                             property var loaderLabels: ["全部类型", "原版", "Forge", "Fabric", "NeoForge", "Quilt"]
                                             property bool loadFiltPressed: false
@@ -1237,7 +1237,7 @@ Window {
                         anchors.fill: parent; color: "#0c0f16"; z: 5
                         opacity: showVersionSettings ? 1 : 0
                         visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                         onVisibleChanged: {
                             if (visible && backend) {
                                 // 版本切换时刷新所有数据列表（跟随版本隔离）
@@ -1326,7 +1326,7 @@ Window {
                                     Rectangle {
                                         width: 60; height: 28; radius: 6; color: "transparent"; border.color: "#1a1f2e"
                                         scale: backHover.containsMouse ? 1.06 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "← 返回"; font.pixelSize: 11; color: "#989cb0" }
                                         MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSettings = false } }
                                     }
@@ -1417,7 +1417,7 @@ Window {
                                         width: settingsNav.width; height: 36; radius: 6
                                         color: ListView.isCurrentItem ? "#162040" : (mouseArea2.containsMouse ? "#11141c" : "transparent")
                                         scale: mouseArea2.containsMouse ? 1.03 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 3; color: ListView.isCurrentItem ? "#5080e8" : "transparent" }
                                         RowLayout {
                                             anchors.fill: parent; anchors.leftMargin: 16; spacing: 10
@@ -1476,7 +1476,7 @@ Window {
                                         // Always visible
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover0.hovered ? "#3a5ed0" : "#2a4590"
                                             scale: shMouse0.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "版本文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover0 }
                                             MouseArea { id: shMouse0; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1491,7 +1491,7 @@ Window {
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#3a5ed0" : "#2a4590"
                                             scale: shMouse1.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "存档文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover1 }
                                             MouseArea { id: shMouse1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1500,7 +1500,7 @@ Window {
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#3a5ed0" : "#2a4590"
                                             scale: shMouse2.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "截图文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover2 }
                                             MouseArea { id: shMouse2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1509,7 +1509,7 @@ Window {
                                         }
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#3a5ed0" : "#2a4590"
                                             scale: shMouse6.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "logs 日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover6 }
                                             MouseArea { id: shMouse6; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1518,7 +1518,7 @@ Window {
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#3a5ed0" : "#2a4590"
                                             scale: shMouse7.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "最新启动日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover7 }
                                             MouseArea { id: shMouse7; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1527,7 +1527,7 @@ Window {
                                         }
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#c85050" : "#9a3838"
                                             scale: shMouse8.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "崩溃日志"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover8 }
                                             MouseArea { id: shMouse8; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1538,7 +1538,7 @@ Window {
                                         // Copy path
                                         Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#3a5ed0" : "#2a4590"
                                             scale: shMouseCp.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "复制版本路径"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHoverCp }
                                             MouseArea { id: shMouseCp; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1553,7 +1553,7 @@ Window {
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover3.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                                             scale: shMouse3.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "Mod 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover3 }
                                             MouseArea { id: shMouse3; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1563,7 +1563,7 @@ Window {
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover4.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                                             scale: shMouse4.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "config 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover4 }
                                             MouseArea { id: shMouse4; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1573,7 +1573,7 @@ Window {
                                         Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover5.hovered ? "#3a5ed0" : "#3a4a90"
                                             visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                                             scale: shMouse5.pressed ? 0.92 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "光影包"; font.pixelSize: 11; color: "#e8ecf8" }
                                             HoverHandler { id: shortcutHover5 }
                                             MouseArea { id: shMouse5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1626,14 +1626,14 @@ Window {
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
                                                     width: 90; height: 26; radius: 4; color: "#3a4eb8"
                                                     scale: autoDetectMa.pressed ? 0.9 : 1.0
-                                                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                                     Text { anchors.centerIn: parent; text: "自动检测"; font.pixelSize: 11; color: "#e8ecf8" }
                                                     MouseArea { id: autoDetectMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.detectJava(); toastManager.show("正在检测 Java 环境...") } } }
                                                 }
                                                 Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
                                                     width: 50; height: 26; radius: 4; color: "transparent"; border.color: "#1a1f2e"
                                                     scale: browseJavaMa.pressed ? 0.9 : 1.0
-                                                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                                     Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#b0b8c8" }
                                                     MouseArea { id: browseJavaMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { var ok = backend.pickJava(); if (ok) toastManager.show("已选择 Java 路径") } } }
                                                 }
@@ -1777,7 +1777,7 @@ Window {
                                         Rectangle {
                                             width: 80; height: 28; radius: 4; color: "#3a4eb8"
                                             scale: modRefreshMa.pressed ? 0.9 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
                                             MouseArea { id: modRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { modListModel.clear(); if (backend) { var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i]); toastManager.show("Mod 列表已刷新") } }
@@ -1849,7 +1849,7 @@ Window {
                                         spacing: 8
                                         Rectangle { height: 28; radius: 4; color: "#3a4eb8"; implicitWidth: rpRefreshText.implicitWidth + 20
                                             scale: rpRefreshMa.pressed ? 0.9 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Text { id: rpRefreshText; anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
                                             MouseArea { id: rpRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                                 onClicked: { rpListModel.clear(); if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]); toastManager.show("资源包列表已刷新") } }
@@ -1902,7 +1902,7 @@ Window {
                                     Rectangle {
                                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
                                         scale: saveRefreshMa.pressed ? 0.9 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
                                         MouseArea { id: saveRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: { saveListModel.clear(); if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]); toastManager.show("存档列表已刷新") } }
@@ -1949,8 +1949,8 @@ Window {
                                         width: 140; height: 36; radius: 6
                                         color: versionSettingsOverlay._verifyRunning ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
                                         scale: verifyBtnMouse.containsMouse && !versionSettingsOverlay._verifyRunning ? 1.04 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: versionSettingsOverlay._verifyRunning ? "校验中..." : "开始校验"; font.pixelSize: 12; color: "#e8ecf8" }
 
                                         MouseArea {
@@ -2103,7 +2103,7 @@ Window {
                                     Rectangle {
                                         Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#2a1f24"
                                         scale: delVerHover.containsMouse ? 1.02 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13; color: delVerHover.containsMouse ? "#f05050" : "#c05050" }
                                         MouseArea {
                                             id: delVerHover
@@ -2261,7 +2261,7 @@ Window {
         color: "#141820"; border.color: "#2a1f24"; border.width: 1
         opacity: confirmDialog.visible ? 1 : 0
         visible: false
-        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         property string title: ""
         property string message: ""
         property var onAccept: null
@@ -2275,13 +2275,13 @@ Window {
                 Layout.alignment: Qt.AlignRight; spacing: 10
                 Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
                     scale: cancelDlgMa.pressed ? 0.9 : 1.0
-                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
                     MouseArea { id: cancelDlgMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
                 }
                 Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
                     scale: confirmDlgMa.pressed ? 0.9 : 1.0
-                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
                     MouseArea { id: confirmDlgMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { confirmDialog.visible = false; if (confirmDialog.onAccept) confirmDialog.onAccept() }
@@ -2296,7 +2296,7 @@ Window {
         anchors.fill: parent; z: 399; color: "#000000"
         opacity: confirmDialog.visible ? 0.5 : 0
         visible: confirmDialog.visible
-        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
 }
 }
@@ -2307,7 +2307,7 @@ Window {
         anchors.centerIn: parent; width: 400; height: 200; radius: 10
         color: "#141820"; border.color: "#3a1a1a"; border.width: 1
         visible: showModDlError
-        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 12
             Text { text: "⚠ 下载失败"; font.pixelSize: 15; font.bold: true; color: "#e06060" }
@@ -2344,7 +2344,7 @@ Window {
         anchors.fill: parent; z: 399; color: "#000000"
         opacity: showModDlError ? 0.5 : 0
         visible: showModDlError
-        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         MouseArea { anchors.fill: parent; onClicked: { showModDlError = false } }
     }
 
