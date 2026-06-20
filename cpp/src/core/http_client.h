@@ -54,9 +54,11 @@ public:
                   std::function<void(bool ok, const QString& error)> done);
 
     // Returns QNetworkReply* for abort/pause support
+    // resumeFrom: bytes already downloaded (-1 = fresh, >=0 = append to existing file)
     QNetworkReply* downloadWithReply(const QString& url, const QString& savePath,
                   std::function<void(qint64 received, qint64 total)> progress,
-                  std::function<void(bool ok, const QString& error)> done);
+                  std::function<void(bool ok, const QString& error)> done,
+                  qint64 resumeFrom = -1);
 
     void abortDownload(QNetworkReply* reply);
 

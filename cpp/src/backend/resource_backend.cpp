@@ -505,9 +505,9 @@ void ResourceBackend::onShaderVersionsLoaded(const QVariantMap& slugToVersions)
 
 int ResourceBackend::downloadModFile(const QString& url, const QString& savePath,
                                       const QString& displayName, qint64 expectedSize,
-                                      const QString& sha1)
+                                      const QString& sha1, qint64 receivedOffset)
 {
-    return m_modMgr->downloadModFile(url, savePath, displayName, expectedSize, sha1);
+    return m_modMgr->downloadModFile(url, savePath, displayName, expectedSize, sha1, receivedOffset);
 }
 
 void ResourceBackend::cancelModFileDownload(int downloadId)

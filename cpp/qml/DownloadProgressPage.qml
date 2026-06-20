@@ -294,9 +294,9 @@ Rectangle {
                             Text { anchors.centerIn: parent; text: "继续"; font.pixelSize: 9; color: "#70c040" }
                             MouseArea { id: resumeBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                                    var dlId = model.dlId
-                                                    modDownloadModel.remove(index)
-                                                    backend.resumeModFileDownload(dlId)
+                                                    modDownloadModel.setProperty(index, "paused", false)
+                                                    modDownloadModel.setProperty(index, "done", false)
+                                                    backend.resumeModFileDownload(model.dlId)
                                                 }
                             }
                         }

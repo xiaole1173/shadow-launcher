@@ -217,18 +217,25 @@ void HttpClient::download(const QString& url, const QString& savePath,
 
 QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& savePath,
                   std::function<void(qint64, qint64)> progress,
-                  std::function<void(bool, const QString&)> done)
+                  std::function<void(bool, const QString&)> done,
+                  qint64 resumeFrom)
 {
     const QString tmpPath = savePath + QStringLiteral(".tmp");
     const QFileInfo fi(savePath);
     QDir().mkpath(fi.absolutePath());
-    QFile::remove(tmpPath);
+
+    // Only remove stale tmp on fresh download; keep on resume
+    if (resumeFrom <= 0) QFile::remove(tmpPath);
 
     QNetworkRequest req = buildRequest(m_config, QUrl(url));
+    if (resumeFrom > 0) {
+        req.setRawHeader("Range", QStringLiteral("bytes=%1-").arg(resumeFrom).toUtf8());
+    }
     QNetworkReply* reply = m_manager->get(req);
 
+    auto openMode = (resumeFrom > 0) ? QIODevice::Append : QIODevice::WriteOnly;
     auto* file = new QFile(tmpPath);
-    if (!file->open(QIODevice::WriteOnly)) {
+    if (!file->open(openMode)) {
         reply->abort();
         reply->deleteLater();
         delete file;
@@ -241,8 +248,8 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
 
     if (progress) {
         QObject::connect(reply, &QNetworkReply::downloadProgress, this,
-            [progress = std::move(progress)](qint64 received, qint64 total) {
-                progress(received, total);
+            [progress = std::move(progress), resumeFrom](qint64 received, qint64 total) {
+                progress(resumeFrom + received, resumeFrom > 0 ? (total > 0 ? resumeFrom + total : -1) : total);
             });
     }
 
@@ -253,7 +260,9 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool networkOk = (reply->error() == QNetworkReply::NoError);
             const QString errorStr = reply->errorString();
-            if (networkOk && status == 200) {
+            // HTTP 206 Partial Content is success for Range requests
+            const bool httpOk = networkOk && (status == 200 || status == 206);
+            if (httpOk) {
                 QFile::remove(savePath);
                 if (QFile::rename(tmpPath, savePath)) {
                     delete file;
