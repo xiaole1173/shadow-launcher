@@ -375,21 +375,13 @@ Rectangle {
     // ════════════════════════════════════════════
     // TAB 0: MC 版本下载
     // ════════════════════════════════════════════
-    Loader {
-        id: mcTabLoader
+    Item {
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        active: page.currentTab === 0
-        sourceComponent: mcTabComponent
-    }
-
-    Component {
-        id: mcTabComponent
-        Item {
-            anchors.fill: parent
+        visible: page.currentTab === 0
 
         // ── Filter pills ──
         RowLayout {
@@ -885,7 +877,6 @@ Rectangle {
                 }
             }
         }
-    }
 
     // ════════════════════════════════════════════
     // ════════════════════════════════════════════
@@ -893,21 +884,13 @@ Rectangle {
     // ════════════════════════════════════════════
     // TAB 1: Mod 下载
     // ════════════════════════════════════════════
-    Loader {
-        id: modTabLoader
+    Item {
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        active: page.currentTab === 1
-        sourceComponent: modTabComponent
-    }
-
-    Component {
-        id: modTabComponent
-        Item {
-            anchors.fill: parent
+        visible: page.currentTab === 1
 
         // ── Helper functions (shared across filter + detail overlay) ──
         function formatLoaderName(ldr) {
@@ -1760,24 +1743,16 @@ Rectangle {
             }
         }
     }
-    }
     // TAB 2: 光影
     // ════════════════════════════════════════════
-    Loader {
-        id: shaderTabLoader
+    Item {
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        active: page.currentTab === 2
-        sourceComponent: shaderTabComponent
-    }
-
-    Component {
-        id: shaderTabComponent
-        Item {
-            anchors.fill: parent
+        opacity: page.currentTab === 2 ? 1 : 0
+        enabled: page.currentTab === 2
 
         ColumnLayout {
             anchors.fill: parent
@@ -1966,26 +1941,18 @@ Rectangle {
             }
         }
     }
-    }
 
     // ════════════════════════════════════════════
     // TAB 3: 资源包
     // ════════════════════════════════════════════
-    Loader {
-        id: rpTabLoader
+    Item {
         anchors.top: tabBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
-        active: page.currentTab === 3
-        sourceComponent: rpTabComponent
-    }
-
-    Component {
-        id: rpTabComponent
-        Item {
-            anchors.fill: parent
+        opacity: page.currentTab === 3 ? 1 : 0
+        enabled: page.currentTab === 3
 
         ColumnLayout {
             anchors.fill: parent
@@ -2873,7 +2840,6 @@ Rectangle {
                 }
             }
         }
-    }
     }
 
 
