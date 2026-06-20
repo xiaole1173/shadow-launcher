@@ -929,16 +929,8 @@ Rectangle {
             return n + " 下载"
         }
 
-        // Filtered version list
-        property var modFilteredVersions: {
-            if (page.modShowPreReleases) return page.commonVersions
-            var arr = []
-            var src = page.commonVersions || []
-            for (var i = 0; i < src.length; i++) {
-                if (/^[0-9.]+$/.test(src[i])) arr.push(src[i])
-            }
-            return arr
-        }
+        // Version list (always show all; pre-release toggle filters search only)
+        property var modFilteredVersions: page.commonVersions || []
 
         Connections {
             target: backend
