@@ -213,13 +213,18 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     float dV = (float)tH;
     // 64x32 also has hat in right-half (cols 32-63), same UV offset +32
     bool hat = (tH >= 32);
-    float pad = 0.30f;
+    float pad = 0.15f;  // hat just slightly wider than face
 
-    // Orthographic projection — no perspective, edge-on faces invisible
+    const float CAM_DIST = 100.0f;  // mild perspective — hat slightly wider than face
+    float crx=0*cosYf-4*sinYf, crz=0*sinYf+4*cosYf, cdz=crz+CAM_DIST;
+    float OFFX = (float)SZ*0.5f - crx/cdz*CAM_DIST*SC;
+    float OFFY = (float)SZ*0.5f - HW/cdz*CAM_DIST*SC;
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
         float rx=x*cosYf-z*sinYf, rz=x*sinYf+z*cosYf, ry2=y*cosPf-rz*sinPf;
         dep=y*sinPf+rz*cosPf;
-        sx=(rx+HW)*SC+OFF; sy=(HW-ry2)*SC+OFF;
+        float dz = rz + CAM_DIST; if (dz<0.5f) dz=0.5f;
+        sx = (rx/dz) * CAM_DIST * SC + OFFX;
+        sy = ((HW-ry2)/dz) * CAM_DIST * SC + OFFY;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep, br; bool ht; };
