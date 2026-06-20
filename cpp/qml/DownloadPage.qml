@@ -3701,7 +3701,7 @@ Rectangle {
                                                         versionNumber: vn, loader: loader, gameVersion: modelData,
                                                         url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
                                                         defaultPath: defaultPath, displayName: title + " " + vn}
-                                                    modFileDialog.currentFile = new URL(defaultPath)
+                                                    modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                                     modFileDialog.open()
                                                 }
                                             }
