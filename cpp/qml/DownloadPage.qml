@@ -892,6 +892,27 @@ Rectangle {
         anchors.topMargin: 8
         visible: page.currentTab === 1
 
+        // ── Helper functions (shared across filter + detail overlay) ──
+        function formatLoaderName(ldr) {
+            var map = { "fabric": "Fabric", "forge": "Forge", "quilt": "Quilt",
+                        "neoforge": "NeoForge", "rift": "Rift", "liteloader": "LiteLoader" }
+            return map[ldr] || ldr
+        }
+
+        function translateModCategory(cat) {
+            if (!backend) return cat
+            var map = backend.getModCategories()
+            return map[cat] || cat
+        }
+
+        // ── Category keys ──
+        property var modCategoryKeys: [
+            "adventure", "cursed", "decoration", "economy", "equipment",
+            "food", "game-mechanics", "library", "magic", "management",
+            "minigame", "mobs", "optimization", "social", "storage",
+            "technology", "transportation", "utility", "world-generation"
+        ]
+
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 12
@@ -1354,27 +1375,6 @@ Rectangle {
                     }
                 }
             }
-
-            // ── Helper functions ──
-            function formatLoaderName(ldr) {
-                var map = { "fabric": "Fabric", "forge": "Forge", "quilt": "Quilt",
-                            "neoforge": "NeoForge", "rift": "Rift", "liteloader": "LiteLoader" }
-                return map[ldr] || ldr
-            }
-
-            function translateModCategory(cat) {
-                if (!backend) return cat
-                var map = backend.getModCategories()
-                return map[cat] || cat
-            }
-
-            // ── Category keys ──
-            property var modCategoryKeys: [
-                "adventure", "cursed", "decoration", "economy", "equipment",
-                "food", "game-mechanics", "library", "magic", "management",
-                "minigame", "mobs", "optimization", "social", "storage",
-                "technology", "transportation", "utility", "world-generation"
-            ]
 
             // ── Results area ──
             Item {
