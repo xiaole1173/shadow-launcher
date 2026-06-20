@@ -1031,7 +1031,36 @@ Rectangle {
                                     Rectangle {
                                         Layout.preferredWidth: 32; Layout.preferredHeight: 32; radius: 6
                                         color: "#0c0e14"
-                                        Text { anchors.centerIn: parent; text: "🔧"; font.pixelSize: 16 }
+                                        clip: true
+
+                                        Image {
+                                            id: modCardIcon
+                                            anchors.fill: parent; anchors.margins: 2
+                                            fillMode: Image.PreserveAspectFit
+                                            asynchronous: true; cache: true
+                                            sourceSize.width: 64; sourceSize.height: 64
+
+                                            Component.onCompleted: {
+                                                if (model && model.icon) {
+                                                    var url = model.icon
+                                                    url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                                    url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                                    source = url
+                                                }
+                                            }
+                                            onStatusChanged: {
+                                                if (status === Image.Error) modIconFallback.visible = true
+                                                else if (status === Image.Ready) modIconFallback.visible = false
+                                            }
+                                        }
+
+                                        Text {
+                                            id: modIconFallback
+                                            anchors.centerIn: parent
+                                            text: model ? (model.title ? model.title[0] : "M") : "M"
+                                            color: "#5068c8"; font.pixelSize: 16; font.bold: true
+                                            visible: !model || !model.icon
+                                        }
                                     }
 
                                     ColumnLayout {
