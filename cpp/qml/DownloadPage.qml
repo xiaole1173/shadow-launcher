@@ -3364,46 +3364,6 @@ Rectangle {
     }
 
 
-    // Mod detail signal handler
-    Connections {
-        target: backend
-        enabled: backend !== null
-        function onModVersionsPartial(slug, versions, details) {
-            if (slug !== page.modDetailSlug) return
-            page.modDetailLoading = false
-            modDetailVerModel.clear()
-            if (!versions || versions.length === 0) return
-            var arr = []
-            for (var vi = 0; vi < versions.length; vi++) {
-                var v = versions[vi]
-                var d = details ? details[v] : null
-                arr.push({
-                    gameVersion: v,
-                    versionNumber: d ? (d.version_number || v) : v,
-                    date: d ? (d.date_published || "") : "",
-                    downloads: d ? (d.downloads || 0) : 0,
-                    loader: d ? (d.loader || "") : "",
-                    url: d ? (d.download_url || d.url || "") : ""
-                })
-            }
-            // Sort by game version descending
-            arr.sort(function(a,b) {
-                var as = (a.gameVersion||"").split("."), bs = (b.gameVersion||"").split(".")
-                for (var s = 0; s < Math.max(as.length, bs.length); s++) {
-                    var av = parseInt(as[s])||0, bv = parseInt(bs[s])||0
-                    if (av !== bv) return bv - av
-                }
-                return 0
-            })
-            for (var ai = 0; ai < arr.length; ai++) {
-                modDetailVerModel.append(arr[ai])
-            }
-        }
-        function onModVersionsProgress(done, total) {
-            if (page.modDetailSlug === "") return
-            page.modDetailLoading = done < total
-        }
-    }
 
     // ════════════════════════════════════════════
     // MOD DETAIL OVERLAY
@@ -3488,7 +3448,7 @@ Rectangle {
                     Text { id: backLbl2; anchors.centerIn: parent; text: "← 返回"; color: "#9094a8"; font.pixelSize: 12 }
                     MouseArea {
                         id: backHov2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: { page.modDetailSlug = ""; page.modDetailStep1Ver = ""; page.modDetailStep2Loader = ""; rawVersionData = []; step = 1 }
+                        onClicked: { page.modDetailSlug = ""; page.modDetailStep1Ver = ""; page.modDetailStep2Loader = ""; modDetailOverlay.rawVersionData = []; modDetailOverlay.step = 1 }
                     }
                 }
 
@@ -3531,7 +3491,7 @@ Rectangle {
                             border.color: modelData.major===page.modDetailStep1Ver?"#4068c8":"#2a3040"
                             Text { id: vCt; anchors.centerIn: parent; text: modelData.major||modelData.full; color: modelData.major===page.modDetailStep1Ver?"#8aaeff":"#788090"; font.pixelSize: 11 }
                             MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.modDetailStep1Ver=modelData.major; page.modDetailStep2Loader=""; step=2 }
+                                onClicked: { page.modDetailStep1Ver=modelData.major; page.modDetailStep2Loader=""; modDetailOverlay.step = 2 }
                             }
                         }
                     }
@@ -3545,7 +3505,7 @@ Rectangle {
                             border.color: modelData===page.modDetailStep2Loader?"#4068c8":"#2a3040"
                             Text { id: lCt; anchors.centerIn: parent; text: modelData||"?"; color: modelData===page.modDetailStep2Loader?"#8aaeff":"#788090"; font.pixelSize: 11 }
                             MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.modDetailStep2Loader=modelData; step=3 }
+                                onClicked: { page.modDetailStep2Loader=modelData; modDetailOverlay.step = 3 }
                             }
                         }
                     }
@@ -3554,7 +3514,7 @@ Rectangle {
                         border.color: !page.modDetailStep2Loader?"#4068c8":"#2a3040"
                         Text { id: aLt; anchors.centerIn: parent; text: "全部"; color: !page.modDetailStep2Loader?"#8aaeff":"#788090"; font.pixelSize: 11 }
                         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { page.modDetailStep2Loader=""; step=3 }
+                            onClicked: { page.modDetailStep2Loader=""; modDetailOverlay.step = 3 }
                         }
                     }
                 }
