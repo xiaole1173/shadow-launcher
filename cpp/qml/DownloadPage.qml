@@ -61,6 +61,13 @@ Rectangle {
     // Common versions (for mod/Shader/RP tabs)
     property var commonVersions: []
 
+    // Shader state
+    property string shaderGameVersion: ""
+    property bool shaderShowPreReleases: false
+    property bool shaderSearching: false
+
+    // Shader env labels (same API field as mods)
+
     // Resource pack state
     property string rpGameVersion: ""  // "" = 全部, 默认不筛选版本
     property string rpDownloadDir: ""
@@ -1135,7 +1142,22 @@ Rectangle {
                                             }
                                         }
                                         Repeater {
-                                            model: modFilteredVersions
+                                            model: {
+                                                if (!backend || !backend.versionIds) return []
+                                                var seen = []
+                                                var groups = []
+                                                for (var vi = 0; vi < backend.versionIds.length; vi++) {
+                                                    var vv = backend.versionIds[vi]
+                                                    if (!page.modShowPreReleases && !/^[0-9.]+$/.test(vv)) continue
+                                                    var major = vv.split(/[.\-]/).slice(0, 2).join(".")
+                                                    if (seen.indexOf(major) < 0) {
+                                                        seen.push(major)
+                                                        groups.push(major)
+                                                    }
+                                                    if (groups.length >= 30) break
+                                                }
+                                                return groups
+                                            }
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: 4
                                                 color: modelData === page.modGameVersion ? "#1a2848" : "transparent"
@@ -1445,183 +1467,311 @@ Rectangle {
         opacity: page.currentTab === 2 ? 1 : 0
         enabled: page.currentTab === 2
 
+        function doShaderSearch() {
+            if (!backend) return
+            page.shaderSearching = true
+            shaderResultsModel.clear()
+            var q = shaderInput.text ? shaderInput.text.trim() : ""
+            backend.searchShaders(q, page.shaderGameVersion)
+        }
+
+        function formatDownloads(n) {
+            if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+            if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+            return n + ""
+        }
+
+        Connections {
+            target: backend
+            enabled: backend !== null
+            function onSearchResultsReady(results) {
+                if (page.currentTab !== 2) return  // shader-only
+                shaderResultsModel.clear()
+                for (var j = 0; j < results.length; j++) {
+                    var r = results[j]
+                    shaderResultsModel.append({
+                        slug: r.slug || "",
+                        title: r.title || r.slug || "Unknown",
+                        desc: r.desc || "",
+                        icon: r.icon || "",
+                        downloads: r.downloads || 0,
+                        clientSide: r.clientSide || ""
+                    })
+                }
+                page.shaderSearching = false
+            }
+        }
+
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
 
-            // ── Header ──
-            Text {
-                Layout.fillWidth: true
-                text: "热门光影推荐"
-                color: "#d0d4e0"; font.pixelSize: 14; font.bold: true
-            }
+            // ── Filter Card ──
+            Rectangle {
+                Layout.fillWidth: true; height: 60; radius: 10
+                color: "#11141c"; border.color: "#1e2230"
 
-            // ── Search bar ──
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
+                RowLayout {
+                    anchors.fill: parent; anchors.margins: 10; spacing: 6
 
-                Rectangle {
-                    Layout.fillWidth: true; height: 30; radius: 5
-                    color: "#0c0e14"
-                    border.color: shaderSearchInput.activeFocus ? "#5068c8" : "#2a3040"
-                    border.width: 1
+                    // Search
+                    Rectangle {
+                        Layout.fillWidth: true; height: 26; radius: 4
+                        color: "#0c0e14"
+                        border.color: shaderInput.activeFocus ? "#5068c8" : "#2a3040"; border.width: 1
 
-                    TextInput {
-                        id: shaderSearchInput
-                        anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                        color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: 12
+                        TextInput {
+                            id: shaderInput
+                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
+                            color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: 12
+                            Keys.onReturnPressed: doShaderSearch()
 
+                            Text {
+                                anchors.fill: parent; verticalAlignment: Text.AlignVCenter
+                                text: "搜索光影…"; color: "#505468"; font.pixelSize: 11
+                                visible: !shaderInput.text
+                            }
+                        }
+                    }
+
+                    // Search button
+                    Rectangle {
+                        width: 44; height: 26; radius: 4
+                        color: sSbtn.hovered ? "#5a78e0" : "#5068c8"
+                        Text { anchors.centerIn: parent; text: "搜索"; color: "#fff"; font.pixelSize: 10; font.bold: true }
+                        MouseArea {
+                            id: sSbtn; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: doShaderSearch()
+                        }
+                    }
+
+                    // Version dropdown
+                    Text { text: "版本"; color: "#9094a8"; font.pixelSize: 10 }
+                    Rectangle {
+                        Layout.preferredWidth: 80; height: 26; radius: 4
+                        color: sVerHov.hovered ? "#1a2848" : "#0c0e14"
+                        border.color: page.shaderGameVersion ? "#5068c8" : "#2a3040"; border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
+                            Text {
+                                Layout.fillWidth: true
+                                text: page.shaderGameVersion || "全部"
+                                color: page.shaderGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                elide: Text.ElideRight
+                            }
+                            Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
+                        }
+                        MouseArea {
+                            id: sVerHov; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (sVerMenu.visible) sVerMenu.close(); else sVerMenu.open() }
+                        }
+
+                        Popup {
+                            id: sVerMenu; closePolicy: Popup.NoAutoClose
+                            y: parent.height + 4; width: 130
+                            height: Math.min(sVerFlick.contentHeight + 8, 220)
+                            padding: 0
+                            background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
+
+                            Flickable {
+                                id: sVerFlick
+                                anchors.fill: parent; anchors.margins: 4
+                                contentHeight: sVerInner.implicitHeight; clip: true
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                                ColumnLayout {
+                                    id: sVerInner; width: parent.width; spacing: 1
+                                    Rectangle {
+                                        Layout.fillWidth: true; height: 26; radius: 4
+                                        color: !page.shaderGameVersion ? "#1a2848" : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent; text: "全部"
+                                            color: !page.shaderGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                            font.weight: !page.shaderGameVersion ? Font.Bold : Font.Normal
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { page.shaderGameVersion = ""; sVerMenu.close() }
+                                        }
+                                    }
+                                    Repeater {
+                                        model: {
+                                            if (!backend || !backend.versionIds) return []
+                                            var seen = []
+                                            var groups = []
+                                            for (var vi = 0; vi < backend.versionIds.length; vi++) {
+                                                var vv = backend.versionIds[vi]
+                                                if (!page.shaderShowPreReleases && !/^[0-9.]+$/.test(vv)) continue
+                                                var major = vv.split(/[.\-]/).slice(0, 2).join(".")
+                                                if (seen.indexOf(major) < 0) {
+                                                    seen.push(major); groups.push(major)
+                                                }
+                                                if (groups.length >= 30) break
+                                            }
+                                            return groups
+                                        }
+                                        Rectangle {
+                                            Layout.fillWidth: true; height: 26; radius: 4
+                                            color: modelData === page.shaderGameVersion ? "#1a2848" : "transparent"
+                                            Text {
+                                                anchors.centerIn: parent; text: modelData
+                                                color: modelData === page.shaderGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                font.weight: modelData === page.shaderGameVersion ? Font.Bold : Font.Normal
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: { page.shaderGameVersion = modelData; sVerMenu.close() }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Pre-release toggle
+                    Rectangle {
+                        width: 20; height: 26; radius: 4
+                        color: page.shaderShowPreReleases ? "#1a2848" : "#0c0e14"
+                        border.color: page.shaderShowPreReleases ? "#5068c8" : "#2a3040"; border.width: 1
                         Text {
-                            anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                            text: "搜索光影..."; color: "#505468"; font.pixelSize: 11
-                            visible: !shaderSearchInput.text
+                            anchors.centerIn: parent
+                            text: page.shaderShowPreReleases ? "✓" : "✕"
+                            color: page.shaderShowPreReleases ? "#8aaeff" : "#505468"; font.pixelSize: 9
+                        }
+                        MouseArea {
+                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { page.shaderShowPreReleases = !page.shaderShowPreReleases }
                         }
                     }
-                }
 
-                Rectangle {
-                    Layout.preferredWidth: 72; height: 30; radius: 5
-                    color: shaderSearchBtn.hovered ? "#5a78e0" : "#5068c8"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "搜索"
-                        color: "#ffffff"; font.pixelSize: 12; font.bold: true
-                    }
-                    MouseArea {
-                        id: shaderSearchBtn; anchors.fill: parent
-                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var q = shaderSearchInput.text.trim()
-                            if (!q) return
-                            console.log("[shader-ui] search query=\"" + q + "\"")
-                            page.shaderSearching = true
-                            if (backend.modManager && backend.modManager.searchMods)
-                                backend.modManager.searchMods(q, page.modLoader)
+                    // Reset
+                    Rectangle {
+                        width: 44; height: 26; radius: 4
+                        color: sRbtn.hovered ? "#2a2030" : "#1a1420"
+                        border.color: "#3a2840"; border.width: 1
+                        Text { anchors.centerIn: parent; text: "重置"; color: "#b090c8"; font.pixelSize: 10 }
+                        MouseArea {
+                            id: sRbtn; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                page.shaderGameVersion = ""
+                                shaderInput.text = ""
+                                shaderResultsModel.clear()
+                            }
                         }
                     }
                 }
             }
 
-            // ── Results area ──
+            // ── Results ──
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
+                Text {
+                    visible: page.shaderSearching
+                    anchors.centerIn: parent
+                    text: "搜索中…"; color: "#606478"; font.pixelSize: 12
+                }
+                Text {
+                    visible: !page.shaderSearching && shaderResultsModel.count === 0
+                    anchors.centerIn: parent
+                    text: "输入关键词搜索光影"; color: "#606478"; font.pixelSize: 12
+                }
+
                 Flickable {
-                    id: shaderFlick
                     anchors.fill: parent
-                    contentHeight: shaderGrid.implicitHeight
+                    contentHeight: sGrid.implicitHeight
                     clip: true
+                    visible: shaderResultsModel.count > 0
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                     ColumnLayout {
-                        id: shaderGrid
-                        width: parent.width
-                        spacing: 6
+                        id: sGrid; width: parent.width; spacing: 6
 
-                        // Loading state
-                        Text {
-                            visible: page.shaderSearching
-                            Layout.fillWidth: true
-                            text: "搜索中…"
-                            color: "#606478"; font.pixelSize: 12
-                            horizontalAlignment: Qt.AlignHCenter
-                            Layout.topMargin: 20
-                        }
-
-                        // Empty state
-                        Text {
-                            visible: !page.shaderSearching && shaderResultsModel.count === 0
-                            Layout.fillWidth: true
-                            text: "未找到匹配的光影"
-                            color: "#606478"; font.pixelSize: 12
-                            horizontalAlignment: Qt.AlignHCenter
-                            Layout.topMargin: 20
-                        }
-
-                        // Results cards
                         Repeater {
                             model: shaderResultsModel
 
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 56
-                                radius: 8
+                                height: 64; radius: 8
                                 color: "#161922"
-                                border.color: "#1e2230"
+                                border.color: "#1e2230"; border.width: 1
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: console.log("[shader] open " + model.slug)
+                                }
 
                                 RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 10
-                                    spacing: 10
+                                    anchors.fill: parent; anchors.margins: 8; spacing: 8
 
-                                    // Icon
                                     Rectangle {
-                                        Layout.preferredWidth: 32; Layout.preferredHeight: 32; radius: 6
-                                        color: "#0c0e14"
+                                        Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 6
+                                        color: "#0c0e14"; clip: true
+
+                                        Image {
+                                            anchors.fill: parent; anchors.margins: 2
+                                            fillMode: Image.PreserveAspectFit
+                                            asynchronous: true; cache: true
+                                            sourceSize.width: 72; sourceSize.height: 72
+                                            Component.onCompleted: {
+                                                if (model && model.icon) {
+                                                    var u = model.icon
+                                                    u = u.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                                    source = u
+                                                }
+                                            }
+                                            onStatusChanged: {
+                                                if (status === Image.Error) sIconFb.visible = true
+                                                else if (status === Image.Ready) sIconFb.visible = false
+                                            }
+                                        }
                                         Text {
+                                            id: sIconFb
                                             anchors.centerIn: parent
-                                            text: "🌄"
-                                            font.pixelSize: 16
+                                            text: model ? (model.title ? model.title[0] : "S") : "S"
+                                            color: "#5068c8"; font.pixelSize: 16; font.bold: true
+                                            visible: !model || !model.icon
                                         }
                                     }
 
-                                    // Info
                                     ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Layout.fillHeight: true
-                                        spacing: 2
+                                        Layout.fillWidth: true; spacing: 1
                                         Layout.alignment: Qt.AlignVCenter
 
-                                        Text {
-                                            text: model.title || "Unknown"
-                                            color: "#d0d4e0"; font.pixelSize: 13; font.bold: true
-                                            elide: Text.ElideRight
-                                        }
-                                        Text {
-                                            text: model.desc || ""
-                                            color: "#606478"; font.pixelSize: 11
-                                            elide: Text.ElideRight
-                                            maximumLineCount: 1
-                                        }
-                                        Text {
-                                            text: "下载: " + (model.downloads || 0)
-                                            color: "#5068c8"; font.pixelSize: 10
-                                        }
-                                    }
-
-                                    // Download button
-                                    Rectangle {
-                                        Layout.preferredWidth: 60; height: 26; radius: 5
-                                        color: {
-                                            if (page.shaderDownloadingSlugs[model.slug])
-                                                return "#2a3040"
-                                            if (shaderDlBtn.containsMouse)
-                                                return "#5a78e0"
-                                            return "#5068c8"
-                                        }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: page.shaderDownloadingSlugs[model.slug] ? "下载中…" : "下载"
-                                            color: page.shaderDownloadingSlugs[model.slug] ? "#606478" : "#ffffff"
-                                            font.pixelSize: 11
-                                        }
-                                        MouseArea {
-                                            id: shaderDlBtn
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (page.shaderDownloadingSlugs[model.slug]) return
-                                                console.log("[shader-ui] download slug=\"" + model.slug + "\"")
-                                                page.shaderDownloadingSlugs[model.slug] = true
-                                                page.shaderDownloadingSlugs = Object.assign({}, page.shaderDownloadingSlugs)
-                                                backend.downloadShader(model.slug)
+                                        RowLayout {
+                                            Layout.fillWidth: true; spacing: 4
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: model.title || ""; color: "#d0d4e0"
+                                                font.pixelSize: 12; font.bold: true; elide: Text.ElideRight
                                             }
+                                            Rectangle {
+                                                visible: model.clientSide
+                                                width: sCliLbl.implicitWidth + 8; height: 15; radius: 3
+                                                color: "#282038"
+                                                Text {
+                                                    id: sCliLbl; anchors.centerIn: parent
+                                                    text: page.modEnvLabels[model.clientSide] || model.clientSide || ""
+                                                    color: "#c0a0e0"; font.pixelSize: 8
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: model.desc || ""; color: "#606478"
+                                            font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
+                                        }
+                                        Text {
+                                            text: "📥 " + formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
                                         }
                                     }
                                 }
@@ -1632,8 +1782,6 @@ Rectangle {
             }
         }
     }
-
-    // ════════════════════════════════════════════
     // TAB 3: 资源包
     // ════════════════════════════════════════════
     Item {
@@ -2923,12 +3071,12 @@ Rectangle {
     // ════════════════════════════════════════════
     ListModel { id: modResultsModel }
     ListModel { id: shaderResultsModel }
+    ListModel { id: shaderResultsModel }
     ListModel { id: rpResultsModel }
 
     // Mod & Shader state
     property bool modSearching: false
     property var modDownloadingSlugs: ({})  // set<string> tracking slugs being downloaded
-    property bool shaderSearching: false
     property var shaderDownloadingSlugs: ({})
 
 
