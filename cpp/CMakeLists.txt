@@ -10,8 +10,9 @@ set(CMAKE_AUTORCC ON)
 # Dependencies
 # ============================================================
 
-# Qt 6.5 LTS
-find_package(Qt6 6.5 REQUIRED COMPONENTS
+# Qt 6.8 LTS
+set(CMAKE_PREFIX_PATH "C:/Qt/6.8.3/msvc2022_64")
+find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core
     Gui
     Qml
