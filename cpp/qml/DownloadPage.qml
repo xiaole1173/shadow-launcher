@@ -3438,6 +3438,12 @@ Rectangle {
             anchors.fill: parent
             color: "#0c0f16"
 
+            // Click interceptor — prevents clicks from passing through to mod list below
+            MouseArea {
+                anchors.fill: parent
+                onClicked: console.log("[mod-detail] background clicked — event eaten")
+            }
+
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 16
