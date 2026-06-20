@@ -16,8 +16,8 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     float sw = (float)skin.width(), sh = (float)skin.height();
     float divV = (sh <= 32.0f) ? 32.0f : 64.0f;
 
-    float yr = 30.0f * 3.1415926535f / 180.0f;
-    float pr = -15.0f * 3.1415926535f / 180.0f;
+    float yr = -25.0f * 3.1415926535f / 180.0f;
+    float pr = -10.0f * 3.1415926535f / 180.0f;
     float cosY = cosf(yr), sinY = sinf(yr);
     float cosP = cosf(pr), sinP = sinf(pr);
 
