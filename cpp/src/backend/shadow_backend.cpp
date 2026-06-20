@@ -1090,7 +1090,7 @@ void ShadowBackend::setSelectedVersion(const QString& versionId) {
 // Q_INVOKABLE methods — Launch
 // ============================================================
 
-void ShadowBackend::launch(const QString& versionId) {
+void ShadowBackend::launch(const QString& versionId, bool online) {
     QString username = m_account->username();
     int maxMemory = m_settings->maxMemoryMB();
     QString jvmArgs = m_app->jvmArgs();
@@ -1111,8 +1111,8 @@ void ShadowBackend::launch(const QString& versionId) {
         return;
     }
 
-    // Pass online auth info if using Microsoft login
-    if (m_account->isOnline()) {
+    // Pass auth info based on which tab the user launched from
+    if (online) {
         qCInfo(logLaunch) << "[AUTH] Launching with ONLINE auth: username=" << m_account->username() << " uuid=" << m_account->accountUuid();
         m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
                               m_account->mcToken(), true);

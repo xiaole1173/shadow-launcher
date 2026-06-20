@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
         qCInfo(logApp) << "Auto-launch test mode: version" << autoVersion;
         QTimer::singleShot(2000, backend, [backend, autoVersion]() {
             qCInfo(logApp) << "Auto-launch: triggering launch for" << autoVersion;
-            backend->launch(autoVersion);
+            backend->launch(autoVersion, true);
         });
     }
 

@@ -766,7 +766,7 @@ Window {
                                                 toastManager.show("请先输入用户名")
                                                 return
                                             }
-                                            backend.launch(currentSelectedVersion)
+                                            backend.launch(currentSelectedVersion, loginMode === 0)
                                         }
                                     }
                                 }
