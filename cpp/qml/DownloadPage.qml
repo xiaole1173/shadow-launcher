@@ -58,6 +58,9 @@ Rectangle {
     property bool installingMod: false
     property string installingModName: ""
 
+    // Common versions (for mod/Shader/RP tabs)
+    property var commonVersions: []
+
     // Resource pack state
     property string rpGameVersion: ""  // "" = 全部, 默认不筛选版本
     property string rpDownloadDir: ""
@@ -265,6 +268,23 @@ Rectangle {
     function refreshVersionModel() {
         versionModel.clear()
         if (!backend) { appWindow.pageLoading = false; return }
+
+        // Populate commonVersions for filter dropdowns
+        if (backend.releaseVersions && backend.releaseVersions.length > 0) {
+            var seen = {}
+            var versions = []
+            // Use release versions first, then snapshots
+            var all = (backend.releaseVersions || []).concat(backend.snapshotVersions || []).concat(backend.oldVersions || [])
+            for (var vi = 0; vi < all.length; vi++) {
+                var vv = all[vi]
+                if (vv && !seen[vv]) {
+                    seen[vv] = true
+                    versions.push(vv)
+                }
+            }
+            page.commonVersions = versions
+        }
+
         var list
         if (currentFilter === "snapshot") list = backend.snapshotVersions
         else if (currentFilter === "old") list = backend.oldVersions
@@ -901,11 +921,22 @@ Rectangle {
             return map[ldr] || ldr
         }
 
+        // Filtered version list (respects pre-release toggle)
+        property var modFilteredVersions: {
+            if (page.modShowPreReleases) return page.commonVersions
+            var arr = []
+            var src = page.commonVersions || []
+            for (var i = 0; i < src.length; i++) {
+                if (/^[0-9.]+$/.test(src[i])) arr.push(src[i])
+            }
+            return arr
+        }
+
         function doModSearch() {
             if (!backend) return
             page.modSearching = true
             modResultsModel.clear()
-            var q = modSearchInput.text ? modSearchInput.text.trim() : ""
+            var q = modInput.text ? modInput.text.trim() : ""
             console.log("[mod] search q=" + q + " loader=" + page.modLoader + " cat=" + page.modCategory + " ver=" + page.modGameVersion + " env=" + page.modEnvironment + " lic=" + page.modLicense)
             backend.searchModsEx(q, page.modLoader, page.modCategory, page.modGameVersion, page.modEnvironment, page.modLicense, 0, 30)
         }
@@ -981,10 +1012,153 @@ Rectangle {
             }
 
             // ── Quick filters ──
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
-                visible: false  // TODO: implement dropdowns
+            Rectangle {
+                Layout.fillWidth: true; height: 72; radius: 8
+                color: "#11141c"; border.color: "#1e2230"
+
+                RowLayout {
+                    anchors.fill: parent; anchors.margins: 10; spacing: 10
+
+                    // Loader dropdown
+                    Text { text: "Loader"; color: "#9094a8"; font.pixelSize: 11 }
+                    Rectangle {
+                        Layout.preferredWidth: 110; height: 28; radius: 5
+                        color: modLdrHov.hovered ? "#1a2848" : "#0c0e14"
+                        border.color: page.modLoader ? "#5068c8" : "#2a3040"; border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
+                            Text {
+                                Layout.fillWidth: true
+                                text: page.modLoader ? formatLoaderName(page.modLoader) : "全部"
+                                color: page.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+                            Text { text: "▾"; color: "#505468"; font.pixelSize: 8 }
+                        }
+                        MouseArea {
+                            id: modLdrHov; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (modLdrMenu.visible) modLdrMenu.close(); else modLdrMenu.open() }
+                        }
+
+                        Popup {
+                            id: modLdrMenu; closePolicy: Popup.NoAutoClose
+                            y: parent.height + 4; width: 110
+                            padding: 4
+                            background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
+                            ColumnLayout { width: parent.width - 8; spacing: 2
+                                Repeater {
+                                    model: ["", "fabric", "forge", "quilt", "neoforge", "rift", "liteloader"]
+                                    Rectangle {
+                                        Layout.fillWidth: true; height: 26; radius: 4
+                                        color: modelData === page.modLoader ? "#1a2848" : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData ? formatLoaderName(modelData) : "全部"
+                                            color: modelData === page.modLoader ? "#5068c8" : "#9094a8"
+                                            font.pixelSize: 11
+                                            font.weight: modelData === page.modLoader ? Font.Bold : Font.Normal
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { page.modLoader = modelData; modLdrMenu.close() }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Version dropdown
+                    Text { text: "版本"; color: "#9094a8"; font.pixelSize: 11 }
+                    Rectangle {
+                        Layout.preferredWidth: 120; height: 28; radius: 5
+                        color: modVerHov.hovered ? "#1a2848" : "#0c0e14"
+                        border.color: page.modGameVersion ? "#5068c8" : "#2a3040"; border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
+                            Text {
+                                Layout.fillWidth: true
+                                text: page.modGameVersion ? page.modGameVersion : "全部"
+                                color: page.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+                            Text { text: "▾"; color: "#505468"; font.pixelSize: 8 }
+                        }
+                        MouseArea {
+                            id: modVerHov; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (modVerMenu.visible) modVerMenu.close(); else modVerMenu.open() }
+                        }
+
+                        Popup {
+                            id: modVerMenu; closePolicy: Popup.NoAutoClose
+                            y: parent.height + 4; width: 140
+                            height: Math.min(modVerFlick.contentHeight + 8, 200)
+                            padding: 0
+                            background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
+
+                            Flickable {
+                                id: modVerFlick
+                                anchors.fill: parent; anchors.margins: 4
+                                contentHeight: modVerInner.implicitHeight; clip: true
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                                ColumnLayout {
+                                    id: modVerInner; width: parent.width; spacing: 2
+                                    Rectangle {
+                                        Layout.fillWidth: true; height: 26; radius: 4
+                                        color: !page.modGameVersion ? "#1a2848" : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent; text: "全部"
+                                            color: !page.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                            font.weight: !page.modGameVersion ? Font.Bold : Font.Normal
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { page.modGameVersion = ""; modVerMenu.close() }
+                                        }
+                                    }
+                                    Repeater {
+                                        model: modFilteredVersions
+                                        Rectangle {
+                                            Layout.fillWidth: true; height: 26; radius: 4
+                                            color: modelData === page.modGameVersion ? "#1a2848" : "transparent"
+                                            Text {
+                                                anchors.centerIn: parent; text: modelData
+                                                color: modelData === page.modGameVersion ? "#5068c8" : "#9094a8"
+                                                font.pixelSize: 11
+                                                font.weight: modelData === page.modGameVersion ? Font.Bold : Font.Normal
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: { page.modGameVersion = modelData; modVerMenu.close() }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Pre-release toggle
+                    Rectangle {
+                        width: 30; height: 28; radius: 5
+                        color: page.modShowPreReleases ? "#1a2848" : "#0c0e14"
+                        border.color: page.modShowPreReleases ? "#5068c8" : "#2a3040"; border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: page.modShowPreReleases ? "预" : "稳"
+                            color: page.modShowPreReleases ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                        }
+                        MouseArea {
+                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { page.modShowPreReleases = !page.modShowPreReleases }
+                        }
+                    }
+                }
             }
 
             // ── Results area ──
