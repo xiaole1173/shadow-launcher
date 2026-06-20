@@ -244,6 +244,11 @@ public:
     Q_INVOKABLE QVariantList getPopularMods(const QString& loader);
     Q_INVOKABLE QVariantList getShaderList();
     Q_INVOKABLE void searchMods(const QString& query, const QString& loader = {});
+    Q_INVOKABLE void searchModsEx(const QString& query, const QString& loader,
+        const QString& category, const QString& gameVersion,
+        const QString& environment, const QString& license,
+        int offset, int limit);
+    Q_INVOKABLE QVariantMap getModCategories();
     Q_INVOKABLE void searchShaders(const QString& query, const QString& gameVersion = {});
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());

@@ -1,9 +1,13 @@
 #include "resource_backend.h"
 #include "core/mod_manager.h"
+#include "core/http_client.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QStringList>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QVariantMap>
 
 namespace ShadowLauncher {
@@ -103,9 +107,139 @@ void ResourceBackend::searchMods(const QString& query, const QString& loader)
         loaders << loader;
 
     emit logMessage(QStringLiteral("🔍 正在搜索Mod: %1 (%2)...").arg(query, loader));
-    // Use dedicated search with project_type:mod facet
     m_modMgr->searchModrinthProjects(query, {QStringLiteral("project_type:mod")}, {}, loaders, 0, 20,
                              QStringLiteral("relevance"));
+}
+
+void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
+    const QString& category, const QStringList& gameVersions,
+    const QString& environment, const QString& license,
+    int offset, int limit)
+{
+    QStringList loaders;
+    if (!loader.isEmpty())
+        loaders << loader;
+
+    // Build Modrinth facets as OR groups:
+    // [["project_type:mod"], ["categories:X"], ["client_side:required"], ["license:mit",...]]
+    QJsonArray facetArr;
+
+    // Base: project_type = mod
+    facetArr.append(QJsonArray{QStringLiteral("project_type:mod")});
+
+    // Category (single, OR with project_type)
+    if (!category.isEmpty()) {
+        facetArr.append(QJsonArray{QStringLiteral("categories:") + category});
+    }
+
+    // Game versions — OR group
+    if (!gameVersions.isEmpty()) {
+        QJsonArray verGroup;
+        for (const QString& v : gameVersions)
+            verGroup.append(QStringLiteral("versions:") + v);
+        facetArr.append(verGroup);
+    }
+
+    // Environment
+    if (!environment.isEmpty()) {
+        if (environment == QStringLiteral("client"))
+            facetArr.append(QJsonArray{QStringLiteral("client_side:required")});
+        else if (environment == QStringLiteral("server"))
+            facetArr.append(QJsonArray{QStringLiteral("server_side:required")});
+    }
+
+    // License — OR group of common open source licenses
+    if (license == QStringLiteral("open_source")) {
+        QJsonArray licGroup;
+        licGroup.append(QStringLiteral("license:mit"));
+        licGroup.append(QStringLiteral("license:gpl-3.0"));
+        licGroup.append(QStringLiteral("license:lgpl-3.0"));
+        licGroup.append(QStringLiteral("license:apache-2.0"));
+        licGroup.append(QStringLiteral("license:mpl-2.0"));
+        licGroup.append(QStringLiteral("license:bsd-3-clause"));
+        licGroup.append(QStringLiteral("license:unlicense"));
+        facetArr.append(licGroup);
+    }
+
+    emit logMessage(QStringLiteral("🔍 搜索Mod(ex): q=%1 loader=%2 cat=%3 ver=%4 env=%5 lic=%6 offset=%7")
+                        .arg(query, loader, category, gameVersions.join(','),
+                             environment, license).arg(offset));
+
+    // Build URL directly (bypass searchModrinthProjects for proper facet handling)
+    QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+    QUrlQuery params;
+    if (!query.isEmpty())
+        params.addQueryItem(QStringLiteral("query"), query);
+    // Add loaders as separate OR group
+    if (!loaders.isEmpty()) {
+        QJsonArray ldGroup;
+        for (const QString& l : loaders)
+            ldGroup.append(QStringLiteral("categories:") + l);
+        facetArr.append(ldGroup);
+    }
+    params.addQueryItem(QStringLiteral("facets"),
+                        QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
+    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    params.addQueryItem(QStringLiteral("index"), QStringLiteral("relevance"));
+    url.setQuery(params);
+
+    m_modMgr->setBusy(true);
+    emit logMessage(QStringLiteral("请求URL: %1").arg(url.toString()));
+
+    HttpClient::instance().get(url.toString(),
+        [this](int status, const QByteArray& body) {
+            if (status == 200) {
+                int totalHits = 0;
+                QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
+                QVariantList list;
+                for (const QJsonValue& item : results) {
+                    const QJsonObject obj = item.toObject();
+                    QVariantMap entry;
+                    entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
+                    entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
+                    entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
+                    entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
+                    entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+                    list.append(entry);
+                }
+                emit searchResultsReady(list);
+                emit logMessage(QStringLiteral("搜索完成，共 %1 个结果").arg(totalHits));
+            } else {
+                emit logMessage(QStringLiteral("搜索失败: HTTP %1").arg(status));
+            }
+            m_modMgr->setBusy(false);
+        },
+        [this](const QString& error) {
+            emit logMessage(QStringLiteral("网络错误: %1").arg(error));
+            m_modMgr->setBusy(false);
+        }
+    );
+}
+
+QVariantMap ResourceBackend::getModCategories()
+{
+    QVariantMap map;
+    map[QStringLiteral("adventure")] = QStringLiteral("冒险类");
+    map[QStringLiteral("cursed")] = QStringLiteral("猎奇诡异类");
+    map[QStringLiteral("decoration")] = QStringLiteral("装饰类");
+    map[QStringLiteral("economy")] = QStringLiteral("经济系统类");
+    map[QStringLiteral("equipment")] = QStringLiteral("装备武器类");
+    map[QStringLiteral("food")] = QStringLiteral("食物食材类");
+    map[QStringLiteral("game-mechanics")] = QStringLiteral("游戏机制类");
+    map[QStringLiteral("library")] = QStringLiteral("前置依赖库");
+    map[QStringLiteral("magic")] = QStringLiteral("魔法类");
+    map[QStringLiteral("management")] = QStringLiteral("管理辅助类");
+    map[QStringLiteral("minigame")] = QStringLiteral("迷你小游戏类");
+    map[QStringLiteral("mobs")] = QStringLiteral("生物怪物类");
+    map[QStringLiteral("optimization")] = QStringLiteral("性能优化类");
+    map[QStringLiteral("social")] = QStringLiteral("社交交互类");
+    map[QStringLiteral("storage")] = QStringLiteral("仓储存储类");
+    map[QStringLiteral("technology")] = QStringLiteral("科技工业类");
+    map[QStringLiteral("transportation")] = QStringLiteral("交通载具类");
+    map[QStringLiteral("utility")] = QStringLiteral("实用工具类");
+    map[QStringLiteral("world-generation")] = QStringLiteral("世界生成类");
+    return map;
 }
 
 void ResourceBackend::searchShaders(const QString& query, const QString& gameVersion)

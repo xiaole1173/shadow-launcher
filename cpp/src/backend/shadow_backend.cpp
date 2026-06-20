@@ -920,6 +920,21 @@ void ShadowBackend::searchMods(const QString& query, const QString& loader) {
     m_resource->searchMods(query, loader);
 }
 
+void ShadowBackend::searchModsEx(const QString& query, const QString& loader,
+    const QString& category, const QString& gameVersion,
+    const QString& environment, const QString& license,
+    int offset, int limit) {
+    QStringList versions;
+    if (!gameVersion.isEmpty())
+        versions << gameVersion;
+    m_resource->searchModsEx(query, loader, category, versions,
+                             environment, license, offset, limit);
+}
+
+QVariantMap ShadowBackend::getModCategories() {
+    return m_resource->getModCategories();
+}
+
 void ShadowBackend::searchShaders(const QString& query, const QString& gameVersion) {
     m_resource->searchShaders(query, gameVersion);
 }

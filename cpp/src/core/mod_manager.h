@@ -170,11 +170,14 @@ signals:
 private slots:
     void onVersionsForDownload(const QString& slug, const QJsonArray& files);
 
-private:
-    bool m_busy = false;
-    void setBusy(bool busy);
+public:
+    // Exposed for ResourceBackend to use with custom search URLs
     QJsonArray parseSearchResponse(const QByteArray& data, int& outTotalHits);
     QJsonArray parseVersionsResponse(const QByteArray& data);
+    void setBusy(bool busy);
+
+private:
+    bool m_busy = false;
     QString buildSearchUrl(
         const QString& query, const QStringList& categories,
         const QStringList& gameVersions, const QStringList& loaders,
