@@ -44,7 +44,7 @@ Rectangle {
 
     // Mod state
     property string modSearchQuery: ""
-    property string modLoader: "fabric"
+    property string modLoader: ""  // empty = all
     property var modSearchResults: []
     property bool modResultsReady: false
     property string modGameVersion: ""
@@ -3684,7 +3684,9 @@ Rectangle {
                                             MouseArea {
                                                 id: verHover; anchors.fill: parent
                                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onEntered: console.log("[mod-download] verHover entered, modelData=", modelData)
                                                 onClicked: {
+                                                    console.log("[mod-download] CLICKED:", modelData)
                                                     var d = modDetailOverlay.getVersionDetail(modelData)
                                                     if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
                                                     var loaders = d.loaders || []
