@@ -211,7 +211,6 @@ public:
     // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
     Q_INVOKABLE void microsoftLogin();
-    Q_INVOKABLE void microsoftSubmitCode(const QString& code);
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();
     Q_INVOKABLE QString getSkinUrl(const QString& username = {}) const;
@@ -316,7 +315,6 @@ public:
 signals:
     void accountChanged();
     void microsoftLoginProgress(const QString& step, const QString& detail);
-    void microsoftAuthUrlReady(const QString& url);
     void microsoftLoginSuccess(const QString& username, const QString& uuid);
     void microsoftLoginFailed(const QString& error);
     void skinReady();

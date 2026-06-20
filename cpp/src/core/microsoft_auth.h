@@ -1,18 +1,14 @@
 #pragma once
 
 // ── Microsoft OAuth2 Authorization Code Flow for Minecraft ──
-// Steps:
-//   1. Open browser → login.live.com/oauth20_authorize.srf
-//   2. User signs in → browser redirects with ?code=***
-//   3. User pastes code/URL → we exchange code for token
-//   4. Xbox Live auth → XSTS → Minecraft token → Profile
+// Step 1: startLogin() → local HTTP server on 127.0.0.1:PORT → browser
+// Step 2: browser callback → _internalCodeReady (QueuedConnection) → exchangeCode (WinHTTP)
+// Step 3-7: XBL → XSTS → MC auth → Profile (async via HttpClient)
 
 #include <QObject>
 #include <QString>
 
-QT_BEGIN_NAMESPACE
 class QTcpServer;
-QT_END_NAMESPACE
 
 namespace ShadowLauncher {
 
@@ -21,34 +17,31 @@ class MicrosoftAuth : public QObject {
 public:
     explicit MicrosoftAuth(QObject* parent = nullptr);
 
-    // Start login — build auth URL and open browser
     Q_INVOKABLE void startLogin(const QString& clientId);
-
-    // User submitted the auth code (or full redirect URL containing ?code=...)
-    Q_INVOKABLE void submitCode(const QString& codeOrUrl);
-
-    // Cancel
     Q_INVOKABLE void cancelLogin();
-
     bool isBusy() const { return m_busy; }
 
 signals:
     void loginProgress(const QString& step, const QString& detail);
-    void authUrlReady(const QString& url);  // QML opens this in browser
     void loginSuccess(const QString& minecraftToken, const QString& username,
                       const QString& uuid, const QString& refreshToken);
     void loginFailed(const QString& error);
 
+    // Internal — progress step signals (used with QueuedConnection)
+    void _internalCodeReady(const QString& code, const QString& redirectUri);
+    void _internalTokenReady(const QString& accessToken);
+
 private:
     bool m_busy = false;
+    bool m_pendingCodeReady = false;
     QString m_clientId;
+    QString m_localRedirectUri;
     QString m_msAccessToken;
     QString m_msRefreshToken;
     QString m_msMcToken;
-    QString m_localRedirectUri;
     QTcpServer* m_localServer = nullptr;
 
-    void exchangeCode(const QString& code);
+    Q_INVOKABLE void exchangeCode(const QString& code, const QString& redirectUri);
     void authenticateXbl(const QString& accessToken);
     void authenticateXsts(const QString& xblToken);
     void authenticateMc(const QString& xstsToken, const QString& uhs);

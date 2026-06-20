@@ -83,8 +83,6 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::logMessage);
     connect(m_account, &AccountBackend::microsoftLoginProgress,
             this, &ShadowBackend::microsoftLoginProgress);
-    connect(m_account, &AccountBackend::microsoftAuthUrlReady,
-            this, &ShadowBackend::microsoftAuthUrlReady);
     connect(m_account, &AccountBackend::microsoftLoginSuccess,
             this, &ShadowBackend::microsoftLoginSuccess);
     connect(m_account, &AccountBackend::microsoftLoginFailed,
@@ -711,10 +709,6 @@ void ShadowBackend::offlineLogin(const QString& username) {
 
 void ShadowBackend::microsoftLogin() {
     m_account->microsoftLogin();
-}
-
-void ShadowBackend::microsoftSubmitCode(const QString& code) {
-    m_account->microsoftSubmitCode(code);
 }
 
 void ShadowBackend::cancelMicrosoftLogin() {

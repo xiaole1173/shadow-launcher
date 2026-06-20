@@ -1,4 +1,5 @@
 // Microsoft OAuth2 Authorization Code Flow for Minecraft
+// Flow: local HTTP server on 127.0.0.1 → browser → MS auth → redirect → extract code → WinHTTP token exchange
 #include "microsoft_auth.h"
 #include "http_client.h"
 #include "../utils/logger.h"
@@ -40,22 +41,21 @@ static QByteArray httpPostSync(const QString& url, const QByteArray& body, int* 
     if (!hSession) return result;
 
     HINTERNET hConnect = WinHttpConnect(hSession,
-                                         reinterpret_cast<LPCWSTR>(host.utf16()),
-                                         port, 0);
+                                         reinterpret_cast<LPCWSTR>(host.utf16()), port, 0);
     if (!hConnect) { WinHttpCloseHandle(hSession); return result; }
 
     LPCWSTR types[2] = { L"text/*", nullptr };
     HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST",
                                              reinterpret_cast<LPCWSTR>(path.utf16()),
                                              nullptr, WINHTTP_NO_REFERER,
-                                             types,
-                                             https ? WINHTTP_FLAG_SECURE : 0);
+                                             types, https ? WINHTTP_FLAG_SECURE : 0);
     if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return result; }
 
     LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n";
-    if (!WinHttpSendRequest(hRequest, headers, static_cast<DWORD>(wcslen(headers)),
-                            const_cast<char*>(body.data()), static_cast<DWORD>(body.size()),
-                            static_cast<DWORD>(body.size()), 0)) {
+    BOOL sent = WinHttpSendRequest(hRequest, headers, static_cast<DWORD>(wcslen(headers)),
+                                    const_cast<char*>(body.data()), static_cast<DWORD>(body.size()),
+                                    static_cast<DWORD>(body.size()), 0);
+    if (!sent) {
         WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
         return result;
     }
@@ -64,7 +64,6 @@ static QByteArray httpPostSync(const QString& url, const QByteArray& body, int* 
         DWORD dwSize = sizeof(DWORD);
         WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                             WINHTTP_HEADER_NAME_BY_INDEX, outStatus, &dwSize, WINHTTP_NO_HEADER_INDEX);
-
         DWORD bytesRead = 0;
         QByteArray buf(4096, Qt::Uninitialized);
         while (WinHttpReadData(hRequest, buf.data(), static_cast<DWORD>(buf.size()), &bytesRead) && bytesRead > 0) {
@@ -72,9 +71,7 @@ static QByteArray httpPostSync(const QString& url, const QByteArray& body, int* 
         }
     }
 
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
+    WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
     return result;
 }
 #endif
@@ -88,82 +85,91 @@ static const char* kXstsAuthUrl = "https://xsts.auth.xboxlive.com/xsts/authorize
 static const char* kMcAuthUrl = "https://api.minecraftservices.com/authentication/login_with_xbox";
 static const char* kMcProfileUrl = "https://api.minecraftservices.com/minecraft/profile";
 
-MicrosoftAuth::MicrosoftAuth(QObject* parent) : QObject(parent) {}
+MicrosoftAuth::MicrosoftAuth(QObject* parent) : QObject(parent)
+{
+    // Pre-connect the flow step signals so QML can track progress
+    // Step 2-7 happen inside this object, connected via signal-slot to avoid nesting
+    connect(this, &MicrosoftAuth::_internalCodeReady, this, &MicrosoftAuth::exchangeCode,
+            Qt::QueuedConnection);
+    connect(this, &MicrosoftAuth::_internalTokenReady, this, &MicrosoftAuth::authenticateXbl,
+            Qt::QueuedConnection);
+}
 
 void MicrosoftAuth::startLogin(const QString& clientId)
 {
     if (m_busy) { emit loginFailed(QStringLiteral("登录已在进行中")); return; }
     m_clientId = clientId;
     m_busy = true;
+    m_pendingCodeReady = false;
 
-    // Pick a local port and start HTTP server to capture the OAuth callback
-    int port = 58000 + (QRandomGenerator::global()->bounded(2000)); // 58000-59999
+    int port = 58000 + (QRandomGenerator::global()->bounded(2000));
     m_localServer = new QTcpServer(this);
 
+    // Capture ONE connection, extract code, then stop listening
     connect(m_localServer, &QTcpServer::newConnection, this, [this]() {
-        while (m_localServer->hasPendingConnections()) {
-            auto* sock = m_localServer->nextPendingConnection();
-            sock->waitForReadyRead(2000);
-            QByteArray data = sock->readAll();
-            sock->close();
-            sock->deleteLater();
+        if (m_pendingCodeReady) return;  // already captured
 
-            qCInfo(logApp) << "[MSA] Received callback:" << data.left(300);
+        QTcpSocket* sock = m_localServer->nextPendingConnection();
+        if (!sock) return;
 
-            // Extract GET /?code=*** HTTP/1.1
-            int codeIdx = data.indexOf(QByteArrayLiteral("code="));
-            if (codeIdx < 0) {
-                qCWarning(logApp) << "[MSA] No code in callback";
-                m_localServer->close();
-                m_localServer->deleteLater();
-                m_localServer = nullptr;
-                m_busy = false;
-                emit loginFailed(QStringLiteral("浏览器回调中未找到验证码"));
-                return;
-            }
-
-            // Extract code value
-            int valStart = codeIdx + 5;
-            int valEnd = data.indexOf(' ', valStart);
-            if (valEnd < 0) valEnd = data.indexOf('&', valStart);
-            if (valEnd < 0) valEnd = data.size();
-            QString code = QString::fromUtf8(data.mid(valStart, valEnd - valStart));
-
-            qCInfo(logApp) << "[MSA] Extracted code:" << code;
-
-            m_localServer->close();
-            m_localServer->deleteLater();
-            m_localServer = nullptr;
-
-            emit loginProgress(QStringLiteral("验证中"), QStringLiteral("正在换取访问令牌..."));
-            exchangeCode(code);  // sync call — WinHTTP doesn't need event loop
+        if (!sock->waitForReadyRead(3000)) {
+            sock->close(); sock->deleteLater();
+            qCWarning(logApp) << "[MSA] Callback timeout or no data";
+            return;
         }
+
+        QByteArray data = sock->readAll();
+        sock->close();
+        sock->deleteLater();
+
+        qCInfo(logApp) << "[MSA] Raw callback:" << data.left(300);
+
+        int codeIdx = data.indexOf(QByteArrayLiteral("code="));
+        if (codeIdx < 0) {
+            qCWarning(logApp) << "[MSA] No code param in callback";
+            m_localServer->close();
+            m_localServer = nullptr;
+            m_busy = false;
+            emit loginFailed(QStringLiteral("浏览器回调中未找到验证码"));
+            return;
+        }
+
+        int valStart = codeIdx + 5;
+        int valEnd = data.indexOf(' ', valStart);
+        if (valEnd < 0) valEnd = data.indexOf('&', valStart);
+        if (valEnd < 0) valEnd = data.size();
+        QString code = QString::fromUtf8(data.mid(valStart, valEnd - valStart));
+
+        qCInfo(logApp) << "[MSA] Code extracted, len:" << code.size();
+
+        // Stop the server immediately
+        m_localServer->close();
+        m_localServer = nullptr;
+
+        // Fire code processing via QueuedConnection — self-contained, won't block newConnection
+        m_pendingCodeReady = true;
+        emit _internalCodeReady(code, m_localRedirectUri);
     });
 
     if (!m_localServer->listen(QHostAddress::LocalHost, port)) {
-        qCWarning(logApp) << "[MSA] Local server failed to listen on port" << port;
+        qCWarning(logApp) << "[MSA] Local server failed on port" << port;
         m_busy = false;
         emit loginFailed(QStringLiteral("本地回调服务启动失败"));
         return;
     }
 
-    QString redirectUri = QStringLiteral("http://localhost:%1").arg(port);
-    m_localRedirectUri = redirectUri;
-    qCInfo(logApp) << "[MSA] Local server listening on" << redirectUri;
+    m_localRedirectUri = QStringLiteral("http://127.0.0.1:%1").arg(port);
+    qCInfo(logApp) << "[MSA] Server listening:" << m_localRedirectUri;
 
-    // Build the authorization URL with localhost redirect
     QString url = QStringLiteral("%1"
         "?client_id=%2"
         "&response_type=code"
         "&redirect_uri=%3"
         "&scope=XboxLive.signin%20offline_access")
-        .arg(QString::fromLatin1(kAuthUrl),
-             clientId,
-             redirectUri);
+        .arg(QString::fromLatin1(kAuthUrl), clientId, m_localRedirectUri);
 
     qCInfo(logApp) << "[MSA] Auth URL:" << url;
     emit loginProgress(QStringLiteral("浏览器登录"), QStringLiteral("请在浏览器中登录 Microsoft 账号"));
-    emit authUrlReady(url);
 
     QDesktopServices::openUrl(QUrl(url));
 }
@@ -172,25 +178,19 @@ void MicrosoftAuth::cancelLogin()
 {
     if (m_localServer) {
         m_localServer->close();
-        m_localServer->deleteLater();
         m_localServer = nullptr;
     }
     m_busy = false;
+    m_pendingCodeReady = false;
     emit loginFailed(QStringLiteral("用户取消登录"));
 }
 
-void MicrosoftAuth::submitCode(const QString&)
-{
-    // No longer needed — code captured by local server
-}
-
 // ═══════════════════════════════════════════════════
-// Exchange code for token
+// Step 2: Exchange code for token (WinHTTP)
 // ═══════════════════════════════════════════════════
-void MicrosoftAuth::exchangeCode(const QString& code)
+void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri)
 {
-    qCInfo(logApp) << "[MSA] exchangeCode starting, redirectUri:" << m_localRedirectUri;
-    QString redirectUri = m_localRedirectUri;
+    qCInfo(logApp) << "[MSA] Step 2: exchangeCode, uri:" << redirectUri;
 
     QUrlQuery postData;
     postData.addQueryItem(QStringLiteral("client_id"), m_clientId);
@@ -199,37 +199,16 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     postData.addQueryItem(QStringLiteral("redirect_uri"), redirectUri);
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
-    qCInfo(logApp) << "[MSA] Token POST body len:" << body.size();
+    qCInfo(logApp) << "[MSA] POST to token endpoint, body len:" << body.size();
 
-    // Use WinHTTP to avoid Qt network stack crash
     QByteArray raw;
     int status = 0;
 
-    // Try WinHTTP first, fallback to Qt
 #ifdef Q_OS_WIN
     raw = httpPostSync(QString::fromLatin1(kTokenUrl), body, &status);
 #endif
 
-    if (raw.isEmpty()) {
-        // Fallback: use local event loop with plain QNetworkAccessManager
-        qCInfo(logApp) << "[MSA] WinHTTP failed, trying Qt fallback...";
-        QNetworkAccessManager mgr;
-        QNetworkRequest req(QUrl(QString::fromLatin1(kTokenUrl)));
-        req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
-        req.setTransferTimeout(15000);
-        QNetworkReply* reply = mgr.post(req, body);
-        QEventLoop loop;
-        QTimer::singleShot(15000, &loop, &QEventLoop::quit);
-        if (reply) {
-            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-            loop.exec();
-            raw = reply->readAll();
-            status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            reply->deleteLater();
-        }
-    }
-
-    qCInfo(logApp) << "[MSA] Token response HTTP" << status << "body:" << raw.left(500);
+    qCInfo(logApp) << "[MSA] Token response HTTP" << status << "len:" << raw.size();
 
     QJsonDocument doc = QJsonDocument::fromJson(raw);
     QJsonObject obj = doc.object();
@@ -237,8 +216,9 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     if (status < 200 || status >= 300 || !obj[QStringLiteral("access_token")].isString()) {
         QString err = obj[QStringLiteral("error")].toString(QString::fromLatin1("unknown"));
         QString desc = obj[QStringLiteral("error_description")].toString(QString::fromLatin1(raw).left(200));
-        qCWarning(logApp) << "[MSA] Token exchange FAILED:" << err << desc;
+        qCWarning(logApp) << "[MSA] Token FAILED:" << err << desc;
         m_busy = false;
+        m_pendingCodeReady = false;
         emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.isEmpty() ? err : desc));
         return;
     }
@@ -247,15 +227,16 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
 
     if (m_msAccessToken.isEmpty()) {
-        qCWarning(logApp) << "[MSA] No access_token in response:" << raw.left(500);
+        qCWarning(logApp) << "[MSA] Empty access_token in response";
         m_busy = false;
+        m_pendingCodeReady = false;
         emit loginFailed(QStringLiteral("未获取到访问令牌"));
         return;
     }
 
-    qCInfo(logApp) << "[MSA] Token obtained!";
+    qCInfo(logApp) << "[MSA] Token obtained! Next: XBL";
     emit loginProgress(QStringLiteral("Xbox 验证"), QStringLiteral("正在验证 Xbox Live..."));
-    authenticateXbl(m_msAccessToken);
+    emit _internalTokenReady(m_msAccessToken);
 }
 
 // ═══════════════════════════════════════════════════
@@ -263,6 +244,7 @@ void MicrosoftAuth::exchangeCode(const QString& code)
 // ═══════════════════════════════════════════════════
 void MicrosoftAuth::authenticateXbl(const QString& accessToken)
 {
+    qCInfo(logApp) << "[MSA] Step 4: XBL auth";
     QJsonObject props;
     props[QStringLiteral("AuthMethod")] = QStringLiteral("RPS");
     props[QStringLiteral("SiteName")] = QStringLiteral("user.auth.xboxlive.com");
@@ -283,32 +265,28 @@ void MicrosoftAuth::authenticateXbl(const QString& accessToken)
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         QByteArray raw = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(raw);
-        QJsonObject obj = doc.object();
+        QJsonObject obj = QJsonDocument::fromJson(raw).object();
 
         if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("Token")].isString()) {
-            qCWarning(logApp) << "[MSA] XBL auth failed:" << reply->errorString() << raw.left(200);
-            m_busy = false;
+            qCWarning(logApp) << "[MSA] XBL failed:" << reply->errorString() << raw.left(200);
+            m_busy = false; m_pendingCodeReady = false;
             emit loginFailed(QStringLiteral("Xbox Live 验证失败"));
             return;
         }
 
         QString xblToken = obj[QStringLiteral("Token")].toString();
-        qCInfo(logApp) << "[MSA] XBL token obtained";
+        qCInfo(logApp) << "[MSA] XBL token ok";
         emit loginProgress(QStringLiteral("XSTS"), QStringLiteral("正在获取 Minecraft 权限..."));
-        authenticateXsts(xblToken);
+        QTimer::singleShot(0, this, [this, xblToken]() { authenticateXsts(xblToken); });
     });
 }
 
-// ═══════════════════════════════════════════════════
-// Step 5: XSTS
-// ═══════════════════════════════════════════════════
 void MicrosoftAuth::authenticateXsts(const QString& xblToken)
 {
+    qCInfo(logApp) << "[MSA] Step 5: XSTS";
     QJsonObject props;
     props[QStringLiteral("SandboxId")] = QStringLiteral("RETAIL");
-    QJsonArray userTokens;
-    userTokens.append(xblToken);
+    QJsonArray userTokens; userTokens.append(xblToken);
     props[QStringLiteral("UserTokens")] = userTokens;
 
     QJsonObject body;
@@ -326,18 +304,16 @@ void MicrosoftAuth::authenticateXsts(const QString& xblToken)
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         QByteArray raw = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(raw);
-        QJsonObject obj = doc.object();
+        QJsonObject obj = QJsonDocument::fromJson(raw).object();
 
         if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("XErr"))) {
             int xerr = obj[QStringLiteral("XErr")].toInt();
             qCWarning(logApp) << "[MSA] XSTS failed XErr:" << xerr;
-            m_busy = false;
-            if (xerr == 2148916233) {
+            m_busy = false; m_pendingCodeReady = false;
+            if (xerr == 2148916233)
                 emit loginFailed(QStringLiteral("该账号没有 Minecraft Java 版"));
-            } else {
+            else
                 emit loginFailed(QStringLiteral("Minecraft 授权失败 (XErr=%1)").arg(xerr));
-            }
             return;
         }
 
@@ -346,17 +322,15 @@ void MicrosoftAuth::authenticateXsts(const QString& xblToken)
                         [QStringLiteral("xui")].toArray()[0].toObject()
                         [QStringLiteral("uhs")].toString();
 
-        qCInfo(logApp) << "[MSA] XSTS token obtained";
+        qCInfo(logApp) << "[MSA] XSTS token ok";
         emit loginProgress(QStringLiteral("Minecraft"), QStringLiteral("正在登录 Minecraft..."));
         authenticateMc(xstsToken, uhs);
     });
 }
 
-// ═══════════════════════════════════════════════════
-// Step 6: Minecraft auth
-// ═══════════════════════════════════════════════════
 void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs)
 {
+    qCInfo(logApp) << "[MSA] Step 6: MC auth";
     QJsonObject body;
     body[QStringLiteral("identityToken")] = QStringLiteral("XBL3.0 x=%1;%2").arg(uhs, xstsToken);
 
@@ -370,28 +344,25 @@ void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs)
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         QByteArray raw = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(raw);
-        QJsonObject obj = doc.object();
+        QJsonObject obj = QJsonDocument::fromJson(raw).object();
 
         if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
             qCWarning(logApp) << "[MSA] MC auth failed:" << reply->errorString() << raw.left(200);
-            m_busy = false;
+            m_busy = false; m_pendingCodeReady = false;
             emit loginFailed(QStringLiteral("Minecraft 认证失败"));
             return;
         }
 
         QString mcToken = obj[QStringLiteral("access_token")].toString();
-        qCInfo(logApp) << "[MSA] MC token obtained!";
+        qCInfo(logApp) << "[MSA] MC token ok";
         emit loginProgress(QStringLiteral("档案"), QStringLiteral("正在获取 Minecraft 档案..."));
         fetchMcProfile(mcToken);
     });
 }
 
-// ═══════════════════════════════════════════════════
-// Step 7: Profile
-// ═══════════════════════════════════════════════════
 void MicrosoftAuth::fetchMcProfile(const QString& mcToken)
 {
+    qCInfo(logApp) << "[MSA] Step 7: Profile";
     m_msMcToken = mcToken;
     QNetworkRequest req(QUrl(QString::fromLatin1(kMcProfileUrl)));
     req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(mcToken).toUtf8());
@@ -401,9 +372,9 @@ void MicrosoftAuth::fetchMcProfile(const QString& mcToken)
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         QByteArray raw = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(raw);
-        QJsonObject obj = doc.object();
+        QJsonObject obj = QJsonDocument::fromJson(raw).object();
         m_busy = false;
+        m_pendingCodeReady = false;
 
         if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("id")].isString()) {
             qCWarning(logApp) << "[MSA] Profile failed:" << reply->errorString() << raw.left(200);
@@ -413,8 +384,7 @@ void MicrosoftAuth::fetchMcProfile(const QString& mcToken)
 
         QString uuid = obj[QStringLiteral("id")].toString();
         QString username = obj[QStringLiteral("name")].toString();
-
-        qCInfo(logApp) << "[MSA] Login SUCCESS!" << username << uuid;
+        qCInfo(logApp) << "[MSA] LOGIN SUCCESS!" << username << uuid;
         emit loginSuccess(m_msMcToken, username, uuid, m_msRefreshToken);
     });
 }

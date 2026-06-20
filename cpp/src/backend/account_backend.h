@@ -35,7 +35,6 @@ public:
     // ── Slots ──
     Q_INVOKABLE void offlineLogin(const QString &username);
     Q_INVOKABLE void microsoftLogin();
-    Q_INVOKABLE void microsoftSubmitCode(const QString& code);
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();
     Q_INVOKABLE QString getSkinUrl(const QString &username = {}) const;
@@ -43,9 +42,7 @@ public:
 
     // Microsoft login state
     Q_PROPERTY(QString msStatus READ msStatus NOTIFY microsoftLoginProgress)
-    Q_PROPERTY(QString msAuthUrl READ msAuthUrl NOTIFY microsoftAuthUrlReady)
     QString msStatus() const { return m_msStatus; }
-    QString msAuthUrl() const { return m_msAuthUrl; }
 
 signals:
     void accountChanged();
@@ -55,7 +52,6 @@ signals:
 
     // Microsoft login signals
     void microsoftLoginProgress(const QString& step, const QString& detail);
-    void microsoftAuthUrlReady(const QString& url);
     void microsoftLoginSuccess(const QString& username, const QString& uuid);
     void microsoftLoginFailed(const QString& error);
     void microsoftLoginBusyChanged();
@@ -70,7 +66,6 @@ private:
     // Microsoft login state
     MicrosoftAuth* m_msAuth = nullptr;
     QString m_msStatus;
-    QString m_msAuthUrl;
     QString m_msRefreshToken;
     QString m_msMcToken;
 
