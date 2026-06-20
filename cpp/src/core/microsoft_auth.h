@@ -47,11 +47,6 @@ signals:
 
 private slots:
     void pollToken();
-    void onStep3TokenResponse(int status, const QByteArray& body);
-    void onXblAuthResponse(int status, const QByteArray& body);
-    void onXstsAuthResponse(int status, const QByteArray& body);
-    void onMcAuthResponse(int status, const QByteArray& body);
-    void onMcProfileResponse(int status, const QByteArray& body);
 
 private:
     enum class State { Idle, PollingDeviceCode };
