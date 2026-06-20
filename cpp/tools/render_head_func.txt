@@ -1,0 +1,99 @@
+QString AccountBackend::renderHead3D(const QString& skinPath)
+{
+    QImage skin(skinPath);
+    if (skin.isNull()) {
+        qCWarning(logAccount) << "renderHead3D: cannot load" << skinPath;
+        return {};
+    }
+
+    constexpr int    SZ   = 64;
+    constexpr float  HALF = SZ / 2.0f;
+    constexpr float  SCC  = HALF * 0.22f;
+
+    QImage result(SZ, SZ, QImage::Format_ARGB32_Premultiplied);
+    result.fill(0);
+
+    float sw = (float)skin.width(), sh = (float)skin.height();
+    float divV = (sh <= 32.0f) ? 32.0f : 64.0f;
+
+    float yr = 30.0f * 3.1415926535f / 180.0f;
+    float pr = -15.0f * 3.1415926535f / 180.0f;
+    float cosY = cosf(yr), sinY = sinf(yr);
+    float cosP = cosf(pr), sinP = sinf(pr);
+
+    auto rotate = [&](float x, float y, float z, float& ox, float& oy, float& oz) {
+        float rx = x * cosY - z * sinY;
+        float rz = x * sinY + z * cosY;
+        ox = rx;
+        oy = y * cosP - rz * sinP;
+        oz = y * sinP + rz * cosP;
+    };
+
+    struct Tri { float ax,ay,bx,by,cx,cy, u0,v0,u1,v1,u2,v2, depth; bool hat; };
+    std::vector<Tri> tris; tris.reserve(72);
+
+    struct FaceUV { int u0,v0,u1,v1; };
+    static const FaceUV faceUVs[6] = {
+        { 8,8,16,16}, {24,8,32,16}, { 8,0,16, 8},
+        {16,0,24, 8}, { 0,8, 8,16}, {16,8,24,16},
+    };
+
+    auto emitTri = [&](float ax,float ay,float bx,float by,float cx,float cy,
+        float ua,float va,float ub,float vb,float uc,float vc,float depth,bool hat)
+    {
+        float cp = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax);
+        if (cp <= 0) return;
+        tris.push_back({ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, depth, hat});
+    };
+
+    for (int hp = 0; hp < 2; ++hp) {
+        float s = hp ? 1.07f : 1.0f, uOff = hp ? 32.0f : 0;
+        float C[8][3] = {{-s,-s,+s},{+s,-s,+s},{+s,+s,+s},{-s,+s,+s},{+s,-s,-s},{-s,-s,-s},{-s,+s,-s},{+s,+s,-s}};
+        int F[6][4] = {{0,1,2,3},{4,5,6,7},{3,2,7,6},{5,4,1,0},{1,4,7,2},{5,0,3,6}};
+        for (int fi = 0; fi < 6; ++fi) {
+            FaceUV fv = faceUVs[fi];
+            float UB[4] = {(fv.u1+uOff)/sw,(fv.u0+uOff)/sw,(fv.u0+uOff)/sw,(fv.u1+uOff)/sw};
+            float VB[4] = {fv.v1/divV,fv.v1/divV,fv.v0/divV,fv.v0/divV};
+            float sx[4],sy[4],sd[4];
+            for (int i = 0; i < 4; ++i) {
+                float rx,ry,rz;
+                rotate(C[F[fi][i]][0],C[F[fi][i]][1],C[F[fi][i]][2],rx,ry,rz);
+                float zz = rz+10; if(zz<0.1f)zz=0.1f;
+                sx[i]=(rx/zz)*10*SCC+HALF; sy[i]=(-ry/zz)*10*SCC+HALF; sd[i]=zz;
+            }
+            float d = (sd[0]+sd[2])*.5f;
+            emitTri(sx[0],sy[0],sx[1],sy[1],sx[2],sy[2],UB[0],VB[0],UB[1],VB[1],UB[2],VB[2],d,(bool)hp);
+            emitTri(sx[0],sy[0],sx[2],sy[2],sx[3],sy[3],UB[0],VB[0],UB[2],VB[2],UB[3],VB[3],d,(bool)hp);
+        }
+    }
+
+    std::sort(tris.begin(),tris.end(),[](auto&a,auto&b){return a.depth>b.depth;});
+
+    for (auto& t : tris) {
+        int mx = qMax(0, (int)qMin({t.ax,t.bx,t.cx}));
+        int Mx = qMin(SZ-1,(int)qMax({t.ax,t.bx,t.cx}));
+        int my = qMax(0, (int)qMin({t.ay,t.by,t.cy}));
+        int My = qMin(SZ-1,(int)qMax({t.ay,t.by,t.cy}));
+        float denom = (t.by-t.cy)*(t.ax-t.cx)+(t.cx-t.bx)*(t.ay-t.cy);
+        if(fabsf(denom)<1e-6f)continue;
+        for (int y=my;y<=My;++y){for(int x=mx;x<=Mx;++x){
+            float px=(float)x+.5f,py=(float)y+.5f;
+            float w0=((t.by-t.cy)*(px-t.cx)+(t.cx-t.bx)*(py-t.cy))/denom;
+            if(w0<-1e-4f)continue;
+            float w1=((t.cy-t.ay)*(px-t.cx)+(t.ax-t.cx)*(py-t.cy))/denom;
+            if(w1<-1e-4f)continue;
+            float w2=1-w0-w1; if(w2<-1e-4f)continue;
+            float u=w0*t.u0+w1*t.u1+w2*t.u2; if(u<0)u=0;if(u>1)u=1;
+            float v=w0*t.v0+w1*t.v1+w2*t.v2; if(v<0)v=0;if(v>1)v=1;
+            int six=(int)(u*sw)%(int)sw, siy=(int)(v*divV)%(int)divV;
+            QRgb col=skin.pixel(six,siy);
+            if(t.hat){if(qAlpha(col)<64)continue; result.setPixel(x,y,col);}
+            else result.setPixel(x,y,col);
+        }}
+    }
+
+    QString hp = skinPath.left(skinPath.length()-4) + QStringLiteral("_head.png");
+    if (result.save(hp, "PNG")) { qCInfo(logAccount)<<"3D head:"<<hp; return hp; }
+    qCWarning(logAccount)<<"renderHead3D: save failed"<<hp;
+    return {};
+}
