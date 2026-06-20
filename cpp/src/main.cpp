@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     // Add exe dir to import path so module can find qmldir
     engine.addImportPath(QCoreApplication::applicationDirPath());
+    engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
     checkpoint(QStringLiteral("QML engine created"));
 
     // Expose backend and data directory to QML

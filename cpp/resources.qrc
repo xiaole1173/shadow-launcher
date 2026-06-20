@@ -17,5 +17,8 @@
         <file alias="qml/CrashDialog.qml">qml/CrashDialog.qml</file>
         <file alias="qml/KillButton.qml">qml/KillButton.qml</file>
         <file alias="qml/ShadowButton.qml">qml/ShadowButton.qml</file>
+        <file alias="qml/AnimationTokens.qml">qml/AnimationTokens.qml</file>
+        <file alias="qml/qmldir">qml/qmldir</file>
+        <file alias="qml/animation_tokens.json">qml/animation_tokens.json</file>
     </qresource>
 </RCC>
