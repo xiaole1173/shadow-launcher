@@ -1,44 +1,37 @@
 import QtQuick
 
-// Avatar with spinner during load. Uses both Image (reliable display)
-// and Canvas (planned pixel-art face rendering, WIP).
 Rectangle {
     id: root
     property url skinSource: ""
     width: 48; height: 48
     color: "#1e2430"
 
-    // ── Spinner ring ──
+    // ── Spinner ──
     property real _angle: 0
     RotationAnimation on _angle {
-        running: img.status === Image.Loading || img.status === Image.Null
+        running: img.status === Image.Loading || (img.status === Image.Null && root.skinSource.toString())
         from: 0; to: 360; duration: 1000; loops: Animation.Infinite
     }
 
     Canvas {
         id: spinner
         anchors.fill: parent
-        visible: img.status === Image.Loading || img.status === Image.Null
+        visible: img.status !== Image.Ready
         onPaint: {
-            var ctx = getContext("2d")
-            ctx.clearRect(0, 0, width, height)
+            var ctx = getContext("2d"), cw = width, ch = height
+            ctx.clearRect(0, 0, cw, ch)
             if (img.status === Image.Ready) return
-
-            var cx = width/2, cy = height/2, r = Math.min(cx, cy) - 5
+            var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5
             ctx.strokeStyle = "#5b8def"
             ctx.lineWidth = 3; ctx.lineCap = "round"
             ctx.beginPath()
-            var a = root._angle * Math.PI / 180
-            ctx.arc(cx, cy, r - 2, a, a + Math.PI * 1.3)
+            ctx.arc(cx, cy, r - 2, root._angle * Math.PI / 180, root._angle * Math.PI / 180 + Math.PI * 1.3)
             ctx.stroke()
         }
     }
-    Connections {
-        target: root
-        function on_SangleChanged() { spinner.requestPaint() }
-    }
+    Connections { target: root; function on_SangleChanged() { spinner.requestPaint() } }
 
-    // ── Reliable image display (proof the URL arrives) ──
+    // ── Face Image (pre-cropped by C++ to 64x64, file:// URL) ──
     Image {
         id: img
         anchors.fill: parent
@@ -47,5 +40,7 @@ Rectangle {
         asynchronous: true
         cache: false
         visible: status === Image.Ready
+        mipmap: false
+        smooth: false  // keep pixel-art crisp
     }
 }
