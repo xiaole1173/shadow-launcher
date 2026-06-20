@@ -3370,6 +3370,7 @@ Rectangle {
 
 
 
+
     // ════════════════════════════════════════════
     // MOD DETAIL OVERLAY (clone of RP pattern)
     // ════════════════════════════════════════════
@@ -3381,7 +3382,20 @@ Rectangle {
         z: 10
         visible: page.modDetailSlug !== "" && !modDetailBackTimer.running
 
-        // ── Group versions by major.minor of first game_version ──
+        // ── Helpers ──
+        function stripSuffix(v) {
+            var re = /-(?:snapshot|pre|rc|alpha|beta)[\d.]*$/i
+            var m = v.match(re)
+            return m ? v.slice(0, m.index) : v
+        }
+        function preReleaseTag(v) {
+            if (/-snapshot/i.test(v)) return "快照版"
+            if (/-pre/i.test(v)) return "预览版"
+            if (/-rc/i.test(v)) return "发布候选版"
+            return ""
+        }
+
+        // ── Group versions by major.minor (strip pre-release suffixes first) ──
         property var grouped: {
             var groups = {}
             var raw = page.modDetailRawVersions || []
@@ -3392,10 +3406,19 @@ Rectangle {
                 var gvs = d ? (d.gameVersions || []) : []
                 if (gvs.length === 0) gvs = [v]
                 var first = gvs[0] || v
-                var parts = first.split(".")
-                var major = parts.length >= 2 ? parts[0] + "." + parts[1] : first
+                var base = stripSuffix(first)
+                var parts = base.split(".")
+                var major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
                 if (!groups[major]) groups[major] = []
                 groups[major].push(v)
+            }
+            // Sort within each group by date descending
+            for (var k in groups) {
+                groups[k].sort(function(a,b){
+                    var da = getVersionDetail(a); var db = getVersionDetail(b)
+                    var dateA = da ? da.date : ""; var dateB = db ? db.date : ""
+                    if (dateA > dateB) return -1; if (dateA < dateB) return 1; return 0
+                })
             }
             var result = []
             for (var k in groups) { result.push({major: k, versions: groups[k]}) }
@@ -3410,23 +3433,17 @@ Rectangle {
         property var expandedGroups: []
         property string selectedVersion: ""
 
-        function isExpanded(major) {
-            return expandedGroups.indexOf(major) >= 0
-        }
+        function isExpanded(major) { return expandedGroups.indexOf(major) >= 0 }
         function toggleGroup(major) {
-            var arr = expandedGroups.slice()
-            var idx = arr.indexOf(major)
-            if (idx >= 0) arr.splice(idx, 1)
-            else arr.push(major)
+            var arr = expandedGroups.slice(); var idx = arr.indexOf(major)
+            if (idx >= 0) arr.splice(idx, 1); else arr.push(major)
             expandedGroups = arr
         }
         function getVersionDetail(verStr) {
-            var map = page.modDetailVersionMap || {}
-            return map[verStr] || null
+            var map = page.modDetailVersionMap || {}; return map[verStr] || null
         }
         function formatDate(isoStr) {
-            if (!isoStr) return "-"
-            return isoStr.slice(0, 10)
+            if (!isoStr) return "-"; return isoStr.slice(0, 10)
         }
         function formatDL(n) {
             if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
@@ -3441,7 +3458,7 @@ Rectangle {
             // Click interceptor — prevents clicks from passing through to mod list below
             MouseArea {
                 anchors.fill: parent
-                onClicked: console.log("[mod-detail] background clicked — event eaten")
+                onClicked: console.log("[mod-detail] background click eaten")
             }
 
             ColumnLayout {
@@ -3449,7 +3466,7 @@ Rectangle {
                 anchors.margins: 16
                 spacing: 12
 
-                // Back button (clone RP)
+                // Back button
                 Rectangle {
                     Layout.preferredHeight: 30
                     Layout.fillWidth: false
@@ -3475,7 +3492,7 @@ Rectangle {
                     }
                 }
 
-                // Icon + Title (+ description)
+                // Icon + Title
                 RowLayout {
                     Layout.fillWidth: true; spacing: 14
                     Rectangle {
@@ -3487,9 +3504,7 @@ Rectangle {
                             fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: true
                             sourceSize.width: 96; sourceSize.height: 96
                             source: page.modDetailIcon ? page.modDetailIcon.replace("cdn.modrinth.com", "mod.mcimirror.top") : ""
-                            onStatusChanged: {
-                                if (status === Image.Error) modIconFb.visible = true
-                            }
+                            onStatusChanged: { if (status === Image.Error) modIconFb.visible = true }
                         }
                         Text {
                             id: modIconFb; anchors.centerIn: parent
@@ -3518,45 +3533,25 @@ Rectangle {
                         id: infoCol
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                         spacing: 6
-                        Text {
-                            text: "Slug: " + (page.modDetailSlug || "")
-                            color: "#7888a8"; font.pixelSize: 11; elide: Text.ElideRight; width: parent.width
-                        }
-                        Text {
-                            text: "版本数量: " + (page.modDetailRawVersions || []).length
-                            color: "#7888a8"; font.pixelSize: 11
-                        }
+                        Text { text: "Slug: " + (page.modDetailSlug || ""); color: "#7888a8"; font.pixelSize: 11; elide: Text.ElideRight; width: parent.width }
+                        Text { text: "版本数量: " + (page.modDetailRawVersions || []).length; color: "#7888a8"; font.pixelSize: 11 }
                         Row { spacing: 24
-                            Text {
-                                text: "来源: Modrinth (MCIM镜像)"; color: "#7888a8"; font.pixelSize: 11
-                            }
+                            Text { text: "来源: Modrinth (MCIM镜像)"; color: "#7888a8"; font.pixelSize: 11 }
                         }
                     }
                 }
 
-                Text {
-                    text: "所有版本 | 按MC版本分组 | 点击展开"
-                    color: "#505468"; font.pixelSize: 11
-                }
+                Text { text: "所有版本 | 按MC版本分组 | 点击展开"; color: "#505468"; font.pixelSize: 11 }
 
-                // Spacer: absorbs extra space when loading or no data
+                // Spacer — absorbs excess space when loading or no data
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: page.modDetailLoading || modDetailOverlay.grouped.length === 0
-
-                    Text {
-                        visible: page.modDetailLoading
-                        anchors.centerIn: parent
-                        text: "加载版本中…"; color: "#606478"; font.pixelSize: 12
-                    }
-                    Text {
-                        visible: !page.modDetailLoading && modDetailOverlay.grouped.length === 0
-                        anchors.centerIn: parent
-                        text: "无可用版本"; color: "#606478"; font.pixelSize: 12
-                    }
+                    Text { visible: page.modDetailLoading; anchors.centerIn: parent; text: "加载版本中…"; color: "#606478"; font.pixelSize: 12 }
+                    Text { visible: !page.modDetailLoading && modDetailOverlay.grouped.length === 0; anchors.centerIn: parent; text: "无可用版本"; color: "#606478"; font.pixelSize: 12 }
                 }
 
-                // Version list (clone RP ScrollView + Column + Repeater)
+                // Version list
                 ScrollView {
                     id: modDetailScroll
                     Layout.fillWidth: true
@@ -3583,14 +3578,11 @@ Rectangle {
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
-                                            text: (modDetailOverlay.isExpanded(modelData.major) ? "▼" : "▸") + "  MC " + modelData.major
+                                            text: (modDetailOverlay.isExpanded(modelData.major) ? "\u25bc" : "\u25b8") + "  MC " + modelData.major
                                             color: "#6080d8"; font.pixelSize: 14; font.bold: true
                                         }
                                         Item { Layout.fillWidth: true }
-                                        Text {
-                                            text: modelData.versions.length + " 个版本"
-                                            color: "#505468"; font.pixelSize: 10
-                                        }
+                                        Text { text: modelData.versions.length + " 个版本"; color: "#505468"; font.pixelSize: 10 }
                                     }
                                     MouseArea {
                                         id: grpHover; anchors.fill: parent
@@ -3599,13 +3591,12 @@ Rectangle {
                                     }
                                 }
 
-                                // Sub-versions (when expanded)
+                                // Sub-versions (flat list, sorted by date)
                                 Repeater {
                                     model: modDetailOverlay.isExpanded(modelData.major) ? modelData.versions : []
                                     delegate: Column {
                                         width: parent.width - 24; x: 24; spacing: 2
 
-                                        // Version row
                                         Rectangle {
                                             width: parent.width; height: 50; radius: 6
                                             color: verHover.containsMouse ? "#1a2436" : "#111820"
@@ -3628,11 +3619,15 @@ Rectangle {
                                                             Rectangle {
                                                                 width: loaderTag.implicitWidth + 6; height: 14; radius: 2
                                                                 color: "#1a2848"
-                                                                Text {
-                                                                    id: loaderTag; anchors.centerIn: parent
-                                                                    text: modelData; color: "#8aaeff"; font.pixelSize: 8
-                                                                }
+                                                                Text { id: loaderTag; anchors.centerIn: parent; text: modelData; color: "#8aaeff"; font.pixelSize: 8 }
                                                             }
+                                                        }
+                                                        // Pre-release badge
+                                                        Rectangle {
+                                                            visible: modDetailOverlay.preReleaseTag(modelData)
+                                                            width: prTag.implicitWidth + 6; height: 14; radius: 2
+                                                            color: "#382818"
+                                                            Text { id: prTag; anchors.centerIn: parent; text: modDetailOverlay.preReleaseTag(modelData); color: "#d0a050"; font.pixelSize: 8 }
                                                         }
                                                     }
                                                     RowLayout { spacing: 8
@@ -3642,14 +3637,8 @@ Rectangle {
                                                         }
                                                     }
                                                     RowLayout { spacing: 12
-                                                        Text {
-                                                            text: modDetailOverlay.formatDate((modDetailOverlay.getVersionDetail(modelData) || {}).date)
-                                                            color: "#606478"; font.pixelSize: 9
-                                                        }
-                                                        Text {
-                                                            text: "📥 " + modDetailOverlay.formatDL((modDetailOverlay.getVersionDetail(modelData) || {}).downloads)
-                                                            color: "#606478"; font.pixelSize: 9
-                                                        }
+                                                        Text { text: modDetailOverlay.formatDate((modDetailOverlay.getVersionDetail(modelData) || {}).date); color: "#606478"; font.pixelSize: 9 }
+                                                        Text { text: "📥 " + modDetailOverlay.formatDL((modDetailOverlay.getVersionDetail(modelData) || {}).downloads); color: "#606478"; font.pixelSize: 9 }
                                                     }
                                                 }
 
@@ -3682,7 +3671,7 @@ Rectangle {
         }
     }
 
-    // Mod detail signal handler (ROOT LEVEL — accesses modDetailOverlay by id)
+    // Mod detail signal handler (ROOT LEVEL)
     Connections {
         target: backend
         enabled: backend !== null
@@ -3720,4 +3709,5 @@ Rectangle {
             page.modDetailLoading = done < total
         }
     }
+
 }
