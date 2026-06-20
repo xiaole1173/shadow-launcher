@@ -102,8 +102,7 @@ void AccountBackend::offlineLogin(const QString &username)
     emit accountChanged();
     emit offlineHistoryChanged();
     // Skin: always use offline head render (Steve/Alex by UUID hash)
-    // Never call downloadSkin() here — it would go online if MS token exists
-    m_skinGeneration++;
+    // Writes to m_offlineSkinPath (dedicated, never touches m_skinPath)
     updateOfflineSkin(name);
 
     qCInfo(logAccount) << "Offline login:" << name << "UUID:" << m_uuid;
@@ -119,9 +118,6 @@ void AccountBackend::offlineLogin(const QString &username)
 void AccountBackend::updateOfflineSkin(const QString &username)
 {
     QString name = username.trimmed();
-
-    // Track generation so async callback can detect stale downloads
-    m_skinGeneration++;
 
     // Default to Steve model when name is empty
     QString modelName = QStringLiteral("steve");
@@ -139,22 +135,18 @@ void AccountBackend::updateOfflineSkin(const QString &username)
     QString headPath = m_dataDir + QStringLiteral("/assets/skins/") + modelName + QStringLiteral("_head.png");
 
     if (!QFileInfo::exists(headPath)) {
-        // Heads should have been rendered at init; retry once
         initOfflineHeads();
         if (!QFileInfo::exists(headPath)) {
             qCWarning(logAccount) << "Offline head still missing:" << headPath;
-            setFallbackSkin();
-            emit skinReady();
+            m_offlineSkinPath.clear();
+            emit offlineSkinReady();
             return;
         }
     }
 
-    // Force update even if same path (QML may have stale bindings)
-    if (m_skinPath == toImageUrl(headPath)) {
-        m_skinPath.clear();
-    }
-    m_skinPath = toImageUrl(headPath);
-    emit skinReady();
+    // Dedicated offline path — never touches m_skinPath (premium)
+    m_offlineSkinPath = toImageUrl(headPath);
+    emit offlineSkinReady();
 }
 
 // ────────────────────────────────────────────────────────────
@@ -407,20 +399,14 @@ void AccountBackend::downloadSkin(const QString &username)
 
 void AccountBackend::downloadOnlineSkin()
 {
-    m_skinGeneration++;
-    int gen = m_skinGeneration;
-    qCInfo(logAccount) << "Skin: fetching from Mojang API... [gen=" << gen << "]";
+    qCInfo(logAccount) << "Skin: fetching from Mojang API...";
     QNetworkRequest req(QUrl(QStringLiteral("https://api.minecraftservices.com/minecraft/profile")));
     req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(m_msMcToken).toUtf8());
 
     QNetworkReply* reply = HttpClient::instance().getRaw(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, gen]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
 
-        if (gen != m_skinGeneration) {
-            qCInfo(logAccount) << "Online skin cancelled (offline skin superseded) [gen=" << gen << ", now=" << m_skinGeneration << "]";
-            return;
-        }
         if (reply->error() != QNetworkReply::NoError) {
             qCWarning(logAccount) << "Mojang profile fetch failed:" << reply->errorString();
             setFallbackSkin();
@@ -501,12 +487,8 @@ void AccountBackend::downloadOnlineSkin()
         qCInfo(logAccount) << "Downloading skin from Mojang CDN:" << skinUrl;
         QNetworkRequest skinReq(skinUrl);
         QNetworkReply* skinReply = HttpClient::instance().getRaw(skinReq);
-        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply, gen]() {
+        connect(skinReply, &QNetworkReply::finished, this, [this, skinReply]() {
             skinReply->deleteLater();
-            if (gen != m_skinGeneration) {
-                qCInfo(logAccount) << "Online skin finished, but offline skin was set after — discarding";
-                return;
-            }
             if (skinReply->error() != QNetworkReply::NoError) {
                 qCWarning(logAccount) << "Skin texture download failed:" << skinReply->errorString();
                 setFallbackSkin();

@@ -576,7 +576,7 @@ Window {
                                 MinecraftHead2D {
                                     Layout.alignment: Qt.AlignHCenter
                                     width: 48; height: 48
-                                    skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
+                                    skinSource: (backend && backend.offlineSkinPath) ? backend.offlineSkinPath : ""
                                 }
 
                                 // Name input + dropdown

@@ -23,6 +23,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(bool isOnline READ isOnline NOTIFY accountChanged)
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
     Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinReady)
+    Q_PROPERTY(QString offlineSkinPath READ offlineSkinPath NOTIFY offlineSkinReady)
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
     Q_PROPERTY(int lastLoginMode READ lastLoginMode WRITE setLastLoginMode NOTIFY loginModeChanged)
 
@@ -115,6 +116,7 @@ public:
     bool isOnline() const;
     QString accountUuid() const;
     QString skinPath() const;
+    QString offlineSkinPath() const;
     QStringList offlineUsernames() const;
     int lastLoginMode() const;
     void setLastLoginMode(int mode);
@@ -318,6 +320,7 @@ signals:
     void microsoftLoginSuccess(const QString& username, const QString& uuid);
     void microsoftLoginFailed(const QString& error);
     void skinReady();
+    void offlineSkinReady();
     void offlineHistoryChanged();
     void javaPathChanged();
     void javaReadyChanged();

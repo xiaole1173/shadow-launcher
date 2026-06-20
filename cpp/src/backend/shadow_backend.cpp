@@ -79,6 +79,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::accountChanged);
     connect(m_account, &AccountBackend::skinReady,
             this, &ShadowBackend::skinReady);
+    connect(m_account, &AccountBackend::offlineSkinReady,
+            this, &ShadowBackend::offlineSkinReady);
     connect(m_account, &AccountBackend::offlineHistoryChanged,
             this, &ShadowBackend::offlineHistoryChanged);
     connect(m_account, &AccountBackend::logMessage,
@@ -394,6 +396,10 @@ QString ShadowBackend::accountUuid() const {
 
 QString ShadowBackend::skinPath() const {
     return m_account->skinPath();
+}
+
+QString ShadowBackend::offlineSkinPath() const {
+    return m_account->offlineSkinPath();
 }
 
 QStringList ShadowBackend::offlineUsernames() const {
