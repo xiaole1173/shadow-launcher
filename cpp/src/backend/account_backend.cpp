@@ -192,38 +192,49 @@ QString AccountBackend::skinCachePath(const QString &username) const
 
 QString AccountBackend::renderHead3D(const QString& skinPath)
 {
-    // PCL-style 2D compositor: extract face+hat 8×8 regions, alpha-blend layer
+    // PCL-style: hat layer RENDERED LARGER than face layer (56 vs 48 in 64 grid)
+    // Hat pixels = 7px width, Face pixels = 6px width → hat wraps around as "head套"
     QImage skin(skinPath);
     if (skin.isNull()) { qCWarning(logAccount)<<"renderHead3D: load fail"<<skinPath; return {}; }
 
-    constexpr int FACE_X=8, FACE_Y=8, FACE_W=8, FACE_H=8;   // UV (8,8)-(16,16)
-    constexpr int HAT_X=40, HAT_Y=8, HAT_W=8, HAT_H=8;       // UV (40,8)-(48,16)
-    constexpr int OUT_SZ = 128;
+    constexpr int FACE_X=8, FACE_Y=8, FACE_W=8, FACE_H=8;
+    constexpr int HAT_X=40, HAT_Y=8, HAT_W=8, HAT_H=8;
+    constexpr int CANVAS = 128;
+    // PCL ratios: face 48/64 = 3/4, hat 56/64 = 7/8
+    constexpr int FACE_SZ = CANVAS * 3 / 4;   // 96
+    constexpr int HAT_SZ  = CANVAS * 7 / 8;   // 112
 
     int tW = skin.width(), tH = skin.height();
-    bool hasHat = (tH >= 32);
+    bool hasHat = (tW >= 64 && tH >= 32);
 
-    // 1. Extract face 8×8 → nearest-neighbor scale to 64×64
+    // 1. Face layer: 8×8 → scaled to FACE_SZ, centered in canvas
     QImage face = skin.copy(FACE_X, FACE_Y, FACE_W, FACE_H);
-    QImage out = face.scaled(OUT_SZ, OUT_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation);
-    // Convert to ARGB32 premultiplied for alpha compositing
-    out = out.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage faceScaled = face.scaled(FACE_SZ, FACE_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    faceScaled = faceScaled.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 
-    // 2. Overlay hat layer (if present) with alpha blending
+    QImage out(CANVAS, CANVAS, QImage::Format_ARGB32_Premultiplied);
+    out.fill(0);
+    int faceX = (CANVAS - FACE_SZ) / 2;
+    int faceY = (CANVAS - FACE_SZ) / 2;
+    for (int y = 0; y < FACE_SZ; ++y) {
+        QRgb* dst = (QRgb*)out.scanLine(faceY + y) + faceX;
+        const QRgb* src = (const QRgb*)faceScaled.constScanLine(y);
+        for (int x = 0; x < FACE_SZ; ++x) dst[x] = src[x];
+    }
+
+    // 2. Hat layer: 8×8 → scaled to HAT_SZ (LARGER than face), centered on top
     if (hasHat) {
         QImage hatSrc = skin.copy(HAT_X, HAT_Y, HAT_W, HAT_H);
-        QImage hat = hatSrc.scaled(OUT_SZ, OUT_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        QImage hat = hatSrc.scaled(HAT_SZ, HAT_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation);
         hat = hat.convertToFormat(QImage::Format_ARGB32_Premultiplied);
-
-        // Composite: for each pixel, use hat if alpha≥64, else keep face
-        for (int y = 0; y < OUT_SZ; ++y) {
-            QRgb* outLine = (QRgb*)out.scanLine(y);
+        int hatX = (CANVAS - HAT_SZ) / 2;
+        int hatY = (CANVAS - HAT_SZ) / 2;
+        for (int y = 0; y < HAT_SZ; ++y) {
+            QRgb* dst = (QRgb*)out.scanLine(hatY + y) + hatX;
             const QRgb* hatLine = (const QRgb*)hat.constScanLine(y);
-            for (int x = 0; x < OUT_SZ; ++x) {
+            for (int x = 0; x < HAT_SZ; ++x) {
                 int a = qAlpha(hatLine[x]);
-                if (a >= 64) {
-                    outLine[x] = hatLine[x];  // premultiplied: direct copy
-                }
+                if (a >= 64) dst[x] = hatLine[x];
             }
         }
     }
