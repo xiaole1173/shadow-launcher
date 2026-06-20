@@ -787,6 +787,25 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
                                 detail["downloads"] = ver["downloads"].toInt();
                                 detail["date_published"] = ver["date_published"].toString();
                                 detail["version_type"] = ver["version_type"].toString();
+                                // Download file info (first primary file)
+                                QJsonArray files = ver["files"].toArray();
+                                for (const QJsonValue& fv : files) {
+                                    QJsonObject f = fv.toObject();
+                                    if (f["primary"].toBool()) {
+                                        detail["url"] = f["url"].toString();
+                                        detail["filename"] = f["filename"].toString();
+                                        detail["size"] = qint64(f["size"].toDouble());
+                                        detail["sha1"] = f["hashes"].toObject()["sha1"].toString();
+                                        break;
+                                    }
+                                }
+                                if (!detail.contains("url") && !files.isEmpty()) {
+                                    QJsonObject f = files[0].toObject();
+                                    detail["url"] = f["url"].toString();
+                                    detail["filename"] = f["filename"].toString();
+                                    detail["size"] = qint64(f["size"].toDouble());
+                                    detail["sha1"] = f["hashes"].toObject()["sha1"].toString();
+                                }
                                 detailMap[gv] = detail;
                                 break;
                             }

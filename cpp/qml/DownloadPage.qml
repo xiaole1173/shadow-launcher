@@ -3068,9 +3068,22 @@ Rectangle {
                                                         cursorShape: Qt.PointingHandCursor
                                                         onClicked: {
                                                             console.log("[resourcepack] L3 download:", rpDetailSlug, modelData)
-                                                            rpFolderDialog.slug = rpDetailSlug
-                                                            page.rpGameVersion = modelData  // store selected MC version for download
-                                                            rpFolderDialog.open()
+                                                            var detail = page.rpVersionDetailCache[rpDetailSlug]
+                                                            var d = detail ? detail[modelData] : null
+                                                            if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
+                                                            var title = page.rpDetailTitle || rpDetailSlug || "resourcepack"
+                                                            var safeTitle = title.replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
+                                                            var vn = d.version_number || modelData
+                                                            var fn = safeTitle + "-" + vn + "-" + modelData + ".zip"
+                                                            var mineDir = String(backend ? (backend.minecraftDir || "") : "")
+                                                            var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
+                                                            page.pendingRpDownload = {slug: rpDetailSlug, title: title,
+                                                                versionNumber: vn, gameVersion: modelData,
+                                                                url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
+                                                                defaultPath: defaultPath, displayName: title + " " + vn}
+                                                            rpFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
+                                                            rpFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
+                                                            rpFileDialog.open()
                                                         }
                                                     }
                                                 }
@@ -3346,25 +3359,31 @@ Rectangle {
         }
     }
 
-    // ── Folder picker ──
-    FolderDialog {
-        id: rpFolderDialog
-        property string slug: ""
-        title: "选择资源包安装文件夹"
-        currentFolder: backend ? backend.gameDir + "/resourcepacks" : ""
-
+    // ── RP file save dialog ──
+    FileDialog {
+        id: rpFileDialog
+        fileMode: FileDialog.SaveFile
+        title: "保存资源包"
+        nameFilters: ["ZIP 文件 (*.zip)", "所有文件 (*.*)"]
         onAccepted: {
-            var dest = selectedFolder.toString().replace("file:///", "")
-            if (Qt.platform.os === "windows") dest = dest.replace(/\//g, "\\")
-            console.log("[resourcepack] folder selected:", dest)
-            // Do NOT set installingMod — that's for Mod tab progress only
-            page.installingRpName = rpFolderDialog.slug
-            if (backend && rpFolderDialog.slug) {
-                backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion, dest)
-                toastManager.show("开始下载: " + rpFolderDialog.slug)
-            }
+            var p = page.pendingRpDownload
+            if (!p || !p.url) return
+            var savePath = String(selectedFile).replace(/^(file:\/{2,3})/i, "")
+            if (!/\.zip$/i.test(savePath)) savePath += ".zip"
+            console.log("[resourcepack] saving to:", savePath)
+            var dlId = backend.downloadModFile(p.url, savePath, p.displayName, p.size || 0, p.sha1 || "")
+            console.log("[resourcepack] download started, id:", dlId)
+            toastManager.show("开始下载 " + p.displayName)
+            mainWindow.showModDownloadProgress()
+            page.pendingRpDownload = {}
+        }
+        onRejected: {
+            page.pendingRpDownload = {}
         }
     }
+
+    // ── RP folder dialog (kept for legacy, unused in new flow) ──
+    property var pendingRpDownload: ({})
 
 
 
