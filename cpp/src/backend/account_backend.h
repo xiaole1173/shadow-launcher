@@ -29,6 +29,7 @@ public:
     bool isLoggedIn() const { return m_loggedIn; }
     bool isOnline() const { return m_isOnline; }
     QString accountUuid() const { return m_uuid; }
+    QString mcToken() const { return m_msMcToken; }
     QString skinPath() const { return m_skinPath; }
     QStringList offlineUsernames() const { return m_offlineUsernames; }
 

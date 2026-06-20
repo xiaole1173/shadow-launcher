@@ -452,16 +452,16 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         if (argVal.isString()) {
             QString arg = argVal.toString();
             // Replace placeholders
-            arg.replace(QStringLiteral("${auth_player_name}"), QStringLiteral("{username}"));
+            arg.replace(QStringLiteral("${auth_player_name}"), m_authName.isEmpty() ? QStringLiteral("{username}") : m_authName);
             arg.replace(QStringLiteral("${version_name}"), versionId);
             arg.replace(QStringLiteral("${game_directory}"),
                         m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
             arg.replace(QStringLiteral("${assets_root}"),
                         m_gameDir + QStringLiteral("/assets"));
             arg.replace(QStringLiteral("${assets_index_name}"), assetIndexId);
-            arg.replace(QStringLiteral("${auth_uuid}"), QStringLiteral("00000000-0000-0000-0000-000000000000"));
-            arg.replace(QStringLiteral("${auth_access_token}"), QStringLiteral("0"));
-            arg.replace(QStringLiteral("${user_type}"), QStringLiteral("mojang"));
+            arg.replace(QStringLiteral("${auth_uuid}"), m_authUuid.isEmpty() ? QStringLiteral("00000000-0000-0000-0000-000000000000") : m_authUuid);
+            arg.replace(QStringLiteral("${auth_access_token}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);
+            arg.replace(QStringLiteral("${user_type}"), m_isOnline ? QStringLiteral("msa") : QStringLiteral("mojang"));
             arg.replace(QStringLiteral("${version_type}"),
                         versionJson[QStringLiteral("type")].toString(QStringLiteral("release")));
 

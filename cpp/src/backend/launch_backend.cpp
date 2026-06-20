@@ -131,6 +131,15 @@ void LaunchBackend::killGameProcess()
     emit logMessage(QStringLiteral("已强制结束所有游戏进程"));
 }
 
+void LaunchBackend::setAuthInfo(const QString& username, const QString& uuid,
+                           const QString& accessToken, bool isOnline)
+{
+    m_authName = username;
+    m_authUuid = uuid;
+    m_authToken = accessToken;
+    m_authIsOnline = isOnline;
+}
+
 // ============================================================
 // Slot: getAutoMemory
 // ============================================================
@@ -312,6 +321,7 @@ void LaunchBackend::runNextCheck()
         qCDebug(logLaunch) << "[PROGRESS] 75% - 正在启动 Minecraft...";
         Launcher* launcher = new Launcher(this);
         launcher->setGameDir(m_gameDir);
+        launcher->setAuthInfo(m_authName, m_authUuid, m_authToken, m_authIsOnline);
         launcher->setProperty("launchVersion", m_pendingVersionId);
         // Connect signals
         connect(launcher, &Launcher::launchProgress, this, &LaunchBackend::onLaunchProgress);

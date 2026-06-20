@@ -46,6 +46,10 @@ public:
     Q_INVOKABLE QStringList checkVersionMissingNatives(const QString& versionId);
     Q_INVOKABLE QStringList checkVersionLibraries(const QString& versionId);
 
+    // Auth info for online mode
+    void setAuthInfo(const QString& username, const QString& uuid,
+                    const QString& accessToken, bool isOnline);
+
     // ---- Called by ShadowBackend to sync game directory ----
     void setGameDir(const QString& dir);
 
@@ -82,6 +86,12 @@ private:
     int m_launchProgress = 0;
     QString m_launchStatus;
     bool m_cancelled = false;
+
+    // Auth info for online mode
+    QString m_authName;
+    QString m_authUuid;
+    QString m_authToken;
+    bool m_authIsOnline = false;
 
     // ── Async check state ──
     QTimer* m_checkTimer = nullptr;

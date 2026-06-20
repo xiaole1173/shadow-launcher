@@ -916,6 +916,15 @@ void ShadowBackend::launch(const QString& versionId) {
     QString jvmArgs = m_app->jvmArgs();
     m_launchVersion = versionId;
     m_launchUsername = username;
+
+    // Pass online auth info if using Microsoft login
+    if (m_account->isOnline()) {
+        m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
+                              m_account->mcToken(), true);
+    } else {
+        m_launch->setAuthInfo(QString(), QString(), QString(), false);
+    }
+
     m_launch->launch(versionId, username, javaPath, maxMemory, jvmArgs);
 }
 
