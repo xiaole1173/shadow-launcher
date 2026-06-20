@@ -612,14 +612,9 @@ Window {
                                 // Avatar + Name
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 10
-                                    Rectangle {
-                                        width: 48; height: 48; radius: 8; color: "transparent"
-                                        clip: true
-                                        MinecraftHead3D {
-                                            anchors.fill: parent
-                                            anchors.margins: 4
-                                            skinSource: backend ? (backend.skinPath || "") : ""
-                                        }
+                                    MinecraftHead2D {
+                                        width: 48; height: 48
+                                        skinSource: backend ? (backend.skinPath || "") : ""
                                     }
                                     Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
                                 }

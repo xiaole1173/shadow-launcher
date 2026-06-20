@@ -18,7 +18,6 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
-    Quick3D
     Network
     Widgets
 )
@@ -142,7 +141,6 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::Quick3D
     Qt6::Network
     Qt6::Widgets
     nlohmann_json
