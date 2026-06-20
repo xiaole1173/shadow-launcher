@@ -198,6 +198,7 @@ Rectangle {
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Component.onCompleted: {
+        console.log("[dlpage] loaded, t=" + Date.now())
         opacity = 1; y = 0
         // Load mirror sources for download source selector
         if (backend) {
@@ -206,6 +207,7 @@ Rectangle {
         }
         // Initial load of version list if already available
         refreshVersionModel()
+        console.log("[dlpage] init done, t=" + Date.now())
     }
 
     // ──── Backend connections (global) ────

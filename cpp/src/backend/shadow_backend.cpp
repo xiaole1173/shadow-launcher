@@ -3,6 +3,7 @@
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
+#include <QElapsedTimer>
 #include "account_backend.h"
 #include "app_backend.h"
 #include "check_backend.h"
@@ -43,14 +44,26 @@ namespace ShadowLauncher {
 ShadowBackend::ShadowBackend(QObject* parent)
     : QObject(parent)
 {
+    QElapsedTimer bt; bt.start();
+    auto bp = [&bt](const char* label) {
+        qCInfo(logApp) << "[BACKEND +" << bt.elapsed() << "ms]" << label;
+    };
+
     // Create all 7 sub-backends
     m_app = new AppBackend(this);
+    bp("AppBackend");
     m_account = new AccountBackend(this);
+    bp("AccountBackend");
     m_settings = new SettingsBackend(this);
+    bp("SettingsBackend");
     m_check = new CheckBackend(this);
+    bp("CheckBackend");
     m_version = new VersionBackend(this);
+    bp("VersionBackend");
     m_launch = new LaunchBackend(this);
+    bp("LaunchBackend");
     m_resource = new ResourceBackend(this);
+    bp("ResourceBackend");
 
     // ── Sync game directories: ALL backends use the same path ──
     m_version->setGameDir(m_app->gameDir());
@@ -59,7 +72,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_launch->setGameDir(m_app->gameDir());
     m_version->setIsolation(m_settings->isolation());
 
-    // ── Signal forwarding: AccountBackend → ShadowBackend ──
+    bp("Signal wiring...");
     connect(m_account, &AccountBackend::accountChanged,
             this, &ShadowBackend::accountChanged);
     connect(m_account, &AccountBackend::skinReady,
@@ -296,6 +309,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::themeChanged);
     connect(m_app, &AppBackend::logMessage,
             this, &ShadowBackend::logMessage);
+
+    bp("Constructor done");
 }
 
 // ============================================================
