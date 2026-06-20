@@ -65,6 +65,13 @@ Rectangle {
     property string shaderGameVersion: ""
     property bool shaderShowPreReleases: false
     property bool shaderSearching: false
+    property string modDetailSlug: ""
+    property string modDetailTitle: ""
+    property string modDetailDesc: ""
+    property string modDetailIcon: ""
+    property bool modDetailLoading: false
+    property var modDetailVersions: []  // [{gameVersion, versionNumber, date, downloads, loader, url}]
+    property var modDetailGrouped: []  // [{major, versions[]}]
 
     // Shader env labels (same API field as mods)
 
@@ -936,6 +943,12 @@ Rectangle {
             return n + " 下载"
         }
 
+    function formatVerDL(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+        if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+        return String(n || 0)
+    }
+
         // Version list (always show all; pre-release toggle filters search only)
         property var modFilteredVersions: page.commonVersions || []
 
@@ -943,6 +956,7 @@ Rectangle {
             target: backend
             enabled: backend !== null
             function onSearchResultsReady(results) {
+                if (page.currentTab !== 1) return  // mod-only
                 modResultsModel.clear()
                 for (var j = 0; j < results.length; j++) {
                     var r = results[j]
@@ -1369,7 +1383,15 @@ Rectangle {
                                 MouseArea {
                                     anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: console.log("[mod] open " + model.slug)
+                                    onClicked: {
+                                        page.modDetailSlug = model.slug
+                                        page.modDetailTitle = model.title || ""
+                                        page.modDetailDesc = model.desc || ""
+                                        page.modDetailIcon = model.icon || ""
+                                        page.modDetailLoading = true
+                                        modDetailVerModel.clear()
+                                        backend.fetchModVersions([model.slug])
+                                    }
                                 }
 
                                 RowLayout {
@@ -3071,6 +3093,7 @@ Rectangle {
     // ════════════════════════════════════════════
     ListModel { id: modResultsModel }
     ListModel { id: shaderResultsModel }
+    ListModel { id: modDetailVerModel }
     ListModel { id: rpResultsModel }
 
     // Mod & Shader state
@@ -3335,6 +3358,207 @@ Rectangle {
                 backend.downloadResourcepack(rpFolderDialog.slug, page.rpGameVersion, dest)
                 toastManager.show("开始下载: " + rpFolderDialog.slug)
             }
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // MOD DETAIL OVERLAY
+    // ════════════════════════════════════════════
+    Item {
+        id: modDetailOverlay
+        anchors.fill: parent
+        z: 10
+        visible: page.modDetailSlug !== ""
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#0c0f16"
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                // ← Back button
+                Rectangle {
+                    Layout.preferredHeight: 28
+                    width: backLbl.implicitWidth + 16; radius: 6
+                    color: backHov.hovered ? "#1a2848" : "transparent"
+                    Text {
+                        id: backLbl
+                        anchors.centerIn: parent
+                        text: "← 返回"; color: "#9094a8"; font.pixelSize: 12
+                    }
+                    MouseArea {
+                        id: backHov; anchors.fill: parent
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            page.modDetailSlug = ""
+                            modDetailVerModel.clear()
+                        }
+                    }
+                }
+
+                // Header: icon + title
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+
+                    Rectangle {
+                        width: 48; height: 48; radius: 8; color: "#0c0e14"; clip: true
+                        Image {
+                            anchors.fill: parent; anchors.margins: 3
+                            source: page.modDetailIcon ? page.modDetailIcon.replace("cdn.modrinth.com", "mod.mcimirror.top") : ""
+                            fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true
+                            sourceSize.width: 96; sourceSize.height: 96
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: page.modDetailTitle || "Mod 详情"
+                        color: "#d0d4e0"; font.pixelSize: 16; font.bold: true
+                        elide: Text.ElideRight
+                    }
+                }
+
+                // Description
+                Text {
+                    Layout.fillWidth: true
+                    text: page.modDetailDesc || ""
+                    color: "#788090"; font.pixelSize: 11
+                    wrapMode: Text.WordWrap; maximumLineCount: 4; elide: Text.ElideRight
+                }
+
+                // Loading
+                Text {
+                    visible: page.modDetailLoading
+                    Layout.fillWidth: true
+                    text: "加载版本中…"; color: "#606478"; font.pixelSize: 12
+                }
+
+                // Version list
+                Text {
+                    visible: modDetailVerModel.count > 0
+                    Layout.fillWidth: true
+                    text: "选择版本 (" + modDetailVerModel.count + ")"
+                    color: "#9094a8"; font.pixelSize: 12; font.bold: true
+                }
+
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentHeight: verList.implicitHeight
+                    clip: true
+                    visible: modDetailVerModel.count > 0
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    ColumnLayout {
+                        id: verList; width: parent.width; spacing: 4
+
+                        Repeater {
+                            model: modDetailVerModel
+
+                            Rectangle {
+                                Layout.fillWidth: true; height: 52; radius: 8
+                                color: "#11141c"; border.color: "#1e2230"; border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent; anchors.margins: 8; spacing: 8
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; spacing: 1
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        Text {
+                                            text: "MC " + (model.gameVersion || "?"); color: "#d0d4e0"
+                                            font.pixelSize: 11; font.bold: true
+                                        }
+                                        Text {
+                                            text: "v" + (model.versionNumber || "?"); color: "#788090"; font.pixelSize: 10
+                                        }
+                                        RowLayout {
+                                            spacing: 6
+                                            Text {
+                                                text: model.date ? model.date.slice(0, 10) : "-"
+                                                color: "#606478"; font.pixelSize: 9
+                                            }
+                                            Text {
+                                                text: "📥 " + formatVerDL(model.downloads)
+                                                color: "#606478"; font.pixelSize: 9
+                                            }
+                                            Rectangle {
+                                                visible: model.loader
+                                                width: verLdrLbl.implicitWidth + 6; height: 13; radius: 2
+                                                color: "#1a2848"
+                                                Text {
+                                                    id: verLdrLbl; anchors.centerIn: parent
+                                                    text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 8
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        width: 52; height: 24; radius: 4
+                                        color: dlVerBtn.hovered ? "#5a78e0" : "#5068c8"
+                                        Text { anchors.centerIn: parent; text: "下载"; color: "#fff"; font.pixelSize: 10; font.bold: true }
+                                        MouseArea {
+                                            id: dlVerBtn; anchors.fill: parent
+                                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (model.url && model.url !== "") {
+                                                    Qt.openUrlExternally(model.url)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Mod detail signal handler
+    Connections {
+        target: backend
+        enabled: backend !== null
+        function onModVersionsPartial(slug, versions, details) {
+            if (slug !== page.modDetailSlug) return
+            page.modDetailLoading = false
+            modDetailVerModel.clear()
+            if (!versions || versions.length === 0) return
+            var arr = []
+            for (var vi = 0; vi < versions.length; vi++) {
+                var v = versions[vi]
+                var d = details ? details[v] : null
+                arr.push({
+                    gameVersion: v,
+                    versionNumber: d ? (d.version_number || v) : v,
+                    date: d ? (d.date_published || "") : "",
+                    downloads: d ? (d.downloads || 0) : 0,
+                    loader: d ? (d.loader || "") : "",
+                    url: d ? (d.download_url || d.url || "") : ""
+                })
+            }
+            // Sort by game version descending
+            arr.sort(function(a,b) {
+                var as = (a.gameVersion||"").split("."), bs = (b.gameVersion||"").split(".")
+                for (var s = 0; s < Math.max(as.length, bs.length); s++) {
+                    var av = parseInt(as[s])||0, bv = parseInt(bs[s])||0
+                    if (av !== bv) return bv - av
+                }
+                return 0
+            })
+            for (var ai = 0; ai < arr.length; ai++) {
+                modDetailVerModel.append(arr[ai])
+            }
+        }
+        function onModVersionsProgress(done, total) {
+            if (page.modDetailSlug === "") return
+            page.modDetailLoading = done < total
         }
     }
 }
