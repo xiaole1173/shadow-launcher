@@ -3,7 +3,7 @@ import QtQuick
 Rectangle {
     id: root
     property url skinSource: ""
-    width: 48; height: 48
+    width: 72; height: 72
     color: "#1e2430"
 
     // ── Spinner ──
@@ -31,7 +31,7 @@ Rectangle {
     }
     Connections { target: root; function on_SangleChanged() { spinner.requestPaint() } }
 
-    // ── Face Image (pre-cropped by C++ to 64x64, file:// URL) ──
+    // ── Face Image (pre-cropped by C++ to 128x128, file:// URL) ──
     Image {
         id: img
         anchors.fill: parent

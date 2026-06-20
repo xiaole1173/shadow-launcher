@@ -198,7 +198,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
 
     constexpr int FACE_X=8, FACE_Y=8, FACE_W=8, FACE_H=8;   // UV (8,8)-(16,16)
     constexpr int HAT_X=40, HAT_Y=8, HAT_W=8, HAT_H=8;       // UV (40,8)-(48,16)
-    constexpr int OUT_SZ = 64;
+    constexpr int OUT_SZ = 128;
 
     int tW = skin.width(), tH = skin.height();
     bool hasHat = (tH >= 32);
