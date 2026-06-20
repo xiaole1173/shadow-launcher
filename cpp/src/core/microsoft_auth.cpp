@@ -1,4 +1,4 @@
-// Microsoft OAuth2 Device Code Flow — full implementation
+// Microsoft OAuth2 Authorization Code Flow for Minecraft
 #include "microsoft_auth.h"
 #include "http_client.h"
 #include "../utils/logger.h"
@@ -12,129 +12,87 @@
 
 namespace ShadowLauncher {
 
-static const char* kDeviceCodeUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
-static const char* kTokenUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+static const char* kAuthUrl = "https://login.live.com/oauth20_authorize.srf";
+static const char* kTokenUrl = "https://login.live.com/oauth20_token.srf";
+static const char* kRedirectUri = "https://login.live.com/oauth20_desktop.srf";
 static const char* kXblAuthUrl = "https://user.auth.xboxlive.com/user/authenticate";
 static const char* kXstsAuthUrl = "https://xsts.auth.xboxlive.com/xsts/authorize";
 static const char* kMcAuthUrl = "https://api.minecraftservices.com/authentication/login_with_xbox";
 static const char* kMcProfileUrl = "https://api.minecraftservices.com/minecraft/profile";
 
-MicrosoftAuth::MicrosoftAuth(QObject* parent)
-    : QObject(parent)
-{
-    m_pollTimer = new QTimer(this);
-    m_pollTimer->setSingleShot(false);
-    connect(m_pollTimer, &QTimer::timeout, this, &MicrosoftAuth::pollToken);
-}
+MicrosoftAuth::MicrosoftAuth(QObject* parent) : QObject(parent) {}
 
 void MicrosoftAuth::startLogin(const QString& clientId)
 {
-    if (m_state != State::Idle) {
-        emit loginFailed(QStringLiteral("登录已在进行中"));
-        return;
-    }
+    if (m_busy) { emit loginFailed(QStringLiteral("登录已在进行中")); return; }
     m_clientId = clientId;
-    m_pollCount = 0;
-    requestDeviceCode(clientId);
+    m_busy = true;
+
+    // Build the authorization URL
+    QString url = QStringLiteral("%1"
+        "?client_id=%2"
+        "&response_type=code"
+        "&redirect_uri=%3"
+        "&scope=XboxLive.signin%20offline_access")
+        .arg(QString::fromLatin1(kAuthUrl),
+             clientId,
+             QString::fromLatin1(kRedirectUri));
+
+    qCInfo(logApp) << "[MSA] Auth URL:" << url;
+    emit loginProgress(QStringLiteral("浏览器登录"), QStringLiteral("请在浏览器中登录 Microsoft 账号"));
+    emit authUrlReady(url);
+
+    // Auto-open browser
+    QDesktopServices::openUrl(QUrl(url));
 }
 
 void MicrosoftAuth::cancelLogin()
 {
-    m_pollTimer->stop();
-    m_state = State::Idle;
+    m_busy = false;
     emit loginFailed(QStringLiteral("用户取消登录"));
 }
 
-// ═══════════════════════════════════════════════════
-// Step 1: Request device code
-// ═══════════════════════════════════════════════════
-void MicrosoftAuth::requestDeviceCode(const QString& clientId)
+void MicrosoftAuth::submitCode(const QString& codeOrUrl)
 {
-    emit loginProgress(QStringLiteral("设备码"), QStringLiteral("正在请求登录验证码..."));
-
-    QUrlQuery postData;
-    postData.addQueryItem(QStringLiteral("client_id"), clientId);
-    postData.addQueryItem(QStringLiteral("scope"), QStringLiteral("XboxLive.signin offline_access"));
-
-    QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
-
-    // We need to send a POST with form data. HttpClient::get is GET only.
-    // Use a manual QNetworkAccessManager POST via a helper.
-    QNetworkRequest req(QUrl(QString::fromLatin1(kDeviceCodeUrl)));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
-
-    auto* reply = HttpClient::instance().post(req, body);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            QByteArray respBody = reply->readAll();
-            qCWarning(logApp) << "[MSA] Device code request failed:" << reply->errorString()
-                             << "status:" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
-                             << "body:" << respBody.left(500);
-            emit loginFailed(QStringLiteral("无法连接 Microsoft 服务器: %1 (HTTP %2)")
-                                 .arg(reply->errorString())
-                                 .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()));
-            return;
-        }
-        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        QJsonObject obj = doc.object();
-
-        if (obj.contains(QStringLiteral("error"))) {
-            QString err = obj[QStringLiteral("error")].toString();
-            QString desc = obj[QStringLiteral("error_description")].toString();
-            qCWarning(logApp) << "[MSA] Device code error:" << err << desc;
-            emit loginFailed(QStringLiteral("Microsoft 认证错误: %1").arg(desc));
-            return;
-        }
-
-        m_deviceCode = obj[QStringLiteral("device_code")].toString();
-        QString userCode = obj[QStringLiteral("user_code")].toString();
-        QString verificationUrl = obj[QStringLiteral("verification_uri")].toString();
-        m_pollInterval = obj[QStringLiteral("interval")].toInt(5);
-        int expiresIn = obj[QStringLiteral("expires_in")].toInt(900);
-
-        qCInfo(logApp) << "[MSA] Device code obtained. user_code=" << userCode
-                        << "interval=" << m_pollInterval << "expires=" << expiresIn;
-
-        // Notify QML: show the code to the user
-        emit userCodeReady(userCode, verificationUrl);
-
-        // Auto-open browser
-        QString otcUrl = verificationUrl + QStringLiteral("?otc=") + userCode;
-        QDesktopServices::openUrl(QUrl(otcUrl));
-        qCInfo(logApp) << "[MSA] Opening browser:" << otcUrl;
-
-        // Start polling
-        m_state = State::PollingDeviceCode;
-        m_pollTimer->start(m_pollInterval * 1000);
-        emit loginProgress(QStringLiteral("等待验证"),
-                           QStringLiteral("请在浏览器中输入验证码 %1").arg(userCode));
-    });
-}
-
-// ═══════════════════════════════════════════════════
-// Step 2/3: Poll for token
-// ═══════════════════════════════════════════════════
-void MicrosoftAuth::pollToken()
-{
-    m_pollCount++;
-    if (m_pollCount > kMaxPollCount) {
-        m_pollTimer->stop();
-        m_state = State::Idle;
-        emit loginFailed(QStringLiteral("验证超时，请重新登录"));
+    if (!m_busy) {
+        emit loginFailed(QStringLiteral("没有进行中的登录"));
         return;
     }
 
-    emit loginProgress(QStringLiteral("等待验证"),
-                       QStringLiteral("等待你在浏览器中完成登录... (%1/%2)")
-                           .arg(m_pollCount).arg(kMaxPollCount));
+    // Extract code from URL or use as-is
+    QString code = codeOrUrl;
+    if (codeOrUrl.contains(QStringLiteral("?code="))) {
+        QUrl url(codeOrUrl);
+        QUrlQuery query(url);
+        code = query.queryItemValue(QStringLiteral("code"));
+    } else if (codeOrUrl.contains(QStringLiteral("&code="))) {
+        // Handle fragments: extract ?code= or &code=
+        int idx = codeOrUrl.indexOf(QStringLiteral("code="));
+        int end = codeOrUrl.indexOf(QLatin1Char('&'), idx + 5);
+        code = (end > 0) ? codeOrUrl.mid(idx + 5, end - idx - 5)
+                         : codeOrUrl.mid(idx + 5);
+    }
 
+    if (code.isEmpty()) {
+        emit loginFailed(QStringLiteral("未能从输入中提取验证码，请复制浏览器地址栏完整 URL"));
+        return;
+    }
+
+    qCInfo(logApp) << "[MSA] Got auth code, exchanging...";
+    emit loginProgress(QStringLiteral("验证中"), QStringLiteral("正在换取访问令牌..."));
+    exchangeCode(code);
+}
+
+// ═══════════════════════════════════════════════════
+// Exchange code for token
+// ═══════════════════════════════════════════════════
+void MicrosoftAuth::exchangeCode(const QString& code)
+{
     QUrlQuery postData;
-    postData.addQueryItem(QStringLiteral("grant_type"),
-                          QStringLiteral("urn:ietf:params:oauth:grant-type:device_code"));
     postData.addQueryItem(QStringLiteral("client_id"), m_clientId);
-    postData.addQueryItem(QStringLiteral("device_code"), m_deviceCode);
+    postData.addQueryItem(QStringLiteral("code"), code);
+    postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("authorization_code"));
+    postData.addQueryItem(QStringLiteral("redirect_uri"), QString::fromLatin1(kRedirectUri));
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
 
@@ -145,63 +103,33 @@ void MicrosoftAuth::pollToken()
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError &&
-            reply->error() != QNetworkReply::ContentAccessDenied &&
-            reply->error() != QNetworkReply::AuthenticationRequiredError) {
-            qCWarning(logApp) << "[MSA] Token poll network error:" << reply->errorString();
-            // Keep polling on network errors
-            return;
-        }
         QByteArray data = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(data);
         QJsonObject obj = doc.object();
 
-        if (obj.contains(QStringLiteral("access_token"))) {
-            // Success!
-            m_pollTimer->stop();
-            m_state = State::Idle;
-            m_msAccessToken = obj[QStringLiteral("access_token")].toString();
-            m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
-            int expiresIn = obj[QStringLiteral("expires_in")].toInt();
-            qCInfo(logApp) << "[MSA] Token obtained! expires_in=" << expiresIn;
-
-            emit loginProgress(QStringLiteral("Xbox 验证"), QStringLiteral("正在验证 Xbox Live..."));
-
-            // Proceed to Xbox Live auth
-            authenticateXbl(m_msAccessToken);
+        if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("error"))) {
+            QString err = obj[QStringLiteral("error")].toString();
+            QString desc = obj[QStringLiteral("error_description")].toString();
+            qCWarning(logApp) << "[MSA] Token exchange failed:" << reply->errorString()
+                             << "body:" << data.left(500);
+            m_busy = false;
+            emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.isEmpty() ? err : desc));
             return;
         }
 
-        QString error = obj[QStringLiteral("error")].toString();
-        if (error == QStringLiteral("authorization_pending")) {
-            // Normal — user hasn't completed yet, keep polling
-            return;
-        }
-        if (error == QStringLiteral("authorization_declined")) {
-            m_pollTimer->stop();
-            m_state = State::Idle;
-            emit loginFailed(QStringLiteral("用户在浏览器中拒绝了授权"));
-            return;
-        }
-        if (error == QStringLiteral("expired_token")) {
-            m_pollTimer->stop();
-            m_state = State::Idle;
-            emit loginFailed(QStringLiteral("验证码已过期，请重新登录"));
-            return;
-        }
-        if (error == QStringLiteral("bad_verification_code")) {
-            m_pollTimer->stop();
-            m_state = State::Idle;
-            emit loginFailed(QStringLiteral("内部错误：验证码无效"));
+        m_msAccessToken = obj[QStringLiteral("access_token")].toString();
+        m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
+
+        if (m_msAccessToken.isEmpty()) {
+            qCWarning(logApp) << "[MSA] No access_token in response:" << data.left(500);
+            m_busy = false;
+            emit loginFailed(QStringLiteral("未获取到访问令牌"));
             return;
         }
 
-        // Unknown error — stop and report
-        m_pollTimer->stop();
-        m_state = State::Idle;
-        QString desc = obj[QStringLiteral("error_description")].toString();
-        qCWarning(logApp) << "[MSA] Token poll error:" << error << desc;
-        emit loginFailed(QStringLiteral("登录失败: %1").arg(desc.isEmpty() ? error : desc));
+        qCInfo(logApp) << "[MSA] Token obtained!";
+        emit loginProgress(QStringLiteral("Xbox 验证"), QStringLiteral("正在验证 Xbox Live..."));
+        authenticateXbl(m_msAccessToken);
     });
 }
 
@@ -229,36 +157,26 @@ void MicrosoftAuth::authenticateXbl(const QString& accessToken)
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            QString errBody = reply->readAll();
-            qCWarning(logApp) << "[MSA] XBL auth failed:" << reply->errorString()
-                             << "body:" << errBody.left(200);
-            emit loginFailed(QStringLiteral("Xbox Live 验证失败: %1").arg(reply->errorString()));
-            return;
-        }
-        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QByteArray raw = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(raw);
         QJsonObject obj = doc.object();
 
-        QString xblToken = obj[QStringLiteral("Token")].toString();
-        QString uhs = obj[QStringLiteral("DisplayClaims")].toObject()
-                        [QStringLiteral("xui")].toArray()[0].toObject()
-                        [QStringLiteral("uhs")].toString();
-
-        if (xblToken.isEmpty()) {
-            qCWarning(logApp) << "[MSA] XBL auth: no token in response";
-            emit loginFailed(QStringLiteral("Xbox Live 返回数据异常"));
+        if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("Token")].isString()) {
+            qCWarning(logApp) << "[MSA] XBL auth failed:" << reply->errorString() << raw.left(200);
+            m_busy = false;
+            emit loginFailed(QStringLiteral("Xbox Live 验证失败"));
             return;
         }
 
-        qCInfo(logApp) << "[MSA] XBL token obtained. uhs=" << uhs;
-        emit loginProgress(QStringLiteral("XSTS 验证"), QStringLiteral("正在获取 Minecraft 权限..."));
-
+        QString xblToken = obj[QStringLiteral("Token")].toString();
+        qCInfo(logApp) << "[MSA] XBL token obtained";
+        emit loginProgress(QStringLiteral("XSTS"), QStringLiteral("正在获取 Minecraft 权限..."));
         authenticateXsts(xblToken);
     });
 }
 
 // ═══════════════════════════════════════════════════
-// Step 5: XSTS authorize for Minecraft
+// Step 5: XSTS
 // ═══════════════════════════════════════════════════
 void MicrosoftAuth::authenticateXsts(const QString& xblToken)
 {
@@ -286,18 +204,15 @@ void MicrosoftAuth::authenticateXsts(const QString& xblToken)
         QJsonDocument doc = QJsonDocument::fromJson(raw);
         QJsonObject obj = doc.object();
 
-        if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("error"))) {
-            QString err = obj[QStringLiteral("error")].toString();
-            QString errMsg = obj[QStringLiteral("errorMessage")].toString();
-            qCWarning(logApp) << "[MSA] XSTS failed:" << reply->errorString()
-                             << "XErr:" << err << "msg:" << errMsg;
-
-            // Special: 2148916233 = user doesn't own Minecraft
-            if (err == QStringLiteral("2148916233")) {
-                emit loginFailed(QStringLiteral("该 Microsoft 账号没有 Minecraft Java 版"));
-                return;
+        if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("XErr"))) {
+            int xerr = obj[QStringLiteral("XErr")].toInt();
+            qCWarning(logApp) << "[MSA] XSTS failed XErr:" << xerr;
+            m_busy = false;
+            if (xerr == 2148916233) {
+                emit loginFailed(QStringLiteral("该账号没有 Minecraft Java 版"));
+            } else {
+                emit loginFailed(QStringLiteral("Minecraft 授权失败 (XErr=%1)").arg(xerr));
             }
-            emit loginFailed(QStringLiteral("Minecraft 授权失败: %1").arg(errMsg.isEmpty() ? err : errMsg));
             return;
         }
 
@@ -306,29 +221,19 @@ void MicrosoftAuth::authenticateXsts(const QString& xblToken)
                         [QStringLiteral("xui")].toArray()[0].toObject()
                         [QStringLiteral("uhs")].toString();
 
-        if (xstsToken.isEmpty()) {
-            qCWarning(logApp) << "[MSA] XSTS: no token";
-            emit loginFailed(QStringLiteral("XSTS 返回数据异常"));
-            return;
-        }
-
         qCInfo(logApp) << "[MSA] XSTS token obtained";
-        emit loginProgress(QStringLiteral("Minecraft 认证"),
-                           QStringLiteral("正在获取 Minecraft 登录凭证..."));
-
+        emit loginProgress(QStringLiteral("Minecraft"), QStringLiteral("正在登录 Minecraft..."));
         authenticateMc(xstsToken, uhs);
     });
 }
 
 // ═══════════════════════════════════════════════════
-// Step 6: Authenticate with Minecraft
+// Step 6: Minecraft auth
 // ═══════════════════════════════════════════════════
 void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs)
 {
-    Q_UNUSED(uhs)
     QJsonObject body;
-    body[QStringLiteral("identityToken")] = QStringLiteral("XBL3.0 x=%1;%2")
-        .arg(uhs, xstsToken);
+    body[QStringLiteral("identityToken")] = QStringLiteral("XBL3.0 x=%1;%2").arg(uhs, xstsToken);
 
     QNetworkRequest req(QUrl(QString::fromLatin1(kMcAuthUrl)));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
@@ -339,120 +244,53 @@ void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs)
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
-        // Note: even on success status might be 200, but we check body
         QByteArray raw = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(raw);
         QJsonObject obj = doc.object();
 
-        if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("error"))) {
-            QString err = obj[QStringLiteral("error")].toString();
-            QString errMsg = obj[QStringLiteral("errorMessage")].toString();
-            qCWarning(logApp) << "[MSA] MC auth failed:" << reply->errorString()
-                             << "err:" << err << "msg:" << errMsg;
-            emit loginFailed(QStringLiteral("Minecraft 认证失败: %1")
-                                 .arg(errMsg.isEmpty() ? reply->errorString() : errMsg));
+        if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
+            qCWarning(logApp) << "[MSA] MC auth failed:" << reply->errorString() << raw.left(200);
+            m_busy = false;
+            emit loginFailed(QStringLiteral("Minecraft 认证失败"));
             return;
         }
 
-        QString mcAccessToken = obj[QStringLiteral("access_token")].toString();
-        if (mcAccessToken.isEmpty()) {
-            qCWarning(logApp) << "[MSA] MC auth: no access_token";
-            emit loginFailed(QStringLiteral("Minecraft 返回数据异常"));
-            return;
-        }
-
+        QString mcToken = obj[QStringLiteral("access_token")].toString();
         qCInfo(logApp) << "[MSA] MC token obtained!";
-        emit loginProgress(QStringLiteral("获取档案"), QStringLiteral("正在获取 Minecraft 档案..."));
-
-        fetchMcProfile(mcAccessToken);
+        emit loginProgress(QStringLiteral("档案"), QStringLiteral("正在获取 Minecraft 档案..."));
+        fetchMcProfile(mcToken);
     });
 }
 
 // ═══════════════════════════════════════════════════
-// Step 7: Get Minecraft profile
+// Step 7: Profile
 // ═══════════════════════════════════════════════════
-void MicrosoftAuth::fetchMcProfile(const QString& mcAccessToken)
+void MicrosoftAuth::fetchMcProfile(const QString& mcToken)
 {
+    m_msMcToken = mcToken;
     QNetworkRequest req(QUrl(QString::fromLatin1(kMcProfileUrl)));
-    req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(mcAccessToken).toUtf8());
+    req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(mcToken).toUtf8());
 
     auto* reply = HttpClient::instance().getRaw(req);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, mcAccessToken]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         QByteArray raw = reply->readAll();
         QJsonDocument doc = QJsonDocument::fromJson(raw);
         QJsonObject obj = doc.object();
+        m_busy = false;
 
-        if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("error"))) {
-            QString err = obj[QStringLiteral("error")].toString();
-            QString errMsg = obj[QStringLiteral("errorMessage")].toString();
-            qCWarning(logApp) << "[MSA] Profile fetch failed:" << reply->errorString()
-                             << "err:" << err << "msg:" << errMsg;
-            emit loginFailed(QStringLiteral("获取档案失败: %1")
-                                 .arg(errMsg.isEmpty() ? reply->errorString() : errMsg));
+        if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("id")].isString()) {
+            qCWarning(logApp) << "[MSA] Profile failed:" << reply->errorString() << raw.left(200);
+            emit loginFailed(QStringLiteral("获取档案失败"));
             return;
         }
 
         QString uuid = obj[QStringLiteral("id")].toString();
         QString username = obj[QStringLiteral("name")].toString();
 
-        if (uuid.isEmpty() || username.isEmpty()) {
-            qCWarning(logApp) << "[MSA] Profile: empty uuid/name";
-            emit loginFailed(QStringLiteral("该账号未创建 Minecraft 档案"));
-            return;
-        }
-
-        qCInfo(logApp) << "[MSA] Login SUCCESS! username=" << username << "uuid=" << uuid;
-        emit loginSuccess(mcAccessToken, username, uuid, m_msRefreshToken);
-    });
-}
-
-// ═══════════════════════════════════════════════════
-// Token refresh
-// ═══════════════════════════════════════════════════
-void MicrosoftAuth::refreshToken(const QString& clientId, const QString& refreshToken)
-{
-    if (m_state != State::Idle) {
-        emit loginFailed(QStringLiteral("操作已在进行中"));
-        return;
-    }
-    m_clientId = clientId;
-
-    emit loginProgress(QStringLiteral("刷新令牌"), QStringLiteral("正在静默刷新登录..."));
-
-    QUrlQuery postData;
-    postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
-    postData.addQueryItem(QStringLiteral("client_id"), clientId);
-    postData.addQueryItem(QStringLiteral("refresh_token"), refreshToken);
-
-    QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
-
-    QNetworkRequest req(QUrl(QString::fromLatin1(kTokenUrl)));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
-
-    auto* reply = HttpClient::instance().post(req, body);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        QByteArray data = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(data);
-        QJsonObject obj = doc.object();
-
-        if (obj.contains(QStringLiteral("access_token"))) {
-            m_msAccessToken = obj[QStringLiteral("access_token")].toString();
-            m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
-            qCInfo(logApp) << "[MSA] Token refreshed!";
-
-            emit loginProgress(QStringLiteral("Xbox 验证"), QStringLiteral("刷新完成，正在验证..."));
-            authenticateXbl(m_msAccessToken);
-            return;
-        }
-
-        QString error = obj[QStringLiteral("error")].toString();
-        QString desc = obj[QStringLiteral("error_description")].toString();
-        qCWarning(logApp) << "[MSA] Token refresh failed:" << error << desc;
-        emit loginFailed(QStringLiteral("令牌刷新失败，请重新登录"));
+        qCInfo(logApp) << "[MSA] Login SUCCESS!" << username << uuid;
+        emit loginSuccess(m_msMcToken, username, uuid, m_msRefreshToken);
     });
 }
 

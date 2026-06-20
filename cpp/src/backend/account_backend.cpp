@@ -35,11 +35,10 @@ AccountBackend::AccountBackend(QObject *parent)
         m_msStatus = step + QStringLiteral(": ") + detail;
         emit microsoftLoginProgress(step, detail);
     });
-    connect(m_msAuth, &MicrosoftAuth::userCodeReady, this, [this](const QString& code, const QString& url) {
-        Q_UNUSED(url)
-        m_msUserCode = code;
-        emit microsoftUserCodeReady(code);
-        emit logMessage(QStringLiteral("[MSA] 验证码: %1").arg(code));
+    connect(m_msAuth, &MicrosoftAuth::authUrlReady, this, [this](const QString& url) {
+        m_msAuthUrl = url;
+        emit microsoftAuthUrlReady(url);
+        emit logMessage(QStringLiteral("[MSA] 浏览器已打开，请登录后复制地址栏 URL 粘贴"));
     });
     connect(m_msAuth, &MicrosoftAuth::loginSuccess, this, [this](const QString& mcToken, const QString& username, const QString& uuid, const QString& refreshToken) {
         m_msMcToken = mcToken;
@@ -49,7 +48,7 @@ AccountBackend::AccountBackend(QObject *parent)
         m_loggedIn = true;
         m_isOnline = true;
         m_msStatus.clear();
-        m_msUserCode.clear();
+        m_msAuthUrl.clear();
         qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
         emit microsoftLoginSuccess(username, uuid);
         emit accountChanged();
@@ -57,7 +56,7 @@ AccountBackend::AccountBackend(QObject *parent)
     });
     connect(m_msAuth, &MicrosoftAuth::loginFailed, this, [this](const QString& error) {
         m_msStatus.clear();
-        m_msUserCode.clear();
+        m_msAuthUrl.clear();
         qCWarning(logAccount) << "Microsoft login FAILED:" << error;
         emit microsoftLoginFailed(error);
         emit microsoftLoginBusyChanged();
@@ -127,8 +126,13 @@ void AccountBackend::microsoftLogin()
         return;
     }
     emit microsoftLoginBusyChanged();
-    // Use the Azure app Client ID
     m_msAuth->startLogin(QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f"));
+}
+
+void AccountBackend::microsoftSubmitCode(const QString& code)
+{
+    if (!m_msAuth) return;
+    m_msAuth->submitCode(code);
 }
 
 void AccountBackend::cancelMicrosoftLogin()
