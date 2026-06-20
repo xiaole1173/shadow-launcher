@@ -1,4 +1,4 @@
-#include "shadow_backend.h"
+﻿#include "shadow_backend.h"
 #include "../core/mod_manager.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
@@ -986,6 +986,15 @@ int ShadowBackend::downloadModFile(const QString& url, const QString& savePath,
 void ShadowBackend::cancelModFileDownload(int downloadId) {
     m_resource->cancelModFileDownload(downloadId);
 }
+
+void ShadowBackend::pauseModFileDownload(int downloadId) {
+    m_resource->pauseModFileDownload(downloadId);
+}
+
+void ShadowBackend::resumeModFileDownload(int downloadId) {
+    m_resource->resumeModFileDownload(downloadId);
+}
+
 void ShadowBackend::retryModFileDownload(int downloadId) {
     m_resource->retryModFileDownload(downloadId);
 }

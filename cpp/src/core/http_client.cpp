@@ -215,6 +215,83 @@ void HttpClient::download(const QString& url, const QString& savePath,
         });
 }
 
+QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& savePath,
+                  std::function<void(qint64, qint64)> progress,
+                  std::function<void(bool, const QString&)> done)
+{
+    const QString tmpPath = savePath + QStringLiteral(".tmp");
+    const QFileInfo fi(savePath);
+    QDir().mkpath(fi.absolutePath());
+    QFile::remove(tmpPath);
+
+    QNetworkRequest req = buildRequest(m_config, QUrl(url));
+    QNetworkReply* reply = m_manager->get(req);
+
+    auto* file = new QFile(tmpPath);
+    if (!file->open(QIODevice::WriteOnly)) {
+        reply->abort();
+        reply->deleteLater();
+        delete file;
+        if (done) done(false, QStringLiteral("Cannot open file: %1").arg(tmpPath));
+        return nullptr;
+    }
+
+    QObject::connect(reply, &QNetworkReply::readyRead, this,
+        [reply, file]() { file->write(reply->readAll()); });
+
+    if (progress) {
+        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
+            [progress = std::move(progress)](qint64 received, qint64 total) {
+                progress(received, total);
+            });
+    }
+
+    QObject::connect(reply, &QNetworkReply::finished, this,
+        [this, reply, file, tmpPath, savePath, done = std::move(done)]() {
+            file->close();
+            reply->deleteLater();
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const bool networkOk = (reply->error() == QNetworkReply::NoError);
+            const QString errorStr = reply->errorString();
+            if (networkOk && status == 200) {
+                QFile::remove(savePath);
+                if (QFile::rename(tmpPath, savePath)) {
+                    delete file;
+                    if (done) done(true, QString());
+                } else {
+                    QFile::remove(tmpPath);
+                    delete file;
+                    if (done) done(false, QStringLiteral("Unable to rename downloaded file"));
+                }
+            } else {
+                QFile::remove(tmpPath);
+                delete file;
+                if (done) done(false, networkOk
+                    ? QStringLiteral("HTTP %1").arg(status)
+                    : errorStr);
+            }
+        });
+
+    QObject::connect(reply, &QNetworkReply::errorOccurred, this,
+        [reply, file, tmpPath, done](QNetworkReply::NetworkError) {
+            Q_UNUSED(reply)
+            file->close();
+            file->deleteLater();
+            QFile::remove(tmpPath);
+            if (done) {
+                const QString err = QStringLiteral("Network error: %1").arg(reply->errorString());
+                done(false, err);
+            }
+        });
+
+    return reply;
+}
+
+void HttpClient::abortDownload(QNetworkReply* reply)
+{
+    if (reply) reply->abort();
+}
+
 // ============================================================
 // DownloadQueue implementation
 // ============================================================

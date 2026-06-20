@@ -48,6 +48,8 @@ public:
     Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
                                     qint64 expectedSize, const QString& sha1);
     Q_INVOKABLE void cancelModFileDownload(int downloadId);
+    Q_INVOKABLE void pauseModFileDownload(int downloadId);
+    Q_INVOKABLE void resumeModFileDownload(int downloadId);
     Q_INVOKABLE void retryModFileDownload(int downloadId);
 
 signals:

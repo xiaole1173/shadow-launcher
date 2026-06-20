@@ -515,6 +515,16 @@ void ResourceBackend::cancelModFileDownload(int downloadId)
     m_modMgr->cancelModFileDownload(downloadId);
 }
 
+void ResourceBackend::pauseModFileDownload(int downloadId)
+{
+    m_modMgr->pauseModFileDownload(downloadId);
+}
+
+void ResourceBackend::resumeModFileDownload(int downloadId)
+{
+    m_modMgr->resumeModFileDownload(downloadId);
+}
+
 void ResourceBackend::retryModFileDownload(int downloadId)
 {
     m_modMgr->retryModFileDownload(downloadId);

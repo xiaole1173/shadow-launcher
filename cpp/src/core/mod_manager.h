@@ -8,6 +8,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 
+class QNetworkReply;
+class QFile;
+
 namespace ShadowLauncher {
 
 // --- Data structures ---
@@ -96,6 +99,8 @@ public:
     Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
                                     qint64 expectedSize, const QString& sha1);
     Q_INVOKABLE void cancelModFileDownload(int downloadId);
+    Q_INVOKABLE void pauseModFileDownload(int downloadId);
+    Q_INVOKABLE void resumeModFileDownload(int downloadId);
     Q_INVOKABLE void retryModFileDownload(int downloadId);
 
     void downloadMod(
@@ -218,11 +223,13 @@ private:
         QString sha1;
         qint64 received = 0;
         bool cancelled = false;
+        bool paused = false;
         bool finished = false;
         bool failed = false;
         QString errorDetail;
-        qint64 lastSpeedCalc = 0;
-        qint64 lastSpeedBytes = 0;
+        QNetworkReply* reply = nullptr;
+        QFile* tmpFile = nullptr;
+        QString tmpPath;
     };
     QMap<int, ActiveModDownload> m_activeModDownloads;
     int m_nextModDownloadId = 1;

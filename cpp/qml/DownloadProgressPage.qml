@@ -242,7 +242,7 @@ Rectangle {
             function onModFileDownloadStarted(dlId, fileName, fileSize, displayName) {
                 console.log("[progress] mod dl started:", dlId, displayName)
                 modDownloadModel.append({dlId: dlId, name: displayName, fileName: fileName,
-                    received: 0, total: fileSize, done: false, error: "", speed: 0})
+                    received: 0, total: fileSize, done: false, error: "", speed: 0, paused: false})
                 modDlSpeeds[dlId] = {lastReceived: 0, lastTime: Date.now(), speed: 0}
                 modDlSpeedOn()
             }
@@ -292,13 +292,22 @@ Rectangle {
                     RowLayout {
                         Text { text: model.done ? (model.error ? "❌" : "✅") : "📦"; font.pixelSize: 14; color: model.error ? "#e06060" : (model.done ? "#4bc870" : "#5068c8") }
                         Text { text: model.name; font.pixelSize: 12; color: "#c0c8e0"; Layout.fillWidth: true; elide: Text.ElideRight }
-                        // Cancel button (active only)
+                        // Pause button (active only)
                         Rectangle {
-                            visible: !model.done && !model.error
-                            width: 50; height: 20; radius: 4; color: cancelHov.hovered ? "#3a1818" : "#2a1010"
-                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 9; color: "#c06060" }
-                            MouseArea { id: cancelHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { backend.cancelModFileDownload(model.dlId); modDownloadModel.remove(index) }
+                            visible: !model.done && !model.error && !model.paused
+                            width: 50; height: 20; radius: 4; color: pauseBtnHov.hovered ? "#3a3010" : "#2a2010"
+                            Text { anchors.centerIn: parent; text: "暂停"; font.pixelSize: 9; color: "#c0a030" }
+                            MouseArea { id: pauseBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { backend.pauseModFileDownload(model.dlId); modDownloadModel.setProperty(index, "paused", true) }
+                            }
+                        }
+                        // Resume button (paused only)
+                        Rectangle {
+                            visible: model.paused && !model.done && !model.error
+                            width: 50; height: 20; radius: 4; color: resumeBtnHov.hovered ? "#283818" : "#182810"
+                            Text { anchors.centerIn: parent; text: "继续"; font.pixelSize: 9; color: "#70c040" }
+                            MouseArea { id: resumeBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { backend.resumeModFileDownload(model.dlId); modDownloadModel.setProperty(index, "paused", false); modDownloadModel.setProperty(index, "received", 0) }
                             }
                         }
                         // Skip button (error only)

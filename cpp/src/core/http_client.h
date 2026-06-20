@@ -7,6 +7,7 @@
 #include <QThread>
 #include <QNetworkProxy>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QTimer>
 #include <QList>
 #include <string>
@@ -51,6 +52,13 @@ public:
     void download(const QString& url, const QString& savePath,
                   std::function<void(qint64 received, qint64 total)> progress,
                   std::function<void(bool ok, const QString& error)> done);
+
+    // Returns QNetworkReply* for abort/pause support
+    QNetworkReply* downloadWithReply(const QString& url, const QString& savePath,
+                  std::function<void(qint64 received, qint64 total)> progress,
+                  std::function<void(bool ok, const QString& error)> done);
+
+    void abortDownload(QNetworkReply* reply);
 
 signals:
     void proxyChanged();
