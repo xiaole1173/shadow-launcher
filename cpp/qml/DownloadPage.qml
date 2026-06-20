@@ -66,6 +66,8 @@ Rectangle {
     property bool shaderShowPreReleases: false
     property bool shaderSearching: false
     property string modDetailSlug: ""
+    property string modDetailStep1Ver: ""
+    property string modDetailStep2Loader: ""
     property string modDetailTitle: ""
     property string modDetailDesc: ""
     property string modDetailIcon: ""
@@ -3361,165 +3363,6 @@ Rectangle {
         }
     }
 
-    // ════════════════════════════════════════════
-    // MOD DETAIL OVERLAY
-    // ════════════════════════════════════════════
-    Item {
-        id: modDetailOverlay
-        anchors.fill: parent
-        z: 10
-        visible: page.modDetailSlug !== ""
-
-        Rectangle {
-            anchors.fill: parent
-            color: "#0c0f16"
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 10
-
-                // ← Back button
-                Rectangle {
-                    Layout.preferredHeight: 28
-                    width: backLbl.implicitWidth + 16; radius: 6
-                    color: backHov.hovered ? "#1a2848" : "transparent"
-                    Text {
-                        id: backLbl
-                        anchors.centerIn: parent
-                        text: "← 返回"; color: "#9094a8"; font.pixelSize: 12
-                    }
-                    MouseArea {
-                        id: backHov; anchors.fill: parent
-                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            page.modDetailSlug = ""
-                            modDetailVerModel.clear()
-                        }
-                    }
-                }
-
-                // Header: icon + title
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 10
-
-                    Rectangle {
-                        width: 48; height: 48; radius: 8; color: "#0c0e14"; clip: true
-                        Image {
-                            anchors.fill: parent; anchors.margins: 3
-                            source: page.modDetailIcon ? page.modDetailIcon.replace("cdn.modrinth.com", "mod.mcimirror.top") : ""
-                            fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true
-                            sourceSize.width: 96; sourceSize.height: 96
-                        }
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: page.modDetailTitle || "Mod 详情"
-                        color: "#d0d4e0"; font.pixelSize: 16; font.bold: true
-                        elide: Text.ElideRight
-                    }
-                }
-
-                // Description
-                Text {
-                    Layout.fillWidth: true
-                    text: page.modDetailDesc || ""
-                    color: "#788090"; font.pixelSize: 11
-                    wrapMode: Text.WordWrap; maximumLineCount: 4; elide: Text.ElideRight
-                }
-
-                // Loading
-                Text {
-                    visible: page.modDetailLoading
-                    Layout.fillWidth: true
-                    text: "加载版本中…"; color: "#606478"; font.pixelSize: 12
-                }
-
-                // Version list
-                Text {
-                    visible: modDetailVerModel.count > 0
-                    Layout.fillWidth: true
-                    text: "选择版本 (" + modDetailVerModel.count + ")"
-                    color: "#9094a8"; font.pixelSize: 12; font.bold: true
-                }
-
-                Flickable {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    contentHeight: verList.implicitHeight
-                    clip: true
-                    visible: modDetailVerModel.count > 0
-                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-                    ColumnLayout {
-                        id: verList; width: parent.width; spacing: 4
-
-                        Repeater {
-                            model: modDetailVerModel
-
-                            Rectangle {
-                                Layout.fillWidth: true; height: 52; radius: 8
-                                color: "#11141c"; border.color: "#1e2230"; border.width: 1
-
-                                RowLayout {
-                                    anchors.fill: parent; anchors.margins: 8; spacing: 8
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; spacing: 1
-                                        Layout.alignment: Qt.AlignVCenter
-
-                                        Text {
-                                            text: "MC " + (model.gameVersion || "?"); color: "#d0d4e0"
-                                            font.pixelSize: 11; font.bold: true
-                                        }
-                                        Text {
-                                            text: "v" + (model.versionNumber || "?"); color: "#788090"; font.pixelSize: 10
-                                        }
-                                        RowLayout {
-                                            spacing: 6
-                                            Text {
-                                                text: model.date ? model.date.slice(0, 10) : "-"
-                                                color: "#606478"; font.pixelSize: 9
-                                            }
-                                            Text {
-                                                text: "📥 " + formatVerDL(model.downloads)
-                                                color: "#606478"; font.pixelSize: 9
-                                            }
-                                            Rectangle {
-                                                visible: model.loader
-                                                width: verLdrLbl.implicitWidth + 6; height: 13; radius: 2
-                                                color: "#1a2848"
-                                                Text {
-                                                    id: verLdrLbl; anchors.centerIn: parent
-                                                    text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 8
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        width: 52; height: 24; radius: 4
-                                        color: dlVerBtn.hovered ? "#5a78e0" : "#5068c8"
-                                        Text { anchors.centerIn: parent; text: "下载"; color: "#fff"; font.pixelSize: 10; font.bold: true }
-                                        MouseArea {
-                                            id: dlVerBtn; anchors.fill: parent
-                                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (model.url && model.url !== "") {
-                                                    Qt.openUrlExternally(model.url)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // Mod detail signal handler
     Connections {
@@ -3561,4 +3404,229 @@ Rectangle {
             page.modDetailLoading = done < total
         }
     }
+
+    // ════════════════════════════════════════════
+    // MOD DETAIL OVERLAY
+    // ════════════════════════════════════════════
+    Item {
+        id: modDetailOverlay
+        anchors.fill: parent
+        z: 10
+        visible: page.modDetailSlug !== ""
+
+        property var rawVersionData: []
+        property int step: 1
+
+        property var uniqueGameVers: {
+            var s = []; var seen = {}
+            for (var rv = 0; rv < rawVersionData.length; rv++) {
+                var gvs = rawVersionData[rv].gameVersions || []
+                for (var gvi = 0; gvi < gvs.length; gvi++) {
+                    var gv = gvs[gvi]
+                    var parts = gv.split(".")
+                    var mgv = parts.length >= 2 ? parts[0] + "." + parts[1] : gv
+                    if (!seen[mgv]) { seen[mgv] = true; s.push({major: mgv, full: gv}) }
+                }
+            }
+            s.sort(function(a,b){
+                var as=a.major.split("."), bs=b.major.split(".")
+                var am=parseInt(as[0])||0, bm=parseInt(bs[0])||0
+                if(am!==bm) return bm-am
+                return(parseInt(bs[1])||0)-(parseInt(as[1])||0)
+            })
+            return s
+        }
+        property var availableLoaders: {
+            if (!page.modDetailStep1Ver) return []
+            var ls = []; var seen = {}
+            for (var rv = 0; rv < rawVersionData.length; rv++) {
+                var gvs = rawVersionData[rv].gameVersions || []
+                var match = false
+                for (var gvi = 0; gvi < gvs.length; gvi++) {
+                    if (gvs[gvi].indexOf(page.modDetailStep1Ver) === 0) { match = true; break }
+                }
+                if (!match) continue
+                var lds = rawVersionData[rv].loaders || []
+                for (var li = 0; li < lds.length; li++) {
+                    if (!seen[lds[li]]) { seen[lds[li]] = true; ls.push(lds[li]) }
+                }
+            }
+            return ls
+        }
+        property var filteredFiles: {
+            if (!page.modDetailStep1Ver) return []
+            var arr = []
+            for (var rv = 0; rv < rawVersionData.length; rv++) {
+                var gvs = rawVersionData[rv].gameVersions || []
+                var match = false
+                for (var gvi = 0; gvi < gvs.length; gvi++) {
+                    if (gvs[gvi].indexOf(page.modDetailStep1Ver) === 0) { match = true; break }
+                }
+                if (!match) continue
+                if (page.modDetailStep2Loader) {
+                    var lds = rawVersionData[rv].loaders || []
+                    if (lds.indexOf(page.modDetailStep2Loader) < 0) continue
+                }
+                arr.push(rawVersionData[rv])
+            }
+            return arr
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#0c0f16"
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Rectangle {
+                    Layout.preferredHeight: 28
+                    width: backLbl2.implicitWidth + 16; radius: 6
+                    color: backHov2.hovered ? "#1a2848" : "transparent"
+                    Text { id: backLbl2; anchors.centerIn: parent; text: "← 返回"; color: "#9094a8"; font.pixelSize: 12 }
+                    MouseArea {
+                        id: backHov2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: { page.modDetailSlug = ""; page.modDetailStep1Ver = ""; page.modDetailStep2Loader = ""; rawVersionData = []; step = 1 }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+                    Rectangle { width: 48; height: 48; radius: 8; color: "#0c0e14"; clip: true
+                        Image {
+                            anchors.fill: parent; anchors.margins: 3
+                            fillMode: Image.PreserveAspectFit; asynchronous: true; cache: true
+                            sourceSize.width: 96; sourceSize.height: 96
+                            source: page.modDetailIcon ? page.modDetailIcon.replace("cdn.modrinth.com", "mod.mcimirror.top") : ""
+                        }
+                    }
+                    ColumnLayout { spacing: 1
+                        Text { text: page.modDetailTitle || "Mod 详情"; color: "#d0d4e0"; font.pixelSize: 15; font.bold: true }
+                        Text { text: page.modDetailDesc || ""; color: "#788090"; font.pixelSize: 10; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+                    }
+                }
+
+                RowLayout {
+                    visible: !page.modDetailLoading
+                    Layout.fillWidth: true; spacing: 4
+                    Rectangle { Layout.fillWidth: true; height: 2; radius: 1; color: step >= 1 ? "#5068c8" : "#2a3040" }
+                    Rectangle { Layout.fillWidth: true; height: 2; radius: 1; color: step >= 2 ? "#5068c8" : "#2a3040" }
+                    Rectangle { Layout.fillWidth: true; height: 2; radius: 1; color: step >= 3 ? "#5068c8" : "#2a3040" }
+                }
+                RowLayout { visible: !page.modDetailLoading; Layout.fillWidth: true
+                    Text { text: "选择版本"; color: step >= 1 ? "#8aaeff" : "#505468"; font.pixelSize: 10; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+                    Text { text: "选择加载器"; color: step >= 2 ? "#8aaeff" : "#505468"; font.pixelSize: 10; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+                    Text { text: "下载文件"; color: step >= 3 ? "#8aaeff" : "#505468"; font.pixelSize: 10; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+                }
+
+                Text { visible: page.modDetailLoading; Layout.fillWidth: true; text: "加载中…"; color: "#606478"; font.pixelSize: 12 }
+
+                Text { visible: step===1&&!page.modDetailLoading; Layout.fillWidth: true; text: "选择游戏版本"; color: "#9094a8"; font.pixelSize: 12; font.bold: true }
+                Flow { visible: step===1&&!page.modDetailLoading; Layout.fillWidth: true; spacing: 6
+                    Repeater { model: uniqueGameVers
+                        Rectangle { width: vCt.implicitWidth+12; height: 24; radius: 12
+                            color: modelData.major===page.modDetailStep1Ver?"#1a3a68":"#11141c"
+                            border.color: modelData.major===page.modDetailStep1Ver?"#4068c8":"#2a3040"
+                            Text { id: vCt; anchors.centerIn: parent; text: modelData.major||modelData.full; color: modelData.major===page.modDetailStep1Ver?"#8aaeff":"#788090"; font.pixelSize: 11 }
+                            MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { page.modDetailStep1Ver=modelData.major; page.modDetailStep2Loader=""; step=2 }
+                            }
+                        }
+                    }
+                }
+
+                Text { visible: step===2&&!page.modDetailLoading; Layout.fillWidth: true; text: "已选: "+(page.modDetailStep1Ver||"?")+" — 选择加载器"; color: "#9094a8"; font.pixelSize: 12; font.bold: true }
+                Flow { visible: step===2&&!page.modDetailLoading; Layout.fillWidth: true; spacing: 6
+                    Repeater { model: availableLoaders
+                        Rectangle { width: lCt.implicitWidth+12; height: 24; radius: 12
+                            color: modelData===page.modDetailStep2Loader?"#1a3a68":"#11141c"
+                            border.color: modelData===page.modDetailStep2Loader?"#4068c8":"#2a3040"
+                            Text { id: lCt; anchors.centerIn: parent; text: modelData||"?"; color: modelData===page.modDetailStep2Loader?"#8aaeff":"#788090"; font.pixelSize: 11 }
+                            MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { page.modDetailStep2Loader=modelData; step=3 }
+                            }
+                        }
+                    }
+                    Rectangle { visible: availableLoaders.length>0; width: aLt.implicitWidth+12; height: 24; radius: 12
+                        color: !page.modDetailStep2Loader?"#1a3a68":"#11141c"
+                        border.color: !page.modDetailStep2Loader?"#4068c8":"#2a3040"
+                        Text { id: aLt; anchors.centerIn: parent; text: "全部"; color: !page.modDetailStep2Loader?"#8aaeff":"#788090"; font.pixelSize: 11 }
+                        MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { page.modDetailStep2Loader=""; step=3 }
+                        }
+                    }
+                }
+
+                Text { visible: step===3&&!page.modDetailLoading; Layout.fillWidth: true; color: "#9094a8"; font.pixelSize: 12; font.bold: true
+                    text: "已选: "+(page.modDetailStep1Ver||"?")+(page.modDetailStep2Loader?" / "+page.modDetailStep2Loader:"")+" — 共 "+filteredFiles.length+" 个文件"
+                }
+                Flickable { Layout.fillWidth: true; Layout.fillHeight: step===3; Layout.preferredHeight: step!==3?0:undefined
+                    contentHeight: flList.implicitHeight; clip: true; visible: step===3&&filteredFiles.length>0
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    ColumnLayout { id: flList; width: parent.width; spacing: 4
+                        Repeater { model: filteredFiles
+                            Rectangle { Layout.fillWidth: true; height: 56; radius: 8; color: "#11141c"; border.color: "#1e2230"; border.width: 1
+                                RowLayout { anchors.fill: parent; anchors.margins: 8; spacing: 8
+                                    ColumnLayout { Layout.fillWidth: true; spacing: 1; Layout.alignment: Qt.AlignVCenter
+                                        Text { text: modelData.versionNumber||"?"; color: "#d0d4e0"; font.pixelSize: 11; font.bold: true; elide: Text.ElideRight }
+                                        RowLayout { spacing: 6
+                                            Text { text: (modelData.loaders||[]).join(", ")||"any"; color: "#788090"; font.pixelSize: 9 }
+                                            Text { text: modelData.date?modelData.date.slice(0,10):"-"; color: "#606478"; font.pixelSize: 9 }
+                                            Text { text: "📥 "+(modelData.downloads>=1000000?(modelData.downloads/1000).toFixed(1)+"K":modelData.downloads>=1000?(modelData.downloads/1000).toFixed(1)+"K":String(modelData.downloads||0)); color: "#606478"; font.pixelSize: 9 }
+                                        }
+                                    }
+                                    Rectangle { width: 52; height: 24; radius: 4; color: dlBtn.hovered?"#5a78e0":"#5068c8"
+                                        Text { anchors.centerIn: parent; text: "下载"; color: "#fff"; font.pixelSize: 10; font.bold: true }
+                                        MouseArea { id: dlBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onClicked: { if(modelData.url)Qt.openUrlExternally(modelData.url) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Connections {
+        target: backend
+        enabled: backend !== null
+        function onModVersionsPartial(slug, versions, details) {
+            if (slug !== page.modDetailSlug) return
+            page.modDetailLoading = false
+            var arr = []
+            if (versions && versions.length > 0) {
+                for (var vi = 0; vi < versions.length; vi++) {
+                    var v = versions[vi]
+                    var d = details ? details[v] : null
+                    var gvs = []
+                    if (d) {
+                        if (d.game_versions) gvs = d.game_versions
+                        else if (d.gameVersions) gvs = d.gameVersions
+                    }
+                    if (gvs.length === 0) gvs = [v]
+                    arr.push({
+                        gameVersions: gvs,
+                        loaders: d ? (d.loaders||[]) : [],
+                        versionNumber: d ? (d.version_number||v) : v,
+                        date: d ? (d.date_published||"") : "",
+                        downloads: d ? (d.downloads||0) : 0,
+                        url: d ? (d.url||d.download_url||"") : "",
+                        filename: d ? (d.filename||"") : ""
+                    })
+                }
+            }
+            modDetailOverlay.rawVersionData = arr
+        }
+        function onModVersionsProgress(done, total) {
+            if (page.modDetailSlug === "") return
+            page.modDetailLoading = done < total
+        }
+    }
+
+
 }
