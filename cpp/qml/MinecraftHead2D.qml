@@ -1,54 +1,48 @@
 import QtQuick
 
-// 2D Minecraft face avatar — GPU Canvas, nearest-neighbour, zero fluff.
-Rectangle {
+Canvas {
     id: root
     property url skinSource: ""
     width: 48; height: 48
-    color: "transparent"
+    antialiasing: false
+    renderStrategy: Canvas.Threaded
 
-    Image {
-        id: skin
-        source: root.skinSource
-        visible: false
-        cache: false
-        asynchronous: true
-        onStatusChanged: {
-            if (status === Image.Ready || status === Image.Error)
-                canvas.requestPaint()
+    property bool _loaded: false
+
+    onSkinSourceChanged: {
+        _loaded = false
+        if (skinSource.toString()) {
+            loadImage(skinSource)
+        } else {
+            requestPaint()
         }
     }
 
-    Connections {
-        target: root
-        function onSkinSourceChanged() { canvas.requestPaint() }
+    onImageLoaded: {
+        _loaded = true
+        requestPaint()
     }
 
-    Canvas {
-        id: canvas
-        anchors.fill: parent
-        antialiasing: false
-        renderStrategy: Canvas.Threaded
+    onPaint: {
+        var ctx = getContext("2d")
+        var w = width, h = height
+        ctx.clearRect(0, 0, w, h)
 
-        onPaint: {
-            var ctx = getContext("2d")
-            var w = width, h = height
-            ctx.clearRect(0, 0, w, h)
-
-            if (skin.status !== Image.Ready) {
-                // Loading spinner placeholder
-                ctx.fillStyle = "#2a3040"
-                ctx.fillRect(0, 0, w, h)
-                return
-            }
-
-            ctx.imageSmoothingEnabled = false
-
-            // Face: (8,8) 8×8 from skin atlas
-            ctx.drawImage(skin, 8, 8, 8, 8, 0, 0, w, h)
-
-            // Hat overlay: (40,8) 8×8, alpha-blend
-            ctx.drawImage(skin, 40, 8, 8, 8, 0, 0, w, h)
+        if (!_loaded) {
+            ctx.fillStyle = "#2a3040"
+            ctx.fillRect(0, 0, w, h)
+            return
         }
+
+        ctx.imageSmoothingEnabled = false
+
+        // Face: skin atlas (8,8) 8×8 → canvas
+        ctx.drawImage(skinSource, 8, 8, 8, 8, 0, 0, w, h)
+
+        // Hat: (40,8) 8×8, alpha-blended on top
+        ctx.drawImage(skinSource, 40, 8, 8, 8, 0, 0, w, h)
+
+        // Clip to square
+        ctx.globalCompositeOperation = "source-atop"
     }
 }
