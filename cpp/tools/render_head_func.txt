@@ -77,7 +77,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
         }
     }
 
-    QImage final = out.scaled(64, 64, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    QImage final = out.scaled(64, 64, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     QString hp=skinPath.left(skinPath.length()-4)+QStringLiteral("_head.png");
     if(final.save(hp,"PNG")){qCInfo(logAccount)<<"3D head:"<<hp;return hp;}
     qCWarning(logAccount)<<"renderHead3D: save fail"<<hp;
