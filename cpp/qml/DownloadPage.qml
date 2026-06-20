@@ -3486,8 +3486,8 @@ Rectangle {
                             page.modDetailSlug = ""
                             page.modDetailRawVersions = []
                             page.modDetailVersionMap = {}
-                            expandedGroups = []
-                            selectedVersion = ""
+                            modDetailOverlay.expandedGroups = []
+                            modDetailOverlay.selectedVersion = ""
                         }
                     }
                 }
@@ -3556,7 +3556,7 @@ Rectangle {
                     id: modDetailScroll
                     Layout.fillWidth: true
                     Layout.fillHeight: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
-                    Layout.preferredHeight: (!page.modDetailLoading && modDetailOverlay.grouped.length > 0) ? undefined : 0
+                    Layout.preferredHeight: 0
                     clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
                     visible: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
