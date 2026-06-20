@@ -3544,6 +3544,7 @@ Rectangle {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
                     visible: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
+                    enabled: !page.modDetailLoading && modDetailOverlay.grouped.length > 0
 
                     Column {
                         width: modDetailScroll.availableWidth - 4; spacing: 4
@@ -3647,7 +3648,7 @@ Rectangle {
                                             }
                                             MouseArea {
                                                 id: verHover; anchors.fill: parent
-                                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                hoverEnabled: true
                                             }
                                         }
                                     }
