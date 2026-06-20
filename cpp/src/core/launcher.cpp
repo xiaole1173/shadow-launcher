@@ -790,14 +790,13 @@ void Launcher::ensureLegacyAssets(const QString& assetIndexId)
     QString legacyDir = m_gameDir + QStringLiteral("/assets/virtual/") + assetIndexId;
     QString indexFile = m_gameDir + QStringLiteral("/assets/indexes/") + assetIndexId + QStringLiteral(".json");
 
-    // Already done
-    if (QDir(legacyDir).exists() && !QDir(legacyDir).isEmpty(QDir::Dirs | QDir::Files))
-        return;
-
+    // Check if the index file exists (skip re-build if nothing to read)
     if (!QFileInfo::exists(indexFile)) {
         qCWarning(logLaunch) << "Legacy asset index not found:" << indexFile;
         return;
     }
+
+    // Always process — per-file check prevents redundant copies
 
     QFile file(indexFile);
     if (!file.open(QIODevice::ReadOnly)) {
