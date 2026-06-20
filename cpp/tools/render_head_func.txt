@@ -21,10 +21,13 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     bool hat = (tH >= 32);
     float pad = 0.30f;
 
+    const float CAMZ = 10.0f; // camera behind head (Z=-10), looking along +Z
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
         float rx=x*cy-z*sy, rz=x*sy+z*cy, ry2=y*cp-rz*sp;
         dep=y*sp+rz*cp;
-        sx=(rx+HW)*SC+OFF; sy=(HW-ry2)*SC+OFF;
+        float dz = rz + CAMZ; if (dz<0.5f) dz=0.5f;
+        sx = (rx/dz) * CAMZ * SC + OFF;
+        sy = (-ry2/dz) * CAMZ * SC + OFF;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep; bool ht; };
