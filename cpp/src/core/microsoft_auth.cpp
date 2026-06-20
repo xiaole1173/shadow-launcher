@@ -136,10 +136,7 @@ void MicrosoftAuth::startLogin(const QString& clientId)
             m_localServer = nullptr;
 
             emit loginProgress(QStringLiteral("验证中"), QStringLiteral("正在换取访问令牌..."));
-            // Defer to next event loop iteration to avoid nested loop issues
-            QTimer::singleShot(0, this, [this, code]() {
-                exchangeCode(code);
-            });
+            exchangeCode(code);  // sync call — WinHTTP doesn't need event loop
         }
     });
 
