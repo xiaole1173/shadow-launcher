@@ -210,6 +210,7 @@ public:
 
     // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
+    Q_INVOKABLE void updateOfflineSkin(const QString& username);
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();

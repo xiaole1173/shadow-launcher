@@ -797,6 +797,10 @@ void ShadowBackend::offlineLogin(const QString& username) {
     m_account->offlineLogin(username);
 }
 
+void ShadowBackend::updateOfflineSkin(const QString& username) {
+    m_account->updateOfflineSkin(username);
+}
+
 void ShadowBackend::microsoftLogin() {
     m_account->microsoftLogin();
 }
