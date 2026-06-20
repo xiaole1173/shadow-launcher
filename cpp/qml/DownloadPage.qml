@@ -1541,7 +1541,10 @@ Rectangle {
             anchors.fill: parent
             color: "#0c0f16"
             z: 5
-            visible: modDetailVisible
+            opacity: modDetailVisible ? 1 : 0
+            enabled: modDetailVisible
+            visible: true
+            Behavior on opacity { NumberAnimation { duration: 200 } }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -1586,7 +1589,9 @@ Rectangle {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
-                    visible: modDetailStep === "loader"
+                    opacity: modDetailStep === "loader" ? 1 : 0
+                    enabled: modDetailStep === "loader"
+                    visible: true
 
                     Text { text: "选择Loader:"; color: "#9094a8"; font.pixelSize: 12 }
 
@@ -1598,7 +1603,7 @@ Rectangle {
                             border.color: modelData === modDetailLoader ? "#5068c8" : "#2a3040"; border.width: 1
                             Text {
                                 anchors.centerIn: parent
-                                text: formatLoaderName(modelData)
+                                text: ({ "fabric": "Fabric", "forge": "Forge", "quilt": "Quilt", "neoforge": "NeoForge" })[modelData] || modelData
                                 color: modelData === modDetailLoader ? "#8aaeff" : "#788090"; font.pixelSize: 11
                                 font.weight: modelData === modDetailLoader ? Font.Bold : Font.Normal
                             }
@@ -1612,7 +1617,9 @@ Rectangle {
 
                 // Step 2: Version selector (grouped by major.minor)
                 ColumnLayout {
-                    visible: modDetailStep === "version"
+                    opacity: modDetailStep === "version" ? 1 : 0
+                    enabled: modDetailStep === "version"
+                    visible: true
                     spacing: 6
                     Layout.fillWidth: true
 
@@ -1710,7 +1717,9 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true; height: 36; radius: 6
                         color: modDetailVer ? (modDlBtn.hovered ? "#5a78e0" : "#5068c8") : "#1e2230"
-                        visible: modDetailVer !== ""
+                        opacity: modDetailVer !== "" ? 1 : 0
+                        enabled: modDetailVer !== ""
+                        visible: true
 
                         Text {
                             anchors.centerIn: parent
