@@ -1070,10 +1070,26 @@ Window {
                                             if (li === 5) return lt === "quilt"
                                             return true
                                         })
-                                        var si = sortBtn.versionSortIndex
+                                        // Sort: release > snapshot > old, then by releaseTime descending (newest first)
+                                        function typeOrder(vt) {
+                                            if (vt === "release") return 0
+                                            if (vt === "snapshot") return 1
+                                            return 2  // old / unknown
+                                        }
                                         data.sort(function(a, b) {
-                                            if (si === 0) return b.id.localeCompare(a.id, undefined, {numeric: true})
-                                            if (si === 1) return a.id.localeCompare(b.id, undefined, {numeric: true})
+                                            var si = sortBtn.versionSortIndex
+                                            if (si === 0) {
+                                                var toA = typeOrder(a.versionType), toB = typeOrder(b.versionType)
+                                                if (toA !== toB) return toA - toB
+                                                var ta = a.releaseTimeMs || 0, tb = b.releaseTimeMs || 0
+                                                return tb - ta  // newest first
+                                            }
+                                            if (si === 1) {
+                                                var toA = typeOrder(a.versionType), toB = typeOrder(b.versionType)
+                                                if (toA !== toB) return toA - toB
+                                                var ta = a.releaseTimeMs || 0, tb = b.releaseTimeMs || 0
+                                                return ta - tb  // oldest first
+                                            }
                                             if (si === 2) return b.sizeBytes - a.sizeBytes
                                             return b.modCount - a.modCount
                                         })

@@ -38,7 +38,6 @@ public:
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();
-    Q_INVOKABLE QString getSkinUrl(const QString &username = {}) const;
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
 
     // Microsoft login state
@@ -60,7 +59,6 @@ signals:
 private:
     void downloadSkin(const QString &username);
     void downloadOnlineSkin();
-    void downloadSkinFromNameMC();
     void setFallbackSkin();
     void loadOfflineHistory();
     void saveOfflineHistory();

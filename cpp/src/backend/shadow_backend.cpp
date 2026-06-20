@@ -159,6 +159,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 totalSize += it.fileInfo().size();
             }
         }
+        // Count shared assets (objects/) for a realistic total
+        QString assetsPath = m_app->gameDir() + QStringLiteral("/assets/objects");
+        if (QDir(assetsPath).exists()) {
+            QDirIterator ait(assetsPath, QDir::Files, QDirIterator::Subdirectories);
+            while (ait.hasNext()) { ait.next(); totalSize += ait.fileInfo().size(); }
+        }
 
         QVariantMap summary;
         if (totalSize < 1024 * 1024)
@@ -578,6 +584,12 @@ void ShadowBackend::refreshVersionDetails()
     }
 
     const QStringList entries = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    // Build a lookup for release times
+    QMap<QString, QDateTime> releaseTimes;
+    for (const auto& v : cached) {
+        if (v.releaseTime.isValid())
+            releaseTimes[v.id] = v.releaseTime;
+    }
     for (const QString& versionId : entries) {
         QString verPath = versionsDir.filePath(versionId);
         QString jarPath = verPath + QStringLiteral("/") + versionId + QStringLiteral(".jar");
@@ -594,8 +606,21 @@ void ShadowBackend::refreshVersionDetails()
                 vtype = QStringLiteral("old");
             else
                 vtype = QStringLiteral("release");
+        } else {
+            // Map Mojang raw types to simplified display types
+            if (vtype == QStringLiteral("snapshot")) {
+                vtype = QStringLiteral("snapshot");
+            } else if (vtype == QStringLiteral("release")) {
+                vtype = QStringLiteral("release");
+            } else {
+                vtype = QStringLiteral("old");  // old_alpha, old_beta, pending, etc.
+            }
         }
         detail[QStringLiteral("versionType")] = vtype;
+
+        // Release time (Unix ms) for sorting
+        QDateTime rt = releaseTimes.value(versionId);
+        detail[QStringLiteral("releaseTimeMs")] = rt.isValid() ? rt.toMSecsSinceEpoch() : 0;
 
         // Detect mod loader
         QString loaderType = QStringLiteral("原版");
@@ -674,6 +699,14 @@ void ShadowBackend::refreshGameDirInfo()
         }
     }
     info[QStringLiteral("versionCount")] = versionCount;
+
+    // Count shared assets (objects/ directory)
+    QString assetsPath = gameDir.absoluteFilePath(QStringLiteral("assets"));
+    QDir assetsDir(assetsPath);
+    if (assetsDir.exists()) {
+        QDirIterator ait(assetsPath, QDir::Files, QDirIterator::Subdirectories);
+        while (ait.hasNext()) { ait.next(); totalSize += ait.fileInfo().size(); }
+    }
 
     // Count mods
     QString modsPath = gameDir.absoluteFilePath(QStringLiteral("mods"));
@@ -774,10 +807,6 @@ void ShadowBackend::cancelMicrosoftLogin() {
 
 void ShadowBackend::logout() {
     m_account->logout();
-}
-
-QString ShadowBackend::getSkinUrl(const QString& username) const {
-    return m_account->getSkinUrl(username);
 }
 
 // ============================================================

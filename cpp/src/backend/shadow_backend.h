@@ -213,7 +213,6 @@ public:
     Q_INVOKABLE void microsoftLogin();
     Q_INVOKABLE void cancelMicrosoftLogin();
     Q_INVOKABLE void logout();
-    Q_INVOKABLE QString getSkinUrl(const QString& username = {}) const;
     Q_INVOKABLE QVariantList scanJavaInstallations();
     Q_INVOKABLE QString autoSelectJava();
     Q_INVOKABLE QString detectJava();

@@ -72,11 +72,14 @@ void AccountBackend::offlineLogin(const QString &username)
         return;
     }
 
-    // Generate offline-mode UUID (Java-compatible)
-    m_username = name;
-    m_uuid = generateOfflineUuid(name);
+    // Preserve MS session username/uuid if already logged in online
+    bool hadMsSession = m_loggedIn && m_isOnline && !m_msMcToken.isEmpty();
+    if (!hadMsSession) {
+        m_username = name;
+        m_uuid = generateOfflineUuid(name);
+    }
     m_loggedIn = true;
-    m_isOnline = false;
+    m_isOnline = hadMsSession;  // don't flip online→offline if MS session exists
 
     // Track offline username history (most recent first, max 20)
     m_offlineUsernames.removeAll(name);
@@ -134,16 +137,8 @@ void AccountBackend::cancelMicrosoftLogin()
 }
 
 // ────────────────────────────────────────────────────────────
-// Skin URL (NameMC face API)
+// Skin Cache Path
 // ────────────────────────────────────────────────────────────
-
-QString AccountBackend::getSkinUrl(const QString &username) const
-{
-    QString name = username.isEmpty() ? m_username : username;
-    if (name.isEmpty())
-        return {};
-    return QStringLiteral("https://api.namemc.com/skin/%1/face").arg(name);
-}
 
 // ────────────────────────────────────────────────────────────
 // Generate Offline UUID  (Java Edition compatible)
@@ -190,8 +185,8 @@ QString AccountBackend::skinCachePath(const QString &username) const
 
 void AccountBackend::downloadSkin(const QString &username)
 {
-    // ── Online mode: fetch from Mojang API with mcToken ──
-    if (m_isOnline && !m_msMcToken.isEmpty()) {
+    // ── Always try Mojang API first if we have a valid mcToken ──
+    if (!m_msMcToken.isEmpty()) {
         downloadOnlineSkin();
         return;
     }
@@ -207,54 +202,10 @@ void AccountBackend::downloadSkin(const QString &username)
         return;
     }
 
-    // ── Offline mode: use placeholder (Steve skin) ──
-    if (!m_isOnline) {
-        QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
-        if (QFileInfo::exists(placeholder)) {
-            m_skinPath = placeholder;
-        }
-        qCInfo(logAccount) << "Skin: offline placeholder for" << username;
-        emit skinReady();
-        return;
-    }
-
-    // ── Online mode: fetch from NameMC API ──
-    QString url = getSkinUrl(username);
-    HttpClient::instance().get(url,
-        // success callback
-        [this, username, cachePath](int status, const QByteArray &body) {
-            if (status == 200 && !body.isEmpty()) {
-                // Ensure parent directory exists
-                QFileInfo fi(cachePath);
-                QDir().mkpath(fi.absolutePath());
-
-                QFile file(cachePath);
-                if (file.open(QIODevice::WriteOnly)) {
-                    file.write(body);
-                    file.close();
-                    m_skinPath = cachePath;
-                }
-                qCInfo(logAccount) << "Skin downloaded:" << username
-                                   << "status:" << status;
-            } else {
-                // Fallback to placeholder
-                QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
-                if (QFileInfo::exists(placeholder)) {
-                    m_skinPath = placeholder;
-                }
-            }
-            emit skinReady();
-        },
-        // error callback
-        [this, username](const QString &error) {
-            qCWarning(logAccount) << "Skin download failed for" << username << ":" << error;
-            QString placeholder = m_dataDir + QStringLiteral("/assets/steve.png");
-            if (QFileInfo::exists(placeholder)) {
-                m_skinPath = placeholder;
-            }
-            emit skinReady();
-        }
-    );
+    // ── Offline / no token: use placeholder ──
+    setFallbackSkin();
+    qCInfo(logAccount) << "Skin: placeholder for" << username;
+    emit skinReady();
 }
 
 // ────────────────────────────────────────────────────────────
@@ -272,9 +223,9 @@ void AccountBackend::downloadOnlineSkin()
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
-            qCWarning(logAccount) << "Mojang profile fetch failed:" << reply->errorString()
-                                  << "→ falling back to NameMC";
-            downloadSkinFromNameMC();
+            qCWarning(logAccount) << "Mojang profile fetch failed:" << reply->errorString();
+            setFallbackSkin();
+            emit skinReady();
             return;
         }
 
@@ -321,35 +272,6 @@ void AccountBackend::downloadOnlineSkin()
             emit skinReady();
         });
     });
-}
-
-void AccountBackend::downloadSkinFromNameMC()
-{
-    QString url = getSkinUrl(m_username);
-    QString cachePath = skinCachePath(m_username);
-    HttpClient::instance().get(url,
-        [this, cachePath](int status, const QByteArray &body) {
-            if (status == 200 && !body.isEmpty()) {
-                QFileInfo fi(cachePath);
-                QDir().mkpath(fi.absolutePath());
-                QFile file(cachePath);
-                if (file.open(QIODevice::WriteOnly)) {
-                    file.write(body);
-                    file.close();
-                    m_skinPath = cachePath;
-                }
-                qCInfo(logAccount) << "Skin downloaded from NameMC";
-            } else {
-                setFallbackSkin();
-            }
-            emit skinReady();
-        },
-        [this](const QString &error) {
-            qCWarning(logAccount) << "NameMC skin download failed:" << error;
-            setFallbackSkin();
-            emit skinReady();
-        }
-    );
 }
 
 void AccountBackend::setFallbackSkin()
