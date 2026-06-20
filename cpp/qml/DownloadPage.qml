@@ -3681,38 +3681,27 @@ Rectangle {
                                                     }
                                                 }
 
-                                                Rectangle {
-                                                    width: 60; height: 26; radius: 5
-                                                    color: dlBtn2.hovered ? "#5a78e0" : "#5068c8"
-                                                    Text { anchors.centerIn: parent; text: "下载"; color: "#fff"; font.pixelSize: 10; font.bold: true }
-                                                    MouseArea {
-                                                        id: dlBtn2; anchors.fill: parent
-                                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            var d = modDetailOverlay.getVersionDetail(modelData)
-                                                            if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
-                                                            var loaders = d.loaders || []
-                                                            var loader = loaders.length > 0 ? loaders[0] : ""
-                                                            var vn = d.version_number || modelData
-                                                            var title = page.modDetailTitle || page.modDetailSlug || "mod"
-                                                            // Build filename: title-versionNumber-loader-gameVersion.jar
-                                                            var safeTitle = title.replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
-                                                            var fn = safeTitle + "-" + vn + (loader ? ("-" + loader) : "") + (modelData ? ("-" + modelData) : "") + ".jar"
-                                                            var mineDir = String(backend ? (backend.minecraftDir || "") : "")
-                                                            var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
-                                                            page.pendingModDownload = {slug: page.modDetailSlug, title: title,
-                                                                versionNumber: vn, loader: loader, gameVersion: modelData,
-                                                                url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
-                                                                defaultPath: defaultPath, displayName: title + " " + vn}
-                                                            modFileDialog.currentFile = new URL(defaultPath)
-                                                            modFileDialog.open()
-                                                        }
-                                                    }
-                                                }
-                                            }
                                             MouseArea {
                                                 id: verHover; anchors.fill: parent
-                                                hoverEnabled: true
+                                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    var d = modDetailOverlay.getVersionDetail(modelData)
+                                                    if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
+                                                    var loaders = d.loaders || []
+                                                    var loader = loaders.length > 0 ? loaders[0] : ""
+                                                    var vn = d.version_number || modelData
+                                                    var title = page.modDetailTitle || page.modDetailSlug || "mod"
+                                                    var safeTitle = title.replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
+                                                    var fn = safeTitle + "-" + vn + (loader ? ("-" + loader) : "") + (modelData ? ("-" + modelData) : "") + ".jar"
+                                                    var mineDir = String(backend ? (backend.minecraftDir || "") : "")
+                                                    var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
+                                                    page.pendingModDownload = {slug: page.modDetailSlug, title: title,
+                                                        versionNumber: vn, loader: loader, gameVersion: modelData,
+                                                        url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
+                                                        defaultPath: defaultPath, displayName: title + " " + vn}
+                                                    modFileDialog.currentFile = new URL(defaultPath)
+                                                    modFileDialog.open()
+                                                }
                                             }
                                         }
                                     }
@@ -3723,6 +3712,7 @@ Rectangle {
                 }
             }
         }
+    }
     }
 
     // Mod detail signal handler (ROOT LEVEL)
