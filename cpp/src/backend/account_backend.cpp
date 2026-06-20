@@ -195,44 +195,44 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     QImage skin(skinPath);
     if (skin.isNull()) { qCWarning(logAccount)<<"renderHead3D: load fail"<<skinPath; return {}; }
 
-    constexpr int  SS = 4, SZ = 64 * SS;
-    constexpr float HW = 4.0f, DEG = 0.01745329252f;
-    const float yr = 22.0f*DEG, pr = 0.0f;
-    const float cosY=cosf(yr),sinY=sinf(yr), cosP=cosf(pr),sinP=sinf(pr);
-    const float SC = (float)SZ / 12.0f, OFF = (SZ - SC*8.0f) * 0.5f;
-    const float CAMZ = 10.0f;
-
-    // Light direction (upper-front-right, diffuse)
-    const float Lx = -0.4f, Ly = -0.6f, Lz = 1.0f;
-    const float Llen = sqrtf(Lx*Lx + Ly*Ly + Lz*Lz);
+    constexpr int  SS = 4;
+    constexpr int  SZ = 64 * SS;
+    constexpr float HW = 4.0f;
+    constexpr float DEG = 0.01745329252f;
+    const float yr = 18.0f*DEG, pr = 0.0f;
+    const float cosYf=cosf(yr),sinYf=sinf(yr), cosPf=cosf(pr),sinPf=sinf(pr);
+    const float SC = (float)SZ / 12.0f;
+    const float OFF = (SZ - SC*8.0f) * 0.5f;
+    // Diffuse light: upper-front-right
+    const float Lx=-0.4f, Ly=-0.6f, Lz=1.0f, Llen=sqrtf(Lx*Lx+Ly*Ly+Lz*Lz);
 
     QImage out(SZ, SZ, QImage::Format_ARGB32_Premultiplied);
     out.fill(0);
 
     int tW = skin.width(), tH = skin.height();
     float dV = (float)tH;
+    // 64x32 also has hat in right-half (cols 32-63), same UV offset +32
     bool hat = (tH >= 32);
     float pad = 0.30f;
 
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
-        float rx=x*cosY-z*sinY, rz=x*sinY+z*cosY, ry2=y*cosP-rz*sinP;
-        dep=y*sinP+rz*cosP;
-        float dz = rz + CAMZ; if (dz<0.5f) dz=0.5f;
-        sx = (rx/dz) * CAMZ * SC + OFF;
-        sy = (-ry2/dz) * CAMZ * SC + OFF;
+        float rx=x*cosYf-z*sinYf, rz=x*sinYf+z*cosYf, ry2=y*cosPf-rz*sinPf;
+        dep=y*sinPf+rz*cosPf;
+        sx=(rx+HW)*SC+OFF; sy=(HW-ry2)*SC+OFF;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep, br; bool ht; };
     Tri tri[24]; int tc=0;
 
-    auto emitQuad = [&](const float cx[4],const float cy[4],const float cz[4],
-                         float nx,float ny,float nz, int u0,int v0,int u1,int v1, bool isHat)
+    // Compute face brightness from rotated normal · light direction
+    auto faceBright = [&](float nx,float ny,float nz)->float {
+        float rnx=nx*cosYf-nz*sinYf, rnz=nx*sinYf+nz*cosYf, rny2=ny*cosPf-rnz*sinPf;
+        float d = (rnx*Lx+rny2*Ly+rnz*Lz)/Llen;
+        float b = 0.4f + 0.6f * fmaxf(0.0f, d);
+        return b > 1.0f ? 1.0f : b;
+    };
+    auto emitQuad = [&](const float cx[4],const float cy[4],const float cz[4], int u0,int v0,int u1,int v1, bool isHat, float br)
     {
-        // Rotate face normal for lighting
-        float rnx=nx*cosY-nz*sinY, rnz=nx*sinY+nz*cosY, rny2=ny*cosP-rnz*sinP;
-        float br = 0.3f + 0.7f * fmaxf(0.0f, (rnx*Lx + rny2*Ly + rnz*Lz) / Llen);
-        if (br > 1.0f) br = 1.0f;
-
         float sx[4],sy[4],sd[4];
         for(int i=0;i<4;++i) prj(cx[i],cy[i],cz[i],sx[i],sy[i],sd[i]);
         float us[4]={(float)u0/tW,(float)u1/tW,(float)u1/tW,(float)u0/tW};
@@ -242,15 +242,15 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
         tri[tc]={sx[0],sy[0],sx[2],sy[2],sx[3],sy[3],us[0],vs[0],us[2],vs[2],us[3],vs[3],(sd[0]+sd[2]+sd[3])/3.f,br,isHat};tc++;
     };
 
-    // Head faces (with normals in object space)
-    {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,-HW,-HW},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,0,-1,0,8,0,16,8,false);}
-    {const float X[4]={HW,HW,HW,HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,1,0,0,0,8,8,16,false);}
-    {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,HW,HW,HW};emitQuad(X,Y,Z,0,0,1,8,8,16,16,false);}
-    // Hat faces
+    // Head inner faces
+    {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,-HW,-HW},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,8,0,16,8,false,faceBright(0,-1,0));}
+    {const float X[4]={HW,HW,HW,HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,0,8,8,16,false,faceBright(1,0,0));}
+    {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,HW,HW,HW};emitQuad(X,Y,Z,8,8,16,16,false,faceBright(0,0,1));}
+    // Hat outer faces — works for both 64x32 and 64x64 (alpha<64 filter)
     if(hat){
-        {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,0,-1,0,40,0,48,8,true);}
-        {const float X[4]={HW+pad,HW+pad,HW+pad,HW+pad},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,1,0,0,32,8,40,16,true);}
-        {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW+pad,HW+pad,HW+pad,HW+pad};emitQuad(X,Y,Z,0,0,1,40,8,48,16,true);}
+        {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,40,0,48,8,true,faceBright(0,-1,0));}
+        {const float X[4]={HW+pad,HW+pad,HW+pad,HW+pad},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,32,8,40,16,true,faceBright(1,0,0));}
+        {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW+pad,HW+pad,HW+pad,HW+pad};emitQuad(X,Y,Z,40,8,48,16,true,faceBright(0,0,1));}
     }
 
     std::sort(tri,tri+tc,[](const Tri&a,const Tri&b){return a.dep<b.dep;});
@@ -263,7 +263,6 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
         int Mx=(int)std::min((float)SZ-1,std::max({t.ax,t.bx,t.cx}));
         int my=(int)std::max(0.f,std::min({t.ay,t.by,t.cy}));
         int My=(int)std::min((float)SZ-1,std::max({t.ay,t.by,t.cy}));
-        float br = t.br;
         for(int y=my;y<=My;++y) for(int x=mx;x<=Mx;++x){
             float px=(float)x+.5f,py=(float)y+.5f;
             float w0=((t.by-t.cy)*(px-t.cx)+(t.cx-t.bx)*(py-t.cy))/dn;
@@ -273,13 +272,12 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
             float w2=1-w0-w1;if(w2<-1e-4f)continue;
             float u=w0*t.ua+w1*t.ub+w2*t.uc;u=u<0?0:u>1?1:u;
             float v=w0*t.va+w1*t.vb+w2*t.vc;v=v<0?0:v>1?1:v;
-            QRgb c=skin.pixel((int)(u*tW)%tW,(int)(v*dV)%(int)dV);
-            if(t.ht){if(qAlpha(c)<64)continue;}
-            // Apply diffuse lighting
-            int rr = (int)(qRed(c) * br); if (rr>255) rr=255;
-            int gg = (int)(qGreen(c) * br); if (gg>255) gg=255;
-            int bb = (int)(qBlue(c) * br); if (bb>255) bb=255;
-            out.setPixel(x,y,qRgba(rr,gg,bb,qAlpha(c)));
+            QRgb sc=skin.pixel((int)(u*tW)%tW,(int)(v*dV)%(int)dV);
+            if(t.ht){if(qAlpha(sc)<64)continue;}
+            int rr=(int)(qRed(sc)*t.br); if(rr>255)rr=255;
+            int gg=(int)(qGreen(sc)*t.br); if(gg>255)gg=255;
+            int bb=(int)(qBlue(sc)*t.br); if(bb>255)bb=255;
+            out.setPixel(x,y,qRgba(rr,gg,bb,qAlpha(sc)));
         }
     }
 
