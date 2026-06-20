@@ -583,9 +583,16 @@ Window {
                                 Item {
                                     Layout.fillWidth: true; height: 40
                                     Rectangle {
+                                        id: nameInputBox
                                         anchors.fill: parent; radius: 7
                                         color: "#11141c"; border.color: "#1e2230"
                                         clip: true
+                                        // Click anywhere on the box to activate input
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            enabled: !offlineNameInput.activeFocus
+                                            onClicked: offlineNameInput.forceActiveFocus()
+                                        }
                                         TextInput {
                                             id: offlineNameInput
                                             anchors.left: parent.left; anchors.right: dropdownBtn.left

@@ -493,6 +493,11 @@ void AccountBackend::downloadOnlineSkin()
                 qCWarning(logAccount) << "Skin texture download failed:" << skinReply->errorString();
                 setFallbackSkin();
             } else {
+                // Only apply if user is still in online mode (prevents race with offline login)
+                if (!m_isOnline) {
+                    qCInfo(logAccount) << "Online skin download finished, but user switched to offline — discarding";
+                    return;
+                }
                 QString cachePath = skinCachePath(m_username);
                 QFileInfo fi(cachePath);
                 QDir().mkpath(fi.absolutePath());
@@ -503,9 +508,9 @@ void AccountBackend::downloadOnlineSkin()
                     QString facePath = renderHead3D(cachePath);
                     m_skinPath = toImageUrl(facePath.isEmpty() ? cachePath : facePath);
                     qCInfo(logAccount) << "Online skin + face:" << m_skinPath;
+                    emit skinReady();
                 }
             }
-            emit skinReady();
         });
     });
 }
