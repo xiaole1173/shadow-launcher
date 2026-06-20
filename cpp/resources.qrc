@@ -20,5 +20,8 @@
         <file alias="qml/AnimationTokens.qml">qml/AnimationTokens.qml</file>
         <file alias="qml/qmldir">qml/qmldir</file>
         <file alias="qml/animation_tokens.json">qml/animation_tokens.json</file>
+        <file alias="qml/MinecraftHead3D.qml">qml/MinecraftHead3D.qml</file>
+        <file alias="qml/models/steve_head.obj">qml/models/steve_head.obj</file>
+        <file alias="qml/models/steve_head.mtl">qml/models/steve_head.mtl</file>
     </qresource>
 </RCC>

@@ -613,11 +613,12 @@ Window {
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 10
                                     Rectangle {
-                                        width: 40; height: 40; radius: 20; color: "#1a1f2e"
-                                        Image {
-                                            anchors.fill: parent; anchors.margins: 2
-                                            source: backend ? backend.skinPath : ""
-                                            fillMode: Image.PreserveAspectFit
+                                        width: 48; height: 48; radius: 8; color: "transparent"
+                                        clip: true
+                                        MinecraftHead3D {
+                                            anchors.fill: parent
+                                            anchors.margins: 4
+                                            skinSource: backend ? (backend.skinPath || "") : ""
                                         }
                                     }
                                     Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
