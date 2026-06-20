@@ -1,15 +1,13 @@
 import QtQuick
-import QtQuick.Controls
 
-// 2D Minecraft Head Avatar — GPU-accelerated Canvas with nearest-neighbour sampling
-// Same sharpness as 3D, zero extra dependencies.
-Rectangle {
+// 2D Minecraft Head Avatar — GPU Canvas with nearest-neighbour sampling.
+// Pixel-art sharpness, zero extra dependencies.
+Item {
     id: root
     property url skinSource: ""
     width: 48; height: 48
-    color: "transparent"
 
-    // ── Invisible preloader (handles file:/// URLs correctly) ──
+    // ── Invisible preloader ──
     Image {
         id: skin
         source: root.skinSource
@@ -23,53 +21,40 @@ Rectangle {
     }
     onSkinSourceChanged: canvas.requestPaint()
 
-    // ── GPU Canvas (RHI → Direct3D, nearest-neighbour) ──
-    Canvas {
-        id: canvas
+    // ── Circular clip mask ──
+    Rectangle {
         anchors.fill: parent
-        antialiasing: false
-        renderStrategy: Canvas.Threaded
+        radius: width / 2
+        color: "#1a1f2e"
+        clip: true
 
-        onPaint: {
-            var ctx = getContext("2d")
-            var w = width, h = height
+        // ── GPU Canvas (RHI → Direct3D, nearest-neighbour) ──
+        Canvas {
+            id: canvas
+            anchors.fill: parent
+            antialiasing: false
+            renderStrategy: Canvas.Threaded
 
-            // Clear
-            ctx.clearRect(0, 0, w, h)
+            onPaint: {
+                var ctx = getContext("2d")
+                var w = width, h = height
+                ctx.clearRect(0, 0, w, h)
 
-            if (skin.status !== Image.Ready) {
-                // Draw placeholder circle
-                ctx.fillStyle = "#1a1f2e"
-                ctx.beginPath()
-                ctx.arc(w / 2, h / 2, Math.min(w, h) / 2 - 2, 0, Math.PI * 2)
-                ctx.fill()
-                return
+                if (skin.status !== Image.Ready) {
+                    ctx.fillStyle = "#1a1f2e"
+                    ctx.fillRect(0, 0, w, h)
+                    return
+                }
+
+                // Pixel-art sharpness
+                ctx.imageSmoothingEnabled = false
+
+                // Face: (8, 8) 8×8 from 64×64 skin atlas → scale to canvas
+                ctx.drawImage(skin, 8, 8, 8, 8, 0, 0, w, h)
+
+                // Hat overlay: (40, 8) 8×8 → alpha-blend
+                ctx.drawImage(skin, 40, 8, 8, 8, 0, 0, w, h)
             }
-
-            // ── Pixel-art sharpness: nearest-neighbour ──
-            ctx.imageSmoothingEnabled = false
-
-            // Face: skin atlas region (8, 8) → 8×8 → scale to canvas
-            ctx.drawImage(skin, 8, 8, 8, 8, 0, 0, w, h)
-
-            // Hat overlay: skin atlas region (40, 8) → 8×8 → alpha-blend on top
-            ctx.drawImage(skin, 40, 8, 8, 8, 0, 0, w, h)
         }
-    }
-
-    // ── Circular mask clip ──
-    layer.enabled: true
-    layer.effect: ShaderEffect {
-        property size size: Qt.size(root.width, root.height)
-        fragmentShader: "
-            varying highp vec2 qt_TexCoord0;
-            uniform highp vec2 size;
-            void main() {
-                vec2 center = vec2(0.5, 0.5);
-                float dist = distance(qt_TexCoord0, center);
-                float radius = 0.46;
-                float alpha = 1.0 - smoothstep(radius - 0.02, radius + 0.02, dist);
-                gl_FragColor = vec4(texture2D(source, qt_TexCoord0).rgb, alpha);
-            }"
     }
 }
