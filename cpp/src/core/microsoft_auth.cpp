@@ -12,8 +12,8 @@
 
 namespace ShadowLauncher {
 
-static const char* kDeviceCodeUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
-static const char* kTokenUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+static const char* kDeviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode";
+static const char* kTokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 static const char* kXblAuthUrl = "https://user.auth.xboxlive.com/user/authenticate";
 static const char* kXstsAuthUrl = "https://xsts.auth.xboxlive.com/xsts/authorize";
 static const char* kMcAuthUrl = "https://api.minecraftservices.com/authentication/login_with_xbox";
