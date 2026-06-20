@@ -54,7 +54,7 @@ private:
     void ensureOptionsTxt(const QString& versionId);
     static bool evaluateRules(const QJsonArray& rules);
     static bool evaluateRule(const QJsonObject& rule);
-    void ensureLegacyAssets();
+    void ensureLegacyAssets(const QString& assetIndexId);
 
     QProcess* m_process = nullptr;
     QString m_gameDir;

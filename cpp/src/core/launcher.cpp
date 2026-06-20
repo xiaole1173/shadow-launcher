@@ -472,9 +472,9 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     QString assetIndexId = assetIndex[QStringLiteral("id")].toString();
     if (assetIndexId.isEmpty()) assetIndexId = versionId;  // legacy fallback
 
-    // Build legacy virtual asset directory for 1.7.2
-    if (assetIndexId == QStringLiteral("legacy")) {
-        const_cast<Launcher*>(this)->ensureLegacyAssets();
+    // Build legacy virtual asset directory for 1.7.2 and pre-1.6
+    if (assetIndexId == QStringLiteral("legacy") || assetIndexId == QStringLiteral("pre-1.6")) {
+        const_cast<Launcher*>(this)->ensureLegacyAssets(assetIndexId);
     }
 
     // Process game arguments, expanding placeholders
@@ -495,7 +495,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${version_type}"),
                         versionJson[QStringLiteral("type")].toString(QStringLiteral("release")));
             arg.replace(QStringLiteral("${game_assets}"),
-                        m_gameDir + QStringLiteral("/assets/virtual/legacy"));  // 1.7.2 legacy
+                        m_gameDir + QStringLiteral("/assets/virtual/") + assetIndexId);  // legacy/pre-1.6
             arg.replace(QStringLiteral("${user_properties}"), QStringLiteral("{}"));
             arg.replace(QStringLiteral("${auth_session}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);  // pre-1.6
             arg.replace(QStringLiteral("${resolution_width}"), QStringLiteral("854"));
@@ -781,14 +781,14 @@ bool Launcher::evaluateRules(const QJsonArray& rules)
 // Legacy Asset Virtual Directory (1.7.2)
 // ============================================================
 
-void Launcher::ensureLegacyAssets()
+void Launcher::ensureLegacyAssets(const QString& assetIndexId)
 {
-    // Reads assets/indexes/legacy.json and builds assets/virtual/legacy/
+    // Reads assets/indexes/<id>.json and builds assets/virtual/<id>/
     // from the hash-based assets/objects/ directory.
-    // This is only needed for Minecraft 1.7.2 (assetIndex.id == "legacy").
+    // Needed for: legacy (1.7.2), pre-1.6 (1.0), and similar old asset systems.
 
-    QString legacyDir = m_gameDir + QStringLiteral("/assets/virtual/legacy");
-    QString indexFile = m_gameDir + QStringLiteral("/assets/indexes/legacy.json");
+    QString legacyDir = m_gameDir + QStringLiteral("/assets/virtual/") + assetIndexId;
+    QString indexFile = m_gameDir + QStringLiteral("/assets/indexes/") + assetIndexId + QStringLiteral(".json");
 
     // Already done
     if (QDir(legacyDir).exists() && !QDir(legacyDir).isEmpty(QDir::Dirs | QDir::Files))
