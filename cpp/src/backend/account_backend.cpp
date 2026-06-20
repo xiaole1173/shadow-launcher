@@ -193,100 +193,104 @@ QString AccountBackend::skinCachePath(const QString &username) const
 QString AccountBackend::renderHead3D(const QString& skinPath)
 {
     QImage skin(skinPath);
-    if (skin.isNull()) {
-        qCWarning(logAccount) << "renderHead3D: cannot load" << skinPath;
-        return {};
-    }
+    if (skin.isNull()) { qCWarning(logAccount)<<"renderHead3D: load fail"<<skinPath; return {}; }
 
-    constexpr int    SZ   = 64;
-    constexpr float  HALF = SZ / 2.0f;
-    constexpr float  SCC  = HALF * 0.22f;
+    constexpr int  SZ = 64;
+    constexpr float HW = 4.0f;
+    constexpr float DEG = 0.01745329252f;
+    const float yr = 20.0f*DEG, pr = -8.0f*DEG;
+    const float cy=cosf(yr),sy=sinf(yr), cp=cosf(pr),sp=sinf(pr);
+    const float SC = (float)SZ / 8.0f;
 
-    QImage result(SZ, SZ, QImage::Format_ARGB32_Premultiplied);
-    result.fill(0);
+    QImage out(SZ, SZ, QImage::Format_ARGB32_Premultiplied);
+    out.fill(0);
 
-    float sw = (float)skin.width(), sh = (float)skin.height();
-    float divV = (sh <= 32.0f) ? 32.0f : 64.0f;
+    int tW = skin.width(), tH = skin.height();
+    float dV = (float)tH;
+    bool hat = (tH >= 64);
+    const float PD = 0.25f;
 
-    float yr = -25.0f * 3.1415926535f / 180.0f;
-    float pr = -10.0f * 3.1415926535f / 180.0f;
-    float cosY = cosf(yr), sinY = sinf(yr);
-    float cosP = cosf(pr), sinP = sinf(pr);
-
-    auto rotate = [&](float x, float y, float z, float& ox, float& oy, float& oz) {
-        float rx = x * cosY - z * sinY;
-        float rz = x * sinY + z * cosY;
-        ox = rx;
-        oy = y * cosP - rz * sinP;
-        oz = y * sinP + rz * cosP;
+    // rotate + ortho project → sx,sy + depth
+    auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
+        float rx=x*cy-z*sy, rz=x*sy+z*cy, ry2=y*cp-rz*sp;
+        dep=y*sp+rz*cp; sx=(rx+HW)*SC; sy=(HW-ry2)*SC;
     };
 
-    struct Tri { float ax,ay,bx,by,cx,cy, u0,v0,u1,v1,u2,v2, depth; bool hat; };
-    std::vector<Tri> tris; tris.reserve(72);
+    struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep; bool ht; };
+    Tri tri[24]; int tc=0;
 
-    struct FaceUV { int u0,v0,u1,v1; };
-    static const FaceUV faceUVs[6] = {
-        { 8,8,16,16}, {24,8,32,16}, { 8,0,16, 8},
-        {16,0,24, 8}, { 0,8, 8,16}, {16,8,24,16},
-    };
-
-    auto emitTri = [&](float ax,float ay,float bx,float by,float cx,float cy,
-        float ua,float va,float ub,float vb,float uc,float vc,float depth,bool hat)
+    auto emitQuad = [&](const float cx[4],const float cy[4],const float cz[4],
+                         int u0,int v0,int u1,int v1, bool isHat)
     {
-        float cp = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax);
-        if (cp <= 0) return;
-        tris.push_back({ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, depth, hat});
+        float sx[4],sy[4],sd[4];
+        for(int i=0;i<4;++i) prj(cx[i],cy[i],cz[i],sx[i],sy[i],sd[i]);
+        float US[4]={(float)u1/tW,(float)u0/tW,(float)u0/tW,(float)u1/tW};
+        float VS[4]={(float)v1/dV,(float)v1/dV,(float)v0/dV,(float)v0/dV};
+        // emit triangles 0-1-2 and 0-2-3
+        if (tc+2 > 24) return;
+        tri[tc]={sx[0],sy[0],sx[1],sy[1],sx[2],sy[2], US[0],VS[0],US[1],VS[1],US[2],VS[2], (sd[0]+sd[1]+sd[2])/3.0f, isHat}; tc++;
+        tri[tc]={sx[0],sy[0],sx[2],sy[2],sx[3],sy[3], US[0],VS[0],US[2],VS[2],US[3],VS[3], (sd[0]+sd[2]+sd[3])/3.0f, isHat}; tc++;
     };
 
-    for (int hp = 0; hp < 2; ++hp) {
-        float s = hp ? 1.07f : 1.0f, uOff = hp ? 32.0f : 0;
-        float C[8][3] = {{-s,-s,+s},{+s,-s,+s},{+s,+s,+s},{-s,+s,+s},{+s,-s,-s},{-s,-s,-s},{-s,+s,-s},{+s,+s,-s}};
-        int F[6][4] = {{0,1,2,3},{4,5,6,7},{3,2,7,6},{5,4,1,0},{1,4,7,2},{5,0,3,6}};
-        for (int fi = 0; fi < 6; ++fi) {
-            FaceUV fv = faceUVs[fi];
-            float UB[4] = {(fv.u1+uOff)/sw,(fv.u0+uOff)/sw,(fv.u0+uOff)/sw,(fv.u1+uOff)/sw};
-            float VB[4] = {fv.v1/divV,fv.v1/divV,fv.v0/divV,fv.v0/divV};
-            float sx[4],sy[4],sd[4];
-            for (int i = 0; i < 4; ++i) {
-                float rx,ry,rz;
-                rotate(C[F[fi][i]][0],C[F[fi][i]][1],C[F[fi][i]][2],rx,ry,rz);
-                float zz = rz+10; if(zz<0.1f)zz=0.1f;
-                sx[i]=(rx/zz)*10*SCC+HALF; sy[i]=(-ry/zz)*10*SCC+HALF; sd[i]=zz;
-            }
-            float d = (sd[0]+sd[2])*.5f;
-            emitTri(sx[0],sy[0],sx[1],sy[1],sx[2],sy[2],UB[0],VB[0],UB[1],VB[1],UB[2],VB[2],d,(bool)hp);
-            emitTri(sx[0],sy[0],sx[2],sy[2],sx[3],sy[3],UB[0],VB[0],UB[2],VB[2],UB[3],VB[3],d,(bool)hp);
+    // ── Head layer ──
+    {   // Top (Y=-HW): UV(8,0)-(16,8)
+        const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,-HW,-HW}, Z[4]={HW,HW,-HW,-HW};
+        emitQuad(X,Y,Z, 8,0,16,8, false);
+    }
+    {   // Right (X=+HW): UV(0,8)-(8,16)
+        const float X[4]={HW,HW,HW,HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,-HW,-HW,HW};
+        emitQuad(X,Y,Z, 0,8,8,16, false);
+    }
+    {   // Front (Z=+HW): UV(8,8)-(16,16)
+        const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,HW,HW,HW};
+        emitQuad(X,Y,Z, 8,8,16,16, false);
+    }
+    // ── Hat layer ──
+    if (hat) {
+        {   // Top hat (Y=-HW-PD): UV(40,0)-(48,8)
+            const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW-PD,-HW-PD,-HW-PD,-HW-PD}, Z[4]={HW,HW,-HW,-HW};
+            emitQuad(X,Y,Z, 40,0,48,8, true);
+        }
+        {   // Right hat (X=+HW+PD): UV(32,8)-(40,16)
+            const float X[4]={HW+PD,HW+PD,HW+PD,HW+PD}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW,-HW,-HW,HW};
+            emitQuad(X,Y,Z, 32,8,40,16, true);
+        }
+        {   // Front hat (Z=+HW+PD): UV(40,8)-(48,16)
+            const float X[4]={-HW,HW,HW,-HW}, Y[4]={-HW,-HW,HW,HW}, Z[4]={HW+PD,HW+PD,HW+PD,HW+PD};
+            emitQuad(X,Y,Z, 40,8,48,16, true);
         }
     }
 
-    std::sort(tris.begin(),tris.end(),[](auto&a,auto&b){return a.depth>b.depth;});
+    // ── Depth sort (back-to-front) ──
+    std::sort(tri, tri+tc, [](const Tri&a,const Tri&b){ return a.dep < b.dep; });
 
-    for (auto& t : tris) {
-        int mx = qMax(0, (int)std::min({t.ax,t.bx,t.cx}));
-        int Mx = qMin(SZ-1,(int)std::max({t.ax,t.bx,t.cx}));
-        int my = qMax(0, (int)std::min({t.ay,t.by,t.cy}));
-        int My = qMin(SZ-1,(int)std::max({t.ay,t.by,t.cy}));
-        float denom = (t.by-t.cy)*(t.ax-t.cx)+(t.cx-t.bx)*(t.ay-t.cy);
-        if(fabsf(denom)<1e-6f)continue;
-        for (int y=my;y<=My;++y){for(int x=mx;x<=Mx;++x){
+    // ── Rasterise ──
+    for (int ti=0; ti<tc; ++ti) {
+        auto& t = tri[ti];
+        float dn = (t.by-t.cy)*(t.ax-t.cx)+(t.cx-t.bx)*(t.ay-t.cy);
+        if (fabsf(dn)<1e-6f) continue;
+        int mx=(int)std::max(0.0f,std::min({t.ax,t.bx,t.cx}));
+        int Mx=(int)std::min((float)SZ-1,std::max({t.ax,t.bx,t.cx}));
+        int my=(int)std::max(0.0f,std::min({t.ay,t.by,t.cy}));
+        int My=(int)std::min((float)SZ-1,std::max({t.ay,t.by,t.cy}));
+        for (int y=my;y<=My;++y) for (int x=mx;x<=Mx;++x) {
             float px=(float)x+.5f,py=(float)y+.5f;
-            float w0=((t.by-t.cy)*(px-t.cx)+(t.cx-t.bx)*(py-t.cy))/denom;
-            if(w0<-1e-4f)continue;
-            float w1=((t.cy-t.ay)*(px-t.cx)+(t.ax-t.cx)*(py-t.cy))/denom;
-            if(w1<-1e-4f)continue;
-            float w2=1-w0-w1; if(w2<-1e-4f)continue;
-            float u=w0*t.u0+w1*t.u1+w2*t.u2; if(u<0)u=0;if(u>1)u=1;
-            float v=w0*t.v0+w1*t.v1+w2*t.v2; if(v<0)v=0;if(v>1)v=1;
-            int six=(int)(u*sw)%(int)sw, siy=(int)(v*divV)%(int)divV;
-            QRgb col=skin.pixel(six,siy);
-            if(t.hat){if(qAlpha(col)<64)continue; result.setPixel(x,y,col);}
-            else result.setPixel(x,y,col);
-        }}
+            float w0=((t.by-t.cy)*(px-t.cx)+(t.cx-t.bx)*(py-t.cy))/dn;
+            if (w0<-1e-4f) continue;
+            float w1=((t.cy-t.ay)*(px-t.cx)+(t.ax-t.cx)*(py-t.cy))/dn;
+            if (w1<-1e-4f) continue;
+            float w2=1-w0-w1; if (w2<-1e-4f) continue;
+            float u=w0*t.ua+w1*t.ub+w2*t.uc; u=u<0?0:u>1?1:u;
+            float v=w0*t.va+w1*t.vb+w2*t.vc; v=v<0?0:v>1?1:v;
+            QRgb c = skin.pixel((int)(u*tW)%tW, (int)(v*dV)%(int)dV);
+            if (t.ht) { if (qAlpha(c)<64) continue; }
+            out.setPixel(x,y,c);
+        }
     }
 
     QString hp = skinPath.left(skinPath.length()-4) + QStringLiteral("_head.png");
-    if (result.save(hp, "PNG")) { qCInfo(logAccount)<<"3D head:"<<hp; return hp; }
-    qCWarning(logAccount)<<"renderHead3D: save failed"<<hp;
+    if (out.save(hp,"PNG")) { qCInfo(logAccount)<<"3D head:"<<hp; return hp; }
+    qCWarning(logAccount)<<"renderHead3D: save fail"<<hp;
     return {};
 }
 
