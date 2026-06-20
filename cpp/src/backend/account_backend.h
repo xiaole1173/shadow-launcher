@@ -18,6 +18,7 @@ class AccountBackend : public QObject {
     Q_PROPERTY(bool isOnline READ isOnline NOTIFY accountChanged)
     Q_PROPERTY(QString accountUuid READ accountUuid NOTIFY accountChanged)
     Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinReady)
+    Q_PROPERTY(QString capePath READ capePath NOTIFY capeReady)
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
     Q_PROPERTY(bool microsoftLoginBusy READ isMicrosoftLoginBusy NOTIFY microsoftLoginBusyChanged)
 
@@ -31,6 +32,7 @@ public:
     QString accountUuid() const { return m_uuid; }
     QString mcToken() const { return m_msMcToken; }
     QString skinPath() const { return m_skinPath; }
+    QString capePath() const { return m_capePath; }
     QStringList offlineUsernames() const { return m_offlineUsernames; }
 
     // ── Slots ──
@@ -47,6 +49,7 @@ public:
 signals:
     void accountChanged();
     void skinReady();
+    void capeReady();
     void offlineHistoryChanged();
     void logMessage(const QString &msg);
 
@@ -69,6 +72,7 @@ private:
     void refreshMicrosoftToken();
     QString generateOfflineUuid(const QString &username) const;
     QString skinCachePath(const QString &username) const;
+    QString capeCachePath(const QString &username) const;
 
     // Microsoft login state
     MicrosoftAuth* m_msAuth = nullptr;
@@ -79,6 +83,7 @@ private:
     QString m_username;
     QString m_uuid;
     QString m_skinPath;
+    QString m_capePath;
     bool m_loggedIn = false;
     bool m_isOnline = false;
     QStringList m_offlineUsernames;

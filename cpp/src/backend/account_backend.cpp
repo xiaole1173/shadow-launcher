@@ -113,6 +113,7 @@ void AccountBackend::logout()
     m_username.clear();
     m_uuid.clear();
     m_skinPath.clear();
+    m_capePath.clear();
     m_loggedIn = false;
     m_isOnline = false;
 
@@ -186,6 +187,15 @@ QString AccountBackend::skinCachePath(const QString &username) const
            + QStringLiteral(".png");
 }
 
+QString AccountBackend::capeCachePath(const QString &username) const
+{
+    QByteArray nameHash = QCryptographicHash::hash(
+        username.toLower().toUtf8(), QCryptographicHash::Md5);
+    QString hex = QString::fromLatin1(nameHash.toHex());
+    return m_dataDir + QStringLiteral("/assets/capes/") + hex
+           + QStringLiteral(".png");
+}
+
 // ────────────────────────────────────────────────────────────
 // Face Cropping — extract 8×8 head from skin atlas, alpha-blend hat
 // ────────────────────────────────────────────────────────────
@@ -197,6 +207,15 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     QImage skin(skinPath);
     if (skin.isNull()) { qCWarning(logAccount)<<"renderHead3D: load fail"<<skinPath; return {}; }
 
+    // ── Format detection ──
+    const int skinW = skin.width();
+    const int skinH = skin.height();
+    const char* formatTag = "unknown";
+    if (skinW == 64 && skinH == 32) formatTag = "64x32 (legacy)";
+    else if (skinW == 64 && skinH == 64) formatTag = "64x64 (modern)";
+    else formatTag = "custom";
+    qCInfo(logAccount) << "renderHead3D: skin format" << formatTag << skinW << "x" << skinH;
+
     constexpr int FACE_X=8, FACE_Y=8, FACE_W=8, FACE_H=8;
     constexpr int HAT_X=40, HAT_Y=8, HAT_W=8, HAT_H=8;
     constexpr int CANVAS = 128;
@@ -204,8 +223,8 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     constexpr int FACE_SZ = CANVAS * 3 / 4;   // 96
     constexpr int HAT_SZ  = CANVAS * 7 / 8;   // 112
 
-    int tW = skin.width(), tH = skin.height();
-    bool hasHat = (tW >= 64 && tH >= 32);
+    bool hasHat = (skinW >= 64 && skinH >= 32);
+    qCInfo(logAccount) << "renderHead3D: hasHat=" << hasHat << ", format=" << formatTag;
 
     // 1. Face layer: 8×8 → scaled to FACE_SZ, centered in canvas
     QImage face = skin.copy(FACE_X, FACE_Y, FACE_W, FACE_H);
@@ -339,6 +358,41 @@ void AccountBackend::downloadOnlineSkin()
             }
         }
 
+        // ── Cape extraction ──
+        QJsonArray capes = profile[QStringLiteral("capes")].toArray();
+        QString capeUrl;
+        for (const QJsonValue& cv : capes) {
+            QJsonObject c = cv.toObject();
+            if (c[QStringLiteral("state")].toString() == QStringLiteral("ACTIVE")) {
+                capeUrl = c[QStringLiteral("url")].toString();
+                qCInfo(logAccount) << "Found cape:" << c[QStringLiteral("alias")].toString() << capeUrl;
+                break;
+            }
+        }
+
+        // ── Download cape if available ──
+        if (!capeUrl.isEmpty()) {
+            QDir().mkpath(m_dataDir + QStringLiteral("/assets/capes"));
+            QNetworkRequest capeReq(capeUrl);
+            QNetworkReply* capeReply = HttpClient::instance().getRaw(capeReq);
+            connect(capeReply, &QNetworkReply::finished, this, [this, capeReply]() {
+                capeReply->deleteLater();
+                if (capeReply->error() == QNetworkReply::NoError) {
+                    QString cachePath = capeCachePath(m_username);
+                    QFile file(cachePath);
+                    if (file.open(QIODevice::WriteOnly)) {
+                        file.write(capeReply->readAll());
+                        file.close();
+                        m_capePath = toImageUrl(cachePath);
+                        qCInfo(logAccount) << "Cape cached:" << cachePath;
+                        emit capeReady();
+                    }
+                } else {
+                    qCWarning(logAccount) << "Cape download failed:" << capeReply->errorString();
+                }
+            });
+        }
+
         if (skinUrl.isEmpty()) {
             qCInfo(logAccount) << "No active skin in Mojang profile, using default";
             setFallbackSkin();
@@ -382,6 +436,7 @@ void AccountBackend::setFallbackSkin()
     if (m_skinPath.isEmpty()) {
         m_skinPath = QStringLiteral("qrc:/ShadowLauncher/assets/steve.png");
     }
+    m_capePath.clear();  // no cape for fallback
 }
 
 // ────────────────────────────────────────────────────────────

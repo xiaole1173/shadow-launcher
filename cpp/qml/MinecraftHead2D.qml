@@ -3,8 +3,8 @@ import QtQuick
 Rectangle {
     id: root
     property url skinSource: ""
-    width: 72; height: 72
-    color: "#1e2430"
+    width: 48; height: 48
+    color: "transparent"
 
     // ── Spinner ──
     property real _angle: 0

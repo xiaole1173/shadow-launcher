@@ -609,12 +609,26 @@ Window {
                             ColumnLayout {
                                 anchors.horizontalCenter: parent.horizontalCenter; spacing: 8
 
-                                // Avatar + Name
+                                // Avatar + Name (with cape)
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter; spacing: 10
-                                    MinecraftHead2D {
-                                        width: 72; height: 72
-                                        skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
+                                    ColumnLayout {
+                                        spacing: 2
+                                        Layout.alignment: Qt.AlignVCenter
+                                        MinecraftHead2D {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            width: 48; height: 48
+                                            skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
+                                        }
+                                        // Cape indicator (below head)
+                                        Image {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            visible: backend && backend.capePath !== ""
+                                            source: (backend && backend.capePath) ? backend.capePath : ""
+                                            width: 32; height: 20
+                                            fillMode: Image.PreserveAspectFit
+                                            smooth: false
+                                        }
                                     }
                                     Text { text: homePage.displayName; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
                                 }
