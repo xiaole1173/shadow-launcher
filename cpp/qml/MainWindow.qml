@@ -545,9 +545,10 @@ Window {
 
                         // Offline login form
                         Rectangle {
+                            id: offlineForm
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.top: loginSwitch.bottom; anchors.topMargin: 20
-                            width: 300
+                            width: 360
                             property bool showForm: loginMode === 1
                             opacity: showForm ? 1 : 0
                             visible: opacity > 0
@@ -556,6 +557,14 @@ Window {
                             Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
                             height: childrenRect.height; color: "transparent"
+
+                            // Refresh avatar when switching to offline tab
+                            onVisibleChanged: {
+                                if (visible && backend) {
+                                    backend.updateOfflineSkin(offlineNameInput.text)
+                                }
+                            }
+
                             ColumnLayout {
                                 anchors.horizontalCenter: parent.horizontalCenter; spacing: 12
 
@@ -570,6 +579,7 @@ Window {
                                 Rectangle {
                                     Layout.fillWidth: true; height: 40; radius: 7
                                     color: "#11141c"; border.color: "#1e2230"
+                                    clip: true
                                     TextInput {
                                         id: offlineNameInput
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
