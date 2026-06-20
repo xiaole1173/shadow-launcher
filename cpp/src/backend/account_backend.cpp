@@ -215,11 +215,13 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
     bool hat = (tH >= 32);
     float pad = 0.30f;
 
-    // orthographic — no perspective  // camera distance → mild perspective
+    const float CAM_DIST = 100.0f;  // far camera → subtle perspective  // camera distance → mild perspective
     auto prj = [&](float x,float y,float z, float&sx,float&sy,float&dep){
         float rx=x*cosYf-z*sinYf, rz=x*sinYf+z*cosYf, ry2=y*cosPf-rz*sinPf;
         dep=y*sinPf+rz*cosPf;
-        sx=(rx+HW)*SC+OFF; sy=(HW-ry2)*SC+OFF;
+        float dz = rz + CAM_DIST; if (dz<0.5f) dz=0.5f;
+        sx = (rx/dz) * CAM_DIST * SC + OFF;
+        sy = ((HW-ry2)/dz) * CAM_DIST * SC + OFF;
     };
 
     struct Tri { float ax,ay,bx,by,cx,cy, ua,va,ub,vb,uc,vc, dep, br; bool ht; };
@@ -252,7 +254,7 @@ QString AccountBackend::renderHead3D(const QString& skinPath)
         {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Z[4]={HW,HW,-HW,-HW};emitQuad(X,Y,Z,40,0,48,8,true,faceBright(0,-1,0));}
         {const float X[4]={HW+pad,HW+pad,HW+pad,HW+pad},Y[4]={-HW,-HW,HW,HW},Z[4]={HW,-HW,-HW,HW};emitQuad(X,Y,Z,32,8,40,16,true,faceBright(1,0,0));}
     {const float X[4]={-HW-pad,-HW-pad,-HW-pad,-HW-pad},Y[4]={-HW,-HW,HW,HW},Z[4]={-HW,HW,HW,-HW};emitQuad(X,Y,Z,48,8,56,16,true,faceBright(-1,0,0));}
-        // hat front face skipped — covers eyes
+        {const float X[4]={-HW,HW,HW,-HW},Y[4]={-HW,-HW,HW,HW},Z[4]={HW+pad,HW+pad,HW+pad,HW+pad};emitQuad(X,Y,Z,40,8,48,16,true,faceBright(0,0,1));}
     }
 
     std::sort(tri,tri+tc,[](const Tri&a,const Tri&b){return a.dep<b.dep;});
