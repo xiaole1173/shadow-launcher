@@ -123,6 +123,7 @@ void MicrosoftAuth::submitCode(const QString&)
 // ═══════════════════════════════════════════════════
 void MicrosoftAuth::exchangeCode(const QString& code)
 {
+    qCInfo(logApp) << "[MSA] exchangeCode starting, redirectUri:" << m_localRedirectUri;
     QString redirectUri = m_localRedirectUri;
 
     QUrlQuery postData;
@@ -132,6 +133,7 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     postData.addQueryItem(QStringLiteral("redirect_uri"), redirectUri);
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
+    qCInfo(logApp) << "[MSA] Token request body:" << body;
 
     QNetworkRequest req(QUrl(QString::fromLatin1(kTokenUrl)));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
@@ -141,16 +143,18 @@ void MicrosoftAuth::exchangeCode(const QString& code)
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         QByteArray raw = reply->readAll();
+        int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qCInfo(logApp) << "[MSA] Token response HTTP" << status << "body:" << raw.left(500);
+
         QJsonDocument doc = QJsonDocument::fromJson(raw);
         QJsonObject obj = doc.object();
 
-        if (reply->error() != QNetworkReply::NoError || obj.contains(QStringLiteral("error"))) {
-            QString err = obj[QStringLiteral("error")].toString();
-            QString desc = obj[QStringLiteral("error_description")].toString();
-            qCWarning(logApp) << "[MSA] Token exchange failed:" << reply->errorString()
-                             << "body:" << raw.left(500);
+        if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
+            QString err = obj[QStringLiteral("error")].toString(QStringLiteral("unknown"));
+            QString desc = obj[QStringLiteral("error_description")].toString(QString::fromLatin1(raw));
+            qCWarning(logApp) << "[MSA] Token exchange FAILED" << err << desc;
             m_busy = false;
-            emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.isEmpty() ? err : desc));
+            emit loginFailed(QStringLiteral("令牌交换失败: %1").arg(desc.left(200)));
             return;
         }
 
