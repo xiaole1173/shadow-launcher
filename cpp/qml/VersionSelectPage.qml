@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     width: parent ? parent.width : 800
@@ -18,7 +19,7 @@ Rectangle {
     // Page enter
     opacity: 0
     y: 10
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Component.onCompleted: { opacity = 1; y = 0 }
 
@@ -38,14 +39,14 @@ Rectangle {
         Rectangle {
             width: backText.implicitWidth + 20; height: 32; radius: 6
             color: backArea.containsMouse ? "#1A222D" : "transparent"
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
             Text {
                 id: backText
                 anchors.centerIn: parent
                 text: "← 启动"
                 color: backArea.containsMouse ? "#3B82F6" : "#B4BAC6"
                 font.pixelSize: 13
-                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
             }
             MouseArea {
                 id: backArea
@@ -63,9 +64,9 @@ Rectangle {
             border.color: refreshHover.hovered ? "#60A5FA" : "#3a4050"
             border.width: 1
             scale: refreshMa.pressed ? 0.88 : (refreshHover.hovered ? 1.08 : 1.0)
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
-            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
             Text {
                 id: refreshLabel
                 anchors.centerIn: parent
@@ -176,14 +177,14 @@ Rectangle {
                     border.color: addArea.containsMouse ? "#3B82F6" : "#2A2F3A"
                     border.width: 1
                     scale: addArea.containsMouse ? 1.03 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Text {
                         anchors.centerIn: parent
                         text: "➕ 添加文件夹"
                         color: addArea.containsMouse ? "#3B82F6" : "#B4BAC6"
                         font.pixelSize: 13
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                     MouseArea {
                         id: addArea
@@ -204,14 +205,14 @@ Rectangle {
                     border.color: importArea.containsMouse ? "#3B82F6" : "#2A2F3A"
                     border.width: 1
                     scale: importArea.containsMouse ? 1.03 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Text {
                         anchors.centerIn: parent
                         text: "📦 导入整合包"
                         color: importArea.containsMouse ? "#3B82F6" : "#B4BAC6"
                         font.pixelSize: 13
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                     MouseArea {
                         id: importArea
@@ -250,8 +251,8 @@ Rectangle {
                         border.color: activeFilter === modelData ? "#3B82F6" : "#2A2F3A"
                         border.width: 1
                         scale: pillMouse.containsMouse ? 1.04 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         Text {
                             id: pillText
@@ -259,7 +260,7 @@ Rectangle {
                             text: modelData
                             color: activeFilter === modelData ? "#FFFFFF" : "#B4BAC6"
                             font.pixelSize: 12
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
                         MouseArea {
                             id: pillMouse
@@ -337,9 +338,9 @@ Rectangle {
                         border.width: 1
                         opacity: 0
                         scale: cardArea.containsMouse ? 1.01 : 1.0
-                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         Component.onCompleted: { opacity = 1 }
 
@@ -395,9 +396,9 @@ Rectangle {
                 color: selectArea.containsMouse ? "#2563EB" : (selectedVersionId !== "" ? "#3B82F6" : "#2A2F3A")
                 opacity: selectedVersionId !== "" ? 1.0 : 0.5
                 scale: selectArea.containsMouse ? 1.03 : 1.0
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 200 } }
-                Behavior on opacity { NumberAnimation { duration: 200 } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                 Text {
                     anchors.centerIn: parent

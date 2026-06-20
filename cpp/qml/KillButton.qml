@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
+import "qrc:/ShadowLauncher/qml"
 
 // ═══ 强制退出按钮 — 圆形 ⏻ 图标 hover 展开为圆角长方形 ═══
 
@@ -37,14 +38,14 @@ Rectangle {
         font.pixelSize: expanded ? 12 : 16
         font.bold: expanded
         color: expanded ? expandedTextColor : textColor
-        Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
     }
 
     color: expanded ? expandedBgColor : bgColor
     border.color: expanded ? expandedBorderColor : borderColor
     border.width: 1.5
 
-    Behavior on color { ColorAnimation { duration: 200 } }
+    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
     Behavior on border.color { ColorAnimation { duration: 200 } }
 
     MouseArea {

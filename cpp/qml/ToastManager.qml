@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
+import "qrc:/ShadowLauncher/qml"
 
 // ToastManager — 独立可复用的通知组件
 // 用法: toastManager.show("消息内容", 持续毫秒)

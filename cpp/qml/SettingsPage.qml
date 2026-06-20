@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     id: page
@@ -10,7 +11,7 @@ Rectangle {
     property int currentSection: 0
 
     opacity: 0; y: 10
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Component.onCompleted: { opacity = 1; y = 0; appWindow.pageLoading = false }
 
@@ -43,7 +44,7 @@ Rectangle {
                     width: nav.width - 16; height: 38; radius: 6
                     color: nav.currentIndex === index ? "#181c28" : (navMouse.containsMouse ? "#11141c" : "transparent")
                     scale: navMouse.containsMouse ? 1.02 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Text {
                         anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter
                         text: modelData; color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13
@@ -204,14 +205,14 @@ Rectangle {
                     RowLayout { Layout.fillWidth: true; spacing: 10
                         Rectangle { width: detectBtnText.implicitWidth + 24; height: 34; radius: 7; color: detectBtnArea.containsMouse ? "#6d7de8" : "#5068d8"
                             scale: detectBtnArea.pressed ? 0.92 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Text { id: detectBtnText; anchors.centerIn: parent; text: "重新检测"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#ffffff" }
                             MouseArea { id: detectBtnArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.detectJava(); toastManager.show("正在检测 Java 环境...") } } }
                         }
                         Rectangle { width: browseBtnText.implicitWidth + 24; height: 34; radius: 7; color: browseBtnArea.containsMouse ? "#1a1f2e" : "transparent"
                             scale: browseBtnArea.pressed ? 0.92 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                             border.color: browseBtnArea.containsMouse ? "#6d7de8" : "#4a5ec8"; border.width: 1.5
                             Text { id: browseBtnText; anchors.centerIn: parent; text: "手动选择"; font.pixelSize: 13; font.weight: Font.Medium; color: browseBtnArea.containsMouse ? "#ffffff" : "#b0b8e0" }
                             MouseArea { id: browseBtnArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { var ok = backend.browseJava(); if (ok) toastManager.show("已选择 Java 路径") } } }
@@ -284,7 +285,7 @@ Rectangle {
                             Repeater { model: [{ label: "低配 (2G)", val: 2048 }, { label: "中配 (4G)", val: 4096 }, { label: "高配 (8G)", val: 8192 }]
                                 Rectangle { width: presetLabel.implicitWidth + 20; height: 30; radius: 6; color: presetMouse.containsMouse ? "#5068d8" : "#1f2740"; border.color: presetMouse.containsMouse ? "#6d7de8" : "#2a3d60"
                                     scale: presetMouse.containsMouse ? 1.04 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                                     Text { id: presetLabel; anchors.centerIn: parent; text: modelData.label; color: presetMouse.containsMouse ? "#ffffff" : "#b0c0e8"; font.pixelSize: 11 }
                                     MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { maxSlider.value = modelData.val; if (backend) backend.setMaxMemory(modelData.val) } }
                                 }

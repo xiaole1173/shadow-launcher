@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     id: root
@@ -20,7 +21,7 @@ Rectangle {
     signal startInstall(string versionId, int sourceIndex)
 
     opacity: 0
-    Behavior on opacity { NumberAnimation { duration: 250 } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
 
     function show(vid, vtype) {
         versionId = vid
@@ -123,14 +124,14 @@ Rectangle {
             RowLayout { spacing: 10; Layout.alignment: Qt.AlignRight
                 Rectangle { width: 80; height: 34; radius: 7; color: cancelMouse.containsMouse ? "#1a1f2e" : "transparent"
                     scale: cancelMouse.pressed ? 0.9 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     border.color: cancelMouse.containsMouse ? "#5d6fe0" : "#3a4050"; border.width: 1
                     Text { anchors.centerIn: parent; text: "取消"; color: cancelMouse.containsMouse ? "#ffffff" : "#8890a0"; font.pixelSize: 13 }
                     MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.hide() }
                 }
                 Rectangle { width: 120; height: 36; radius: 7; color: installMouse.containsMouse ? "#6d7de8" : "#5068d8"
                     scale: installMouse.pressed ? 0.92 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Text { anchors.centerIn: parent; text: "开始安装"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#ffffff" }
                     MouseArea { id: installMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {

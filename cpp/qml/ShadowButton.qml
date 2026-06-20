@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
+import "qrc:/ShadowLauncher/qml"
 
 // ═══ 弹性按钮 — hover 放大, press 缩小 ═══
 
@@ -43,7 +44,7 @@ Button {
         color: shadowBtn.enabled ? shadowBtn.textColor : "#555760"
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
     }
 
     background: Rectangle {
@@ -53,7 +54,7 @@ Button {
         border.width: 1
         opacity: shadowBtn.enabled ? 1.0 : 0.5
 
-        Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
         Behavior on border.color { ColorAnimation { duration: 200 } }
     }
 }

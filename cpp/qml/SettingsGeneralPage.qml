@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     color: "#121418"
@@ -106,7 +107,7 @@ Rectangle {
                             radius: root.radius
                             color: root.colorBorder
                             opacity: parent.containsMouse ? 0.3 : 0
-                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                         }
                     }
                 }
@@ -184,7 +185,7 @@ Rectangle {
                                 Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.InOutCubic } }
                             }
 
-                            Behavior on color { ColorAnimation { duration: 250 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -246,7 +247,7 @@ Rectangle {
                                 onClicked: d.launcherVisibility = "keep"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
@@ -274,7 +275,7 @@ Rectangle {
                                 onClicked: d.launcherVisibility = "hideOnLaunch"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
                     }
@@ -331,7 +332,7 @@ Rectangle {
                                 onClicked: d.processPriority = "normal"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
@@ -359,7 +360,7 @@ Rectangle {
                                 onClicked: d.processPriority = "high"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
@@ -387,7 +388,7 @@ Rectangle {
                                 onClicked: d.processPriority = "realtime"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
                     }
@@ -444,7 +445,7 @@ Rectangle {
                                 onClicked: d.windowSize = "default"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
@@ -472,7 +473,7 @@ Rectangle {
                                 onClicked: d.windowSize = "fullscreen"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
@@ -500,7 +501,7 @@ Rectangle {
                                 onClicked: d.windowSize = "custom"
                             }
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
                     }
@@ -519,7 +520,7 @@ Rectangle {
                     opacity: d.windowSize === "custom" ? 1 : 0
 
                     Behavior on Layout.preferredHeight { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                    Behavior on opacity { NumberAnimation { duration: 250 } }
+                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
 
                     RowLayout {
                         id: resolutionRow
@@ -577,7 +578,7 @@ Rectangle {
                                                 radius: root.radius
                                                 color: root.colorBorder
                                                 opacity: parent.containsMouse ? 0.4 : 0
-                                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                                             }
                                         }
                                     }
@@ -619,7 +620,7 @@ Rectangle {
                                                 radius: root.radius
                                                 color: root.colorBorder
                                                 opacity: parent.containsMouse ? 0.4 : 0
-                                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                                             }
                                         }
                                     }
@@ -684,7 +685,7 @@ Rectangle {
                                                 radius: root.radius
                                                 color: root.colorBorder
                                                 opacity: parent.containsMouse ? 0.4 : 0
-                                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                                             }
                                         }
                                     }
@@ -726,7 +727,7 @@ Rectangle {
                                                 radius: root.radius
                                                 color: root.colorBorder
                                                 opacity: parent.containsMouse ? 0.4 : 0
-                                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                                             }
                                         }
                                     }

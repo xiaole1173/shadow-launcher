@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     id: overlay
@@ -36,7 +37,7 @@ Rectangle {
         Behavior on angle { NumberAnimation { duration: 500; easing.type: Easing.OutBack } }
     }
     opacity: flipped ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
 
     onVisibleChanged: {
         if (visible) {
@@ -184,7 +185,7 @@ Rectangle {
             border.color: "#402428"
             visible: checkFailed
             opacity: checkFailed ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
 
             ColumnLayout {
                 id: errorColumn
@@ -270,7 +271,7 @@ Rectangle {
             border.color: "#403800"
             visible: checkWarning !== ""
             opacity: checkWarning !== "" ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 200 } }
+            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
             Text {
                 id: warnText
@@ -289,7 +290,7 @@ Rectangle {
             Layout.preferredHeight: checkFailed ? 0 : 50
             visible: !checkFailed
             opacity: checkFailed ? 0 : 1
-            Behavior on opacity { NumberAnimation { duration: 200 } }
+            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -353,10 +354,10 @@ Rectangle {
                 scale: logMouse.pressed ? 0.9 : (logMouse.containsMouse ? 1.04 : 1.0)
                 visible: checkFailed
                 opacity: checkFailed ? 1 : 0
-                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
-                Behavior on opacity { NumberAnimation { duration: 200 } }
+                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                 Text {
                     anchors.centerIn: parent
@@ -386,8 +387,8 @@ Rectangle {
                 border.color: checkFailed ? (actionMouse.containsMouse ? "#286028" : "#284028")
                                           : (actionMouse.containsMouse ? "#602828" : "#402428")
                 scale: actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)
-                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
 
                 Text {

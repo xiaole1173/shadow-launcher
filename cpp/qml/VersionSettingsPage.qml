@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 // ═══════════════════════════════════════════════════════════════════
 //  VersionSettingsPage — 左侧边栏 + 右侧内容（StackLayout 模式）
@@ -90,7 +91,7 @@ Rectangle {
     //  PAGE-ENTER ANIMATION
     // ═══════════════════════════════════════════════════════════
     opacity: 0
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Component.onCompleted: opacity = 1
 
     // ═══════════════════════════════════════════════════════════
@@ -120,7 +121,7 @@ Rectangle {
                         text: "←"
                         font.pixelSize: 16
                         color: backMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                     Text {
                         id: backLabel
@@ -128,7 +129,7 @@ Rectangle {
                         font.pixelSize: 14
                         font.weight: Font.Medium
                         color: backMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                 }
 
@@ -183,7 +184,7 @@ Rectangle {
                         radius: 6
                         color: page.currentSection === section ? "#1A1D24" : "transparent"
 
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
 
                         // Left accent bar
                         Rectangle {
@@ -195,7 +196,7 @@ Rectangle {
                             radius: 2
                             color: page.currentSection === section ? "#3B82F6" : "transparent"
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
 
                         Text {
@@ -207,7 +208,7 @@ Rectangle {
                             font.weight: page.currentSection === section ? Font.SemiBold : Font.Normal
                             color: page.currentSection === section ? "#F1F3F6" : "#B4BAC6"
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
 
                         MouseArea {
@@ -238,9 +239,7 @@ Rectangle {
                     visible: page.currentSection === 0
                     opacity: page.currentSection === 0 ? 1 : 0
 
-                    Behavior on opacity {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-                    }
+                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                     ColumnLayout {
                         id: settingsContent
@@ -280,7 +279,7 @@ Rectangle {
                                     scale: shortcutMouse.containsMouse ? 1.04 : 1.0
 
                                     Behavior on border.color { ColorAnimation { duration: 200 } }
-                                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                                     RowLayout {
                                         anchors.centerIn: parent
@@ -290,7 +289,7 @@ Rectangle {
                                             text: modelData.label
                                             font.pixelSize: 13
                                             color: shortcutMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
-                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                         }
                                     }
 
@@ -325,7 +324,7 @@ Rectangle {
                             scale: deleteBtnMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on border.color { ColorAnimation { duration: 200 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                             RowLayout {
                                 anchors.centerIn: parent
@@ -334,13 +333,13 @@ Rectangle {
                                     text: "🗑"
                                     font.pixelSize: 16
                                     color: deleteBtnMouse.containsMouse ? "#EF4444" : "#B4BAC6"
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                                 Text {
                                     text: "删除此版本"
                                     font.pixelSize: 13
                                     color: deleteBtnMouse.containsMouse ? "#EF4444" : "#B4BAC6"
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                             }
 
@@ -544,8 +543,8 @@ Rectangle {
                             color: applyAuthMouse.containsMouse ? "#2563EB" : "#3B82F6"
                             scale: applyAuthMouse.containsMouse ? 1.04 : 1.0
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                             Text {
                                 anchors.centerIn: parent
@@ -579,9 +578,7 @@ Rectangle {
                     visible: page.currentSection === 1
                     opacity: page.currentSection === 1 ? 1 : 0
 
-                    Behavior on opacity {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-                    }
+                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                     ColumnLayout {
                         id: integrityContent
@@ -615,8 +612,8 @@ Rectangle {
                             color: integrityBtnMouse.containsMouse ? "#2563EB" : "#3B82F6"
                             scale: integrityBtnMouse.containsMouse ? 1.04 : 1.0
 
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                             Text {
                                 anchors.centerIn: parent
@@ -737,7 +734,7 @@ Rectangle {
                                 border.color: "#402428"
                                 visible: page.verifyHasFailed && page.verifyFailedFiles.length > 0
                                 opacity: cleanupMouse.containsMouse ? 0.9 : 0.7
-                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -770,7 +767,7 @@ Rectangle {
                                 border.color: "#2A3050"
                                 visible: page.verifyHasFailed && page.verifyFailedFiles.length > 0
                                 opacity: repairMouse.containsMouse ? 0.95 : 0.8
-                                Behavior on opacity { NumberAnimation { duration: 150 } }
+                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -816,9 +813,7 @@ Rectangle {
                     visible: page.currentSection === 2
                     opacity: page.currentSection === 2 ? 1 : 0
 
-                    Behavior on opacity {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-                    }
+                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                     ColumnLayout {
                         id: resourceContent
@@ -858,14 +853,14 @@ Rectangle {
                                 scale: openFolderMouse.containsMouse ? 1.04 : 1.0
 
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
-                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "📂 打开文件夹"
                                     font.pixelSize: 12
                                     color: openFolderMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
 
                                 MouseArea {
@@ -887,14 +882,14 @@ Rectangle {
                                 scale: addPackMouse.containsMouse ? 1.04 : 1.0
 
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
-                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "➕ 添加资源包"
                                     font.pixelSize: 12
                                     color: addPackMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
 
                                 MouseArea {
@@ -947,9 +942,7 @@ Rectangle {
                     visible: page.currentSection >= 3
                     opacity: page.currentSection >= 3 ? 1 : 0
 
-                    Behavior on opacity {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-                    }
+                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
                     ColumnLayout {
                         id: conditionalContent
@@ -1053,14 +1046,14 @@ Rectangle {
                     scale: cancelDelMouse.containsMouse ? 1.04 : 1.0
 
                     Behavior on border.color { ColorAnimation { duration: 200 } }
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                     Text {
                         anchors.centerIn: parent
                         text: "取消"
                         font.pixelSize: 13
                         color: cancelDelMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
 
                     MouseArea {
@@ -1083,7 +1076,7 @@ Rectangle {
                     scale: confirmDelMouse.containsMouse ? 1.04 : 1.0
 
                     Behavior on border.color { ColorAnimation { duration: 200 } }
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                     Text {
                         anchors.centerIn: parent
@@ -1091,7 +1084,7 @@ Rectangle {
                         font.pixelSize: 13
                         font.weight: Font.SemiBold
                         color: confirmDelMouse.containsMouse ? "#FCA5A5" : "#EF4444"
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
 
                     MouseArea {

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     width: parent ? parent.width : 400
@@ -115,7 +116,7 @@ Rectangle {
                             radius: root.radius
                             color: root.colorBorder
                             opacity: parent.containsMouse ? 0.3 : 0
-                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                         }
                     }
                 }
@@ -217,7 +218,7 @@ Rectangle {
                                 radius: root.radius
                                 color: root.colorAccent
                                 opacity: parent.containsMouse ? 0.1 : 0
-                                Behavior on opacity { NumberAnimation { duration: 200 } }
+                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                             }
                         }
                     }
@@ -252,7 +253,7 @@ Rectangle {
                                 radius: root.radius
                                 color: root.colorAccent
                                 opacity: parent.containsMouse ? 0.1 : 0
-                                Behavior on opacity { NumberAnimation { duration: 200 } }
+                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                             }
                         }
                     }
@@ -334,7 +335,7 @@ Rectangle {
                                 Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.InOutCubic } }
                             }
 
-                            Behavior on color { ColorAnimation { duration: 250 } }
+                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -463,7 +464,7 @@ Rectangle {
                             radius: root.radius
                             color: root.colorBorder
                             opacity: parent.containsMouse ? 0.3 : 0
-                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
                         }
                     }
                 }

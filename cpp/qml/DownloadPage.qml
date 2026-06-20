@@ -1,8 +1,9 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     id: page
@@ -195,7 +196,7 @@ Rectangle {
     // ──── Animations ────
     opacity: 0
     y: 10
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Component.onCompleted: {
         console.log("[dlpage] loaded, t=" + Date.now())
@@ -378,7 +379,7 @@ Rectangle {
                 border.color: page.currentTab === index ? "#3a4eb8" : "transparent"
                 border.width: page.currentTab === index ? 1 : 0
                 scale: tabMouse.containsMouse ? 1.04 : 1.0
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                 Text {
                     anchors.centerIn: parent
@@ -449,7 +450,7 @@ Rectangle {
                     border.width: 1
                     clip: true
                     scale: pillMouse.containsMouse ? 1.04 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
                     Row {
                         id: pillRow
@@ -492,7 +493,7 @@ Rectangle {
                 border.color: refreshHover.hovered ? "#5068d8" : "#1e2230"
                 border.width: 1
                 scale: refreshHover.hovered ? 1.08 : 1.0
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 visible: page.currentTab === 0
                 Text {
                     anchors.centerIn: parent
@@ -529,7 +530,7 @@ Rectangle {
                     color: page.currentSource === -1 ? "#5068d8" : "#11141c"
                     border.color: page.currentSource === -1 ? "#5068d8" : "#1e2230"
                     scale: multiSrcMouse.containsMouse ? 1.04 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Text { id: multiLabel; anchors.centerIn: parent; text: "自动"; color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
                     MouseArea { id: multiSrcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = -1 }
                 }
@@ -544,7 +545,7 @@ Rectangle {
                         color: page.currentSource === modelData.index ? "#5068d8" : "#11141c"
                         border.color: page.currentSource === modelData.index ? "#5068d8" : "#1e2230"
                         scale: srcMouse.containsMouse ? 1.04 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                         Text { id: srcLabel; anchors.centerIn: parent; text: modelData.name; color: page.currentSource === modelData.index ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
                         MouseArea { id: srcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = modelData.index }
                     }
@@ -633,8 +634,8 @@ Rectangle {
                     // Entrance animation
                     opacity: 0
                     scale: 1.0
-                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Component.onCompleted: {
                         opacity = 1
                     }

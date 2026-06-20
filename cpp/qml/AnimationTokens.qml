@@ -135,4 +135,23 @@ QtObject {
     function pageTransition(target) { return createBehavior("page_transition", target) }
     function menuBar(target)      { return createBehavior("menu_select_bar", target) }
     function toastSlideIn(target) { return createBehavior("toast_slide_in", target) }
+
+    // ── 属性别名（可被 qmlcachegen 编译，适合 Behavior on X { } 内联引用） ──
+    // 用法:
+    //   Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+    //   Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+    //   Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+    //   Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+
+    readonly property int buttonDuration: _ms("fast")
+    readonly property int buttonEasing: Easing.OutCubic
+    readonly property int itemFadeInDuration: _ms("normal")
+    readonly property int itemFadeInEasing: Easing.OutCubic
+    readonly property int itemFadeOutDuration: _ms("fast")
+    readonly property int itemFadeOutEasing: Easing.OutCubic
+    readonly property int colorDuration: _ms("fast")
+    readonly property int colorEasing: Easing.OutCubic
+    readonly property int pageDuration: _ms("page_enter")
+    readonly property int pageEasing: Easing.OutBack
+
 }

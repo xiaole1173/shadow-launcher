@@ -1,14 +1,15 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 Rectangle {
     id: page
     color: "transparent"
 
     opacity: 0; y: 10
-    Behavior on opacity { NumberAnimation { duration: 250 } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Behavior on y { NumberAnimation { duration: 250 } }
     Component.onCompleted: { opacity = 1; y = 0 }
 
@@ -387,7 +388,7 @@ Rectangle {
                 color: pauseMouse.containsMouse ? "#202040" : "#151528"
                 border.color: pauseMouse.containsMouse ? "#5060a0" : "#303060"
                 scale: pauseMouse.pressed ? 0.9 : 1.0
-                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 Text {
                     id: pauseBtnText
                     anchors.centerIn: parent
@@ -412,7 +413,7 @@ Rectangle {
                 color: cancelMouse.containsMouse ? "#502020" : "#2a1a1a"
                 border.color: cancelMouse.containsMouse ? "#a04040" : "#603030"
                 scale: cancelMouse.pressed ? 0.9 : 1.0
-                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 Text { anchors.centerIn: parent; text: "取消下载"; color: cancelMouse.containsMouse ? "#ff6060" : "#a06060"; font.pixelSize: 11 }
                 MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.cancelInstall(); toastManager.show("已取消安装") } } }
             }

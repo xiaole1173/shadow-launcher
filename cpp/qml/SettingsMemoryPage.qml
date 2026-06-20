@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import "qrc:/ShadowLauncher/qml"
 
 // ═══ 游戏内存 — 实时内存状态 / 手动分配滑块 / 自动内存提示 ═══
 
@@ -21,7 +22,7 @@ Rectangle {
 
     opacity: 0
     y: 10
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
     Component.onCompleted: {
