@@ -3533,10 +3533,21 @@ Rectangle {
                     color: "#505468"; font.pixelSize: 11
                 }
 
-                // Loading
-                Text {
-                    visible: page.modDetailLoading
-                    Layout.fillWidth: true; text: "加载版本中…"; color: "#606478"; font.pixelSize: 12
+                // Spacer: absorbs extra space when loading or no data
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: page.modDetailLoading || modDetailOverlay.grouped.length === 0
+
+                    Text {
+                        visible: page.modDetailLoading
+                        anchors.centerIn: parent
+                        text: "加载版本中…"; color: "#606478"; font.pixelSize: 12
+                    }
+                    Text {
+                        visible: !page.modDetailLoading && modDetailOverlay.grouped.length === 0
+                        anchors.centerIn: parent
+                        text: "无可用版本"; color: "#606478"; font.pixelSize: 12
+                    }
                 }
 
                 // Version list (clone RP ScrollView + Column + Repeater)
