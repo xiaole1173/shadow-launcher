@@ -1,4 +1,4 @@
-#include "mod_loader_installer.h"
+﻿#include "mod_loader_installer.h"
 #include "http_client.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -276,7 +276,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             if (!ok || sha1Data.isEmpty()) {
                 qWarning() << "[ModLoader] Cannot fetch official Forge SHA1, skip verification";
                 emit verifyFinished(false);
-                forgeStep3_runInstaller(jarData);
+                maybeRunForgeStep3(jarData);
                 return;
             }
             QString expectedSha1 = QString::fromUtf8(sha1Data).trimmed();
@@ -284,7 +284,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             qDebug() << "[ModLoader] Forge SHA1 (official) expected:" << expectedSha1 << "actual:" << actualSha1 << "match:" << match;
             emit verifyFinished(match);
             if (!match) { emit finished(false, "Forge installer SHA1 mismatch"); m_running = false; return; }
-            forgeStep3_runInstaller(jarData);
+            maybeRunForgeStep3(jarData);
         });
         return;
     }
@@ -296,7 +296,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
         if (!ok || forgeData.isEmpty()) {
             qWarning() << "[ModLoader] Cannot fetch SHA1, skip verification";
             emit verifyFinished(false);
-            forgeStep3_runInstaller(jarData);
+            maybeRunForgeStep3(jarData);
             return;
         }
 
@@ -333,10 +333,30 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
-        forgeStep3_runInstaller(jarData);
+        maybeRunForgeStep3(jarData);
     });
 }
 
+
+void ModLoaderInstaller::maybeRunForgeStep3(const QByteArray& jarData) {
+    if (m_pauseAfterVerify) {
+        m_pausedJarData = jarData;
+        qDebug() << "[ModLoader] Pausing after verify, waiting for MC to complete...";
+        emit waitingForMC();
+        return;
+    }
+    forgeStep3_runInstaller(jarData);
+}
+
+void ModLoaderInstaller::continueAfterPause() {
+    if (!m_pausedJarData.isEmpty()) {
+        QByteArray data = m_pausedJarData;
+        m_pausedJarData.clear();
+        m_pauseAfterVerify = false;
+        qDebug() << "[ModLoader] Resuming after MC ready, running installer...";
+        forgeStep3_runInstaller(data);
+    }
+}
 void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
     m_currentStep = 3;
     emit progressChanged(3, m_totalSteps, "Running Forge installer...");

@@ -39,6 +39,8 @@ signals:
     // Final
     void finished(bool success, const QString& error);
     void logMessage(const QString& msg);
+    // Pause between verify and install (for parallel MC download)
+    void waitingForMC();
 
 private:
     // Download helpers
@@ -59,6 +61,7 @@ private:
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
     void forgeStep3_runInstaller(const QByteArray& jarData);
+    void maybeRunForgeStep3(const QByteArray& jarData);
 
     // Fabric
     void fabricStep1_downloadProfile();
@@ -73,6 +76,11 @@ private:
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
 
+    // Pause/resume for parallel downloads (merged install)
+    void setPauseAfterVerify(bool v) { m_pauseAfterVerify = v; }
+    bool isPaused() const { return !m_pausedJarData.isEmpty(); }
+    void continueAfterPause();
+
     // ── state ──
     QString m_gameDir;
     QString m_mcVersion;
@@ -86,6 +94,8 @@ private:
     bool m_usedFallback = false;
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
+    bool m_pauseAfterVerify = false;
+    QByteArray m_pausedJarData;
 
     // byte progress tracking
     qint64 m_bytesReceived = 0;

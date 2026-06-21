@@ -118,6 +118,11 @@ VersionBackend::VersionBackend(QObject* parent)
         emit installFinished(success);
     });
 
+    // Pause between verify and install (merged install: wait for MC)
+    connect(m_mlInstaller, &ModLoaderInstaller::waitingForMC, this, [this]() {
+        setInstallPhase(QStringLiteral("等待MC下载完成..."));
+    });
+
     // Byte-level download progress → update current active step
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
@@ -1473,15 +1478,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
         rebuildSteps({
-            QStringLiteral("\u4e0b\u8f7d\u539f\u7248 json\u6587\u4ef6"),
-            QStringLiteral("\u4e0b\u8f7d\u539f\u7248\u652f\u6301\u5e93\u6587\u4ef6"),
-            QStringLiteral("\u4e0b\u8f7d\u539f\u7248\u8d44\u6e90\u6587\u4ef6"),
-            QStringLiteral("\u4e0b\u8f7d %1 \u4e3b\u6587\u4ef6").arg(loaderLabel),
-            QStringLiteral("\u5206\u6790 %1 \u652f\u6301\u5e93\u6587\u4ef6").arg(loaderLabel),
-            QStringLiteral("\u4e0b\u8f7d %1 \u652f\u6301\u5e93\u6587\u4ef6").arg(loaderLabel),
-            QStringLiteral("\u5b89\u88c5 %1").arg(loaderLabel),
-            QStringLiteral("\u5b89\u88c5\u6e38\u620f"),
-            QStringLiteral("\u4e0b\u8f7d\u6e38\u620f\u652f\u6301\u5e93\u6587\u4ef6")
+            QStringLiteral("下载原版 json文件"),
+            QStringLiteral("下载原版支持库文件"),
+            QStringLiteral("下载原版资源文件"),
+            QStringLiteral("下载 Forge 主文件"),
+            QStringLiteral("校验 Forge 完整性"),
+            QStringLiteral("安装 Forge")
         });
         updateStep(0, QStringLiteral("active"), 0);
         m_mergedLoadedStep = 1;
