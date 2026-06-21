@@ -1094,7 +1094,12 @@ Rectangle {
                         hoverEnabled: true
                         onClicked: {
                             page._showDeleteConfirm = false
-                            // TODO: trigger version deletion via backend
+                            if (backend && page._versionId) {
+                                backend.deleteVersion(page._versionId)
+                                // Refresh installed list and reset home page selection
+                                backend.refreshInstalledList()
+                                backend.setSelectedVersion("")
+                            }
                             page.goBack()
                         }
                     }
