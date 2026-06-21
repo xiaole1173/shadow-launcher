@@ -198,7 +198,6 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
 
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString jarPath = tempDir + "/optifine-" + m_installName + ".jar";
-
     QFile jarFile(jarPath);
     if (!jarFile.open(QIODevice::WriteOnly)) {
         emit finished(false, "Cannot write Optifine JAR");
@@ -208,22 +207,35 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     jarFile.write(jarData);
     jarFile.close();
 
+    // PCL-style temp .minecraft isolation
+    QDir tempMcDir = setupTempMc();
+    QString tempMcRoot;
+    {
+        QString tmp = tempMcDir.absolutePath();
+        tempMcRoot = tmp.endsWith("/.minecraft") ? tmp.left(tmp.length() - 11) : tmp;
+    }
+
     QProcess* proc = new QProcess(this);
     QStringList args;
-    args << "-jar" << jarPath << "--installClient" << m_gameDir;
+    args << "-jar" << jarPath << "--installClient" << tempMcDir.absolutePath();
 
-    qDebug() << "[ModLoader] Running Optifine installer: java" << args;
+    qDebug() << "[ModLoader] Optifine install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
+            this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
         proc->deleteLater();
-        QFile::remove(jarPath);
         if (m_cancelled || exitCode != 0) {
+            cleanupTempMc(tempMcRoot);
             qWarning() << "[ModLoader] Optifine installer failed, exit:" << exitCode;
             emit finished(false, QString("Optifine installer failed (exit %1)").arg(exitCode));
             m_running = false;
             return;
         }
+
+        // Copy installer output from temp to real game dir
+        collectForgeOutput(tempMcDir.absolutePath(), jarPath);
+        cleanupTempMc(tempMcRoot);
+
         qDebug() << "[ModLoader] Optifine standalone install complete";
         emit progressChanged(2, m_totalSteps, "Optifine installed");
         emit finished(true, QString());
@@ -231,6 +243,119 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     });
 
     proc->start("java", args);
+}
+
+// ============================================================
+// Temp .minecraft isolation (PCL-style)
+// ============================================================
+
+QString ModLoaderInstaller::setupTempMc() {
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+                      + "/sl_temp_" + m_installName + "_"
+                      + QString::number(QRandomGenerator::global()->generate() % 100000);
+    QString tempMc = tempDir + "/.minecraft";
+    QDir().mkpath(tempMc + "/versions/" + m_mcVersion);
+    QDir().mkpath(tempMc + "/libraries");
+
+    // Copy vanilla version files to temp
+    QString srcVerDir = m_gameDir + "/versions/" + m_mcVersion;
+    QString dstVerDir = tempMc + "/versions/" + m_mcVersion;
+    if (QFile::exists(srcVerDir + "/" + m_mcVersion + ".json")) {
+        QFile::copy(srcVerDir + "/" + m_mcVersion + ".json",
+                    dstVerDir + "/" + m_mcVersion + ".json");
+    }
+    if (QFile::exists(srcVerDir + "/" + m_mcVersion + ".jar")) {
+        QFile::copy(srcVerDir + "/" + m_mcVersion + ".jar",
+                    dstVerDir + "/" + m_mcVersion + ".jar");
+    }
+
+    // Create minimal launcher_profiles.json (Forge installer requirement)
+    QFile lpj(tempMc + "/launcher_profiles.json");
+    if (lpj.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        lpj.write("{\"profiles\":{},\"settings\":{},\"version\":3}");
+        lpj.close();
+    }
+
+    qDebug() << "[ModLoader] Temp .minecraft created:" << tempMc;
+    return tempMc;
+}
+
+void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString& jarPath) {
+    // Find newly created version folder (Forge installer generates one)
+    QDir verDir(tempMc + "/versions");
+    QString foundJson;
+    QStringList subDirs = verDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString& subDir : subDirs) {
+        if (subDir == m_mcVersion) continue;  // skip our copied vanilla
+        QString jsonPath = verDir.absolutePath() + "/" + subDir + "/" + subDir + ".json";
+        if (QFile::exists(jsonPath)) {
+            foundJson = jsonPath;
+            qDebug() << "[ModLoader] Found Forge output JSON:" << foundJson;
+            break;
+        }
+    }
+
+    // Write version JSON to real game dir
+    QString targetVerDir = m_gameDir + "/versions/" + m_installName;
+    QDir().mkpath(targetVerDir);
+    QString targetJson = targetVerDir + "/" + m_installName + ".json";
+    if (!foundJson.isEmpty() && QFile::exists(foundJson)) {
+        if (QFile::exists(targetJson)) QFile::remove(targetJson);
+        QFile::copy(foundJson, targetJson);
+        qDebug() << "[ModLoader] Forge JSON copied to" << targetJson;
+    } else {
+        qWarning() << "[ModLoader] No Forge output JSON found, trying fallback name";
+        // Try the predicted folder name
+        QString predictedJson = verDir.absolutePath() + "/" + m_installName + "/" + m_installName + ".json";
+        if (QFile::exists(predictedJson)) {
+            QFile::copy(predictedJson, targetJson);
+            qDebug() << "[ModLoader] Forge JSON copied from predicted path:" << predictedJson;
+        } else {
+            qWarning() << "[ModLoader] Cannot find Forge output JSON at all";
+        }
+    }
+
+    // Copy vanilla JAR
+    QString vanillaJar = tempMc + "/versions/" + m_mcVersion + "/" + m_mcVersion + ".jar";
+    QString targetJar = targetVerDir + "/" + m_installName + ".jar";
+    if (QFile::exists(vanillaJar) && !QFile::exists(targetJar)) {
+        QFile::copy(vanillaJar, targetJar);
+    }
+
+    // Copy libraries from temp to real game dir
+    QString tempLibDir = tempMc + "/libraries";
+    QString realLibDir = m_gameDir + "/libraries";
+    if (QDir(tempLibDir).exists()) {
+        QDir().mkpath(realLibDir);
+        // Copy recursively
+        auto copyDir = [](const QString& src, const QString& dst, auto& self) -> void {
+            QDir(src).mkpath(dst);
+            QDir d(src);
+            for (const QFileInfo& info : d.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
+                QString s = info.absoluteFilePath();
+                QString t = dst + "/" + info.fileName();
+                if (info.isDir()) {
+                    self(s, t, self);
+                } else {
+                    if (!QFile::exists(t)) QFile::copy(s, t);
+                }
+            }
+        };
+        copyDir(tempLibDir, realLibDir, copyDir);
+        qDebug() << "[ModLoader] Libraries copied from temp to real game dir";
+    }
+
+    // Cleanup temp installer JAR (the path passed via QProcess)
+    if (!jarPath.isEmpty()) QFile::remove(jarPath);
+}
+
+void ModLoaderInstaller::cleanupTempMc(const QString& tempDir) {
+    if (tempDir.isEmpty()) return;
+    QDir d(tempDir);
+    if (d.exists()) {
+        d.removeRecursively();
+        qDebug() << "[ModLoader] Temp .minecraft cleaned:" << tempDir;
+    }
 }
 
 // ============================================================
@@ -361,9 +486,9 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
     m_currentStep = 3;
     emit progressChanged(3, m_totalSteps, "Installing Forge...");
 
+    // Write installer JAR to temp
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString jarPath = tempDir + "/forge-installer-" + m_installName + ".jar";
-
     QFile jarFile(jarPath);
     if (!jarFile.open(QIODevice::WriteOnly)) {
         emit finished(false, "Cannot write temp JAR");
@@ -373,24 +498,23 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
     jarFile.write(jarData);
     jarFile.close();
 
-    QProcess* proc = new QProcess(this);
-    QStringList args;
-    args << "-jar" << jarPath << "--installClient" << m_gameDir;
-
-    qDebug() << "[ModLoader] Forge install: java" << args << "gameDir:" << m_gameDir;
-
-    // Forge installer requires launcher_profiles.json — create one if missing
-    QString lpjPath = m_gameDir + QStringLiteral("/launcher_profiles.json");
-    if (!QFile::exists(lpjPath)) {
-        QFile lpj(lpjPath);
-        if (lpj.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            lpj.write("{\"profiles\":{},\"settings\":{},\"version\":3}");
-            lpj.close();
-            qDebug() << "[ModLoader] Created minimal launcher_profiles.json for Forge installer";
-        }
+    // PCL-style: create temp .minecraft, run installer there, copy results out
+    QDir tempMcDir = setupTempMc();
+    QString tempMcRoot;  // parent of .minecraft for cleanup
+    {
+        QString tmp = tempMcDir.absolutePath();
+        if (tmp.endsWith("/.minecraft"))
+            tempMcRoot = tmp.left(tmp.length() - 11);  // strip "/.minecraft"
+        else
+            tempMcRoot = tmp;
     }
 
-    // Capture stderr for diagnostics
+    QProcess* proc = new QProcess(this);
+    QStringList args;
+    args << "-jar" << jarPath << "--installClient" << tempMcDir.absolutePath();
+
+    qDebug() << "[ModLoader] Forge install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
+
     connect(proc, &QProcess::readyReadStandardError, this, [this, proc]() {
         QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
         if (!err.isEmpty()) {
@@ -406,15 +530,15 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
     });
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
-        // Read any remaining stderr
+            this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
         QString stderrRemaining = QString::fromUtf8(proc->readAllStandardError()).trimmed();
         if (!stderrRemaining.isEmpty()) {
             qWarning().noquote() << "[ModLoader] Forge stderr (final):" << stderrRemaining;
         }
         proc->deleteLater();
-        QFile::remove(jarPath);
+
         if (m_cancelled || exitCode != 0) {
+            cleanupTempMc(tempMcRoot);
             QString msg = QString("Forge installer failed (exit %1): %2")
                 .arg(exitCode).arg(stderrRemaining.isEmpty() ? QStringLiteral("unknown error") : stderrRemaining);
             qWarning() << "[ModLoader]" << msg;
@@ -422,6 +546,11 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
             m_running = false;
             return;
         }
+
+        // Copy installer output from temp to real game dir
+        collectForgeOutput(tempMcDir.absolutePath(), jarPath);
+        cleanupTempMc(tempMcRoot);
+
         qDebug() << "[ModLoader] Forge install complete";
         emit progressChanged(3, m_totalSteps, "Install complete");
         emit finished(true, QString());
@@ -586,13 +715,11 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
 }
 
 void ModLoaderInstaller::neoStep3_runInstaller(const QByteArray& jarData) {
-    // Same as Forge installer — runs java -jar --installClient
     m_currentStep = 3;
     emit progressChanged(3, m_totalSteps, "Running NeoForge installer...");
 
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString jarPath = tempDir + "/neoforge-installer-" + m_installName + ".jar";
-
     QFile jarFile(jarPath);
     if (!jarFile.open(QIODevice::WriteOnly)) {
         emit finished(false, "Cannot write temp JAR");
@@ -602,22 +729,34 @@ void ModLoaderInstaller::neoStep3_runInstaller(const QByteArray& jarData) {
     jarFile.write(jarData);
     jarFile.close();
 
+    // PCL-style temp .minecraft isolation
+    QDir tempMcDir = setupTempMc();
+    QString tempMcRoot;
+    {
+        QString tmp = tempMcDir.absolutePath();
+        tempMcRoot = tmp.endsWith("/.minecraft") ? tmp.left(tmp.length() - 11) : tmp;
+    }
+
     QProcess* proc = new QProcess(this);
     QStringList args;
-    args << "-jar" << jarPath << "--installClient" << m_gameDir;
+    args << "-jar" << jarPath << "--installClient" << tempMcDir.absolutePath();
 
-    qDebug() << "[ModLoader] Running: java" << args;
+    qDebug() << "[ModLoader] NeoForge install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
+            this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
         proc->deleteLater();
-        QFile::remove(jarPath);
         if (m_cancelled || exitCode != 0) {
+            cleanupTempMc(tempMcRoot);
             qWarning() << "[ModLoader] NeoForge installer failed, exit:" << exitCode;
             emit finished(false, QString("Installer failed (exit %1)").arg(exitCode));
             m_running = false;
             return;
         }
+
+        collectForgeOutput(tempMcDir.absolutePath(), jarPath);
+        cleanupTempMc(tempMcRoot);
+
         qDebug() << "[ModLoader] NeoForge install complete";
         emit progressChanged(3, m_totalSteps, "Install complete");
         emit finished(true, QString());

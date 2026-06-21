@@ -57,6 +57,11 @@ private:
     QString computeSha1(const QByteArray& data);
     void emitByteProgress(const QString& name, qint64 received, qint64 total);
 
+    // Temp .minecraft isolation (PCL-style)
+    QString setupTempMc();                                  // returns temp .minecraft path
+    void collectForgeOutput(const QString& tempMc, const QString& jarPath);
+    void cleanupTempMc(const QString& tempDir);
+
     // Forge
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
