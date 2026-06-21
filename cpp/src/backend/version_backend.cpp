@@ -1614,6 +1614,11 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
         }
     }
 
+    // Auto-compute percentage from bytes if provided and no explicit percentage given
+    if (percentage == 0 && bytesRecv > 0 && bytesTotal > 0) {
+        percentage = (int)((bytesRecv * 100) / bytesTotal);
+    }
+
     s["status"] = status;
     s["percentage"] = percentage;
     s["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
