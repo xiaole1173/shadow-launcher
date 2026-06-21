@@ -17,6 +17,7 @@ Rectangle {
     property string mcVersion: ""
     property var toastManager: null
     signal goBack()
+    signal navigateToProgress()
     signal requestMinimize()
     signal requestClose()
 
@@ -264,7 +265,7 @@ Rectangle {
                                         } else {
                                             backend.installVersion(n)
                                         }
-                                        root.goBack()
+                                        root.navigateToProgress()
                                     }
                                 }
                             }

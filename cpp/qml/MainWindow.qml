@@ -2256,6 +2256,14 @@ Window {
                     item.mcVersion = installMcVersion
                     item.toastManager = toastManager
                     item.goBack.connect(function() { showInstallPage = false })
+                    item.navigateToProgress.connect(function() {
+                        showInstallPage = false
+                        if (!downloadNavVisible) {
+                            downloadNavVisible = true
+                            navModel.append({ label: "下载进度", pageKey: "download_progress" })
+                        }
+                        switchPage(navModel.count - 1)
+                    })
                     item.requestMinimize.connect(function() { appWindow.showMinimized() })
                     item.requestClose.connect(function() { appWindow.close() })
                 }
