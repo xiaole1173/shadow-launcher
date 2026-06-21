@@ -12,14 +12,15 @@ Rectangle {
     id: root
     anchors.fill: parent
     color: "#0c0f16"
-    z: 10
 
     property var backend: null
     property string mcVersion: ""
     property var toastManager: null
     signal goBack()
 
-    Component.onCompleted: { console.log("[install] InstallPage loaded, mcVersion=" + mcVersion) }
+    Component.onCompleted: {
+        if (backend) backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
+    }
 
     // ── Selected mod loader state ──
     property string selectedForge: ""
@@ -27,12 +28,10 @@ Rectangle {
     property string selectedFabric: ""
     property string selectedOptifine: ""
     property string selectedFabricApi: ""
-    property string activeLoader: ""  // "forge" | "neoforge" | "fabric"
+    property string activeLoader: ""
 
-    // Derived: whether any non-optifine loader is selected
     property bool hasModLoader: activeLoader !== ""
 
-    // Derived: selected version name suffix
     property string versionSuffix: {
         var parts = []
         if (activeLoader === "forge" && selectedForge) parts.push("Forge-" + selectedForge)
@@ -44,17 +43,95 @@ Rectangle {
 
     property string fullVersionName: mcVersion + (versionSuffix ? "-" + versionSuffix : "")
 
-    // ── Scrollable content ──
-    ScrollView {
-        anchors.fill: parent
-        anchors.topMargin: 52
+    // ═══ TOP BAR ═══
+    Rectangle {
+        id: topBar
+        anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+        height: 44; color: "#0c0f16"; z: 10
+
+        RowLayout {
+            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
+
+            // Back button
+            Rectangle {
+                width: backLabel.implicitWidth + 20; height: 30; radius: 6
+                color: backMouse.containsMouse ? "#1a2440" : "transparent"
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Text {
+                    id: backLabel
+                    anchors.centerIn: parent
+                    text: "\u2190 Back"
+                    color: backMouse.containsMouse ? "#6080e8" : "#a0a8c0"
+                    font.pixelSize: 13; font.weight: Font.Medium
+                }
+                MouseArea {
+                    id: backMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (backend) backend.logMessage("[install] back button clicked")
+                        root.goBack()
+                    }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: mcVersion || "???"
+                font.pixelSize: 16; font.weight: Font.Bold; color: "#e4e8f2"
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // Download button (placeholder)
+            Rectangle {
+                width: dlLabel.implicitWidth + 24; height: 30; radius: 6
+                color: dlMouse.containsMouse ? "#3a5ed0" : "#2a4590"
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Text {
+                    id: dlLabel
+                    anchors.centerIn: parent
+                    text: "Start Download"
+                    color: "#e8ecf8"; font.pixelSize: 13; font.weight: Font.DemiBold
+                }
+                MouseArea {
+                    id: dlMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (backend) backend.logMessage("[install] download clicked: " + root.fullVersionName)
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══ CONTENT AREA ═══
+    // Use Flickable instead of ScrollView for more reliable child sizing
+    Flickable {
+        id: contentFlick
+        anchors.top: topBar.bottom
+        anchors.left: parent.left; anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        contentWidth: width
+        contentHeight: contentCol.implicitHeight + 32
         clip: true
-        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        flickableDirection: Flickable.VerticalFlick
+        boundsBehavior: Flickable.StopAtBounds
+
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+            width: 6
+        }
 
         ColumnLayout {
-            width: parent ? Math.min(parent.width - 32, 680) : 680
-            anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
-            spacing: 16
+            id: contentCol
+            width: parent.width - 32
+            x: 16
+            spacing: 12
 
             // ═══ CARD 1 — MC Version ═══
             Rectangle {
@@ -69,7 +146,8 @@ Rectangle {
                             font.pixelSize: 18; font.weight: Font.Bold; color: "#e4e8f2"
                         }
                         Text {
-                            text: fullVersionName !== mcVersion ? "版本名称: " + fullVersionName : ""
+                            visible: root.fullVersionName !== root.mcVersion
+                            text: "Full name: " + root.fullVersionName
                             font.pixelSize: 12; color: "#787c90"
                             elide: Text.ElideRight
                         }
@@ -77,23 +155,25 @@ Rectangle {
                 }
             }
 
-            // ═══ SECTION LABEL: Mod Loader ═══
+            // ═══ SECTION LABEL ═══
             Text {
                 text: "Mod Loader"
                 font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
-                Layout.leftMargin: 4; Layout.topMargin: 8
+                Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
             // ═══ CARD 2 — Forge ═══
             ModLoaderCard {
+                Layout.fillWidth: true
                 title: "Forge"
                 loaderKey: "forge"
                 disabled: root.hasModLoader && root.activeLoader !== "forge"
-                disabledReason: root.activeLoader === "neoforge" ? "NeoForge 已选"
-                              : root.activeLoader === "fabric" ? "Fabric 已选"
-                              : root.selectedOptifine ? "Optifine 仅兼容特定 Forge 版本" : ""
+                disabledReason: root.activeLoader === "neoforge" ? "NeoForge selected"
+                              : root.activeLoader === "fabric" ? "Fabric selected"
+                              : root.selectedOptifine ? "Incompatible with this OptiFine" : ""
                 selectedVersion: root.selectedForge
                 onVersionSelected: function(ver) {
+                    if (backend) backend.logMessage("[install] Forge selected: " + ver)
                     root.selectedForge = ver
                     root.activeLoader = "forge"
                 }
@@ -101,12 +181,13 @@ Rectangle {
 
             // ═══ CARD 3 — NeoForge ═══
             ModLoaderCard {
+                Layout.fillWidth: true
                 title: "NeoForge"
                 loaderKey: "neoforge"
                 disabled: root.hasModLoader && root.activeLoader !== "neoforge"
-                disabledReason: root.activeLoader === "forge" ? "Forge 已选"
-                              : root.activeLoader === "fabric" ? "Fabric 已选"
-                              : root.selectedOptifine ? "Optifine 不兼容 NeoForge" : ""
+                disabledReason: root.activeLoader === "forge" ? "Forge selected"
+                              : root.activeLoader === "fabric" ? "Fabric selected"
+                              : root.selectedOptifine ? "Incompatible with OptiFine" : ""
                 selectedVersion: root.selectedNeoForge
                 onVersionSelected: function(ver) {
                     root.selectedNeoForge = ver
@@ -116,12 +197,13 @@ Rectangle {
 
             // ═══ CARD 4 — Fabric ═══
             ModLoaderCard {
+                Layout.fillWidth: true
                 title: "Fabric"
                 loaderKey: "fabric"
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
-                disabledReason: root.activeLoader === "forge" ? "Forge 已选"
-                              : root.activeLoader === "neoforge" ? "NeoForge 已选"
-                              : root.selectedOptifine ? "Optifine 不兼容 Fabric" : ""
+                disabledReason: root.activeLoader === "forge" ? "Forge selected"
+                              : root.activeLoader === "neoforge" ? "NeoForge selected"
+                              : root.selectedOptifine ? "Incompatible with OptiFine" : ""
                 selectedVersion: root.selectedFabric
                 onVersionSelected: function(ver) {
                     root.selectedFabric = ver
@@ -131,106 +213,39 @@ Rectangle {
 
             // ═══ CARD 6 — Fabric API (conditional) ═══
             Rectangle {
-                Layout.fillWidth: true; height: root.activeLoader === "fabric" ? 56 : 0
+                Layout.fillWidth: true
+                height: root.activeLoader === "fabric" ? 52 : 0
                 visible: root.activeLoader === "fabric"
                 color: "#11141c"; radius: 8; border.color: "#1e2230"; border.width: 1
                 clip: true
                 Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 14; spacing: 8
-                    Rectangle {
-                        width: 8; height: 8; radius: 4
-                        color: root.selectedFabricApi ? "#4bc870" : "#505868"
-                    }
+                    Rectangle { width: 8; height: 8; radius: 4; color: root.selectedFabricApi ? "#4bc870" : "#505868" }
                     Text { text: "Fabric API"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2" }
                     Item { Layout.fillWidth: true }
-                    Text {
-                        text: root.selectedFabricApi || "未选择"; font.pixelSize: 12; color: "#9498a8"
-                    }
-                    Text { text: "\u25B6"; font.pixelSize: 10; color: "#606878" }
+                    Text { text: root.selectedFabricApi || "Unselected"; font.pixelSize: 12; color: "#9498a8" }
                 }
             }
 
             // ═══ CARD 5 — Optifine ═══
             ModLoaderCard {
+                Layout.fillWidth: true
                 title: "Optifine"
                 loaderKey: "optifine"
                 disabled: (root.hasModLoader && root.selectedOptifine === "")
-                         || (root.activeLoader === "fabric")
-                         || (root.activeLoader === "neoforge")
-                disabledReason: root.activeLoader === "fabric" ? "Fabric 不兼容 Optifine"
-                              : root.activeLoader === "neoforge" ? "Optifine 不支持 NeoForge"
-                              : root.hasModLoader && root.selectedOptifine === "" ? "Optifine 暂未选择" : ""
+                         || root.activeLoader === "fabric"
+                         || root.activeLoader === "neoforge"
+                disabledReason: root.activeLoader === "fabric" ? "Fabric incompatible with OptiFine"
+                              : root.activeLoader === "neoforge" ? "OptiFine unsupported on NeoForge"
+                              : root.hasModLoader && root.selectedOptifine === "" ? "Select a loader first" : ""
                 selectedVersion: root.selectedOptifine
                 onVersionSelected: function(ver) {
                     root.selectedOptifine = ver
-                    // Optifine selected → disable mod loaders if Optifine is standalone or doesn't match
                 }
             }
 
-            // ═══ BOTTOM SPACER ═══
             Item { Layout.fillWidth: true; height: 40 }
-        }
-    }
-
-    // ═══ TOP BAR ═══
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-        height: 44; color: "#0c0f16"; z: 11
-
-        RowLayout {
-            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
-
-            // Back button
-            Rectangle {
-                width: backText.implicitWidth + 16; height: 30; radius: 6
-                color: backArea.containsMouse ? "#1A222D" : "transparent"
-                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                Text {
-                    id: backText
-                    anchors.centerIn: parent
-                    text: "\u2190 返回"
-                    color: backArea.containsMouse ? "#3B82F6" : "#B4BAC6"
-                    font.pixelSize: 13
-                }
-                MouseArea {
-                    id: backArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.goBack()
-                }
-            }
-
-            // Version name (centered)
-            Item { Layout.fillWidth: true }
-            Text {
-                text: mcVersion
-                font.pixelSize: 16; font.weight: Font.Bold; color: "#e4e8f2"
-            }
-            Item { Layout.fillWidth: true }
-
-            // Download button
-            Rectangle {
-                width: downloadText.implicitWidth + 24; height: 30; radius: 6
-                color: downloadArea.containsMouse ? "#3a4eb8" : "#2a3878"
-                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                Text {
-                    id: downloadText
-                    anchors.centerIn: parent
-                    text: "Start Download"
-                    color: "#e8ecf8"; font.pixelSize: 13; font.weight: Font.DemiBold
-                }
-                MouseArea {
-                    id: downloadArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        console.log("[install] download clicked, version=" + root.fullVersionName)
-                    }
-                }
-            }
         }
     }
 }

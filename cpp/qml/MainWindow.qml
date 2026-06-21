@@ -736,18 +736,6 @@ Window {
                                     Layout.fillWidth: true; height: 32; radius: 6
                                     color: "#11141c"; border.color: currentSelectedVersion ? "#1a2848" : "#0e1118"
                                     border.width: currentSelectedVersion ? 1 : 0
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: currentSelectedVersion ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: {
-                                            if (currentSelectedVersion) {
-                                                installMcVersion = currentSelectedVersion
-                                                showInstallPage = true
-                                            } else {
-                                                showVersionSelect = true
-                                            }
-                                        }
-                                    }
                                     RowLayout {
                                         anchors.centerIn: parent; spacing: 8
                                         Rectangle { width: 8; height: 8; radius: 4; color: "#6080e8"; visible: currentSelectedVersion !== "" }
@@ -1308,12 +1296,10 @@ Window {
                                                     cursorShape: Qt.PointingHandCursor
                                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                                     onClicked: function(mouse) {
-                                                        if (backend) backend.logMessage("[main] version card clicked: " + model.id)
                                                         currentSelectedVersion = model.id
                                                         if (backend) backend.setSelectedVersion(model.id)
                                                         showVersionSelect = false
-                                                        installMcVersion = model.id
-                                                        showInstallPage = true
+                                                    }
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
@@ -2436,7 +2422,6 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
-}
 }
 
     // Mod download error dialog
