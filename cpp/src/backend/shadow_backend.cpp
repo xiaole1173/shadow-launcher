@@ -304,16 +304,16 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, [this]() {
                 bool downloading = m_resource->isDownloading();
                 if (!downloading) {
-                    // Reset progress when download stops
                     m_resourceDlProgress = 0;
                     m_resourceDlTotal = 0;
                     m_resourceDlFile.clear();
                     emit resourceDownloadProgress(0, 0, QString());
+                    if (m_version) m_version->removeResourceCard(QStringLiteral("resource"));
                 } else {
-                    // Reset on start to clear stale data from previous download
                     m_resourceDlProgress = 0;
                     m_resourceDlTotal = 0;
                     m_resourceDlFile.clear();
+                    if (m_version) m_version->addResourceCard(QStringLiteral("resource"), QStringLiteral("资源包下载"));
                 }
                 qCDebug(logLaunch) << "[RP-DOWNLOAD] stateChanged downloading=" << m_resource->isDownloading();
                 emit resourceDownloadStateChanged();
@@ -325,12 +325,16 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 m_resourceDlFile = fileName;
                 qCDebug(logLaunch) << "[RP-DOWNLOAD] progress" << completed << "/" << total << fileName;
                 emit resourceDownloadProgress(completed, total, fileName);
+                if (m_version && total > 0) {
+                    m_version->updateResourceCard(QStringLiteral("resource"),
+                        (qreal)completed / total, fileName);
+                }
             });
-    // downloadFinished → resourceDownloadDone
     connect(m_resource, &ResourceBackend::downloadFinished,
             this, [this](const QString&, bool success, const QString&) {
                 qCDebug(logLaunch) << "[RP-DOWNLOAD] completed success=" << success;
                 emit resourceDownloadDone(success);
+                if (m_version) m_version->removeResourceCard(QStringLiteral("resource"));
             });
     connect(m_resource, &ResourceBackend::searchResultsReady,
             this, &ShadowBackend::searchResultsReady);
@@ -366,13 +370,34 @@ ShadowBackend::ShadowBackend(QObject* parent)
 
     // ── Mod file download forwarding ──
     connect(m_resource, &ResourceBackend::modFileDownloadStarted,
-            this, &ShadowBackend::modFileDownloadStarted);
+            this, [this](int dlId, const QString& fileName, qint64 fileSize, const QString& displayName) {
+                Q_UNUSED(fileSize);
+                QString cardId = QStringLiteral("mod:%1").arg(dlId);
+                m_modDownloadCards.insert(dlId, cardId);
+                if (m_version) m_version->addResourceCard(cardId, displayName.isEmpty() ? fileName : displayName);
+            });
     connect(m_resource, &ResourceBackend::modFileDownloadProgress,
-            this, &ShadowBackend::modFileDownloadProgress);
+            this, [this](int dlId, qint64 received, qint64 total) {
+                if (m_modDownloadCards.contains(dlId) && m_version && total > 0) {
+                    m_version->updateResourceCard(m_modDownloadCards[dlId],
+                        (qreal)received / total, QString());
+                }
+            });
     connect(m_resource, &ResourceBackend::modFileDownloadFinished,
-            this, &ShadowBackend::modFileDownloadFinished);
+            this, [this](int dlId, bool success, const QString&, const QString&) {
+                Q_UNUSED(success);
+                if (m_modDownloadCards.contains(dlId)) {
+                    if (m_version) m_version->removeResourceCard(m_modDownloadCards[dlId]);
+                    m_modDownloadCards.remove(dlId);
+                }
+            });
     connect(m_resource, &ResourceBackend::modFileDownloadFailed,
-            this, &ShadowBackend::modFileDownloadFailed);
+            this, [this](int dlId, const QString&, const QString&) {
+                if (m_modDownloadCards.contains(dlId)) {
+                    if (m_version) m_version->removeResourceCard(m_modDownloadCards[dlId]);
+                    m_modDownloadCards.remove(dlId);
+                }
+            });
 
     // ── Signal forwarding: AppBackend → ShadowBackend ──
     connect(m_app, &AppBackend::gameDirChanged,

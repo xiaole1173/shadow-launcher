@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QMap>
 
 namespace ShadowLauncher {
 
@@ -484,5 +485,6 @@ private:
     int m_resourceDlProgress = 0;
     int m_resourceDlTotal = 0;
     QString m_resourceDlFile;
+    QMap<int, QString> m_modDownloadCards;  // dlId → cardId for mod file cards
 };
 }
