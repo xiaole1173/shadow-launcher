@@ -2,7 +2,6 @@
 //  SUB-PAGE OVERLAY
 // ============================================================
 import QtQuick
-import "qrc:/ShadowLauncher/qml"
 
 Item {
     id: root

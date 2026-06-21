@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import "qrc:/ShadowLauncher/qml"
 
 // ═══ 游戏内存 — 实时内存状态 / 手动分配滑块 / 自动内存提示 ═══
 

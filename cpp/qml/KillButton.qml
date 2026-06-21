@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
-import "qrc:/ShadowLauncher/qml"
 
 // ═══ 强制退出按钮 — 圆形 ⏻ 图标 hover 展开为圆角长方形 ═══
 

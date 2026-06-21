@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
-import "qrc:/ShadowLauncher/qml"
 
 // ═══ 弹性按钮 — hover 放大, press 缩小 ═══
 

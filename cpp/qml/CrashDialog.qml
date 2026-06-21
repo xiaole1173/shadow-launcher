@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import "qrc:/ShadowLauncher/qml"
 
 // Crash dialog — shown when Minecraft exits abnormally and a crash report is found
 Popup {

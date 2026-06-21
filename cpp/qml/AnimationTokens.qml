@@ -14,7 +14,7 @@ QtObject {
 
     Component.onCompleted: {
         var xhr = new XMLHttpRequest()
-        xhr.open("GET", "qrc:/ShadowLauncher/qml/animation_tokens.json", false)
+        xhr.open("GET", "animation_tokens.json", false)
         xhr.send()
         if (xhr.status === 200) {
             tokens = JSON.parse(xhr.responseText)

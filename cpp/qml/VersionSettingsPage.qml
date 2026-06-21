@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import "qrc:/ShadowLauncher/qml"
 
 // ═══════════════════════════════════════════════════════════════════
 //  VersionSettingsPage — 左侧边栏 + 右侧内容（StackLayout 模式）

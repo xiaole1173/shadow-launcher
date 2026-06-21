@@ -102,33 +102,9 @@ set(HEADERS
 # ============================================================
 
 qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS})
-qt_add_qml_module(ShadowLauncher
-    URI "ShadowLauncher"
-    VERSION 1.0
-    # Phase 4: Full QML UI from Python project
-    QML_FILES
-        qml/MainWindow.qml
-        qml/HomePage.qml
-        qml/DownloadPage.qml
-        qml/DownloadProgressPage.qml
-        qml/SettingsPage.qml
-        qml/SettingsGeneralPage.qml
-        qml/SettingsJavaPage.qml
-        qml/SettingsMemoryPage.qml
-        qml/VersionSelectPage.qml
-        qml/VersionSettingsPage.qml
-        qml/LaunchOverlay.qml
-        qml/InstallConfigOverlay.qml
-        qml/KillButton.qml
-        qml/ShadowButton.qml
-        qml/SubPageOverlays.qml
-        qml/ToastManager.qml
-        qml/CrashDialog.qml
-        qml/MinecraftHead2D.qml
-        qml/InstallPage.qml
-        qml/ModLoaderCard.qml
-)
 
+# QML loaded from filesystem (dev mode) or bundled separately
+# No precompiled QML — avoids startup type-registration bottleneck
 target_include_directories(ShadowLauncher PRIVATE src)
 
 # ── libwebp (static, for webp→PNG icon decoding) ──
