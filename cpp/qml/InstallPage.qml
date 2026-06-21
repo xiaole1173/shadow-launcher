@@ -110,57 +110,57 @@ Rectangle {
 
             // ═══ CARD 1 — MC Version (with download button on right) ═══
             Rectangle {
-                Layout.fillWidth: true; height: 72; radius: 10
+                Layout.fillWidth: true; radius: 10
                 color: "#11141c"; border.color: "#1e2230"; border.width: 1
-                RowLayout {
-                    anchors.fill: parent; anchors.margins: 14; spacing: 12
-                    ColumnLayout {
-                        spacing: 2; Layout.fillWidth: true
-                        RowLayout { spacing: 6
-                            Text {
-                                text: mcVersion; font.pixelSize: 18; font.weight: Font.Bold; color: "#e4e8f2"
-                                verticalAlignment: Text.AlignVCenter
-                            }
+
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 12; spacing: 6
+
+                    // Row 1: version number + download button
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: mcVersion
+                            font.pixelSize: 18; font.weight: Font.Bold; color: "#e4e8f2"
+                            verticalAlignment: Text.AlignVCenter
                         }
-                        // Editable custom name
-                        RowLayout { spacing: 4; visible: displayName !== mcVersion
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            implicitWidth: dlLabel.implicitWidth + 24; height: 32; radius: 6
+                            color: dlMouse.containsMouse ? "#3a5ed0" : "#2a4590"
+                            Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
-                                text: "名称:"; font.pixelSize: 11; color: "#787c90"
-                                verticalAlignment: Text.AlignVCenter
+                                id: dlLabel
+                                anchors.centerIn: parent
+                                text: "开始下载"; color: "#e8ecf8"
+                                font.pixelSize: 13; font.weight: Font.DemiBold
                             }
-                            TextInput {
-                                id: nameInput
-                                text: displayName
-                                font.pixelSize: 12; color: "#c0c8e0"
-                                selectByMouse: true
-                                Layout.fillWidth: true
-                                onTextChanged: { root.customName = text }
-                                Rectangle {
-                                    anchors.fill: parent; z: -1; color: "#1a1e2a"; radius: 3
-                                    anchors.margins: -4
+                            MouseArea {
+                                id: dlMouse
+                                anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var targetName = root.customName !== "" ? root.customName : root.defaultName
+                                    if (backend) backend.logMessage("[install] download clicked: " + targetName)
                                 }
                             }
                         }
                     }
-                    // Download button on the right
+
+                    // Row 2: editable name input (always visible)
                     Rectangle {
-                        implicitWidth: dlLabel.implicitWidth + 24; height: 32; radius: 6
-                        color: dlMouse.containsMouse ? "#3a5ed0" : "#2a4590"
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Text {
-                            id: dlLabel
-                            anchors.centerIn: parent
-                            text: "开始下载"; color: "#e8ecf8"
-                            font.pixelSize: 13; font.weight: Font.DemiBold
-                        }
-                        MouseArea {
-                            id: dlMouse
-                            anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                var targetName = root.customName !== "" ? root.customName : root.defaultName
-                                if (backend) backend.logMessage("[install] download clicked: " + targetName)
-                            }
+                        Layout.fillWidth: true; height: 32; radius: 4
+                        color: "#161a22"; border.color: nameInput.activeFocus ? "#3a5ed0" : "#2a3040"
+                        border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                        TextInput {
+                            id: nameInput
+                            anchors.fill: parent; anchors.margins: 8
+                            text: displayName
+                            font.pixelSize: 13; color: "#c0c8e0"
+                            selectByMouse: true
+                            verticalAlignment: TextInput.AlignVCenter
+                            onTextChanged: { root.customName = text }
                         }
                     }
                 }
