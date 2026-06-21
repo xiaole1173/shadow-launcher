@@ -70,34 +70,31 @@ Rectangle {
                 font.pixelSize: 10; color: "#606878"
                 visible: !cardDisabled && (card.versions.length > 0 || card.expanded)
             }
-        }
-
-        // Cancel button — after RowLayout and MouseArea, so it renders ON TOP
-        Text {
-            anchors.right: parent.right; anchors.rightMargin: 10
-            anchors.verticalCenter: parent.verticalCenter
-            visible: selectedVersion !== ""
-            text: "\u2715"; font.pixelSize: 14
-            color: cancelArea.containsMouse ? "#e06060" : "#787c90"
-            Behavior on color { ColorAnimation { duration: 150 } }
-            TapHandler {
-                id: cancelArea
-                cursorShape: Qt.PointingHandCursor
-                onTapped: {
-                    card.selectedVersion = ""
-                    card.versionCleared()
+            // Cancel
+            Text {
+                visible: selectedVersion !== ""
+                text: "\u2715"; font.pixelSize: 14
+                color: cancelArea.containsMouse ? "#e06060" : "#787c90"
+                Behavior on color { ColorAnimation { duration: 150 } }
+                TapHandler {
+                    id: cancelArea
+                    cursorShape: Qt.PointingHandCursor
+                    onTapped: {
+                        card.selectedVersion = ""
+                        card.versionCleared()
+                    }
                 }
             }
         }
 
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: cardDisabled ? Qt.ArrowCursor : Qt.PointingHandCursor
+        TapHandler {
             enabled: !cardDisabled
-            onClicked: { if (!cardDisabled) card.expanded = !card.expanded }
-            onEntered: card.cardHovered = true
-            onExited: card.cardHovered = false
+            cursorShape: Qt.PointingHandCursor
+            onTapped: { card.expanded = !card.expanded }
+        }
+        HoverHandler {
+            enabled: !cardDisabled
+            onHoveredChanged: { card.cardHovered = hovered }
         }
     }
 
