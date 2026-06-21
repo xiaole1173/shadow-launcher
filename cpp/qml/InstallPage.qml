@@ -239,8 +239,9 @@ Rectangle {
 
             // CARD 1 — MC Version (with download button + editable name)
             Rectangle {
-                Layout.fillWidth: true; implicitHeight: 80; radius: 10
+                Layout.fillWidth: true; implicitHeight: 96; radius: 10
                 color: "#11141c"; border.color: "#1e2230"; border.width: 1
+                clip: true
 
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 12; spacing: 8
@@ -289,6 +290,7 @@ Rectangle {
                             text: root.fullVersionName
                             font.pixelSize: 13; color: "#c0c8e0"
                             selectByMouse: true
+                            clip: true
                             verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: { root.customName = text }
                         }
