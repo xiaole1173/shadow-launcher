@@ -123,6 +123,8 @@ qt_add_qml_module(ShadowLauncher
         qml/ToastManager.qml
         qml/CrashDialog.qml
         qml/MinecraftHead2D.qml
+        qml/InstallPage.qml
+        qml/ModLoaderCard.qml
 )
 
 target_include_directories(ShadowLauncher PRIVATE src)
