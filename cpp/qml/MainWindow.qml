@@ -2227,29 +2227,31 @@ Window {
 
 
 
-                // ========== INSTALL PAGE OVERLAY ==========
-                Rectangle {
-                    id: installPageOverlay
-                    anchors.fill: parent; color: "#0c0f16"; z: 15
-                    opacity: showInstallPage ? 1 : 0
-                    visible: opacity > 0
-                    Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+            }
+        }
+    }
 
-                    Loader {
-                        anchors.fill: parent
-                        active: showInstallPage
-                        source: active ? "InstallPage.qml" : ""
-                        onLoaded: {
-                            if (item) {
-                                item.backend = backend
-                                item.mcVersion = installMcVersion
-                                item.toastManager = toastManager
-                                item.goBack.connect(function() { showInstallPage = false })
-                            }
-                        }
-                    }
+    // ════════════════════════════════════════════
+    //  Install Page Overlay (top-level, covers entire window)
+    // ════════════════════════════════════════════
+    Rectangle {
+        id: installPageOverlay
+        anchors.fill: parent; color: "#0c0f16"; z: 21
+        opacity: showInstallPage ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+
+        Loader {
+            anchors.fill: parent
+            active: showInstallPage
+            source: active ? "InstallPage.qml" : ""
+            onLoaded: {
+                if (item) {
+                    item.backend = backend
+                    item.mcVersion = installMcVersion
+                    item.toastManager = toastManager
+                    item.goBack.connect(function() { showInstallPage = false })
                 }
-
             }
         }
     }
