@@ -452,26 +452,53 @@ void SettingsBackend::openVersionDir(const QString& versionId)
 void SettingsBackend::deleteVersion(const QString& versionId)
 {
     int count = 0;
+
+    // Helper: remove a directory completely with fallback
+    auto forceRemoveDir = [](const QString& dirPath) -> bool {
+        QDir d(dirPath);
+        if (!d.exists()) return true;
+        bool ok = d.removeRecursively();
+        if (ok && !QDir(dirPath).exists()) return true;
+
+        // Fallback: manually clean all files/subdirs, then remove the now-empty dir
+        qWarning() << "[deleteVersion] removeRecursively failed for" << dirPath << ", trying manual cleanup";
+        for (const QFileInfo& fi : QDir(dirPath).entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)) {
+            if (fi.isDir()) {
+                QDir(fi.absoluteFilePath()).removeRecursively();
+            } else {
+                QFile::setPermissions(fi.absoluteFilePath(),
+                    QFile::ReadOwner | QFile::WriteOwner);
+                QFile::remove(fi.absoluteFilePath());
+            }
+        }
+        return QDir().rmdir(dirPath);
+    };
+
     // 1. Delete the vanilla version folder
     QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
     if (QDir(verDir).exists()) {
-        QDir(verDir).removeRecursively();
-        count++;
+        if (forceRemoveDir(verDir)) count++;
     }
     // 2. Delete any mod-loader variant folders (e.g. "1.21.1-forge-65.0.0")
     QDir versionsRoot(m_gameDir + QStringLiteral("/versions"));
     if (versionsRoot.exists()) {
         QString prefix = versionId + QStringLiteral("-");
-        for (const QFileInfo& fi : versionsRoot.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        QFileInfoList entries = versionsRoot.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo& fi : entries) {
             if (fi.fileName() == versionId) continue;
             if (fi.fileName().startsWith(prefix)) {
-                QDir(fi.absoluteFilePath()).removeRecursively();
-                count++;
-                emit logMessage(QStringLiteral("\u5df2\u5220\u9664\u52a0\u8f7d\u5668\u7248\u672c: %1").arg(fi.fileName()));
+                if (forceRemoveDir(fi.absoluteFilePath())) {
+                    count++;
+                    emit logMessage(QStringLiteral("\u5df2\u5220\u9664\u52a0\u8f7d\u5668\u7248\u672c: %1").arg(fi.fileName()));
+                }
             }
         }
     }
-    // 3. Delete the asset index file
+    // 3. Check again & log if folder still exists
+    if (QDir(verDir).exists()) {
+        emit logMessage(QStringLiteral("\u26a0\ufe0f \u65e0\u6cd5\u5b8c\u5168\u5220\u9664\u76ee\u5f55: %1\uff0c\u8bf7\u624b\u52a8\u6e05\u7406").arg(verDir));
+    }
+    // 4. Delete the asset index file
     QString ai = m_gameDir + QStringLiteral("/assets/indexes/")
                  + versionId + QStringLiteral(".json");
     if (QFileInfo::exists(ai)) {
