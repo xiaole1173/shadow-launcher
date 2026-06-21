@@ -10,11 +10,9 @@
 #include <QFile>
 #include <QWindow>
 #include <QQuickWindow>
-#include <QQuickView>
 #include <QAbstractNativeEventFilter>
-#include <QLocalServer>
-#include <QLocalSocket>
-#include <QProcess>
+#include <QPainter>
+#include <QBackingStore>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QThread>
@@ -133,55 +131,41 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
-    // ── Splash: launch as a separate process so its event loop runs independently ──
-    QLocalServer splashServer;
-    QProcess splashProcess;
+    // ── Splash: QWindow + QBackingStore (pure raster, no GPU/Widgets) ──
+    QWindow splashWin;
+    splashWin.setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    splashWin.resize(900, 620);
+    splashWin.setTitle(QStringLiteral("ShadowLauncherSplash"));
 
-    const QStringList cliArgs = QCoreApplication::arguments();
-
-    if (cliArgs.size() > 1 && cliArgs[1] == QStringLiteral("--splash")) {
-        // ── Splash mode: show window, wait for close signal from main process ──
-        QQuickView splashView;
-        splashView.setTitle(QStringLiteral("ShadowLauncherSplash"));
-        splashView.setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-        splashView.setColor(QColor(0x0c, 0x0f, 0x16));
-        splashView.setWidth(900);
-        splashView.setHeight(620);
-        splashView.setResizeMode(QQuickView::SizeRootObjectToView);
-
-        QString splashPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/SplashWindow.qml");
-        if (QFile::exists(splashPath)) {
-            splashView.setSource(QUrl::fromLocalFile(splashPath));
-            splashView.show();
-        }
-
-        // Connect to main process's server — wait for close signal
-        QLocalSocket sock;
-        QObject::connect(&sock, &QLocalSocket::readyRead, [&]() {
-            if (sock.readAll().trimmed() == "close") {
-                splashView.close();
-                QCoreApplication::quit();
-            }
-        });
-        sock.connectToServer(QStringLiteral("ShadowLauncherSplash"));
-        if (!sock.waitForConnected(3000)) {
-            splashView.close();
-            return 0;
-        }
-        return app.exec();
+    QPixmap splashPix(900, 620);
+    splashPix.fill(QColor(0x0c, 0x0f, 0x16));
+    {
+        QPainter p(&splashPix);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0x1e, 0x24, 0x33));
+        p.drawRoundedRect(QRectF(310, 560, 280, 2), 1, 1);
+        p.setBrush(QColor(0x3B, 0x82, 0xF6));
+        p.drawRoundedRect(QRectF(310, 560, 98, 2), 1, 1);
+        QFont titleFont; titleFont.setPixelSize(22); titleFont.setBold(true);
+        p.setFont(titleFont); p.setPen(QColor(0xe0, 0xe6, 0xf0));
+        p.drawText(QRectF(0, 0, 900, 620), Qt::AlignCenter, QStringLiteral("Shadow Launcher"));
+        QFont subFont; subFont.setPixelSize(11);
+        p.setFont(subFont); p.setPen(QColor(0x5a, 0x64, 0x7a));
+        p.drawText(QRectF(0, 0, 900, 560), Qt::AlignHCenter | Qt::AlignBottom, QStringLiteral("正在启动..."));
     }
 
-    // ── Main mode: start splash process, load engine, then signal splash to close ──
-    if (!splashServer.listen(QStringLiteral("ShadowLauncherSplash"))) {
-        qCWarning(logApp) << "Splash server failed to listen — continuing without splash";
-    } else {
-        splashProcess.setProgram(QCoreApplication::applicationFilePath());
-        splashProcess.setArguments({QStringLiteral("--splash")});
-        splashProcess.setWorkingDirectory(QCoreApplication::applicationDirPath());
-        splashProcess.startDetached();
-        // Wait briefly for splash to connect
-        splashServer.waitForNewConnection(2000);
-    }
+    QBackingStore backing(&splashWin);
+    splashWin.create();
+    backing.resize(QSize(900, 620));
+    backing.beginPaint(QRegion(0, 0, 900, 620));
+    QPainter winPainter(backing.paintDevice());
+    winPainter.drawPixmap(0, 0, splashPix);
+    backing.endPaint();
+    splashWin.show();
+    QCoreApplication::processEvents();
+
+    // Remove old QQuickView-based splash includes and process/server code
 
     // Load main QML — filesystem first (dev mode), fallback to qrc (release)
     engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/qml"));
@@ -199,16 +183,8 @@ int main(int argc, char *argv[])
     engine.load(url);
     checkpoint(QStringLiteral("QML engine.load() completed"));
 
-    // Main UI ready — signal splash process to close
-    if (splashServer.isListening()) {
-        if (auto* client = splashServer.nextPendingConnection()) {
-            client->write("close");
-            client->waitForBytesWritten(1000);
-            delete client;
-        }
-        splashServer.close();
-        qCInfo(logApp) << "Splash screen closed";
-    }
+    // Close splash
+    splashWin.close();
 
     if (engine.rootObjects().isEmpty()) {
         qCCritical(logApp) << "Failed to load any QML root objects — exiting";
