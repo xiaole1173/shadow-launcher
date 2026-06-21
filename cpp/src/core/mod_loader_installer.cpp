@@ -124,43 +124,113 @@ void ModLoaderInstaller::installNeoForge(const QString& mcVersion, const QString
 }
 
 void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                                          const QString&, const QString& installName) {
+                                          const QString& forgeVersion, const QString& installName) {
     if (m_running) return;
     m_running = true; m_cancelled = false;
     m_mcVersion = mcVersion; m_loaderVersion = optifineVersion;
     m_installName = installName; m_loaderType = "optifine";
-    m_totalSteps = 1; m_currentStep = 0;
+    m_optifineForgeVersion = forgeVersion;
 
-    qDebug() << "[ModLoader] Optifine: MC" << mcVersion << "Opti" << optifineVersion;
+    bool standalone = forgeVersion.isEmpty();
+    qDebug() << "[ModLoader] Optifine: MC" << mcVersion << "Opti" << optifineVersion
+             << (standalone ? "standalone" : "with Forge" + forgeVersion);
 
     QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
     QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
-    QString savePath = m_gameDir + "/mods/" + filename;
-    QDir().mkpath(m_gameDir + "/mods");
 
-    m_currentStep = 1;
-    emit progressChanged(1, 1, "Downloading Optifine...");
-    downloadToFile(url, savePath, [this, mcVersion, optifineVersion, filename, savePath](bool ok, const QString& error) {
-        if (!ok) {
-            // Fallback to official optifine.net
-            qDebug() << "[ModLoader] BMCLAPI Optifine download failed, trying official...";
-            QString offUrl = QString("https://optifine.net/download?f=%1").arg(filename);
-            downloadToFile(offUrl, savePath, [this](bool ok2, const QString& err2) {
-                if (!ok2) {
-                    emit finished(false, err2.isEmpty() ? "Optifine download failed (BMCLAPI + official both failed)" : err2);
+    if (standalone) {
+        // Standalone: run installer to create version JSON
+        m_totalSteps = 2;
+        m_currentStep = 1;
+        emit progressChanged(1, m_totalSteps, "Downloading Optifine...");
+        downloadToMemory(url, [this, filename](bool ok, const QByteArray& data) {
+            if (!ok) {
+                qDebug() << "[ModLoader] BMCLAPI Optifine download failed, trying official...";
+                m_optifineUseOfficial = true;
+                // Fallback: download from official site
+                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+                downloadToMemory(offUrl, [this, filename](bool ok2, const QByteArray& data2) {
+                    if (!ok2) {
+                        emit finished(false, "Optifine download failed (BMCLAPI + official both failed)");
+                        m_running = false;
+                        return;
+                    }
+                    optifineStep2_install(data2, filename);
+                });
+                return;
+            }
+            m_optifineUseOfficial = false;
+            optifineStep2_install(data, filename);
+        });
+    } else {
+        // With Forge: just put JAR in mods/
+        m_totalSteps = 1;
+        QDir().mkpath(m_gameDir + "/mods");
+        QString savePath = m_gameDir + "/mods/" + filename;
+        m_currentStep = 1;
+        emit progressChanged(1, 1, "Downloading Optifine...");
+        downloadToFile(url, savePath, [this, filename, savePath](bool ok, const QString& error) {
+            if (!ok) {
+                qDebug() << "[ModLoader] BMCLAPI Optifine download failed, trying official...";
+                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+                downloadToFile(offUrl, savePath, [this](bool ok2, const QString& err2) {
+                    if (!ok2) {
+                        emit finished(false, err2.isEmpty() ? "Optifine download failed (BMCLAPI + official both failed)" : err2);
+                        m_running = false;
+                        return;
+                    }
+                    emit progressChanged(1, 1, "Optifine installed (mods/)");
+                    emit finished(true, QString());
                     m_running = false;
-                    return;
-                }
-                emit progressChanged(1, 1, "Optifine installed");
-                emit finished(true, QString());
-                m_running = false;
-            });
+                });
+                return;
+            }
+            emit progressChanged(1, 1, "Optifine installed (mods/)");
+            emit finished(true, QString());
+            m_running = false;
+        });
+    }
+}
+
+void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const QString& filename) {
+    m_currentStep = 2;
+    emit progressChanged(2, m_totalSteps, "Running Optifine installer...");
+
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString jarPath = tempDir + "/optifine-" + m_installName + ".jar";
+
+    QFile jarFile(jarPath);
+    if (!jarFile.open(QIODevice::WriteOnly)) {
+        emit finished(false, "Cannot write Optifine JAR");
+        m_running = false;
+        return;
+    }
+    jarFile.write(jarData);
+    jarFile.close();
+
+    QProcess* proc = new QProcess(this);
+    QStringList args;
+    args << "-jar" << jarPath << "--installClient" << m_gameDir;
+
+    qDebug() << "[ModLoader] Running Optifine installer: java" << args;
+
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
+        proc->deleteLater();
+        QFile::remove(jarPath);
+        if (m_cancelled || exitCode != 0) {
+            qWarning() << "[ModLoader] Optifine installer failed, exit:" << exitCode;
+            emit finished(false, QString("Optifine installer failed (exit %1)").arg(exitCode));
+            m_running = false;
             return;
         }
-        emit progressChanged(1, 1, "Optifine installed");
+        qDebug() << "[ModLoader] Optifine standalone install complete";
+        emit progressChanged(2, m_totalSteps, "Optifine installed");
         emit finished(true, QString());
         m_running = false;
     });
+
+    proc->start("java", args);
 }
 
 // ============================================================

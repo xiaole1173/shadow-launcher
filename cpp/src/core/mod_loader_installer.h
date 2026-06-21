@@ -70,6 +70,9 @@ private:
     void neoStep2_verify(const QByteArray& jarData);
     void neoStep3_runInstaller(const QByteArray& jarData);
 
+    // Optifine standalone
+    void optifineStep2_install(const QByteArray& jarData, const QString& filename);
+
     // ── state ──
     QString m_gameDir;
     QString m_mcVersion;
@@ -81,6 +84,8 @@ private:
     bool m_running = false;
     bool m_cancelled = false;
     bool m_usedFallback = false;
+    QString m_optifineForgeVersion;
+    bool m_optifineUseOfficial = false;
 
     // byte progress tracking
     qint64 m_bytesReceived = 0;
