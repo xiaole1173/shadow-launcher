@@ -90,6 +90,7 @@ void SettingsBackend::loadSettings()
     m_maxMemoryMB = s.value(QStringLiteral("memory/maxMB"), 2048).toInt();
     m_closeAfterLaunch = s.value(QStringLiteral("general/closeAfterLaunch"), false).toBool();
     m_lastLaunchedVersion = s.value(QStringLiteral("general/lastVersion"), QString()).toString();
+    m_lastSelectedVersion = s.value(QStringLiteral("general/lastSelectedVersion"), QString()).toString();
 }
 
 void SettingsBackend::saveSettings()
@@ -105,6 +106,7 @@ void SettingsBackend::saveSettings()
     s.setValue(QStringLiteral("memory/maxMB"), m_maxMemoryMB);
     s.setValue(QStringLiteral("general/closeAfterLaunch"), m_closeAfterLaunch);
     s.setValue(QStringLiteral("general/lastVersion"), m_lastLaunchedVersion);
+    s.setValue(QStringLiteral("general/lastSelectedVersion"), m_lastSelectedVersion);
 }
 
 // ============================================================

@@ -124,10 +124,11 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::versionListReady);
     connect(m_version, &VersionBackend::versionListReady,
             this, [this]() {
-                QString last = m_settings->lastLaunchedVersion();
+                // Restore last selected version if it still exists
+                QString last = m_settings->lastSelectedVersion();
                 if (!last.isEmpty() && m_version->versionIds().contains(last)) {
                     m_version->setSelectedVersion(last);
-                    qCInfo(logLaunch) << "Restored last version:" << last;
+                    qCInfo(logLaunch) << "Restored last selected version:" << last;
                 }
             });
     connect(m_version, &VersionBackend::installedVersionsChanged,
@@ -136,6 +137,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::selectedVersionChanged);
     connect(m_version, &VersionBackend::selectedVersionChanged, this, [this]() {
         QString vid = m_version->selectedVersion();
+        // Persist last selected version (saved on exit, restored on next launch)
+        m_settings->setLastSelectedVersion(vid);
         if (vid.isEmpty()) {
             m_currentVersionSummary.clear();
             emit currentVersionSummaryChanged();

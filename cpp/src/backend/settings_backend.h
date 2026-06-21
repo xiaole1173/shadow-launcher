@@ -36,6 +36,11 @@ public:
         m_lastLaunchedVersion = v;
         saveSettings();
     }
+    QString lastSelectedVersion() const { return m_lastSelectedVersion; }
+    void setLastSelectedVersion(const QString& v) {
+        m_lastSelectedVersion = v;
+        saveSettings();
+    }
     bool isJavaReady() const { return m_javaReady; }
 
     void setJavaPath(const QString& path);
@@ -100,6 +105,7 @@ private:
     int m_maxMemoryMB = 2048;
     bool m_closeAfterLaunch = false;
     QString m_lastLaunchedVersion;
+    QString m_lastSelectedVersion;
     bool m_javaReady = false;
     QString m_gameDir;
     VersionIsolation* m_isolation = nullptr;
