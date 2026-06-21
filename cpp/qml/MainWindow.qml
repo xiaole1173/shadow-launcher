@@ -19,6 +19,8 @@ Window {
     property int loginMode: backend ? backend.lastLoginMode : 0
     property bool showVersionSelect: false
     property bool showVersionSettings: false
+    property bool showInstallPage: false
+    property string installMcVersion: ""
     property var offlineHistory: []
     property bool pageLoading: false
     property var runningListModel: []
@@ -1297,6 +1299,8 @@ Window {
                                                         currentSelectedVersion = model.id
                                                         if (backend) backend.setSelectedVersion(model.id)
                                                         showVersionSelect = false
+                                                        installMcVersion = model.id
+                                                        showInstallPage = true
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
@@ -2222,6 +2226,29 @@ Window {
                 }
 
 
+
+                // ========== INSTALL PAGE OVERLAY ==========
+                Rectangle {
+                    id: installPageOverlay
+                    anchors.fill: parent; color: "#0c0f16"; z: 15
+                    opacity: showInstallPage ? 1 : 0
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+
+                    Loader {
+                        anchors.fill: parent
+                        active: showInstallPage
+                        source: active ? "InstallPage.qml" : ""
+                        onLoaded: {
+                            if (item) {
+                                item.backend = backend
+                                item.mcVersion = installMcVersion
+                                item.toastManager = toastManager
+                                item.goBack.connect(function() { showInstallPage = false })
+                            }
+                        }
+                    }
+                }
 
             }
         }
