@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QObject>
 #include <QString>
@@ -186,6 +186,8 @@ private:
     // Per-install step model + extra cards (resource, mod)
     QVariantList m_installSteps;
     QMap<QString, QVariantMap> m_extraCards;  // cardId → {installId,displayName,type,totalProgress,speed,installPhase}
+    bool m_installFailed = false;
+    QString m_installError;
     qreal m_installTotalProgress = 0.0;
 
     void rebuildSteps(const QStringList& names);

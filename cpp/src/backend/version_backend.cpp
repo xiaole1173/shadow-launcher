@@ -1,4 +1,4 @@
-// Shadow Launcher — VersionBackend
+﻿// Shadow Launcher — VersionBackend
 // QML-facing backend for version list, installation, and lifecycle management.
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 
@@ -82,8 +82,20 @@ VersionBackend::VersionBackend(QObject* parent)
             updateInstalledList();
         } else {
             emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + error);
+            // Mark last step as failed, keep card visible for diagnostics
+            for (int i = m_installSteps.size() - 1; i >= 0; i--) {
+                QVariantMap s = m_installSteps[i].toMap();
+                if (s["status"].toString() == QStringLiteral("active")) {
+                    s["status"] = QStringLiteral("failed");
+                    s["percentage"] = 0;
+                    m_installSteps[i] = s;
+                    m_installFailed = true;
+                    m_installError = error;
+                    emit installStepsChanged();
+                    break;
+                }
+            }
         }
-        m_modLoaderInstallId.clear();
         setInstalling(false);
         emit installFinished(success);
     });
@@ -1383,6 +1395,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     if (!m_mlInstaller) return;
     m_mlInstaller->setGameDir(m_gameDir);
     m_modLoaderInstallId = installName;
+    m_installFailed = false;
+    m_installError.clear();
     qDebug() << "[install] installModLoader ENTRY" << loaderType << mcVersion << loaderVersion << "->" << installName;
 
     // Build step list
@@ -1491,18 +1505,23 @@ void VersionBackend::computeTotalProgress() {
 
 QVariantList VersionBackend::activeInstalls() const {
     QVariantList list;
-    // 1. Mod loader install
-    if (m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty()) {
+    // 1. Mod loader install (running OR recently failed)
+    bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty();
+    bool mlFailed = m_installFailed && !m_modLoaderInstallId.isEmpty();
+    if (mlActive || mlFailed) {
         qDebug() << "[install] activeInstalls: mod_loader card" << m_modLoaderInstallId
-                 << "totalProgress:" << m_installTotalProgress << "steps:" << m_installSteps.size();
+                 << "totalProgress:" << m_installTotalProgress << "steps:" << m_installSteps.size()
+                 << (mlFailed ? "FAILED" : "running");
         QVariantMap card;
         card["installId"] = m_modLoaderInstallId;
         card["installType"] = QStringLiteral("mod_loader");
         card["displayName"] = m_modLoaderInstallId;
         card["totalProgress"] = m_installTotalProgress;
         card["speed"] = QVariant::fromValue<qint64>(m_installSpeed);
-        card["installPhase"] = m_installPhase;
+        card["installPhase"] = m_installFailed ? QStringLiteral("失败") : m_installPhase;
         card["remainingSteps"] = installRemainingSteps();
+        card["installFailed"] = m_installFailed;
+        card["installError"] = m_installError;
         card["steps"] = m_installSteps;
         list.append(card);
     }

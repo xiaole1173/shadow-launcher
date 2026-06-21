@@ -91,7 +91,8 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: cardContent.card.displayName || "--"
-                        font.pixelSize: 14; font.weight: Font.Bold; color: "#e8ecf8"
+                        font.pixelSize: 14; font.weight: Font.Bold
+                        color: cardContent.card.installFailed ? "#c06050" : "#e8ecf8"
                         elide: Text.ElideRight
                     }
                     // Speed
@@ -106,7 +107,8 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true; implicitHeight: 6; radius: 3; color: "#1e2230"
                     Rectangle {
-                        height: parent.height; radius: 3; color: "#3a5ecc"
+                        height: parent.height; radius: 3
+                        color: cardContent.card.installFailed ? "#802020" : "#3a5ecc"
                         width: parent.width * Math.min(1, (cardContent.card.totalProgress || 0))
                         Behavior on width { NumberAnimation { duration: 200 } }
                     }
@@ -115,8 +117,10 @@ Rectangle {
                 // ── progress text ──
                 RowLayout { Layout.fillWidth: true
                     Text {
-                        text: ((cardContent.card.totalProgress || 0) * 100).toFixed(1) + "%"
-                        font.pixelSize: 13; font.weight: Font.Bold; color: "#5d6fe0"
+                        Layout.fillWidth: true
+                        text: cardContent.card.installFailed ? ("\u2717 " + (cardContent.card.installError || "\u5b89\u88c5\u5931\u8d25")) : ((cardContent.card.totalProgress || 0) * 100).toFixed(1) + "%"
+                        font.pixelSize: 13; font.weight: Font.Bold
+                        color: cardContent.card.installFailed ? "#e06050" : "#5d6fe0"
                     }
                     Text {
                         Layout.fillWidth: true

@@ -29,12 +29,14 @@ Rectangle {
     }
 
     function triggerQueries() {
+        console.log("[install] triggerQueries for mcVersion=" + mcVersion)
         if (!backend || !mcVersion) return
         backend.logMessage("[install] querying mod loaders for " + mcVersion)
         forgeVersions = []; fabricVersions = []; neoforgeVersions = []; optifineVersions = []
         forgeLoading = true; fabricLoading = true; neoforgeLoading = true; optifineLoading = true
         selectedForge = ""; selectedNeoForge = ""; selectedFabric = ""; selectedOptifine = ""
         activeLoader = ""; customName = ""
+        console.log("[install] selections reset: selectedForge='" + selectedForge + "' selectedFabric='" + selectedFabric + "'")
         backend.queryForgeVersions(mcVersion)
         backend.queryFabricVersions(mcVersion)
         backend.queryNeoForgeVersions(mcVersion)
@@ -124,6 +126,7 @@ Rectangle {
     property string conflictMessage: ""
 
     function checkVersionConflict(name) {
+        var prev = versionConflict
         if (!backend || !name) {
             versionConflict = false; conflictMessage = ""; return
         }
@@ -135,10 +138,12 @@ Rectangle {
             if (installed[i] === name) {
                 versionConflict = true
                 conflictMessage = "\u7248\u672c \"" + name + "\" \u5df2\u5b58\u5728\uff0c\u8bf7\u4fee\u6539\u540d\u79f0"
+                console.log("[install] versionConflict=true, name=" + name + " exists in installedVersions[" + i + "]")
                 return
             }
         }
         versionConflict = false; conflictMessage = ""
+        if (prev !== versionConflict) console.log("[install] versionConflict cleared, name=" + name)
     }
 
     onFullVersionNameChanged: {
