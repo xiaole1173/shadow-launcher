@@ -196,6 +196,13 @@ private:
     QString m_pendingLoaderName;
     bool m_hasPendingLoader = false;
 
+    // Merged install: MC + loader in one card
+    bool m_isMergedInstall = false;
+    QString m_mergedMcVersion;
+    QString m_mergedLoaderType;
+    QString m_mergedLoaderVer;
+    int m_mergedLoadedStep = 0;  // which of the 9 steps is currently active
+
     qreal m_installTotalProgress = 0.0;
 
     void rebuildSteps(const QStringList& names);
