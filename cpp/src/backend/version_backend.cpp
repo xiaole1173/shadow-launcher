@@ -744,6 +744,9 @@ void VersionBackend::setInstalling(bool v)
     bool wasInstalling = m_installing || (m_activeCount > 0);
     m_installing = v;
     bool isNowInstalling = m_installing || (m_activeCount > 0);
+    qDebug() << "[install] setInstalling" << v << "was:" << wasInstalling << "now:" << isNowInstalling
+             << "m_activeCount:" << m_activeCount << "ml_running:" << (m_mlInstaller ? m_mlInstaller->isRunning() : false)
+             << "ml_steps:" << m_installSteps.size();
     if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }
@@ -1380,6 +1383,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     if (!m_mlInstaller) return;
     m_mlInstaller->setGameDir(m_gameDir);
     m_modLoaderInstallId = installName;
+    qDebug() << "[install] installModLoader ENTRY" << loaderType << mcVersion << loaderVersion << "->" << installName;
 
     // Build step list
     if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
@@ -1395,6 +1399,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     }
     updateStep(0, QStringLiteral("active"), 0);
 
+    qDebug() << "[install] installModLoader calling installForge, m_running before:" << m_mlInstaller->isRunning();
     if (loaderType == QStringLiteral("forge")) {
         m_mlInstaller->installForge(mcVersion, loaderVersion, installName);
     } else if (loaderType == QStringLiteral("fabric")) {
@@ -1402,7 +1407,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     } else if (loaderType == QStringLiteral("neoforge")) {
         m_mlInstaller->installNeoForge(mcVersion, loaderVersion, installName);
     }
+    qDebug() << "[install] installModLoader after installForge, m_running:" << m_mlInstaller->isRunning() << "m_steps:" << m_installSteps.size();
     setInstalling(true);
+    qDebug() << "[install] installModLoader after setInstalling, m_installing:" << m_installing;
 }
 
 void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
@@ -1486,6 +1493,8 @@ QVariantList VersionBackend::activeInstalls() const {
     QVariantList list;
     // 1. Mod loader install
     if (m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty()) {
+        qDebug() << "[install] activeInstalls: mod_loader card" << m_modLoaderInstallId
+                 << "totalProgress:" << m_installTotalProgress << "steps:" << m_installSteps.size();
         QVariantMap card;
         card["installId"] = m_modLoaderInstallId;
         card["installType"] = QStringLiteral("mod_loader");
@@ -1516,6 +1525,13 @@ QVariantList VersionBackend::activeInstalls() const {
     // 3. Extra cards (resource / mod)
     for (auto it = m_extraCards.cbegin(); it != m_extraCards.cend(); ++it) {
         list.append(it.value());
+    }
+    qDebug() << "[install] activeInstalls returning" << list.size() << "cards";
+    if (list.isEmpty()) {
+        qDebug() << "[install] activeInstalls EMPTY — mlInstaller:" << !!m_mlInstaller
+                 << "isRunning:" << (m_mlInstaller ? m_mlInstaller->isRunning() : false)
+                 << "mlId:" << m_modLoaderInstallId
+                 << "activeCount:" << m_activeCount << "extraCards:" << m_extraCards.size();
     }
     return list;
 }

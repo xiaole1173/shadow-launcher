@@ -245,6 +245,7 @@ Rectangle {
                                 enabled: !root.versionConflict
                                 onClicked: {
                                     var n = root.customName !== "" ? root.customName : root.fullVersionName
+                                    console.log("[install] QML button clicked: name=" + n + " forge=" + selectedForge + " fabric=" + selectedFabric + " neo=" + selectedNeoForge)
                                     if (backend) {
                                         backend.logMessage("[install] download: " + n)
                                         if (selectedForge !== "") {

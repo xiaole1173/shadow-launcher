@@ -90,8 +90,10 @@ void ModLoaderInstaller::downloadSmall(const QString& url,
 
 void ModLoaderInstaller::installForge(const QString& mcVersion, const QString& forgeVersion,
                                        const QString& installName) {
+    qDebug() << "[ModLoader] installForge call — m_running before:" << m_running;
     if (m_running) return;
     m_running = true; m_cancelled = false;
+    qDebug() << "[ModLoader] installForge started — m_running:" << m_running;
     m_mcVersion = mcVersion; m_loaderVersion = forgeVersion;
     m_installName = installName; m_loaderType = "forge";
     m_totalSteps = 3; m_currentStep = 0;

@@ -822,7 +822,7 @@ Window {
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress"; color: "#0c0f16"
-                        Loader { id: progressLoader; anchors.fill: parent; active: true; source: "DownloadProgressPage.qml" } }
+                        Loader { id: progressLoader; anchors.fill: parent; active: true; source: "DownloadProgressPage.qml"; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } } }
 
                     // ========== VERSION SELECT OVERLAY ==========
                     Rectangle {

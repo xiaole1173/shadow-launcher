@@ -40,7 +40,11 @@ Rectangle {
     ListView {
         id: cardsView
         anchors.fill: parent; anchors.margins: 16
-        model: backend ? (backend.activeInstalls || []) : []
+        model: {
+            var ai = backend ? (backend.activeInstalls || []) : []
+            console.log("[progress-ui] activeInstalls model has", ai.length, "cards")
+            return ai
+        }
         spacing: 12; clip: true
 
         delegate: Rectangle {

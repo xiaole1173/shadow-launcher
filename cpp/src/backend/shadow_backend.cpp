@@ -1633,6 +1633,7 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
 
 void ShadowBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
                                       const QString& loaderVersion, const QString& installName) {
+    qDebug() << "[install] ShadowBackend::installModLoader" << loaderType << mcVersion << loaderVersion << installName;
     if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName);
 }
 
