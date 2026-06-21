@@ -167,6 +167,13 @@ if(WIN32)
             --no-translations --no-compiler-runtime
         COMMENT "Deploying Qt runtime (QML imports from ${CMAKE_SOURCE_DIR}/qml)..."
     )
+    # Copy QML source files to output dir for dev-mode hot-swap (no rebuild for QML-only changes)
+    add_custom_command(TARGET ShadowLauncher POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/qml"
+            "$<TARGET_FILE_DIR:ShadowLauncher>/qml"
+        COMMENT "Copying QML sources for dev-mode..."
+    )
 endif()
 
 # ============================================================
