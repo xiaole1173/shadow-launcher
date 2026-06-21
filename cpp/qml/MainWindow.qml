@@ -409,7 +409,7 @@ Window {
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress"; color: "#0c0f16"
-                        Loader { id: progressLoader; anchors.fill: parent; active: true; source: "DownloadProgressPage.qml"; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } } }
+                        Loader { id: progressLoader; anchors.fill: parent; active: navListIndex >= 3; source: active ? "DownloadProgressPage.qml" : ""; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } } }
 
                     // ========== VERSION SELECT OVERLAY ==========
                     Loader {
@@ -480,9 +480,11 @@ Window {
         Loader {
             id: installPageLoader
             anchors.fill: parent
-            active: true  // Always loaded for smooth exit animation
-            source: "InstallPage.qml"
+            property bool _keepActive: false
+            active: showInstallPage || _keepActive
+            source: active ? "InstallPage.qml" : ""
             onLoaded: {
+                _keepActive = true
                 if (backend) backend.logMessage("[install] Loader onLoaded")
                 if (item) {
                     item.backend = backend
@@ -505,12 +507,13 @@ Window {
                 target: appWindow
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
-                        pageContainer.opacity = 0.15  // Explicit assignment → Behavior animates
+                        pageContainer.opacity = 0.15
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
                     } else {
                         pageFadeInTimer.start()
+                        installUnloadTimer.start()
                     }
                 }
             }
@@ -521,6 +524,13 @@ Window {
         id: pageFadeInTimer
         interval: 300  // Overlay almost gone
         onTriggered: { pageContainer.opacity = 1.0 }
+    }
+
+    Timer {
+        id: installUnloadTimer
+        interval: 500
+        repeat: false
+        onTriggered: { if (!showInstallPage) installPageLoader._keepActive = false }
     }
 
     Loader {
