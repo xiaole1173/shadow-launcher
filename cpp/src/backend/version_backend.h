@@ -32,10 +32,12 @@ class VersionBackend : public QObject {
     Q_PROPERTY(QString installFile READ installFile NOTIFY installProgressChanged)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
-    // New unified step model
+    // Per-install step model (backward compat: returns primary install)
     Q_PROPERTY(QVariantList installSteps READ installSteps NOTIFY installStepsChanged)
     Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
     Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
+    // Multi-card active installs
+    Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
     Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
     Q_PROPERTY(bool installPaused READ isInstallPaused NOTIFY installPausedChanged)
@@ -50,26 +52,19 @@ public:
     bool isInstalling() const { return m_installing || (m_activeCount > 0); }
     int activeCount() const { return m_activeCount; }
 
-    /// Return cached version list with id + type for QML
     QVariantList versionInfoList() const;
-    /// Access to raw cached versions from VersionManager
     QVector<McVersion> cachedMcVersions() const;
     int installProgress() const { return m_installProgress; }
     int installTotal() const { return m_installTotal; }
     QString installFile() const { return m_installFile; }
     QString installVersionId() const { return m_modLoaderInstallId.isEmpty() ? (m_activeIds.isEmpty() ? QString() : m_activeIds.first()) : m_modLoaderInstallId; }
     QString installPhase() const { return m_installPhase; }
-    // Unified step model
+    // Backward compat — returns primary install's steps
     QVariantList installSteps() const { return m_installSteps; }
     qreal installTotalProgress() const { return m_installTotalProgress; }
-    int installRemainingSteps() const {
-        int n = 0;
-        for (const QVariant& v : m_installSteps) {
-            QString s = v.toMap().value(QStringLiteral("status")).toString();
-            if (s == QStringLiteral("pending") || s == QStringLiteral("active")) n++;
-        }
-        return n;
-    }
+    int installRemainingSteps() const;
+    // Multi-card
+    QVariantList activeInstalls() const;
     qint64 installSpeed() const { return m_installSpeed; }
     qint64 installBytesDownloaded() const { return m_installBytesDl; }
     qint64 installBytesTotal() const { return m_installBytesTotal; }
@@ -80,7 +75,6 @@ public:
     QStringList installedIds() const { return m_installedIds; }
     QString selectedVersion() const { return m_selectedVersion; }
 
-    // Slots
     Q_INVOKABLE void setGameDir(const QString& dir);
     void setIsolation(class VersionIsolation* iso) { m_isolation = iso; }
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
@@ -96,23 +90,26 @@ public:
     Q_INVOKABLE QVariantList activeDownloads() const;
     Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
 
-    // ── Version management operations ──
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cancelVerify();
-    void cancelActiveDownload(const QString& versionId);  // Rollback sync state on fetch fail
+    void cancelActiveDownload(const QString& versionId);
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
     Q_INVOKABLE void repairVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
 
-    // Mod loader installation
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
                                        const QString& loaderVersion, const QString& installName);
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName);
     Q_INVOKABLE void cancelModLoaderInstall();
     Q_INVOKABLE bool isModLoaderInstalling() const;
+
+    // Resource / Mod download cards
+    Q_INVOKABLE void addResourceCard(const QString& cardId, const QString& displayName);
+    Q_INVOKABLE void updateResourceCard(const QString& cardId, qreal progress, const QString& status);
+    Q_INVOKABLE void removeResourceCard(const QString& cardId);
 
 signals:
     void versionListReady();
@@ -126,12 +123,11 @@ signals:
     void installPhaseChanged(const QString& phase);
     void installFinished(bool success);
     void installSpeedChanged(qint64 speed);
-    // New unified step signals
     void installStepsChanged();
     void installTotalProgressChanged();
+    void activeInstallsChanged();
     void logMessage(const QString& msg);
 
-    // ── Version management signals ──
     void verifyStarted();
     void verifyProgress(int checked, int total);
     void verifyProgressChanged(int checked, int total);
@@ -160,14 +156,12 @@ private:
     QStringList m_installedIds;
     QString m_selectedVersion;
 
-    // ── Concurrency: max 2 parallel MC version downloads ──
     int m_activeCount = 0;
     bool m_installing = false;
-    QString m_modLoaderInstallId;             // track mod loader install name
+    QString m_modLoaderInstallId;
     static constexpr int MAX_CONCURRENT = 2;
-    QVector<QString> m_activeIds;  // active installing version IDs (ordered)
+    QVector<QString> m_activeIds;
 
-    // ── Per-download progress state ──
     struct DlState {
         int progress = 0;
         int total = 0;
@@ -177,9 +171,7 @@ private:
         QString file;
         QString phase = QStringLiteral("idle");
     };
-    // Map versionId → per-download progress
     QMap<QString, DlState> m_dlStates;
-    // Map versionId → active downloader
     QMap<QString, VersionDownloader*> m_downloaders;
 
     bool m_initialFetchDone = false;
@@ -190,22 +182,23 @@ private:
     qint64 m_installBytesTotal = 0;
     qint64 m_installSpeed = 0;
     QString m_installPhase = "idle";
-    // Unified step model
+
+    // Per-install step model + extra cards (resource, mod)
     QVariantList m_installSteps;
+    QMap<QString, QVariantMap> m_extraCards;  // cardId → {installId,displayName,type,totalProgress,speed,installPhase}
     qreal m_installTotalProgress = 0.0;
+
     void rebuildSteps(const QStringList& names);
     void updateStep(int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void computeTotalProgress();
+
     int m_verifyChecked = 0;
-    // Speed calculation
-    QElapsedTimer m_speedTimer;
-    qint64 m_lastSpeedBytes = 0;
-    // Install queue
-    QQueue<QPair<QString, int>> m_installQueue;
     int m_verifyTotal = 0;
     bool m_installPaused = false;
+    QElapsedTimer m_speedTimer;
+    qint64 m_lastSpeedBytes = 0;
+    QQueue<QPair<QString, int>> m_installQueue;
 
-    // Helpers for multi-downloader
     VersionDownloader* primaryDownloader() const;
     QString primaryVersionId() const;
     void syncPrimaryProgress();
@@ -213,19 +206,12 @@ private:
     void updateDownloadFile(const QString& versionId, const QString& fileName, qint64 received, qint64 total);
     void startNextFromQueue();
 
-    // Background verify worker thread
     class VerifyWorker;
     QThread* m_verifyThread = nullptr;
     VerifyWorker* m_verifyWorker = nullptr;
-    QStringList m_failedPathsCache;  // stored for cleanup after verify
-
-    // Deprecated — no longer used (worker manages its own cancel)
+    QStringList m_failedPathsCache;
     QAtomicInt m_verifyCancelled = 0;
 };
-
-// ============================================================
-// VerifyWorker — background SHA1 verification
-// ============================================================
 
 struct VerifyItem {
     QString path;
@@ -237,22 +223,17 @@ class VersionBackend::VerifyWorker : public QObject {
     Q_OBJECT
 public:
     explicit VerifyWorker(QObject* parent = nullptr) : QObject(parent) {}
-
     void setItems(const QVector<VerifyItem>& items) { m_items = items; }
     void cancel() { m_cancelled.storeRelease(1); }
-
 public slots:
     void process();
-
 signals:
     void progressChecked(int checked, int total);
     void cancelled(int checked, int total);
     void finished(bool allPassed, const QStringList& failedFiles,
                   const QStringList& failedPaths);
-
 private:
     static QString sha1FileFast(const QString& filePath);
-
     QVector<VerifyItem> m_items;
     QAtomicInt m_cancelled = 0;
     int m_failed = 0;

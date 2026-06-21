@@ -113,6 +113,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QVariantList installSteps READ installSteps NOTIFY installStepsChanged)
     Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
     Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
+    Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
 
 public:
     explicit ShadowBackend(QObject* parent = nullptr);
@@ -209,6 +210,7 @@ public:
     QVariantList installSteps() const;
     qreal installTotalProgress() const;
     int installRemainingSteps() const;
+    QVariantList activeInstalls() const;
     bool installPaused() const;
     int verifyProgressDone() const { return 0; }
     int verifyProgressTotal() const { return 0; }
@@ -398,6 +400,7 @@ signals:
     void verifyTotalChanged();
     void installStepsChanged();
     void installTotalProgressChanged();
+    void activeInstallsChanged();
     void installPausedChanged();
     void downloadQueueChanged();
     void searchResultsReady(const QVariantList& results);

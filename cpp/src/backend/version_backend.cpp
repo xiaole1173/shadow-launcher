@@ -747,6 +747,7 @@ void VersionBackend::setInstalling(bool v)
     if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }
+    emit activeInstallsChanged();
 }
 
 void VersionBackend::setInstallPhase(const QString& phase)
@@ -1478,6 +1479,82 @@ void VersionBackend::computeTotalProgress() {
     }
     m_installTotalProgress = sum / m_installSteps.size();
     emit installTotalProgressChanged();
+    emit activeInstallsChanged();
+}
+
+QVariantList VersionBackend::activeInstalls() const {
+    QVariantList list;
+    // 1. Mod loader install
+    if (m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty()) {
+        QVariantMap card;
+        card["installId"] = m_modLoaderInstallId;
+        card["installType"] = QStringLiteral("mod_loader");
+        card["displayName"] = m_modLoaderInstallId;
+        card["totalProgress"] = m_installTotalProgress;
+        card["speed"] = QVariant::fromValue<qint64>(m_installSpeed);
+        card["installPhase"] = m_installPhase;
+        card["remainingSteps"] = installRemainingSteps();
+        card["steps"] = m_installSteps;
+        list.append(card);
+    }
+    // 2. Active version downloads
+    for (const QString& vid : m_activeIds) {
+        if (m_dlStates.contains(vid)) {
+            const DlState& st = m_dlStates[vid];
+            QVariantMap card;
+            card["installId"] = vid;
+            card["installType"] = QStringLiteral("version");
+            card["displayName"] = vid;
+            card["totalProgress"] = st.total > 0 ? (qreal)st.progress / st.total : 0.0;
+            card["speed"] = QVariant::fromValue<qint64>(st.speed);
+            card["installPhase"] = st.phase;
+            card["remainingSteps"] = 0;
+            card["steps"] = QVariantList{};
+            list.append(card);
+        }
+    }
+    // 3. Extra cards (resource / mod)
+    for (auto it = m_extraCards.cbegin(); it != m_extraCards.cend(); ++it) {
+        list.append(it.value());
+    }
+    return list;
+}
+
+int VersionBackend::installRemainingSteps() const {
+    int n = 0;
+    for (const QVariant& v : m_installSteps) {
+        QString s = v.toMap().value(QStringLiteral("status")).toString();
+        if (s == QStringLiteral("pending") || s == QStringLiteral("active")) n++;
+    }
+    return n;
+}
+
+void VersionBackend::addResourceCard(const QString& cardId, const QString& displayName) {
+    QVariantMap c;
+    c["installId"] = cardId;
+    c["installType"] = QStringLiteral("resource");
+    c["displayName"] = displayName;
+    c["totalProgress"] = 0.0;
+    c["speed"] = QVariant::fromValue<qint64>(0);
+    c["installPhase"] = QString();
+    c["remainingSteps"] = 0;
+    c["steps"] = QVariantList{};
+    m_extraCards[cardId] = c;
+    emit activeInstallsChanged();
+}
+
+void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, const QString& status) {
+    if (!m_extraCards.contains(cardId)) return;
+    QVariantMap c = m_extraCards[cardId];
+    c["totalProgress"] = progress;
+    if (!status.isEmpty()) c["installPhase"] = status;
+    m_extraCards[cardId] = c;
+    emit activeInstallsChanged();
+}
+
+void VersionBackend::removeResourceCard(const QString& cardId) {
+    m_extraCards.remove(cardId);
+    emit activeInstallsChanged();
 }
 
 } // namespace ShadowLauncher

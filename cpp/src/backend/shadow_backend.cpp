@@ -222,6 +222,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::installStepsChanged);
     connect(m_version, &VersionBackend::installTotalProgressChanged,
             this, &ShadowBackend::installTotalProgressChanged);
+    connect(m_version, &VersionBackend::activeInstallsChanged,
+            this, &ShadowBackend::activeInstallsChanged);
     connect(m_version, &VersionBackend::verifyFailedFiles,
             this, [this](const QStringList& failedFiles) {
                 // Generate error report
@@ -525,6 +527,10 @@ qreal ShadowBackend::installTotalProgress() const {
 
 int ShadowBackend::installRemainingSteps() const {
     return m_version ? m_version->installRemainingSteps() : 0;
+}
+
+QVariantList ShadowBackend::activeInstalls() const {
+    return m_version ? m_version->activeInstalls() : QVariantList{};
 }
 
 int ShadowBackend::verifyChecked() const {
