@@ -699,11 +699,9 @@ void VersionBackend::updateInstalledList()
 
 void VersionBackend::setInstalling(bool v)
 {
-    bool wasInstalling = (m_activeCount > 0);
-    // When calling setInstalling(true), ensure count > 0
-    // When calling setInstalling(false), count should already be 0
-    Q_UNUSED(v);
-    bool isNowInstalling = (m_activeCount > 0);
+    bool wasInstalling = m_installing || (m_activeCount > 0);
+    m_installing = v;
+    bool isNowInstalling = m_installing || (m_activeCount > 0);
     if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }

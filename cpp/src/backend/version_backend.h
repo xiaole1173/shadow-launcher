@@ -43,7 +43,7 @@ public:
     explicit VersionBackend(QObject* parent = nullptr);
     ~VersionBackend() override;
 
-    bool isInstalling() const { return m_activeCount > 0; }
+    bool isInstalling() const { return m_installing || (m_activeCount > 0); }
     int activeCount() const { return m_activeCount; }
 
     /// Return cached version list with id + type for QML
@@ -144,6 +144,7 @@ private:
 
     // ── Concurrency: max 2 parallel MC version downloads ──
     int m_activeCount = 0;
+    bool m_installing = false;
     static constexpr int MAX_CONCURRENT = 2;
     QVector<QString> m_activeIds;  // active installing version IDs (ordered)
 
