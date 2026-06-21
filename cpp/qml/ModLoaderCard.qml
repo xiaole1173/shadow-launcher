@@ -32,6 +32,7 @@ Rectangle {
     property bool cardDisabled: disabled
 
     signal versionSelected(string version)
+    signal versionCleared()
 
     property int headerHeight: 44
     property int cardHeight: expanded ? headerHeight + versionListContent.implicitHeight + 8 : headerHeight
@@ -68,6 +69,29 @@ Rectangle {
                 text: card.expanded ? "\u25B2" : "\u25BC"
                 font.pixelSize: 10; color: "#606878"
                 visible: !cardDisabled && (card.versions.length > 0 || card.expanded)
+            }
+
+            // Cancel (only when version selected)
+            Rectangle {
+                visible: selectedVersion !== ""
+                width: 22; height: 22; radius: 11
+                color: cancelMa.containsMouse ? "#402828" : "transparent"
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u2715"
+                    font.pixelSize: 12; color: cancelMa.containsMouse ? "#e06060" : "#787c90"
+                }
+                MouseArea {
+                    id: cancelMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        card.selectedVersion = ""
+                        card.versionCleared()
+                    }
+                }
             }
         }
 
