@@ -11,14 +11,7 @@
 #include <QWindow>
 #include <QQuickWindow>
 #include <QAbstractNativeEventFilter>
-#include <QPainter>
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
-#include <QElapsedTimer>
 #include <QTimer>
-#include <QThread>
 #include <QScreen>
 #include <QPixmap>
 #include <QWindow>
@@ -134,60 +127,27 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
-    // ── Splash: native Win32 layered window (GDI, no Qt, no GPU, guaranteed to render) ──
-#ifdef Q_OS_WIN
-    HWND splashHwnd = nullptr;
-    {
-        HINSTANCE hInst = GetModuleHandle(nullptr);
-        WNDCLASSEXW wc = { sizeof(WNDCLASSEXW), 0, DefWindowProcW, 0, 0, hInst, nullptr, nullptr, nullptr, nullptr, L"ShadowSplash", nullptr };
-        RegisterClassExW(&wc);
-        int sw = GetSystemMetrics(SM_CXSCREEN);
-        int sh = GetSystemMetrics(SM_CYSCREEN);
-        int w = 900, h = 620;
-        splashHwnd = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, L"ShadowSplash", L"",
-            WS_POPUP, (sw - w) / 2, (sh - h) / 2, w, h, nullptr, nullptr, hInst, nullptr);
-        if (splashHwnd) {
-            // Draw via GDI
-            HDC hdc = GetDC(splashHwnd);
-            RECT rc = { 0, 0, w, h };
-            HBRUSH bg = CreateSolidBrush(RGB(0x0c, 0x0f, 0x16));
-            FillRect(hdc, &rc, bg);
-            DeleteObject(bg);
-            SetBkMode(hdc, TRANSPARENT);
-            SetTextColor(hdc, RGB(0xe0, 0xe6, 0xf0));
-            HFONT titleFont = CreateFontW(28, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
-            SelectObject(hdc, titleFont);
-            DrawTextW(hdc, L"Shadow Launcher", -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            DeleteObject(titleFont);
-            ReleaseDC(splashHwnd, hdc);
-            ShowWindow(splashHwnd, SW_SHOW);
-            UpdateWindow(splashHwnd);
-        }
-    }
-#endif
-
-    // Remove old QQuickView-based splash includes and process/server code
-
-    // Load main QML — filesystem first (dev mode), fallback to qrc (release)
+    // Load QML — dev mode (file://) when SHADOW_DEV=1, otherwise qrc precompiled
+    bool devMode = qEnvironmentVariableIsSet("SHADOW_DEV");
     engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/qml"));
-    engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
+    engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
 
-    QString devPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
     QUrl url;
-    if (QFile::exists(devPath)) {
-        checkpoint(QStringLiteral("Loading QML (filesystem dev mode)..."));
-        url = QUrl::fromLocalFile(devPath);
+    if (devMode) {
+        QString devPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
+        if (QFile::exists(devPath)) {
+            checkpoint(QStringLiteral("Loading QML (filesystem dev mode)..."));
+            url = QUrl::fromLocalFile(devPath);
+        } else {
+            qCWarning(logApp) << "SHADOW_DEV set but" << devPath << "not found — falling back to qrc";
+            url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
+        }
     } else {
         checkpoint(QStringLiteral("Loading QML (precompiled qrc)..."));
-        url = QUrl(QStringLiteral("qrc:/ShadowLauncher/qml/MainWindow.qml"));
+        url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
     }
     engine.load(url);
     checkpoint(QStringLiteral("QML engine.load() completed"));
-
-    // Close splash
-#ifdef Q_OS_WIN
-    if (splashHwnd) { DestroyWindow(splashHwnd); splashHwnd = nullptr; }
-#endif
 
     if (engine.rootObjects().isEmpty()) {
         qCCritical(logApp) << "Failed to load any QML root objects — exiting";

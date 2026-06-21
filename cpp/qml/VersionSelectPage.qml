@@ -287,10 +287,10 @@ Rectangle {
                 _pendingVersions = []
                 _batchPos = 0
 
-                var ids = backend && backend.installedVersions ? backend.installedVersions :
-                for (var i = 0; i < ids.length; i++) {
-                    var v = ids[i] || ""
-                    var type = "release"
+                let ids = backend && backend.installedVersions ? backend.installedVersions : []
+                for (let i = 0; i < ids.length; i++) {
+                    let v = ids[i] || ""
+                    let type = "release"
                     if (v.indexOf("pre") >= 0 || v.indexOf("rc") >= 0 || v.indexOf("w") >= 0) type = "snapshot"
                     else if (v.indexOf("alpha") >= 0 || v.indexOf("beta") >= 0 || v.indexOf("inf") >= 0 || v.indexOf("rd") >= 0) type = "old"
 

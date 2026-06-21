@@ -882,7 +882,7 @@ Rectangle {
                             confirmDialog.title = "删除版本"
                             confirmDialog.message = "确认要删除版本 " + currentSelectedVersion + " 吗？\n此操作不可撤销，版本的所有文件将被删除。"
 
-                            confirmDialog.onAccept = function() {
+                            confirmDialog.onAccept = () => {
                                 backend.deleteVersion(currentSelectedVersion)
                                 backend.refreshVersionDetails()
                                 showVersionSettings = false
@@ -894,4 +894,5 @@ Rectangle {
             }
         }
     }
+}
 }

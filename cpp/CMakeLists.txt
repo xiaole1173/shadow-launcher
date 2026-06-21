@@ -103,8 +103,37 @@ set(HEADERS
 
 qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS})
 
-# QML loaded from filesystem (dev mode) or bundled separately
-# No precompiled QML — avoids startup type-registration bottleneck
+# QML: bundled in qrc for memory-mapped loading + runtime caching
+# Dev mode: set SHADOW_DEV=1 to load from filesystem for hot-reload
+qt6_add_resources(ShadowLauncher "qml_resources"
+    PREFIX "/qt/qml/ShadowLauncher"
+    FILES
+        qml/AnimationTokens.qml
+        qml/CrashDialog.qml
+        qml/DownloadPage.qml
+        qml/DownloadProgressPage.qml
+        qml/HomePage.qml
+        qml/InstallConfigOverlay.qml
+        qml/InstallPage.qml
+        qml/KillButton.qml
+        qml/LaunchOverlay.qml
+        qml/MainWindow.qml
+        qml/MinecraftHead2D.qml
+        qml/MinecraftHead3D.qml
+        qml/ModLoaderCard.qml
+        qml/SettingsGeneralPage.qml
+        qml/SettingsJavaPage.qml
+        qml/SettingsMemoryPage.qml
+        qml/SettingsPage.qml
+        qml/ShadowButton.qml
+        qml/SplashWindow.qml
+        qml/SubPageOverlays.qml
+        qml/ToastManager.qml
+        qml/VersionSelectOverlay.qml
+        qml/VersionSelectPage.qml
+        qml/VersionSettingsOverlay.qml
+        qml/VersionSettingsPage.qml
+)
 target_include_directories(ShadowLauncher PRIVATE src)
 
 # ── libwebp (static, for webp→PNG icon decoding) ──
