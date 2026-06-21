@@ -1096,9 +1096,6 @@ Rectangle {
                             page._showDeleteConfirm = false
                             if (backend && page._versionId) {
                                 backend.deleteVersion(page._versionId)
-                                // Refresh installed list and reset home page selection
-                                backend.refreshInstalledList()
-                                backend.setSelectedVersion("")
                             }
                             page.goBack()
                         }

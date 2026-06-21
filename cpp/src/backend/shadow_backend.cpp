@@ -1070,6 +1070,12 @@ void ShadowBackend::openVersionDir(const QString& versionId) {
 
 void ShadowBackend::deleteVersion(const QString& versionId) {
     m_settings->deleteVersion(versionId);
+    // Refresh the installed list (deleted version disappears)
+    m_version->refreshInstalled();
+    // If the deleted version was selected, reset to unselected
+    if (m_version->selectedVersion() == versionId) {
+        m_version->setSelectedVersion(QString());
+    }
 }
 
 // ============================================================

@@ -1300,11 +1300,13 @@ Window {
                                                     cursorShape: Qt.PointingHandCursor
                                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                                     onClicked: function(mouse) {
+                                                        currentSelectedVersion = model.id
                                                         if (backend) backend.setSelectedVersion(model.id)
                                                         showVersionSelect = false
                                                     }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
+                                                            currentSelectedVersion = model.id
                                                             if (backend) backend.setSelectedVersion(model.id)
                                                             showVersionSettings = true
                                                             mouse.accepted = true
@@ -2214,8 +2216,6 @@ Window {
                                                 confirmDialog.onAccept = function() {
                                                     showVersionSettings = false
                                                     backend.deleteVersion(currentSelectedVersion)
-                                                    backend.refreshInstalledList()
-                                                    backend.setSelectedVersion("")
                                                 }
                                                 confirmDialog.visible = true
                                             }
