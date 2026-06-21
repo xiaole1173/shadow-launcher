@@ -77,12 +77,6 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     checkpoint(QStringLiteral("QGuiApplication constructed"));
 
-    // ── SceneGraph optimizations (see scene-graph startup doc) ──
-    // 1. Shader cache: avoid recompiling GLSL/SPIR-V every launch
-    qputenv("QT_QUICK_SHADER_CACHE", qPrintable(QCoreApplication::applicationDirPath() + QStringLiteral("/shader_cache")));
-    // 2. Fixed render backend: skip GPU enumeration delay
-    qputenv("QSG_RHI_BACKEND", "opengl");
-
     app.setApplicationName("Shadow Launcher");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("ShadowTeam");
@@ -132,26 +126,10 @@ int main(int argc, char *argv[])
             if (!win) return;
             taskbarFilter->targetWindow = win;
             screenshotWindow = win;
-            // Measure first frame timing breakdown
-            QObject::connect(win, &QQuickWindow::beforeSynchronizing,
-                win, [pStartupTimer]() {
-                    static bool firstBeforeSync = true;
-                    if (firstBeforeSync) {
-                        firstBeforeSync = false;
-                        qCInfo(logApp) << "[STARTUP +" << pStartupTimer->elapsed() << "ms] beforeSynchronizing (1st)";
-                    }
-                });
-            QObject::connect(win, &QQuickWindow::afterSynchronizing,
-                win, [pStartupTimer]() {
-                    static bool firstAfterSync = true;
-                    if (firstAfterSync) {
-                        firstAfterSync = false;
-                        qCInfo(logApp) << "[STARTUP +" << pStartupTimer->elapsed() << "ms] afterSynchronizing (1st)";
-                    }
-                });
+            // Measure first frame render
             QObject::connect(win, &QQuickWindow::frameSwapped,
                 win, [pStartupTimer]() {
-                    qCInfo(logApp) << "[STARTUP +" << pStartupTimer->elapsed() << "ms] First frame rendered (GPU)";
+                    qCInfo(logApp) << "[STARTUP +" << pStartupTimer->elapsed() << "ms] First frame rendered";
                 }, Qt::SingleShotConnection);
         }, Qt::QueuedConnection);
 
