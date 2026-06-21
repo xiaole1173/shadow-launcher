@@ -353,6 +353,9 @@ Window {
                     Layout.fillWidth: true; Layout.fillHeight: true; color: "transparent"
                     layer.enabled: true; layer.smooth: true
                     clip: true
+                    // Crossfade with InstallPage overlay
+                    opacity: showInstallPage ? 0.15 : 1
+                    Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.InOutCubic } }
 
                     // ========== HOMEPAGE ==========
                     Rectangle {
