@@ -245,7 +245,19 @@ Rectangle {
                                 enabled: !root.versionConflict
                                 onClicked: {
                                     var n = root.customName !== "" ? root.customName : root.fullVersionName
-                                    if (backend) backend.logMessage("[install] download: " + n)
+                                    if (backend) {
+                                        backend.logMessage("[install] download: " + n)
+                                        if (selectedForge !== "") {
+                                            backend.installModLoader(mcVersion, "forge", selectedForge, n)
+                                        } else if (selectedNeoForge !== "") {
+                                            backend.installModLoader(mcVersion, "neoforge", selectedNeoForge, n)
+                                        } else if (selectedFabric !== "") {
+                                            backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
+                                        } else {
+                                            backend.installVersion(n)
+                                        }
+                                        root.goBack()
+                                    }
                                 }
                             }
                         }
