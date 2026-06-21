@@ -649,55 +649,71 @@ Window {
         }
         function onCrashDetected(report) {
             console.log("[crash] crashDetected signal received:", JSON.stringify(report))
-            crashDialog.crashData = report
+            crashDialogLoader.active = true
+            if (crashDialogLoader.item) crashDialogLoader.item.crashData = report
         }
     }
 
-    // Confirm Dialog ===
-    Rectangle {
-        id: confirmDialog; z: 400
-        anchors.centerIn: parent; width: 360; height: 180; radius: 10
-        color: "#141820"; border.color: "#2a1f24"; border.width: 1
-        opacity: confirmDialog.visible ? 1 : 0
-        visible: false
-        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        property string title: ""
-        property string message: ""
-        property var onAccept: null
+    // Confirm Dialog (lazy-loaded — only builds SceneGraph when shown)
+    Loader {
+        id: confirmDialogLoader
+        active: false; asynchronous: true
+        anchors.fill: parent; z: 399
+        source: "ConfirmDialog.qml"
 
-        ColumnLayout {
-            anchors.fill: parent; anchors.margins: 20; spacing: 12
-            Text { text: confirmDialog.title; font.pixelSize: 15; font.weight: Font.Bold; color: "#e4e8f2" }
-            Text { text: confirmDialog.message; font.pixelSize: 12; color: "#b0b8c8"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-            Item { Layout.fillHeight: true }
-            RowLayout {
-                Layout.alignment: Qt.AlignRight; spacing: 10
-                Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
-                    scale: cancelDlgMa.pressed ? 0.9 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
-                    MouseArea { id: cancelDlgMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: confirmDialog.visible = false }
-                }
-                Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
-                    scale: confirmDlgMa.pressed ? 0.9 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
-                    MouseArea { id: confirmDlgMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: { confirmDialog.visible = false; if (confirmDialog.onAccept) confirmDialog.onAccept() }
-                    }
+        // Proxy for backward compatibility — external files use confirmDialog.xxx
+        function open(title, message, onAccept) {
+            active = true
+            if (item) {
+                item.title = title
+                item.message = message
+                item.onAccept = onAccept
+                item.opened = true
+            }
+        }
+        function close() {
+            if (item) item.opened = false
+            active = false
+        }
+        onItemChanged: {
+            if (item) {
+                item.closed.connect(function() { active = false })
+                // Re-apply pending props if open() was called before item ready
+                if (_pendingTitle !== "") {
+                    item.title = _pendingTitle
+                    item.message = _pendingMessage
+                    item.onAccept = _pendingOnAccept
+                    item.opened = true
+                    _pendingTitle = ""
                 }
             }
         }
     }
 
-    // Dim overlay behind dialog
-    Rectangle {
-        anchors.fill: parent; z: 399; color: "#000000"
-        opacity: confirmDialog.visible ? 0.5 : 0
-        visible: confirmDialog.visible
-        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
-}
+    // Compatibility object — other files still access confirmDialog.xxx
+    property QtObject confirmDialog: QtObject {
+        property string title: ""
+        property string message: ""
+        property var onAccept: null
+        property bool visible: false
+        onVisibleChanged: {
+            if (visible) {
+                confirmDialogLoader.open(title, message, onAccept)
+            } else {
+                confirmDialogLoader.close()
+            }
+        }
+    }
+
+    // Pending state for when Loader hasn't created item yet
+    property string _pendingTitle: ""
+    property string _pendingMessage: ""
+    property var _pendingOnAccept: null
+
+    Component.onCompleted: {
+        // Override confirmDialog.visible setter to handle pending
+        // (QML proxy object already handles synchronization)
+    }
 }
 
     // Mod download error dialog
@@ -747,10 +763,11 @@ Window {
         MouseArea { anchors.fill: parent; onClicked: { showModDlError = false } }
     }
 
-    // ═══ Crash detection dialog ═══
-    CrashDialog {
-        id: crashDialog
-        z: 500
+    // Crash detection dialog (lazy-loaded)
+    Loader {
+        id: crashDialogLoader; asynchronous: true; active: false
+        anchors.fill: parent; z: 500
+        source: "CrashDialog.qml"
     }
 
     // ═══ Toast notification system ═══

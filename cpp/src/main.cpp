@@ -77,6 +77,14 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     checkpoint(QStringLiteral("QGuiApplication constructed"));
 
+    // ── SceneGraph optimizations (see scene-graph startup doc) ──
+    // 1. Shader cache: avoid recompiling GLSL/SPIR-V every launch
+    qputenv("QT_QUICK_SHADER_CACHE", qPrintable(QCoreApplication::applicationDirPath() + QStringLiteral("/shader_cache")));
+    // 2. Fixed render backend: skip GPU enumeration delay
+    qputenv("QSG_RHI_BACKEND", "opengl");
+    // 3. Single-threaded render: skip syncSceneGraph blocking
+    qputenv("QSG_RENDER_LOOP", "singlethreaded");
+
     app.setApplicationName("Shadow Launcher");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("ShadowTeam");

@@ -109,6 +109,7 @@ qt6_add_resources(ShadowLauncher "qml_resources"
     PREFIX "/qt/qml/ShadowLauncher"
     FILES
         qml/AnimationTokens.qml
+        qml/ConfirmDialog.qml
         qml/CrashDialog.qml
         qml/DownloadPage.qml
         qml/DownloadProgressPage.qml
