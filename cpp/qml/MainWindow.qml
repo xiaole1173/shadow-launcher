@@ -2212,8 +2212,9 @@ Window {
                                                 confirmDialog.message = "确认要删除版本 " + currentSelectedVersion + " 吗？\n此操作不可撤销，版本的所有文件将被删除。"
 
                                                 confirmDialog.onAccept = function() {
-                                                    showVersionSettings = false
                                                     backend.deleteVersion(currentSelectedVersion)
+                                                    backend.refreshVersionDetails()
+                                                    showVersionSettings = false
                                                 }
                                                 confirmDialog.visible = true
                                             }

@@ -1094,8 +1094,8 @@ Rectangle {
                         hoverEnabled: true
                         onClicked: {
                             page._showDeleteConfirm = false
-                            if (backend && page.currentVersionId) {
-                                backend.deleteVersion(page.currentVersionId)
+                            if (backend && page._versionId) {
+                                backend.deleteVersion(page._versionId)
                             }
                             page.goBack()
                         }
