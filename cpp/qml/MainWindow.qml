@@ -2253,12 +2253,14 @@ Window {
         opacity: showInstallPage ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+        onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
 
         Loader {
             anchors.fill: parent
             active: showInstallPage
             source: active ? "InstallPage.qml" : ""
             onLoaded: {
+                if (backend) backend.logMessage("[install] Loader onLoaded, item=" + (item ? "loaded" : "null"))
                 if (item) {
                     item.backend = backend
                     item.mcVersion = installMcVersion

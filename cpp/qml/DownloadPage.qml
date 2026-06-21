@@ -787,6 +787,11 @@ Rectangle {
                         onClicked: {
                             if (model.versionId) {
                                 page.selectedVersionId = model.versionId
+                                if (backend) backend.logMessage("[download-ui] card clicked: " + model.versionId + " -> InstallPage")
+                                if (page.mainWindow) {
+                                    page.mainWindow.installMcVersion = model.versionId
+                                    page.mainWindow.showInstallPage = true
+                                }
                             }
                         }
                     }
