@@ -83,6 +83,33 @@ VersionBackend::VersionBackend(QObject* parent)
         emit installFinished(success);
     });
 
+    // Byte-level download progress
+    connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
+            [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
+        m_installFile = file;
+        m_installBytesDl = received;
+        m_installBytesTotal = total;
+        m_installSpeed = speed;
+        emit installFileProgress(file);
+    });
+
+    // Verification
+    connect(m_mlInstaller, &ModLoaderInstaller::verifyStarted, this,
+            [this]() {
+        setInstallPhase("verifying");
+        m_verifyChecked = 0;
+        m_verifyTotal = 1;
+        emit verifyStarted();
+        emit verifyProgress(0, 1);
+    });
+    connect(m_mlInstaller, &ModLoaderInstaller::verifyFinished, this,
+            [this](bool ok) {
+        Q_UNUSED(ok);
+        m_verifyChecked = 1;
+        emit verifyProgress(1, 1);
+        emit verifyFinished(ok);
+    });
+
     // Defer initial fetch until setGameDir() sets m_dataDir
     // (refreshVersionList needs data dir for cache, refreshInstalled needs game dir)
     m_initialFetchDone = false;
