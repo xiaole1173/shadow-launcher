@@ -2237,7 +2237,7 @@ Window {
         anchors.fill: parent; color: "#0c0f16"; z: 21
         opacity: showInstallPage ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.OutCubic } }
         onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
 
         Loader {
@@ -2249,6 +2249,7 @@ Window {
                 if (backend) backend.logMessage("[install] Loader onLoaded")
                 if (item) {
                     item.backend = backend
+                    item.mcVersion = installMcVersion
                     item.toastManager = toastManager
                     item.goBack.connect(function() { showInstallPage = false })
                 }

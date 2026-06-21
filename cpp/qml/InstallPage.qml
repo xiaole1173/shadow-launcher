@@ -4,7 +4,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import "qrc:/ShadowLauncher/qml"
 
-// ─── InstallPage ───
+// InstallPage
 // MC version + mod loader installation page
 // Cards: MC version, Forge, NeoForge, Fabric, Optifine, Fabric API
 
@@ -20,152 +20,78 @@ Rectangle {
 
     Component.onCompleted: {
         if (backend) backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
-        queryForgeVersions()
-        queryFabricVersions()
-        queryNeoForgeVersions()
-        queryOptifineVersions()
     }
 
-    function versionType(ver) {
-        var l = ver.toLowerCase()
-        if (l.indexOf("snapshot") >= 0) return "snapshot"
-        if (l.indexOf("preview") >= 0 || l.indexOf("_pre") >= 0) return "preview"
-        if (l.indexOf("alpha") >= 0) return "alpha"
-        if (l.indexOf("beta") >= 0 || l.indexOf("-pre") >= 0 || l.indexOf("rc") >= 0) return "beta"
-        return "release"
+    // Triggered when MainWindow pushes mcVersion (on first entry or version change)
+    onMcVersionChanged: {
+        if (mcVersion && backend) triggerQueries()
     }
 
-    // BMCLAPI queries
-    function queryForgeVersions() {
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "https://bmclapi2.bangbang93.com/forge/minecraft/" + mcVersion)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var raw = JSON.parse(xhr.responseText)
-                        var list = []
-                        for (var i = 0; i < raw.length; i++) {
-                            var item = raw[i]
-                            var ver = item.version || ""
-                            list.push({
-                                version: ver,
-                                type: root.versionType(ver),
-                                date: item.modified ? item.modified.substring(0, 10) : ""
-                            })
-                        }
-                        // Sort: release first, then by date desc
-                        list.sort(function(a, b) {
-                            if (a.type !== b.type) return a.type === "release" ? -1 : 1
-                            return b.date.localeCompare(a.date)
-                        })
-                        root.forgeVersions = list
-                        if (backend) backend.logMessage("[install] Forge: " + list.length + " versions")
-                    } catch(e) { console.log("[install] Forge parse error: " + e) }
-                }
-            }
+    function triggerQueries() {
+        if (!backend || !mcVersion) return
+        backend.logMessage("[install] querying mod loaders for " + mcVersion)
+        // Reset: clear old data, show loading
+        forgeVersions = []; fabricVersions = []; neoforgeVersions = []; optifineVersions = []
+        forgeLoading = true; fabricLoading = true; neoforgeLoading = true; optifineLoading = true
+        // Reset selections
+        selectedForge = ""; selectedNeoForge = ""; selectedFabric = ""; selectedOptifine = ""
+        activeLoader = ""; customName = ""
+        backend.queryForgeVersions(mcVersion)
+        backend.queryFabricVersions(mcVersion)
+        backend.queryNeoForgeVersions(mcVersion)
+        backend.queryOptifineVersions(mcVersion)
+    }
+
+    property bool forgeLoading: false
+    property bool fabricLoading: false
+    property bool neoforgeLoading: false
+    property bool optifineLoading: false
+
+    Connections {
+        target: backend
+        function onForgeVersionsReady(list) {
+            forgeLoading = false
+            forgeVersions = annotateTypes(list)
         }
-        xhr.send()
-    }
-
-    function queryFabricVersions() {
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/" + mcVersion)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var raw = JSON.parse(xhr.responseText)
-                        var list = []
-                        for (var i = 0; i < raw.length; i++) {
-                            var item = raw[i]
-                            var ldr = item.loader
-                            list.push({
-                                version: ldr.version || "",
-                                type: ldr.stable ? "release" : "beta",
-                                date: ""
-                            })
-                        }
-                        root.fabricVersions = list
-                        if (backend) backend.logMessage("[install] Fabric: " + list.length + " loader versions")
-                    } catch(e) { console.log("[install] Fabric parse error: " + e) }
-                }
-            }
+        function onFabricVersionsReady(list) {
+            fabricLoading = false
+            fabricVersions = annotateTypes(list)
         }
-        xhr.send()
-    }
-
-    function queryNeoForgeVersions() {
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/maven-metadata.xml")
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var xml = xhr.responseText
-                        var mcMinor = mcVersion.split(".").slice(1).join(".")  // e.g. "20.1" for "1.20.1"
-                        var mcParts = mcVersion.split(".")
-                        var neoPrefix = mcParts.length >= 2 ? mcParts[mcParts.length - 2] : mcVersion
-                        // For 1.x.y MC versions, match NeoForge major (e.g. "20" for 1.20.x)
-                        // For 26.x MC versions, match NeoForge "26"
-                        var re = /<version>([^<]+)<\/version>/g
-                        var match
-                        while ((match = re.exec(xml)) !== null) {
-                            var ver = match[1]
-                            var neoMajor = ver.split(".")[0]
-                            if (neoMajor !== neoPrefix) continue  // Filter by MC major
-                            list.push({
-                                version: ver,
-                                type: root.versionType(ver),
-                                date: ""
-                            })
-                        }
-                        list.sort(function(a, b) {
-                            if (a.type !== b.type) return a.type === "release" ? -1 : 1
-                            return b.version.localeCompare(a.version)
-                        })
-                        root.neoforgeVersions = list
-                        if (backend) backend.logMessage("[install] NeoForge: " + list.length + " versions")
-                    } catch(e) { console.log("[install] NeoForge parse error: " + e) }
-                }
-            }
+        function onNeoforgeVersionsReady(list) {
+            neoforgeLoading = false
+            neoforgeVersions = annotateTypes(list)
         }
-        xhr.send()
-    }
-
-    function queryOptifineVersions() {
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "https://bmclapi2.bangbang93.com/optifine/" + mcVersion)
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        var raw = JSON.parse(xhr.responseText)
-                        var list = []
-                        for (var i = 0; i < raw.length; i++) {
-                            var item = raw[i]
-                            var fn = item.filename || ""
-                            var ver = fn.replace("OptiFine_" + mcVersion + "_", "").replace(".jar", "")
-                            list.push({
-                                version: ver,
-                                type: root.versionType(fn),
-                                date: ""
-                            })
-                        }
-                        list.sort(function(a, b) {
-                            if (a.type !== b.type) return a.type === "release" ? -1 : 1
-                            return b.version.localeCompare(a.version)
-                        })
-                        root.optifineVersions = list
-                        if (backend) backend.logMessage("[install] Optifine: " + list.length + " versions")
-                    } catch(e) { console.log("[install] Optifine parse error: " + e) }
-                }
-            }
+        function onOptifineVersionsReady(list) {
+            optifineLoading = false
+            optifineVersions = annotateTypes(list)
         }
-        xhr.send()
     }
 
-    // ── Selected mod loader state ──
+    function annotateTypes(inputList) {
+        var result = []
+        for (var i = 0; i < inputList.length; i++) {
+            var item = inputList[i]
+            if (!item.version) continue
+            var m = { version: item.version, date: item.date || "" }
+            // Override type: parse version string for snapshot/preview/alpha/beta tags
+            var v = item.version.toLowerCase()
+            if (v.indexOf("snapshot") >= 0) m.type = "snapshot"
+            else if (v.indexOf("preview") >= 0 || v.indexOf("_pre") >= 0) m.type = "preview"
+            else if (v.indexOf("alpha") >= 0) m.type = "alpha"
+            else if (v.indexOf("beta") >= 0 || v.indexOf("-pre") >= 0 || v.indexOf("rc") >= 0) m.type = "beta"
+            else m.type = item.type || "release"
+            result.push(m)
+        }
+        // Sort: release > beta > snapshot > preview > alpha, then by version desc
+        var typeOrder = { release: 0, beta: 1, snapshot: 2, preview: 3, alpha: 4 }
+        result.sort(function(a, b) {
+            if (typeOrder[a.type] !== typeOrder[b.type]) return typeOrder[a.type] - typeOrder[b.type]
+            return String(b.version).localeCompare(String(a.version))
+        })
+        return result
+    }
+
+    // Selected mod loader state
     property string selectedForge: ""
     property string selectedNeoForge: ""
     property string selectedFabric: ""
@@ -173,7 +99,7 @@ Rectangle {
     property string selectedFabricApi: ""
     property string activeLoader: ""
 
-    // ── Version lists (populated from BMCLAPI) ──
+    // Version lists (populated from BMCLAPI via C++ signals)
     property var forgeVersions: []
     property var neoforgeVersions: []
     property var fabricVersions: []
@@ -198,7 +124,7 @@ Rectangle {
         if (customName === "") { nameInput.text = fullVersionName }
     }
 
-    // ═══ TOP BAR ═══
+    // TOP BAR
     Rectangle {
         id: topBar
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
@@ -242,8 +168,7 @@ Rectangle {
         }
     }
 
-    // ═══ CONTENT AREA ═══
-    // Use Flickable instead of ScrollView for more reliable child sizing
+    // CONTENT AREA
     Flickable {
         id: contentFlick
         anchors.top: topBar.bottom
@@ -266,7 +191,7 @@ Rectangle {
             x: 16
             spacing: 12
 
-            // ═══ CARD 1 — MC Version (with download button + editable name) ═══
+            // CARD 1 — MC Version (with download button + editable name)
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 80; radius: 10
                 color: "#11141c"; border.color: "#1e2230"; border.width: 1
@@ -315,7 +240,7 @@ Rectangle {
                         TextInput {
                             id: nameInput
                             anchors.fill: parent; anchors.margins: 8
-                            text: root.customName !== "" ? root.customName : root.fullVersionName
+                            text: root.fullVersionName
                             font.pixelSize: 13; color: "#c0c8e0"
                             selectByMouse: true
                             verticalAlignment: TextInput.AlignVCenter
@@ -325,19 +250,19 @@ Rectangle {
                 }
             }
 
-            // ═══ SECTION LABEL ═══
+            // SECTION LABEL: Mod Loader
             Text {
                 text: "Mod 加载器"
                 font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
-            // ═══ CARD 2 — Forge ═══
+            // CARD 2 — Forge
             ModLoaderCard {
                 Layout.fillWidth: true
                 title: "Forge"
                 loaderKey: "forge"
-                versions: root.forgeVersions
+                versions: root.forgeLoading ? [{version: "Loading...", type: "", date: ""}] : root.forgeVersions
                 disabled: root.hasModLoader && root.activeLoader !== "forge"
                 disabledReason: root.activeLoader === "neoforge" ? "NeoForge 已选中"
                               : root.activeLoader === "fabric" ? "Fabric 已选中"
@@ -355,12 +280,12 @@ Rectangle {
                 }
             }
 
-            // ═══ CARD 3 — NeoForge ═══
+            // CARD 3 — NeoForge
             ModLoaderCard {
                 Layout.fillWidth: true
                 title: "NeoForge"
                 loaderKey: "neoforge"
-                versions: root.neoforgeVersions
+                versions: root.neoforgeLoading ? [{version: "Loading...", type: "", date: ""}] : root.neoforgeVersions
                 disabled: root.hasModLoader && root.activeLoader !== "neoforge"
                 disabledReason: root.activeLoader === "forge" ? "Forge 已选中"
                               : root.activeLoader === "fabric" ? "Fabric 已选中"
@@ -377,12 +302,12 @@ Rectangle {
                 }
             }
 
-            // ═══ CARD 4 — Fabric ═══
+            // CARD 4 — Fabric
             ModLoaderCard {
                 Layout.fillWidth: true
                 title: "Fabric"
                 loaderKey: "fabric"
-                versions: root.fabricVersions
+                versions: root.fabricLoading ? [{version: "Loading...", type: "", date: ""}] : root.fabricVersions
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
                 disabledReason: root.activeLoader === "forge" ? "Forge 已选中"
                               : root.activeLoader === "neoforge" ? "NeoForge 已选中"
@@ -399,7 +324,7 @@ Rectangle {
                 }
             }
 
-            // ═══ CARD 6 — Fabric API (conditional) ═══
+            // Fabric API (conditional)
             Rectangle {
                 Layout.fillWidth: true
                 height: root.activeLoader === "fabric" ? 52 : 0
@@ -416,19 +341,19 @@ Rectangle {
                 }
             }
 
-            // ═══ SECTION LABEL: Shader ═══
+            // SECTION LABEL: Shader
             Text {
                 text: "光影加载（高清修复）"
                 font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
-            // ═══ CARD 5 — Optifine ═══
+            // CARD 5 — Optifine
             ModLoaderCard {
                 Layout.fillWidth: true
                 title: "Optifine"
                 loaderKey: "optifine"
-                versions: root.optifineVersions
+                versions: root.optifineLoading ? [{version: "Loading...", type: "", date: ""}] : root.optifineVersions
                 disabled: (root.hasModLoader && root.selectedOptifine === "")
                          || root.activeLoader === "fabric"
                          || root.activeLoader === "neoforge"

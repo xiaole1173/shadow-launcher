@@ -283,6 +283,12 @@ public:
     Q_INVOKABLE void retryModFileDownload(int downloadId);
     Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
+
+    // ── Mod Loader version queries (BMCLAPI) ──
+    Q_INVOKABLE void queryForgeVersions(const QString& mcVersion);
+    Q_INVOKABLE void queryFabricVersions(const QString& mcVersion);
+    Q_INVOKABLE void queryNeoForgeVersions(const QString& mcVersion);
+    Q_INVOKABLE void queryOptifineVersions(const QString& mcVersion);
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);
@@ -386,6 +392,12 @@ signals:
     void themeChanged();
     void loginModeChanged();
     void logMessage(const QString& msg);
+
+    // ── Mod loader version signals ──
+    void forgeVersionsReady(const QVariantList& versions);
+    void fabricVersionsReady(const QVariantList& versions);
+    void neoforgeVersionsReady(const QVariantList& versions);
+    void optifineVersionsReady(const QVariantList& versions);
 
     // ── Icon cache signal ──
     void iconCached(const QString& webpUrl, const QString& pngPath);

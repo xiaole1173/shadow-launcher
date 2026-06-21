@@ -28,6 +28,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QUrl>
@@ -1432,6 +1433,149 @@ void ShadowBackend::copyToClipboard(const QString& text)
     if (clipboard) {
         clipboard->setText(text);
     }
+}
+
+// ============================================================
+// Mod Loader version queries (BMCLAPI)
+// ============================================================
+
+static void queryModLoaderApi(ShadowBackend* self, const QString& url,
+                               const QString& loaderName,
+                               std::function<QVariantList(const QByteArray&)> parseFn,
+                               std::function<void(const QVariantList&)> emitFn) {
+    auto* mgr = new QNetworkAccessManager(self);
+    QUrl qurl(url);
+    QNetworkRequest req(qurl);
+    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply* reply = mgr->get(req);
+    qCDebug(logApp) << "[ModLoader] querying" << loaderName << url;
+
+    QObject::connect(reply, &QNetworkReply::finished, self, [self, reply, mgr, loaderName, parseFn, emitFn]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            qCWarning(logApp) << "[ModLoader]" << loaderName << "query failed:" << reply->errorString();
+            reply->deleteLater();
+            mgr->deleteLater();
+            emitFn({});
+            return;
+        }
+        QByteArray data = reply->readAll();
+        reply->deleteLater();
+        mgr->deleteLater();
+        qCDebug(logApp) << "[ModLoader]" << loaderName << "got" << data.size() << "bytes";
+        QVariantList list = parseFn(data);
+        qCDebug(logApp) << "[ModLoader]" << loaderName << "parsed" << list.size() << "versions";
+        emitFn(list);
+    });
+}
+
+void ShadowBackend::queryForgeVersions(const QString& mcVersion) {
+    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/forge/minecraft/") + mcVersion;
+    queryModLoaderApi(this, url, "Forge",
+        [](const QByteArray& data) -> QVariantList {
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (!doc.isArray()) return {};
+            QJsonArray arr = doc.array();
+            QVariantList list;
+            for (const QJsonValue& v : arr) {
+                QJsonObject obj = v.toObject();
+                QString ver = obj.value("version").toString();
+                if (ver.isEmpty()) continue;
+                QString date = obj.value("modified").toString().left(10);
+                QVariantMap m;
+                m["version"] = ver;
+                m["type"] = QStringLiteral("release");
+                m["date"] = date;
+                list.append(m);
+            }
+            return list;
+        },
+        [this](const QVariantList& list) { emit forgeVersionsReady(list); });
+}
+
+void ShadowBackend::queryFabricVersions(const QString& mcVersion) {
+    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/") + mcVersion;
+    queryModLoaderApi(this, url, "Fabric",
+        [](const QByteArray& data) -> QVariantList {
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            QJsonArray arr;
+            if (doc.isArray()) {
+                arr = doc.array();
+            } else if (doc.isObject()) {
+                arr = doc.object().value("versions").toArray();
+            } else return {};
+            QVariantList list;
+            for (const QJsonValue& v : arr) {
+                QJsonObject obj = v.toObject();
+                QJsonObject loader = obj.value("loader").toObject();
+                QString ver = loader.value("version").toString();
+                if (ver.isEmpty()) continue;
+                bool stable = loader.value("stable").toBool(true);
+                QVariantMap m;
+                m["version"] = ver;
+                m["type"] = stable ? QStringLiteral("release") : QStringLiteral("beta");
+                m["date"] = QString();
+                list.append(m);
+            }
+            return list;
+        },
+        [this](const QVariantList& list) { emit fabricVersionsReady(list); });
+}
+
+void ShadowBackend::queryNeoForgeVersions(const QString& mcVersion) {
+    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/maven-metadata.xml");
+    queryModLoaderApi(this, url, "NeoForge",
+        [mcVersion](const QByteArray& data) -> QVariantList {
+            QVariantList list;
+            QString xml = QString::fromUtf8(data);
+            QStringList mcParts = mcVersion.split('.');
+            QString neoPrefix;
+            if (mcParts.size() >= 2) neoPrefix = mcParts.at(mcParts.size() - 2);
+            else neoPrefix = mcVersion;
+
+            QRegularExpression re("<version>([^<]+)</version>");
+            QRegularExpressionMatchIterator it = re.globalMatch(xml);
+            while (it.hasNext()) {
+                QRegularExpressionMatch match = it.next();
+                QString ver = match.captured(1);
+                QString neoMajor = ver.split('.').first();
+                if (neoMajor != neoPrefix) continue;
+                QVariantMap m;
+                m["version"] = ver;
+                m["type"] = QStringLiteral("release");
+                m["date"] = QString();
+                list.append(m);
+            }
+            return list;
+        },
+        [this](const QVariantList& list) { emit neoforgeVersionsReady(list); });
+}
+
+void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
+    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/optifine/") + mcVersion;
+    queryModLoaderApi(this, url, "Optifine",
+        [mcVersion](const QByteArray& data) -> QVariantList {
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (!doc.isArray()) return {};
+            QJsonArray arr = doc.array();
+            QVariantList list;
+            for (const QJsonValue& v : arr) {
+                QJsonObject obj = v.toObject();
+                QString fn = obj.value("filename").toString();
+                if (fn.isEmpty()) continue;
+                QString prefix = QStringLiteral("OptiFine_") + mcVersion + QStringLiteral("_");
+                QString ver = fn;
+                if (fn.startsWith(prefix)) ver = fn.mid(prefix.length());
+                if (ver.endsWith(".jar")) ver = ver.left(ver.length() - 4);
+                QVariantMap m;
+                m["version"] = ver;
+                m["type"] = QStringLiteral("release");
+                m["date"] = QString();
+                list.append(m);
+            }
+            return list;
+        },
+        [this](const QVariantList& list) { emit optifineVersionsReady(list); });
 }
 
 } // namespace ShadowLauncher
