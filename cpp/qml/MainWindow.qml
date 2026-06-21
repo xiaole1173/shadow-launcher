@@ -356,7 +356,7 @@ Window {
                     // Sequential: overlay fades first, then page fades in
                     property real targetOpacity: 1.0
                     opacity: targetOpacity
-                    Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.InOutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
 
                     // ========== HOMEPAGE ==========
                     Rectangle {
@@ -2280,7 +2280,7 @@ Window {
 
     Timer {
         id: pageFadeInTimer
-        interval: 500  // Wait for overlay to be mostly gone
+        interval: 250  // Short delay — overlay ~1/3 gone
         onTriggered: { pageContainer.targetOpacity = 1.0 }
     }
 
