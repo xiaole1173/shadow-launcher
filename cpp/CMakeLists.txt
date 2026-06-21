@@ -101,7 +101,7 @@ set(HEADERS
 # Target
 # ============================================================
 
-qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS})
+qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS} resources/app.rc)
 
 # QML: bundled in qrc for memory-mapped loading + runtime caching
 # Dev mode: set SHADOW_DEV=1 to load from filesystem for hot-reload
