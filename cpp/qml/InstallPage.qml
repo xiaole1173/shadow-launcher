@@ -291,6 +291,13 @@ Rectangle {
                 }
             }
 
+            // ═══ SECTION LABEL: Shader ═══
+            Text {
+                text: "光影加载（高清修复）"
+                font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
+                Layout.topMargin: 8; Layout.leftMargin: 4
+            }
+
             // ═══ CARD 5 — Optifine ═══
             ModLoaderCard {
                 Layout.fillWidth: true
