@@ -205,8 +205,16 @@ private:
 
     qreal m_installTotalProgress = 0.0;
 
+    // Throttle activeInstallsChanged emissions (avoid UI flicker from 100ms updates)
+    QTimer m_activeInstallsThrottle;
+    bool m_activeInstallsPending = false;
+    // Minimum 200ms per step display (avoid "instant" step transitions)
+    QElapsedTimer m_stepChangeTime;
+    int m_stepMinDisplayMs = 200;
+
     void rebuildSteps(const QStringList& names);
     void updateStep(int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
+    void emitActiveInstallsChanged();
     void computeTotalProgress();
 
     int m_verifyChecked = 0;

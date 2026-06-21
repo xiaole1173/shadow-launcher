@@ -37,6 +37,17 @@ VersionBackend::VersionBackend(QObject* parent)
 {
     qCInfo(logVersion) << "VersionBackend constructed";
 
+    // Throttle activeInstallsChanged to 300ms intervals (avoid flicker)
+    m_activeInstallsThrottle.setSingleShot(true);
+    m_activeInstallsThrottle.setInterval(300);
+    connect(&m_activeInstallsThrottle, &QTimer::timeout, this, [this]() {
+        if (m_activeInstallsPending) {
+            m_activeInstallsPending = false;
+            emitActiveInstallsChanged();
+        }
+    });
+    m_stepChangeTime.start();
+
     // ── VersionManager: fetch + cache version manifest ──
     m_versionMgr = new VersionManager(this);
     
@@ -816,7 +827,7 @@ void VersionBackend::setInstalling(bool v)
     if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }
-    emit activeInstallsChanged();
+    emitActiveInstallsChanged();
 }
 
 void VersionBackend::setInstallPhase(const QString& phase)
@@ -1583,26 +1594,38 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
     if (index < 0 || index >= m_installSteps.size()) return;
     QVariantMap s = m_installSteps[index].toMap();
     QString oldStatus = s["status"].toString();
+
+    // Minimum step display: if step activated < 200ms ago, don't mark previous as completed yet
+    if (status == QStringLiteral("active") && oldStatus != QStringLiteral("active")) {
+        if (!m_stepChangeTime.isValid() || m_stepChangeTime.elapsed() >= m_stepMinDisplayMs) {
+            // OK to transition — mark previous steps completed
+            for (int i = 0; i < index; i++) {
+                QVariantMap prev = m_installSteps[i].toMap();
+                if (prev["status"].toString() != QStringLiteral("completed")) {
+                    prev["status"] = QStringLiteral("completed");
+                    prev["percentage"] = 100;
+                    m_installSteps[i] = prev;
+                }
+            }
+            m_stepChangeTime.restart();
+        }
+        // else: skip this step change — previous steps still show as active/pending
+    }
+
     s["status"] = status;
     s["percentage"] = percentage;
     s["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
     s["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
     m_installSteps[index] = s;
 
-    // Transitions: mark previous as completed
-    if (status == QStringLiteral("active") && oldStatus != QStringLiteral("active")) {
-        for (int i = 0; i < index; i++) {
-            QVariantMap prev = m_installSteps[i].toMap();
-            if (prev["status"].toString() != QStringLiteral("completed")) {
-                prev["status"] = QStringLiteral("completed");
-                prev["percentage"] = 100;
-                m_installSteps[i] = prev;
-            }
-        }
-    }
-
     computeTotalProgress();
     emit installStepsChanged();
+}
+
+void VersionBackend::emitActiveInstallsChanged() {
+    if (m_activeInstallsPending) return;  // already scheduled
+    m_activeInstallsPending = true;
+    m_activeInstallsThrottle.start();
 }
 
 void VersionBackend::computeTotalProgress() {
@@ -1616,7 +1639,7 @@ void VersionBackend::computeTotalProgress() {
     }
     m_installTotalProgress = sum / m_installSteps.size();
     emit installTotalProgressChanged();
-    emit activeInstallsChanged();
+    emitActiveInstallsChanged();
 }
 
 QVariantList VersionBackend::activeInstalls() const {
@@ -1703,7 +1726,7 @@ void VersionBackend::addResourceCard(const QString& cardId, const QString& displ
     c["remainingSteps"] = 0;
     c["steps"] = QVariantList{};
     m_extraCards[cardId] = c;
-    emit activeInstallsChanged();
+    emitActiveInstallsChanged();
 }
 
 void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, const QString& status) {
@@ -1712,12 +1735,12 @@ void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, c
     c["totalProgress"] = progress;
     if (!status.isEmpty()) c["installPhase"] = status;
     m_extraCards[cardId] = c;
-    emit activeInstallsChanged();
+    emitActiveInstallsChanged();
 }
 
 void VersionBackend::removeResourceCard(const QString& cardId) {
     m_extraCards.remove(cardId);
-    emit activeInstallsChanged();
+    emitActiveInstallsChanged();
 }
 
 } // namespace ShadowLauncher
