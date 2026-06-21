@@ -70,24 +70,16 @@ Rectangle {
                 font.pixelSize: 10; color: "#606878"
                 visible: !cardDisabled && (card.versions.length > 0 || card.expanded)
             }
-
-            // Cancel (only when version selected)
-            Rectangle {
+            // Cancel
+            Text {
                 visible: selectedVersion !== ""
-                width: 22; height: 22; radius: 11
-                color: cancelMa.containsMouse ? "#402828" : "transparent"
+                text: "\u2715"; font.pixelSize: 13
+                color: cancelArea.containsMouse ? "#e06060" : "#787c90"
                 Behavior on color { ColorAnimation { duration: 150 } }
-                Text {
-                    anchors.centerIn: parent
-                    text: "\u2715"
-                    font.pixelSize: 12; color: cancelMa.containsMouse ? "#e06060" : "#787c90"
-                }
-                MouseArea {
-                    id: cancelMa
-                    anchors.fill: parent
-                    hoverEnabled: true
+                TapHandler {
+                    id: cancelArea
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
+                    onTapped: {
                         card.selectedVersion = ""
                         card.versionCleared()
                     }
