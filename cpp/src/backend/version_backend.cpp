@@ -46,7 +46,6 @@ VersionBackend::VersionBackend(QObject* parent)
             emitActiveInstallsChanged();
         }
     });
-    m_stepChangeTime.start();
 
     // ── VersionManager: fetch + cache version manifest ──
     m_versionMgr = new VersionManager(this);
@@ -812,6 +811,14 @@ void VersionBackend::updateInstalledList()
 
         if (QFileInfo::exists(jarPath)) {
             m_installedIds.append(subDir);
+        } else {
+            // Forge/NeoForge/Fabric versions only have a .json (inherit jar from vanilla)
+            const QString jsonPath =
+                versionsDir + QStringLiteral("/") + subDir +
+                QStringLiteral("/") + subDir + QStringLiteral(".json");
+            if (QFileInfo::exists(jsonPath)) {
+                m_installedIds.append(subDir);
+            }
         }
     }
 }
@@ -1595,21 +1602,16 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
     QVariantMap s = m_installSteps[index].toMap();
     QString oldStatus = s["status"].toString();
 
-    // Minimum step display: if step activated < 200ms ago, don't mark previous as completed yet
+    // Mark previous steps as completed when a new step activates
     if (status == QStringLiteral("active") && oldStatus != QStringLiteral("active")) {
-        if (!m_stepChangeTime.isValid() || m_stepChangeTime.elapsed() >= m_stepMinDisplayMs) {
-            // OK to transition — mark previous steps completed
-            for (int i = 0; i < index; i++) {
-                QVariantMap prev = m_installSteps[i].toMap();
-                if (prev["status"].toString() != QStringLiteral("completed")) {
-                    prev["status"] = QStringLiteral("completed");
-                    prev["percentage"] = 100;
-                    m_installSteps[i] = prev;
-                }
+        for (int i = 0; i < index; i++) {
+            QVariantMap prev = m_installSteps[i].toMap();
+            if (prev["status"].toString() != QStringLiteral("completed")) {
+                prev["status"] = QStringLiteral("completed");
+                prev["percentage"] = 100;
+                m_installSteps[i] = prev;
             }
-            m_stepChangeTime.restart();
         }
-        // else: skip this step change — previous steps still show as active/pending
     }
 
     s["status"] = status;
