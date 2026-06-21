@@ -20,24 +20,139 @@ Rectangle {
 
     Component.onCompleted: {
         if (backend) backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
-        // ═══ Test version data (Phase A only, will be replaced by backend queries) ═══
-        forgeVersions = [
-            {version: "47.3.0", type: "release", date: "2024-12-01"},
-            {version: "47.2.0", type: "release", date: "2024-10-15"},
-            {version: "47.1.0-beta", type: "beta", date: "2024-09-01"}
-        ]
-        neoforgeVersions = [
-            {version: "21.4.0", type: "release", date: "2024-12-05"},
-            {version: "21.3.0-beta", type: "beta", date: "2024-11-10"}
-        ]
-        fabricVersions = [
-            {version: "0.16.9", type: "release", date: "2024-12-03"},
-            {version: "0.16.7", type: "release", date: "2024-10-20"}
-        ]
-        optifineVersions = [
-            {version: "HD_U_J6", type: "release", date: "2024-12-01"},
-            {version: "HD_U_J5_pre1", type: "beta", date: "2024-11-15"}
-        ]
+        queryForgeVersions()
+        queryFabricVersions()
+        queryNeoForgeVersions()
+        queryOptifineVersions()
+    }
+
+    // ── BMCLAPI queries ──
+    function queryForgeVersions() {
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "https://bmclapi2.bangbang93.com/forge/minecraft/" + mcVersion)
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        var raw = JSON.parse(xhr.responseText)
+                        var list = []
+                        for (var i = 0; i < raw.length; i++) {
+                            var item = raw[i]
+                            var ver = item.version || ""
+                            var isBeta = ver.indexOf("-") >= 0 || ver.indexOf("pre") >= 0
+                            list.push({
+                                version: ver,
+                                type: isBeta ? "beta" : "release",
+                                date: item.modified ? item.modified.substring(0, 10) : ""
+                            })
+                        }
+                        // Sort: release first, then by date desc
+                        list.sort(function(a, b) {
+                            if (a.type !== b.type) return a.type === "release" ? -1 : 1
+                            return b.date.localeCompare(a.date)
+                        })
+                        root.forgeVersions = list
+                        if (backend) backend.logMessage("[install] Forge: " + list.length + " versions")
+                    } catch(e) { console.log("[install] Forge parse error: " + e) }
+                }
+            }
+        }
+        xhr.send()
+    }
+
+    function queryFabricVersions() {
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/" + mcVersion)
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        var raw = JSON.parse(xhr.responseText)
+                        var list = []
+                        for (var i = 0; i < raw.length; i++) {
+                            var item = raw[i]
+                            var ldr = item.loader
+                            list.push({
+                                version: ldr.version || "",
+                                type: ldr.stable ? "release" : "beta",
+                                date: ""
+                            })
+                        }
+                        root.fabricVersions = list
+                        if (backend) backend.logMessage("[install] Fabric: " + list.length + " loader versions")
+                    } catch(e) { console.log("[install] Fabric parse error: " + e) }
+                }
+            }
+        }
+        xhr.send()
+    }
+
+    function queryNeoForgeVersions() {
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/maven-metadata.xml")
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        var xml = xhr.responseText
+                        var list = []
+                        var re = /<version>([^<]+)<\/version>/g
+                        var match
+                        while ((match = re.exec(xml)) !== null) {
+                            var ver = match[1]
+                            // Filter for MC version prefix
+                            var mcPrefix = mcVersion.split(".").slice(0, 2).join(".")
+                            var isBeta = ver.indexOf("beta") >= 0
+                            list.push({
+                                version: ver,
+                                type: isBeta ? "beta" : "release",
+                                date: ""
+                            })
+                        }
+                        list.sort(function(a, b) {
+                            if (a.type !== b.type) return a.type === "release" ? -1 : 1
+                            return b.version.localeCompare(a.version)
+                        })
+                        root.neoforgeVersions = list
+                        if (backend) backend.logMessage("[install] NeoForge: " + list.length + " versions")
+                    } catch(e) { console.log("[install] NeoForge parse error: " + e) }
+                }
+            }
+        }
+        xhr.send()
+    }
+
+    function queryOptifineVersions() {
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "https://bmclapi2.bangbang93.com/optifine/" + mcVersion)
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        var raw = JSON.parse(xhr.responseText)
+                        var list = []
+                        for (var i = 0; i < raw.length; i++) {
+                            var item = raw[i]
+                            var fn = item.filename || ""
+                            var ver = fn.replace("OptiFine_" + mcVersion + "_", "").replace(".jar", "")
+                            var isBeta = fn.indexOf("preview") >= 0 || fn.indexOf("pre") >= 0
+                            list.push({
+                                version: ver,
+                                type: isBeta ? "beta" : "release",
+                                date: ""
+                            })
+                        }
+                        list.sort(function(a, b) {
+                            if (a.type !== b.type) return a.type === "release" ? -1 : 1
+                            return b.version.localeCompare(a.version)
+                        })
+                        root.optifineVersions = list
+                        if (backend) backend.logMessage("[install] Optifine: " + list.length + " versions")
+                    } catch(e) { console.log("[install] Optifine parse error: " + e) }
+                }
+            }
+        }
+        xhr.send()
     }
 
     // ── Selected mod loader state ──
@@ -48,7 +163,7 @@ Rectangle {
     property string selectedFabricApi: ""
     property string activeLoader: ""
 
-    // ── Version lists (test data for Phase A) ──
+    // ── Version lists (populated from BMCLAPI) ──
     property var forgeVersions: []
     property var neoforgeVersions: []
     property var fabricVersions: []

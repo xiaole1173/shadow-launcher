@@ -2241,16 +2241,24 @@ Window {
         onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
 
         Loader {
+            id: installPageLoader
             anchors.fill: parent
-            active: showInstallPage
-            source: active ? "InstallPage.qml" : ""
+            active: true  // Always loaded for smooth exit animation
+            source: "InstallPage.qml"
             onLoaded: {
-                if (backend) backend.logMessage("[install] Loader onLoaded, item=" + (item ? "loaded" : "null"))
+                if (backend) backend.logMessage("[install] Loader onLoaded")
                 if (item) {
                     item.backend = backend
-                    item.mcVersion = installMcVersion
                     item.toastManager = toastManager
                     item.goBack.connect(function() { showInstallPage = false })
+                }
+            }
+            Connections {
+                target: appWindow
+                function onShowInstallPageChanged() {
+                    if (appWindow.showInstallPage && installPageLoader.item) {
+                        installPageLoader.item.mcVersion = appWindow.installMcVersion
+                    }
                 }
             }
         }
