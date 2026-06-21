@@ -17,6 +17,8 @@ Rectangle {
     property string mcVersion: ""
     property var toastManager: null
     signal goBack()
+    signal requestMinimize()
+    signal requestClose()
 
     Component.onCompleted: {
         if (backend) backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
@@ -177,6 +179,38 @@ Rectangle {
             }
 
             Item { Layout.fillWidth: true }
+
+            // Minimize
+            Rectangle {
+                width: 28; height: 28; radius: 14
+                color: minHov.containsMouse ? (minHov.pressed ? "#3a4050" : "#252a35") : "transparent"
+                scale: minHov.pressed ? 0.85 : (minHov.containsMouse ? 1.12 : 1.0)
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on scale { NumberAnimation { duration: 150 } }
+                Text { anchors.centerIn: parent; text: "\u2014"; color: minHov.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: 13; font.weight: Font.Bold }
+                MouseArea {
+                    id: minHov; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { root.requestMinimize() }
+                }
+            }
+
+            Item { width: 6 }
+
+            // Close
+            Rectangle {
+                width: 28; height: 28; radius: 14
+                color: closeHov.containsMouse ? (closeHov.pressed ? "#e06060" : "#c05050") : "transparent"
+                scale: closeHov.pressed ? 0.85 : (closeHov.containsMouse ? 1.12 : 1.0)
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on scale { NumberAnimation { duration: 150 } }
+                Text { anchors.centerIn: parent; text: "\u2715"; color: closeHov.containsMouse ? "#fff" : "#505568"; font.pixelSize: 12; font.weight: Font.Bold }
+                MouseArea {
+                    id: closeHov; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { root.requestClose() }
+                }
+            }
         }
     }
 
