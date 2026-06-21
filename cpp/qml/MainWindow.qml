@@ -1300,7 +1300,6 @@ Window {
                                                         if (backend) backend.setSelectedVersion(model.id)
                                                         showVersionSelect = false
                                                     }
-                                                    }
                                                     onPressed: function(mouse) {
                                                         if (mouse.button === Qt.RightButton) {
                                                             currentSelectedVersion = model.id
@@ -2422,6 +2421,7 @@ Window {
         visible: confirmDialog.visible
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         MouseArea { anchors.fill: parent; onClicked: { confirmDialog.visible = false } }
+}
 }
 
     // Mod download error dialog
