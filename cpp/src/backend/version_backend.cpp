@@ -1623,9 +1623,10 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
 }
 
 void VersionBackend::emitActiveInstallsChanged() {
-    if (m_activeInstallsPending) return;  // already scheduled
+    if (m_activeInstallsPending) return;  // already scheduled, throttle
     m_activeInstallsPending = true;
-    m_activeInstallsThrottle.start();
+    emit activeInstallsChanged();        // emit IMMEDIATELY first time
+    m_activeInstallsThrottle.start();    // block subsequent for 300ms
 }
 
 void VersionBackend::computeTotalProgress() {

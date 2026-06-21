@@ -379,6 +379,17 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
 
     qDebug() << "[ModLoader] Forge install: java" << args << "gameDir:" << m_gameDir;
 
+    // Forge installer requires launcher_profiles.json — create one if missing
+    QString lpjPath = m_gameDir + QStringLiteral("/launcher_profiles.json");
+    if (!QFile::exists(lpjPath)) {
+        QFile lpj(lpjPath);
+        if (lpj.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            lpj.write("{\"profiles\":{},\"settings\":{},\"version\":3}");
+            lpj.close();
+            qDebug() << "[ModLoader] Created minimal launcher_profiles.json for Forge installer";
+        }
+    }
+
     // Capture stderr for diagnostics
     connect(proc, &QProcess::readyReadStandardError, this, [this, proc]() {
         QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
