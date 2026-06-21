@@ -1545,41 +1545,50 @@ void VersionBackend::computeTotalProgress() {
 
 QVariantList VersionBackend::activeInstalls() const {
     QVariantList list;
-    // 1. Mod loader install (running OR recently failed)
+    // 1. Mod loader install (running, pending, or recently failed)
+    bool mlPending = m_hasPendingLoader && !m_pendingLoaderName.isEmpty();
     bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty();
     bool mlFailed = m_installFailed && !m_modLoaderInstallId.isEmpty();
-    if (mlActive || mlFailed) {
-        qDebug() << "[install] activeInstalls: mod_loader card" << m_modLoaderInstallId
+    if (mlActive || mlFailed || mlPending) {
+        QString cardId = mlPending ? m_pendingLoaderName : m_modLoaderInstallId;
+        qDebug() << "[install] activeInstalls: mod_loader card" << cardId
                  << "totalProgress:" << m_installTotalProgress << "steps:" << m_installSteps.size()
-                 << (mlFailed ? "FAILED" : "running");
+                 << (mlFailed ? "FAILED" : (mlPending ? "PENDING" : "running"));
         QVariantMap card;
-        card["installId"] = m_modLoaderInstallId;
+        card["installId"] = cardId;
         card["installType"] = QStringLiteral("mod_loader");
-        card["displayName"] = m_modLoaderInstallId;
-        card["totalProgress"] = m_installTotalProgress;
-        card["speed"] = QVariant::fromValue<qint64>(m_installSpeed);
-        card["installPhase"] = m_installFailed ? QStringLiteral("失败") : m_installPhase;
-        card["remainingSteps"] = installRemainingSteps();
+        card["displayName"] = cardId;
+        card["totalProgress"] = mlPending ? 0.0 : m_installTotalProgress;
+        card["speed"] = mlPending ? QVariant::fromValue<qint64>(0LL) : QVariant::fromValue<qint64>(m_installSpeed);
+        card["installPhase"] = m_installFailed ? QStringLiteral("失败")
+                              : mlPending ? QStringLiteral("等待MC本体下载完成...")
+                              : m_installPhase;
+        card["remainingSteps"] = mlPending ? 0 : installRemainingSteps();
         card["installFailed"] = m_installFailed;
         card["installError"] = m_installError;
-        card["steps"] = m_installSteps;
+        card["steps"] = mlPending ? QVariantList{} : m_installSteps;
         list.append(card);
     }
-    // 2. Active version downloads
+    // 2. Active version downloads (show placeholder if dlState not yet populated)
     for (const QString& vid : m_activeIds) {
+        QVariantMap card;
+        card["installId"] = vid;
+        card["installType"] = QStringLiteral("version");
+        card["displayName"] = vid;
+        card["remainingSteps"] = 0;
+        card["steps"] = QVariantList{};
         if (m_dlStates.contains(vid)) {
             const DlState& st = m_dlStates[vid];
-            QVariantMap card;
-            card["installId"] = vid;
-            card["installType"] = QStringLiteral("version");
-            card["displayName"] = vid;
             card["totalProgress"] = st.total > 0 ? (qreal)st.progress / st.total : 0.0;
             card["speed"] = QVariant::fromValue<qint64>(st.speed);
             card["installPhase"] = st.phase;
-            card["remainingSteps"] = 0;
-            card["steps"] = QVariantList{};
-            list.append(card);
+        } else {
+            // Placeholder — download just started, no progress data yet
+            card["totalProgress"] = 0.0;
+            card["speed"] = QVariant::fromValue<qint64>(0LL);
+            card["installPhase"] = QStringLiteral("准备中...");
         }
+        list.append(card);
     }
     // 3. Extra cards (resource / mod)
     for (auto it = m_extraCards.cbegin(); it != m_extraCards.cend(); ++it) {
