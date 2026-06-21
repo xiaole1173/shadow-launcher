@@ -364,24 +364,24 @@ Window {
                     Loader {
                         id: homePageLoader
                         anchors.fill: parent
-                        active: true
-                        source: "HomePage.qml"
+                        // source set via Component.onCompleted with initial props (so backend is non-null at creation time)
                         opacity: navListIndex === 0 && !showVersionSelect && !showVersionSettings ? 1 : 0
                         visible: opacity > 0
                         enabled: opacity >= 1
                         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Component.onCompleted: {
+                            homePageLoader.setSource("HomePage.qml", {
+                                "backend": backend,
+                                "toastManager": toastManager,
+                                "appWindow": appWindow,
+                                "loginMode": loginMode
+                            })
+                        }
                         onLoaded: {
-                            item.backend = backend
-                            item.toastManager = toastManager
-                            item.appWindow = appWindow
-                            item.loginMode = loginMode
-                            // Only Qt.binding for currentSelectedVersion (one-way, no mutations from child)
                             item.currentSelectedVersion = Qt.binding(function() { return currentSelectedVersion })
                             item.versionSelectRequested.connect(function() { showVersionSelect = true })
                             item.versionSettingsRequested.connect(function() { showVersionSettings = true })
                             item.loginModeChanged.connect(function(mode) { loginMode = mode })
-
-                            // Set initial display name
                             item.displayName = backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""
                         }
                     }
