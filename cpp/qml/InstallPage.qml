@@ -20,6 +20,24 @@ Rectangle {
 
     Component.onCompleted: {
         if (backend) backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
+        // ═══ Test version data (Phase A only, will be replaced by backend queries) ═══
+        forgeVersions = [
+            {version: "47.3.0", type: "release", date: "2024-12-01"},
+            {version: "47.2.0", type: "release", date: "2024-10-15"},
+            {version: "47.1.0-beta", type: "beta", date: "2024-09-01"}
+        ]
+        neoforgeVersions = [
+            {version: "21.4.0", type: "release", date: "2024-12-05"},
+            {version: "21.3.0-beta", type: "beta", date: "2024-11-10"}
+        ]
+        fabricVersions = [
+            {version: "0.16.9", type: "release", date: "2024-12-03"},
+            {version: "0.16.7", type: "release", date: "2024-10-20"}
+        ]
+        optifineVersions = [
+            {version: "HD_U_J6", type: "release", date: "2024-12-01"},
+            {version: "HD_U_J5_pre1", type: "beta", date: "2024-11-15"}
+        ]
     }
 
     // ── Selected mod loader state ──
@@ -29,6 +47,12 @@ Rectangle {
     property string selectedOptifine: ""
     property string selectedFabricApi: ""
     property string activeLoader: ""
+
+    // ── Version lists (test data for Phase A) ──
+    property var forgeVersions: []
+    property var neoforgeVersions: []
+    property var fabricVersions: []
+    property var optifineVersions: []
 
     property bool hasModLoader: activeLoader !== ""
 
@@ -60,7 +84,7 @@ Rectangle {
                 Text {
                     id: backLabel
                     anchors.centerIn: parent
-                    text: "\u2190 Back"
+                    text: "← 返回"
                     color: backMouse.containsMouse ? "#6080e8" : "#a0a8c0"
                     font.pixelSize: 13; font.weight: Font.Medium
                 }
@@ -93,7 +117,7 @@ Rectangle {
                 Text {
                     id: dlLabel
                     anchors.centerIn: parent
-                    text: "Start Download"
+                    text: "开始下载"
                     color: "#e8ecf8"; font.pixelSize: 13; font.weight: Font.DemiBold
                 }
                 MouseArea {
@@ -147,7 +171,7 @@ Rectangle {
                         }
                         Text {
                             visible: root.fullVersionName !== root.mcVersion
-                            text: "Full name: " + root.fullVersionName
+                            text: "版本名称: " + root.fullVersionName
                             font.pixelSize: 12; color: "#787c90"
                             elide: Text.ElideRight
                         }
@@ -157,7 +181,7 @@ Rectangle {
 
             // ═══ SECTION LABEL ═══
             Text {
-                text: "Mod Loader"
+                text: "Mod 加载器"
                 font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
@@ -167,6 +191,7 @@ Rectangle {
                 Layout.fillWidth: true
                 title: "Forge"
                 loaderKey: "forge"
+                versions: root.forgeVersions
                 disabled: root.hasModLoader && root.activeLoader !== "forge"
                 disabledReason: root.activeLoader === "neoforge" ? "NeoForge selected"
                               : root.activeLoader === "fabric" ? "Fabric selected"
@@ -184,6 +209,7 @@ Rectangle {
                 Layout.fillWidth: true
                 title: "NeoForge"
                 loaderKey: "neoforge"
+                versions: root.neoforgeVersions
                 disabled: root.hasModLoader && root.activeLoader !== "neoforge"
                 disabledReason: root.activeLoader === "forge" ? "Forge selected"
                               : root.activeLoader === "fabric" ? "Fabric selected"
@@ -200,6 +226,7 @@ Rectangle {
                 Layout.fillWidth: true
                 title: "Fabric"
                 loaderKey: "fabric"
+                versions: root.fabricVersions
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
                 disabledReason: root.activeLoader === "forge" ? "Forge selected"
                               : root.activeLoader === "neoforge" ? "NeoForge selected"
@@ -224,7 +251,7 @@ Rectangle {
                     Rectangle { width: 8; height: 8; radius: 4; color: root.selectedFabricApi ? "#4bc870" : "#505868" }
                     Text { text: "Fabric API"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2" }
                     Item { Layout.fillWidth: true }
-                    Text { text: root.selectedFabricApi || "Unselected"; font.pixelSize: 12; color: "#9498a8" }
+                    Text { text: root.selectedFabricApi || "未选择"; font.pixelSize: 12; color: "#9498a8" }
                 }
             }
 
@@ -233,6 +260,7 @@ Rectangle {
                 Layout.fillWidth: true
                 title: "Optifine"
                 loaderKey: "optifine"
+                versions: root.optifineVersions
                 disabled: (root.hasModLoader && root.selectedOptifine === "")
                          || root.activeLoader === "fabric"
                          || root.activeLoader === "neoforge"
