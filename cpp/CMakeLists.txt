@@ -157,6 +157,13 @@ if(WIN32)
     set_target_properties(ShadowLauncher PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
+    # Auto-deploy Qt DLLs after each build
+    add_custom_command(TARGET ShadowLauncher POST_BUILD
+        COMMAND "${CMAKE_PREFIX_PATH}/bin/windeployqt.exe"
+            "$<TARGET_FILE:ShadowLauncher>"
+            --no-translations --no-compiler-runtime
+        COMMENT "Deploying Qt runtime..."
+    )
 endif()
 
 # ============================================================
