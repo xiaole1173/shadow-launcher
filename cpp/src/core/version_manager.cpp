@@ -50,35 +50,32 @@ VersionManager::~VersionManager() = default;
 
 void VersionManager::fetchVersions()
 {
-    // 1) Try cache in background thread — 1000+ version JSON parsing blocks main thread
+    // 1) Try cache synchronously on calling thread (main thread during startup).
+    //    Reading/parsing ~900 versions takes ~10ms — negligible vs the 9–18s
+    //    queued-connection delay that background-thread + invokeMethod caused.
     qCInfo(logMgr) << "Fetching version list — trying cache first";
-    m_cacheLoadFuture = std::async(std::launch::async, [this]() {
-        // Do all heavy work (file I/O + JSON parse) on background thread
-        QVector<McVersion> parsed;
-        const QString path = cacheFilePath();
-        if (!path.isEmpty()) {
-            QFile file(path);
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                const QByteArray data = file.readAll();
-                file.close();
-                parsed = parseManifest(data);
-            }
+    QVector<McVersion> parsed;
+    const QString path = cacheFilePath();
+    if (!path.isEmpty()) {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QByteArray data = file.readAll();
+            file.close();
+            parsed = parseManifest(data);
         }
-        if (!parsed.isEmpty()) {
-            qCInfo(logMgr) << "Cache hit:" << parsed.size() << "versions loaded from" << path;
-            // Assign m_versions on main thread to avoid data race
-            QMetaObject::invokeMethod(this, [this, parsed]() {
-                m_versions = parsed;
-                emit versionsReady(m_versions);
-            }, Qt::QueuedConnection);
-            return;
-        }
-        // Cache miss — trigger network fetch on main thread
-        qCInfo(logMgr) << "Cache miss — triggering network fetch";
-        QMetaObject::invokeMethod(this, [this]() {
-            doNetworkFetch();
-        }, Qt::QueuedConnection);
-    });
+    }
+    if (!parsed.isEmpty()) {
+        qCInfo(logMgr) << "Cache hit:" << parsed.size() << "versions loaded from" << path;
+        m_versions = parsed;
+        emit versionsReady(m_versions);
+        return;
+    }
+
+    // 2) Cache miss — fetch from network (must run on main thread for QNetworkAccessManager)
+    qCInfo(logMgr) << "Cache miss — triggering network fetch";
+    QMetaObject::invokeMethod(this, [this]() {
+        doNetworkFetch();
+    }, Qt::QueuedConnection);
 }
 
 void VersionManager::doNetworkFetch()
