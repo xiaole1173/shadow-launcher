@@ -55,6 +55,7 @@ set(SOURCES
     src/core/mod_manager.cpp
     src/core/microsoft_auth.cpp
     src/core/version_isolation.cpp
+    src/core/mod_loader_installer.cpp
     src/core/crash_detector.cpp
 
     # Backend (Phase 3 — added progressively)

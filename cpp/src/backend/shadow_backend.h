@@ -289,6 +289,10 @@ public:
     Q_INVOKABLE void queryFabricVersions(const QString& mcVersion);
     Q_INVOKABLE void queryNeoForgeVersions(const QString& mcVersion);
     Q_INVOKABLE void queryOptifineVersions(const QString& mcVersion);
+
+    // Mod loader installation
+    Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
+                                       const QString& loaderVersion, const QString& installName);
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);

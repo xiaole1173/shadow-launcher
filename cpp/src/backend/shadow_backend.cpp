@@ -1584,4 +1584,9 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
         [this](const QVariantList& list) { emit optifineVersionsReady(list); });
 }
 
+void ShadowBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
+                                      const QString& loaderVersion, const QString& installName) {
+    if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName);
+}
+
 } // namespace ShadowLauncher

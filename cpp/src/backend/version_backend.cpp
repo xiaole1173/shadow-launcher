@@ -7,6 +7,7 @@
 #include "../core/version_manager.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
+#include "../core/mod_loader_installer.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -58,6 +59,27 @@ VersionBackend::VersionBackend(QObject* parent)
                 emit logMessage(
                     QStringLiteral("获取版本列表失败: %1").arg(err));
             });
+
+    // ModLoaderInstaller init
+    m_mlInstaller = new ModLoaderInstaller(this);
+    connect(m_mlInstaller, &ModLoaderInstaller::progressChanged, this,
+            [this](int step, int total, const QString& desc) {
+        m_installProgress = step;
+        m_installTotal = total;
+        emit installProgressChanged();
+        setInstallPhase(QStringLiteral("模组加载器: ") + desc);
+    });
+    connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
+            [this](bool success, const QString& error) {
+        if (success) {
+            emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
+            updateInstalledList();
+        } else {
+            emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + error);
+        }
+        setInstalling(false);
+        emit installFinished(success);
+    });
 
     // Defer initial fetch until setGameDir() sets m_dataDir
     // (refreshVersionList needs data dir for cache, refreshInstalled needs game dir)
@@ -1306,6 +1328,40 @@ QString VersionBackend::copyVersionPath(const QString& versionId)
 
     emit logMessage(QStringLiteral("已复制路径: %1").arg(QDir::toNativeSeparators(path)));
     return QDir::toNativeSeparators(path);
+}
+
+// ============================================================
+// Mod Loader Installation
+// ============================================================
+
+void VersionBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
+                                       const QString& loaderVersion, const QString& installName) {
+    if (!m_mlInstaller) return;
+    m_mlInstaller->setGameDir(m_gameDir);
+    setInstalling(true);
+    if (loaderType == QStringLiteral("forge")) {
+        m_mlInstaller->installForge(mcVersion, loaderVersion, installName);
+    } else if (loaderType == QStringLiteral("fabric")) {
+        m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
+    } else if (loaderType == QStringLiteral("neoforge")) {
+        m_mlInstaller->installNeoForge(mcVersion, loaderVersion, installName);
+    }
+}
+
+void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
+                                      const QString& forgeVersion, const QString& installName) {
+    if (!m_mlInstaller) return;
+    m_mlInstaller->setGameDir(m_gameDir);
+    setInstalling(true);
+    m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
+}
+
+void VersionBackend::cancelModLoaderInstall() {
+    if (m_mlInstaller) m_mlInstaller->cancel();
+}
+
+bool VersionBackend::isModLoaderInstalling() const {
+    return m_mlInstaller && m_mlInstaller->isRunning();
 }
 
 } // namespace ShadowLauncher

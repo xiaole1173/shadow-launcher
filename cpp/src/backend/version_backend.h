@@ -21,6 +21,7 @@ namespace ShadowLauncher {
 class VersionManager;
 class VersionDownloader;
 class VersionIsolation;
+class ModLoaderInstaller;
 
 class VersionBackend : public QObject {
     Q_OBJECT
@@ -90,6 +91,14 @@ public:
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
 
+    // Mod loader installation
+    Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
+                                       const QString& loaderVersion, const QString& installName);
+    Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
+                                       const QString& forgeVersion, const QString& installName);
+    Q_INVOKABLE void cancelModLoaderInstall();
+    Q_INVOKABLE bool isModLoaderInstalling() const;
+
 signals:
     void versionListReady();
     void installedVersionsChanged();
@@ -126,6 +135,7 @@ private:
 
     VersionManager* m_versionMgr = nullptr;
     class VersionIsolation* m_isolation = nullptr;
+    ModLoaderInstaller* m_mlInstaller = nullptr;
     QString m_gameDir;
 
     QStringList m_versionIds;
