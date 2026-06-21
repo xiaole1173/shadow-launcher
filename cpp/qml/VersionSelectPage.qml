@@ -275,15 +275,19 @@ Rectangle {
                 }
             }
 
-            // Version list
+            // Version list — populated in batches for instant page display
             ListModel { id: versionModel }
+            property bool _listReady: false
+            property var _pendingVersions: []
+            property int _batchPos: 0
 
             function rebuildVersionList() {
                 versionModel.clear()
-                var ids = []
-                if (backend && backend.installedVersions) {
-                    ids = backend.installedVersions
-                }
+                _listReady = false
+                _pendingVersions = []
+                _batchPos = 0
+
+                var ids = backend && backend.installedVersions ? backend.installedVersions :
                 for (var i = 0; i < ids.length; i++) {
                     var v = ids[i] || ""
                     var type = "release"
@@ -294,7 +298,28 @@ Rectangle {
                         (activeFilter === "正式版" && type === "release") ||
                         (activeFilter === "预览版" && type === "snapshot") ||
                         (activeFilter === "原始版本" && type === "old")) {
-                        versionModel.append({ versionId: v, vtype: type })
+                        _pendingVersions.push({ versionId: v, vtype: type })
+                    }
+                }
+                versionBatchTimer.start()
+            }
+
+            Timer {
+                id: versionBatchTimer
+                interval: 1  // yield to UI between batches
+                repeat: true
+                property int batchSize: 50
+                onTriggered: {
+                    var end = Math.min(_batchPos + batchSize, _pendingVersions.length)
+                    for (var i = _batchPos; i < end; i++) {
+                        versionModel.append(_pendingVersions[i])
+                    }
+                    _batchPos = end
+                    if (_batchPos >= _pendingVersions.length) {
+                        stop()
+                        _listReady = true
+                        _pendingVersions = []
+                        if (mainWindow) mainWindow.pageLoading = false
                     }
                 }
             }
@@ -304,7 +329,6 @@ Rectangle {
                 enabled: backend !== null
                 function onVersionListReady() {
                     rebuildVersionList()
-                    if (mainWindow) mainWindow.pageLoading = false
                     if (toastManager) toastManager.show("版本列表已刷新")
                 }
             }
@@ -329,8 +353,8 @@ Rectangle {
                     clip: true
 
                     delegate: Rectangle {
+                        implicitHeight: 48
                         width: ListView.view.width
-                        height: 48
                         radius: 6
                         color: cardArea.containsMouse ? "#1E212A" : "transparent"
                         border.color: selectedVersionId === model.versionId ? "#3B82F6" : "transparent"
