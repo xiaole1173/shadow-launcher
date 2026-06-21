@@ -1530,16 +1530,22 @@ void ShadowBackend::queryNeoForgeVersions(const QString& mcVersion) {
             QString xml = QString::fromUtf8(data);
             QStringList mcParts = mcVersion.split('.');
             QString neoPrefix;
-            if (mcParts.size() >= 2) neoPrefix = mcParts.at(mcParts.size() - 2);
-            else neoPrefix = mcVersion;
+            // MC version "1.21.1" → NeoForge prefix "21.1" (drop leading "1.")
+            // MC version "26.2"   → NeoForge prefix "26.2" (no leading "1.")
+            if (mcParts.size() >= 2 && mcParts.at(0) == QStringLiteral("1")) {
+                mcParts.removeFirst();
+                neoPrefix = mcParts.join('.');
+            } else {
+                neoPrefix = mcVersion;
+            }
+            QString neoPrefixDot = neoPrefix + QStringLiteral(".");
 
             QRegularExpression re("<version>([^<]+)</version>");
             QRegularExpressionMatchIterator it = re.globalMatch(xml);
             while (it.hasNext()) {
                 QRegularExpressionMatch match = it.next();
                 QString ver = match.captured(1);
-                QString neoMajor = ver.split('.').first();
-                if (neoMajor != neoPrefix) continue;
+                if (!ver.startsWith(neoPrefixDot)) continue;  // Match full prefix e.g. "21.1."
                 QVariantMap m;
                 m["version"] = ver;
                 m["type"] = QStringLiteral("release");

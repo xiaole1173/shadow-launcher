@@ -120,6 +120,12 @@ Rectangle {
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8
                     Text { text: modelData.version || "Loading..."; font.pixelSize: 13; color: "#e4e8f2"; Layout.fillWidth: true; elide: Text.ElideRight }
+                    // "Latest" badge
+                    Rectangle {
+                        visible: modelData.isLatestRelease !== undefined && modelData.isLatestRelease
+                        height: 18; implicitWidth: latestTag.implicitWidth + 10; radius: 3; color: "#3a50b0"
+                        Text { id: latestTag; anchors.centerIn: parent; text: "最新"; font.pixelSize: 9; color: "#e8ecf8"; font.weight: Font.Bold }
+                    }
                     Rectangle {
                         visible: modelData.type !== undefined && modelData.type !== ""
                         height: 18; implicitWidth: tagImp.implicitWidth + 10; radius: 3; color: card.typeColor(modelData.type)

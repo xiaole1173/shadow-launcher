@@ -73,7 +73,6 @@ Rectangle {
             var item = inputList[i]
             if (!item.version) continue
             var m = { version: item.version, date: item.date || "" }
-            // Override type: parse version string for snapshot/preview/alpha/beta tags
             var v = item.version.toLowerCase()
             if (v.indexOf("snapshot") >= 0) m.type = "snapshot"
             else if (v.indexOf("preview") >= 0 || v.indexOf("_pre") >= 0) m.type = "preview"
@@ -88,6 +87,19 @@ Rectangle {
             if (typeOrder[a.type] !== typeOrder[b.type]) return typeOrder[a.type] - typeOrder[b.type]
             return String(b.version).localeCompare(String(a.version))
         })
+        // Mark latest release and latest stable version
+        var foundLatest = false
+        var foundStable = false
+        for (var j = 0; j < result.length; j++) {
+            if (!foundLatest && result[j].type === "release") {
+                result[j].isLatestRelease = true
+                foundLatest = true
+            }
+            if (!foundStable && (result[j].type === "release" || result[j].type === "beta")) {
+                result[j].isLatestStable = true
+                foundStable = true
+            }
+        }
         return result
     }
 
