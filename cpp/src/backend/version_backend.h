@@ -188,6 +188,14 @@ private:
     QMap<QString, QVariantMap> m_extraCards;  // cardId → {installId,displayName,type,totalProgress,speed,installPhase}
     bool m_installFailed = false;
     QString m_installError;
+
+    // Pending loader install (waiting for vanilla MC to finish)
+    QString m_pendingLoaderMc;
+    QString m_pendingLoaderType;
+    QString m_pendingLoaderVer;
+    QString m_pendingLoaderName;
+    bool m_hasPendingLoader = false;
+
     qreal m_installTotalProgress = 0.0;
 
     void rebuildSteps(const QStringList& names);

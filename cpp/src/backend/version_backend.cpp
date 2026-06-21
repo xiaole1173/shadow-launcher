@@ -669,6 +669,13 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     // ── Try to start next from queue ──
     startNextFromQueue();
     qCDebug(logLaunch) << "[DOWNLOAD] finished=" << finishedId << " active=" << m_activeCount << "/" << MAX_CONCURRENT << " queue=" << m_installQueue.size();
+
+    // Check if a pending loader is waiting for this MC version
+    if (m_hasPendingLoader && success && m_pendingLoaderMc == finishedId) {
+        qDebug() << "[install] MC" << finishedId << "installed, starting pending loader:" << m_pendingLoaderName;
+        m_hasPendingLoader = false;
+        installModLoader(m_pendingLoaderMc, m_pendingLoaderType, m_pendingLoaderVer, m_pendingLoaderName);
+    }
 }
 
 void VersionBackend::cancelQueuedDownload(const QString& versionId)
@@ -1393,6 +1400,21 @@ QString VersionBackend::copyVersionPath(const QString& versionId)
 void VersionBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
                                        const QString& loaderVersion, const QString& installName) {
     if (!m_mlInstaller) return;
+
+    // Step 0: Ensure vanilla MC is installed first
+    if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
+        // MC not installed and not currently downloading — start vanilla download first
+        qDebug() << "[install] Vanilla MC" << mcVersion << "not installed, downloading first...";
+        m_pendingLoaderMc = mcVersion;
+        m_pendingLoaderType = loaderType;
+        m_pendingLoaderVer = loaderVersion;
+        m_pendingLoaderName = installName;
+        m_hasPendingLoader = true;
+        installVersion(mcVersion, 0);
+        return;
+    }
+
+    // MC is installed or downloading — proceed with loader
     m_mlInstaller->setGameDir(m_gameDir);
     m_modLoaderInstallId = installName;
     m_installFailed = false;
