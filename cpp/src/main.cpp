@@ -118,13 +118,19 @@ int main(int argc, char *argv[])
     TaskbarMinimizeFilter* taskbarFilter = new TaskbarMinimizeFilter();
     app.installNativeEventFilter(taskbarFilter);
 
-    // Set target window once QML creates it
+    // Set target window + measure first frame render
+    QElapsedTimer* pStartupTimer = &startupTimer;
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-        &app, [taskbarFilter](QObject* obj, const QUrl&) {
-            if (QWindow* win = qobject_cast<QWindow*>(obj)) {
-                taskbarFilter->targetWindow = win;
-                screenshotWindow = win;
-            }
+        &app, [taskbarFilter, pStartupTimer](QObject* obj, const QUrl&) {
+            QQuickWindow* win = qobject_cast<QQuickWindow*>(obj);
+            if (!win) return;
+            taskbarFilter->targetWindow = win;
+            screenshotWindow = win;
+            // Measure first frame render (after engine.load completes)
+            QObject::connect(win, &QQuickWindow::frameSwapped,
+                win, [pStartupTimer]() {
+                    qCInfo(logApp) << "[STARTUP +" << pStartupTimer->elapsed() << "ms] First frame rendered (GPU)";
+                }, Qt::SingleShotConnection);
         }, Qt::QueuedConnection);
 
     // Load QML — dev mode (file://) when SHADOW_DEV=1, otherwise qrc precompiled
