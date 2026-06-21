@@ -18,6 +18,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Qml
     Quick
     QuickControls2
+    QuickLayouts
     Network
     Widgets
 )
@@ -145,6 +146,7 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
+    Qt6::QuickLayouts
     Qt6::Network
     Qt6::Widgets
     nlohmann_json
@@ -161,8 +163,9 @@ if(WIN32)
     add_custom_command(TARGET ShadowLauncher POST_BUILD
         COMMAND "${CMAKE_PREFIX_PATH}/bin/windeployqt.exe"
             "$<TARGET_FILE:ShadowLauncher>"
+            --qmldir "${CMAKE_SOURCE_DIR}/qml"
             --no-translations --no-compiler-runtime
-        COMMENT "Deploying Qt runtime..."
+        COMMENT "Deploying Qt runtime (QML imports from ${CMAKE_SOURCE_DIR}/qml)..."
     )
 endif()
 
