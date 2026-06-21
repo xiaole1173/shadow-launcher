@@ -26,7 +26,16 @@ Rectangle {
         queryOptifineVersions()
     }
 
-    // ── BMCLAPI queries ──
+    function versionType(ver) {
+        var l = ver.toLowerCase()
+        if (l.indexOf("snapshot") >= 0) return "snapshot"
+        if (l.indexOf("preview") >= 0 || l.indexOf("_pre") >= 0) return "preview"
+        if (l.indexOf("alpha") >= 0) return "alpha"
+        if (l.indexOf("beta") >= 0 || l.indexOf("-pre") >= 0 || l.indexOf("rc") >= 0) return "beta"
+        return "release"
+    }
+
+    // BMCLAPI queries
     function queryForgeVersions() {
         var xhr = new XMLHttpRequest()
         xhr.open("GET", "https://bmclapi2.bangbang93.com/forge/minecraft/" + mcVersion)
@@ -39,10 +48,9 @@ Rectangle {
                         for (var i = 0; i < raw.length; i++) {
                             var item = raw[i]
                             var ver = item.version || ""
-                            var isBeta = ver.indexOf("-") >= 0 || ver.indexOf("pre") >= 0
                             list.push({
                                 version: ver,
-                                type: isBeta ? "beta" : "release",
+                                type: root.versionType(ver),
                                 date: item.modified ? item.modified.substring(0, 10) : ""
                             })
                         }
@@ -95,17 +103,20 @@ Rectangle {
                 if (xhr.status === 200) {
                     try {
                         var xml = xhr.responseText
-                        var list = []
+                        var mcMinor = mcVersion.split(".").slice(1).join(".")  // e.g. "20.1" for "1.20.1"
+                        var mcParts = mcVersion.split(".")
+                        var neoPrefix = mcParts.length >= 2 ? mcParts[mcParts.length - 2] : mcVersion
+                        // For 1.x.y MC versions, match NeoForge major (e.g. "20" for 1.20.x)
+                        // For 26.x MC versions, match NeoForge "26"
                         var re = /<version>([^<]+)<\/version>/g
                         var match
                         while ((match = re.exec(xml)) !== null) {
                             var ver = match[1]
-                            // Filter for MC version prefix
-                            var mcPrefix = mcVersion.split(".").slice(0, 2).join(".")
-                            var isBeta = ver.indexOf("beta") >= 0
+                            var neoMajor = ver.split(".")[0]
+                            if (neoMajor !== neoPrefix) continue  // Filter by MC major
                             list.push({
                                 version: ver,
-                                type: isBeta ? "beta" : "release",
+                                type: root.versionType(ver),
                                 date: ""
                             })
                         }
@@ -135,10 +146,9 @@ Rectangle {
                             var item = raw[i]
                             var fn = item.filename || ""
                             var ver = fn.replace("OptiFine_" + mcVersion + "_", "").replace(".jar", "")
-                            var isBeta = fn.indexOf("preview") >= 0 || fn.indexOf("pre") >= 0
                             list.push({
                                 version: ver,
-                                type: isBeta ? "beta" : "release",
+                                type: root.versionType(fn),
                                 date: ""
                             })
                         }

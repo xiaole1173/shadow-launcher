@@ -34,8 +34,30 @@ Rectangle {
     signal versionSelected(string version)
     signal versionCleared()
 
+    // Fixed-height version list — no layout feedback loop
     property int headerHeight: 44
-    property int cardHeight: expanded ? headerHeight + versionListContent.implicitHeight + 8 : headerHeight
+    property int itemRowH: 40
+    property int maxListHeight: 280
+    property int listHeight: Math.min(versions.length * itemRowH, maxListHeight)
+    property int cardHeight: expanded ? headerHeight + listHeight + 8 : headerHeight
+
+    function typeLabel(t) {
+        if (t === "release") return "正式版"
+        if (t === "beta") return "测试版"
+        if (t === "alpha") return "预览版"
+        if (t === "snapshot") return "快照版"
+        if (t === "preview") return "预览版"
+        return t
+    }
+
+    function typeColor(t) {
+        if (t === "release") return "#3a8050"
+        if (t === "beta") return "#e0a040"
+        if (t === "alpha") return "#a060d0"
+        if (t === "snapshot") return "#40a0c0"
+        if (t === "preview") return "#d06080"
+        return "#505868"
+    }
 
     Rectangle {
         id: header
@@ -44,118 +66,76 @@ Rectangle {
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 8
-            Rectangle {
-                width: 10; height: 10; radius: 5
-                color: cardDisabled ? "#404858" : selectedVersion ? "#4bc870" : "#505868"
-            }
-            Text {
-                text: card.title
-                font.pixelSize: 14; font.weight: Font.DemiBold
-                color: cardDisabled ? "#687080" : "#e4e8f2"
-            }
+            Rectangle { width: 10; height: 10; radius: 5; color: cardDisabled ? "#404858" : selectedVersion ? "#4bc870" : "#505868" }
+            Text { text: card.title; font.pixelSize: 14; font.weight: Font.DemiBold; color: cardDisabled ? "#687080" : "#e4e8f2" }
             Text {
                 visible: cardDisabled && disabledReason
                 text: cardDisabled ? "[X] " + disabledReason : ""
-                font.pixelSize: 11; color: "#c06050"
-                elide: Text.ElideRight
-                Layout.maximumWidth: 200
+                font.pixelSize: 11; color: "#c06050"; elide: Text.ElideRight; Layout.maximumWidth: 200
             }
             Item { Layout.fillWidth: true }
+            Text { text: selectedVersion || (cardDisabled ? "" : "未选择"); font.pixelSize: 12; color: selectedVersion ? "#8aa8f0" : "#606878" }
             Text {
-                text: selectedVersion || (cardDisabled ? "" : "未选择")
-                font.pixelSize: 12; color: selectedVersion ? "#8aa8f0" : "#606878"
-            }
-            Text {
-                text: card.expanded ? "\u25B2" : "\u25BC"
-                font.pixelSize: 10; color: "#606878"
+                text: card.expanded ? "\u25B2" : "\u25BC"; font.pixelSize: 10; color: "#606878"
                 visible: !cardDisabled && (card.versions.length > 0 || card.expanded)
             }
-            // Cancel
             Text {
                 visible: selectedVersion !== ""
                 text: "\u2715"; font.pixelSize: 14
                 color: cancelArea.containsMouse ? "#e06060" : "#787c90"
                 Behavior on color { ColorAnimation { duration: 150 } }
                 TapHandler {
-                    id: cancelArea
-                    cursorShape: Qt.PointingHandCursor
-                    onTapped: {
-                        card.selectedVersion = ""
-                        card.versionCleared()
-                    }
+                    id: cancelArea; cursorShape: Qt.PointingHandCursor
+                    onTapped: { card.selectedVersion = ""; card.versionCleared() }
                 }
             }
         }
 
-        TapHandler {
-            enabled: !cardDisabled
-            cursorShape: Qt.PointingHandCursor
-            onTapped: { card.expanded = !card.expanded }
-        }
-        HoverHandler {
-            enabled: !cardDisabled
-            onHoveredChanged: { card.cardHovered = hovered }
-        }
+        TapHandler { enabled: !cardDisabled; cursorShape: Qt.PointingHandCursor; onTapped: { card.expanded = !card.expanded } }
+        HoverHandler { enabled: !cardDisabled; onHoveredChanged: { card.cardHovered = hovered } }
     }
 
-    ColumnLayout {
-        id: versionListContent
+    // Version list — inside fixed-height container
+    Item {
+        id: listContainer
         anchors.top: header.bottom; anchors.left: parent.left; anchors.right: parent.right
         anchors.leftMargin: 14; anchors.rightMargin: 14
-        spacing: 4
+        height: listHeight
         visible: card.expanded && !cardDisabled
         clip: true
 
-        Repeater {
-            model: card.versions.length > 0 ? card.versions : (card.expanded ? [{version: "...", type: "", date: ""}] : [])
+        ListView {
+            id: versionListView
+            anchors.fill: parent; spacing: 4
+            model: card.versions
+            interactive: listHeight >= maxListHeight  // Scroll only when content exceeds
+            boundsBehavior: Flickable.StopAtBounds
+
             delegate: Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 40
-                Layout.preferredHeight: 40
-                radius: 6
-                color: verHover.containsMouse ? "#1a2440" : "transparent"
+                width: versionListView.width; height: itemRowH; radius: 6
+                color: hoverDeleg.containsMouse ? "#1a2440" : "transparent"
                 border.color: card.selectedVersion === modelData.version ? "#3a50b0" : "transparent"
                 border.width: card.selectedVersion === modelData.version ? 1 : 0
 
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8
-                    Text {
-                        text: modelData.version || "Loading..."
-                        font.pixelSize: 13; color: "#e4e8f2"
-                        Layout.fillWidth: true
-                    }
+                    Text { text: modelData.version || "Loading..."; font.pixelSize: 13; color: "#e4e8f2"; Layout.fillWidth: true; elide: Text.ElideRight }
                     Rectangle {
                         visible: modelData.type !== undefined && modelData.type !== ""
-                        height: 18; implicitWidth: tagText.implicitWidth + 10; radius: 3
-                        color: modelData.type === "release" ? "#3a8050" : modelData.type === "beta" ? "#e0a040" : "#505868"
-                        Text {
-                            id: tagText
-                            anchors.centerIn: parent
-                            text: modelData.type === "release" ? "正式版" : modelData.type === "beta" ? "测试版" : modelData.type
-                            font.pixelSize: 9; color: "#e8ecf8"
-                        }
+                        height: 18; implicitWidth: tagImp.implicitWidth + 10; radius: 3; color: card.typeColor(modelData.type)
+                        Text { id: tagImp; anchors.centerIn: parent; text: card.typeLabel(modelData.type); font.pixelSize: 9; color: "#e8ecf8" }
                     }
                     Text { text: modelData.date || ""; font.pixelSize: 11; color: "#787c90" }
                 }
-
-                HoverHandler { id: verHover }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        card.selectedVersion = modelData.version
-                        card.versionSelected(modelData.version)
-                        card.expanded = false
-                    }
-                }
+                HoverHandler { id: hoverDeleg }
+                TapHandler { cursorShape: Qt.PointingHandCursor; onTapped: { card.selectedVersion = modelData.version; card.versionSelected(modelData.version); card.expanded = false } }
             }
-        }
 
-        Text {
-            visible: card.expanded && card.versions.length === 0
-            text: card.disabledReason ? card.disabledReason : "暂无可用版本"
-            font.pixelSize: 12; color: "#606878"
-            Layout.topMargin: 4; Layout.bottomMargin: 8
+            Text {
+                visible: card.expanded && card.versions.length === 0
+                text: card.disabledReason ? card.disabledReason : "暂无可用版本"
+                font.pixelSize: 12; color: "#606878"; x: 0; y: 4; width: parent.width
+            }
         }
     }
 }
