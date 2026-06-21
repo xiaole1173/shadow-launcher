@@ -353,8 +353,9 @@ Window {
                     Layout.fillWidth: true; Layout.fillHeight: true; color: "transparent"
                     layer.enabled: true; layer.smooth: true
                     clip: true
-                    // Crossfade with InstallPage overlay
-                    opacity: showInstallPage ? 0.15 : 1
+                    // Sequential: overlay fades first, then page fades in
+                    property real targetOpacity: 1.0
+                    opacity: targetOpacity
                     Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.InOutCubic } }
 
                     // ========== HOMEPAGE ==========
@@ -2262,12 +2263,25 @@ Window {
             Connections {
                 target: appWindow
                 function onShowInstallPageChanged() {
-                    if (appWindow.showInstallPage && installPageLoader.item) {
-                        installPageLoader.item.mcVersion = appWindow.installMcVersion
+                    if (appWindow.showInstallPage) {
+                        // Enter InstallPage: dim page immediately
+                        pageContainer.targetOpacity = 0.15
+                        if (installPageLoader.item) {
+                            installPageLoader.item.mcVersion = appWindow.installMcVersion
+                        }
+                    } else {
+                        // Exit InstallPage: overlay fades first, then page fades in
+                        pageFadeInTimer.start()
                     }
                 }
             }
         }
+    }
+
+    Timer {
+        id: pageFadeInTimer
+        interval: 500  // Wait for overlay to be mostly gone
+        onTriggered: { pageContainer.targetOpacity = 1.0 }
     }
 
     Loader {
