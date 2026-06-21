@@ -710,9 +710,10 @@ Rectangle {
                             }
                         }
 
-                        // Install button - using QtQuick.Controls.Button
+                        // Install button — hidden (moved to InstallPage)
                         Button {
                             id: installBtn
+                            visible: false
                             property bool isInstalled: backend && backend.installedVersions && (backend.installedVersions.indexOf(model.versionId) >= 0)
                             property bool isInstallingThis: backend && backend.installing && backend.installPhase !== "done" && (backend.installVersionId === model.versionId || page.clickedVersionId === model.versionId)
                             property bool isDownloadQueued: {

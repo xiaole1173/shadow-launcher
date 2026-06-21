@@ -19,12 +19,7 @@ Rectangle {
     property var toastManager: null
     signal goBack()
 
-    // ── Animations ──
-    opacity: 0
-    y: 10
-    Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
-    Behavior on y { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
-    Component.onCompleted: { opacity = 1; y = 0 }
+    Component.onCompleted: { console.log("[install] InstallPage loaded, mcVersion=" + mcVersion) }
 
     // ── Selected mod loader state ──
     property string selectedForge: ""
