@@ -68,10 +68,15 @@ VersionBackend::VersionBackend(QObject* parent)
         m_installTotal = total;
         emit installProgressChanged();
         setInstallPhase(QStringLiteral("模组加载器: ") + desc);
+        // Update step model: current step active
+        updateStep(step - 1, QStringLiteral("active"), 0);
     });
     connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
             [this](bool success, const QString& error) {
         if (success) {
+            // Mark all steps completed
+            for (int i = 0; i < m_installSteps.size(); i++)
+                updateStep(i, QStringLiteral("completed"), 100);
             emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
             setInstallPhase("done");
             updateInstalledList();
@@ -83,7 +88,7 @@ VersionBackend::VersionBackend(QObject* parent)
         emit installFinished(success);
     });
 
-    // Byte-level download progress
+    // Byte-level download progress → update current active step
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
         m_installFile = file;
@@ -91,6 +96,14 @@ VersionBackend::VersionBackend(QObject* parent)
         m_installBytesTotal = total;
         m_installSpeed = speed;
         emit installFileProgress(file);
+        // Update current active step with byte progress
+        for (int i = 0; i < m_installSteps.size(); i++) {
+            if (m_installSteps[i].toMap()["status"].toString() == QStringLiteral("active")) {
+                int pct = total > 0 ? (int)(received * 100 / total) : 0;
+                updateStep(i, QStringLiteral("active"), pct, received, total);
+                break;
+            }
+        }
     });
 
     // Verification
@@ -1366,6 +1379,21 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     if (!m_mlInstaller) return;
     m_mlInstaller->setGameDir(m_gameDir);
     m_modLoaderInstallId = installName;
+
+    // Build step list
+    if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
+        rebuildSteps({QStringLiteral("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
+                      QStringLiteral("校验安装程序完整性"),
+                      QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))});
+    } else if (loaderType == QStringLiteral("fabric")) {
+        rebuildSteps({QStringLiteral("下载 Fabric 配置"),
+                      QStringLiteral("校验配置完整性"),
+                      QStringLiteral("创建版本配置")});
+    } else {
+        rebuildSteps({QStringLiteral("安装 %1").arg(installName)});
+    }
+    updateStep(0, QStringLiteral("active"), 0);
+
     setInstalling(true);
     if (loaderType == QStringLiteral("forge")) {
         m_mlInstaller->installForge(mcVersion, loaderVersion, installName);
@@ -1390,6 +1418,66 @@ void VersionBackend::cancelModLoaderInstall() {
 
 bool VersionBackend::isModLoaderInstalling() const {
     return m_mlInstaller && m_mlInstaller->isRunning();
+}
+
+// ============================================================
+// Unified Step Model
+// ============================================================
+
+void VersionBackend::rebuildSteps(const QStringList& names) {
+    m_installSteps.clear();
+    for (const QString& n : names) {
+        QVariantMap s;
+        s["name"] = n;
+        s["status"] = QStringLiteral("pending");
+        s["percentage"] = 0;
+        s["bytesReceived"] = QVariant::fromValue<qint64>(0);
+        s["bytesTotal"] = QVariant::fromValue<qint64>(0);
+        m_installSteps.append(s);
+    }
+    m_installTotalProgress = 0.0;
+    emit installStepsChanged();
+    emit installTotalProgressChanged();
+}
+
+void VersionBackend::updateStep(int index, const QString& status, int percentage,
+                                 qint64 bytesRecv, qint64 bytesTotal) {
+    if (index < 0 || index >= m_installSteps.size()) return;
+    QVariantMap s = m_installSteps[index].toMap();
+    QString oldStatus = s["status"].toString();
+    s["status"] = status;
+    s["percentage"] = percentage;
+    s["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
+    s["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
+    m_installSteps[index] = s;
+
+    // Transitions: mark previous as completed
+    if (status == QStringLiteral("active") && oldStatus != QStringLiteral("active")) {
+        for (int i = 0; i < index; i++) {
+            QVariantMap prev = m_installSteps[i].toMap();
+            if (prev["status"].toString() != QStringLiteral("completed")) {
+                prev["status"] = QStringLiteral("completed");
+                prev["percentage"] = 100;
+                m_installSteps[i] = prev;
+            }
+        }
+    }
+
+    computeTotalProgress();
+    emit installStepsChanged();
+}
+
+void VersionBackend::computeTotalProgress() {
+    if (m_installSteps.isEmpty()) { m_installTotalProgress = 0.0; return; }
+    qreal sum = 0.0;
+    for (const QVariant& v : m_installSteps) {
+        QVariantMap s = v.toMap();
+        QString st = s["status"].toString();
+        if (st == QStringLiteral("completed")) sum += 1.0;
+        else if (st == QStringLiteral("active")) sum += qBound(0.0, s["percentage"].toReal() / 100.0, 1.0);
+    }
+    m_installTotalProgress = sum / m_installSteps.size();
+    emit installTotalProgressChanged();
 }
 
 } // namespace ShadowLauncher

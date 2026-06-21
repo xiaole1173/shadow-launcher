@@ -32,6 +32,10 @@ class VersionBackend : public QObject {
     Q_PROPERTY(QString installFile READ installFile NOTIFY installProgressChanged)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
+    // New unified step model
+    Q_PROPERTY(QVariantList installSteps READ installSteps NOTIFY installStepsChanged)
+    Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
+    Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
     Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
     Q_PROPERTY(bool installPaused READ isInstallPaused NOTIFY installPausedChanged)
@@ -55,6 +59,17 @@ public:
     QString installFile() const { return m_installFile; }
     QString installVersionId() const { return m_modLoaderInstallId.isEmpty() ? (m_activeIds.isEmpty() ? QString() : m_activeIds.first()) : m_modLoaderInstallId; }
     QString installPhase() const { return m_installPhase; }
+    // Unified step model
+    QVariantList installSteps() const { return m_installSteps; }
+    qreal installTotalProgress() const { return m_installTotalProgress; }
+    int installRemainingSteps() const {
+        int n = 0;
+        for (const QVariant& v : m_installSteps) {
+            QString s = v.toMap().value(QStringLiteral("status")).toString();
+            if (s == QStringLiteral("pending") || s == QStringLiteral("active")) n++;
+        }
+        return n;
+    }
     qint64 installSpeed() const { return m_installSpeed; }
     qint64 installBytesDownloaded() const { return m_installBytesDl; }
     qint64 installBytesTotal() const { return m_installBytesTotal; }
@@ -111,6 +126,9 @@ signals:
     void installPhaseChanged(const QString& phase);
     void installFinished(bool success);
     void installSpeedChanged(qint64 speed);
+    // New unified step signals
+    void installStepsChanged();
+    void installTotalProgressChanged();
     void logMessage(const QString& msg);
 
     // ── Version management signals ──
@@ -172,6 +190,12 @@ private:
     qint64 m_installBytesTotal = 0;
     qint64 m_installSpeed = 0;
     QString m_installPhase = "idle";
+    // Unified step model
+    QVariantList m_installSteps;
+    qreal m_installTotalProgress = 0.0;
+    void rebuildSteps(const QStringList& names);
+    void updateStep(int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
+    void computeTotalProgress();
     int m_verifyChecked = 0;
     // Speed calculation
     QElapsedTimer m_speedTimer;

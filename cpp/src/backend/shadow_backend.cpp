@@ -218,6 +218,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_version, &VersionBackend::verifyFinished,
             this, &ShadowBackend::verifyFinished);
+    connect(m_version, &VersionBackend::installStepsChanged,
+            this, &ShadowBackend::installStepsChanged);
+    connect(m_version, &VersionBackend::installTotalProgressChanged,
+            this, &ShadowBackend::installTotalProgressChanged);
     connect(m_version, &VersionBackend::verifyFailedFiles,
             this, [this](const QStringList& failedFiles) {
                 // Generate error report
@@ -509,6 +513,18 @@ QString ShadowBackend::installFile() const {
 bool ShadowBackend::verifyRunning() const {
     return m_version && (m_version->installPhase() == QStringLiteral("verifying")
                         || m_version->installPhase() == QStringLiteral("校验中..."));
+}
+
+QVariantList ShadowBackend::installSteps() const {
+    return m_version ? m_version->installSteps() : QVariantList{};
+}
+
+qreal ShadowBackend::installTotalProgress() const {
+    return m_version ? m_version->installTotalProgress() : 0.0;
+}
+
+int ShadowBackend::installRemainingSteps() const {
+    return m_version ? m_version->installRemainingSteps() : 0;
 }
 
 int ShadowBackend::verifyChecked() const {
