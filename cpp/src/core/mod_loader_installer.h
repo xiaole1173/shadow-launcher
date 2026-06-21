@@ -80,6 +80,7 @@ private:
     int m_totalSteps = 0;
     bool m_running = false;
     bool m_cancelled = false;
+    bool m_usedFallback = false;
 
     // byte progress tracking
     qint64 m_bytesReceived = 0;

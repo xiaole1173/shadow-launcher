@@ -92,7 +92,7 @@ void ModLoaderInstaller::installForge(const QString& mcVersion, const QString& f
                                        const QString& installName) {
     qDebug() << "[ModLoader] installForge call — m_running before:" << m_running;
     if (m_running) return;
-    m_running = true; m_cancelled = false;
+    m_running = true; m_cancelled = false; m_usedFallback = false;
     qDebug() << "[ModLoader] installForge started — m_running:" << m_running;
     m_mcVersion = mcVersion; m_loaderVersion = forgeVersion;
     m_installName = installName; m_loaderType = "forge";
@@ -115,7 +115,7 @@ void ModLoaderInstaller::installFabric(const QString& mcVersion, const QString& 
 void ModLoaderInstaller::installNeoForge(const QString& mcVersion, const QString& neoVersion,
                                           const QString& installName) {
     if (m_running) return;
-    m_running = true; m_cancelled = false;
+    m_running = true; m_cancelled = false; m_usedFallback = false;
     m_mcVersion = mcVersion; m_loaderVersion = neoVersion;
     m_installName = installName; m_loaderType = "neoforge";
     m_totalSteps = 3; m_currentStep = 0;
@@ -161,11 +161,22 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     emit progressChanged(1, m_totalSteps, "Downloading Forge installer...");
 
     QString verArg = m_mcVersion + "-" + m_loaderVersion;
-    QString url = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
+    QString bmclUrl = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
 
-    downloadToMemory(url, [this](bool ok, const QByteArray& data) {
-        if (!ok) { emit finished(false, "Forge installer download failed"); m_running = false; return; }
-        forgeStep2_verify(data);
+    downloadToMemory(bmclUrl, [this, verArg](bool ok, const QByteArray& data) {
+        if (ok) {
+            m_usedFallback = false;
+            forgeStep2_verify(data);
+            return;
+        }
+        // Fallback to official Forge Maven
+        qDebug() << "[ModLoader] BMCLAPI Forge download failed, trying official Maven...";
+        QString officialUrl = QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+        downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
+            if (!ok2) { emit finished(false, "Forge installer download failed (BMCLAPI + official both failed)"); m_running = false; return; }
+            m_usedFallback = true;
+            forgeStep2_verify(data2);
+        }, "forge-installer.jar");
     }, "forge-installer.jar");
 }
 
@@ -174,8 +185,30 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
     emit progressChanged(2, m_totalSteps, "Verifying Forge installer...");
     emit verifyStarted();
 
-    // BMCLAPI Forge response includes SHA1 in files[].hash for category="installer"
-    // We fetch it from the API
+    QString actualSha1 = computeSha1(jarData);
+    QString verArg = m_mcVersion + "-" + m_loaderVersion;
+
+    if (m_usedFallback) {
+        // Official source: fetch SHA1 from Maven
+        QString sha1Url = QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar.sha1").arg(verArg);
+        downloadSmall(sha1Url, [this, actualSha1, jarData](bool ok, const QByteArray& sha1Data) {
+            if (!ok || sha1Data.isEmpty()) {
+                qWarning() << "[ModLoader] Cannot fetch official Forge SHA1, skip verification";
+                emit verifyFinished(false);
+                forgeStep3_runInstaller(jarData);
+                return;
+            }
+            QString expectedSha1 = QString::fromUtf8(sha1Data).trimmed();
+            bool match = (actualSha1 == expectedSha1);
+            qDebug() << "[ModLoader] Forge SHA1 (official) expected:" << expectedSha1 << "actual:" << actualSha1 << "match:" << match;
+            emit verifyFinished(match);
+            if (!match) { emit finished(false, "Forge installer SHA1 mismatch"); m_running = false; return; }
+            forgeStep3_runInstaller(jarData);
+        });
+        return;
+    }
+
+    // BMCLAPI: fetch SHA1 from listing
     QString url = QString("https://bmclapi2.bangbang93.com/forge/minecraft/%1").arg(m_mcVersion);
 
     downloadSmall(url, [this, jarData](bool ok, const QByteArray& forgeData) {
@@ -276,8 +309,20 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
                       .arg(m_mcVersion, m_loaderVersion);
 
     downloadToMemory(url, [this](bool ok, const QByteArray& data) {
-        if (!ok) { emit finished(false, "Fabric profile download failed"); m_running = false; return; }
-        fabricStep2_verify(data);
+        if (ok) {
+            m_usedFallback = false;
+            fabricStep2_verify(data);
+            return;
+        }
+        // Fallback to official Fabric meta
+        qDebug() << "[ModLoader] BMCLAPI Fabric download failed, trying official...";
+        QString officialUrl = QString("https://meta.fabricmc.net/v2/versions/loader/%1/%2/profile/json")
+                                   .arg(m_mcVersion, m_loaderVersion);
+        downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
+            if (!ok2) { emit finished(false, "Fabric profile download failed (BMCLAPI + official both failed)"); m_running = false; return; }
+            m_usedFallback = true;
+            fabricStep2_verify(data2);
+        }, "fabric-profile.json");
     }, "fabric-profile.json");
 }
 
@@ -354,13 +399,22 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, "Downloading NeoForge installer...");
 
-    // NeoForge uses maven-style version (no MC prefix): "21.1.233"
-    QString verArg = m_loaderVersion;
-    QString url = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
+    QString ver = m_loaderVersion;
+    QString bmclUrl = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(ver);
 
-    downloadToMemory(url, [this](bool ok, const QByteArray& data) {
-        if (!ok) { emit finished(false, "NeoForge installer download failed"); m_running = false; return; }
-        neoStep2_verify(data);
+    downloadToMemory(bmclUrl, [this, ver](bool ok, const QByteArray& data) {
+        if (ok) {
+            m_usedFallback = false;
+            neoStep2_verify(data);
+            return;
+        }
+        qDebug() << "[ModLoader] BMCLAPI NeoForge download failed, trying official Maven...";
+        QString officialUrl = QString("https://maven.neoforged.net/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(ver);
+        downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
+            if (!ok2) { emit finished(false, "NeoForge installer download failed (BMCLAPI + official both failed)"); m_running = false; return; }
+            m_usedFallback = true;
+            neoStep2_verify(data2);
+        }, "neoforge-installer.jar");
     }, "neoforge-installer.jar");
 }
 
