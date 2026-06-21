@@ -356,7 +356,7 @@ Window {
                     // Sequential: overlay fades first, then page fades in
                     property real targetOpacity: 1.0
                     opacity: targetOpacity
-                    Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutCubic } }
 
                     // ========== HOMEPAGE ==========
                     Rectangle {
@@ -2241,7 +2241,7 @@ Window {
         anchors.fill: parent; color: "#0c0f16"; z: 21
         opacity: showInstallPage ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 900; easing.type: Easing.OutCubic } }
         onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
 
         Loader {
