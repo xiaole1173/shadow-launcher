@@ -1,17 +1,12 @@
 import QtQuick
-import QtQuick.Controls.Basic
 
-Window {
-    id: splash
-    width: 900; height: 620
+Rectangle {
+    anchors.fill: parent
     color: "#0c0f16"
-    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-    modality: Qt.ApplicationModal
 
-    Rectangle {
+    Item {
         anchors.centerIn: parent
         width: 280; height: 80
-        color: "transparent"
 
         // Loading bar — thin shimmer effect
         Rectangle {

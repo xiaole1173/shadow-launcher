@@ -12,6 +12,9 @@
 #include <QQuickWindow>
 #include <QQuickView>
 #include <QAbstractNativeEventFilter>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QProcess>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QThread>
@@ -130,20 +133,54 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
-    // ── Splash screen: show instantly before QML engine blocks main thread ──
-    auto* splashView = new QQuickView();
-    splashView->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    splashView->setColor(QColor(0x0c, 0x0f, 0x16));
-    splashView->setWidth(900);
-    splashView->setHeight(620);
-    splashView->setResizeMode(QQuickView::SizeRootObjectToView);
+    // ── Splash: launch as a separate process so its event loop runs independently ──
+    QLocalServer splashServer;
+    QProcess splashProcess;
 
-    QString splashPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/SplashWindow.qml");
-    if (QFile::exists(splashPath)) {
-        splashView->setSource(QUrl::fromLocalFile(splashPath));
-        splashView->show();
-        QCoreApplication::processEvents();
-        qCInfo(logApp) << "Splash screen shown";
+    const QStringList cliArgs = QCoreApplication::arguments();
+
+    if (cliArgs.size() > 1 && cliArgs[1] == QStringLiteral("--splash")) {
+        // ── Splash mode: show window, wait for close signal from main process ──
+        QQuickView splashView;
+        splashView.setTitle(QStringLiteral("ShadowLauncherSplash"));
+        splashView.setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        splashView.setColor(QColor(0x0c, 0x0f, 0x16));
+        splashView.setWidth(900);
+        splashView.setHeight(620);
+        splashView.setResizeMode(QQuickView::SizeRootObjectToView);
+
+        QString splashPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/SplashWindow.qml");
+        if (QFile::exists(splashPath)) {
+            splashView.setSource(QUrl::fromLocalFile(splashPath));
+            splashView.show();
+        }
+
+        // Connect to main process's server — wait for close signal
+        QLocalSocket sock;
+        QObject::connect(&sock, &QLocalSocket::readyRead, [&]() {
+            if (sock.readAll().trimmed() == "close") {
+                splashView.close();
+                QCoreApplication::quit();
+            }
+        });
+        sock.connectToServer(QStringLiteral("ShadowLauncherSplash"));
+        if (!sock.waitForConnected(3000)) {
+            splashView.close();
+            return 0;
+        }
+        return app.exec();
+    }
+
+    // ── Main mode: start splash process, load engine, then signal splash to close ──
+    if (!splashServer.listen(QStringLiteral("ShadowLauncherSplash"))) {
+        qCWarning(logApp) << "Splash server failed to listen — continuing without splash";
+    } else {
+        splashProcess.setProgram(QCoreApplication::applicationFilePath());
+        splashProcess.setArguments({QStringLiteral("--splash")});
+        splashProcess.setWorkingDirectory(QCoreApplication::applicationDirPath());
+        splashProcess.startDetached();
+        // Wait briefly for splash to connect
+        splashServer.waitForNewConnection(2000);
     }
 
     // Load main QML — filesystem first (dev mode), fallback to qrc (release)
@@ -162,11 +199,16 @@ int main(int argc, char *argv[])
     engine.load(url);
     checkpoint(QStringLiteral("QML engine.load() completed"));
 
-    // Main UI ready — close splash with brief delay for smooth handoff
-    QTimer::singleShot(200, &app, [splashView]() {
-        splashView->close();
-        splashView->deleteLater();
-    });
+    // Main UI ready — signal splash process to close
+    if (splashServer.isListening()) {
+        if (auto* client = splashServer.nextPendingConnection()) {
+            client->write("close");
+            client->waitForBytesWritten(1000);
+            delete client;
+        }
+        splashServer.close();
+        qCInfo(logApp) << "Splash screen closed";
+    }
 
     if (engine.rootObjects().isEmpty()) {
         qCCritical(logApp) << "Failed to load any QML root objects — exiting";
