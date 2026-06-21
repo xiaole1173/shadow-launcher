@@ -12,7 +12,10 @@
 #include <QQuickWindow>
 #include <QAbstractNativeEventFilter>
 #include <QPainter>
-#include <QBackingStore>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QThread>
@@ -131,39 +134,37 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
-    // ── Splash: QWindow + QBackingStore (pure raster, no GPU/Widgets) ──
-    QWindow splashWin;
-    splashWin.setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    splashWin.resize(900, 620);
-    splashWin.setTitle(QStringLiteral("ShadowLauncherSplash"));
-
-    QPixmap splashPix(900, 620);
-    splashPix.fill(QColor(0x0c, 0x0f, 0x16));
+    // ── Splash: native Win32 layered window (GDI, no Qt, no GPU, guaranteed to render) ──
+#ifdef Q_OS_WIN
+    HWND splashHwnd = nullptr;
     {
-        QPainter p(&splashPix);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0x1e, 0x24, 0x33));
-        p.drawRoundedRect(QRectF(310, 560, 280, 2), 1, 1);
-        p.setBrush(QColor(0x3B, 0x82, 0xF6));
-        p.drawRoundedRect(QRectF(310, 560, 98, 2), 1, 1);
-        QFont titleFont; titleFont.setPixelSize(22); titleFont.setBold(true);
-        p.setFont(titleFont); p.setPen(QColor(0xe0, 0xe6, 0xf0));
-        p.drawText(QRectF(0, 0, 900, 620), Qt::AlignCenter, QStringLiteral("Shadow Launcher"));
-        QFont subFont; subFont.setPixelSize(11);
-        p.setFont(subFont); p.setPen(QColor(0x5a, 0x64, 0x7a));
-        p.drawText(QRectF(0, 0, 900, 560), Qt::AlignHCenter | Qt::AlignBottom, QStringLiteral("正在启动..."));
+        HINSTANCE hInst = GetModuleHandle(nullptr);
+        WNDCLASSEXW wc = { sizeof(WNDCLASSEXW), 0, DefWindowProcW, 0, 0, hInst, nullptr, nullptr, nullptr, nullptr, L"ShadowSplash", nullptr };
+        RegisterClassExW(&wc);
+        int sw = GetSystemMetrics(SM_CXSCREEN);
+        int sh = GetSystemMetrics(SM_CYSCREEN);
+        int w = 900, h = 620;
+        splashHwnd = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, L"ShadowSplash", L"",
+            WS_POPUP, (sw - w) / 2, (sh - h) / 2, w, h, nullptr, nullptr, hInst, nullptr);
+        if (splashHwnd) {
+            // Draw via GDI
+            HDC hdc = GetDC(splashHwnd);
+            RECT rc = { 0, 0, w, h };
+            HBRUSH bg = CreateSolidBrush(RGB(0x0c, 0x0f, 0x16));
+            FillRect(hdc, &rc, bg);
+            DeleteObject(bg);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(0xe0, 0xe6, 0xf0));
+            HFONT titleFont = CreateFontW(28, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei");
+            SelectObject(hdc, titleFont);
+            DrawTextW(hdc, L"Shadow Launcher", -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DeleteObject(titleFont);
+            ReleaseDC(splashHwnd, hdc);
+            ShowWindow(splashHwnd, SW_SHOW);
+            UpdateWindow(splashHwnd);
+        }
     }
-
-    QBackingStore backing(&splashWin);
-    splashWin.create();
-    backing.resize(QSize(900, 620));
-    backing.beginPaint(QRegion(0, 0, 900, 620));
-    QPainter winPainter(backing.paintDevice());
-    winPainter.drawPixmap(0, 0, splashPix);
-    backing.endPaint();
-    splashWin.show();
-    QCoreApplication::processEvents();
+#endif
 
     // Remove old QQuickView-based splash includes and process/server code
 
@@ -184,7 +185,9 @@ int main(int argc, char *argv[])
     checkpoint(QStringLiteral("QML engine.load() completed"));
 
     // Close splash
-    splashWin.close();
+#ifdef Q_OS_WIN
+    if (splashHwnd) { DestroyWindow(splashHwnd); splashHwnd = nullptr; }
+#endif
 
     if (engine.rootObjects().isEmpty()) {
         qCCritical(logApp) << "Failed to load any QML root objects — exiting";
