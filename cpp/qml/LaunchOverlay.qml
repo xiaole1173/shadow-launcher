@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -299,11 +299,11 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 6
-                    radius: 3
+                    radius: 4
                     color: "#1a1f2a"
 
                     Rectangle {
-                        height: 6; radius: 3
+                        height: 6; radius: 4
                         color: "#3a4eb8"
                         width: parent.width * (progressValue / 100)
                         Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }

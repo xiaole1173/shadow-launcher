@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
@@ -146,10 +146,10 @@ Rectangle {
 
                     // Loading bar
                     Rectangle {
-                        Layout.fillWidth: true; Layout.preferredHeight: 3; radius: 2
+                        Layout.fillWidth: true; Layout.preferredHeight: 3; radius: 4
                         color: "#1a1f2a"
                         Rectangle {
-                            height: 3; radius: 2; color: "#6080e8"
+                            height: 3; radius: 4; color: "#6080e8"
                             width: parent.width * 0.4
                             SequentialAnimation on x {
                                 running: msLoginForm.msInProgress
@@ -241,7 +241,7 @@ Rectangle {
                 Layout.fillWidth: true; height: 40
                 Rectangle {
                     id: nameInputBox
-                    anchors.fill: parent; radius: 7
+                    anchors.fill: parent; radius: 8
                     color: "#11141c"; border.color: "#1e2230"
                     clip: true
                     // Click anywhere on the box to activate input
@@ -428,20 +428,20 @@ Rectangle {
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
                 Rectangle {
-                    Layout.fillWidth: true; height: 36; radius: 7; color: "#0e1118"; border.color: "#1e2230"
+                    Layout.fillWidth: true; height: 36; radius: 8; color: "#0e1118"; border.color: "#1e2230"
                     MouseArea { anchors.fill: parent; onClicked: { homePage.versionSelectRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Rectangle { width: 8; height: 2; radius: 1; color: "#5068c8" }
+                        Rectangle { width: 8; height: 2; radius: 4; color: "#5068c8" }
                         Text { text: "版本选择"; font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
                     }
                 }
                 Rectangle {
-                    Layout.fillWidth: true; height: 36; radius: 7; color: "#0e1118"; border.color: "#1e2230"
+                    Layout.fillWidth: true; height: 36; radius: 8; color: "#0e1118"; border.color: "#1e2230"
                     MouseArea { anchors.fill: parent; onClicked: { homePage.versionSettingsRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Rectangle { width: 8; height: 8; radius: 2; color: "transparent"; border.color: "#9498a8"; border.width: 1.5 }
+                        Rectangle { width: 8; height: 8; radius: 4; color: "transparent"; border.color: "#9498a8"; border.width: 1.5 }
                         Text { text: "版本设置"; font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
                     }
                 }

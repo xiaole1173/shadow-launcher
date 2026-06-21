@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -205,7 +205,7 @@ Window {
 
             Rectangle {
                 id: loadingSlider
-                width: 100; height: 2; radius: 1
+                width: 100; height: 2; radius: 4
                 color: "#6080e8"
                 x: -100
                 y: 0
@@ -280,7 +280,7 @@ Window {
                                         elide: Text.ElideRight; Layout.fillWidth: true
                                     }
                                     Rectangle {
-                                        width: 20; height: 20; radius: 10
+                                        width: 20; height: 20; radius: 8
                                         color: runningKillHover.containsMouse ? "#e06060" : "#c05050"
                                         scale: runningKillHover.containsMouse ? 1.15 : 1.0
                                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -328,7 +328,7 @@ Window {
                         spacing: 0
                         Item { Layout.fillWidth: true }
                         Rectangle {
-                            width: 28; height: 28; radius: 14
+                            width: 28; height: 28; radius: 8
                             color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
                             scale: hdrMin.pressed ? 0.85 : (hdrMin.containsMouse ? 1.12 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -338,7 +338,7 @@ Window {
                         }
                         Item { width: 6 }
                         Rectangle {
-                            width: 28; height: 28; radius: 14
+                            width: 28; height: 28; radius: 8
                             color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
                             scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -362,32 +362,31 @@ Window {
                     // ========== HOMEPAGE ==========
                     Loader {
                         id: homePageLoader
+                        asynchronous: true
                         anchors.fill: parent
-                        // source set via Component.onCompleted with initial props (so backend is non-null at creation time)
+                        source: "HomePage.qml"
                         opacity: navListIndex === 0 && !showVersionSelect && !showVersionSettings ? 1 : 0
                         visible: opacity > 0
                         enabled: opacity >= 1
                         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Component.onCompleted: {
-                            homePageLoader.setSource("HomePage.qml", {
-                                "backend": backend,
-                                "toastManager": toastManager,
-                                "appWindow": appWindow,
-                                "loginMode": loginMode
-                            })
-                        }
-                        onLoaded: {
-                            item.currentSelectedVersion = Qt.binding(function() { return currentSelectedVersion })
-                            item.versionSelectRequested.connect(function() { showVersionSelect = true })
-                            item.versionSettingsRequested.connect(function() { showVersionSettings = true })
-                            item.loginModeChanged.connect(function(mode) { loginMode = mode })
-                            item.displayName = backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""
+                        onItemChanged: {
+                            if (item) {
+                                item.backend = backend
+                                item.toastManager = toastManager
+                                item.appWindow = appWindow
+                                item.loginMode = loginMode
+                                item.currentSelectedVersion = Qt.binding(function() { return currentSelectedVersion })
+                                item.versionSelectRequested.connect(function() { showVersionSelect = true })
+                                item.versionSettingsRequested.connect(function() { showVersionSettings = true })
+                                item.loginModeChanged.connect(function(mode) { loginMode = mode })
+                                item.displayName = backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""
+                            }
                         }
                     }
 
                     // ========== DOWNLOAD & SETTINGS ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex === 1; color: "#0c0f16"
-                        Loader { id: downloadPageLoader; anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
+                        Loader { id: downloadPageLoader; asynchronous: true; anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
                             onLoaded: {
                                 item.mainWindow = appWindow
                                 if (item.triggerDownloadBall) {
@@ -404,15 +403,16 @@ Window {
                             }
                         } }
                     Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: "#0c0f16"
-                        Loader { anchors.fill: parent; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
+                        Loader { asynchronous: true; anchors.fill: parent; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle { anchors.fill: parent; visible: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress"; color: "#0c0f16"
-                        Loader { id: progressLoader; anchors.fill: parent; active: navListIndex >= 3; source: active ? "DownloadProgressPage.qml" : ""; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } } }
+                        Loader { id: progressLoader; asynchronous: true; anchors.fill: parent; active: navListIndex >= 3; source: active ? "DownloadProgressPage.qml" : ""; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } } }
 
                     // ========== VERSION SELECT OVERLAY ==========
                     Loader {
                         id: versionSelectLoader
+                        asynchronous: true
                         anchors.fill: parent; z: 5
                         property bool _keepActive: false
                         active: showVersionSelect || _keepActive
@@ -533,7 +533,7 @@ Window {
     }
 
     Loader {
-        id: launchOverlayLoader; anchors.fill: parent; z: 20
+        id: launchOverlayLoader; asynchronous: true; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
         active: true  // Always loaded for smooth hide animation
     }
@@ -719,7 +719,7 @@ Window {
     // Mod download error dialog
     Rectangle {
         id: modDlErrorDialog; z: 400
-        anchors.centerIn: parent; width: 400; height: 200; radius: 10
+        anchors.centerIn: parent; width: 400; height: 200; radius: 8
         color: "#141820"; border.color: "#3a1a1a"; border.width: 1
         visible: showModDlError
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -735,7 +735,7 @@ Window {
             RowLayout {
                 spacing: 10; Layout.alignment: Qt.AlignRight
                 Rectangle {
-                    width: 80; height: 30; radius: 5
+                    width: 80; height: 30; radius: 6
                     color: skipHov.hovered ? "#3a1818" : "#2a1010"
                     border.color: skipHov.hovered ? "#803838" : "#502020"
                     Text { anchors.centerIn: parent; text: "跳过"; color: "#c06060"; font.pixelSize: 12 }
@@ -744,7 +744,7 @@ Window {
                     }
                 }
                 Rectangle {
-                    width: 80; height: 30; radius: 5
+                    width: 80; height: 30; radius: 6
                     color: retryHov.hovered ? "#3a3020" : "#2a2010"
                     border.color: retryHov.hovered ? "#907030" : "#604820"
                     Text { anchors.centerIn: parent; text: "重试"; color: "#e0a040"; font.pixelSize: 12 }
