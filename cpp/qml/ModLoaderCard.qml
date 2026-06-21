@@ -88,9 +88,14 @@ Rectangle {
         }
 
         TapHandler {
+            id: expandTap
             enabled: !cardDisabled
             cursorShape: Qt.PointingHandCursor
-            onTapped: { card.expanded = !card.expanded }
+            onTapped: {
+                // Skip if tap was on cancel button (right ~36px of header)
+                if (selectedVersion !== "" && point.position.x > header.width - 36) return
+                card.expanded = !card.expanded
+            }
         }
         HoverHandler {
             enabled: !cardDisabled
