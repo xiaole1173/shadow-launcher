@@ -359,7 +359,7 @@ void ModLoaderInstaller::continueAfterPause() {
 }
 void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
     m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "Running Forge installer...");
+    emit progressChanged(3, m_totalSteps, "Installing Forge...");
 
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString jarPath = tempDir + "/forge-installer-" + m_installName + ".jar";
@@ -377,15 +377,37 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
     QStringList args;
     args << "-jar" << jarPath << "--installClient" << m_gameDir;
 
-    qDebug() << "[ModLoader] Running: java" << args;
+    qDebug() << "[ModLoader] Forge install: java" << args << "gameDir:" << m_gameDir;
+
+    // Capture stderr for diagnostics
+    connect(proc, &QProcess::readyReadStandardError, this, [this, proc]() {
+        QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        if (!err.isEmpty()) {
+            qWarning().noquote() << "[ModLoader] Forge stderr:" << err;
+            emit logMessage(QStringLiteral("Forge: ") + err.left(200));
+        }
+    });
+    connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
+        QString out = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+        if (!out.isEmpty()) {
+            qDebug().noquote() << "[ModLoader] Forge stdout:" << out;
+        }
+    });
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
+        // Read any remaining stderr
+        QString stderrRemaining = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        if (!stderrRemaining.isEmpty()) {
+            qWarning().noquote() << "[ModLoader] Forge stderr (final):" << stderrRemaining;
+        }
         proc->deleteLater();
         QFile::remove(jarPath);
         if (m_cancelled || exitCode != 0) {
-            qWarning() << "[ModLoader] Installer failed, exit:" << exitCode;
-            emit finished(false, QString("Installer failed (exit %1)").arg(exitCode));
+            QString msg = QString("Forge installer failed (exit %1): %2")
+                .arg(exitCode).arg(stderrRemaining.isEmpty() ? QStringLiteral("unknown error") : stderrRemaining);
+            qWarning() << "[ModLoader]" << msg;
+            emit finished(false, msg);
             m_running = false;
             return;
         }
