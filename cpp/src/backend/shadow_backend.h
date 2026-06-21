@@ -356,6 +356,7 @@ signals:
     void versionDetailsReady();
     void installedVersionsChanged();
     void selectedVersionChanged();
+    void selectedVersionClearedAfterDelete();
     void currentVersionSummaryChanged();
     void installStateChanged();
     void installProgressChanged();

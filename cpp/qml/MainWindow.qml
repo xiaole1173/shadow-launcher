@@ -15,7 +15,7 @@ Window {
 
     property int navListIndex: 0
     property int pendingSubTab: -1  // for --navigate auto-test
-    property string currentSelectedVersion: backend ? backend.selectedVersion : ""
+    property string currentSelectedVersion: ""
     property int loginMode: backend ? backend.lastLoginMode : 0
     property bool showVersionSelect: false
     property bool showVersionSettings: false
@@ -35,6 +35,8 @@ Window {
         if (backend) {
             backend.refreshInstalled()
             runningListModel = backend.runningGames()
+            // Explicitly read initial selectedVersion (no binding; updated via Connections)
+            currentSelectedVersion = backend.selectedVersion
             console.log("[main] init done, t=" + Date.now())
         }
     }
@@ -120,6 +122,12 @@ Window {
         function onInstallingChanged() {
             console.log("[main] onInstallingChanged: installing=", backend.installing, "downloadNavVisible=", downloadNavVisible)
             if (backend.installing) showDownloadNav()
+        }
+        function onSelectedVersionChanged() {
+            currentSelectedVersion = backend.selectedVersion
+        }
+        function onSelectedVersionClearedAfterDelete() {
+            currentSelectedVersion = backend.selectedVersion
         }
         function onInstallFinished(success) {
             // Keep nav visible for a moment, will be hidden when user switches away

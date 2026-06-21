@@ -1075,6 +1075,8 @@ void ShadowBackend::deleteVersion(const QString& versionId) {
     // If the deleted version was selected, reset to unselected
     if (m_version->selectedVersion() == versionId) {
         m_version->setSelectedVersion(QString());
+        // Inform QML so it can explicitly re-read the value
+        emit selectedVersionClearedAfterDelete();
     }
 }
 
