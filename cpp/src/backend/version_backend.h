@@ -53,7 +53,7 @@ public:
     int installProgress() const { return m_installProgress; }
     int installTotal() const { return m_installTotal; }
     QString installFile() const { return m_installFile; }
-    QString installVersionId() const { return m_activeIds.isEmpty() ? QString() : m_activeIds.first(); }
+    QString installVersionId() const { return m_modLoaderInstallId.isEmpty() ? (m_activeIds.isEmpty() ? QString() : m_activeIds.first()) : m_modLoaderInstallId; }
     QString installPhase() const { return m_installPhase; }
     qint64 installSpeed() const { return m_installSpeed; }
     qint64 installBytesDownloaded() const { return m_installBytesDl; }
@@ -145,6 +145,7 @@ private:
     // ── Concurrency: max 2 parallel MC version downloads ──
     int m_activeCount = 0;
     bool m_installing = false;
+    QString m_modLoaderInstallId;             // track mod loader install name
     static constexpr int MAX_CONCURRENT = 2;
     QVector<QString> m_activeIds;  // active installing version IDs (ordered)
 

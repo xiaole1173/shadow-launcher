@@ -73,10 +73,12 @@ VersionBackend::VersionBackend(QObject* parent)
             [this](bool success, const QString& error) {
         if (success) {
             emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
+            setInstallPhase("done");
             updateInstalledList();
         } else {
             emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + error);
         }
+        m_modLoaderInstallId.clear();
         setInstalling(false);
         emit installFinished(success);
     });
@@ -1336,6 +1338,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                        const QString& loaderVersion, const QString& installName) {
     if (!m_mlInstaller) return;
     m_mlInstaller->setGameDir(m_gameDir);
+    m_modLoaderInstallId = installName;
     setInstalling(true);
     if (loaderType == QStringLiteral("forge")) {
         m_mlInstaller->installForge(mcVersion, loaderVersion, installName);
