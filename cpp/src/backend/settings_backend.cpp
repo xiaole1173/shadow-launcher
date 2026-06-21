@@ -182,7 +182,8 @@ QVariantList SettingsBackend::scanJavaInstallations()
     emit logMessage(QStringLiteral("正在后台扫描 Java 安装..."));
     emit javaPathChanged();  // signal QML to show loading state
 
-    auto future = std::async(std::launch::async, [this]() {
+    // Use std::thread::detach() — NOT std::async whose future destructor blocks!
+    std::thread([this]() {
         QVector<JavaInfo> results = findAllJava();
         std::sort(results.begin(), results.end(),
                   [](const JavaInfo& a, const JavaInfo& b) {
@@ -193,12 +194,11 @@ QVariantList SettingsBackend::scanJavaInstallations()
             m_cachedJavaList = results;
             m_javaCacheValid = true;
             m_javaScanning = false;
-            emit javaPathChanged();  // signal QML to refresh model
+            emit javaPathChanged();
             if (!results.isEmpty()) {
                 emit logMessage(QStringLiteral("找到 %1 个 Java 安装，最新: Java %2")
                                     .arg(results.size())
                                     .arg(results.first().major));
-                // Auto-select best Java if none configured yet
                 if (!m_javaReady || !QFileInfo::exists(m_javaPath)) {
                     autoSelectJava();
                 }
@@ -206,7 +206,7 @@ QVariantList SettingsBackend::scanJavaInstallations()
                 emit logMessage(QStringLiteral("⚠ 未在系统中找到 Java 安装"));
             }
         }, Qt::QueuedConnection);
-    });
+    }).detach();
 
     return {};  // return immediately, results arrive via signal
 }
