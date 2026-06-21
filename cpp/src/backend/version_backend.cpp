@@ -1395,7 +1395,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     }
     updateStep(0, QStringLiteral("active"), 0);
 
-    setInstalling(true);
     if (loaderType == QStringLiteral("forge")) {
         m_mlInstaller->installForge(mcVersion, loaderVersion, installName);
     } else if (loaderType == QStringLiteral("fabric")) {
@@ -1403,6 +1402,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     } else if (loaderType == QStringLiteral("neoforge")) {
         m_mlInstaller->installNeoForge(mcVersion, loaderVersion, installName);
     }
+    setInstalling(true);
 }
 
 void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,

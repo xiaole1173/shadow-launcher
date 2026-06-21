@@ -697,17 +697,12 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
-                        // Per-item download progress bar (visible when this version is installing)
-                        Rectangle {
+                        // ── Status text (replaces progress bar) ──
+                        Text {
                             visible: backend && backend.installing && backend.installVersionId === model.versionId
-                                     && backend.installTotal > 0 && backend.installPhase !== "done"
-                            width: 80; height: 4; radius: 2
-                            color: "#1a1f2a"
-                            Rectangle {
-                                height: 4; radius: 2; color: "#5068d8"
-                                width: backend && backend.installTotal > 0 ? parent.width * (backend.installProgress / backend.installTotal) : 0
-                                Behavior on width { NumberAnimation { duration: 200 } }
-                            }
+                                     && backend.installPhase !== "done"
+                            text: "正在下载"
+                            font.pixelSize: 9; color: "#5d6fe0"
                         }
 
                         // Install button — hidden (moved to InstallPage)
@@ -736,7 +731,7 @@ Rectangle {
                             font.pixelSize: 10; font.weight: Font.Medium
                             z: 10
                             flat: true
-                            enabled: !isInstalled && !isInstallingThis && !isDownloadQueued && !isDownloadActive && page.clickedVersionId !== model.versionId
+                            enabled: !isInstalled && !isDownloadQueued && !isDownloadActive && page.clickedVersionId !== model.versionId
                             contentItem: Text {
                                 text: installBtn.text
                                 color: installBtn.isInstalled ? "#4bc870" :
@@ -750,11 +745,11 @@ Rectangle {
                                 radius: 4
                                 color: installBtn.isInstalled ? "#0a1810" :
                                        (installBtn.isDownloadQueued ? "#1a1800" :
-                                       (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#0a1020" :
+                                       (installBtn.isDownloadActive ? "#0a1020" :
                                        (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent")))
                                 border.color: installBtn.isInstalled ? "#1a3028" :
                                               (installBtn.isDownloadQueued ? "#3a3000" :
-                                              (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#1a2840" :
+                                              (installBtn.isDownloadActive ? "#1a2840" :
                                               (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : "#1e2230")))
                                 border.width: 1
                             }
@@ -806,127 +801,8 @@ Rectangle {
             function onVersionListReady() { refreshVersionModel(); appWindow.pageLoading = false }
         }
 
-        // ── Version install progress overlay ──
-        Rectangle {
-            id: downloadBar
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 8
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            property bool hasActiveDownload: backend && backend.installing && backend.installPhase !== "done" && backend.installPhase !== "failed"
-            property bool hasQueue: backend && backend.downloadQueue && backend.downloadQueue.length > 0
-            property bool hasDownloads: hasActiveDownload || hasQueue
-            height: hasDownloads ? (hasActiveDownload ? 80 : 52) : 0
-            visible: hasDownloads
-            color: "#11141c"
-            radius: 8
-            border.color: "#1e2230"
-            border.width: 1
-            Behavior on height { NumberAnimation { duration: 200 } }
-            clip: true
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 4
-
-                // FIX 5: Show verify status when verifying
-                RowLayout {
-                    visible: downloadBar.hasActiveDownload
-                    Text {
-                        text: (backend && backend.installPhase === "校验中...")
-                            ? "检验完整性 " + (backend ? (backend.installVersionId || "") : "")
-                            : "正在安装 " + (backend ? (backend.installVersionId || "") : "")
-                        color: (backend && backend.installPhase === "校验中...") ? "#8aaeff" : "#d0d4e0"
-                        font.pixelSize: 13
-                        font.bold: true
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: {
-                            if (!backend || backend.installTotal <= 0) return "准备中..."
-                            if (backend.installPhase === "校验中...")
-                                return backend.installProgress + "/" + backend.installTotal
-                            return Math.round((backend.installProgress / backend.installTotal) * 100) + "%"
-                        }
-                        color: (backend && backend.installPhase === "校验中...") ? "#8aaeff" : "#9094a8"
-                        font.pixelSize: 12
-                    }
-                }
-
-                RowLayout {
-                    visible: downloadBar.hasQueue || downloadBar.hasActiveDownload
-                    Text {
-                        text: downloadBar.hasActiveDownload ? "" : "等待下载开始..."
-                        color: "#9094a8"
-                        font.pixelSize: 11
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: downloadBar.hasQueue ? ("排队: " + backend.downloadQueue.length + " 个版本") : ""
-                        color: "#e0a040"
-                        font.pixelSize: 11
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 4
-                    radius: 2
-                    color: "#1a1f2a"
-
-                    Rectangle {
-                        height: 4
-                        radius: 2
-                        color: "#3a4eb8"
-                        width: (backend && backend.installTotal > 0)
-                            ? parent.width * (backend.installProgress / backend.installTotal)
-                            : 0
-                        Behavior on width { NumberAnimation { duration: 150 } }
-                    }
-                }
-
-                Text {
-                    text: "当前: " + (backend ? backend.installFile || "" : "")
-                    color: "#606478"
-                    font.pixelSize: 11
-                    elide: Text.ElideMiddle
-                    Layout.fillWidth: true
-                }
-
-                RowLayout {
-                    Item { Layout.fillWidth: true }
-                    Rectangle {
-                        width: 70
-                        height: 24
-                        radius: 4
-                        color: "transparent"
-                        border.color: "#402428"
-                        border.width: 1
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "取消"
-                            color: "#c05050"
-                            font.pixelSize: 11
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (backend) backend.cancelInstall()
-                                page.installingVersion = false
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-    // ════════════════════════════════════════════
+    // TAB 1: Mod// ════════════════════════════════════════════
     // ════════════════════════════════════════════
 
     // ════════════════════════════════════════════
