@@ -10,6 +10,8 @@
         <file alias="qml/SettingsGeneralPage.qml">qml/SettingsGeneralPage.qml</file>
         <file alias="qml/SettingsJavaPage.qml">qml/SettingsJavaPage.qml</file>
         <file alias="qml/SettingsMemoryPage.qml">qml/SettingsMemoryPage.qml</file>
+        <file alias="qml/InstallPage.qml">qml/InstallPage.qml</file>
+        <file alias="qml/ModLoaderCard.qml">qml/ModLoaderCard.qml</file>
         <file alias="qml/InstallConfigOverlay.qml">qml/InstallConfigOverlay.qml</file>
         <file alias="qml/LaunchOverlay.qml">qml/LaunchOverlay.qml</file>
         <file alias="qml/SubPageOverlays.qml">qml/SubPageOverlays.qml</file>
