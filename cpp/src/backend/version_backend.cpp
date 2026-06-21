@@ -83,6 +83,12 @@ VersionBackend::VersionBackend(QObject* parent)
         int stepIdx = m_isMergedInstall ? (step - 1 + 3) : (step - 1);
         updateStep(stepIdx, QStringLiteral("active"), 0);
     });
+    connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
+            [this](int step, int percentage) {
+        // Sub-progress within a step (e.g. Forge installer stdout milestones)
+        int stepIdx = m_isMergedInstall ? (step - 1 + 3) : (step - 1);
+        updateStep(stepIdx, QStringLiteral("active"), percentage);
+    });
     connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
             [this](bool success, const QString& error) {
         if (success) {
@@ -1502,7 +1508,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             QStringLiteral("下载 Forge 主文件"),
             QStringLiteral("校验 Forge 完整性"),
             QStringLiteral("安装 Forge")
-        });
+        }, {3.0, 8.0, 5.0, 6.0, 0.5, 10.0},  // installer重量级10，下载库8，资源5
+         {true, true, true, true, false, true});  // 校验不展示
         updateStep(0, QStringLiteral("active"), 0);
         m_mergedLoadedStep = 1;
 
@@ -1523,11 +1530,15 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
         rebuildSteps({QStringLiteral("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
                       QStringLiteral("校验安装程序完整性"),
-                      QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))});
+                      QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
+                     {3.0, 0.5, 10.0},  // installer 重量级10
+                     {true, false, true});
     } else if (loaderType == QStringLiteral("fabric")) {
         rebuildSteps({QStringLiteral("下载 Fabric 配置"),
                       QStringLiteral("校验配置完整性"),
-                      QStringLiteral("创建版本配置")});
+                      QStringLiteral("创建版本配置")},
+                     {2.0, 0.3, 1.0},  // Fabric轻量级，无Java进程
+                     {true, false, true});
     } else {
         rebuildSteps({QStringLiteral("安装 %1").arg(installName)});
     }
@@ -1580,20 +1591,25 @@ bool VersionBackend::isModLoaderInstalling() const {
 // Unified Step Model
 // ============================================================
 
-void VersionBackend::rebuildSteps(const QStringList& names) {
+void VersionBackend::rebuildSteps(const QStringList& names, const QVector<qreal>& weights,
+                                   const QVector<bool>& showFlags) {
     m_installSteps.clear();
-    for (const QString& n : names) {
+    for (int i = 0; i < names.size(); i++) {
         QVariantMap s;
-        s["name"] = n;
+        s["name"] = names[i];
         s["status"] = QStringLiteral("pending");
         s["percentage"] = 0;
         s["bytesReceived"] = QVariant::fromValue<qint64>(0);
         s["bytesTotal"] = QVariant::fromValue<qint64>(0);
+        s["weight"] = (i < weights.size()) ? weights[i] : 1.0;
+        s["show"] = (i < showFlags.size()) ? showFlags[i] : true;
         m_installSteps.append(s);
     }
     m_installTotalProgress = 0.0;
+    m_installSmoothProgress = 0.0;
     emit installStepsChanged();
     emit installTotalProgressChanged();
+    emit installSmoothProgressChanged();
 }
 
 void VersionBackend::updateStep(int index, const QString& status, int percentage,
@@ -1637,16 +1653,32 @@ void VersionBackend::emitActiveInstallsChanged() {
 }
 
 void VersionBackend::computeTotalProgress() {
-    if (m_installSteps.isEmpty()) { m_installTotalProgress = 0.0; return; }
-    qreal sum = 0.0;
+    if (m_installSteps.isEmpty()) { m_installTotalProgress = 0.0; m_installSmoothProgress = 0.0; return; }
+    qreal totalWeight = 0.0;
+    qreal weightedSum = 0.0;
     for (const QVariant& v : m_installSteps) {
         QVariantMap s = v.toMap();
+        qreal w = s.value(QStringLiteral("weight"), QVariant(1.0)).toReal();
         QString st = s["status"].toString();
-        if (st == QStringLiteral("completed")) sum += 1.0;
-        else if (st == QStringLiteral("active")) sum += qBound(0.0, s["percentage"].toReal() / 100.0, 1.0);
+        if (st == QStringLiteral("completed"))
+            weightedSum += w;  // completed steps contribute full weight
+        else if (st == QStringLiteral("active"))
+            weightedSum += w * qBound(0.0, s["percentage"].toReal() / 100.0, 1.0);
+        totalWeight += w;
     }
-    m_installTotalProgress = sum / m_installSteps.size();
+    qreal rawProgress = (totalWeight > 0.0) ? (weightedSum / totalWeight) : 0.0;
+    m_installTotalProgress = rawProgress;
+
+    // Exponential smoothing (PCL-style: current * 0.9 + new * 0.1)
+    // Fast-forward: if raw jumped significantly (e.g. step completed), jump too
+    if (m_installSmoothProgress <= 0.0 || rawProgress > m_installSmoothProgress + 0.15) {
+        m_installSmoothProgress = rawProgress;
+    } else {
+        m_installSmoothProgress = m_installSmoothProgress * 0.85 + rawProgress * 0.15;
+    }
+
     emit installTotalProgressChanged();
+    emit installSmoothProgressChanged();
     emitActiveInstallsChanged();
 }
 
@@ -1666,7 +1698,7 @@ QVariantList VersionBackend::activeInstalls() const {
         card["installId"] = cardId;
         card["installType"] = QStringLiteral("mod_loader");
         card["displayName"] = cardId;
-        card["totalProgress"] = mlPending ? 0.0 : m_installTotalProgress;
+        card["totalProgress"] = mlPending ? 0.0 : m_installSmoothProgress;
         card["speed"] = mlPending ? QVariant::fromValue<qint64>(0LL) : QVariant::fromValue<qint64>(m_installSpeed);
         card["installPhase"] = m_installFailed ? QStringLiteral("失败")
                               : mlMerged ? m_installPhase

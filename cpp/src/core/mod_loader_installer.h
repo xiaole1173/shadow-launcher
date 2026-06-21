@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QElapsedTimer>
+#include <QAtomicInt>
 #include <functional>
 
 namespace ShadowLauncher {
@@ -41,6 +42,8 @@ signals:
     void logMessage(const QString& msg);
     // Pause between verify and install (for parallel MC download)
     void waitingForMC();
+    // Sub-progress within a step (for installer stdout parsing)
+    void stepProgress(int step, int percentage);
 
 private:
     // Download helpers
@@ -61,6 +64,9 @@ private:
     QString setupTempMc();                                  // returns temp .minecraft path
     void collectForgeOutput(const QString& tempMc, const QString& jarPath);
     void cleanupTempMc(const QString& tempDir);
+
+    // Forge installer stdout progress counter
+    QAtomicInt m_forgeLibCount;
 
     // Forge
     void forgeStep1_downloadInstaller();

@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QDebug>
 
 using namespace ShadowLauncher;
@@ -515,6 +516,9 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
 
     qDebug() << "[ModLoader] Forge install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
 
+    // Reset library counter for installer sub-progress parsing
+    m_forgeLibCount.storeRelaxed(0);
+
     connect(proc, &QProcess::readyReadStandardError, this, [this, proc]() {
         QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
         if (!err.isEmpty()) {
@@ -523,9 +527,37 @@ void ModLoaderInstaller::forgeStep3_runInstaller(const QByteArray& jarData) {
         }
     });
     connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
-        QString out = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
-        if (!out.isEmpty()) {
-            qDebug().noquote() << "[ModLoader] Forge stdout:" << out;
+        while (proc->canReadLine()) {
+            QString line = QString::fromUtf8(proc->readLine()).trimmed();
+            if (line.isEmpty()) continue;
+            qDebug().noquote() << "[ModLoader] Forge stdout:" << line;
+            // PCL-style ForgeLikeInjectorLine: parse key milestones for sub-progress
+            if (line.contains(QStringLiteral("Extracting"), Qt::CaseInsensitive) && line.contains(QStringLiteral("json"), Qt::CaseInsensitive))
+                emit stepProgress(3, 7);
+            else if (line.contains(QStringLiteral("Downloading"), Qt::CaseInsensitive) && line.contains(QStringLiteral("librar"), Qt::CaseInsensitive))
+                emit stepProgress(3, 8);
+            else if (line.contains(QStringLiteral("Considering library"), Qt::CaseInsensitive))
+                emit stepProgress(3, qMin(18, 8 + m_forgeLibCount.fetchAndAddRelaxed(1)));
+            else if (line.contains(QStringLiteral("Building processors"), Qt::CaseInsensitive))
+                emit stepProgress(3, 18);
+            else if (line.contains(QStringLiteral("DOWNLOAD_MOJMAPS"), Qt::CaseInsensitive))
+                emit stepProgress(3, 20);
+            else if (line.contains(QStringLiteral("MERGE_MAPPING"), Qt::CaseInsensitive))
+                emit stepProgress(3, 30);
+            else if (line.contains(QStringLiteral("Splitting"), Qt::CaseInsensitive))
+                emit stepProgress(3, 35);
+            else if (line.contains(QStringLiteral("Processing"), Qt::CaseInsensitive) && line.contains(QStringLiteral("Complete"), Qt::CaseInsensitive))
+                emit stepProgress(3, 50);
+            else if (line.contains(QStringLiteral("Remapping"), Qt::CaseInsensitive)) {
+                if (line.contains(QStringLiteral("final"), Qt::CaseInsensitive))
+                    emit stepProgress(3, 72);
+                else {
+                    QRegularExpression pctRe(QStringLiteral("(\\d+)\\s*%"));
+                    auto m = pctRe.match(line);
+                    if (m.hasMatch()) emit stepProgress(3, 72 + m.captured(1).toInt() / 10);
+                }
+            } else if (line.contains(QStringLiteral("Injecting"), Qt::CaseInsensitive))
+                emit stepProgress(3, 91);
         }
     });
 
@@ -742,6 +774,43 @@ void ModLoaderInstaller::neoStep3_runInstaller(const QByteArray& jarData) {
     args << "-jar" << jarPath << "--installClient" << tempMcDir.absolutePath();
 
     qDebug() << "[ModLoader] NeoForge install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
+
+    // Reset counter and parse stdout for sub-progress (same format as Forge)
+    m_forgeLibCount.storeRelaxed(0);
+
+    connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
+        while (proc->canReadLine()) {
+            QString line = QString::fromUtf8(proc->readLine()).trimmed();
+            if (line.isEmpty()) continue;
+            qDebug().noquote() << "[ModLoader] NeoForge stdout:" << line;
+            if (line.contains(QStringLiteral("Extracting"), Qt::CaseInsensitive) && line.contains(QStringLiteral("json"), Qt::CaseInsensitive))
+                emit stepProgress(3, 7);
+            else if (line.contains(QStringLiteral("Downloading"), Qt::CaseInsensitive) && line.contains(QStringLiteral("librar"), Qt::CaseInsensitive))
+                emit stepProgress(3, 8);
+            else if (line.contains(QStringLiteral("Considering library"), Qt::CaseInsensitive))
+                emit stepProgress(3, qMin(18, 8 + m_forgeLibCount.fetchAndAddRelaxed(1)));
+            else if (line.contains(QStringLiteral("Building processors"), Qt::CaseInsensitive))
+                emit stepProgress(3, 18);
+            else if (line.contains(QStringLiteral("DOWNLOAD_MOJMAPS"), Qt::CaseInsensitive))
+                emit stepProgress(3, 20);
+            else if (line.contains(QStringLiteral("MERGE_MAPPING"), Qt::CaseInsensitive))
+                emit stepProgress(3, 30);
+            else if (line.contains(QStringLiteral("Splitting"), Qt::CaseInsensitive))
+                emit stepProgress(3, 35);
+            else if (line.contains(QStringLiteral("Processing"), Qt::CaseInsensitive) && line.contains(QStringLiteral("Complete"), Qt::CaseInsensitive))
+                emit stepProgress(3, 50);
+            else if (line.contains(QStringLiteral("Remapping"), Qt::CaseInsensitive)) {
+                if (line.contains(QStringLiteral("final"), Qt::CaseInsensitive))
+                    emit stepProgress(3, 72);
+                else {
+                    QRegularExpression pctRe(QStringLiteral("(\\d+)\\s*%"));
+                    auto m = pctRe.match(line);
+                    if (m.hasMatch()) emit stepProgress(3, 72 + m.captured(1).toInt() / 10);
+                }
+            } else if (line.contains(QStringLiteral("Injecting"), Qt::CaseInsensitive))
+                emit stepProgress(3, 91);
+        }
+    });
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {

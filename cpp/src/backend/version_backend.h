@@ -35,6 +35,7 @@ class VersionBackend : public QObject {
     // Per-install step model (backward compat: returns primary install)
     Q_PROPERTY(QVariantList installSteps READ installSteps NOTIFY installStepsChanged)
     Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
+    Q_PROPERTY(qreal installSmoothProgress READ installSmoothProgress NOTIFY installSmoothProgressChanged)
     Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
     // Multi-card active installs
     Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
@@ -62,6 +63,7 @@ public:
     // Backward compat — returns primary install's steps
     QVariantList installSteps() const { return m_installSteps; }
     qreal installTotalProgress() const { return m_installTotalProgress; }
+    qreal installSmoothProgress() const { return m_installSmoothProgress; }
     int installRemainingSteps() const;
     // Multi-card
     QVariantList activeInstalls() const;
@@ -125,6 +127,7 @@ signals:
     void installSpeedChanged(qint64 speed);
     void installStepsChanged();
     void installTotalProgressChanged();
+    void installSmoothProgressChanged();
     void activeInstallsChanged();
     void logMessage(const QString& msg);
 
@@ -204,12 +207,14 @@ private:
     int m_mergedLoadedStep = 0;  // which of the 9 steps is currently active
 
     qreal m_installTotalProgress = 0.0;
+    qreal m_installSmoothProgress = 0.0;
 
     // Throttle activeInstallsChanged emissions (avoid UI flicker from 100ms updates)
     QTimer m_activeInstallsThrottle;
     bool m_activeInstallsPending = false;
 
-    void rebuildSteps(const QStringList& names);
+    void rebuildSteps(const QStringList& names, const QVector<qreal>& weights = {},
+                      const QVector<bool>& showFlags = {});
     void updateStep(int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void emitActiveInstallsChanged();
     void computeTotalProgress();

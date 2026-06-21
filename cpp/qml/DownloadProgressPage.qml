@@ -144,6 +144,7 @@ Rectangle {
                     Repeater {
                         model: cardContent.card.steps || []
                         delegate: Rectangle {
+                            visible: (modelData && modelData.show !== undefined) ? modelData.show : true
                             Layout.fillWidth: true; implicitHeight: 28; color: "transparent"
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 4; spacing: 8
