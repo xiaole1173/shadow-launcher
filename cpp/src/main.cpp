@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QWindow>
 #include <QQuickWindow>
+#include <QQuickView>
 #include <QAbstractNativeEventFilter>
 #include <QElapsedTimer>
 #include <QTimer>
@@ -129,6 +130,22 @@ int main(int argc, char *argv[])
             }
         }, Qt::QueuedConnection);
 
+    // ── Splash screen: show instantly before QML engine blocks main thread ──
+    auto* splashView = new QQuickView();
+    splashView->setFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    splashView->setColor(QColor(0x0c, 0x0f, 0x16));
+    splashView->setWidth(900);
+    splashView->setHeight(620);
+    splashView->setResizeMode(QQuickView::SizeRootObjectToView);
+
+    QString splashPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/SplashWindow.qml");
+    if (QFile::exists(splashPath)) {
+        splashView->setSource(QUrl::fromLocalFile(splashPath));
+        splashView->show();
+        QCoreApplication::processEvents();
+        qCInfo(logApp) << "Splash screen shown";
+    }
+
     // Load main QML — filesystem first (dev mode), fallback to qrc (release)
     engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/qml"));
     engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
@@ -144,6 +161,12 @@ int main(int argc, char *argv[])
     }
     engine.load(url);
     checkpoint(QStringLiteral("QML engine.load() completed"));
+
+    // Main UI ready — close splash with brief delay for smooth handoff
+    QTimer::singleShot(200, &app, [splashView]() {
+        splashView->close();
+        splashView->deleteLater();
+    });
 
     if (engine.rootObjects().isEmpty()) {
         qCCritical(logApp) << "Failed to load any QML root objects — exiting";
