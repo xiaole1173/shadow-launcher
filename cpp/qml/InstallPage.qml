@@ -250,7 +250,7 @@ Rectangle {
                                 enabled: !root.versionConflict
                                 onClicked: {
                                     var n = root.customName !== "" ? root.customName : root.fullVersionName
-                                    console.log("[install] QML button clicked: name=" + n + " forge=" + selectedForge + " fabric=" + selectedFabric + " neo=" + selectedNeoForge)
+                                    console.log("[install] QML button clicked: name=" + n + " forge=" + selectedForge + " fabric=" + selectedFabric + " neo=" + selectedNeoForge + " opti=" + selectedOptifine)
                                     if (backend) {
                                         backend.logMessage("[install] download: " + n)
                                         if (selectedForge !== "") {
@@ -259,6 +259,8 @@ Rectangle {
                                             backend.installModLoader(mcVersion, "neoforge", selectedNeoForge, n)
                                         } else if (selectedFabric !== "") {
                                             backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
+                                        } else if (selectedOptifine !== "") {
+                                            backend.installOptifine(mcVersion, selectedOptifine, selectedForge, n)
                                         } else {
                                             backend.installVersion(n)
                                         }

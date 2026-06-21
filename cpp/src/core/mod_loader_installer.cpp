@@ -140,10 +140,21 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
 
     m_currentStep = 1;
     emit progressChanged(1, 1, "Downloading Optifine...");
-    downloadToFile(url, savePath, [this](bool ok, const QString& error) {
+    downloadToFile(url, savePath, [this, mcVersion, optifineVersion, filename, savePath](bool ok, const QString& error) {
         if (!ok) {
-            emit finished(false, error.isEmpty() ? "Optifine download failed" : error);
-            m_running = false;
+            // Fallback to official optifine.net
+            qDebug() << "[ModLoader] BMCLAPI Optifine download failed, trying official...";
+            QString offUrl = QString("https://optifine.net/download?f=%1").arg(filename);
+            downloadToFile(offUrl, savePath, [this](bool ok2, const QString& err2) {
+                if (!ok2) {
+                    emit finished(false, err2.isEmpty() ? "Optifine download failed (BMCLAPI + official both failed)" : err2);
+                    m_running = false;
+                    return;
+                }
+                emit progressChanged(1, 1, "Optifine installed");
+                emit finished(true, QString());
+                m_running = false;
+            });
             return;
         }
         emit progressChanged(1, 1, "Optifine installed");

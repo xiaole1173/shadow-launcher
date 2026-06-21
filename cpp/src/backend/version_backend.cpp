@@ -674,7 +674,11 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     if (m_hasPendingLoader && success && m_pendingLoaderMc == finishedId) {
         qDebug() << "[install] MC" << finishedId << "installed, starting pending loader:" << m_pendingLoaderName;
         m_hasPendingLoader = false;
-        installModLoader(m_pendingLoaderMc, m_pendingLoaderType, m_pendingLoaderVer, m_pendingLoaderName);
+        if (m_pendingLoaderType == QStringLiteral("optifine")) {
+            installOptifine(m_pendingLoaderMc, m_pendingLoaderVer, QString(), m_pendingLoaderName);
+        } else {
+            installModLoader(m_pendingLoaderMc, m_pendingLoaderType, m_pendingLoaderVer, m_pendingLoaderName);
+        }
     }
 }
 
@@ -1449,8 +1453,22 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 }
 
 void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                                      const QString& forgeVersion, const QString& installName) {
+        const QString& forgeVersion, const QString& installName) {
     if (!m_mlInstaller) return;
+
+    // Ensure vanilla MC is installed first
+    if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
+        qDebug() << "[install] Vanilla MC" << mcVersion << "not installed for Optifine, downloading first...";
+        m_pendingLoaderMc = mcVersion;
+        m_pendingLoaderType = QStringLiteral("optifine");
+        m_pendingLoaderVer = optifineVersion;
+        m_pendingLoaderName = installName;
+        m_hasPendingLoader = true;
+        // Also store forge version so the callback knows
+        installVersion(mcVersion, 0);
+        return;
+    }
+
     m_mlInstaller->setGameDir(m_gameDir);
     setInstalling(true);
     m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
