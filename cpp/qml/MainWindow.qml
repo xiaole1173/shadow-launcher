@@ -354,9 +354,9 @@ Window {
                     layer.enabled: true; layer.smooth: true
                     clip: true
                     // Sequential: overlay fades first, then page fades in
-                    property real targetOpacity: 1.0
-                    opacity: targetOpacity
-                    Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutCubic } }
+                    // Note: Behavior only animates explicit assignments, not bindings
+                    opacity: 1.0
+                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.InOutCubic } }
 
                     // ========== HOMEPAGE ==========
                     Rectangle {
@@ -2241,7 +2241,7 @@ Window {
         anchors.fill: parent; color: "#0c0f16"; z: 21
         opacity: showInstallPage ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 900; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
         onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
 
         Loader {
@@ -2264,13 +2264,11 @@ Window {
                 target: appWindow
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
-                        // Enter InstallPage: dim page immediately
-                        pageContainer.targetOpacity = 0.15
+                        pageContainer.opacity = 0.15  // Explicit assignment → Behavior animates
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
                     } else {
-                        // Exit InstallPage: overlay fades first, then page fades in
                         pageFadeInTimer.start()
                     }
                 }
@@ -2280,8 +2278,8 @@ Window {
 
     Timer {
         id: pageFadeInTimer
-        interval: 250  // Short delay — overlay ~1/3 gone
-        onTriggered: { pageContainer.targetOpacity = 1.0 }
+        interval: 300  // Overlay almost gone
+        onTriggered: { pageContainer.opacity = 1.0 }
     }
 
     Loader {
