@@ -17,7 +17,7 @@ Rectangle {
     // Signals
     signal versionSelectRequested()
     signal versionSettingsRequested()
-    signal loginModeChanged(int mode)
+    // loginModeChanged is auto-generated from property int loginMode
 
     gradient: Gradient {
         GradientStop { position: 0.0; color: "#0c0f16" }
@@ -58,7 +58,7 @@ Rectangle {
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 }
                 Text { anchors.centerIn: parent; text: "正版登录"; font.pixelSize: 13; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
-                MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; loginModeChanged(0); if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
+                MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
             }
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -73,7 +73,7 @@ Rectangle {
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 }
                 Text { anchors.centerIn: parent; text: "离线模式"; font.pixelSize: 13; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
-                MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; loginModeChanged(1); if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
+                MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
             }
         }
     }
