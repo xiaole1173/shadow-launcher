@@ -143,7 +143,7 @@ Rectangle {
 
             // ═══ CARD 1 — MC Version (with download button + editable name) ═══
             Rectangle {
-                Layout.fillWidth: true; radius: 10
+                Layout.fillWidth: true; implicitHeight: 80; radius: 10
                 color: "#11141c"; border.color: "#1e2230"; border.width: 1
 
                 ColumnLayout {
