@@ -101,6 +101,13 @@ set(HEADERS
 # Target
 # ============================================================
 
+# ── App icon (.ico must be next to .rc during rc compilation) ──
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/app.ico"
+    "${CMAKE_CURRENT_BINARY_DIR}/app.ico"
+    COPYONLY
+)
+
 qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS} resources/app.rc)
 
 # QML: bundled in qrc for memory-mapped loading + runtime caching
