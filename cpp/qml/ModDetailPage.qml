@@ -177,14 +177,26 @@ Rectangle {
 
         // Back button
         Rectangle {
+            id: backBtn
             Layout.preferredHeight: 30
             Layout.fillWidth: false
             width: backLabel.implicitWidth + 20; radius: 6
             color: backHov.containsMouse ? "#1a2848" : "transparent"
             border.color: backHov.containsMouse ? "#5068c8" : "#1e2230"
             border.width: backHov.containsMouse ? 1.5 : 1
+
+            property real _eScale: 1.0
+            scale: _eScale
+            Timer { id: backRestoreTimer; interval: 120
+                onTriggered: { backBtn._eScale = 1.0 }
+            }
+
+            Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
             Behavior on border.width { NumberAnimation { duration: 150 } }
+            Behavior on _eScale {
+                SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
+            }
 
             Row {
                 anchors.centerIn: parent; spacing: 4
@@ -194,7 +206,11 @@ Rectangle {
             MouseArea {
                 id: backHov; anchors.fill: parent
                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                onClicked: { root.animateOut() }
+                onClicked: {
+                    backBtn._eScale = 0.92
+                    backRestoreTimer.restart()
+                    root.animateOut()
+                }
             }
         }
 
@@ -234,7 +250,7 @@ Rectangle {
         // Detail info card
         Rectangle {
             Layout.fillWidth: true; implicitHeight: infoCol.implicitHeight + 24
-            radius: 10; color: "#11141c"; border.color: "#1e2c48"; border.width: 1
+            radius: 10; color: "#11141c"; border.color: "#1e2230"; border.width: 1
             Column {
                 id: infoCol
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
@@ -261,15 +277,35 @@ Rectangle {
             Text { text: "所有版本 | 按MC版本分组 | 点击展开"; color: "#505468"; font.pixelSize: 11 }
             Item { Layout.fillWidth: true }
             Rectangle {
+                id: testToggleBtn
                 width: testBtn.implicitWidth + 14; height: 22; radius: 4
                 color: showTestVersions ? "#1a3a68" : "#11141c"
-                border.color: showTestVersions ? "#4068c8" : "#2a3040"; border.width: 1
+                border.color: (testHov.containsMouse || showTestVersions) ? "#4068c8" : "#2a3040"
+                border.width: (testHov.containsMouse || showTestVersions) ? 1.5 : 1
+
+                property real _eScale: 1.0
+                scale: _eScale
+                Timer { id: testRestoreTimer; interval: 100
+                    onTriggered: { testToggleBtn._eScale = 1.0 }
+                }
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+                Behavior on border.width { NumberAnimation { duration: 150 } }
+                Behavior on _eScale {
+                    SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
+                }
+
                 Text { id: testBtn; anchors.centerIn: parent; font.pixelSize: 10
                     text: showTestVersions ? "隐藏测试版" : "显示测试版"
                     color: showTestVersions ? "#8aaeff" : "#505468"
                 }
-                MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: { showTestVersions = !showTestVersions }
+                MouseArea { id: testHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        testToggleBtn._eScale = 0.9
+                        testRestoreTimer.restart()
+                        showTestVersions = !showTestVersions
+                    }
                 }
             }
         }
