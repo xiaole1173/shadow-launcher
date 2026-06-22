@@ -2974,13 +2974,15 @@ Rectangle {
                 item.rpDetailDesc = page._rpDetailDesc
                 item.rpDetailDownloads = page._rpDetailDownloads
                 item.rpDetailUpdated = page._rpDetailUpdated
-                item.goBack.connect(function() { page._showRpDetail = false })
+                item.goBack.connect(function() { parent.opacity = 0; _showRpDetail = false; _keepActive = false })
             }
 
             Connections {
                 target: page
                 function on_ShowRpDetailChanged() {
-                    if (!page._showRpDetail) {
+                    if (page._showRpDetail) {
+                        rpDetailOverlay.opacity = Qt.binding(function() { return page._showRpDetail ? 1 : 0 })
+                    } else {
                         rpUnloadTimer.start()
                     }
                 }
@@ -3026,13 +3028,15 @@ Rectangle {
                 item.modDetailTitle = page._modDetailTitle
                 item.modDetailDesc = page._modDetailDesc
                 item.modDetailIcon = page._modDetailIcon
-                item.goBack.connect(function() { page._showModDetail = false })
+                item.goBack.connect(function() { parent.opacity = 0; _showModDetail = false; _keepActive = false })
             }
 
             Connections {
                 target: page
                 function on_ShowModDetailChanged() {
-                    if (!page._showModDetail) {
+                    if (page._showModDetail) {
+                        modDetailOverlay.opacity = Qt.binding(function() { return page._showModDetail ? 1 : 0 })
+                    } else {
                         modUnloadTimer.start()
                     }
                 }
@@ -3041,7 +3045,7 @@ Rectangle {
             Timer {
                 id: modUnloadTimer
                 interval: 500
-                onTriggered: { if (!page._showModDetail) modDetailLoader._keepActive = false }
+                onTriggered: { if (!_showModDetail) modDetailLoader._keepActive = false }
             }
         }
     }
