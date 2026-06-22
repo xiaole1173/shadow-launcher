@@ -48,6 +48,7 @@ public:
     Q_INVOKABLE void updateOfflineSkin(const QString &username);
     Q_INVOKABLE void logout();
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
+    QString msRefreshToken() const { return m_msRefreshToken; }
     void refreshMicrosoftToken();
 
     // Microsoft login state

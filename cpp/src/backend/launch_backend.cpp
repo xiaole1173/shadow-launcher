@@ -245,27 +245,40 @@ void LaunchBackend::runNextCheck()
         // For online auth: refresh the Minecraft token before launching
         if (m_authIsOnline && m_account) {
             qCInfo(logLaunch) << "Pre-launch check: refreshing online token...";
-            m_checkTimer->stop();  // Pause until refresh completes
-            // Temporary connection: resume on refresh result
-            QMetaObject::Connection* conn = new QMetaObject::Connection();
-            *conn = connect(m_account, &AccountBackend::tokenRefreshed, this,
-                [this, conn](bool ok) {
-                    disconnect(*conn);
-                    delete conn;
-                    if (ok) {
-                        qCInfo(logLaunch) << "Pre-launch check passed: token refreshed";
-                        // Update the auth token with the freshly refreshed MC token
-                        m_authToken = m_account->mcToken();
-                        m_checkStep++;  // advance to next step
+            // Check if account has a refresh token; if not, skip refresh and proceed
+            if (m_account->msRefreshToken().isEmpty()) {
+                qCInfo(logLaunch) << "No refresh token available, skipping refresh";
+            } else {
+                m_checkTimer->stop();  // Pause until refresh completes
+                // Timeout guard: resume after 12s even if refresh never responds
+                QTimer::singleShot(12000, this, [this]() {
+                    if (m_checkTimer && !m_checkTimer->isActive()) {
+                        qCWarning(logLaunch) << "Token refresh timed out, proceeding anyway";
+                        m_checkStep++;
                         m_checkTimer->start();
-                    } else {
-                        abortCheck(QStringLiteral("登录状态"),
-                            QStringLiteral("正版登录已过期"));
                     }
                 });
-            // Start the async refresh (MS refresh → XBL → XSTS → MC chain)
-            m_account->refreshMicrosoftToken();
-            return;  // Don't advance; wait for callback
+                // Temporary connection: resume on refresh result
+                QMetaObject::Connection* conn = new QMetaObject::Connection();
+                *conn = connect(m_account, &AccountBackend::tokenRefreshed, this,
+                    [this, conn](bool ok) {
+                        disconnect(*conn);
+                        delete conn;
+                        if (ok) {
+                            qCInfo(logLaunch) << "Pre-launch check passed: token refreshed";
+                            m_authToken = m_account->mcToken();
+                        } else {
+                            qCWarning(logLaunch) << "Token refresh failed, proceeding with existing token";
+                        }
+                        // Either way, continue the check
+                        if (m_checkTimer && !m_checkTimer->isActive()) {
+                            m_checkStep++;
+                            m_checkTimer->start();
+                        }
+                    });
+                m_account->refreshMicrosoftToken();
+                return;  // Don't advance; wait for callback
+            }
         }
         qCInfo(logLaunch) << "Pre-launch check passed: login status";
         break;
