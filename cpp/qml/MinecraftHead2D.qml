@@ -27,7 +27,7 @@ Rectangle {
     // This makes the visible arc rotate clockwise on screen
     NumberAnimation on _dashOffset {
         running: root._spinning
-        from: 0; to: -_circumference; duration: 2000; loops: Animation.Infinite
+        from: 0; to: _circumference; duration: 2000; loops: Animation.Infinite
     }
 
     // 3-phase arc length cycle (on full circumference circle)
