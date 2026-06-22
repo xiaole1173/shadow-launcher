@@ -137,8 +137,12 @@ void Launcher::cancel()
 
 void Launcher::killProcess()
 {
-    if (!isRunning()) return;
-    forceKill();
+    // Always fire — QProcess may think it's done (detached window) but OS process still alive
+    if (m_pid > 0) {
+        forceKill();
+    } else if (m_process) {
+        m_process->kill();
+    }
 }
 
 // ============================================================
@@ -257,10 +261,12 @@ void Launcher::forceKill()
     }
 
 #ifdef Q_OS_WIN
-    // Kill entire process tree. Fire-and-forget: no blocking wait.
+    // Kill entire Minecraft process tree. startDetached is fire-and-forget.
     QStringList args;
     args << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid);
     QProcess::startDetached(QStringLiteral("taskkill"), args);
+    // Also directly kill what QProcess knows about, as immediate backup
+    m_process->kill();
 #else
     m_process->kill();
 #endif
