@@ -536,12 +536,6 @@ Window {
         id: launchOverlayLoader; asynchronous: true; anchors.fill: parent; z: 20
         source: "LaunchOverlay.qml"
         active: true  // Always loaded for smooth hide animation
-        onLoaded: {
-            if (item) {
-                item.backend = backend
-                item.toastManager = toastManager
-            }
-        }
     }
 
     // ════════════════════════════════════════════

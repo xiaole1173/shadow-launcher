@@ -6,22 +6,13 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     color: "#0c0f16"
-    property var backend: null
-    property var toastManager: null
-
-    // Reset dismiss state when backend is assigned (after Loader.onLoaded)
-    onBackendChanged: {
-        if (backend) {
-            console.log("[overlay] backend assigned, resetting _dismissed")
-            _dismissed = false
-            _animatingOut = false
-        }
-    }
+    // backend and toastManager are injected from MainWindow's Loader or context property
+    // DO NOT declare local property var backend — it breaks context property resolution
 
     // Visibility: dismiss flag overrides all other conditions
     property bool _dismissed: false
     property bool _animatingOut: false
-    visible: ((backend ? backend.launching : false) || checkFailed || _animatingOut) && !_dismissed
+    visible: ((typeof backend !== 'undefined' && backend !== null && backend.launching) || checkFailed || _animatingOut) && !_dismissed
 
     onCheckFailedChanged: {
         if (checkFailed) {

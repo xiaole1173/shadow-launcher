@@ -498,20 +498,23 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     args << mainClass;
 
     // ── Minecraft arguments ──
-    // Walk inheritsFrom chain: child args (Forge --launchTarget) first, then parent args
+    // Walk inheritsFrom chain: child args (Forge --launchTarget) FIRST, then parent args
+    // modlauncher strips its own flags and passes the rest to Minecraft
     QJsonArray gameArgs;
     {
+        // First: collect args from leaf to root, then reverse to get root→leaf order
+        QJsonArray chainArgs;  // root-args ... child-args (will reverse)
         QJsonObject chainJson = versionJson;
         QString chainId = versionId;
         QStringList visitedArgs;
         while (true) {
             QJsonObject argsObj = chainJson[QStringLiteral("arguments")].toObject();
             if (!argsObj.isEmpty()) {
-                // Modern format (1.13+): arguments.game — filter by rules, then expand
+                // Modern format (1.13+): arguments.game
                 const QJsonArray raw = argsObj[QStringLiteral("game")].toArray();
                 for (const QJsonValue& val : raw) {
                     if (val.isString()) {
-                        gameArgs.prepend(val.toString());
+                        chainArgs.append(val.toString());
                     } else if (val.isObject()) {
                         QJsonObject obj = val.toObject();
                         QJsonArray rulesArr = obj[QStringLiteral("rules")].toArray();
@@ -521,16 +524,16 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                         }
                         QJsonValue value = obj[QStringLiteral("value")];
                         if (value.isString()) {
-                            gameArgs.prepend(value.toString());
+                            chainArgs.append(value.toString());
                         } else if (value.isArray()) {
                             for (const QJsonValue& v : value.toArray()) {
-                                if (v.isString()) gameArgs.prepend(v.toString());
+                                if (v.isString()) chainArgs.append(v.toString());
                             }
                         }
                     }
                 }
             } else {
-                // Legacy format: minecraftArguments string (lowest priority, append at end)
+                // Legacy format: minecraftArguments string
                 QString mcArgs = chainJson[QStringLiteral("minecraftArguments")].toString();
                 if (!mcArgs.isEmpty()) {
                     static const QRegularExpression argSplitter(
@@ -541,7 +544,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                         QString part = m.captured(0);
                         if (part.startsWith(QLatin1Char('"')) && part.endsWith(QLatin1Char('"')))
                             part = part.mid(1, part.size() - 2);
-                        if (!part.isEmpty()) gameArgs.append(part);
+                        if (!part.isEmpty()) chainArgs.append(part);
                     }
                 }
             }
@@ -559,6 +562,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             if (pe.error != QJsonParseError::NoError) break;
             chainJson = pd.object();
             chainId = parentId;
+        }
+        // chainArgs is now [child-arg1, child-arg2, ..., parent-arg1, parent-arg2, ...]
+        // Reverse so child args (--launchTarget forge_client) come FIRST
+        for (int i = chainArgs.size() - 1; i >= 0; --i) {
+            gameArgs.append(chainArgs[i]);
         }
     }
 
