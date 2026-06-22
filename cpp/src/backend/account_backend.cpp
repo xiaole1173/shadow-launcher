@@ -132,10 +132,13 @@ void AccountBackend::updateOfflineSkin(const QString &username)
         // Generate offline UUID → hash LSB determines Steve/Alex
         QByteArray input = QStringLiteral("OfflinePlayer:").toUtf8() + name.toUtf8();
         QByteArray hash = QCryptographicHash::hash(input, QCryptographicHash::Md5);
-        modelName = (static_cast<unsigned char>(hash[0]) & 1) == 1
-                        ? QStringLiteral("alex") : QStringLiteral("steve");
+        // Minecraft Java: UUID.hashCode() & 1 determines Alex (slim) vs Steve (wide)
+        // hashCode = XOR of 4× 32-bit halves: hash[0..3]^hash[4..7]^hash[8..11]^hash[12..15]
+        // Simplified to byte-level: bit0 = (hash[3]^hash[7]^hash[11]^hash[15]) & 1
+        int parity = (hash[3] & 1) ^ (hash[7] & 1) ^ (hash[11] & 1) ^ (hash[15] & 1);
+        modelName = parity ? QStringLiteral("alex") : QStringLiteral("steve");
         qCInfo(logAccount) << "Offline skin preview:" << name << "→" << modelName
-                           << "(hash[0]&1=" << (hash[0] & 1) << ")";
+                           << "(parity=" << parity << ")";
     }
 
     QString headPath = m_dataDir + QStringLiteral("/assets/skins/") + modelName + QStringLiteral("_head.png");
