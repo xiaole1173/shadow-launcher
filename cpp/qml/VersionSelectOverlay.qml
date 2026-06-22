@@ -16,6 +16,8 @@ Rectangle {
         if (backend) {
             backend.refreshVersionDetails()
             deferRefreshTimer.start()
+            // Direct populate — Connections.enabled not re-evaluated when signal fires
+            versionRightPanel.populateVersionDetails()
         }
     }
 
