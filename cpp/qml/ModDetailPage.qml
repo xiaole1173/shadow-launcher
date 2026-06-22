@@ -159,9 +159,12 @@ Rectangle {
                     id: backMouse; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
+                        console.log("[mod-detail] BACK BUTTON CLICKED!")
+                        root.color = "#ff0000"
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
                         root.goBack()
+                        parent.parent._showModDetail = false
                     }
                 }
             }
