@@ -884,6 +884,7 @@ Rectangle {
                             Layout.fillWidth: true; height: 26; radius: 4
                             color: "#0c0e14"
                             border.color: modInput.activeFocus ? "#5068c8" : "#2a3040"; border.width: 1
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
 
                             TextInput {
                                 id: modInput
@@ -902,6 +903,9 @@ Rectangle {
                         Rectangle {
                             width: 44; height: 26; radius: 4
                             color: modSearchBtn.hovered ? "#5a78e0" : "#5068c8"
+                            scale: modSearchBtn.pressed ? 0.92 : (modSearchBtn.hovered ? 1.06 : 1.0)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                             Text { anchors.centerIn: parent; text: "搜索"; color: "#fff"; font.pixelSize: 10; font.bold: true }
                             MouseArea {
                                 id: modSearchBtn; anchors.fill: parent
@@ -914,6 +918,9 @@ Rectangle {
                             width: 44; height: 26; radius: 4
                             color: modResetBtn.hovered ? "#2a2030" : "#1a1420"
                             border.color: "#3a2840"; border.width: 1
+                            scale: modResetBtn.pressed ? 0.92 : (modResetBtn.hovered ? 1.06 : 1.0)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                             Text { anchors.centerIn: parent; text: "重置"; color: "#b090c8"; font.pixelSize: 10 }
                             MouseArea {
                                 id: modResetBtn; anchors.fill: parent
@@ -1264,15 +1271,26 @@ Rectangle {
                             model: modResultsModel
 
                             Rectangle {
+                                id: modItem
                                 Layout.fillWidth: true
                                 height: 64; radius: 8
-                                color: "#161922"
+                                color: modItemHov.hovered ? "#1a2030" : "#161922"
                                 border.color: "#1e2230"; border.width: 1
+                                scale: modItemHov.hovered ? 1.015 : 1.0
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
+                                // Entrance animation
+                                opacity: 0
+                                Component.onCompleted: { opacity = 1 }
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+                                HoverHandler { id: modItemHov }
+
+                                TapHandler {
+                                    cursorShape: Qt.PointingHandCursor
+                                    onTapped: {
                                         page.modDetailSlug = model.slug
                                         page.modDetailTitle = model.title || ""
                                         page.modDetailDesc = model.desc || ""
@@ -1431,6 +1449,7 @@ Rectangle {
                         Layout.fillWidth: true; height: 26; radius: 4
                         color: "#0c0e14"
                         border.color: shaderInput.activeFocus ? "#5068c8" : "#2a3040"; border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 200 } }
 
                         TextInput {
                             id: shaderInput
@@ -1450,6 +1469,9 @@ Rectangle {
                     Rectangle {
                         width: 44; height: 26; radius: 4
                         color: sSbtn.hovered ? "#5a78e0" : "#5068c8"
+                        scale: sSbtn.pressed ? 0.92 : (sSbtn.hovered ? 1.06 : 1.0)
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                         Text { anchors.centerIn: parent; text: "搜索"; color: "#fff"; font.pixelSize: 10; font.bold: true }
                         MouseArea {
                             id: sSbtn; anchors.fill: parent
@@ -1565,6 +1587,9 @@ Rectangle {
                         width: 44; height: 26; radius: 4
                         color: sRbtn.hovered ? "#2a2030" : "#1a1420"
                         border.color: "#3a2840"; border.width: 1
+                        scale: sRbtn.pressed ? 0.92 : (sRbtn.hovered ? 1.06 : 1.0)
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                         Text { anchors.centerIn: parent; text: "重置"; color: "#b090c8"; font.pixelSize: 10 }
                         MouseArea {
                             id: sRbtn; anchors.fill: parent
@@ -1609,16 +1634,22 @@ Rectangle {
                             model: shaderResultsModel
 
                             Rectangle {
+                                id: shaderItem
                                 Layout.fillWidth: true
                                 height: 64; radius: 8
-                                color: "#161922"
+                                color: sHov.hovered ? "#1a2030" : "#161922"
                                 border.color: "#1e2230"; border.width: 1
+                                scale: sHov.hovered ? 1.015 : 1.0
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: console.log("[shader] open " + model.slug)
-                                }
+                                opacity: 0
+                                Component.onCompleted: { opacity = 1 }
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+                                HoverHandler { id: sHov }
+                                TapHandler { cursorShape: Qt.PointingHandCursor; onTapped: console.log("[shader] open " + model.slug) }
 
                                 RowLayout {
                                     anchors.fill: parent; anchors.margins: 8; spacing: 8
@@ -2236,9 +2267,19 @@ Rectangle {
                     }
 
                     delegate: Rectangle {
+                        id: rpCard
                         width: rpListView.width - 8; height: 130; clip: true
                         color: rpCardHov.hovered ? "#121620" : "#0e1018"
                         radius: 10; border.color: rpCardHov.hovered ? "#5068c8" : "#1a1f2a"; border.width: 1
+                        scale: rpCardHov.hovered ? 1.01 : 1.0
+
+                        opacity: 0
+                        Component.onCompleted: { opacity = 1 }
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
