@@ -3028,7 +3028,7 @@ Rectangle {
                 item.modDetailTitle = page._modDetailTitle
                 item.modDetailDesc = page._modDetailDesc
                 item.modDetailIcon = page._modDetailIcon
-                item.goBack.connect(function() { parent.opacity = 0; _showModDetail = false; _keepActive = false })
+                item.requestClose.connect(function() { modDetailOverlay.color = "#ff0000"; modDetailOverlay.opacity = 0; _showModDetail = false; _keepActive = false })
             }
 
             Connections {

@@ -27,7 +27,7 @@ Rectangle {
     property var modDetailVersionMap: ({})
     property var pendingModDownload: ({})
 
-    signal goBack()
+    signal requestClose()
 
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
@@ -161,7 +161,7 @@ Rectangle {
                     onClicked: {
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
-                        root.goBack()
+                        root.requestClose()
                     }
                 }
             }
