@@ -881,10 +881,15 @@ Rectangle {
                         Layout.fillWidth: true; spacing: 5
 
                         Rectangle {
+                            id: modSearchBox
                             Layout.fillWidth: true; height: 26; radius: 4
                             color: "#0c0e14"
-                            border.color: modInput.activeFocus ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: (modInput.activeFocus || modSearchBoxHov.hovered) ? "#5068c8" : "#2a3040"
+                            border.width: (modInput.activeFocus || modSearchBoxHov.hovered) ? 1.5 : 1
                             Behavior on border.color { ColorAnimation { duration: 200 } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
+
+                            HoverHandler { id: modSearchBoxHov }
 
                             TextInput {
                                 id: modInput
@@ -944,7 +949,10 @@ Rectangle {
                             id: modLdrPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
                             color: ldrHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: page.modLoader ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: (ldrHov.hovered || page.modLoader) ? "#4068c8" : "#2a3040"
+                            border.width: (ldrHov.hovered || page.modLoader) ? 1.5 : 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
@@ -1004,8 +1012,11 @@ Rectangle {
                         Rectangle {
                             id: modVerPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
-                            color: verHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: page.modGameVersion ? "#5068c8" : "#2a3040"; border.width: 1
+                            color: verHov2.hovered ? "#1a2848" : "#0c0e14"
+                            border.color: (verHov2.hovered || page.modGameVersion) ? "#4068c8" : "#2a3040"
+                            border.width: (verHov2.hovered || page.modGameVersion) ? 1.5 : 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
@@ -1018,7 +1029,7 @@ Rectangle {
                                 Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
                             }
                             MouseArea {
-                                id: verHov; anchors.fill: parent
+                                id: verHov2; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: { if (verMenu.visible) verMenu.close(); else verMenu.open() }
                             }
@@ -1093,7 +1104,10 @@ Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 90; height: 24; radius: 4
                             color: catHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: page.modCategory ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: (catHov.hovered || page.modCategory) ? "#4068c8" : "#2a3040"
+                            border.width: (catHov.hovered || page.modCategory) ? 1.5 : 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
@@ -1167,7 +1181,10 @@ Rectangle {
                             id: modEnvPill
                             Layout.preferredWidth: 72; height: 24; radius: 4
                             color: envHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: page.modEnvironment ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: (envHov.hovered || page.modEnvironment) ? "#4068c8" : "#2a3040"
+                            border.width: (envHov.hovered || page.modEnvironment) ? 1.5 : 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 2; spacing: 1
@@ -1226,14 +1243,18 @@ Rectangle {
                         Rectangle {
                             width: 20; height: 24; radius: 4
                             color: page.modShowPreReleases ? "#1a2848" : "#0c0e14"
-                            border.color: page.modShowPreReleases ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: (betaHov.hovered || page.modShowPreReleases) ? "#4068c8" : "#2a3040"
+                            border.width: (betaHov.hovered || page.modShowPreReleases) ? 1.5 : 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
                             Text {
                                 anchors.centerIn: parent
                                 text: page.modShowPreReleases ? "✓" : "✕"
                                 color: page.modShowPreReleases ? "#8aaeff" : "#505468"; font.pixelSize: 9
                             }
                             MouseArea {
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                id: betaHov; anchors.fill: parent
+                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: { page.modShowPreReleases = !page.modShowPreReleases }
                             }
                         }
@@ -1274,16 +1295,30 @@ Rectangle {
                                 id: modItem
                                 Layout.fillWidth: true
                                 height: 64; radius: 8
-                                color: modItemHov.hovered ? "#1a2030" : "#161922"
-                                border.color: "#1e2230"; border.width: 1
-                                scale: modItemHov.hovered ? 1.015 : 1.0
+                                color: modItemHov.hovered ? "#161a26" : "#161922"
+                                border.color: modItemHov.hovered ? "#4068c8" : "#1e2230"
+                                border.width: modItemHov.hovered ? 1.5 : 1
 
                                 // Entrance animation
                                 opacity: 0
                                 Component.onCompleted: { opacity = 1 }
 
+                                // Elastic shake on click
+                                property bool _shaking: false
+                                x: _shaking ? shakeAnim.running ? 0 : 0 : 0
+                                SequentialAnimation {
+                                    id: shakeAnim
+                                    running: modItem._shaking
+                                    PropertyAnimation { target: modItem; property: "x"; from: 0; to: 4; duration: 50; easing.type: Easing.OutQuad }
+                                    PropertyAnimation { target: modItem; property: "x"; to: -4; duration: 50; easing.type: Easing.OutQuad }
+                                    PropertyAnimation { target: modItem; property: "x"; to: 2; duration: 50; easing.type: Easing.OutQuad }
+                                    PropertyAnimation { target: modItem; property: "x"; to: 0; duration: 50; easing.type: Easing.OutQuad }
+                                    onStopped: { modItem._shaking = false }
+                                }
+
                                 Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                Behavior on border.width { NumberAnimation { duration: 150 } }
                                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
                                 HoverHandler { id: modItemHov }
@@ -1291,6 +1326,7 @@ Rectangle {
                                 TapHandler {
                                     cursorShape: Qt.PointingHandCursor
                                     onTapped: {
+                                        modItem._shaking = true
                                         page.modDetailSlug = model.slug
                                         page.modDetailTitle = model.title || ""
                                         page.modDetailDesc = model.desc || ""
@@ -1446,10 +1482,15 @@ Rectangle {
 
                     // Search
                     Rectangle {
+                        id: shaderSearchBox
                         Layout.fillWidth: true; height: 26; radius: 4
                         color: "#0c0e14"
-                        border.color: shaderInput.activeFocus ? "#5068c8" : "#2a3040"; border.width: 1
+                        border.color: (shaderInput.activeFocus || shaderSearchBoxHov.hovered) ? "#5068c8" : "#2a3040"
+                        border.width: (shaderInput.activeFocus || shaderSearchBoxHov.hovered) ? 1.5 : 1
                         Behavior on border.color { ColorAnimation { duration: 200 } }
+                        Behavior on border.width { NumberAnimation { duration: 150 } }
+
+                        HoverHandler { id: shaderSearchBoxHov }
 
                         TextInput {
                             id: shaderInput
@@ -3323,9 +3364,27 @@ Rectangle {
 
     Item {
         id: modDetailOverlay
-        anchors.fill: parent
+        width: parent.width
+        height: parent.height
         z: 10
+        x: 0
         visible: page.modDetailSlug !== "" && !modDetailBackTimer.running
+
+        Behavior on x {
+            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+        }
+
+        // Slide in from right on open
+        onVisibleChanged: {
+            if (visible) { x = parent.width; slideInTimer.start() }
+        }
+        Timer { id: slideInTimer; interval: 16; onTriggered: { modDetailOverlay.x = 0 } }
+
+        // Slide out to right on close (called by back button)
+        function animateOut() {
+            modDetailOverlay.x = parent.width
+            modDetailBackTimer.restart()
+        }
 
         // ── Helpers ──
         function stripSuffix(v) {
@@ -3449,12 +3508,20 @@ Rectangle {
                     MouseArea {
                         id: backHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            modDetailBackTimer.restart()
+                            modDetailOverlay.animateOut()
+                        }
+                    }
+                    // Cleanup after slide-out
+                    Timer {
+                        interval: 310
+                        running: modDetailBackTimer.running
+                        onTriggered: {
                             page.modDetailSlug = ""
                             page.modDetailRawVersions = []
                             page.modDetailVersionMap = {}
                             modDetailOverlay.expandedGroups = []
                             modDetailOverlay.selectedVersion = ""
+                            page.modDetailLoading = false
                         }
                     }
                 }
@@ -3501,7 +3568,32 @@ Rectangle {
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                         spacing: 6
                         Text { text: "Slug: " + (page.modDetailSlug || ""); color: "#7888a8"; font.pixelSize: 11; elide: Text.ElideRight; width: parent.width }
-                        Text { text: "版本数量: " + (page.modDetailRawVersions || []).length; color: "#7888a8"; font.pixelSize: 11 }
+                        Text {
+                            id: modVerCountText
+                            property int _displayCount: 0
+                            text: "版本数量: " + _displayCount
+                            color: "#7888a8"; font.pixelSize: 11
+
+                            NumberAnimation on _displayCount {
+                                id: verCountAnim
+                                running: false
+                                from: 0
+                                duration: 2000
+                                easing.type: Easing.OutCubic
+                            }
+
+                            Connections {
+                                target: page
+                                function onModDetailLoadingChanged() {
+                                    if (!page.modDetailLoading) {
+                                        var total = (page.modDetailRawVersions || []).length
+                                        verCountAnim.to = total
+                                        verCountAnim.from = modVerCountText._displayCount
+                                        verCountAnim.restart()
+                                    }
+                                }
+                            }
+                        }
                         Row { spacing: 24
                             Text { text: "来源: Modrinth (MCIM镜像)"; color: "#7888a8"; font.pixelSize: 11 }
                         }
@@ -3517,7 +3609,7 @@ Rectangle {
                         color: modDetailOverlay.showTestVersions ? "#1a3a68" : "#11141c"
                         border.color: modDetailOverlay.showTestVersions ? "#4068c8" : "#2a3040"; border.width: 1
                         Text { id: testBtn; anchors.centerIn: parent; font.pixelSize: 10
-                            text: modDetailOverlay.showTestVersions ? "✓ 显示测试版" : "✕ 隐藏测试版"
+                            text: modDetailOverlay.showTestVersions ? "显示测试版" : "隐藏测试版"
                             color: modDetailOverlay.showTestVersions ? "#8aaeff" : "#505468"
                         }
                         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -3526,12 +3618,63 @@ Rectangle {
                     }
                 }
 
-                // Spacer — absorbs excess space when loading or no data
+                // Loading indicator (spinner + text)
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: page.modDetailLoading || modDetailOverlay.grouped.length === 0
-                    Text { visible: page.modDetailLoading; anchors.centerIn: parent; text: "加载版本中…"; color: "#606478"; font.pixelSize: 12 }
-                    Text { visible: !page.modDetailLoading && modDetailOverlay.grouped.length === 0; anchors.centerIn: parent; text: "无可用版本"; color: "#606478"; font.pixelSize: 12 }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        visible: page.modDetailLoading || modDetailOverlay.grouped.length === 0
+
+                        // Spinner ring (same style as MinecraftHead2D)
+                        Rectangle {
+                            width: 24; height: 24; radius: 12; color: "transparent"
+                            visible: page.modDetailLoading
+
+                            property real _angle: 0
+                            NumberAnimation on _angle {
+                                running: page.modDetailLoading
+                                from: 0; to: 360; duration: 1000; loops: Animation.Infinite
+                            }
+
+                            Canvas {
+                                anchors.fill: parent
+                                visible: page.modDetailLoading
+
+                                onPaint: {
+                                    var ctx = getContext("2d")
+                                    var cw = width, ch = height
+                                    ctx.clearRect(0, 0, cw, ch)
+                                    var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 3
+                                    if (r <= 0) return
+                                    var startRad = (parent._angle - 90) * Math.PI / 180
+                                    var endRad = (parent._angle + 180) * Math.PI / 180
+                                    ctx.strokeStyle = "#5b8def"
+                                    ctx.lineWidth = 2; ctx.lineCap = "round"
+                                    ctx.beginPath()
+                                    ctx.arc(cx, cy, r, startRad, endRad)
+                                    ctx.stroke()
+                                }
+                            }
+                            Connections {
+                                target: parent
+                                function on_AngleChanged() {
+                                    var kids = parent.children
+                                    for (var i = 0; i < kids.length; i++) {
+                                        if (kids[i] instanceof Canvas) kids[i].requestPaint()
+                                    }
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: page.modDetailLoading ? "加载版本中..."
+                                : (modDetailOverlay.grouped.length === 0 ? "无可用版本" : "")
+                            color: "#606478"; font.pixelSize: 12
+                        }
+                    }
                 }
 
                 // Version list
@@ -3581,9 +3724,50 @@ Rectangle {
                                         width: parent.width - 24; x: 24; spacing: 2
 
                                         Rectangle {
+                                            id: verCard
                                             width: parent.width; height: 50; radius: 6
                                             color: verHover.containsMouse ? "#1a2436" : "#111820"
-                                            border.color: verHover.containsMouse ? "#2a4060" : "#1a2848"; border.width: 1
+                                            border.color: verHover.containsMouse ? (verHover.containsMouse ? "#4068c8" : "#2a4060") : "#1a2848"
+                                            border.width: verHover.containsMouse ? 1.5 : 1
+
+                                            // Spring-in entrance
+                                            property real _eScale: 0.7
+                                            transform: Scale {
+                                                origin.x: verCard.width / 2
+                                                origin.y: verCard.height / 2
+                                                xScale: verCard._eScale
+                                                yScale: verCard._eScale
+                                            }
+
+                                            Component.onCompleted: {
+                                                verCardSpringTimer.start()
+                                            }
+                                            Timer {
+                                                id: verCardSpringTimer; interval: 30
+                                                onTriggered: { verCard._eScale = 1.0 }
+                                            }
+
+                                            Behavior on _eScale {
+                                                SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
+                                            }
+
+                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                            Behavior on border.color { ColorAnimation { duration: 200 } }
+                                            Behavior on border.width { NumberAnimation { duration: 150 } }
+
+                                            // Elastic click restore timer
+                                            Timer { id: clickRestoreTimer; interval: 80; onTriggered: { verCard._eScale = 1.0 } }
+
+                                            // Gradient overlay (hover glow)
+                                            Rectangle {
+                                                anchors.fill: parent; radius: parent.radius
+                                                opacity: verHover.containsMouse ? 0.15 : 0
+                                                gradient: Gradient {
+                                                    GradientStop { position: 0; color: "#5068c8" }
+                                                    GradientStop { position: 1; color: "#6080d8" }
+                                                }
+                                                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                            }
 
                                             RowLayout {
                                                 anchors.fill: parent; anchors.margins: 8; spacing: 8
@@ -3621,15 +3805,18 @@ Rectangle {
                                                     }
                                                     RowLayout { spacing: 12
                                                         Text { text: modDetailOverlay.formatDate((modDetailOverlay.getVersionDetail(modelData) || {}).date); color: "#606478"; font.pixelSize: 9 }
-                                                        Text { text: "📥 " + modDetailOverlay.formatDL((modDetailOverlay.getVersionDetail(modelData) || {}).downloads); color: "#606478"; font.pixelSize: 9 }
+                                                        Text { text: "DL " + modDetailOverlay.formatDL((modDetailOverlay.getVersionDetail(modelData) || {}).downloads); color: "#606478"; font.pixelSize: 9 }
                                                     }
                                                 }
 
                                             MouseArea {
                                                 id: verHover; anchors.fill: parent
                                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onEntered: console.log("[mod-download] verHover entered, modelData=", modelData)
                                                 onClicked: {
+                                                    // Elastic click feedback
+                                                    verCard._eScale = 0.92
+                                                    clickRestoreTimer.restart()
+
                                                     console.log("[mod-download] CLICKED:", modelData)
                                                     var d = modDetailOverlay.getVersionDetail(modelData)
                                                     if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
