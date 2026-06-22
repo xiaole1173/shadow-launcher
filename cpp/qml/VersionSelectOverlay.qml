@@ -8,9 +8,9 @@ Rectangle {
     anchors.fill: parent; color: "#0c0f16"; z: 5
     property int activeGameDirIndex: 0
 
-    // Refresh installed versions when overlay opens
-    onVisibleChanged: {
-        if (visible && backend) {
+    Component.onCompleted: {
+        // onLoaded sets backend before onCompleted fires — safe to call refresh
+        if (backend) {
             backend.refreshVersionDetails()
             deferRefreshTimer.start()
         }
