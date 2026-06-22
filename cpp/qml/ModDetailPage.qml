@@ -160,9 +160,12 @@ Rectangle {
                     id: backMouse; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
+                        console.log("[mod-detail-back] BACK BUTTON CLICKED")
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
+                        console.log("[mod-detail-back] emitting goBack()")
                         root.goBack()
+                        console.log("[mod-detail-back] goBack() emitted")
                     }
                 }
             }

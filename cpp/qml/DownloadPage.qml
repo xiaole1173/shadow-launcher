@@ -3024,7 +3024,7 @@ Rectangle {
             onLoaded: {
                 _keepActive = true
                 if (item) {
-                    item.goBack.connect(function() { parent.opacity = 0; _showModDetail = false; _keepActive = false })
+                    item.goBack.connect(function() { console.log("[mod-detail-overlay] goBack handler running, parent=" + parent + " opacity=" + parent.opacity); parent.opacity = 0; _showModDetail = false; _keepActive = false; console.log("[mod-detail-overlay] goBack handler done: opacity=" + parent.opacity + " show=" + _showModDetail + " active=" + _keepActive) })
                     item.backend = backend
                     item.toastManager = toastManager
                     item.mainWindow = mainWindow
