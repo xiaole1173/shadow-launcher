@@ -21,7 +21,7 @@ Rectangle {
     // Continuous rotation
     RotationAnimation on _spinnerAngle {
         running: root._spinning
-        from: 0; to: 360; duration: 1400; loops: Animation.Infinite
+        from: 0; to: 360; duration: 2000; loops: Animation.Infinite
         easing.type: Easing.Linear
     }
 
@@ -29,9 +29,9 @@ Rectangle {
     SequentialAnimation on _spinnerArcLen {
         running: root._spinning
         loops: Animation.Infinite
-        NumberAnimation { from: 5;  to: 270; duration: 500; easing.type: Easing.OutCubic  }  // fast stretch
-        NumberAnimation { from: 270; to: 330; duration: 600; easing.type: Easing.InQuart   }  // slow crawl
-        NumberAnimation { from: 330; to: 5;   duration: 1   }                                   // instant snap
+        NumberAnimation { from: 5;  to: 270; duration: 800; easing.type: Easing.OutCubic  }  // fast stretch
+        NumberAnimation { from: 270; to: 330; duration: 1000; easing.type: Easing.InQuart   }  // slow crawl
+        NumberAnimation { from: 330; to: 5;   duration: 1   }                                   // instant snap                                   // instant snap
     }
 
     Canvas {
