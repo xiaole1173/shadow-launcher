@@ -105,6 +105,7 @@ void LaunchBackend::cancelLaunch()
 
     m_launching = false;
     m_launchProgress = 0;
+    m_activeLauncher = nullptr;
     m_launchStatus.clear();
     emit launchProgressChanged(0, QString());
     emit launchStateChanged();
@@ -214,6 +215,7 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
 {
     qCDebug(logLaunch) << "[PROGRESS] ABORT: " << phase << "—" << reason;
     m_launching = false;
+    m_activeLauncher = nullptr;
     if (m_checkTimer) {
         m_checkTimer->stop();
     }
@@ -389,6 +391,7 @@ void LaunchBackend::runNextCheck()
         launcher->setAuthInfo(m_authName, m_authUuid, m_authToken, m_authIsOnline);
         launcher->setProperty("launchVersion", m_pendingVersionId);
         // Connect signals
+        m_activeLauncher = launcher;  // only this launcher's progress feeds the overlay
         connect(launcher, &Launcher::launchProgress, this, &LaunchBackend::onLaunchProgress);
         connect(launcher, &Launcher::launchStarted, this, [this, launcher]() { handleLaunchStarted(launcher); });
         connect(launcher, &Launcher::launchFinished, this, [this, launcher](bool ok, const QString& err) { handleLaunchFinished(launcher, ok, err); });
@@ -452,6 +455,7 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
         qCDebug(logLaunch) << "[PROGRESS] 100% - 启动完成 (窗口就绪)";
         qCInfo(logLaunch) << "Minecraft launch complete";
         emit logMessage(QStringLiteral("Minecraft 启动完成"));
+        m_activeLauncher = nullptr;  // release progress isolation
         // Delay m_launching=false until after overlay animation
         QTimer::singleShot(2200, this, [this]() {
             m_launching = false;
@@ -463,6 +467,11 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
 
 void LaunchBackend::onLaunchProgress(const QString& message)
 {
+    // Only accept progress from the currently-launching launcher
+    if (sender() != m_activeLauncher) {
+        return;
+    }
+
     // Once Minecraft process has started, freeze progress at 100%
     if (m_launchProgress >= 95) {
         emit logMessage(message);

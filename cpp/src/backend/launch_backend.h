@@ -83,6 +83,7 @@ private:
     void handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg);
 
     AccountBackend* m_account = nullptr;
+    Launcher* m_activeLauncher = nullptr;  // only accept progress from this launcher
     QList<Launcher*> m_runningLaunchers;
     QString m_gameDir;
     bool m_launching = false;
