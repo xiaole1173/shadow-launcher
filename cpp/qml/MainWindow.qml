@@ -275,7 +275,7 @@ Window {
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6
                                     Text {
-                                        text: modelData.version || "?"
+                                        text: modelData.displayVersion || modelData.version || "?"
                                         font.pixelSize: 11; color: "#d4dcf0"
                                         elide: Text.ElideRight; Layout.fillWidth: true
                                     }
@@ -288,7 +288,7 @@ Window {
                                         MouseArea {
                                             id: runningKillHover
                                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { if (backend) backend.killGameById(modelData.index) }
+                                            onClicked: { if (backend && !backend.killing) backend.killGameById(modelData.index) }
                                         }
                                     }
                                 }

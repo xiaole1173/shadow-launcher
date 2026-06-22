@@ -11,6 +11,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMap>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -859,10 +860,17 @@ void LaunchBackend::killGameById(int index)
 {
     qCDebug(logLaunch) << "[PROCESS] killGameById(" << index << ") —" << m_runningLaunchers.size() << "games total";
     if (index < 0 || index >= m_runningLaunchers.size()) return;
+    
+    m_killing = true;
+    emit killingChanged();
+    
     Launcher* launcher = m_runningLaunchers.at(index);
     launcher->killProcess();
     m_runningLaunchers.removeAt(index);
     launcher->deleteLater();
+    
+    m_killing = false;
+    emit killingChanged();
     emit runningCountChanged();
     if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
     emit logMessage(QStringLiteral("已结束游戏进程 #%1").arg(index));
@@ -875,10 +883,28 @@ void LaunchBackend::killGameById(int index)
 QVariantList LaunchBackend::runningGames() const
 {
     QVariantList list;
+    
+    // Count instances per version for (1), (2) suffixes
+    QMap<QString, int> versionCounts;
+    for (int i = 0; i < m_runningLaunchers.size(); ++i) {
+        QString ver = m_runningLaunchers[i]->property("launchVersion").toString();
+        versionCounts[ver]++;
+    }
+    
+    QMap<QString, int> versionSeen;
     for (int i = 0; i < m_runningLaunchers.size(); ++i) {
         QVariantMap info;
         info["index"] = i;
-        info["version"] = m_runningLaunchers[i]->property("launchVersion").toString();
+        QString ver = m_runningLaunchers[i]->property("launchVersion").toString();
+        info["version"] = ver;
+        
+        if (versionCounts[ver] > 1) {
+            versionSeen[ver]++;
+            info["displayVersion"] = ver + " (" + QString::number(versionSeen[ver]) + ")";
+        } else {
+            info["displayVersion"] = ver;
+        }
+        
         list.append(info);
     }
     return list;

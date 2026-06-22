@@ -68,6 +68,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString launchStatus READ launchStatus NOTIFY launchProgressChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
     Q_PROPERTY(int runningCount READ runningCount NOTIFY runningCountChanged)
+    Q_PROPERTY(bool killing READ isKilling NOTIFY killingChanged)
     Q_PROPERTY(QString launchVersion READ launchVersion NOTIFY launchStateChanged)
     Q_PROPERTY(QString launchUsername READ launchUsername NOTIFY launchStateChanged)
 
@@ -174,6 +175,7 @@ public:
     QString launchStatus() const;
     bool isRunning() const;
     int runningCount() const;
+    bool isKilling() const;
     QString launchVersion() const { return m_launchVersion; }
     QString launchUsername() const { return m_launchUsername; }
     void setLaunchVersion(const QString& v) { m_launchVersion = v; }
@@ -379,6 +381,7 @@ signals:
     void crashDetected(const QVariantMap& report);
     void isRunningChanged();
     void runningCountChanged();
+    void killingChanged();
     void resourceDownloadStateChanged();
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);

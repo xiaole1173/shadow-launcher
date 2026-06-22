@@ -260,7 +260,7 @@ void Launcher::forceKill()
     // Windows: kill process tree (synchronous — wait for taskkill to finish)
     QProcess killer;
     killer.start(QStringLiteral("taskkill"), QStringList() << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid));
-    killer.waitForFinished(8000);
+    killer.waitForFinished(500);  // 500ms max, then fall through to direct kill
 
     if (m_process->state() != QProcess::NotRunning) {
         m_process->kill();

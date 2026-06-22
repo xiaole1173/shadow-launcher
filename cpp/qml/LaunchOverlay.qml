@@ -86,7 +86,7 @@ Rectangle {
                 _animatingOut = false
                 progressValue = 0
                 statusText = "准备启动..."
-                if (!versionId) versionId = backend.launchVersion || ""
+                versionId = backend.launchVersion || ""
                 username = backend.launchUsername || ""
                 memory = backend.maxMemoryMb
                 checkFailed = false
@@ -316,9 +316,9 @@ Rectangle {
 
             Rectangle {
                 width: 100; height: 34; radius: 6
-                color: logMouse.containsMouse ? "#1a2838" : "transparent"
-                border.color: logMouse.containsMouse ? "#2858a0" : "#283850"
-                scale: logMouse.pressed ? 0.9 : (logMouse.containsMouse ? 1.04 : 1.0)
+                color: logMouse ? (logMouse.containsMouse ? "#1a2838" : "transparent") : "transparent"
+                border.color: logMouse ? (logMouse.containsMouse ? "#2858a0" : "#283850") : "#283850"
+                scale: logMouse ? (logMouse.pressed ? 0.9 : (logMouse.containsMouse ? 1.04 : 1.0)) : 1.0
                 visible: checkFailed
                 opacity: checkFailed ? 1 : 0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -330,7 +330,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: "查看日志"
                     font.pixelSize: 12
-                    color: logMouse.containsMouse ? "#80a0ff" : "#6090d0"
+                    color: logMouse ? (logMouse.containsMouse ? "#80a0ff" : "#6090d0") : "#6090d0"
                 }
 
                 MouseArea {
@@ -349,11 +349,11 @@ Rectangle {
 
             Rectangle {
                 width: checkFailed ? 140 : 120; height: 34; radius: 6
-                color: checkFailed ? (actionMouse.containsMouse ? "#1a2a18" : "transparent")
-                                   : (actionMouse.containsMouse ? "#2a1518" : "transparent")
-                border.color: checkFailed ? (actionMouse.containsMouse ? "#286028" : "#284028")
-                                          : (actionMouse.containsMouse ? "#602828" : "#402428")
-                scale: actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)
+                color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#1a2a18" : "transparent") : "transparent")
+                                   : (actionMouse ? (actionMouse.containsMouse ? "#2a1518" : "transparent") : "transparent")
+                border.color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#286028" : "#284028") : "#284028")
+                                          : (actionMouse ? (actionMouse.containsMouse ? "#602828" : "#402428") : "#402428")
+                scale: actionMouse ? (actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)) : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -362,8 +362,8 @@ Rectangle {
                     anchors.centerIn: parent
                     text: checkFailed ? "返回启动页" : "取消启动"
                     font.pixelSize: 12
-                    color: checkFailed ? (actionMouse.containsMouse ? "#80ff80" : "#60c060")
-                                       : (actionMouse.containsMouse ? "#ff6060" : "#c05050")
+                    color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#80ff80" : "#60c060") : "#60c060")
+                                       : (actionMouse ? (actionMouse.containsMouse ? "#ff6060" : "#c05050") : "#c05050")
                 }
 
                 MouseArea {
