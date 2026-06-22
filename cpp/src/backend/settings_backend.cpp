@@ -1,4 +1,4 @@
-﻿#include "settings_backend.h"
+#include "settings_backend.h"
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
 
@@ -567,17 +567,13 @@ QVector<SettingsBackend::JavaInfo> SettingsBackend::findAllJava()
         QDir d(searchDir);
         if (!d.exists()) continue;
 
-        QDirIterator it(searchDir, QDir::Dirs | QDir::NoDotAndDotDot,
-                        QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            it.next();
-            QString fp = it.filePath();
-            int depth = fp.count(QRegularExpression(QStringLiteral("[\\\\/]")))
-                        - searchDir.count(QRegularExpression(QStringLiteral("[\\\\/]")));
-            if (depth > 4) continue;
-            add(findJavaInDir(fp));
-        }
+        // Check top level + depth-1 subdirectories only (Java never deeper than 2 levels)
+        // PCL uses registry for precision; directory scan is supplementary
         add(findJavaInDir(searchDir));
+        const auto entries = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const auto& entry : entries) {
+            add(findJavaInDir(entry.absoluteFilePath()));
+        }
     }
 
     // 4. Windows Registry

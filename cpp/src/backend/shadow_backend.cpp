@@ -1178,7 +1178,7 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     if (javaPath.isEmpty()) {
         // Check if scan is still in progress (async, takes ~500ms)
         if (m_settings->isJavaScanning()) {
-            emit logMessage(QStringLiteral("⏳ Java 扫描尚未完成，请稍候再试"));
+            emit logMessage(QStringLiteral("[JAVA] Java scan still in progress, please wait and try again"));
         } else {
             emit logMessage(QStringLiteral("❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
                                 .arg(requiredMajor));
