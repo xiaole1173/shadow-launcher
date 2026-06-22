@@ -2953,6 +2953,12 @@ Rectangle {
         active: page._showRpDetail
         source: active ? "ResourcePackDetailPage.qml" : ""
 
+        Connections {
+            id: rpGoBackConn
+            target: null
+            function onGoBack() { page._showRpDetail = false }
+        }
+
         onLoaded: {
             item.backend = backend
             item.toastManager = toastManager
@@ -2964,7 +2970,7 @@ Rectangle {
             item.rpDetailDesc = page._rpDetailDesc
             item.rpDetailDownloads = page._rpDetailDownloads
             item.rpDetailUpdated = page._rpDetailUpdated
-            item.goBack.connect(function() { _showRpDetail = false })
+            rpGoBackConn.target = item
         }
     }
 
@@ -2982,6 +2988,12 @@ Rectangle {
         active: page._showModDetail
         source: active ? "ModDetailPage.qml" : ""
 
+        Connections {
+            id: modGoBackConn
+            target: null
+            function onGoBack() { page._showModDetail = false }
+        }
+
         onLoaded: {
             item.backend = backend
             item.toastManager = toastManager
@@ -2990,7 +3002,7 @@ Rectangle {
             item.modDetailTitle = page._modDetailTitle
             item.modDetailDesc = page._modDetailDesc
             item.modDetailIcon = page._modDetailIcon
-            item.goBack.connect(function() { _showModDetail = false })
+            modGoBackConn.target = item
         }
     }
 
