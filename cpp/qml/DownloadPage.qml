@@ -934,6 +934,7 @@ Rectangle {
                                     page.modLoader = ""; page.modGameVersion = ""
                                     page.modCategory = ""; page.modEnvironment = ""
                                     modInput.text = ""; modResultsModel.clear()
+                                    doModSearch()
                                 }
                             }
                         }
@@ -948,11 +949,18 @@ Rectangle {
                         Rectangle {
                             id: modLdrPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
-                            color: ldrHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: (ldrHov.hovered || page.modLoader) ? "#4068c8" : "#2a3040"
-                            border.width: (ldrHov.hovered || page.modLoader) ? 1.5 : 1
+                            color: ldrHov.containsMouse ? "#1a2848" : "#0c0e14"
+                            border.color: (ldrHov.containsMouse || page.modLoader) ? "#4068c8" : "#2a3040"
+                            border.width: (ldrHov.containsMouse || page.modLoader) ? 1.5 : 1
+
+                            // Elastic click
+                            property real _eScale: 1.0
+                            scale: _eScale
+                            Timer { id: ldrRestoreTimer; interval: 100; onTriggered: { modLdrPill._eScale = 1.0 } }
+
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
+                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
@@ -967,7 +975,11 @@ Rectangle {
                             MouseArea {
                                 id: ldrHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (ldrMenu.visible) ldrMenu.close(); else ldrMenu.open() }
+                                onClicked: {
+                                    modLdrPill._eScale = 0.9
+                                    ldrRestoreTimer.restart()
+                                    if (ldrMenu.visible) ldrMenu.close(); else ldrMenu.open()
+                                }
                             }
 
                             Popup {
@@ -975,6 +987,17 @@ Rectangle {
                                 y: parent.height + 4; width: 110
                                 height: Math.min(ldrMenuFlick.contentHeight + 8, 220)
                                 padding: 0
+
+                                enter: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                        NumberAnimation { property: "y"; from: ldrMenu.y - 4; to: ldrMenu.y; duration: 180; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                                exit: Transition {
+                                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 }
+                                }
+
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
@@ -1012,11 +1035,17 @@ Rectangle {
                         Rectangle {
                             id: modVerPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
-                            color: verHov2.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: (verHov2.hovered || page.modGameVersion) ? "#4068c8" : "#2a3040"
-                            border.width: (verHov2.hovered || page.modGameVersion) ? 1.5 : 1
+                            color: verHov2.containsMouse ? "#1a2848" : "#0c0e14"
+                            border.color: (verHov2.containsMouse || page.modGameVersion) ? "#4068c8" : "#2a3040"
+                            border.width: (verHov2.containsMouse || page.modGameVersion) ? 1.5 : 1
+
+                            property real _eScale: 1.0
+                            scale: _eScale
+                            Timer { id: verRestoreTimer; interval: 100; onTriggered: { modVerPill._eScale = 1.0 } }
+
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
+                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
@@ -1031,7 +1060,11 @@ Rectangle {
                             MouseArea {
                                 id: verHov2; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (verMenu.visible) verMenu.close(); else verMenu.open() }
+                                onClicked: {
+                                    modVerPill._eScale = 0.9
+                                    verRestoreTimer.restart()
+                                    if (verMenu.visible) verMenu.close(); else verMenu.open()
+                                }
                             }
 
                             Popup {
@@ -1039,6 +1072,17 @@ Rectangle {
                                 y: parent.height + 4; width: 130
                                 height: Math.min(verFlick.contentHeight + 8, 220)
                                 padding: 0
+
+                                enter: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                        NumberAnimation { property: "y"; from: verMenu.y - 4; to: verMenu.y; duration: 180; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                                exit: Transition {
+                                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 }
+                                }
+
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
@@ -1103,11 +1147,17 @@ Rectangle {
                         Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 90; height: 24; radius: 4
-                            color: catHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: (catHov.hovered || page.modCategory) ? "#4068c8" : "#2a3040"
-                            border.width: (catHov.hovered || page.modCategory) ? 1.5 : 1
+                            color: catHov.containsMouse ? "#1a2848" : "#0c0e14"
+                            border.color: (catHov.containsMouse || page.modCategory) ? "#4068c8" : "#2a3040"
+                            border.width: (catHov.containsMouse || page.modCategory) ? 1.5 : 1
+
+                            property real _eScale: 1.0
+                            scale: _eScale
+                            Timer { id: catRestoreTimer; interval: 100; onTriggered: { modCatPill._eScale = 1.0 } }
+
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
+                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
@@ -1122,7 +1172,11 @@ Rectangle {
                             MouseArea {
                                 id: catHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (catMenu.visible) catMenu.close(); else catMenu.open() }
+                                onClicked: {
+                                    modCatPill._eScale = 0.9
+                                    catRestoreTimer.restart()
+                                    if (catMenu.visible) catMenu.close(); else catMenu.open()
+                                }
                             }
 
                             Popup {
@@ -1130,6 +1184,17 @@ Rectangle {
                                 y: parent.height + 4; width: 140
                                 height: Math.min(catFlick.contentHeight + 8, 300)
                                 padding: 0
+
+                                enter: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                        NumberAnimation { property: "y"; from: catMenu.y - 4; to: catMenu.y; duration: 180; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                                exit: Transition {
+                                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 }
+                                }
+
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
@@ -1180,11 +1245,17 @@ Rectangle {
                         Rectangle {
                             id: modEnvPill
                             Layout.preferredWidth: 72; height: 24; radius: 4
-                            color: envHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: (envHov.hovered || page.modEnvironment) ? "#4068c8" : "#2a3040"
-                            border.width: (envHov.hovered || page.modEnvironment) ? 1.5 : 1
+                            color: envHov.containsMouse ? "#1a2848" : "#0c0e14"
+                            border.color: (envHov.containsMouse || page.modEnvironment) ? "#4068c8" : "#2a3040"
+                            border.width: (envHov.containsMouse || page.modEnvironment) ? 1.5 : 1
+
+                            property real _eScale: 1.0
+                            scale: _eScale
+                            Timer { id: envRestoreTimer; interval: 100; onTriggered: { modEnvPill._eScale = 1.0 } }
+
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
+                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 2; spacing: 1
@@ -1199,7 +1270,11 @@ Rectangle {
                             MouseArea {
                                 id: envHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (envMenu.visible) envMenu.close(); else envMenu.open() }
+                                onClicked: {
+                                    modEnvPill._eScale = 0.9
+                                    envRestoreTimer.restart()
+                                    if (envMenu.visible) envMenu.close(); else envMenu.open()
+                                }
                             }
 
                             Popup {
@@ -1207,6 +1282,17 @@ Rectangle {
                                 y: parent.height + 4; width: 120
                                 height: Math.min(envFlick.contentHeight + 8, 160)
                                 padding: 0
+
+                                enter: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                        NumberAnimation { property: "y"; from: envMenu.y - 4; to: envMenu.y; duration: 180; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                                exit: Transition {
+                                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 }
+                                }
+
                                 background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
 
                                 Flickable {
@@ -1321,23 +1407,6 @@ Rectangle {
                                 Behavior on border.width { NumberAnimation { duration: 150 } }
                                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-                                MouseArea {
-                                    id: modItemMA
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        modItem._shaking = true
-                                        page.modDetailSlug = model.slug
-                                        page.modDetailTitle = model.title || ""
-                                        page.modDetailDesc = model.desc || ""
-                                        page.modDetailIcon = model.icon || ""
-                                        page.modDetailLoading = true
-                                        modDetailVerModel.clear()
-                                        backend.fetchModVersions([model.slug])
-                                    }
-                                }
-
                                 RowLayout {
                                     anchors.fill: parent; anchors.margins: 8; spacing: 8
 
@@ -1410,6 +1479,28 @@ Rectangle {
                                             text: model.desc || ""; color: "#606478"
                                             font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
                                         }
+                                    }
+                                }
+
+                                // MouseArea on top of children for reliable hover
+                                MouseArea {
+                                    id: modItemMA
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        modItem._shaking = true
+                                        modDetailOverlay._closing = false
+                                        slideOutCleanupTimer.stop()
+                                        page.modDetailSlug = model.slug
+                                        page.modDetailTitle = model.title || ""
+                                        page.modDetailDesc = model.desc || ""
+                                        page.modDetailIcon = model.icon || ""
+                                        page.modDetailLoading = true
+                                        modDetailVerModel.clear()
+                                        backend.fetchModVersions([model.slug])
+                                    }
+                                }
                                         Text {
                                             text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
                                         }
@@ -3368,6 +3459,7 @@ Rectangle {
         height: parent.height
         z: 10
         x: 0
+        opacity: 1
         visible: page.modDetailSlug !== "" && !modDetailOverlay._closing
 
         property bool _closing: false
@@ -3375,16 +3467,20 @@ Rectangle {
         Behavior on x {
             NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
         }
+        Behavior on opacity {
+            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+        }
 
         // Slide in from right on open
         onVisibleChanged: {
-            if (visible) { x = parent.width; slideInTimer.start() }
+            if (visible) { x = parent.width; opacity = 1; slideInTimer.start() }
         }
         Timer { id: slideInTimer; interval: 16; onTriggered: { modDetailOverlay.x = 0 } }
 
         // Slide out to right on close (called by back button)
         function animateOut() {
             modDetailOverlay._closing = true
+            modDetailOverlay.opacity = 0
             modDetailOverlay.x = parent.width
             slideOutCleanupTimer.start()
         }
@@ -3578,12 +3674,8 @@ Rectangle {
                             text: "版本数量: " + _displayCount
                             color: "#7888a8"; font.pixelSize: 11
 
-                            NumberAnimation on _displayCount {
-                                id: verCountAnim
-                                running: false
-                                from: 0
-                                duration: 2000
-                                easing.type: Easing.OutCubic
+                            Behavior on _displayCount {
+                                NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
                             }
 
                             Connections {
@@ -3591,9 +3683,7 @@ Rectangle {
                                 function onModDetailLoadingChanged() {
                                     if (!page.modDetailLoading) {
                                         var total = (page.modDetailRawVersions || []).length
-                                        verCountAnim.to = total
-                                        verCountAnim.from = modVerCountText._displayCount
-                                        verCountAnim.restart()
+                                        modVerCountText._displayCount = total
                                     }
                                 }
                             }
@@ -3634,6 +3724,7 @@ Rectangle {
 
                         // Spinner ring (same style as MinecraftHead2D)
                         Rectangle {
+                            id: spinnerBox
                             width: 24; height: 24; radius: 12; color: "transparent"
                             visible: page.modDetailLoading
 
@@ -3642,8 +3733,10 @@ Rectangle {
                                 running: page.modDetailLoading
                                 from: 0; to: 360; duration: 1000; loops: Animation.Infinite
                             }
+                            on_AngleChanged: spinCanvas.requestPaint()
 
                             Canvas {
+                                id: spinCanvas
                                 anchors.fill: parent
                                 visible: page.modDetailLoading
 
@@ -3653,22 +3746,13 @@ Rectangle {
                                     ctx.clearRect(0, 0, cw, ch)
                                     var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 3
                                     if (r <= 0) return
-                                    var startRad = (parent._angle - 90) * Math.PI / 180
-                                    var endRad = (parent._angle + 180) * Math.PI / 180
+                                    var startRad = (spinnerBox._angle - 90) * Math.PI / 180
+                                    var endRad = (spinnerBox._angle + 180) * Math.PI / 180
                                     ctx.strokeStyle = "#5b8def"
                                     ctx.lineWidth = 2; ctx.lineCap = "round"
                                     ctx.beginPath()
                                     ctx.arc(cx, cy, r, startRad, endRad)
                                     ctx.stroke()
-                                }
-                            }
-                            Connections {
-                                target: parent
-                                function on_AngleChanged() {
-                                    var kids = parent.children
-                                    for (var i = 0; i < kids.length; i++) {
-                                        if (kids[i] instanceof Canvas) kids[i].requestPaint()
-                                    }
                                 }
                             }
                         }
@@ -3771,33 +3855,24 @@ Rectangle {
                                             border.color: verHover.containsMouse ? (verHover.containsMouse ? "#4068c8" : "#2a4060") : "#1a2848"
                                             border.width: verHover.containsMouse ? 1.5 : 1
 
-                                            // Spring-in entrance
-                                            property real _eScale: 0.7
-                                            transform: Scale {
-                                                origin.x: verCard.width / 2
-                                                origin.y: verCard.height / 2
-                                                xScale: verCard._eScale
-                                                yScale: verCard._eScale
-                                            }
+                                            // Fade-in entrance
+                                            opacity: 0
+                                            Component.onCompleted: { opacity = 1 }
 
-                                            Component.onCompleted: {
-                                                verCardSpringTimer.start()
-                                            }
-                                            Timer {
-                                                id: verCardSpringTimer; interval: 30
-                                                onTriggered: { verCard._eScale = 1.0 }
-                                            }
-
-                                            Behavior on _eScale {
-                                                SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
+                                            // Elastic click feedback
+                                            property real _clickScale: 1.0
+                                            scale: _clickScale
+                                            Timer { id: clickRestoreTimer; interval: 100
+                                                onTriggered: { verCard._clickScale = 1.0 }
                                             }
 
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                             Behavior on border.color { ColorAnimation { duration: 200 } }
                                             Behavior on border.width { NumberAnimation { duration: 150 } }
-
-                                            // Elastic click restore timer
-                                            Timer { id: clickRestoreTimer; interval: 80; onTriggered: { verCard._eScale = 1.0 } }
+                                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                            Behavior on _clickScale {
+                                                SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
+                                            }
 
                                             // Gradient overlay (hover glow)
                                             Rectangle {
@@ -3855,7 +3930,7 @@ Rectangle {
                                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     // Elastic click feedback
-                                                    verCard._eScale = 0.92
+                                                    verCard._clickScale = 0.92
                                                     clickRestoreTimer.restart()
 
                                                     console.log("[mod-download] CLICKED:", modelData)
