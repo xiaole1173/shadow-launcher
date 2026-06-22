@@ -498,48 +498,67 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     args << mainClass;
 
     // ── Minecraft arguments ──
-    // Parse arguments from version JSON
-    QJsonObject arguments = versionJson[QStringLiteral("arguments")].toObject();
+    // Walk inheritsFrom chain: child args (Forge --launchTarget) first, then parent args
     QJsonArray gameArgs;
-
-    if (!arguments.isEmpty()) {
-        // Modern format (1.13+): arguments.game — filter by rules, then expand
-        const QJsonArray raw = arguments[QStringLiteral("game")].toArray();
-        for (const QJsonValue& val : raw) {
-            if (val.isString()) {
-                gameArgs.append(val.toString());
-            } else if (val.isObject()) {
-                QJsonObject obj = val.toObject();
-                QJsonArray rulesArr = obj[QStringLiteral("rules")].toArray();
-                if (!rulesArr.isEmpty()) {
-                    bool include = evaluateRules(rulesArr);
-                    if (!include) continue;
+    {
+        QJsonObject chainJson = versionJson;
+        QString chainId = versionId;
+        QStringList visitedArgs;
+        while (true) {
+            QJsonObject argsObj = chainJson[QStringLiteral("arguments")].toObject();
+            if (!argsObj.isEmpty()) {
+                // Modern format (1.13+): arguments.game — filter by rules, then expand
+                const QJsonArray raw = argsObj[QStringLiteral("game")].toArray();
+                for (const QJsonValue& val : raw) {
+                    if (val.isString()) {
+                        gameArgs.prepend(val.toString());
+                    } else if (val.isObject()) {
+                        QJsonObject obj = val.toObject();
+                        QJsonArray rulesArr = obj[QStringLiteral("rules")].toArray();
+                        if (!rulesArr.isEmpty()) {
+                            bool include = evaluateRules(rulesArr);
+                            if (!include) continue;
+                        }
+                        QJsonValue value = obj[QStringLiteral("value")];
+                        if (value.isString()) {
+                            gameArgs.prepend(value.toString());
+                        } else if (value.isArray()) {
+                            for (const QJsonValue& v : value.toArray()) {
+                                if (v.isString()) gameArgs.prepend(v.toString());
+                            }
+                        }
+                    }
                 }
-                QJsonValue value = obj[QStringLiteral("value")];
-                if (value.isString()) {
-                    gameArgs.append(value.toString());
-                } else if (value.isArray()) {
-                    for (const QJsonValue& v : value.toArray()) {
-                        if (v.isString()) gameArgs.append(v.toString());
+            } else {
+                // Legacy format: minecraftArguments string (lowest priority, append at end)
+                QString mcArgs = chainJson[QStringLiteral("minecraftArguments")].toString();
+                if (!mcArgs.isEmpty()) {
+                    static const QRegularExpression argSplitter(
+                        QStringLiteral(R"("(?:[^"\\]|\\.)*"|\S+)"));
+                    QRegularExpressionMatchIterator it = argSplitter.globalMatch(mcArgs);
+                    while (it.hasNext()) {
+                        QRegularExpressionMatch m = it.next();
+                        QString part = m.captured(0);
+                        if (part.startsWith(QLatin1Char('"')) && part.endsWith(QLatin1Char('"')))
+                            part = part.mid(1, part.size() - 2);
+                        if (!part.isEmpty()) gameArgs.append(part);
                     }
                 }
             }
-        }
-    } else {
-        // Legacy format: minecraftArguments string
-        QString mcArgs = versionJson[QStringLiteral("minecraftArguments")].toString();
-        if (!mcArgs.isEmpty()) {
-            // Split by spaces, respecting quoted strings
-            static const QRegularExpression argSplitter(
-                QStringLiteral(R"("(?:[^"\\]|\\.)*"|\S+)"));
-            QRegularExpressionMatchIterator it = argSplitter.globalMatch(mcArgs);
-            while (it.hasNext()) {
-                QRegularExpressionMatch m = it.next();
-                QString part = m.captured(0);  // whole match
-                if (part.startsWith(QLatin1Char('"')) && part.endsWith(QLatin1Char('"')))
-                    part = part.mid(1, part.size() - 2);
-                if (!part.isEmpty()) gameArgs.append(part);
-            }
+            // Walk up
+            QString parentId = chainJson[QStringLiteral("inheritsFrom")].toString();
+            if (parentId.isEmpty() || visitedArgs.contains(parentId)) break;
+            visitedArgs.append(parentId);
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId
+                               + QStringLiteral("/") + parentId + QStringLiteral(".json");
+            QFile pf(parentPath);
+            if (!pf.open(QIODevice::ReadOnly)) break;
+            QJsonParseError pe;
+            QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
+            pf.close();
+            if (pe.error != QJsonParseError::NoError) break;
+            chainJson = pd.object();
+            chainId = parentId;
         }
     }
 

@@ -9,6 +9,15 @@ Rectangle {
     property var backend: null
     property var toastManager: null
 
+    // Reset dismiss state when backend is assigned (after Loader.onLoaded)
+    onBackendChanged: {
+        if (backend) {
+            console.log("[overlay] backend assigned, resetting _dismissed")
+            _dismissed = false
+            _animatingOut = false
+        }
+    }
+
     // Visibility: dismiss flag overrides all other conditions
     property bool _dismissed: false
     property bool _animatingOut: false
@@ -128,7 +137,7 @@ Rectangle {
         }
 
         function onLaunchStateChanged() {
-            console.log("[overlay] onLaunchStateChanged: backend.launching=" + (backend ? backend.launching : "null"))
+            console.log("[overlay] onLaunchStateChanged: backend.launching=" + (backend ? backend.launching : "null") + " _dismissed=" + _dismissed)
             if (backend && backend.launching) {
                 console.log("[overlay] New launch -> reset _dismissed + progress")
                 _dismissed = false
