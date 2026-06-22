@@ -12,6 +12,14 @@
 #include <QTextStream>
 #include <QTimer>
 
+#ifdef Q_OS_WIN
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#  include <tlhelp32.h>
+#endif
+
 // QZipReader is a Qt private API in QtGui.
 // If linking fails, add  Qt6::GuiPrivate  to target_link_libraries in CMakeLists.txt.
 #include <private/qzipreader_p.h>
@@ -252,23 +260,42 @@ bool Launcher::validateLaunch(const QString& versionId, const QString& javaPath,
 
 void Launcher::forceKill()
 {
-    if (!m_process) return;
+    qint64 pid = m_pid > 0 ? m_pid : (m_process ? m_process->processId() : 0);
+    if (pid <= 0) return;
 
-    qint64 pid = m_pid > 0 ? m_pid : m_process->processId();
-    if (pid <= 0) {
-        m_process->kill();
+#ifdef Q_OS_WIN
+    // Take a snapshot of all processes
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) {
+        // Fallback: try taskkill
+        QProcess::execute(QStringLiteral("taskkill"), QStringList() << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid));
         return;
     }
 
-#ifdef Q_OS_WIN
-    // Kill entire Minecraft process tree. startDetached is fire-and-forget.
-    QStringList args;
-    args << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid);
-    QProcess::startDetached(QStringLiteral("taskkill"), args);
-    // Also directly kill what QProcess knows about, as immediate backup
-    m_process->kill();
+    // First pass: kill the target process itself
+    HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
+    if (hProc) {
+        TerminateProcess(hProc, 1);
+        CloseHandle(hProc);
+    }
+
+    // Second pass: kill all child processes
+    PROCESSENTRY32 pe;
+    pe.dwSize = sizeof(PROCESSENTRY32);
+    if (Process32First(hSnapshot, &pe)) {
+        do {
+            if (pe.th32ParentProcessID == (DWORD)pid) {
+                HANDLE hChild = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
+                if (hChild) {
+                    TerminateProcess(hChild, 1);
+                    CloseHandle(hChild);
+                }
+            }
+        } while (Process32Next(hSnapshot, &pe));
+    }
+    CloseHandle(hSnapshot);
 #else
-    m_process->kill();
+    if (m_process) m_process->kill();
 #endif
 }
 
