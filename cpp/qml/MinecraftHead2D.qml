@@ -3,16 +3,19 @@ import QtQuick
 Rectangle {
     id: root
     property url skinSource: ""
+    property bool showSpinner: true
     width: 48; height: 48
     color: "transparent"
 
     // ── Simple spinner: continuous rotating arc ──
     property real _angle: 0
-    property bool _spinning: img.status !== Image.Ready
+    property bool _spinning: root.showSpinner && (
+        img.status !== Image.Ready
         || _spinnerMinVisible
         || img.status === Image.Loading
         || img.status === Image.Error
         || (img.status === Image.Null && root.skinSource.toString())
+    )
     property bool _spinnerMinVisible: false
     Timer { id: spinnerMinTimer; interval: 300; onTriggered: _spinnerMinVisible = false }
 

@@ -233,6 +233,7 @@ Rectangle {
             MinecraftHead2D {
                 Layout.alignment: Qt.AlignHCenter
                 width: 48; height: 48
+                showSpinner: false
                 skinSource: (backend && backend.offlineSkinPath) ? backend.offlineSkinPath : ""
             }
 
