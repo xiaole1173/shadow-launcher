@@ -7,7 +7,9 @@ Rectangle {
     color: "transparent"
 
     // ── Google Material Spinner ──
-    property real _dashOffset: 0
+    // Two LAYERS (no conflicts):
+    //   Layer 1 (GPU): Item + RotationAnimator → continuous clockwise rotation
+    //   Layer 2 (CPU): Canvas + SequentialAnimation → dash stretch/hold/snap
     property real _dashLen: 0.01
     property real _circumference: 0
 
@@ -24,52 +26,55 @@ Rectangle {
         _circumference = 2 * Math.PI * r
     }
 
-    // ── Rotation ──
-    // Jump from -C to 0 at loop boundary is invisible: circle line-dash wraps.
-    NumberAnimation on _dashOffset {
-        running: root._spinning
-        from: 0; to: -_circumference; duration: 2000; loops: Animation.Infinite
-    }
-
-    // ── Dash cycle (Google keyframes mapped to QML) ──
-    // Phase 1: stretch 0→44%  700ms  OutCubic
-    // Phase 2: hold    44%    800ms
-    // Loop restart: from=0 snaps to dot (tail catches head)
-    SequentialAnimation on _dashLen {
-        running: root._spinning
-        loops: Animation.Infinite
-        NumberAnimation { from: 0.01; to: _circumference * 0.44; duration: 700; easing.type: Easing.OutCubic }
-        PauseAnimation { duration: 800 }
-    }
-
-    Canvas {
-        id: spinner
+    // ── Layer 1: GPU rotation (render thread, not main thread) ──
+    Item {
+        id: rotator
         anchors.fill: parent
-        visible: root._spinning
+        rotation: 0
 
-        onPaint: {
-            var ctx = getContext("2d")
-            var cw = width, ch = height
-            ctx.clearRect(0, 0, cw, ch)
-            if (root._circumference <= 0) return
+        RotationAnimator on rotation {
+            running: root._spinning
+            from: 0; to: 360; duration: 2000; loops: Animation.Infinite
+            direction: RotationAnimator.Clockwise
+        }
 
-            var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5
-            ctx.strokeStyle = "#5b8def"
-            ctx.lineWidth = 2.5
-            ctx.lineCap = "round"
+        // ── Layer 2: dash animation on Canvas ──
+        Canvas {
+            id: spinner
+            anchors.fill: parent
+            visible: root._spinning
 
-            ctx.setLineDash([root._dashLen, root._circumference - root._dashLen])
-            ctx.lineDashOffset = root._dashOffset
+            // Dash cycle: stretch 0→44% in 700ms, hold 800ms, loop-snap = catch-up
+            SequentialAnimation on _dashLen {
+                running: root._spinning
+                loops: Animation.Infinite
+                NumberAnimation { from: 0.01; to: root._circumference * 0.44; duration: 700; easing.type: Easing.OutCubic }
+                PauseAnimation { duration: 800 }
+            }
 
-            ctx.beginPath()
-            ctx.arc(cx, cy, r, 0, Math.PI * 2)
-            ctx.stroke()
+            onPaint: {
+                var ctx = getContext("2d")
+                var cw = width, ch = height
+                ctx.clearRect(0, 0, cw, ch)
+                if (root._circumference <= 0) return
+
+                var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5
+                ctx.strokeStyle = "#5b8def"
+                ctx.lineWidth = 2.5
+                ctx.lineCap = "round"
+
+                ctx.setLineDash([root._dashLen, root._circumference - root._dashLen])
+                ctx.lineDashOffset = 0
+
+                ctx.beginPath()
+                ctx.arc(cx, cy, r, 0, Math.PI * 2)
+                ctx.stroke()
+            }
         }
     }
 
     Connections {
         target: root
-        function on_DashOffsetChanged() { spinner.requestPaint() }
         function on_DashLenChanged() { spinner.requestPaint() }
         function on_SpinningChanged() { if (root._spinning) spinner.requestPaint() }
     }
