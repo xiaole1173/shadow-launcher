@@ -25,13 +25,13 @@ Rectangle {
         easing.type: Easing.Linear
     }
 
-    // Asymmetric arc: dash grows fast, crawls slow, then snaps to dot
+    // 4-phase cycle: stretch → crawl → catch-up (tail chases head)
     SequentialAnimation on _spinnerArcLen {
         running: root._spinning
         loops: Animation.Infinite
-        NumberAnimation { from: 5;  to: 270; duration: 800; easing.type: Easing.OutCubic  }  // fast stretch
-        NumberAnimation { from: 270; to: 330; duration: 1000; easing.type: Easing.InQuart   }  // slow crawl
-        NumberAnimation { from: 330; to: 5;   duration: 1   }                                   // instant snap                                   // instant snap
+        NumberAnimation { from: 5;  to: 280; duration: 700; easing.type: Easing.OutCubic  }  // stretch
+        NumberAnimation { from: 280; to: 340; duration: 900; easing.type: Easing.InQuart   }  // slow crawl
+        NumberAnimation { from: 340; to: 5;   duration: 400; easing.type: Easing.OutExpo   }  // tail catches head
     }
 
     Canvas {
