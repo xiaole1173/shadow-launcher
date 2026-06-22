@@ -639,12 +639,13 @@ void AccountBackend::loadMicrosoftSession()
     m_msMcToken = obj[QStringLiteral("mcToken")].toString();
     m_msRefreshToken = obj[QStringLiteral("refreshToken")].toString();
 
-    if (!m_msRefreshToken.isEmpty()) {
+    // Session loaded — consider logged in if either refreshToken or mcToken exists
+    if (!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) {
         qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
         m_loggedIn = true;
         m_isOnline = true;
         downloadSkin(m_username);
-        QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
+        if (!m_msRefreshToken.isEmpty()) {
     }
 }
 
