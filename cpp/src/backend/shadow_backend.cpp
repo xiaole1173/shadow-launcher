@@ -42,6 +42,7 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
+#include <QRegularExpression>
 
 namespace ShadowLauncher {
 
@@ -1233,10 +1234,64 @@ int ShadowBackend::requiredJavaMajor(const QString& versionId)
         currentId = json[QStringLiteral("inheritsFrom")].toString();
     }
 
-    // Fallback: pre-1.17 → Java 8 (LaunchWrapper compatibility)
-    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 (no javaVersion in chain) → default Java 8")
-                        .arg(versionId);
-    return 8;
+    // Fallback: parse MC version from versionId and infer Java requirement
+    // Examples: "1.12.2-Forge-14.23.5.2860" → "1.12.2" → Java 8
+    //           "26.1.1-Forge-63.0.2" → "26.1.1" → no known mapping → try base version
+    // Parse MC version: everything before first "-" that follows a digit
+    QString mcVer;
+    // Strip loader suffix: "X.Y.Z-Forge-..." → "X.Y.Z"
+    static QRegularExpression mcVerRe(QStringLiteral("^(\\d+\\.\\d+(?:\\.\\d+)?)"));
+    QRegularExpressionMatch match = mcVerRe.match(versionId);
+    if (match.hasMatch()) {
+        mcVer = match.captured(1);
+    }
+    
+    int javaMajor = inferJavaByMcVersion(mcVer);
+    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 → MC %2 → inferred Java %3 (no javaVersion in chain)")
+                        .arg(versionId, mcVer.isEmpty() ? QStringLiteral("unknown") : mcVer).arg(javaMajor);
+    return javaMajor;
+}
+
+int ShadowBackend::inferJavaByMcVersion(const QString& mcVersion)
+{
+    // Fallback: infer Java major version from MC version string
+    // Used when version JSON + inheritsFrom chain has no javaVersion field
+    //
+    // Official Mojang mappings:
+    //   MC < 1.17         → Java 8
+    //   MC 1.17           → Java 16
+    //   MC 1.18 ~ 1.20.4  → Java 17
+    //   MC 1.20.5 ~ 1.21  → Java 21
+    //   MC 1.22+ (26.x)   → Java 25 (java-runtime-beta)
+    //
+    if (mcVersion.isEmpty()) return 8;
+
+    // Parse major.minor from version string
+    QStringList parts = mcVersion.split(QStringLiteral("."));
+    if (parts.size() < 2) return 8;
+    
+    int major = parts[0].toInt();
+    int minor = parts[1].toInt();
+    
+    // Post-rename era: "26.1.1" → major=26 (Mojang renamed 1.22+ to 26+)
+    if (major >= 22) return 25;  // java-runtime-beta
+    
+    // Classic era: "1.X.Y" → major==1, minor=X
+    if (major == 1) {
+        if (minor >= 20) {
+            if (parts.size() >= 3) {
+                int rev = parts[2].toInt();
+                if (rev >= 5) return 21;  // 1.20.5+
+            }
+            return 17;  // 1.20.x (default to 17, 1.20.5+ handled above)
+        }
+        if (minor == 18 || minor == 19) return 17;  // 1.18~1.19
+        if (minor == 17) return 16;
+        return 8;  // 1.16.x and below
+    }
+    
+    // Unknown version scheme → try conservative
+    return 21;
 }
 
 void ShadowBackend::killGameProcess() {

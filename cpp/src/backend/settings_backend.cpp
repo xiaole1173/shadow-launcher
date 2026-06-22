@@ -15,6 +15,7 @@
 #include <QCoreApplication>
 #include <future>
 #include <algorithm>
+#include <climits>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -271,42 +272,55 @@ QString SettingsBackend::autoSelectJava()
 QString SettingsBackend::findJavaForVersion(int requiredMajor)
 {
     // Searches cached Java list for best match to required major version.
-    // For Java 8: MUST match exactly (Java 9+ breaks LaunchWrapper for pre-1.6)
-    // For higher: any Java >= requiredMajor, prefer closest match.
+    // Strategy (matches PCL):
+    //   1. Exact match (== requiredMajor) → always preferred
+    //   2. Closest higher match (>= requiredMajor, smallest diff) → compatible
+    //   3. Java 8 special: must be exact (Java 9+ breaks pre-1.6 LaunchWrapper)
     const auto& results = cachedJavaList();
     
-    if (results.isEmpty()) return {};
-    
-    // Prefer exact match first
-    const JavaInfo* best = nullptr;
-    for (const auto& j : results) {
-        if (j.major == requiredMajor) {
-            best = &j;
-            break;
-        }
-    }
-    
-    // For Java 8, exact match is mandatory
-    if (!best && requiredMajor == 8) {
+    if (results.isEmpty()) {
+        qCWarning(logLaunch) << "[JAVA] No Java installations found in cache";
         return {};
     }
     
-    // For higher versions, find any compatible Java (>= required)
-    if (!best) {
-        for (const auto& j : results) {
-            if (j.major > requiredMajor) {
-                best = &j;
-                break;
+    const JavaInfo* exactMatch = nullptr;
+    const JavaInfo* closestHigher = nullptr;
+    int closestDiff = INT_MAX;
+    
+    for (const auto& j : results) {
+        if (j.major == requiredMajor) {
+            exactMatch = &j;
+            break; // exact match always wins, stop early
+        }
+        if (j.major >= requiredMajor) {
+            int diff = j.major - requiredMajor;
+            if (diff < closestDiff) {
+                closestDiff = diff;
+                closestHigher = &j;
             }
         }
     }
     
+    const JavaInfo* best = exactMatch ? exactMatch : closestHigher;
+    
+    // Java 8: exact match mandatory (Java 9+ breaks LaunchWrapper for old versions)
+    if (!exactMatch && requiredMajor == 8) {
+        qCWarning(logLaunch) << "[JAVA] Version requires Java 8 exactly, but none found."
+                             << "Java 9+ is incompatible with pre-1.6 Forge/LaunchWrapper";
+        return {};
+    }
+    
     if (best) {
-        qCInfo(logLaunch) << QStringLiteral("[JAVA] Required Java %1 → found Java %2 at %3")
-                            .arg(requiredMajor).arg(best->major).arg(best->path);
+        qCInfo(logLaunch) << QStringLiteral("[JAVA] Requires Java %1 → matched Java %2%3 at %4")
+                            .arg(requiredMajor).arg(best->major)
+                            .arg(best == exactMatch ? QString()
+                                 : QStringLiteral(" (+%1)").arg(best->major - requiredMajor))
+                            .arg(best->path);
         return best->path;
     }
     
+    qCWarning(logLaunch) << "[JAVA] Requires Java" << requiredMajor
+                          << "but no compatible Java ≥" << requiredMajor << "found";
     return {};
 }
 

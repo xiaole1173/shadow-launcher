@@ -468,6 +468,7 @@ public:
 
 private:
     int requiredJavaMajor(const QString& versionId);
+    static int inferJavaByMcVersion(const QString& mcVersion);
     QString gameDirForVersion(const QString& versionId) const;
 
     AppBackend* m_app = nullptr;
