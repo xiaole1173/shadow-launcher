@@ -1176,10 +1176,14 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     QString javaPath = m_settings->findJavaForVersion(requiredMajor);
     
     if (javaPath.isEmpty()) {
-        emit logMessage(QStringLiteral("❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
-                            .arg(requiredMajor));
-        emit logMessage(QStringLiteral(
-            "👉 请安装 Java %1 后在设置中手动选择").arg(requiredMajor));
+        // Check if scan is still in progress (async, takes ~500ms)
+        if (m_settings->isJavaScanning()) {
+            emit logMessage(QStringLiteral("⏳ Java 扫描尚未完成，请稍候再试"));
+        } else {
+            emit logMessage(QStringLiteral("❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
+                                .arg(requiredMajor));
+            emit logMessage(QStringLiteral("👉 请安装 Java %1 后在设置中手动选择").arg(requiredMajor));
+        }
         return;
     }
 

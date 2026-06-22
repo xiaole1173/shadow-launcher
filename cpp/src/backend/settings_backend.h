@@ -47,6 +47,7 @@ public:
 
     // ---- Slots ----
     Q_INVOKABLE QVariantList scanJavaInstallations();
+    Q_INVOKABLE bool isJavaScanning() const { return m_javaScanning; }
     Q_INVOKABLE QString autoSelectJava();
     Q_INVOKABLE QString detectJava();         // QML alias
     Q_INVOKABLE QVariantMap getMemoryStatus();
