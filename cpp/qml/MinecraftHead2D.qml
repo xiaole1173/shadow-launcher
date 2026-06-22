@@ -6,10 +6,10 @@ Rectangle {
     width: 48; height: 48
     color: "transparent"
 
-    // ── Google Material Spinner ──
-    // 3-phase cycle: fast grow → slow grow → snap to dot
-    property real _spinnerAngle: 0
-    property real _spinnerArcLen: 10
+    // ── Google Material Spinner (stroke-dasharray method) ──
+    property real _dashOffset: 0
+    property real _dashLen: 0.01
+    property real _circumference: 0
     property bool _spinning: img.status !== Image.Ready
         || _spinnerMinVisible
         || img.status === Image.Loading
@@ -18,51 +18,60 @@ Rectangle {
     property bool _spinnerMinVisible: false
     Timer { id: spinnerMinTimer; interval: 300; onTriggered: _spinnerMinVisible = false }
 
-    // Continuous rotation
-    RotationAnimation on _spinnerAngle {
-        running: root._spinning
-        from: 0; to: 360; duration: 2000; loops: Animation.Infinite
-        easing.type: Easing.Linear
+    Component.onCompleted: {
+        var r = Math.min(width, height) / 2 - 5
+        _circumference = 2 * Math.PI * r
     }
 
-    // 4-phase cycle: stretch → crawl → catch-up (tail chases head)
-    SequentialAnimation on _spinnerArcLen {
+    // Continuous rotation: dashOffset moves counter-clockwise on canvas
+    // This makes the visible arc rotate clockwise on screen
+    NumberAnimation on _dashOffset {
+        running: root._spinning
+        from: 0; to: -_circumference; duration: 2000; loops: Animation.Infinite
+    }
+
+    // 3-phase arc length cycle (on full circumference circle)
+    SequentialAnimation on _dashLen {
         running: root._spinning
         loops: Animation.Infinite
-        NumberAnimation { from: 5;  to: 280; duration: 700; easing.type: Easing.OutCubic  }  // stretch
-        NumberAnimation { from: 280; to: 340; duration: 900; easing.type: Easing.InQuart   }  // slow crawl
-        NumberAnimation { from: 340; to: 5;   duration: 400; easing.type: Easing.OutExpo   }  // tail catches head
+        NumberAnimation { from: 0.01; to: _circumference * 0.68; duration: 700; easing.type: Easing.OutCubic }
+        NumberAnimation { from: _circumference * 0.68; to: _circumference * 0.85; duration: 900; easing.type: Easing.InQuart }
+        NumberAnimation { from: _circumference * 0.85; to: 0.01; duration: 400; easing.type: Easing.OutExpo }
     }
 
     Canvas {
         id: spinner
         anchors.fill: parent
         visible: root._spinning
+
         onPaint: {
             var ctx = getContext("2d")
             var cw = width, ch = height
             ctx.clearRect(0, 0, cw, ch)
+            if (root._circumference <= 0) return
+
             var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5
             ctx.strokeStyle = "#5b8def"
             ctx.lineWidth = 2.5
             ctx.lineCap = "round"
 
-            // Front leads (head), arc trails behind (back → front clockwise)
-            var front = root._spinnerAngle * Math.PI / 180
-            var back  = front - (root._spinnerArcLen * Math.PI / 180)
+            ctx.setLineDash([root._dashLen, root._circumference - root._dashLen])
+            ctx.lineDashOffset = root._dashOffset
+
             ctx.beginPath()
-            ctx.arc(cx, cy, r, back, front)
+            ctx.arc(cx, cy, r, 0, Math.PI * 2)
             ctx.stroke()
         }
     }
+
     Connections {
         target: root
-        function on_SpinnerAngleChanged() { spinner.requestPaint() }
-        function on_SpinnerArcLenChanged() { spinner.requestPaint() }
+        function on_DashOffsetChanged() { spinner.requestPaint() }
+        function on_DashLenChanged() { spinner.requestPaint() }
         function on_SpinningChanged() { if (root._spinning) spinner.requestPaint() }
     }
 
-    // ── Face Image (pre-cropped by C++ to 128x128, file:// URL) ──
+    // ── Face Image ──
     Image {
         id: img
         anchors.fill: parent
@@ -72,7 +81,7 @@ Rectangle {
         cache: false
         visible: status === Image.Ready
         mipmap: false
-        smooth: false  // keep pixel-art crisp
+        smooth: false
     }
 
     onSkinSourceChanged: {
@@ -81,6 +90,4 @@ Rectangle {
             spinnerMinTimer.restart()
         }
     }
-
-
 }
