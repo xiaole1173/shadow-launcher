@@ -569,10 +569,43 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         gameArgs = chainArgs;
     }
 
-    // Read asset index ID from version JSON (e.g. "27", not "1.21.10")
-    QJsonObject assetIndex = versionJson[QStringLiteral("assetIndex")].toObject();
-    QString assetIndexId = assetIndex[QStringLiteral("id")].toString();
-    if (assetIndexId.isEmpty()) assetIndexId = versionId;  // legacy fallback
+    // Read asset index ID from version JSON chain (not just the leaf JSON)
+    // For Forge/NeoForge: parent MC version JSON has "assets" or "assetIndex" field
+    QString assetIndexId;
+    {
+        QJsonObject chainJson = versionJson;
+        QString chainId = versionId;
+        QStringList visited;
+        while (true) {
+            // Try "assetIndex.id" (modern format, 1.7.2+)
+            QJsonObject idx = chainJson[QStringLiteral("assetIndex")].toObject();
+            if (!idx.isEmpty()) {
+                assetIndexId = idx[QStringLiteral("id")].toString();
+            }
+            // Fallback: "assets" field (legacy format or post-rename)
+            if (assetIndexId.isEmpty()) {
+                QJsonValue av = chainJson[QStringLiteral("assets")];
+                if (av.isString()) assetIndexId = av.toString();
+            }
+            if (!assetIndexId.isEmpty()) break;
+
+            QString parentId = chainJson[QStringLiteral("inheritsFrom")].toString();
+            if (parentId.isEmpty() || visited.contains(parentId)) break;
+            visited.append(parentId);
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId
+                               + QStringLiteral("/") + parentId + QStringLiteral(".json");
+            QFile pf(parentPath);
+            if (!pf.open(QIODevice::ReadOnly)) break;
+            QJsonParseError pe;
+            QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
+            pf.close();
+            if (pe.error != QJsonParseError::NoError) break;
+            chainJson = pd.object();
+            chainId = parentId;
+        }
+        // Final fallback: use leaf version ID
+        if (assetIndexId.isEmpty()) assetIndexId = versionId;
+    }
 
     // Build legacy virtual asset directory for 1.7.2 and pre-1.6
     if (assetIndexId == QStringLiteral("legacy") || assetIndexId == QStringLiteral("pre-1.6")) {
@@ -633,6 +666,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${auth_session}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);  // pre-1.6
             arg.replace(QStringLiteral("${resolution_width}"), QStringLiteral("854"));
             arg.replace(QStringLiteral("${resolution_height}"), QStringLiteral("480"));
+            arg.replace(QStringLiteral("${clientid}"), QStringLiteral(""));
+            arg.replace(QStringLiteral("${auth_xuid}"), QStringLiteral(""));
             arg.replace(QStringLiteral("${launcher_name}"), QStringLiteral("ShadowLauncher"));
             arg.replace(QStringLiteral("${launcher_version}"), QStringLiteral("1.0"));
             arg.replace(QStringLiteral("${profile_name}"), versionId);
