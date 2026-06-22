@@ -6,13 +6,8 @@ Rectangle {
     width: 48; height: 48
     color: "transparent"
 
-    // ── Google Material Spinner ──
-    // Two LAYERS (no conflicts):
-    //   Layer 1 (GPU): Item + RotationAnimator → continuous clockwise rotation
-    //   Layer 2 (CPU): Canvas + SequentialAnimation → dash stretch/hold/snap
-    property real _dashLen: 0.01
-    property real _circumference: 0
-
+    // ── Simple spinner: continuous rotating arc ──
+    property real _angle: 0
     property bool _spinning: img.status !== Image.Ready
         || _spinnerMinVisible
         || img.status === Image.Loading
@@ -21,60 +16,44 @@ Rectangle {
     property bool _spinnerMinVisible: false
     Timer { id: spinnerMinTimer; interval: 300; onTriggered: _spinnerMinVisible = false }
 
-    Component.onCompleted: {
-        var r = Math.min(width, height) / 2 - 5
-        _circumference = 2 * Math.PI * r
+    NumberAnimation on _angle {
+        running: root._spinning
+        from: 0; to: 360; duration: 1000; loops: Animation.Infinite
     }
 
-    // ── Layer 1: rotation wrapper (separate Item, no paint conflict) ──
-    Item {
-        id: rotator
+    Canvas {
+        id: spinner
         anchors.fill: parent
+        visible: root._spinning
 
-        NumberAnimation on rotation {
-            running: root._spinning
-            from: 0; to: 360; duration: 2000; loops: Animation.Infinite
-        }
+        onPaint: {
+            var ctx = getContext("2d")
+            var cw = width, ch = height
+            ctx.clearRect(0, 0, cw, ch)
 
-        // ── Layer 2: dash animation on Canvas ──
-        Canvas {
-            id: spinner
-            anchors.fill: parent
-            visible: root._spinning
+            var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 4
+            if (r <= 0) return
 
-            // Dash cycle: stretch 0→44% in 700ms, hold 800ms, loop-snap = catch-up
-            SequentialAnimation on _dashLen {
-                running: root._spinning
-                loops: Animation.Infinite
-                NumberAnimation { from: 0.01; to: root._circumference * 0.44; duration: 700; easing.type: Easing.OutCubic }
-                PauseAnimation { duration: 800 }
-            }
+            // Draw arc from _angle to _angle + 270
+            var startRad = (root._angle - 90) * Math.PI / 180
+            var endRad   = (root._angle + 180) * Math.PI / 180
 
-            onPaint: {
-                var ctx = getContext("2d")
-                var cw = width, ch = height
-                ctx.clearRect(0, 0, cw, ch)
-                if (root._circumference <= 0) return
+            ctx.strokeStyle = "#5b8def"
+            ctx.lineWidth = 2.5
+            ctx.lineCap = "round"
 
-                var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5
-                ctx.strokeStyle = "#5b8def"
-                ctx.lineWidth = 2.5
-                ctx.lineCap = "round"
-
-                ctx.setLineDash([root._dashLen, root._circumference - root._dashLen])
-                ctx.lineDashOffset = 0
-
-                ctx.beginPath()
-                ctx.arc(cx, cy, r, 0, Math.PI * 2)
-                ctx.stroke()
-            }
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, startRad, endRad)
+            ctx.stroke()
         }
     }
 
     Connections {
         target: root
-        function on_DashLenChanged() { spinner.requestPaint() }
-        function on_SpinningChanged() { if (root._spinning) spinner.requestPaint() }
+        function on_AngleChanged() { spinner.requestPaint() }
+        function on_SpinningChanged() {
+            if (root._spinning) spinner.requestPaint()
+        }
     }
 
     // ── Face Image ──
