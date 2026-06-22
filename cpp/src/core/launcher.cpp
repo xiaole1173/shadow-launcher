@@ -563,11 +563,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             chainJson = pd.object();
             chainId = parentId;
         }
-        // chainArgs is now [child-arg1, child-arg2, ..., parent-arg1, parent-arg2, ...]
-        // Reverse so child args (--launchTarget forge_client) come FIRST
-        for (int i = chainArgs.size() - 1; i >= 0; --i) {
-            gameArgs.append(chainArgs[i]);
-        }
+        // chainArgs is [child-args..., parent-args...]
+        // Child args (--launchTarget forge_client) come first, parent args follow
+        // No reverse needed — this is the correct order for modlauncher
+        gameArgs = chainArgs;
     }
 
     // Read asset index ID from version JSON (e.g. "27", not "1.21.10")
