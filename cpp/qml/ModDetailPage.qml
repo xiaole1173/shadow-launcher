@@ -65,7 +65,7 @@ Rectangle {
 
     // Trigger version fetch when slug arrives
     onModDetailSlugChanged: {
-        if (modDetailSlug && backend && _entered) {
+        if (modDetailSlug && backend) {
             modDetailLoading = true
             modDetailRawVersions = []
             modDetailVersionMap = {}

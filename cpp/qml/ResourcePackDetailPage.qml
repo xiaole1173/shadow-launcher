@@ -69,7 +69,7 @@ Rectangle {
 
     // Trigger version fetch when slug arrives
     onRpDetailSlugChanged: {
-        if (rpDetailSlug && backend && _entered) {
+        if (rpDetailSlug && backend) {
             rpDetailLoading = true
             rpVersionCache = ({})
             rpVersionDetailCache = ({})
