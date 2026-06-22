@@ -10,8 +10,9 @@ Rectangle {
     property var backend: null
     property var toastManager: null
 
-    Component.onCompleted: {
-        // onLoaded sets backend before onCompleted fires — safe to call refresh
+    // backend is set by Loader.onLoaded AFTER Component.onCompleted
+    // Must watch for backend change to trigger version scan
+    onBackendChanged: {
         if (backend) {
             backend.refreshVersionDetails()
             deferRefreshTimer.start()
