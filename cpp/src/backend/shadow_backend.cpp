@@ -1201,32 +1201,40 @@ void ShadowBackend::cancelLaunch() {
 
 int ShadowBackend::requiredJavaMajor(const QString& versionId)
 {
-    // Reads version JSON to determine required Java major version.
-    // Returns: 8 for pre-1.17, 16 for 1.17, 17 for 1.18~1.20.4, 21 for 1.20.5+
-    QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + versionId;
-    QFile f(versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json"));
-    if (!f.open(QIODevice::ReadOnly)) {
-        qCWarning(logLaunch) << "[JAVA] Cannot read version JSON, defaulting to Java 8";
-        return 8;
-    }
-    
-    QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-    f.close();
-    QJsonObject versionJson = doc.object();
-    
-    // Check javaVersion field (1.17+)
-    QJsonObject javaVer = versionJson[QStringLiteral("javaVersion")].toObject();
-    if (!javaVer.isEmpty()) {
-        int major = javaVer[QStringLiteral("majorVersion")].toInt(0);
-        if (major > 0) {
-            qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 requires Java %2")
-                                .arg(versionId).arg(major);
-            return major;
+    // Walk version JSON + inheritsFrom chain to find javaVersion.majorVersion
+    // This handles Forge/NeoForge/Fabric installs where javaVersion may be in the base MC JSON
+    QString gameDir = m_app->gameDir();
+    QString currentId = versionId;
+    QStringList seen;
+
+    while (!currentId.isEmpty() && !seen.contains(currentId)) {
+        seen.append(currentId);
+        QString jsonPath = gameDir + QStringLiteral("/versions/") + currentId
+                         + QStringLiteral("/") + currentId + QStringLiteral(".json");
+        QFile f(jsonPath);
+        if (!f.open(QIODevice::ReadOnly)) break;
+
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+        f.close();
+        QJsonObject json = doc.object();
+
+        // Check javaVersion field first
+        QJsonObject javaVer = json[QStringLiteral("javaVersion")].toObject();
+        if (!javaVer.isEmpty()) {
+            int major = javaVer[QStringLiteral("majorVersion")].toInt(0);
+            if (major > 0) {
+                qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 inherits %2 → requires Java %3")
+                                    .arg(versionId, currentId).arg(major);
+                return major;
+            }
         }
+
+        // Walk up inheritsFrom chain
+        currentId = json[QStringLiteral("inheritsFrom")].toString();
     }
-    
-    // Pre-1.17 → Java 8 (required for LaunchWrapper compatibility)
-    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 pre-1.17 → default Java 8")
+
+    // Fallback: pre-1.17 → Java 8 (LaunchWrapper compatibility)
+    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 (no javaVersion in chain) → default Java 8")
                         .arg(versionId);
     return 8;
 }

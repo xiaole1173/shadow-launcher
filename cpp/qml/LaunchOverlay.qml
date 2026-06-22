@@ -6,6 +6,8 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     color: "#0c0f16"
+    property var backend: null
+    property var toastManager: null
 
     // Visibility: dismiss flag overrides all other conditions
     property bool _dismissed: false

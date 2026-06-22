@@ -7,6 +7,8 @@ Rectangle {
     id: versionSelectOverlay
     anchors.fill: parent; color: "#0c0f16"; z: 5
     property int activeGameDirIndex: 0
+    property var backend: null
+    property var toastManager: null
 
     Component.onCompleted: {
         // onLoaded sets backend before onCompleted fires — safe to call refresh
