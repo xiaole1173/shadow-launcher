@@ -31,9 +31,8 @@ Rectangle {
     property var rpVersionCache: ({})
     property int rpVersionCacheVersion: 0
     property var rpVersionDetailCache: ({})
-    property bool _closing: false
 
-    signal goBack()  // deprecated, use _closing property
+    signal goBack()
 
     // ── Trigger fetch ──
     onRpDetailSlugChanged: {
@@ -135,7 +134,7 @@ Rectangle {
                     onClicked: {
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
-                        root._closing = true
+                        root.goBack()
                     }
                 }
             }

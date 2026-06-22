@@ -2964,9 +2964,7 @@ Rectangle {
             item.rpDetailDesc = page._rpDetailDesc
             item.rpDetailDownloads = page._rpDetailDownloads
             item.rpDetailUpdated = page._rpDetailUpdated
-            item._closingChanged.connect(function() {
-                if (item && item._closing) page._showRpDetail = false
-            })
+            item.goBack.connect(function() { _showRpDetail = false })
         }
     }
 
@@ -2992,9 +2990,7 @@ Rectangle {
             item.modDetailTitle = page._modDetailTitle
             item.modDetailDesc = page._modDetailDesc
             item.modDetailIcon = page._modDetailIcon
-            item._closingChanged.connect(function() {
-                if (item && item._closing) page._showModDetail = false
-            })
+            item.goBack.connect(function() { _showModDetail = false })
         }
     }
 

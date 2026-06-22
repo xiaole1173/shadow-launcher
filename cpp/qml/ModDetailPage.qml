@@ -26,9 +26,8 @@ Rectangle {
     property var modDetailRawVersions: []
     property var modDetailVersionMap: ({})
     property var pendingModDownload: ({})
-    property bool _closing: false
 
-    signal goBack()  // depreciated, use _closing property
+    signal goBack()
 
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
@@ -162,7 +161,7 @@ Rectangle {
                     onClicked: {
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
-                        root._closing = true
+                        root.goBack()
                     }
                 }
             }
