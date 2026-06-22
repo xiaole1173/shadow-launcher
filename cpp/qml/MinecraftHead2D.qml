@@ -7,9 +7,6 @@ Rectangle {
     color: "transparent"
 
     // ── Google Material Spinner ──
-    // Two animations driven by Qt animation engine (same frame, no conflicts):
-    //   1. dashOffset: ultra-long NumberAnimation → smooth continuous rotation
-    //   2. dashLen:    SequentialAnimation (stretch → hold → snap)
     property real _dashOffset: 0
     property real _dashLen: 0.01
     property real _circumference: 0
@@ -27,19 +24,17 @@ Rectangle {
         _circumference = 2 * Math.PI * r
     }
 
-    // ── Rotation: never-reset NumberAnimation ──
-    // 1e6 rotations × 2000ms ≈ 23 days without a loop-jump
+    // ── Rotation ──
+    // Jump from -C to 0 at loop boundary is invisible: circle line-dash wraps.
     NumberAnimation on _dashOffset {
         running: root._spinning
-        from: 0
-        to: -_circumference * 1e6
-        duration: 2000 * 1e6
+        from: 0; to: -_circumference; duration: 2000; loops: Animation.Infinite
     }
 
-    // ── Dash cycle ──
+    // ── Dash cycle (Google keyframes mapped to QML) ──
     // Phase 1: stretch 0→44%  700ms  OutCubic
     // Phase 2: hold    44%    800ms
-    // Loop restart: from=0 snaps to dot → tail catches head
+    // Loop restart: from=0 snaps to dot (tail catches head)
     SequentialAnimation on _dashLen {
         running: root._spinning
         loops: Animation.Infinite
