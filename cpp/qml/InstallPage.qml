@@ -301,7 +301,15 @@ Rectangle {
                             text: root.customName !== "" ? root.customName : root.fullVersionName
                             font.pixelSize: 13; color: "#c0c8e0"
                             selectByMouse: true; clip: true; verticalAlignment: TextInput.AlignVCenter
-                            onTextChanged: { root.customName = text }
+                            onActiveFocusChanged: {
+                                if (!activeFocus) {
+                                    if (text !== root.fullVersionName) {
+                                        root.customName = text
+                                    } else {
+                                        root.customName = ""
+                                    }
+                                }
+                            }
                         }
                     }
                     // Conflict warning
@@ -328,7 +336,7 @@ Rectangle {
                 disabled: root.hasModLoader && root.activeLoader !== "forge"
                 disabledReason: root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d" : root.activeLoader === "fabric" ? "Fabric \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0e Optifine \u4e0d\u517c\u5bb9" : ""
                 selectedVersion: root.selectedForge
-                onVersionSelected: function(ver) { root.selectedForge = ver; root.activeLoader = "forge"; if (backend) backend.logMessage("[install] Forge: " + ver) }
+                onVersionSelected: function(ver) { root.selectedForge = ver; root.activeLoader = "forge"; root.customName = ""; if (backend) backend.logMessage("[install] Forge: " + ver) }
                 onVersionCleared: { root.selectedForge = ""; root.activeLoader = ""; root.customName = "" }
             }
 
@@ -339,7 +347,7 @@ Rectangle {
                 disabled: root.hasModLoader && root.activeLoader !== "neoforge"
                 disabledReason: root.activeLoader === "forge" ? "Forge \u5df2\u9009\u4e2d" : root.activeLoader === "fabric" ? "Fabric \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0d\u517c\u5bb9 NeoForge" : ""
                 selectedVersion: root.selectedNeoForge
-                onVersionSelected: function(ver) { root.selectedNeoForge = ver; root.activeLoader = "neoforge" }
+                onVersionSelected: function(ver) { root.selectedNeoForge = ver; root.activeLoader = "neoforge"; root.customName = "" }
                 onVersionCleared: { root.selectedNeoForge = ""; root.activeLoader = ""; root.customName = "" }
             }
 
@@ -350,7 +358,7 @@ Rectangle {
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
                 disabledReason: root.activeLoader === "forge" ? "Forge \u5df2\u9009\u4e2d" : root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0d\u517c\u5bb9 Fabric" : ""
                 selectedVersion: root.selectedFabric
-                onVersionSelected: function(ver) { root.selectedFabric = ver; root.activeLoader = "fabric" }
+                onVersionSelected: function(ver) { root.selectedFabric = ver; root.activeLoader = "fabric"; root.customName = "" }
                 onVersionCleared: { root.selectedFabric = ""; root.activeLoader = ""; root.customName = "" }
             }
 
