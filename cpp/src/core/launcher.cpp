@@ -354,16 +354,45 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
         cp.append(versionJar);
     }
 
-    // Add libraries from version JSON
-    QJsonArray libraries = versionJson[QStringLiteral("libraries")].toArray();
-    for (const QJsonValue& libVal : libraries) {
-        QJsonObject lib = libVal.toObject();
-        if (!shouldIncludeLibrary(lib)) continue;
+    // Collect libraries from version JSON + all inheritsFrom parents
+    QSet<QString> seenLibs;  // deduplicate by resolved path
+    QStringList versionStack;  // JSON chain, youngest first
+    QJsonObject currentJson = versionJson;
+    QString currentId = versionId;
+    while (true) {
+        // Add libraries from current JSON
+        QJsonArray libraries = currentJson[QStringLiteral("libraries")].toArray();
+        for (const QJsonValue& libVal : libraries) {
+            QJsonObject lib = libVal.toObject();
+            if (!shouldIncludeLibrary(lib)) continue;
 
-        QString libPath = resolveLibraryPath(lib, libsDir);
-        if (!libPath.isEmpty() && QFileInfo::exists(libPath)) {
-            cp.append(libPath);
+            QString libPath = resolveLibraryPath(lib, libsDir);
+            if (!libPath.isEmpty() && QFileInfo::exists(libPath)) {
+                // Deduplicate: same JAR may appear in both Forge and base JSON
+                if (!seenLibs.contains(libPath)) {
+                    seenLibs.insert(libPath);
+                    cp.append(libPath);
+                }
+            }
         }
+
+        // Walk up inheritsFrom chain
+        QString parentId = currentJson[QStringLiteral("inheritsFrom")].toString();
+        if (parentId.isEmpty() || parentId == currentId) break;
+        // Prevent infinite loops
+        if (versionStack.contains(parentId)) break;
+        versionStack.append(parentId);
+
+        QString parentPath = gameDir + QStringLiteral("/versions/") + parentId
+                           + QStringLiteral("/") + parentId + QStringLiteral(".json");
+        QFile pf(parentPath);
+        if (!pf.open(QIODevice::ReadOnly)) break;
+        QJsonParseError parseErr;
+        QJsonDocument parentDoc = QJsonDocument::fromJson(pf.readAll(), &parseErr);
+        pf.close();
+        if (parseErr.error != QJsonParseError::NoError) break;
+        currentJson = parentDoc.object();
+        currentId = parentId;
     }
 
     return cp;
@@ -379,6 +408,53 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     args << QStringLiteral("-Xms%1M").arg(qMin(512, maxMemoryMB / 2));
 
     // ── JVM flags: custom args replace defaults, otherwise use optimized G1GC ──
+    // Collect arguments.jvm from version JSON chain (Forge/NeoForge may add module flags)
+    QStringList chainJvmArgs;
+    {
+        QJsonObject chainJson = versionJson;
+        QString chainId = versionId;
+        QStringList visited;
+        while (true) {
+            QJsonObject argsObj = chainJson[QStringLiteral("arguments")].toObject();
+            QJsonArray jvmRaw = argsObj[QStringLiteral("jvm")].toArray();
+            for (const QJsonValue& val : jvmRaw) {
+                if (val.isString()) {
+                    chainJvmArgs.append(val.toString());
+                } else if (val.isObject()) {
+                    QJsonObject obj = val.toObject();
+                    QJsonArray rulesArr = obj[QStringLiteral("rules")].toArray();
+                    if (!rulesArr.isEmpty() && !evaluateRules(rulesArr)) continue;
+                    QJsonValue value = obj[QStringLiteral("value")];
+                    if (value.isString()) {
+                        chainJvmArgs.append(value.toString());
+                    } else if (value.isArray()) {
+                        for (const QJsonValue& v : value.toArray()) {
+                            if (v.isString()) chainJvmArgs.append(v.toString());
+                        }
+                    }
+                }
+            }
+            // Walk inheritsFrom
+            QString parentId = chainJson[QStringLiteral("inheritsFrom")].toString();
+            if (parentId.isEmpty() || visited.contains(parentId)) break;
+            visited.append(parentId);
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId
+                               + QStringLiteral("/") + parentId + QStringLiteral(".json");
+            QFile pf(parentPath);
+            if (!pf.open(QIODevice::ReadOnly)) break;
+            QJsonParseError pe;
+            QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
+            pf.close();
+            if (pe.error != QJsonParseError::NoError) break;
+            chainJson = pd.object();
+            chainId = parentId;
+        }
+    }
+    // Add chain JVM args after memory flags, before user/default flags
+    for (const QString& a : chainJvmArgs) {
+        args << a;
+    }
+
     if (!m_jvmArgs.isEmpty()) {
         // User-provided custom JVM args (space-separated tokens)
         const QStringList customArgs = m_jvmArgs.split(QRegularExpression(QStringLiteral("\\s+")),
