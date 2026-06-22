@@ -12,6 +12,8 @@ Rectangle {
     property bool _spinning: img.status === Image.Loading
         || img.status === Image.Error
         || (img.status === Image.Null && root.skinSource.toString())
+    property bool _spinnerMinVisible: false
+    Timer { id: spinnerMinTimer; interval: 300; onTriggered: _spinnerMinVisible = false }
 
     RotationAnimation on _spinnerAngle {
         running: root._spinning
@@ -29,7 +31,7 @@ Rectangle {
     Canvas {
         id: spinner
         anchors.fill: parent
-        visible: root._spinning
+        visible: root._spinning || root._spinnerMinVisible
         onPaint: {
             var ctx = getContext("2d");
             var cw = width, ch = height;
@@ -72,6 +74,13 @@ Rectangle {
         visible: status === Image.Ready
         mipmap: false
         smooth: false  // keep pixel-art crisp
+    }
+
+    onSkinSourceChanged: {
+        if (skinSource.toString()) {
+            _spinnerMinVisible = true
+            spinnerMinTimer.restart()
+        }
     }
 
     // ── Fallback when no source / error ──
