@@ -29,6 +29,13 @@ Rectangle {
 
     signal goBack()
 
+    // Close timer — deferred deactivation to avoid destruction-in-handler
+    Timer {
+        id: closeTimer
+        interval: 1
+        onTriggered: { parent.parent.active = false }
+    }
+
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
         if (modDetailSlug && backend) {
@@ -159,12 +166,11 @@ Rectangle {
                     id: backMouse; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        console.log("[mod-detail] BACK BUTTON CLICKED!")
                         root.color = "#ff0000"
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
                         root.goBack()
-                        parent.parent._showModDetail = false
+                        closeTimer.start()
                     }
                 }
             }
