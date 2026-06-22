@@ -1,4 +1,5 @@
 ﻿#include "shadow_backend.h"
+#include "../core/http_client.h"
 #include "../core/mod_manager.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
@@ -1653,17 +1654,9 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
 }
 
 void ShadowBackend::queryFabricApiVersions(const QString& mcVersion) {
-    const QString url = QStringLiteral("https://api.modrinth.com/v2/project/fabric-api/version?loaders=[%22fabric%22]&game_versions=[%22")
-                        + mcVersion + QStringLiteral("%22]");
-    qDebug() << "[FabricApi] querying" << url;
-    HttpClient::instance().get(url, [this, mcVersion](int status, const QByteArray& body) {
-        if (status != 200 || body.isEmpty()) {
-            qWarning() << "[FabricApi] query failed, status:" << status;
-            emit fabricApiVersionsReady({});
-            return;
-        }
-        QJsonDocument doc = QJsonDocument::fromJson(body);
-        if (!doc.isArray()) { emit fabricApiVersionsReady({}); return; }
+    auto parseResponse = [](const QByteArray& data) -> QVariantList {
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isArray()) return {};
         QJsonArray arr = doc.array();
         QVariantList list;
         for (const QJsonValue& v : arr) {
@@ -1681,9 +1674,37 @@ void ShadowBackend::queryFabricApiVersions(const QString& mcVersion) {
             m[QStringLiteral("size")] = file.value(QStringLiteral("size")).toDouble();
             list.append(m);
         }
-        qDebug() << "[FabricApi] got" << list.size() << "versions for MC" << mcVersion;
-        emit fabricApiVersionsReady(list);
-    });
+        return list;
+    };
+
+    const QString path = QStringLiteral("/project/fabric-api/version"
+        "?loaders=[%22fabric%22]&game_versions=[%22") + mcVersion + QStringLiteral("%22]");
+    const QString mcimUrl = QStringLiteral("https://mod.mcimirror.top/modrinth/v2") + path;
+    const QString fallbackUrl = QStringLiteral("https://api.modrinth.com/v2") + path;
+
+    qCDebug(logApp) << "[FabricApi] querying MCIM mirror:" << mcimUrl;
+    HttpClient::instance().get(mcimUrl,
+        [this, parseResponse, fallbackUrl](int status, const QByteArray& body) {
+            if (status == 200 && !body.isEmpty()) {
+                QVariantList list = parseResponse(body);
+                qCDebug(logApp) << "[FabricApi] MCIM got" << list.size() << "versions";
+                emit fabricApiVersionsReady(list);
+                return;
+            }
+            qCWarning(logApp) << "[FabricApi] MCIM failed (status:" << status
+                               << "), falling back to Modrinth direct";
+            HttpClient::instance().get(fallbackUrl,
+                [this, parseResponse](int status2, const QByteArray& body2) {
+                    if (status2 == 200 && !body2.isEmpty()) {
+                        QVariantList list = parseResponse(body2);
+                        qCDebug(logApp) << "[FabricApi] direct got" << list.size() << "versions";
+                        emit fabricApiVersionsReady(list);
+                    } else {
+                        qCWarning(logApp) << "[FabricApi] direct also failed (status:" << status2 << ")";
+                        emit fabricApiVersionsReady({});
+                    }
+                });
+        });
 }
 
 bool ShadowBackend::installFabricApi(const QString& version, const QString& url, const QString& savePath) {
