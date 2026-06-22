@@ -99,17 +99,30 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 
 void LaunchBackend::cancelLaunch()
 {
-    qCDebug(logLaunch) << "[PROCESS] cancelLaunch() called — stopping check timer";
+    qCDebug(logLaunch) << "[PROCESS] cancelLaunch() called";
     m_cancelled = true;
     if (m_checkTimer) m_checkTimer->stop();
 
+    // If a game process was already started, kill it
+    if (m_activeLauncher) {
+        m_activeLauncher->killProcess();
+        if (m_runningLaunchers.contains(m_activeLauncher)) {
+            m_runningLaunchers.removeOne(m_activeLauncher);
+            emit runningCountChanged();
+            if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
+        }
+        m_activeLauncher->deleteLater();
+        m_activeLauncher = nullptr;
+        emit logMessage(QStringLiteral("用户取消启动，已结束游戏进程"));
+    } else {
+        emit logMessage(QStringLiteral("用户取消了启动"));
+    }
+
     m_launching = false;
     m_launchProgress = 0;
-    m_activeLauncher = nullptr;
     m_launchStatus.clear();
     emit launchProgressChanged(0, QString());
     emit launchStateChanged();
-    emit logMessage(QStringLiteral("用户取消了启动"));
 }
 
 // ============================================================
