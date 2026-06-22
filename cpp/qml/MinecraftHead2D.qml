@@ -9,7 +9,9 @@ Rectangle {
     // ── Google-style Spinner ──
     property real _spinnerAngle: 0
     property real _spinnerArcLen: 60
-    property bool _spinning: img.status === Image.Loading || (img.status === Image.Null && root.skinSource.toString())
+    property bool _spinning: img.status === Image.Loading
+        || img.status === Image.Error
+        || (img.status === Image.Null && root.skinSource.toString())
 
     RotationAnimation on _spinnerAngle {
         running: root._spinning
@@ -70,5 +72,16 @@ Rectangle {
         visible: status === Image.Ready
         mipmap: false
         smooth: false  // keep pixel-art crisp
+    }
+
+    // ── Fallback when no source / error ──
+    Rectangle {
+        anchors.fill: parent; radius: 4
+        visible: !root._spinning && img.status !== Image.Ready
+        color: "#1a1e28"
+        Text {
+            anchors.centerIn: parent
+            text: "?"; font.pixelSize: 18; color: "#4a5068"
+        }
     }
 }
