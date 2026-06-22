@@ -1590,6 +1590,12 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     }
 
     m_mlInstaller->setGameDir(m_gameDir);
+    // Respect version isolation for mods/ output
+    if (m_isolation && m_isolation->isVersionIsolated(installName)) {
+        m_mlInstaller->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
+    } else {
+        m_mlInstaller->setModsDir(QString());  // reset to default (gameDir/mods)
+    }
     setInstalling(true);
     m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
 }

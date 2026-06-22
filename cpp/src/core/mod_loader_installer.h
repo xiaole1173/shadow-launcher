@@ -19,6 +19,8 @@ public:
 
     void setGameDir(const QString& dir) { m_gameDir = dir; }
     QString gameDir() const { return m_gameDir; }
+    void setModsDir(const QString& dir) { m_modsDir = dir; }
+    QString modsDir() const { return m_modsDir.isEmpty() ? m_gameDir + "/mods" : m_modsDir; }
 
     void installForge(const QString& mcVersion, const QString& forgeVersion, const QString& installName);
     void installFabric(const QString& mcVersion, const QString& fabricVersion, const QString& installName);
@@ -94,6 +96,7 @@ private:
 
     // ── state ──
     QString m_gameDir;
+    QString m_modsDir;
     QString m_mcVersion;
     QString m_loaderVersion;
     QString m_installName;

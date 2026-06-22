@@ -164,10 +164,11 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
             optifineStep2_install(data, filename);
         });
     } else {
-        // With Forge: just put JAR in mods/
+        // With Forge/NeoForge: just put JAR in mods/ (respects version isolation)
         m_totalSteps = 1;
-        QDir().mkpath(m_gameDir + "/mods");
-        QString savePath = m_gameDir + "/mods/" + filename;
+        QString md = modsDir();
+        QDir().mkpath(md);
+        QString savePath = md + "/" + filename;
         m_currentStep = 1;
         emit progressChanged(1, 1, "Downloading Optifine...");
         downloadToFile(url, savePath, [this, filename, savePath](bool ok, const QString& error) {
