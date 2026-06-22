@@ -646,6 +646,8 @@ void AccountBackend::loadMicrosoftSession()
         m_isOnline = true;
         downloadSkin(m_username);
         if (!m_msRefreshToken.isEmpty()) {
+            QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
+        }
     }
 }
 
