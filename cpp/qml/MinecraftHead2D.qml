@@ -26,16 +26,14 @@ Rectangle {
         _circumference = 2 * Math.PI * r
     }
 
-    // ── Layer 1: GPU rotation (render thread, not main thread) ──
+    // ── Layer 1: rotation wrapper (separate Item, no paint conflict) ──
     Item {
         id: rotator
         anchors.fill: parent
-        rotation: 0
 
-        RotationAnimator on rotation {
+        NumberAnimation on rotation {
             running: root._spinning
             from: 0; to: 360; duration: 2000; loops: Animation.Infinite
-            direction: RotationAnimator.Clockwise
         }
 
         // ── Layer 2: dash animation on Canvas ──
