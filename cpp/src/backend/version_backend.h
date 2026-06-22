@@ -75,6 +75,17 @@ public:
     bool isInstallPaused() const { return m_installPaused; }
     QStringList versionIds() const { return m_versionIds; }
     QStringList installedIds() const { return m_installedIds; }
+    QStringList activeVersionNames() const {
+        QStringList names = m_installedIds;
+        for (const QString& v : m_activeIds) {
+            if (!names.contains(v)) names.append(v);
+        }
+        if (!m_modLoaderInstallId.isEmpty() && !names.contains(m_modLoaderInstallId))
+            names.append(m_modLoaderInstallId);
+        if (m_hasPendingLoader && !m_pendingLoaderName.isEmpty() && !names.contains(m_pendingLoaderName))
+            names.append(m_pendingLoaderName);
+        return names;
+    }
     QString selectedVersion() const { return m_selectedVersion; }
 
     Q_INVOKABLE void setGameDir(const QString& dir);
@@ -164,6 +175,10 @@ private:
     QString m_modLoaderInstallId;
     static constexpr int MAX_CONCURRENT = 2;
     QVector<QString> m_activeIds;
+
+    // Merged install: cumulative byte tracking per MC download step (0=json, 1=libraries, 2=assets)
+    qint64 m_mergedMcStepDone[3] = {};
+    qint64 m_mergedMcStepTotal[3] = {};
 
     struct DlState {
         int progress = 0;

@@ -978,7 +978,20 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
         else if (fileName.contains("/libraries/")) stepIdx = 1;
         else if (fileName.contains("/assets/")) stepIdx = 2;
         if (stepIdx >= 0) {
-            updateStep(stepIdx, QStringLiteral("active"), 0, received, total);
+            // Cumulative tracking: accumulate per-step bytes to avoid per-file reset oscillation
+            if (received <= 0) {
+                // File starting: add its total to the step's expected total
+                m_mergedMcStepTotal[stepIdx] += total;
+            }
+            // Track current file's progress within accumulated totals
+            qint64 accDone = m_mergedMcStepDone[stepIdx] + received;
+            qint64 accTotal = m_mergedMcStepTotal[stepIdx];
+            // When a file completes, move its bytes to the done accumulator
+            if (received >= total && total > 0) {
+                m_mergedMcStepDone[stepIdx] += total;
+                accDone = m_mergedMcStepDone[stepIdx];
+            }
+            updateStep(stepIdx, QStringLiteral("active"), 0, accDone, accTotal);
             m_mergedLoadedStep = stepIdx + 1;
         }
     }
@@ -1496,6 +1509,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         m_modLoaderInstallId = installName;
         m_installFailed = false;
         m_installError.clear();
+        // Reset cumulative byte tracking for merged install steps
+        for (int i = 0; i < 3; i++) { m_mergedMcStepDone[i] = 0; m_mergedMcStepTotal[i] = 0; }
 
         // Build 9-step list
         QString loaderLabel = QStringLiteral("Forge");
@@ -1505,9 +1520,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             QStringLiteral("下载原版 json文件"),
             QStringLiteral("下载原版支持库文件"),
             QStringLiteral("下载原版资源文件"),
-            QStringLiteral("下载 Forge 主文件"),
-            QStringLiteral("校验 Forge 完整性"),
-            QStringLiteral("安装 Forge")
+            QStringLiteral("下载 %1 主文件").arg(loaderLabel),
+            QStringLiteral("校验 %1 完整性").arg(loaderLabel),
+            QStringLiteral("安装 %1").arg(loaderLabel)
         }, {3.0, 8.0, 5.0, 6.0, 0.5, 10.0},  // installer重量级10，下载库8，资源5
          {true, true, true, true, false, true});  // 校验不展示
         updateStep(0, QStringLiteral("active"), 0);

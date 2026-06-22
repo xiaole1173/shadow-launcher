@@ -50,6 +50,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QStringList snapshotVersions READ snapshotVersions NOTIFY versionListReady)
     Q_PROPERTY(QStringList oldVersions READ oldVersions NOTIFY versionListReady)
     Q_PROPERTY(QStringList installedVersions READ installedVersions NOTIFY installedVersionsChanged)
+    Q_PROPERTY(QStringList activeVersionNames READ activeVersionNames NOTIFY activeVersionNamesChanged)
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
     Q_PROPERTY(int installProgress READ installProgress NOTIFY installProgressChanged)
     Q_PROPERTY(int installTotal READ installTotal NOTIFY installTotalChanged)
@@ -150,6 +151,7 @@ public:
     QStringList snapshotVersions() const;
     QStringList oldVersions() const;
     QStringList installedVersions() const;
+    QStringList activeVersionNames() const;
     bool isInstalling() const;
     int installProgress() const;
     int installTotal() const;
@@ -355,6 +357,7 @@ signals:
     void versionListReady();
     void versionDetailsReady();
     void installedVersionsChanged();
+    void activeVersionNamesChanged();
     void selectedVersionChanged();
     void selectedVersionClearedAfterDelete();
     void currentVersionSummaryChanged();

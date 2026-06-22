@@ -284,11 +284,22 @@ void LaunchBackend::runNextCheck()
         if (!jsonFile.open(QIODevice::ReadOnly)) {
             abortCheck(QStringLiteral("版本配置"), QStringLiteral("配置文件缺失")); return;
         }
-        QJsonParseError parseErr;
-        QJsonDocument::fromJson(jsonFile.readAll(), &parseErr);
+        QByteArray jsonBytes = jsonFile.readAll();
         jsonFile.close();
+        QJsonParseError parseErr;
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonBytes, &parseErr);
         if (parseErr.error != QJsonParseError::NoError)
             emit launchCheckWarning(QStringLiteral("JSON 格式警告"));
+        // Verify JSON's id matches the version folder name (catches corrupted install from naming bugs)
+        if (jsonDoc.isObject()) {
+            QString jsonId = jsonDoc.object().value(QStringLiteral("id")).toString();
+            if (!jsonId.isEmpty() && jsonId != m_pendingVersionId) {
+                abortCheck(QStringLiteral("版本 JSON ID 不匹配"),
+                    QStringLiteral("版本名 \"%1\" 与配置内 id \"%2\" 不一致。建议重新安装此版本。")
+                        .arg(m_pendingVersionId, jsonId));
+                return;
+            }
+        }
         qCInfo(logLaunch) << "Pre-launch check passed: version directory and JAR exist";
         break;
     }

@@ -130,15 +130,15 @@ Rectangle {
         if (!backend || !name) {
             versionConflict = false; conflictMessage = ""; return
         }
-        var installed = backend.installedVersions
-        if (!installed) {
+        var names = backend.activeVersionNames || backend.installedVersions
+        if (!names) {
             versionConflict = false; conflictMessage = ""; return
         }
-        for (var i = 0; i < installed.length; i++) {
-            if (installed[i] === name) {
+        for (var i = 0; i < names.length; i++) {
+            if (names[i] === name) {
                 versionConflict = true
                 conflictMessage = "\u7248\u672c \"" + name + "\" \u5df2\u5b58\u5728\uff0c\u8bf7\u4fee\u6539\u540d\u79f0"
-                console.log("[install] versionConflict=true, name=" + name + " exists in installedVersions[" + i + "]")
+                console.log("[install] versionConflict=true, name=" + name + " matches activeVersionNames[" + i + "]")
                 return
             }
         }
@@ -147,7 +147,6 @@ Rectangle {
     }
 
     onFullVersionNameChanged: {
-        if (customName === "") { nameInput.text = fullVersionName }
         checkVersionConflict(fullVersionName)
     }
 
@@ -278,7 +277,8 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: nameInput; anchors.fill: parent; anchors.margins: 8
-                            text: root.fullVersionName; font.pixelSize: 13; color: "#c0c8e0"
+                            text: root.customName !== "" ? root.customName : root.fullVersionName
+                            font.pixelSize: 13; color: "#c0c8e0"
                             selectByMouse: true; clip: true; verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: { root.customName = text }
                         }

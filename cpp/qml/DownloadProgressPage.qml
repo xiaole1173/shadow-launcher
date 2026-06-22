@@ -59,34 +59,6 @@ Rectangle {
 
                 // ── card header ──
                 RowLayout { spacing: 8; Layout.fillWidth: true
-                    // Type badge
-                    Rectangle {
-                        implicitWidth: typeText.implicitWidth + 12; implicitHeight: 22; radius: 4
-                        color: {
-                            var t = cardContent.card.installType || ""
-                            if (t === "mod_loader") return "#1a1a3a"
-                            if (t === "version") return "#1a2a1a"
-                            if (t === "resource") return "#1a2a2a"
-                            return "#1a1a20"
-                        }
-                        Text {
-                            id: typeText; anchors.centerIn: parent; font.pixelSize: 10
-                            text: {
-                                var t = cardContent.card.installType || ""
-                                if (t === "mod_loader") return "加载器"
-                                if (t === "version") return "版本"
-                                if (t === "resource") return "资源"
-                                return "下载"
-                            }
-                            color: {
-                                var t = cardContent.card.installType || ""
-                                if (t === "mod_loader") return "#5d6fe0"
-                                if (t === "version") return "#4bc870"
-                                if (t === "resource") return "#40c8c8"
-                                return "#888"
-                            }
-                        }
-                    }
                     // Display name
                     Text {
                         Layout.fillWidth: true

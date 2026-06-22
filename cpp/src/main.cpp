@@ -126,6 +126,12 @@ int main(int argc, char *argv[])
             if (!win) return;
             taskbarFilter->targetWindow = win;
             screenshotWindow = win;
+
+            // ── Frameless window taskbar fix: add WS_SYSMENU|WS_MINIMIZEBOX ──
+            // Without these, Windows Shell ignores taskbar minimize requests
+            HWND hwnd = (HWND)win->winId();
+            SetWindowLongPtrW(hwnd, GWL_STYLE,
+                GetWindowLongPtrW(hwnd, GWL_STYLE) | WS_SYSMENU | WS_MINIMIZEBOX);
             // Measure first frame render
             QObject::connect(win, &QQuickWindow::frameSwapped,
                 win, [pStartupTimer]() {

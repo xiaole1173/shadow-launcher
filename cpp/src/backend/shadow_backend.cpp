@@ -133,6 +133,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_version, &VersionBackend::installedVersionsChanged,
             this, &ShadowBackend::installedVersionsChanged);
+    connect(m_version, &VersionBackend::installedVersionsChanged,
+            this, &ShadowBackend::activeVersionNamesChanged);
+    connect(m_version, &VersionBackend::activeInstallsChanged,
+            this, &ShadowBackend::activeVersionNamesChanged);
+    connect(m_version, &VersionBackend::installStateChanged,
+            this, &ShadowBackend::activeVersionNamesChanged);
     connect(m_version, &VersionBackend::selectedVersionChanged,
             this, &ShadowBackend::selectedVersionChanged);
     connect(m_version, &VersionBackend::selectedVersionChanged, this, [this]() {
@@ -522,6 +528,10 @@ QVariantList ShadowBackend::versionList() const {
 
 QStringList ShadowBackend::installedVersions() const {
     return m_version->installedIds();
+}
+
+QStringList ShadowBackend::activeVersionNames() const {
+    return m_version->activeVersionNames();
 }
 
 bool ShadowBackend::isInstalling() const {
