@@ -129,6 +129,8 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/MinecraftHead2D.qml
         qml/MinecraftHead3D.qml
         qml/ModLoaderCard.qml
+        qml/ModDetailPage.qml
+        qml/ResourcePackDetailPage.qml
         qml/SettingsGeneralPage.qml
         qml/SettingsJavaPage.qml
         qml/SettingsMemoryPage.qml
