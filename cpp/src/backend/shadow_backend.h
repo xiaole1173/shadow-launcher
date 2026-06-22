@@ -301,6 +301,8 @@ public:
     Q_INVOKABLE void queryFabricVersions(const QString& mcVersion);
     Q_INVOKABLE void queryNeoForgeVersions(const QString& mcVersion);
     Q_INVOKABLE void queryOptifineVersions(const QString& mcVersion);
+    Q_INVOKABLE void queryFabricApiVersions(const QString& mcVersion);
+    Q_INVOKABLE bool installFabricApi(const QString& version, const QString& url, const QString& savePath);
 
     // Mod loader installation
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
@@ -388,6 +390,9 @@ signals:
     void modVersionsLoaded(const QVariantMap& slugToVersions);
     void modVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);
     void modVersionsProgress(int done, int total);
+
+    // Fabric API signals
+    void fabricApiVersionsReady(const QVariantList& versions);
 
     // Mod file download signals
     void modFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);

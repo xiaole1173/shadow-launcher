@@ -1652,6 +1652,50 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
         [this](const QVariantList& list) { emit optifineVersionsReady(list); });
 }
 
+void ShadowBackend::queryFabricApiVersions(const QString& mcVersion) {
+    const QString url = QStringLiteral("https://api.modrinth.com/v2/project/fabric-api/version?loaders=[%22fabric%22]&game_versions=[%22")
+                        + mcVersion + QStringLiteral("%22]");
+    qDebug() << "[FabricApi] querying" << url;
+    HttpClient::instance().get(url, [this, mcVersion](int status, const QByteArray& body) {
+        if (status != 200 || body.isEmpty()) {
+            qWarning() << "[FabricApi] query failed, status:" << status;
+            emit fabricApiVersionsReady({});
+            return;
+        }
+        QJsonDocument doc = QJsonDocument::fromJson(body);
+        if (!doc.isArray()) { emit fabricApiVersionsReady({}); return; }
+        QJsonArray arr = doc.array();
+        QVariantList list;
+        for (const QJsonValue& v : arr) {
+            QJsonObject obj = v.toObject();
+            QJsonArray files = obj.value(QStringLiteral("files")).toArray();
+            if (files.isEmpty()) continue;
+            QJsonObject file = files.first().toObject();
+            QVariantMap m;
+            m[QStringLiteral("version")] = obj.value(QStringLiteral("version_number")).toString();
+            m[QStringLiteral("name")] = obj.value(QStringLiteral("name")).toString();
+            m[QStringLiteral("date")] = obj.value(QStringLiteral("date_published")).toString().left(10);
+            m[QStringLiteral("url")] = file.value(QStringLiteral("url")).toString();
+            m[QStringLiteral("filename")] = file.value(QStringLiteral("filename")).toString();
+            m[QStringLiteral("sha1")] = file.value(QStringLiteral("hashes")).toObject().value(QStringLiteral("sha1")).toString();
+            m[QStringLiteral("size")] = file.value(QStringLiteral("size")).toDouble();
+            list.append(m);
+        }
+        qDebug() << "[FabricApi] got" << list.size() << "versions for MC" << mcVersion;
+        emit fabricApiVersionsReady(list);
+    });
+}
+
+bool ShadowBackend::installFabricApi(const QString& version, const QString& url, const QString& savePath) {
+    if (url.isEmpty() || savePath.isEmpty()) return false;
+    QString dir = QFileInfo(savePath).absolutePath();
+    if (!dir.isEmpty()) QDir().mkpath(dir);
+    qDebug() << "[FabricApi] installing" << version << "to" << savePath;
+    m_resource->downloadModFile(url, savePath, QStringLiteral("Fabric API %1").arg(version),
+                                0, QString(), 0, -1);
+    return true;
+}
+
 void ShadowBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
                                       const QString& loaderVersion, const QString& installName) {
     qDebug() << "[install] ShadowBackend::installModLoader" << loaderType << mcVersion << loaderVersion << installName;

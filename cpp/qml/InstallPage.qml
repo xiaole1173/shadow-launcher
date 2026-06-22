@@ -41,11 +41,15 @@ Rectangle {
         backend.queryFabricVersions(mcVersion)
         backend.queryNeoForgeVersions(mcVersion)
         backend.queryOptifineVersions(mcVersion)
+        backend.queryFabricApiVersions(mcVersion)
     }
 
     property bool forgeLoading: false
     property bool fabricLoading: false
     property bool neoforgeLoading: false
+    property var fabricApiVersions: []
+    property bool fabricApiLoading: false
+
     property bool optifineLoading: false
 
     Connections {
@@ -61,6 +65,15 @@ Rectangle {
         }
         function onOptifineVersionsReady(list) {
             optifineLoading = false; optifineVersions = annotateTypes(list)
+        }
+        function onFabricApiVersionsReady(list) {
+            fabricApiLoading = false; fabricApiVersions = list
+            // Auto-select the latest (first) version
+            if (list.length > 0 && selectedFabricApi === "") {
+                selectedFabricApi = list[0].version
+                selectedFabricApiUrl = list[0].url
+                selectedFabricApiFile = list[0].filename
+            }
         }
         function onInstalledVersionsChanged() {
             var n = customName !== "" ? customName : fullVersionName
@@ -102,6 +115,8 @@ Rectangle {
     property string selectedFabric: ""
     property string selectedOptifine: ""
     property string selectedFabricApi: ""
+    property string selectedFabricApiUrl: ""
+    property string selectedFabricApiFile: ""
     property string activeLoader: ""
 
     property var forgeVersions: []
@@ -116,6 +131,7 @@ Rectangle {
         if (activeLoader === "forge" && selectedForge) parts.push("Forge-" + selectedForge)
         if (activeLoader === "neoforge" && selectedNeoForge) parts.push("NeoForge-" + selectedNeoForge)
         if (activeLoader === "fabric" && selectedFabric) parts.push("Fabric-" + selectedFabric)
+        if (activeLoader === "fabric" && selectedFabricApi) parts.push("FabricAPI-" + selectedFabricApi)
         if (selectedOptifine) parts.push("OptiFine-" + selectedOptifine)
         return parts.join("-")
     }
@@ -258,6 +274,11 @@ Rectangle {
                                             backend.installModLoader(mcVersion, "neoforge", selectedNeoForge, n)
                                         } else if (selectedFabric !== "") {
                                             backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
+                                            if (selectedFabricApi !== "" && selectedFabricApiUrl !== "") {
+                                                var gameDir = backend.getVersionGameDir(n) || ""
+                                                var apiPath = gameDir + "/mods/" + selectedFabricApiFile
+                                                backend.installFabricApi(selectedFabricApi, selectedFabricApiUrl, apiPath)
+                                            }
                                         } else if (selectedOptifine !== "") {
                                             backend.installOptifine(mcVersion, selectedOptifine, selectedForge, n)
                                         } else {
@@ -335,6 +356,7 @@ Rectangle {
 
             // Fabric API
             Rectangle {
+                id: fabricApiCard
                 Layout.fillWidth: true; height: root.activeLoader === "fabric" ? 52 : 0
                 visible: root.activeLoader === "fabric"; color: "#11141c"; radius: 8
                 border.color: "#1e2230"; border.width: 1; clip: true
@@ -343,7 +365,44 @@ Rectangle {
                     Rectangle { width: 8; height: 8; radius: 4; color: root.selectedFabricApi ? "#4bc870" : "#505868" }
                     Text { text: "Fabric API"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2" }
                     Item { Layout.fillWidth: true }
-                    Text { text: root.selectedFabricApi || "\u672a\u9009\u62e9"; font.pixelSize: 12; color: "#9498a8" }
+                    Text {
+                        text: root.fabricApiLoading ? "Loading..." : (root.selectedFabricApi || "\u672a\u9009\u62e9")
+                        font.pixelSize: 12; color: root.selectedFabricApi ? "#40c8c8" : "#9498a8"
+                    }
+                    Text { text: "\u25be"; font.pixelSize: 10; color: "#606880" }
+                }
+                MouseArea {
+                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: { if (root.fabricApiVersions.length > 0) apiVersionPopup.open() }
+                }
+                Popup {
+                    id: apiVersionPopup; y: parent.height; x: 0; width: parent.width
+                    padding: 4; background: Rectangle { color: "#141820"; radius: 6; border.color: "#2a3040"; border.width: 1 }
+                    contentItem: ListView {
+                        implicitHeight: Math.min(240, root.fabricApiVersions.length * 38); clip: true
+                        model: root.fabricApiVersions
+                        delegate: Rectangle {
+                            width: apiVersionPopup.width - 8; height: 38; radius: 4
+                            color: root.selectedFabricApi === modelData.version ? "#1a2840" : (ma.containsMouse ? "#1a2230" : "transparent")
+                            Text {
+                                anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.version; font.pixelSize: 12; color: "#c0c8e0"
+                            }
+                            Text {
+                                anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.date || ""; font.pixelSize: 10; color: "#707880"
+                            }
+                            MouseArea {
+                                id: ma; anchors.fill: parent; hoverEnabled: true
+                                onClicked: {
+                                    root.selectedFabricApi = modelData.version
+                                    root.selectedFabricApiUrl = modelData.url
+                                    root.selectedFabricApiFile = modelData.filename
+                                    apiVersionPopup.close()
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
