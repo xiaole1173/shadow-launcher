@@ -2964,17 +2964,19 @@ Rectangle {
 
             onLoaded: {
                 _keepActive = true
-                item.backend = backend
-                item.toastManager = toastManager
-                item.mainWindow = mainWindow
-                item.rpDetailSlug = page._rpDetailSlug
-                item.rpDetailTitle = page._rpDetailTitle
-                item.rpDetailIconUrl = page._rpDetailIconUrl
-                item.rpDetailAuthor = page._rpDetailAuthor
-                item.rpDetailDesc = page._rpDetailDesc
-                item.rpDetailDownloads = page._rpDetailDownloads
-                item.rpDetailUpdated = page._rpDetailUpdated
-                item.goBack.connect(function() { parent.opacity = 0; _showRpDetail = false; _keepActive = false })
+                if (item) {
+                    item.goBack.connect(function() { parent.opacity = 0; _showRpDetail = false; _keepActive = false })
+                    item.backend = backend
+                    item.toastManager = toastManager
+                    item.mainWindow = mainWindow
+                    item.rpDetailSlug = page._rpDetailSlug
+                    item.rpDetailTitle = page._rpDetailTitle
+                    item.rpDetailIconUrl = page._rpDetailIconUrl
+                    item.rpDetailAuthor = page._rpDetailAuthor
+                    item.rpDetailDesc = page._rpDetailDesc
+                    item.rpDetailDownloads = page._rpDetailDownloads
+                    item.rpDetailUpdated = page._rpDetailUpdated
+                }
             }
 
             Connections {
@@ -3021,14 +3023,16 @@ Rectangle {
 
             onLoaded: {
                 _keepActive = true
-                item.backend = backend
-                item.toastManager = toastManager
-                item.mainWindow = mainWindow
-                item.modDetailSlug = page._modDetailSlug
-                item.modDetailTitle = page._modDetailTitle
-                item.modDetailDesc = page._modDetailDesc
-                item.modDetailIcon = page._modDetailIcon
-                item.requestClose.connect(function() { modDetailOverlay.color = "#ff0000"; modDetailOverlay.opacity = 0; _showModDetail = false; _keepActive = false })
+                if (item) {
+                    item.goBack.connect(function() { parent.opacity = 0; _showModDetail = false; _keepActive = false })
+                    item.backend = backend
+                    item.toastManager = toastManager
+                    item.mainWindow = mainWindow
+                    item.modDetailSlug = page._modDetailSlug
+                    item.modDetailTitle = page._modDetailTitle
+                    item.modDetailDesc = page._modDetailDesc
+                    item.modDetailIcon = page._modDetailIcon
+                }
             }
 
             Connections {
