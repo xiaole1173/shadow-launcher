@@ -1254,43 +1254,44 @@ int ShadowBackend::requiredJavaMajor(const QString& versionId)
 
 int ShadowBackend::inferJavaByMcVersion(const QString& mcVersion)
 {
-    // Fallback: infer Java major version from MC version string
-    // Used when version JSON + inheritsFrom chain has no javaVersion field
+    // Fallback: infer Java major version from MC version string.
+    // Used when version JSON + inheritsFrom chain has no javaVersion field.
     //
-    // Official Mojang mappings:
-    //   MC < 1.17         → Java 8
-    //   MC 1.17           → Java 16
-    //   MC 1.18 ~ 1.20.4  → Java 17
-    //   MC 1.20.5 ~ 1.21  → Java 21
-    //   MC 1.22+ (26.x)   → Java 25 (java-runtime-beta)
+    // Source: Minecraft Wiki + ModReady version table
+    //   MC < 1.17                 → Java 8
+    //   MC 1.17~1.17.1            → Java 16
+    //   MC 1.18~1.20.4            → Java 17
+    //   MC 1.20.5~1.21.5          → Java 21
+    //   MC 22.x+ (post-rename)    → Java 25 (java-runtime-beta)
     //
     if (mcVersion.isEmpty()) return 8;
 
-    // Parse major.minor from version string
+    // Parse major.minor[.revision] from version string
     QStringList parts = mcVersion.split(QStringLiteral("."));
     if (parts.size() < 2) return 8;
     
     int major = parts[0].toInt();
     int minor = parts[1].toInt();
+    int rev = (parts.size() >= 3) ? parts[2].split(QStringLiteral("-"))[0].toInt() : 0;
     
-    // Post-rename era: "26.1.1" → major=26 (Mojang renamed 1.22+ to 26+)
-    if (major >= 22) return 25;  // java-runtime-beta
+    // ── Post-rename era: "22.x.x" ~ "26.x.x" ──
+    // Mojang renamed 1.22+ to 22.x (e.g. 26.1 = Tiny Takeover, 26.2 = Chaos Cubed)
+    // These all use java-runtime-beta → Java 25
+    if (major >= 22) return 25;
     
-    // Classic era: "1.X.Y" → major==1, minor=X
+    // ── Classic era: "1.X.Y" ──
     if (major == 1) {
-        if (minor >= 20) {
-            if (parts.size() >= 3) {
-                int rev = parts[2].toInt();
-                if (rev >= 5) return 21;  // 1.20.5+
-            }
-            return 17;  // 1.20.x (default to 17, 1.20.5+ handled above)
-        }
-        if (minor == 18 || minor == 19) return 17;  // 1.18~1.19
+        // 1.21.x (regardless of rev) → Java 21
+        if (minor >= 22) return 25;   // 1.22+ (if it exists) → same as post-rename
+        if (minor >= 21) return 21;
+        // 1.20.x: 1.20.5+ → Java 21, 1.20.0~1.20.4 → Java 17
+        if (minor >= 20) return (rev >= 5) ? 21 : 17;
+        if (minor == 18 || minor == 19) return 17;
         if (minor == 17) return 16;
         return 8;  // 1.16.x and below
     }
     
-    // Unknown version scheme → try conservative
+    // Unknown version scheme → conservative
     return 21;
 }
 
