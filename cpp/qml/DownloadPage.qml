@@ -15,7 +15,6 @@ Rectangle {
     signal triggerDownloadBall(real sourceX, real sourceY)
 
     // ── Auto-test helpers (accessible from MainWindow loader.item) ──
-    property alias rpDetailExpanded: rpDetailPage.rpDetailExpanded
     function toggleVersionMenu() {
         if (rpVersionMenu.visible) { rpVersionMenu.close() } else { rpVersionMenu.open() }
     }
@@ -100,7 +99,6 @@ Rectangle {
     property int rpPage: 0  // current page offset for pagination
     property bool rpLoadingMore: false
     property bool rpShowPreReleases: false
-    property int rpVersionCacheVersion: 0
     property bool rpHasMore: true
     property int rpTotalHits: 0
 
@@ -2707,16 +2705,15 @@ Rectangle {
                             id: rpCardHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 console.log("[RP-DEBUG] card clicked:", model.slug)
-                                rpDetailSlug = model.slug; rpDetailTitle = model.title
-                                var iconUrl = model.icon || ""
-                                iconUrl = iconUrl.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                iconUrl = iconUrl.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                // Qt 6.8 natively supports WebP — use URL directly
-                                page.rpDetailIconUrl = iconUrl
-                                page.rpDetailAuthor = model.author || ""
-                                page.rpDetailDesc = model.desc || ""
-                                page.rpDetailDownloads = model.downloads || 0
-                                page.rpDetailUpdated = model.updated || ""
+                                var iconUrl = (model.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                                page._rpDetailIconUrl = iconUrl
+                                page._rpDetailAuthor = model.author || ""
+                                page._rpDetailDesc = model.desc || ""
+                                page._rpDetailSlug = model.slug
+                                page._rpDetailTitle = model.title
+                                page._rpDetailDownloads = model.downloads || 0
+                                page._rpDetailUpdated = model.updated || ""
+                                page._showRpDetail = true
                             }
                         }
                     }
@@ -2726,438 +2723,6 @@ Rectangle {
     }
 
 
-    // ════════════════════════════════════════════
-    // Resource pack detail page (full-screen overlay)
-    // ════════════════════════════════════════════
-    Timer {
-        id: rpDetailBackTimer; interval: 150; repeat: false
-    }
-
-    Item {
-        id: rpDetailPage
-        anchors.fill: parent
-        z: 10  // above all other content
-        visible: rpDetailSlug !== "" && !rpDetailBackTimer.running
-
-        // Detail page properties (must be at Item root, not inside ColumnLayout)
-        property var rpDetailGrouped: {
-            var _ver = page.rpVersionCacheVersion; var d = page.rpVersionCache
-            var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
-            var groups = {}
-            for (var i = 0; i < raw.length; i++) {
-                var v = raw[i]
-                // Group by major.minor (first two segments): "1.21.11" -> "1.21", "26.1.2" -> "26.1"
-                var segs = v.split(".")
-                var major = segs.length >= 2 ? segs[0] + "." + segs[1] : v
-                if (!groups[major]) groups[major] = []
-                groups[major].push(v)
-            }
-            var result = []
-            for (var k in groups) { result.push({major: k, versions: groups[k]}) }
-            // Sort groups by major.minor, descending
-            result.sort(function(a,b) {
-                var as = a.major.split("."), bs = b.major.split(".")
-                var aM = parseInt(as[0])||0, bM = parseInt(bs[0])||0
-                if (aM !== bM) return bM - aM
-                return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
-            })
-            return result
-        }
-        property var rpDetailExpanded: []  // Array of expanded group major keys (independent toggle)
-        property string rpDetailSelectedVer: ""  // Level 3: which game_version's detail card is open
-
-        function isGroupExpanded(major) {
-            // Handle legacy string mode (set by CLI --detail-expand)
-            if (typeof rpDetailExpanded === 'string') return rpDetailExpanded === major
-            return rpDetailExpanded.indexOf(major) >= 0
-        }
-
-        function toggleGroupExpanded(major) {
-            // Convert legacy string to array if needed
-            var arr = (typeof rpDetailExpanded === 'string') ? [rpDetailExpanded] : rpDetailExpanded.slice()
-            var idx = arr.indexOf(major)
-            if (idx >= 0) arr.splice(idx, 1)
-            else arr.push(major)
-            rpDetailExpanded = arr
-        }
-
-        function getVerDetail(gameVer) {
-            var cache = page.rpVersionDetailCache[rpDetailSlug]
-            if (!cache) return null
-            return cache[gameVer] || null
-        }
-
-        function formatDate(isoStr) {
-            if (!isoStr) return "-"
-            var d = isoStr.slice(0, 10)
-            return d
-        }
-
-        function formatDownloads(n) {
-            if (!n && n !== 0) return "0"
-            if (n >= 1000000) return (n / 1000).toFixed(1) + "K"
-            if (n >= 1000) return (n / 1000).toFixed(1) + "K"
-            return String(n)
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            color: "#0c0f16"
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
-
-                // ← Back button
-                Rectangle {
-                    Layout.preferredHeight: 30
-                    width: rpBackLabel.implicitWidth + 20; radius: 6
-                    color: rpBackHov.hovered ? "#1a2848" : "transparent"
-                    border.color: rpBackHov.hovered ? "#5068c8" : "#1e2230"
-                    border.width: 1
-
-                    Row {
-                        anchors.centerIn: parent; spacing: 4
-                        Text { text: "←"; color: "#9094a8"; font.pixelSize: 14 }
-                        Text {
-                            id: rpBackLabel
-                            text: "返回"; color: "#9094a8"; font.pixelSize: 12
-                        }
-                    }
-                    MouseArea {
-                        id: rpBackHov
-                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            console.log("[resourcepack] detail closed")
-                            rpDetailBackTimer.restart()
-                            rpDetailSlug = ""
-                            // Ensure we stay on RP tab (tab index 3)
-                            currentTab = 3
-                        }
-                    }
-                }
-
-                // Title row with icon
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 14
-                    Rectangle {
-                        width: 48; height: 48; radius: 10; color: "#1a1f2e"
-                        Layout.preferredWidth: 48; Layout.preferredHeight: 48
-                        clip: true
-                        Image {
-                            id: rpDetailIcon
-                            anchors.fill: parent
-                            source: page.rpDetailIconUrl || ""
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true; cache: true
-                            sourceSize.width: 96; sourceSize.height: 96
-                            onStatusChanged: {
-                                if (status === Image.Error) {
-                                    rpDetailIconFallback.visible = true
-                                } else if (status === Image.Ready) {
-                                    rpDetailIconFallback.visible = false
-                                }
-                            }
-                        }
-                        Text {
-                            id: rpDetailIconFallback
-                            anchors.centerIn: parent
-                            text: (rpDetailTitle || rpDetailSlug) ? (rpDetailTitle || rpDetailSlug)[0] : "R"
-                            color: "#5068c8"; font.pixelSize: 22; font.bold: true
-                            visible: !page.rpDetailIconUrl
-                        }
-                    }
-                    Text {
-                        text: rpDetailTitle || rpDetailSlug; color: "#d0d4e0"
-                        font.pixelSize: 18; font.bold: true
-                        elide: Text.ElideRight; Layout.fillWidth: true
-                    }
-                }
-
-                // ── Detail info card (Issue #4) ──
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: rpInfoCardCol.implicitHeight + 24
-                    radius: 10; color: "#101828"
-                    border.color: "#1e2c48"; border.width: 1
-                    clip: true
-                    Column {
-                        id: rpInfoCardCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                        spacing: 6
-
-                        // Author
-                        Text {
-                            text: "作者: " + (page.rpDetailAuthor || "未知")
-                            color: "#7888a8"; font.pixelSize: 11
-                            elide: Text.ElideRight; width: parent.width
-                        }
-
-                        // Description
-                        Text {
-                            text: page.rpDetailDesc || "无简介"
-                            color: "#9098b0"; font.pixelSize: 11
-                            elide: Text.ElideRight; maximumLineCount: 3; width: parent.width
-                            wrapMode: Text.WordWrap
-                        }
-
-                        // Downloads + Updated
-                        Row { spacing: 24
-                            Text {
-                                text: "下载量: " + (page.rpDetailDownloads ? rpDetailPage.formatDownloads(page.rpDetailDownloads) : "-") + " 次"
-                                color: "#7888a8"; font.pixelSize: 11
-                            }
-                            Text {
-                                text: "更新于: " + (page.rpDetailUpdated ? rpDetailPage.formatDate(page.rpDetailUpdated) : "-")
-                                color: "#7888a8"; font.pixelSize: 11
-                            }
-                        }
-
-                        // Action buttons
-                        Row { spacing: 8
-                            Rectangle {
-                                width: Math.max(rpModBtn.implicitWidth + 24, 110); height: 28; radius: 6
-                                color: rpModBtnHov.hovered ? "#1a2a50" : "transparent"
-                                border.color: "#5068c8"; border.width: 1.5
-                                Text {
-                                    id: rpModBtn; anchors.centerIn: parent
-                                    text: "转到Modrinth"; color: "#6888e8"; font.pixelSize: 11
-                                }
-                                MouseArea {
-                                    id: rpModBtnHov; anchors.fill: parent
-                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (rpDetailSlug) Qt.openUrlExternally("https://modrinth.com/resourcepack/" + rpDetailSlug)
-                                    }
-                                }
-                            }
-                            Rectangle {
-                                width: Math.max(rpCopyBtn.implicitWidth + 24, 90); height: 28; radius: 6
-                                color: rpCopyBtnHov.hovered ? "#282018" : "transparent"
-                                border.color: "#685040"; border.width: 1.5
-                                Text {
-                                    id: rpCopyBtn; anchors.centerIn: parent
-                                    text: "复制名称"; color: "#c89860"; font.pixelSize: 11
-                                }
-                                MouseArea {
-                                    id: rpCopyBtnHov; anchors.fill: parent
-                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (backend) backend.copyToClipboard(rpDetailTitle || rpDetailSlug)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Text {
-                    text: "所有可用游戏版本 | 大版本分组 | 点击安装"
-                    color: "#505468"; font.pixelSize: 11
-                }
-
-                // Version list grouped by major, click to expand
-                ScrollView {
-                    id: rpDetailScroll
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                    Column {
-                        width: rpDetailScroll.availableWidth - 4; spacing: 4
-
-                        Repeater {
-                            model: rpDetailPage.rpDetailGrouped
-                            delegate: Column {
-                                width: parent.width; spacing: 2
-
-                                // Group header
-                                Rectangle {
-                                    width: parent.width; height: 40; radius: 8
-                                    color: rpDetGrpArea.containsMouse ? "#1e2c50" : "#141c2c"
-                                    border.color: rpDetGrpArea.containsMouse ? "#3858c0" : "#1a2848"
-                                    border.width: 1
-                                    RowLayout {
-                                        anchors.fill: parent; anchors.margins: 10; spacing: 10
-                                        Text {
-                                            text: (rpDetailPage.isGroupExpanded(modelData.major) ? "\u25bc" : "\u25b8") + "  MC " + modelData.major
-                                            color: "#6080d8"; font.pixelSize: 14; font.bold: true
-                                        }
-                                        Item { Layout.fillWidth: true }
-                                        Text {
-                                            text: modelData.versions.length + " 个版本"
-                                            color: "#505468"; font.pixelSize: 10
-                                        }
-                                    }
-                                    MouseArea {
-                                        id: rpDetGrpArea; anchors.fill: parent
-                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            rpDetailPage.toggleGroupExpanded(modelData.major)
-                                        }
-                                    }
-                                }
-
-                                // Sub-versions (only when expanded) — Level 2 + Level 3 drill-down
-                                Repeater {
-                                    model: rpDetailPage.isGroupExpanded(modelData.major) ? modelData.versions : []
-                                    delegate: Column {
-                                        width: parent.width - 24; x: 24; spacing: 2
-
-                                        // Level 2: sub-version row (click to expand/collapse)
-                                        Rectangle {
-                                            width: parent.width; height: 34; radius: 6
-                                            color: {
-                                                if (rpDetailPage.rpDetailSelectedVer === modelData) return "#1a2848"
-                                                return rpDetSubHov.hovered ? "#1a2436" : "#111820"
-                                            }
-                                            border.color: {
-                                                if (rpDetailPage.rpDetailSelectedVer === modelData) return "#3858c0"
-                                                return rpDetSubHov.hovered ? "#1e3050" : "#141c28"
-                                            }
-                                            border.width: 1
-                                            RowLayout {
-                                                anchors.fill: parent; anchors.margins: 8; spacing: 8
-                                                Text {
-                                                    text: (rpDetailPage.rpDetailSelectedVer === modelData ? "\u25bc" : "\u25b8") + " " + modelData
-                                                    color: "#8898b8"; font.pixelSize: 12
-                                                    font.family: "Consolas, monospace"; Layout.fillWidth: true
-                                                }
-                                            }
-                                            MouseArea {
-                                                id: rpDetSubHov; anchors.fill: parent
-                                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    rpDetailPage.rpDetailSelectedVer = (rpDetailPage.rpDetailSelectedVer === modelData) ? "" : modelData
-                                                }
-                                            }
-                                        }
-
-                                        // Level 3: Version detail card (appears when this sub-version is selected)
-                                        Rectangle {
-                                            visible: rpDetailPage.rpDetailSelectedVer === modelData
-                                            width: parent.width; height: l3Content.implicitHeight + 20; radius: 8
-                                            color: "#101828"
-                                            border.color: "#2a3a58"; border.width: 1
-
-                                            Column {
-                                                id: l3Content
-                                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                                                spacing: 6
-
-                                                property var detail: { var slugCache = page.rpVersionDetailCache[page.rpDetailSlug]; return slugCache ? (slugCache[modelData] || {}) : {} }
-
-                                                // Pack name
-                                                Text {
-                                                    text: l3Content.detail.name || "-"
-                                                    color: "#d0d8f0"; font.pixelSize: 13; font.bold: true
-                                                    elide: Text.ElideRight; width: parent.width
-                                                }
-
-                                                // Version number row
-                                                Row { spacing: 8
-                                                    Text {
-                                                        text: "版本:"; color: "#606880"; font.pixelSize: 10
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                    }
-                                                    Text {
-                                                        text: l3Content.detail.version_number || "-"
-                                                        color: "#c0c8e0"; font.pixelSize: 11
-                                                        font.family: "Consolas, monospace"
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                    }
-                                                    // Type badge
-                                                    Rectangle {
-                                                        width: typeBadge.implicitWidth + 8; height: 18; radius: 3
-                                                        color: (l3Content.detail.version_type === "release") ? "#1a3a28" : "#3a2a18"
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        Text {
-                                                            id: typeBadge
-                                                            anchors.centerIn: parent
-                                                            text: (l3Content.detail.version_type === "release") ? "正式版" :
-                                                                  (l3Content.detail.version_type === "beta") ? "测试版" :
-                                                                  (l3Content.detail.version_type || "-")
-                                                            color: (l3Content.detail.version_type === "release") ? "#48d878" : "#e8a840"
-                                                            font.pixelSize: 9
-                                                        }
-                                                    }
-                                                }
-
-                                                // Downloads + Date row
-                                                Row { spacing: 16
-                                                    Row { spacing: 4
-                                                        Text { text: "下载量:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                                        Text {
-                                                            text: rpDetailPage.formatDownloads(l3Content.detail.downloads)
-                                                            color: "#a0a8c0"; font.pixelSize: 10
-                                                            anchors.verticalCenter: parent.verticalCenter
-                                                        }
-                                                    }
-                                                    Row { spacing: 4
-                                                        Text { text: "日期:"; color: "#606880"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                                                        Text {
-                                                            text: rpDetailPage.formatDate(l3Content.detail.date_published)
-                                                            color: "#a0a8c0"; font.pixelSize: 10
-                                                            anchors.verticalCenter: parent.verticalCenter
-                                                        }
-                                                    }
-                                                }
-
-                                                // Download button - blue outline style
-                                                Rectangle {
-                                                    width: l3DownloadBtn.implicitWidth + 24; height: 28; radius: 6
-                                                    color: l3DownloadHov.hovered ? "#1a2a50" : "transparent"
-                                                    border.color: "#5068c8"; border.width: 2
-                                                    anchors.horizontalCenter: parent.horizontalCenter
-                                                    Text {
-                                                        id: l3DownloadBtn
-                                                        anchors.centerIn: parent
-                                                        text: "下载"
-                                                        color: "#5068c8"; font.pixelSize: 12; font.weight: Font.Medium
-                                                    }
-                                                    MouseArea {
-                                                        id: l3DownloadHov
-                                                        anchors.fill: parent; hoverEnabled: true
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            console.log("[resourcepack] L3 download:", rpDetailSlug, modelData)
-                                                            var detail = page.rpVersionDetailCache[rpDetailSlug]
-                                                            var d = detail ? detail[modelData] : null
-                                                            if (!d || !d.url) { toastManager.show("无法获取下载地址"); return }
-                                                            var title = page.rpDetailTitle || rpDetailSlug || "resourcepack"
-                                                            var safeTitle = title.replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
-                                                            var vn = d.version_number || modelData
-                                                            var fn = safeTitle + "-" + vn + "-" + modelData + ".zip"
-                                                            var mineDir = String(backend ? (backend.minecraftDir || "") : "")
-                                                            var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
-                                                            page.pendingRpDownload = {slug: rpDetailSlug, title: title,
-                                                                versionNumber: vn, gameVersion: modelData,
-                                                                url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
-                                                                defaultPath: defaultPath, displayName: title + " " + vn}
-                                                            rpFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
-                                                            rpFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
-                                                            rpFileDialog.open()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Text {
-                            visible: rpDetailPage.rpDetailGrouped.length === 0
-                            text: "正在加载版本信息..."
-                            color: "#505468"; font.pixelSize: 12
-                            Layout.alignment: Qt.AlignHCenter
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // ════════════════════════════════════════════
     // Shared state (stands outside Item scope)
@@ -3189,16 +2754,7 @@ Rectangle {
     property var modEnvLabels: ({
         "": "全部", "required": "客户端", "optional": "客户端+服务端", "unsupported": "纯服务端"
     })
-    property string rpDetailSlug: ""
-    property string rpDetailTitle: ""
-    property string rpDetailIconUrl: ""
-    property string rpDetailAuthor: ""
-    property string rpDetailDesc: ""
-    property int rpDetailDownloads: 0
-    property string rpDetailUpdated: ""
     property string installingRpName: ""
-    property var rpVersionCache: ({})
-    property var rpVersionDetailCache: ({})  // { slug: { "1.21.11": {version_number,name,downloads,...} } }
 
     Connections {
         target: backend
@@ -3298,8 +2854,7 @@ Rectangle {
         function onResourcepackVersionsLoaded(data) {
             console.log("[resourcepack] versions loaded, keys:", data ? Object.keys(data).length : 0)
             if (data) {
-                page.rpVersionCache = data
-                // Also set chips on model items (for cards already rendered)
+                // Set chips on model items (for cards already rendered)
                 var slugs = Object.keys(data)
                 for (var s = 0; s < slugs.length; s++) {
                     var slug = slugs[s]
@@ -3317,9 +2872,6 @@ Rectangle {
                             break
                         }
                     }
-                }
-                if (rpDetailSlug && data[rpDetailSlug]) {
-                    console.log("[resourcepack] detail versions:", data[rpDetailSlug])
                 }
             }
         }
@@ -3346,16 +2898,6 @@ Rectangle {
             if (!found) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "WARN: slug not found in model:", slug)
             }
-            // Clone to trigger QML binding re-evaluation (mutation of nested JS object is undetectable)
-            var newVerCache = Object.assign({}, page.rpVersionCache)
-            newVerCache[slug] = versions
-            page.rpVersionCache = newVerCache
-            if (details) {
-                var newDetailCache = Object.assign({}, page.rpVersionDetailCache)
-                newDetailCache[slug] = details
-                page.rpVersionDetailCache = newDetailCache
-            }
-            page.rpVersionCacheVersion++
         }
 
         function onResourcepackVersionsProgress(done, total) {
@@ -3394,48 +2936,39 @@ Rectangle {
         }
     }
 
-    // Show detail when slug is set (triggers version fetch)
-    onRpDetailSlugChanged: {
-        console.log("[RP-DEBUG] rpDetailSlugChanged ->", rpDetailSlug)
-        // Close any open filter card popups so they don't overlap the detail page
-        if (rpSourceMenu) rpSourceMenu.close()
-        if (rpVersionMenu) rpVersionMenu.close()
-        if (rpCatMenu) rpCatMenu.close()
-        if (rpFeatMenu) rpFeatMenu.close()
-        if (rpResMenu) rpResMenu.close()
-        rpDetailPage.rpDetailExpanded = []
-        rpDetailPage.rpDetailSelectedVer = ""
-        if (rpDetailSlug && backend) {
-            backend.fetchResourcepackVersions([rpDetailSlug])
-            console.log("[RP-DEBUG] detail fetch versions for", rpDetailSlug)
+    // ── Resource Pack Detail (extracted to ResourcePackDetailPage.qml) ──
+    property bool _showRpDetail: false
+    property string _rpDetailSlug: ""
+    property string _rpDetailTitle: ""
+    property string _rpDetailIconUrl: ""
+    property string _rpDetailAuthor: ""
+    property string _rpDetailDesc: ""
+    property int _rpDetailDownloads: 0
+    property string _rpDetailUpdated: ""
+
+    Loader {
+        id: rpDetailLoader
+        anchors.fill: parent
+        z: 10
+        active: page._showRpDetail
+        source: active ? "ResourcePackDetailPage.qml" : ""
+
+        onLoaded: {
+            item.backend = backend
+            item.toastManager = toastManager
+            item.mainWindow = mainWindow
+            item.rpDetailSlug = page._rpDetailSlug
+            item.rpDetailTitle = page._rpDetailTitle
+            item.rpDetailIconUrl = page._rpDetailIconUrl
+            item.rpDetailAuthor = page._rpDetailAuthor
+            item.rpDetailDesc = page._rpDetailDesc
+            item.rpDetailDownloads = page._rpDetailDownloads
+            item.rpDetailUpdated = page._rpDetailUpdated
+            item.goBack.connect(function() {
+                page._showRpDetail = false
+            })
         }
     }
-
-    // ── RP file save dialog ──
-    FileDialog {
-        id: rpFileDialog
-        fileMode: FileDialog.SaveFile
-        title: "保存资源包"
-        nameFilters: ["ZIP 文件 (*.zip)", "所有文件 (*.*)"]
-        onAccepted: {
-            var p = page.pendingRpDownload
-            if (!p || !p.url) return
-            var savePath = String(selectedFile).replace(/^(file:\/{2,3})/i, "")
-            if (!/\.zip$/i.test(savePath)) savePath += ".zip"
-            console.log("[resourcepack] saving to:", savePath)
-            var dlId = backend.downloadModFile(p.url, savePath, p.displayName, p.size || 0, p.sha1 || "")
-            console.log("[resourcepack] download started, id:", dlId)
-            toastManager.show("开始下载 " + p.displayName)
-            mainWindow.showModDownloadProgress()
-            page.pendingRpDownload = {}
-        }
-        onRejected: {
-            page.pendingRpDownload = {}
-        }
-    }
-
-    // ── RP folder dialog (kept for legacy, unused in new flow) ──
-    property var pendingRpDownload: ({})
 
     // ── Mod Detail (extracted to ModDetailPage.qml) ──
     property bool _showModDetail: false
