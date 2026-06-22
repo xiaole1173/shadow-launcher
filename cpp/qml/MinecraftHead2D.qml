@@ -7,8 +7,9 @@ Rectangle {
     color: "transparent"
 
     // ── Google Material Spinner ──
-    // Decoupled: rotation never resets, dash length has snap-on-loop cycle
-    property real _startTime: 0
+    // Two animations driven by Qt animation engine (same frame, no conflicts):
+    //   1. dashOffset: ultra-long NumberAnimation → smooth continuous rotation
+    //   2. dashLen:    SequentialAnimation (stretch → hold → snap)
     property real _dashOffset: 0
     property real _dashLen: 0.01
     property real _circumference: 0
@@ -26,28 +27,19 @@ Rectangle {
         _circumference = 2 * Math.PI * r
     }
 
-    // ── Rotation: Timer-driven, never resets ──
-    // 2000ms per full rotation, clockwise
-    Timer {
-        id: rotTimer
-        interval: 16
-        repeat: true
+    // ── Rotation: never-reset NumberAnimation ──
+    // 1e6 rotations × 2000ms ≈ 23 days without a loop-jump
+    NumberAnimation on _dashOffset {
         running: root._spinning
-        onTriggered: {
-            var elapsed = Date.now() - root._startTime
-            // decreasing dashOffset = clockwise on arc(0, 2*PI)
-            _dashOffset = -((elapsed / 2000) * root._circumference) % root._circumference
-            spinner.requestPaint()
-        }
-        onRunningChanged: {
-            if (running) root._startTime = Date.now()
-        }
+        from: 0
+        to: -_circumference * 1e6
+        duration: 2000 * 1e6
     }
 
-    // ── Dash cycle: stretch → hold → (loop snap = tail catches head) ──
-    // Phase 1: stretch  0→44%  700ms  OutCubic (fast grow)
-    // Phase 2: hold     44%    800ms  (still)
-    // On loop restart: NumberAnimation.from=0 snaps dashLen to 0 instantly — that's the catch-up!
+    // ── Dash cycle ──
+    // Phase 1: stretch 0→44%  700ms  OutCubic
+    // Phase 2: hold    44%    800ms
+    // Loop restart: from=0 snaps to dot → tail catches head
     SequentialAnimation on _dashLen {
         running: root._spinning
         loops: Animation.Infinite
