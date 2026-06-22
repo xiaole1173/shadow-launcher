@@ -57,13 +57,22 @@ AccountBackend::AccountBackend(QObject *parent)
         m_msStatus.clear();
         qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
         saveMicrosoftSession();
-        emit microsoftLoginSuccess(username, uuid);
+        if (m_refreshingToken) {
+            m_refreshingToken = false;
+            emit tokenRefreshed(true);
+        } else {
+            emit microsoftLoginSuccess(username, uuid);
+        }
         emit accountChanged();
         emit logMessage(QStringLiteral("正版登录成功: %1").arg(username));
         downloadSkin(username);
     });
     connect(m_msAuth, &MicrosoftAuth::loginFailed, this, [this](const QString& error) {
         m_msStatus.clear();
+        if (m_refreshingToken) {
+            m_refreshingToken = false;
+            emit tokenRefreshed(false);
+        }
         qCWarning(logAccount) << "Microsoft login FAILED:" << error;
         emit microsoftLoginFailed(error);
         emit microsoftLoginBusyChanged();
@@ -664,17 +673,23 @@ void AccountBackend::refreshMicrosoftToken()
 
         if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
             qCInfo(logAccount) << "Microsoft token refresh failed (need re-login):" << raw.left(200);
+            if (m_refreshingToken) { m_refreshingToken = false; emit tokenRefreshed(false); }
             return;
         }
 
         m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString(m_msRefreshToken);
-        qCInfo(logAccount) << "Microsoft token refreshed!";
+        QString newAccessToken = obj[QStringLiteral("access_token")].toString();
+        qCInfo(logAccount) << "Microsoft token refreshed! Now refreshing MC token...";
+
+        // Continue the chain: MS access_token → XBL → XSTS → Minecraft token
+        m_refreshingToken = true;
+        m_msAuth->refreshMcChain(newAccessToken);
 
         // Token refreshed — keep alive, but DON'T flip login mode
         m_loggedIn = true;
         saveMicrosoftSession();
         emit accountChanged();
-        emit logMessage(QStringLiteral("已自动登录: %1").arg(m_username));
+        emit logMessage(QStringLiteral("已自动刷新登录: %1").arg(m_username));
     });
 }
 

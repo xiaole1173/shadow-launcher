@@ -48,6 +48,7 @@ public:
     Q_INVOKABLE void updateOfflineSkin(const QString &username);
     Q_INVOKABLE void logout();
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
+    void refreshMicrosoftToken();
 
     // Microsoft login state
     Q_PROPERTY(QString msStatus READ msStatus NOTIFY microsoftLoginProgress)
@@ -66,6 +67,7 @@ signals:
     void microsoftLoginSuccess(const QString& username, const QString& uuid);
     void microsoftLoginFailed(const QString& error);
     void microsoftLoginBusyChanged();
+    void tokenRefreshed(bool ok);
 
 private:
     void downloadSkin(const QString &username);
@@ -77,7 +79,6 @@ private:
     void saveOfflineHistory();
     void saveMicrosoftSession();
     void loadMicrosoftSession();
-    void refreshMicrosoftToken();
     QString generateOfflineUuid(const QString &username) const;
     QString skinCachePath(const QString &username) const;
     QString capeCachePath(const QString &username) const;
@@ -85,6 +86,7 @@ private:
 
     // Microsoft login state
     MicrosoftAuth* m_msAuth = nullptr;
+    bool m_refreshingToken = false;
     QString m_msStatus;
     QString m_msRefreshToken;
     QString m_msMcToken;

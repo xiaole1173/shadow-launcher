@@ -242,6 +242,15 @@ void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri
 // ═══════════════════════════════════════════════════
 // Step 4: Xbox Live authenticate
 // ═══════════════════════════════════════════════════
+void MicrosoftAuth::refreshMcChain(const QString& msAccessToken)
+{
+    if (msAccessToken.isEmpty()) return;
+    qCInfo(logApp) << "[MSA] Silently refreshing MC token via XBL chain...";
+    m_busy = true;
+    m_msAccessToken = msAccessToken;
+    authenticateXbl(msAccessToken);
+}
+
 void MicrosoftAuth::authenticateXbl(const QString& accessToken)
 {
     qCInfo(logApp) << "[MSA] Step 4: XBL auth";

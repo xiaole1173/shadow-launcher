@@ -74,6 +74,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_settings->setMinecraftDir(m_app->gameDir());
     m_settings->setIsolationGameDir(m_app->gameDir());
     m_launch->setGameDir(m_app->gameDir());
+    m_launch->setAccount(m_account);
     m_version->setIsolation(m_settings->isolation());
 
     bp("Signal wiring...");

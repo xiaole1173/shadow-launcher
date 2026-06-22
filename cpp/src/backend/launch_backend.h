@@ -7,6 +7,7 @@
 
 namespace ShadowLauncher {
 
+class AccountBackend;
 class Launcher;
 class CrashDetector;
 
@@ -52,6 +53,7 @@ public:
 
     // ---- Called by ShadowBackend to sync game directory ----
     void setGameDir(const QString& dir);
+    void setAccount(AccountBackend* account) { m_account = account; }
 
 signals:
     void launchProgressChanged(int progress, const QString& status);
@@ -80,6 +82,7 @@ private:
     void handleLaunchStarted(Launcher* launcher);
     void handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg);
 
+    AccountBackend* m_account = nullptr;
     QList<Launcher*> m_runningLaunchers;
     QString m_gameDir;
     bool m_launching = false;

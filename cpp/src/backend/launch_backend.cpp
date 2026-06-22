@@ -1,4 +1,5 @@
 #include "launch_backend.h"
+#include "account_backend.h"
 #include "../core/launcher.h"
 #include "../core/crash_detector.h"
 #include "../utils/logger.h"
@@ -240,6 +241,31 @@ void LaunchBackend::runNextCheck()
             abortCheck(QStringLiteral("登录状态"),
                        QStringLiteral("请先登录后再启动游戏"));
             return;
+        }
+        // For online auth: refresh the Minecraft token before launching
+        if (m_authIsOnline && m_account) {
+            qCInfo(logLaunch) << "Pre-launch check: refreshing online token...";
+            m_checkTimer->stop();  // Pause until refresh completes
+            // Temporary connection: resume on refresh result
+            QMetaObject::Connection* conn = new QMetaObject::Connection();
+            *conn = connect(m_account, &AccountBackend::tokenRefreshed, this,
+                [this, conn](bool ok) {
+                    disconnect(*conn);
+                    delete conn;
+                    if (ok) {
+                        qCInfo(logLaunch) << "Pre-launch check passed: token refreshed";
+                        // Update the auth token with the freshly refreshed MC token
+                        m_authToken = m_account->mcToken();
+                        m_checkStep++;  // advance to next step
+                        m_checkTimer->start();
+                    } else {
+                        abortCheck(QStringLiteral("登录状态"),
+                            QStringLiteral("正版登录已过期"));
+                    }
+                });
+            // Start the async refresh (MS refresh → XBL → XSTS → MC chain)
+            m_account->refreshMicrosoftToken();
+            return;  // Don't advance; wait for callback
         }
         qCInfo(logLaunch) << "Pre-launch check passed: login status";
         break;
@@ -579,6 +605,25 @@ QString LaunchBackend::checkJavaArchitecture(const QString& javaPath)
 // Pre-launch check: Library file completeness
 // ============================================================
 
+// Helper: resolve all libraries including inherited versions (Forge/NeoForge inheritsFrom chain)
+static QJsonArray resolveMergedLibraries(const QString& gameDir, const QJsonObject& topJson) {
+    QJsonArray all = topJson.value(QStringLiteral("libraries")).toArray();
+    QString inherits = topJson.value(QStringLiteral("inheritsFrom")).toString();
+    QStringList seen;
+    while (!inherits.isEmpty() && !seen.contains(inherits)) {
+        seen.append(inherits);
+        QFile f(gameDir + QStringLiteral("/versions/") + inherits + QStringLiteral("/") + inherits + QStringLiteral(".json"));
+        if (!f.open(QIODevice::ReadOnly)) break;
+        QJsonObject parent = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        if (parent.isEmpty()) break;
+        for (const auto& lib : parent.value(QStringLiteral("libraries")).toArray())
+            all.append(lib);
+        inherits = parent.value(QStringLiteral("inheritsFrom")).toString();
+    }
+    return all;
+}
+
 QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
 {
     QStringList missing;
@@ -605,7 +650,7 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
     }
 
     QJsonObject versionJson = doc.object();
-    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+    QJsonArray libraries = resolveMergedLibraries(gameDir, versionJson);
 
     for (const QJsonValue& libVal : libraries) {
         QJsonObject lib = libVal.toObject();
@@ -738,7 +783,7 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
     }
 
     QJsonObject versionJson = doc.object();
-    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+    QJsonArray libraries = resolveMergedLibraries(gameDir, versionJson);
 
     bool foundAnyNative = false;
     for (const QJsonValue& libVal : libraries) {

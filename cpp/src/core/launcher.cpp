@@ -550,6 +550,25 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
 // Private Helpers — Natives Extraction
 // ============================================================
 
+// Helper: resolve all libraries including inherited versions (Forge/NeoForge inheritsFrom chain)
+static QJsonArray resolveMergedLibraries(const QString& gameDir, const QJsonObject& topJson) {
+    QJsonArray all = topJson.value(QStringLiteral("libraries")).toArray();
+    QString inherits = topJson.value(QStringLiteral("inheritsFrom")).toString();
+    QStringList seen;
+    while (!inherits.isEmpty() && !seen.contains(inherits)) {
+        seen.append(inherits);
+        QFile f(gameDir + QStringLiteral("/versions/") + inherits + QStringLiteral("/") + inherits + QStringLiteral(".json"));
+        if (!f.open(QIODevice::ReadOnly)) break;
+        QJsonObject parent = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        if (parent.isEmpty()) break;
+        for (const auto& lib : parent.value(QStringLiteral("libraries")).toArray())
+            all.append(lib);
+        inherits = parent.value(QStringLiteral("inheritsFrom")).toString();
+    }
+    return all;
+}
+
 bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versionJson)
 {
     QString nativesDir = m_gameDir + QStringLiteral("/versions/") + versionId
@@ -579,7 +598,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     QDir().mkpath(nativesDir);
 
     const QString libsDir = m_gameDir + QStringLiteral("/libraries");
-    const QJsonArray libraries = versionJson[QStringLiteral("libraries")].toArray();
+    const QJsonArray libraries = resolveMergedLibraries(m_gameDir, versionJson);
 
     // Determine platform-specific native classifier prefix
 #ifdef Q_OS_WIN

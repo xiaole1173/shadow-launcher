@@ -19,6 +19,7 @@ public:
 
     Q_INVOKABLE void startLogin(const QString& clientId);
     Q_INVOKABLE void cancelLogin();
+    Q_INVOKABLE void refreshMcChain(const QString& msAccessToken);
     bool isBusy() const { return m_busy; }
 
 signals:

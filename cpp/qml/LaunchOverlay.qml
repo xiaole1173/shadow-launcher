@@ -98,6 +98,10 @@ Rectangle {
         target: backend
         enabled: backend !== null
 
+        function onLaunchStateChanged() {
+            if (versionId === "") versionId = backend.launchVersion
+        }
+
         function onLaunchProgressChanged(pct, status) {
             console.log("[overlay] onLaunchProgressChanged: " + pct + "% - " + status)
             progressValue = pct
@@ -371,7 +375,10 @@ Rectangle {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (backend) backend.openLatestLog(versionId)
+                        if (backend) {
+                            var ok = backend.openLatestLog(versionId)
+                            if (!ok && toastManager) toastManager.show("日志文件尚未生成", "游戏可能崩溃过快，未能创建日志。可打开日志目录查看是否有旧日志。", 5000)
+                        }
                     }
                 }
             }
