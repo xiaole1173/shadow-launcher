@@ -6,10 +6,13 @@ Rectangle {
     width: 48; height: 48
     color: "transparent"
 
-    // ── Google Material Spinner (stroke-dasharray method) ──
+    // ── Google Material Spinner ──
+    // Decoupled: rotation never resets, dash length has snap-on-loop cycle
+    property real _startTime: 0
     property real _dashOffset: 0
     property real _dashLen: 0.01
     property real _circumference: 0
+
     property bool _spinning: img.status !== Image.Ready
         || _spinnerMinVisible
         || img.status === Image.Loading
@@ -23,19 +26,33 @@ Rectangle {
         _circumference = 2 * Math.PI * r
     }
 
-    // Rotation: dashOffset decreases → visible arc moves clockwise on screen
-    NumberAnimation on _dashOffset {
+    // ── Rotation: Timer-driven, never resets ──
+    // 2000ms per full rotation, clockwise
+    Timer {
+        id: rotTimer
+        interval: 16
+        repeat: true
         running: root._spinning
-        from: 0; to: -_circumference; duration: 2400; loops: Animation.Infinite
+        onTriggered: {
+            var elapsed = Date.now() - root._startTime
+            // decreasing dashOffset = clockwise on arc(0, 2*PI)
+            _dashOffset = -((elapsed / 2000) * root._circumference) % root._circumference
+            spinner.requestPaint()
+        }
+        onRunningChanged: {
+            if (running) root._startTime = Date.now()
+        }
     }
 
-    // 3-phase: stretch (fast) → crawl (slow) → catch-up (tail chases)
+    // ── Dash cycle: stretch → hold → (loop snap = tail catches head) ──
+    // Phase 1: stretch  0→44%  700ms  OutCubic (fast grow)
+    // Phase 2: hold     44%    800ms  (still)
+    // On loop restart: NumberAnimation.from=0 snaps dashLen to 0 instantly — that's the catch-up!
     SequentialAnimation on _dashLen {
         running: root._spinning
         loops: Animation.Infinite
-        NumberAnimation { from: 0.01; to: _circumference * 0.62; duration: 700; easing.type: Easing.OutCubic }
-        NumberAnimation { from: _circumference * 0.62; to: _circumference * 0.80; duration: 900; easing.type: Easing.InQuart }
-        NumberAnimation { from: _circumference * 0.80; to: 0.01; duration: 800; easing.type: Easing.OutExpo }
+        NumberAnimation { from: 0.01; to: _circumference * 0.44; duration: 700; easing.type: Easing.OutCubic }
+        PauseAnimation { duration: 800 }
     }
 
     Canvas {
