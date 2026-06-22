@@ -366,11 +366,9 @@ Rectangle {
                     // Sub-versions
                     Repeater {
                         model: isGroupExpanded(modelData.major) ? modelData.versions : []
-                        delegate: Column {
-                            width: parent.width - 24; x: 24; spacing: 2
-
-                            DetailVersionCard {
-                                id: verCard
+                        delegate: DetailVersionCard {
+                            width: parent.width - 24
+                            x: 24
                                 versionLabel: {
                                     var d = getVerDetail(modelData)
                                     return d ? (d.version_number || modelData) : modelData
@@ -478,7 +476,6 @@ Rectangle {
                                     }
                                 }
                             }
-                        }
                     }
                 }
             }
