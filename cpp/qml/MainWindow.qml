@@ -288,7 +288,7 @@ Window {
                                         MouseArea {
                                             id: runningKillHover
                                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { if (backend && !backend.killing) backend.killGameById(modelData.index) }
+                                            onClicked: { if (backend) backend.killGameByPid(modelData.pid) }
                                         }
                                     }
                                 }

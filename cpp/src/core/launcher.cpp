@@ -147,9 +147,10 @@ void Launcher::killProcess()
 
 void Launcher::onProcessStarted()
 {
+    m_pid = m_process->processId();
     emit launchStarted();
     emit launchProgress(QStringLiteral("Minecraft 进程已启动 (PID: %1)")
-                        .arg(m_process->processId()));
+                        .arg(m_pid));
 }
 
 void Launcher::onReadyReadStdout()
@@ -249,26 +250,19 @@ void Launcher::forceKill()
 {
     if (!m_process) return;
 
-    qint64 pid = m_process->processId();
+    qint64 pid = m_pid > 0 ? m_pid : m_process->processId();
     if (pid <= 0) {
         m_process->kill();
-        m_process->waitForFinished(1000);
         return;
     }
 
 #ifdef Q_OS_WIN
-    // Windows: kill process tree (synchronous — wait for taskkill to finish)
-    QProcess killer;
-    killer.start(QStringLiteral("taskkill"), QStringList() << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid));
-    killer.waitForFinished(500);  // 500ms max, then fall through to direct kill
-
-    if (m_process->state() != QProcess::NotRunning) {
-        m_process->kill();
-        m_process->waitForFinished(3000);
-    }
+    // Kill entire process tree. Fire-and-forget: no blocking wait.
+    QStringList args;
+    args << QStringLiteral("/F") << QStringLiteral("/T") << QStringLiteral("/PID") << QString::number(pid);
+    QProcess::startDetached(QStringLiteral("taskkill"), args);
 #else
     m_process->kill();
-    m_process->waitForFinished(3000);
 #endif
 }
 

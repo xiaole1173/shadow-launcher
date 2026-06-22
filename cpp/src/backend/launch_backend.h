@@ -18,7 +18,6 @@ class LaunchBackend : public QObject {
     Q_PROPERTY(QString launchStatus READ launchStatus NOTIFY launchProgressChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
     Q_PROPERTY(int runningCount READ runningCount NOTIFY runningCountChanged)
-    Q_PROPERTY(bool killing READ isKilling NOTIFY killingChanged)
 
 public:
     explicit LaunchBackend(QObject* parent = nullptr);
@@ -29,7 +28,6 @@ public:
     QString launchStatus() const { return m_launchStatus; }
     bool isRunning() const { return !m_runningLaunchers.isEmpty(); }
     int runningCount() const { return m_runningLaunchers.size(); }
-    bool isKilling() const { return m_killing; }
 
     // ---- Slots ----
     Q_INVOKABLE void launch(const QString& versionId, const QString& username,
@@ -37,8 +35,8 @@ public:
                             const QString& jvmArgs = {});
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();  // kill ALL running games
-    Q_INVOKABLE void killGameById(int index);  // kill one game by index
-    Q_INVOKABLE QVariantList runningGames() const;  // [{version,pid,index}, ...]
+    Q_INVOKABLE void killGameByPid(qint64 pid);  // kill one game by PID
+    Q_INVOKABLE QVariantList runningGames() const;  // [{version,pid,displayVersion}, ...]
     Q_INVOKABLE int getAutoMemory();
     Q_INVOKABLE int getSystemMemory();
     Q_INVOKABLE QVariantMap getMemoryStatus();
@@ -65,7 +63,6 @@ signals:
     void crashDetected(const QVariantMap& report);
     void isRunningChanged();
     void runningCountChanged();
-    void killingChanged();
     void logMessage(const QString& msg);
 
     // ── Pre-launch check signals ──
@@ -87,7 +84,6 @@ private:
 
     AccountBackend* m_account = nullptr;
     QList<Launcher*> m_runningLaunchers;
-    bool m_killing = false;
     QString m_gameDir;
     bool m_launching = false;
     int m_launchProgress = 0;

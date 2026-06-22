@@ -20,6 +20,7 @@ public:
                int maxMemoryMB, const QString& jvmArgs = {});
     void cancel();
     void killProcess();
+    qint64 pid() const { return m_pid; }
     bool isRunning() const { return m_process && m_process->state() != QProcess::NotRunning; }
 
     // ---- Configuration ----
@@ -57,6 +58,7 @@ private:
     void ensureLegacyAssets(const QString& assetIndexId);
 
     QProcess* m_process = nullptr;
+    qint64 m_pid = 0;
     QString m_gameDir;
     QString m_currentVersionId;
     QString m_jvmArgs;

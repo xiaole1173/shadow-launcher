@@ -286,8 +286,6 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::isRunningChanged);
     connect(m_launch, &LaunchBackend::runningCountChanged,
             this, &ShadowBackend::runningCountChanged);
-    connect(m_launch, &LaunchBackend::killingChanged,
-            this, &ShadowBackend::killingChanged);
     connect(m_launch, &LaunchBackend::logMessage,
             this, &ShadowBackend::logMessage);
     connect(m_launch, &LaunchBackend::launchCheckProgress,
@@ -837,9 +835,6 @@ bool ShadowBackend::isRunning() const {
     return m_launch->isRunning();
 }
 
-bool ShadowBackend::isKilling() const {
-    return m_launch ? m_launch->isKilling() : false;
-}
 
 int ShadowBackend::runningCount() const {
     return m_launch->runningCount();
@@ -1313,8 +1308,8 @@ void ShadowBackend::killMinecraft() {
     m_launch->killGameProcess();
 }
 
-void ShadowBackend::killGameById(int index) {
-    m_launch->killGameById(index);
+void ShadowBackend::killGameByPid(qint64 pid) {
+    m_launch->killGameByPid(pid);
 }
 
 QVariantList ShadowBackend::runningGames() {

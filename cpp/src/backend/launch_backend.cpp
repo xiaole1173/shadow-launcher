@@ -430,7 +430,7 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
             emit launchProgressChanged(0, QStringLiteral("游戏进程意外退出"));
             emit launchCheckFailed(QStringLiteral("进程存活"), QStringLiteral("游戏进程在窗口出现前退出"));
             emit logMessage(QStringLiteral("启动失败: 进程意外退出"));
-            // Remove from list (guard: may have been removed by killGameById)
+            // Remove from list (guard: may have been removed by killGameByPid)
             if (m_runningLaunchers.contains(launcher)) {
                 m_runningLaunchers.removeOne(launcher);
                 launcher->deleteLater();
@@ -485,7 +485,7 @@ void LaunchBackend::onLaunchProgress(const QString& message)
 
 void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg)
 {
-    // Guard: launcher may have been removed by killGameById already
+    // Guard: launcher may have been removed by killGameByPid already
     if (!m_runningLaunchers.contains(launcher)) {
         qCDebug(logLaunch) << "[PROCESS] handleLaunchFinished skipped (already removed by kill)";
         return;
@@ -853,27 +853,24 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
 }
 
 // ============================================================
-// Multi-instance: kill one game by index
+// Multi-instance: kill one game by PID
 // ============================================================
 
-void LaunchBackend::killGameById(int index)
+void LaunchBackend::killGameByPid(qint64 pid)
 {
-    qCDebug(logLaunch) << "[PROCESS] killGameById(" << index << ") —" << m_runningLaunchers.size() << "games total";
-    if (index < 0 || index >= m_runningLaunchers.size()) return;
-    
-    m_killing = true;
-    emit killingChanged();
-    
-    Launcher* launcher = m_runningLaunchers.at(index);
-    launcher->killProcess();
-    m_runningLaunchers.removeAt(index);
-    launcher->deleteLater();
-    
-    m_killing = false;
-    emit killingChanged();
-    emit runningCountChanged();
-    if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
-    emit logMessage(QStringLiteral("已结束游戏进程 #%1").arg(index));
+    qCDebug(logLaunch) << "[PROCESS] killGameByPid(" << pid << ") —" << m_runningLaunchers.size() << "games total";
+    for (int i = 0; i < m_runningLaunchers.size(); ++i) {
+        if (m_runningLaunchers[i]->pid() == pid) {
+            Launcher* launcher = m_runningLaunchers.takeAt(i);
+            launcher->killProcess();
+            launcher->deleteLater();
+            emit runningCountChanged();
+            if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
+            emit logMessage(QStringLiteral("已结束游戏进程 (PID: %1)").arg(pid));
+            return;
+        }
+    }
+    qCWarning(logLaunch) << "[PROCESS] killGameByPid: PID" << pid << "not found";
 }
 
 // ============================================================
@@ -894,7 +891,8 @@ QVariantList LaunchBackend::runningGames() const
     QMap<QString, int> versionSeen;
     for (int i = 0; i < m_runningLaunchers.size(); ++i) {
         QVariantMap info;
-        info["index"] = i;
+        qint64 pid = m_runningLaunchers[i]->pid();
+        info["pid"] = QVariant::fromValue(pid);
         QString ver = m_runningLaunchers[i]->property("launchVersion").toString();
         info["version"] = ver;
         
