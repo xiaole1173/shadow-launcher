@@ -9,25 +9,12 @@ Rectangle {
     property var backend: null
     property var toastManager: null
 
-    // Visibility: dismiss flag overrides all other conditions
+    // ── Visibility ──
     property bool _dismissed: false
     property bool _animatingOut: false
     visible: ((backend ? backend.launching : false) || checkFailed || _animatingOut) && !_dismissed
 
-    onCheckFailedChanged: {
-        if (checkFailed) {
-            console.log("[overlay] checkFailed=true phase=" + checkFailedPhase + " details=" + checkFailedDetails)
-            // Show error: keep visible, stop any closing
-            _animatingOut = false
-            hideTimer.stop()
-        } else if (!_animatingOut && !(backend && backend.launching)) {
-            console.log("[overlay] checkFailed cleared + not launching → should dismiss")
-            // No reason to stay visible — start exit animation if this was a normal dismiss
-            // (handled by hide() function)
-        }
-    }
-
-    // Flip-page animation on appearance
+    // ── Flip animation (entry + exit) ──
     property bool flipped: false
     transform: Rotation {
         id: flipRotation
@@ -52,9 +39,8 @@ Rectangle {
 
     Timer { id: showTimer; interval: 50; onTriggered: { flipped = true } }
 
-    // Hide with flip-out animation — sets _dismissed so binding allows close
     function hide() {
-        console.log("[overlay] hide() called: checkFailed=" + checkFailed)
+        console.log("[overlay] hide()")
         checkFailed = false
         checkFailedPhase = ""
         checkFailedDetails = ""
@@ -63,56 +49,62 @@ Rectangle {
         hideTimer.start()
     }
 
-    Timer {
-        id: hideTimer
-        interval: 550
-        onTriggered: {
-            console.log("[overlay] hideTimer fired -> _dismissed=true")
-            _dismissed = true; _animatingOut = false
-        }
-    }
+    Timer { id: hideTimer; interval: 550; onTriggered: { _dismissed = true; _animatingOut = false } }
 
-    Timer {
-        id: closeTimer
-        interval: 1500
-        onTriggered: {
-            console.log("[overlay] closeTimer fired -> calling hide()")
-            if (!checkFailed) hide()
-        }
-    }
+    Timer { id: closeTimer; interval: 1500; onTriggered: { if (!checkFailed) hide() } }
 
-    // Progress state
+    // ── Progress state ──
     property int progressValue: 0
     property string statusText: "准备启动..."
     property string versionId: ""
     property string username: ""
     property int memory: 0
 
-    // Check failure state
+    // ── Check failure state ──
     property bool checkFailed: false
     property string checkFailedPhase: ""
     property string checkFailedDetails: ""
     property var missingFilesList: []
     property string checkWarning: ""
 
-    // Track progress and check results from backend
+    onCheckFailedChanged: {
+        if (checkFailed) {
+            _animatingOut = false
+            hideTimer.stop()
+        }
+    }
+
+    // ── Backend signal handlers (single handler — no duplicates) ──
     Connections {
         target: backend
         enabled: backend !== null
 
         function onLaunchStateChanged() {
-            if (versionId === "") versionId = backend.launchVersion
+            console.log("[overlay] onLaunchStateChanged: launching=" + (backend ? backend.launching : "null"))
+            if (backend && backend.launching) {
+                _dismissed = false
+                _animatingOut = false
+                progressValue = 0
+                statusText = "准备启动..."
+                if (!versionId) versionId = backend.launchVersion || ""
+                username = backend.launchUsername || ""
+                memory = backend.maxMemoryMb
+                checkFailed = false
+                checkFailedPhase = ""
+                checkFailedDetails = ""
+                missingFilesList = []
+                checkWarning = ""
+            }
         }
 
         function onLaunchProgressChanged(pct, status) {
-            console.log("[overlay] onLaunchProgressChanged: " + pct + "% - " + status)
+            console.log("[overlay] progress: " + pct + "% - " + status)
             progressValue = pct
             statusText = status
             if (pct === 0 && status && status.indexOf("失败") >= 0) {
                 checkFailed = true
             }
             if (pct === 100 && !checkFailed) {
-                console.log("[overlay] 100% detected -> starting closeTimer (1500ms)")
                 closeTimer.start()
             }
         }
@@ -127,37 +119,17 @@ Rectangle {
             missingFilesList = files || []
         }
 
-        function onLaunchStateChanged() {
-            console.log("[overlay] onLaunchStateChanged: backend.launching=" + (backend ? backend.launching : "null"))
-            if (backend && backend.launching) {
-                console.log("[overlay] New launch -> reset _dismissed + progress")
-                _dismissed = false
-                progressValue = 0
-                statusText = "准备启动..."
-                checkFailed = false
-                checkFailedPhase = ""
-                checkFailedDetails = ""
-            }
-        }
-
         function onLaunchCheckWarning(warning) {
             checkWarning = warning || ""
         }
     }
 
-    // Auto-clear warning after 5 seconds
-    Timer {
-        id: warningTimer
-        interval: 5000
-        onTriggered: checkWarning = ""
-    }
-
+    // ── UI ──
     ColumnLayout {
         anchors.centerIn: parent
         spacing: 16
         width: Math.min(parent.width * 0.6, 480)
 
-        // Header — changes based on state
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: checkFailed ? "启动检查失败" : "正在启动 Minecraft"
@@ -181,7 +153,7 @@ Rectangle {
             visible: !checkFailed
         }
 
-        // ── Failure state display ──
+        // Failure state
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: errorColumn.implicitHeight + 24
@@ -198,7 +170,6 @@ Rectangle {
                 anchors.margins: 12
                 spacing: 6
 
-                // Failure phase
                 Text {
                     text: checkFailedPhase ? ("问题: " + checkFailedPhase) : "启动检查未通过"
                     color: "#ff8080"
@@ -208,7 +179,6 @@ Rectangle {
                     wrapMode: Text.WordWrap
                 }
 
-                // Failure details
                 Text {
                     text: checkFailedDetails
                     color: "#c08080"
@@ -218,7 +188,6 @@ Rectangle {
                     visible: checkFailedDetails !== ""
                 }
 
-                // Missing files list (scrollable if many)
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: Math.min(missingFilesList.length * 22 + 8, 200)
@@ -231,10 +200,10 @@ Rectangle {
                         id: missingListView
                         anchors.fill: parent
                         anchors.margins: 4
-                        model: missingFilesList.slice(0, 10)  // Show max 10
+                        model: missingFilesList.slice(0, 10)
                         spacing: 2
                         delegate: Text {
-                            text: "• " + modelData
+                            text: "- " + modelData
                             color: "#c06060"
                             font.pixelSize: 11
                             font.family: "Consolas, monospace"
@@ -243,7 +212,6 @@ Rectangle {
                         }
                     }
 
-                    // "and N more" indicator
                     Text {
                         anchors.bottom: parent.bottom
                         anchors.right: parent.right
@@ -255,9 +223,8 @@ Rectangle {
                     }
                 }
 
-                // Recovery hint
                 Text {
-                    text: "💡 建议: 请重新下载该版本以恢复缺失文件"
+                    text: "建议: 请重新下载该版本以恢复缺失文件"
                     color: "#807880"
                     font.pixelSize: 11
                     Layout.fillWidth: true
@@ -267,7 +234,7 @@ Rectangle {
             }
         }
 
-        // ── Warning display ──
+        // Warning
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: warnText.implicitHeight + 16
@@ -289,7 +256,7 @@ Rectangle {
             }
         }
 
-        // ── Normal progress display ──
+        // Progress (normal state)
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: checkFailed ? 0 : 50
@@ -301,7 +268,6 @@ Rectangle {
                 anchors.fill: parent
                 spacing: 10
 
-                // Progress bar
                 Rectangle {
                     Layout.fillWidth: true
                     height: 6
@@ -316,7 +282,6 @@ Rectangle {
                     }
                 }
 
-                // Percentage
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: progressValue + "%"
@@ -327,7 +292,7 @@ Rectangle {
             }
         }
 
-        // Status text (max 3 lines to prevent layout deformation)
+        // Status text
         Text {
             id: statusLabel
             Layout.alignment: Qt.AlignHCenter
@@ -344,16 +309,13 @@ Rectangle {
             visible: statusText !== ""
         }
 
-        // Action button row (changes based on state)
+        // Action buttons
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
             spacing: 12
 
-            // "查看日志" button — visible when check fails
             Rectangle {
-                width: 100
-                height: 34
-                radius: 6
+                width: 100; height: 34; radius: 6
                 color: logMouse.containsMouse ? "#1a2838" : "transparent"
                 border.color: logMouse.containsMouse ? "#2858a0" : "#283850"
                 scale: logMouse.pressed ? 0.9 : (logMouse.containsMouse ? 1.04 : 1.0)
@@ -366,7 +328,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "📋 查看日志"
+                    text: "查看日志"
                     font.pixelSize: 12
                     color: logMouse.containsMouse ? "#80a0ff" : "#6090d0"
                 }
@@ -385,11 +347,8 @@ Rectangle {
                 }
             }
 
-            // Main action button
             Rectangle {
-                width: checkFailed ? 140 : 120
-                height: 34
-                radius: 6
+                width: checkFailed ? 140 : 120; height: 34; radius: 6
                 color: checkFailed ? (actionMouse.containsMouse ? "#1a2a18" : "transparent")
                                    : (actionMouse.containsMouse ? "#2a1518" : "transparent")
                 border.color: checkFailed ? (actionMouse.containsMouse ? "#286028" : "#284028")
@@ -414,10 +373,8 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (checkFailed) {
-                            // Failed — just hide overlay to return to home
                             overlay.hide()
                         } else {
-                            // In progress — cancel launch
                             overlay.hide()
                             if (backend) backend.cancelLaunch()
                         }
