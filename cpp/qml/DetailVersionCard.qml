@@ -11,7 +11,7 @@ Rectangle {
     id: card
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(52, mainRow.implicitHeight + 16)
+    implicitHeight: Math.max(52, contentLayout.implicitHeight + 20)
     radius: 8
     color: cardHov.containsMouse ? "#161a26" : "#11141c"
     border.color: cardHov.containsMouse ? "#4068c8" : "#1e2230"
@@ -32,8 +32,7 @@ Rectangle {
     property string versionLabel: ""        // version number string
     property var tags: []                  // [{text, color, bg}] — loader/prerelease tags
     property var infoLines: []             // [{label, value}] — info rows below version
-    property bool hasDownload: false       // show download button
-    property string downloadLabel: "下载"   // button text (Mod=下载, RP=安装)
+    property bool hasDownload: false       // enable click-to-download
 
     // ── L3 expand (RP detail) ──
     property bool showExpand: false        // show expand toggle
@@ -83,11 +82,12 @@ Rectangle {
 
     // ── Layout ──
     ColumnLayout {
+        id: contentLayout
         anchors.fill: parent
         anchors.margins: 10
         spacing: 4
 
-        // Main row: version label + tags + download button
+        // Main row: version label + tags
         RowLayout {
             id: mainRow
             Layout.fillWidth: true
@@ -99,65 +99,31 @@ Rectangle {
                 color: "#d0d4e0"
                 font.pixelSize: 12; font.weight: Font.DemiBold
                 Layout.alignment: Qt.AlignVCenter
+                Layout.fillWidth: true
+                elide: Text.ElideRight
             }
 
-            // Tags
-            Repeater {
-                model: card.tags
-                delegate: Rectangle {
-                    id: tagRect
-                    width: tagText.implicitWidth + 8; height: 16
-                    radius: 3; color: modelData.bg || "#1a2848"
-                    Text {
-                        id: tagText
-                        anchors.centerIn: parent
-                        text: modelData.text
-                        color: modelData.color || "#8aaeff"
-                        font.pixelSize: 8
+            // Tags row (wrapped, no download button)
+            Row {
+                id: tagRow
+                spacing: 3
+                Repeater {
+                    model: card.tags
+                    delegate: Rectangle {
+                        width: tagText.implicitWidth + 8; height: 16
+                        radius: 3; color: modelData.bg || "#1a2848"
+                        Text {
+                            id: tagText
+                            anchors.centerIn: parent
+                            text: modelData.text
+                            color: modelData.color || "#8aaeff"
+                            font.pixelSize: 8
+                        }
                     }
                 }
             }
 
             Item { Layout.fillWidth: true }
-
-            // Download button
-            Rectangle {
-                id: dlBtn
-                visible: card.hasDownload
-                implicitWidth: Math.max(dlBtnText.implicitWidth + 20, 56)
-                implicitHeight: 28; radius: 6
-                color: dlBtnHov.containsMouse ? "#3a5ed0" : "#2a4590"
-
-                property real _btnScale: 1.0
-                scale: _btnScale
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on _btnScale {
-                    SpringAnimation { spring: 2.0; damping: 0.3; epsilon: 0.01 }
-                }
-
-                Text {
-                    id: dlBtnText
-                    anchors.centerIn: parent
-                    text: card.downloadLabel
-                    color: "#e8ecf8"
-                    font.pixelSize: 12; font.weight: Font.DemiBold
-                }
-                MouseArea {
-                    id: dlBtnHov
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: function(mouse) {
-                        mouse.accepted = true      // prevent card click
-                        dlBtn._btnScale = 0.92
-                        dlBtnScaleRestore.restart()
-                        card.downloadClicked()
-                    }
-                    Timer { id: dlBtnScaleRestore; interval: 100
-                        onTriggered: { dlBtn._btnScale = 1.0 }
-                    }
-                }
-            }
         }
 
         // Info lines (e.g. "MC: 1.21, 1.21.1", "2024-01-15  |  下载量 12.5K")

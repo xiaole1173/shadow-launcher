@@ -31,8 +31,9 @@ Rectangle {
     property var rpVersionCache: ({})
     property int rpVersionCacheVersion: 0
     property var rpVersionDetailCache: ({})
+    property bool _closing: false
 
-    signal goBack()
+    signal goBack()  // deprecated, use _closing property
 
     // ── Trigger fetch ──
     onRpDetailSlugChanged: {
@@ -134,7 +135,7 @@ Rectangle {
                     onClicked: {
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
-                        root.goBack()
+                        root._closing = true
                     }
                 }
             }
@@ -305,7 +306,7 @@ Rectangle {
             Repeater {
                 model: !rpDetailLoading ? rpDetailGrouped : []
                 delegate: Column {
-                    Layout.fillWidth: true; spacing: 2
+                    Layout.fillWidth: true; spacing: 6
 
                     // Group header
                     Rectangle {
@@ -388,7 +389,6 @@ Rectangle {
                                 }
 
                                 hasDownload: true
-                                downloadLabel: "安装"
                                 showExpand: true
                                 expanded: (root.selectedVersion === modelData)
                                 onDownloadClicked: {

@@ -26,8 +26,9 @@ Rectangle {
     property var modDetailRawVersions: []
     property var modDetailVersionMap: ({})
     property var pendingModDownload: ({})
+    property bool _closing: false
 
-    signal goBack()
+    signal goBack()  // depreciated, use _closing property
 
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
@@ -161,7 +162,7 @@ Rectangle {
                     onClicked: {
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
-                        root.goBack()
+                        root._closing = true
                     }
                 }
             }
@@ -325,7 +326,7 @@ Rectangle {
             Repeater {
                 model: !modDetailLoading ? grouped : []
                 delegate: Column {
-                    Layout.fillWidth: true; spacing: 2
+                    Layout.fillWidth: true; spacing: 6
 
                     // Group header card (same style as version cards)
                     Rectangle {
