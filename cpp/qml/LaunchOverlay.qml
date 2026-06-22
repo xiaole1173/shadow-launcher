@@ -9,6 +9,9 @@ Rectangle {
     property var backend: null
     property var toastManager: null
 
+    // Block all mouse events from passing through to underlying UI
+    MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
+
     // ── Visibility ──
     property bool _dismissed: false
     property bool _animatingOut: false
