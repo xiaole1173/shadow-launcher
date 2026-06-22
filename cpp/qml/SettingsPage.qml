@@ -1,4 +1,4 @@
-import QtQuick
+﻿﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -244,8 +244,7 @@ Rectangle {
                             if (!info || !info.total) return "未知"
                             var gb = (info.total / 1024).toFixed(1)
                             var availGb = (info.available / 1024).toFixed(1)
-                            return availGb + " GB 可用 / " + gb + " GB 总计"
-                        }; font.pixelSize: 13; color: "#b8c0d0"; Layout.fillWidth: true }
+                            return availGb + " GB 可用 / " + gb + " GB 总计"`r`n"                        } font.pixelSize: 13; color: "#b8c0d0"; Layout.fillWidth: true }
                     }
                 }
 
