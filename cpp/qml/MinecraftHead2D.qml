@@ -47,11 +47,11 @@ Rectangle {
             ctx.lineWidth = 2.5
             ctx.lineCap = "round"
 
-        // Head leads at _spinnerAngle, tail trails behind by _spinnerArcLen
+            // Head leads, arc stretches forward in rotation direction
             var head = root._spinnerAngle * Math.PI / 180
-            var tail = head - (root._spinnerArcLen * Math.PI / 180)
+            var tail = head + (root._spinnerArcLen * Math.PI / 180)   // tail trails FORWARD
             ctx.beginPath()
-            ctx.arc(cx, cy, r, tail, head)
+            ctx.arc(cx, cy, r, head, tail)
             ctx.stroke()
         }
     }
