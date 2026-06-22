@@ -446,13 +446,17 @@ Rectangle {
                             }
                             Text { text: "最小" + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#989cb0" }
                         }
-                        Text { text: {
-                            if (!backend) return ""
-                            var info = backend.systemMemoryInfo
-                            if (!info || !info.total) return ""
-                            var gb = (info.total / 1024).toFixed(1)
-                            var availGb = (info.available / 1024).toFixed(1)
-                            return availGb + " GB 可用 / " + gb + " GB 总计"`r`n"                        } font.pixelSize: 9; color: "#a8b0c0" }
+                        Text {
+                            font.pixelSize: 9; color: "#a8b0c0"
+                            text: {
+                                if (!backend) return ""
+                                var info = backend.systemMemoryInfo
+                                if (!info || !info.total) return ""
+                                var gb = (info.total / 1024).toFixed(1)
+                                var availGb = (info.available / 1024).toFixed(1)
+                                return availGb + " GB 可用 / " + gb + " GB 总计"
+                            }
+                        }
 
                         // 自动内存
                         RowLayout {
