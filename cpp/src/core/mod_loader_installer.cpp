@@ -301,10 +301,26 @@ void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString
     QString targetVerDir = m_gameDir + "/versions/" + m_installName;
     QDir().mkpath(targetVerDir);
     QString targetJson = targetVerDir + "/" + m_installName + ".json";
+    auto fixJsonId = [&](const QString& jsonPath) {
+        QFile f(jsonPath);
+        if (!f.open(QIODevice::ReadOnly)) return;
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+        f.close();
+        if (!doc.isObject()) return;
+        QJsonObject obj = doc.object();
+        if (obj.value(QStringLiteral("id")).toString() == m_installName) return;
+        obj[QStringLiteral("id")] = m_installName;
+        qDebug() << "[ModLoader] Fixing JSON id →" << m_installName;
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
+        f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        f.close();
+    };
+
     if (!foundJson.isEmpty() && QFile::exists(foundJson)) {
         if (QFile::exists(targetJson)) QFile::remove(targetJson);
         QFile::copy(foundJson, targetJson);
         qDebug() << "[ModLoader] Forge JSON copied to" << targetJson;
+        fixJsonId(targetJson);
     } else {
         qWarning() << "[ModLoader] No Forge output JSON found, trying fallback name";
         // Try the predicted folder name
@@ -312,6 +328,7 @@ void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString
         if (QFile::exists(predictedJson)) {
             QFile::copy(predictedJson, targetJson);
             qDebug() << "[ModLoader] Forge JSON copied from predicted path:" << predictedJson;
+            fixJsonId(targetJson);
         } else {
             qWarning() << "[ModLoader] Cannot find Forge output JSON at all";
         }

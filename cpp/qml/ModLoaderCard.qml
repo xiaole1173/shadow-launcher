@@ -85,7 +85,7 @@ Rectangle {
                 Behavior on color { ColorAnimation { duration: 150 } }
                 TapHandler {
                     id: cancelArea; cursorShape: Qt.PointingHandCursor
-                    onTapped: { card.selectedVersion = ""; card.versionCleared() }
+                    onTapped: { card.versionCleared() }
                 }
             }
         }
@@ -133,7 +133,7 @@ Rectangle {
                     Text { text: modelData.date || ""; font.pixelSize: 11; color: "#787c90" }
                 }
                 HoverHandler { id: hoverDeleg }
-                TapHandler { cursorShape: Qt.PointingHandCursor; onTapped: { card.selectedVersion = modelData.version; card.versionSelected(modelData.version); card.expanded = false } }
+                TapHandler { cursorShape: Qt.PointingHandCursor; onTapped: { card.versionSelected(modelData.version); card.expanded = false } }
             }
 
             Text {
