@@ -6,30 +6,58 @@ Rectangle {
     width: 48; height: 48
     color: "transparent"
 
-    // ── Spinner ──
-    property real _angle: 0
-    RotationAnimation on _angle {
-        running: img.status === Image.Loading || (img.status === Image.Null && root.skinSource.toString())
-        from: 0; to: 360; duration: 1000; loops: Animation.Infinite
+    // ── Google-style Spinner ──
+    property real _spinnerAngle: 0
+    property real _spinnerArcLen: 60
+    property bool _spinning: img.status === Image.Loading || (img.status === Image.Null && root.skinSource.toString())
+
+    RotationAnimation on _spinnerAngle {
+        running: root._spinning
+        from: 0; to: 360; duration: 1200; loops: Animation.Infinite
+        easing.type: Easing.InOutCubic
+    }
+
+    SequentialAnimation on _spinnerArcLen {
+        running: root._spinning
+        loops: Animation.Infinite
+        NumberAnimation { from: 20; to: 280; duration: 650; easing.type: Easing.InOutCubic }
+        NumberAnimation { from: 280; to: 20; duration: 650; easing.type: Easing.InOutCubic }
     }
 
     Canvas {
         id: spinner
         anchors.fill: parent
-        visible: img.status !== Image.Ready
+        visible: root._spinning
         onPaint: {
-            var ctx = getContext("2d"), cw = width, ch = height
-            ctx.clearRect(0, 0, cw, ch)
-            if (img.status === Image.Ready) return
-            var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5
-            ctx.strokeStyle = "#5b8def"
-            ctx.lineWidth = 3; ctx.lineCap = "round"
-            ctx.beginPath()
-            ctx.arc(cx, cy, r - 2, root._angle * Math.PI / 180, root._angle * Math.PI / 180 + Math.PI * 1.3)
-            ctx.stroke()
+            var ctx = getContext("2d");
+            var cw = width, ch = height;
+            ctx.clearRect(0, 0, cw, ch);
+            if (img.status === Image.Ready) return;
+            var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 5;
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = "round";
+
+            // Draw faint track circle
+            ctx.strokeStyle = "rgba(91, 141, 239, 0.15)";
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Draw animated arc
+            var angRad = root._spinnerAngle * Math.PI / 180;
+            var lenRad = (root._spinnerArcLen * Math.PI / 180) / 2;
+            ctx.strokeStyle = "#5b8def";
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, angRad - lenRad, angRad + lenRad);
+            ctx.stroke();
         }
     }
-    Connections { target: root; function on_SangleChanged() { spinner.requestPaint() } }
+    Connections {
+        target: root
+        function on_SpinnerAngleChanged() { spinner.requestPaint() }
+        function on_SpinnerArcLenChanged() { spinner.requestPaint() }
+        function on_SpinningChanged() { if (root._spinning) spinner.requestPaint() }
+    }
 
     // ── Face Image (pre-cropped by C++ to 128x128, file:// URL) ──
     Image {
