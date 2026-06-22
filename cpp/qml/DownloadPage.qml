@@ -1295,9 +1295,9 @@ Rectangle {
                                 id: modItem
                                 Layout.fillWidth: true
                                 height: 64; radius: 8
-                                color: modItemHov.hovered ? "#161a26" : "#161922"
-                                border.color: modItemHov.hovered ? "#4068c8" : "#1e2230"
-                                border.width: modItemHov.hovered ? 1.5 : 1
+                                color: modItemMA.containsMouse ? "#161a26" : "#161922"
+                                border.color: modItemMA.containsMouse ? "#4068c8" : "#1e2230"
+                                border.width: modItemMA.containsMouse ? 1.5 : 1
 
                                 // Entrance animation
                                 opacity: 0
@@ -1321,11 +1321,12 @@ Rectangle {
                                 Behavior on border.width { NumberAnimation { duration: 150 } }
                                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-                                HoverHandler { id: modItemHov }
-
-                                TapHandler {
+                                MouseArea {
+                                    id: modItemMA
+                                    anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onTapped: {
+                                    onClicked: {
                                         modItem._shaking = true
                                         page.modDetailSlug = model.slug
                                         page.modDetailTitle = model.title || ""
@@ -3358,9 +3359,8 @@ Rectangle {
 
 
     // ════════════════════════════════════════════
-    // MOD DETAIL OVERLAY (clone of RP pattern)
+    // MOD DETAIL OVERLAY
     // ════════════════════════════════════════════
-    Timer { id: modDetailBackTimer; interval: 150; repeat: false }
 
     Item {
         id: modDetailOverlay
@@ -3368,7 +3368,9 @@ Rectangle {
         height: parent.height
         z: 10
         x: 0
-        visible: page.modDetailSlug !== "" && !modDetailBackTimer.running
+        visible: page.modDetailSlug !== "" && !modDetailOverlay._closing
+
+        property bool _closing: false
 
         Behavior on x {
             NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
@@ -3382,8 +3384,23 @@ Rectangle {
 
         // Slide out to right on close (called by back button)
         function animateOut() {
+            modDetailOverlay._closing = true
             modDetailOverlay.x = parent.width
-            modDetailBackTimer.restart()
+            slideOutCleanupTimer.start()
+        }
+
+        Timer {
+            id: slideOutCleanupTimer
+            interval: 320
+            onTriggered: {
+                modDetailOverlay._closing = false
+                page.modDetailSlug = ""
+                page.modDetailRawVersions = []
+                page.modDetailVersionMap = {}
+                modDetailOverlay.expandedGroups = []
+                modDetailOverlay.selectedVersion = ""
+                page.modDetailLoading = false
+            }
         }
 
         // ── Helpers ──
@@ -3509,19 +3526,6 @@ Rectangle {
                         id: backHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             modDetailOverlay.animateOut()
-                        }
-                    }
-                    // Cleanup after slide-out
-                    Timer {
-                        interval: 310
-                        running: modDetailBackTimer.running
-                        onTriggered: {
-                            page.modDetailSlug = ""
-                            page.modDetailRawVersions = []
-                            page.modDetailVersionMap = {}
-                            modDetailOverlay.expandedGroups = []
-                            modDetailOverlay.selectedVersion = ""
-                            page.modDetailLoading = false
                         }
                     }
                 }
@@ -3698,9 +3702,42 @@ Rectangle {
 
                                 // Group header
                                 Rectangle {
+                                    id: grpHeader
                                     width: parent.width; height: 40; radius: 8
                                     color: grpHover.containsMouse ? "#283860" : "#1a2848"
-                                    border.color: grpHover.containsMouse ? "#5068c8" : "#3858c0"; border.width: 1
+                                    border.color: grpHover.containsMouse ? "#4068c8" : "#3858c0"
+                                    border.width: grpHover.containsMouse ? 1.5 : 1
+
+                                    // Elastic click
+                                    property real _eScale: 1.0
+                                    transform: Scale {
+                                        origin.x: grpHeader.width / 2
+                                        origin.y: grpHeader.height / 2
+                                        xScale: grpHeader._eScale
+                                        yScale: grpHeader._eScale
+                                    }
+                                    Timer { id: grpRestoreTimer; interval: 100
+                                        onTriggered: { grpHeader._eScale = 1.0 }
+                                    }
+
+                                    Behavior on _eScale {
+                                        SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on border.color { ColorAnimation { duration: 200 } }
+                                    Behavior on border.width { NumberAnimation { duration: 150 } }
+
+                                    // Gradient overlay (hover glow)
+                                    Rectangle {
+                                        anchors.fill: parent; radius: parent.radius
+                                        opacity: grpHover.containsMouse ? 0.12 : 0
+                                        gradient: Gradient {
+                                            GradientStop { position: 0; color: "#5068c8" }
+                                            GradientStop { position: 1; color: "#6080d8" }
+                                        }
+                                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                    }
+
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 10
                                         Text {
@@ -3713,7 +3750,11 @@ Rectangle {
                                     MouseArea {
                                         id: grpHover; anchors.fill: parent
                                         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onClicked: { modDetailOverlay.toggleGroup(modelData.major) }
+                                        onClicked: {
+                                            grpHeader._eScale = 0.94
+                                            grpRestoreTimer.restart()
+                                            modDetailOverlay.toggleGroup(modelData.major)
+                                        }
                                     }
                                 }
 
@@ -3805,7 +3846,7 @@ Rectangle {
                                                     }
                                                     RowLayout { spacing: 12
                                                         Text { text: modDetailOverlay.formatDate((modDetailOverlay.getVersionDetail(modelData) || {}).date); color: "#606478"; font.pixelSize: 9 }
-                                                        Text { text: "DL " + modDetailOverlay.formatDL((modDetailOverlay.getVersionDetail(modelData) || {}).downloads); color: "#606478"; font.pixelSize: 9 }
+                                                        Text { text: "下载量 " + modDetailOverlay.formatDL((modDetailOverlay.getVersionDetail(modelData) || {}).downloads); color: "#606478"; font.pixelSize: 9 }
                                                     }
                                                 }
 
