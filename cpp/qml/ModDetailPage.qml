@@ -1,18 +1,19 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
 
 // ModDetailPage
-// Full-screen overlay for Mod version detail
-// Same pattern as InstallPage: self-contained, signals to parent
+// Full-screen detail page for a Mod project's version list
+// Architecture: InstallPage-style — fixed top bar + Flickable + cards
 
 Rectangle {
     id: root
     anchors.fill: parent
     color: "#0c0f16"
 
+    // ── Injected properties (set by Loader onLoaded) ──
     property var backend: null
     property var toastManager: null
     property var mainWindow: null
@@ -28,49 +29,13 @@ Rectangle {
 
     signal goBack()
 
-    // Slide in from right
-    x: 0
-    opacity: 1
-    property bool _entered: false
-
-    Behavior on x {
-        NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-    }
-    Behavior on opacity {
-        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
-    }
-
-    Component.onCompleted: {
-        x = parent.width
-        opacity = 1
-        slideInTimer.start()
-    }
-
-    Timer { id: slideInTimer; interval: 16; onTriggered: { root.x = 0; root._entered = true } }
-
-    // Slide out and close
-    function animateOut() {
-        root.opacity = 0
-        root.x = parent.width
-        slideOutTimer.start()
-    }
-
-    Timer {
-        id: slideOutTimer
-        interval: 320
-        onTriggered: {
-            root.goBack()
-        }
-    }
-
-    // Trigger version fetch when slug arrives
+    // ── Trigger version fetch ──
     onModDetailSlugChanged: {
         if (modDetailSlug && backend) {
             modDetailLoading = true
             modDetailRawVersions = []
             modDetailVersionMap = {}
             expandedGroups = []
-            selectedVersion = ""
             showTestVersions = false
             backend.fetchModVersions([modDetailSlug])
         }
@@ -142,7 +107,6 @@ Rectangle {
         return result
     }
     property var expandedGroups: []
-    property string selectedVersion: ""
 
     function isExpanded(major) { return expandedGroups.indexOf(major) >= 0 }
     function toggleGroup(major) {
@@ -162,405 +126,341 @@ Rectangle {
         return String(n || 0)
     }
 
-    // ── UI ──
-
-    // Click interceptor background
-    MouseArea {
-        anchors.fill: parent
-        onClicked: console.log("[mod-detail] background click eaten")
-    }
-
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
-
-        // Back button
-        Rectangle {
-            id: backBtn
-            Layout.preferredHeight: 30
-            Layout.fillWidth: false
-            width: backLabel.implicitWidth + 20; radius: 6
-            color: backHov.containsMouse ? "#1a2848" : "transparent"
-            border.color: backHov.containsMouse ? "#5068c8" : "#1e2230"
-            border.width: backHov.containsMouse ? 1.5 : 1
-
-            property real _eScale: 1.0
-            scale: _eScale
-            Timer { id: backRestoreTimer; interval: 120
-                onTriggered: { backBtn._eScale = 1.0 }
-            }
-
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
-            Behavior on border.width { NumberAnimation { duration: 150 } }
-            Behavior on _eScale {
-                SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
-            }
-
-            Row {
-                anchors.centerIn: parent; spacing: 4
-                Text { text: "←"; color: "#9094a8"; font.pixelSize: 14 }
-                Text { id: backLabel; text: "返回"; color: "#9094a8"; font.pixelSize: 12 }
-            }
-            MouseArea {
-                id: backHov; anchors.fill: parent
-                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    backBtn._eScale = 0.92
-                    backRestoreTimer.restart()
-                    root.animateOut()
-                }
-            }
-        }
-
-        // Icon + Title
-        RowLayout {
-            Layout.fillWidth: true; spacing: 14
-            Rectangle {
-                width: 48; height: 48; radius: 10; color: "#1a1f2e"
-                Layout.preferredWidth: 48; Layout.preferredHeight: 48; clip: true
-                Image {
-                    id: modDetailIconImg
-                    anchors.fill: parent
-                    fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: true
-                    sourceSize.width: 96; sourceSize.height: 96
-                    source: modDetailIcon ? modDetailIcon.replace("cdn.modrinth.com", "mod.mcimirror.top") : ""
-                    onStatusChanged: { if (status === Image.Error) iconFb.visible = true }
-                }
-                Text {
-                    id: iconFb; anchors.centerIn: parent
-                    text: modDetailTitle ? modDetailTitle[0] : "M"
-                    color: "#5068c8"; font.pixelSize: 22; font.bold: true
-                    visible: !modDetailIcon
-                }
-            }
-            ColumnLayout { spacing: 2
-                Text {
-                    text: modDetailTitle || modDetailSlug; color: "#d0d4e0"
-                    font.pixelSize: 18; font.bold: true; elide: Text.ElideRight
-                }
-                Text {
-                    text: modDetailDesc || "无简介"; color: "#7888a8"
-                    font.pixelSize: 10; maximumLineCount: 2; wrapMode: Text.WordWrap; elide: Text.ElideRight
-                }
-            }
-        }
-
-        // Detail info card
-        Rectangle {
-            Layout.fillWidth: true; implicitHeight: infoCol.implicitHeight + 24
-            radius: 10; color: "#11141c"; border.color: "#1e2230"; border.width: 1
-            Column {
-                id: infoCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                spacing: 6
-                Text { text: "Slug: " + (modDetailSlug || ""); color: "#7888a8"; font.pixelSize: 11; elide: Text.ElideRight; width: parent.width }
-                Text {
-                    id: modVerCountText
-                    property int _displayCount: 0
-                    text: "版本数量: " + _displayCount
-                    color: "#7888a8"; font.pixelSize: 11
-
-                    Behavior on _displayCount {
-                        NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
-                    }
-                }
-                Row { spacing: 24
-                    Text { text: "来源: Modrinth (MCIM镜像)"; color: "#7888a8"; font.pixelSize: 11 }
-                }
-            }
-        }
+    // ━━━━━━━━━━━━━━━━━━━━ TOP BAR ━━━━━━━━━━━━━━━━━━━━
+    Rectangle {
+        id: topBar
+        anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+        height: 44; color: "#0c0f16"; z: 10
 
         RowLayout {
-            Layout.fillWidth: true
-            Text { text: "所有版本 | 按MC版本分组 | 点击展开"; color: "#505468"; font.pixelSize: 11 }
-            Item { Layout.fillWidth: true }
+            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
+
+            // Back button — InstallPage style
             Rectangle {
-                id: testToggleBtn
-                width: testBtn.implicitWidth + 14; height: 22; radius: 4
-                color: showTestVersions ? "#1a3a68" : "#11141c"
-                border.color: (testHov.containsMouse || showTestVersions) ? "#4068c8" : "#2a3040"
-                border.width: (testHov.containsMouse || showTestVersions) ? 1.5 : 1
+                width: backLabel.implicitWidth + 20; height: 30; radius: 6
+                color: backMouse.containsMouse ? "#1a2440" : "transparent"
+                Behavior on color { ColorAnimation { duration: 150 } }
 
                 property real _eScale: 1.0
                 scale: _eScale
-                Timer { id: testRestoreTimer; interval: 100
-                    onTriggered: { testToggleBtn._eScale = 1.0 }
+                Timer { id: backRestoreTimer; interval: 120
+                    onTriggered: { backBtnRect._eScale = 1.0 }
                 }
-
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on border.color { ColorAnimation { duration: 150 } }
-                Behavior on border.width { NumberAnimation { duration: 150 } }
                 Behavior on _eScale {
                     SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
                 }
 
-                Text { id: testBtn; anchors.centerIn: parent; font.pixelSize: 10
-                    text: showTestVersions ? "隐藏测试版" : "显示测试版"
-                    color: showTestVersions ? "#8aaeff" : "#505468"
+                Text {
+                    id: backLabel; anchors.centerIn: parent
+                    text: "\u2190 \u8fd4\u56de"; font.pixelSize: 13; font.weight: Font.Medium
+                    color: backMouse.containsMouse ? "#6080e8" : "#a0a8c0"
                 }
-                MouseArea { id: testHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                MouseArea {
+                    id: backMouse; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        testToggleBtn._eScale = 0.9
-                        testRestoreTimer.restart()
-                        showTestVersions = !showTestVersions
+                        backBtnRect._eScale = 0.92
+                        backRestoreTimer.restart()
+                        root.goBack()
                     }
                 }
             }
+
+            Item { Layout.fillWidth: true }
+
+            // Title
+            Text {
+                text: modDetailTitle || modDetailSlug || ""
+                font.pixelSize: 16; font.weight: Font.Bold; color: "#e4e8f2"
+                Layout.fillWidth: true
+                elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter
+            }
+
+            Item { Layout.fillWidth: true }
+            Item { width: backLabel.implicitWidth + 20 } // spacer for symmetry
         }
+    }
 
-        // Loading indicator
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: modDetailLoading || grouped.length === 0
+    // ━━━━━━━━━━━━━━━━━━━━ CONTENT ━━━━━━━━━━━━━━━━━━━━
+    Flickable {
+        id: contentFlick
+        anchors.top: topBar.bottom; anchors.left: parent.left; anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        contentWidth: width; contentHeight: contentCol.implicitHeight + 32
+        clip: true; flickableDirection: Flickable.VerticalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; width: 6 }
 
-            Row {
-                anchors.centerIn: parent
-                spacing: 8
+        ColumnLayout {
+            id: contentCol
+            width: parent.width - 32; x: 16; spacing: 12
+
+            // ── INFO CARD ──
+            DetailInfoCard {
+                id: infoCard
+                cardIcon: root.modDetailIcon
+                cardTitle: root.modDetailTitle
+                cardDesc: root.modDetailDesc
+
+                // Stats
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 24
+                    Text {
+                        text: "Slug: " + (modDetailSlug || "")
+                        color: "#7888a8"; font.pixelSize: 11
+                        elide: Text.ElideRight; Layout.fillWidth: true
+                    }
+                    Text {
+                        id: verCountText
+                        property int _displayCount: 0
+                        text: "版本数量: " + _displayCount
+                        color: "#7888a8"; font.pixelSize: 11
+                        Behavior on _displayCount {
+                            NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 24
+                    Text {
+                        text: "来源: Modrinth (MCIM 镜像)"
+                        color: "#7888a8"; font.pixelSize: 11
+                    }
+                    Rectangle {
+                        id: testToggleBtn
+                        width: testBtn.implicitWidth + 14; height: 22; radius: 4
+                        color: showTestVersions ? "#1a3a68" : "#11141c"
+                        border.color: (testHov.containsMouse || showTestVersions) ? "#3a5ed0" : "#2a3040"
+                        border.width: (testHov.containsMouse || showTestVersions) ? 1.5 : 1
+
+                        property real _eScale: 1.0
+                        scale: _eScale
+                        Timer { id: testRestoreTimer; interval: 100
+                            onTriggered: { testToggleBtn._eScale = 1.0 }
+                        }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        Behavior on border.width { NumberAnimation { duration: 150 } }
+                        Behavior on _eScale {
+                            SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
+                        }
+                        Text {
+                            id: testBtn; anchors.centerIn: parent; font.pixelSize: 10
+                            text: showTestVersions ? "隐藏测试版" : "显示测试版"
+                            color: showTestVersions ? "#8aaeff" : "#505468"
+                        }
+                        MouseArea {
+                            id: testHov; anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                testToggleBtn._eScale = 0.9
+                                testRestoreTimer.restart()
+                                showTestVersions = !showTestVersions
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Loading indicator ──
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: (modDetailLoading || grouped.length === 0) ? 60 : 0
                 visible: modDetailLoading || grouped.length === 0
 
-                Rectangle {
-                    id: spinnerBox
-                    width: 24; height: 24; radius: 12; color: "transparent"
-                    visible: modDetailLoading
+                Row {
+                    anchors.centerIn: parent; spacing: 8
 
-                    property real _angle: 0
-                    NumberAnimation on _angle {
-                        running: modDetailLoading
-                        from: 0; to: 360; duration: 1000; loops: Animation.Infinite
-                    }
-                    on_AngleChanged: spinCanvas.requestPaint()
-
-                    Canvas {
-                        id: spinCanvas
-                        anchors.fill: parent
+                    Rectangle {
+                        id: spinnerBox
+                        width: 24; height: 24; radius: 12; color: "transparent"
                         visible: modDetailLoading
 
-                        onPaint: {
-                            var ctx = getContext("2d")
-                            var cw = width, ch = height
-                            ctx.clearRect(0, 0, cw, ch)
-                            var cx = cw / 2, cy = ch / 2, r = Math.min(cx, cy) - 3
-                            if (r <= 0) return
-                            var startRad = (spinnerBox._angle - 90) * Math.PI / 180
-                            var endRad = (spinnerBox._angle + 180) * Math.PI / 180
-                            ctx.strokeStyle = "#5b8def"
-                            ctx.lineWidth = 2; ctx.lineCap = "round"
-                            ctx.beginPath()
-                            ctx.arc(cx, cy, r, startRad, endRad)
-                            ctx.stroke()
+                        property real _angle: 0
+                        NumberAnimation on _angle {
+                            running: modDetailLoading
+                            from: 0; to: 360; duration: 1000; loops: Animation.Infinite
+                        }
+                        on_AngleChanged: spinCanvas.requestPaint()
+
+                        Canvas {
+                            id: spinCanvas
+                            anchors.fill: parent; visible: modDetailLoading
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                var cx = width / 2, cy = height / 2
+                                var r = Math.min(cx, cy) - 3
+                                if (r <= 0) return
+                                var startRad = (spinnerBox._angle - 90) * Math.PI / 180
+                                var endRad = (spinnerBox._angle + 180) * Math.PI / 180
+                                ctx.strokeStyle = "#5b8def"
+                                ctx.lineWidth = 2; ctx.lineCap = "round"
+                                ctx.beginPath()
+                                ctx.arc(cx, cy, r, startRad, endRad)
+                                ctx.stroke()
+                            }
                         }
                     }
-                }
-
-                Text {
-                    text: modDetailLoading ? "加载版本中..."
-                        : (grouped.length === 0 ? "无可用版本" : "")
-                    color: "#606478"; font.pixelSize: 12
+                    Text {
+                        text: modDetailLoading ? "加载版本中..."
+                            : (grouped.length === 0 ? "无可用版本" : "")
+                        color: "#606478"; font.pixelSize: 12
+                    }
                 }
             }
-        }
 
-        // Version list
-        ScrollView {
-            id: modDetailScroll
-            Layout.fillWidth: true
-            Layout.fillHeight: !modDetailLoading && grouped.length > 0
-            Layout.preferredHeight: 0
-            clip: true
-            ScrollBar.vertical.policy: ScrollBar.AlwaysOn
-            visible: !modDetailLoading && grouped.length > 0
-            enabled: !modDetailLoading && grouped.length > 0
+            // ── Section: Version List ──
+            Text {
+                visible: !modDetailLoading && grouped.length > 0
+                text: "版本列表"
+                font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
+                Layout.topMargin: 8; Layout.leftMargin: 4
+            }
 
-            Column {
-                width: modDetailScroll.availableWidth - 4; spacing: 4
+            // ── Version groups ──
+            Repeater {
+                model: !modDetailLoading ? grouped : []
+                delegate: Column {
+                    Layout.fillWidth: true; spacing: 2
 
-                Repeater {
-                    model: grouped
-                    delegate: Column {
-                        width: parent.width; spacing: 2
+                    // Group header card (same style as version cards)
+                    Rectangle {
+                        id: grpHeader
+                        width: parent.width; height: 40; radius: 8
+                        color: grpHover.containsMouse ? "#161a26" : "#11141c"
+                        border.color: grpHover.containsMouse ? "#3a5ed0" : "#1e2230"
+                        border.width: grpHover.containsMouse ? 1.5 : 1
 
-                        // Group header
+                        property real _eScale: 1.0
+                        transform: Scale {
+                            origin.x: grpHeader.width / 2
+                            origin.y: grpHeader.height / 2
+                            xScale: grpHeader._eScale; yScale: grpHeader._eScale
+                        }
+                        Timer { id: grpRestoreTimer; interval: 100
+                            onTriggered: { grpHeader._eScale = 1.0 }
+                        }
+                        Behavior on _eScale {
+                            SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
+                        }
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                        Behavior on border.width { NumberAnimation { duration: 150 } }
+
                         Rectangle {
-                            id: grpHeader
-                            width: parent.width; height: 40; radius: 8
-                            color: grpHover.containsMouse ? "#283860" : "#1a2848"
-                            border.color: grpHover.containsMouse ? "#4068c8" : "#3858c0"
-                            border.width: grpHover.containsMouse ? 1.5 : 1
-
-                            property real _eScale: 1.0
-                            transform: Scale {
-                                origin.x: grpHeader.width / 2
-                                origin.y: grpHeader.height / 2
-                                xScale: grpHeader._eScale
-                                yScale: grpHeader._eScale
+                            anchors.fill: parent; radius: parent.radius
+                            opacity: grpHover.containsMouse ? 0.12 : 0
+                            gradient: Gradient {
+                                GradientStop { position: 0; color: "#5068c8" }
+                                GradientStop { position: 1; color: "#6080d8" }
                             }
-                            Timer { id: grpRestoreTimer; interval: 100
-                                onTriggered: { grpHeader._eScale = 1.0 }
-                            }
-
-                            Behavior on _eScale {
-                                SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
-                            }
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
-
-                            Rectangle {
-                                anchors.fill: parent; radius: parent.radius
-                                opacity: grpHover.containsMouse ? 0.12 : 0
-                                gradient: Gradient {
-                                    GradientStop { position: 0; color: "#5068c8" }
-                                    GradientStop { position: 1; color: "#6080d8" }
-                                }
-                                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent; anchors.margins: 10; spacing: 10
-                                Text {
-                                    text: (isExpanded(modelData.major) ? "\u25bc" : "\u25b8") + "  MC " + modelData.major
-                                    color: "#6080d8"; font.pixelSize: 14; font.bold: true
-                                }
-                                Item { Layout.fillWidth: true }
-                                Text { text: modelData.versions.length + " 个版本"; color: "#505468"; font.pixelSize: 10 }
-                            }
-                            MouseArea {
-                                id: grpHover; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    grpHeader._eScale = 0.94
-                                    grpRestoreTimer.restart()
-                                    toggleGroup(modelData.major)
-                                }
-                            }
+                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         }
 
-                        // Sub-versions
-                        Repeater {
-                            model: isExpanded(modelData.major) ? modelData.versions : []
-                            delegate: Column {
-                                width: parent.width - 24; x: 24; spacing: 2
+                        RowLayout {
+                            anchors.fill: parent; anchors.margins: 10; spacing: 10
+                            Text {
+                                text: (isExpanded(modelData.major) ? "\u25bc" : "\u25b8") + "  MC " + modelData.major
+                                color: "#6080d8"; font.pixelSize: 14; font.weight: Font.Bold
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: modelData.versions.length + " 个版本"
+                                color: "#505468"; font.pixelSize: 10
+                            }
+                        }
+                        MouseArea {
+                            id: grpHover; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                grpHeader._eScale = 0.94
+                                grpRestoreTimer.restart()
+                                toggleGroup(modelData.major)
+                            }
+                        }
+                    }
 
-                                Rectangle {
-                                    id: verCard
-                                    width: parent.width; height: 50; radius: 6
-                                    color: verHov.containsMouse ? "#1a2436" : "#11141c"
-                                    border.color: verHov.containsMouse ? "#4068c8" : "#1e2230"
-                                    border.width: verHov.containsMouse ? 1.5 : 1
+                    // Sub-versions
+                    Repeater {
+                        model: isExpanded(modelData.major) ? modelData.versions : []
+                        delegate: Column {
+                            width: parent.width - 24; x: 24; spacing: 2
 
-                                    opacity: 0
-                                    Component.onCompleted: { opacity = 1 }
+                            DetailVersionCard {
+                                id: verCard
+                                versionLabel: {
+                                    var d = getVersionDetail(modelData)
+                                    return d ? d.versionNumber : modelData
+                                }
 
-                                    property real _clickScale: 1.0
-                                    scale: _clickScale
-                                    Timer { id: clickRestoreTimer; interval: 100
-                                        onTriggered: { verCard._clickScale = 1.0 }
-                                    }
-
-                                    Behavior on color { ColorAnimation { duration: 200 } }
-                                    Behavior on border.color { ColorAnimation { duration: 200 } }
-                                    Behavior on border.width { NumberAnimation { duration: 150 } }
-                                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                                    Behavior on _clickScale {
-                                        SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
-                                    }
-
-                                    Rectangle {
-                                        anchors.fill: parent; radius: parent.radius
-                                        opacity: verHov.containsMouse ? 0.15 : 0
-                                        gradient: Gradient {
-                                            GradientStop { position: 0; color: "#5068c8" }
-                                            GradientStop { position: 1; color: "#6080d8" }
-                                        }
-                                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                                    }
-
-                                    RowLayout {
-                                        anchors.fill: parent; anchors.margins: 8; spacing: 8
-
-                                        ColumnLayout {
-                                            Layout.fillWidth: true; spacing: 1
-                                            Layout.alignment: Qt.AlignVCenter
-
-                                            RowLayout { spacing: 6
-                                                Text {
-                                                    text: (getVersionDetail(modelData) || {}).versionNumber || modelData
-                                                    color: "#d0d4e0"; font.pixelSize: 11; font.bold: true
-                                                }
-                                                Repeater {
-                                                    model: (getVersionDetail(modelData) || {}).loaders || []
-                                                    Rectangle {
-                                                        width: loaderTag.implicitWidth + 6; height: 14; radius: 2
-                                                        color: "#1a2848"
-                                                        Text { id: loaderTag; anchors.centerIn: parent; text: modelData; color: "#8aaeff"; font.pixelSize: 8 }
-                                                    }
-                                                }
-                                                Rectangle {
-                                                    visible: preReleaseTag(modelData)
-                                                    width: prTag.implicitWidth + 6; height: 14; radius: 2
-                                                    color: "#382818"
-                                                    Text { id: prTag; anchors.centerIn: parent; text: preReleaseTag(modelData); color: "#d0a050"; font.pixelSize: 8 }
-                                                }
-                                            }
-                                            RowLayout { spacing: 8
-                                                Text {
-                                                    text: "MC: " + ((getVersionDetail(modelData) || {}).gameVersions || [modelData]).join(", ")
-                                                    color: "#788090"; font.pixelSize: 9; Layout.fillWidth: true; elide: Text.ElideRight
-                                                }
-                                            }
-                                            RowLayout { spacing: 12
-                                                Text { text: formatDate((getVersionDetail(modelData) || {}).date); color: "#606478"; font.pixelSize: 9 }
-                                                Text { text: "下载量 " + formatDL((getVersionDetail(modelData) || {}).downloads); color: "#606478"; font.pixelSize: 9 }
-                                            }
+                                tags: {
+                                    var result = []
+                                    var d = getVersionDetail(modelData)
+                                    if (d && d.loaders) {
+                                        for (var li = 0; li < d.loaders.length; li++) {
+                                            result.push({text: d.loaders[li], color: "#8aaeff", bg: "#1a2848"})
                                         }
                                     }
+                                    var pr = preReleaseTag(modelData)
+                                    if (pr) result.push({text: pr, color: "#d0a050", bg: "#382818"})
+                                    return result
+                                }
 
-                                    MouseArea {
-                                        id: verHover; anchors.fill: parent
-                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            verCard._clickScale = 0.92
-                                            clickRestoreTimer.restart()
+                                infoLines: {
+                                    var d = getVersionDetail(modelData)
+                                    return [
+                                        { label: "MC:", value: d ? (d.gameVersions || [modelData]).join(", ") : modelData },
+                                        { label: "", value: formatDate(d ? d.date : "") + "  |  下载量 " + formatDL(d ? d.downloads : 0) }
+                                    ]
+                                }
 
-                                            var d = getVersionDetail(modelData)
-                                            if (!d || !d.url) { if (toastManager) toastManager.show("无法获取下载地址"); return }
-                                            var loaders = d.loaders || []
-                                            var loader = loaders.length > 0 ? loaders[0] : ""
-                                            var vn = d.versionNumber || modelData
-                                            var title = modDetailTitle || modDetailSlug || "mod"
-                                            var safeTitle = title.replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
-                                            var fn = safeTitle + "-" + vn + (loader ? ("-" + loader) : "") + (modelData ? ("-" + modelData) : "") + ".jar"
-                                            var mineDir = String(backend ? (backend.minecraftDir || "") : "")
-                                            var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
-                                            pendingModDownload = {slug: modDetailSlug, title: title,
-                                                versionNumber: vn, loader: loader, gameVersion: modelData,
-                                                url: d.url, filename: fn, size: d.size || 0, sha1: d.sha1 || "",
-                                                defaultPath: defaultPath, displayName: title + " " + vn}
-                                            modFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
-                                            modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
-                                            modFileDialog.open()
-                                        }
+                                hasDownload: true
+                                onDownloadClicked: {
+                                    var d = getVersionDetail(modelData)
+                                    if (!d || !d.url) {
+                                        if (toastManager) toastManager.show("无法获取下载地址")
+                                        return
                                     }
+                                    var loaders = d.loaders || []
+                                    var loader = loaders.length > 0 ? loaders[0] : ""
+                                    var vn = d.versionNumber || modelData
+                                    var safeTitle = (modDetailTitle || modDetailSlug || "mod").replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
+                                    var fn = safeTitle + "-" + vn + (loader ? "-" + loader : "") + ".jar"
+                                    var mineDir = String(backend ? (backend.minecraftDir || "") : "")
+                                    var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
+                                    pendingModDownload = {
+                                        slug: modDetailSlug, title: modDetailTitle || modDetailSlug,
+                                        versionNumber: vn, loader: loader, gameVersion: modelData,
+                                        url: d.url, filename: fn, size: d.size || 0,
+                                        sha1: d.sha1 || "", defaultPath: defaultPath,
+                                        displayName: (modDetailTitle || modDetailSlug) + " " + vn
+                                    }
+                                    modFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
+                                    modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
+                                    modFileDialog.open()
                                 }
                             }
                         }
                     }
                 }
             }
+
+            Item { Layout.fillWidth: true; height: 40 }
         }
     }
 
     // ── Version count animation trigger ──
     onModDetailLoadingChanged: {
         if (!modDetailLoading) {
-            var total = (modDetailRawVersions || []).length
-            modVerCountText._displayCount = total
+            verCountText._displayCount = (modDetailRawVersions || []).length
         }
     }
 
-    // ── Backend Connections ──
+    // ━━━━━━━━━━━━━━━━━━━━ CONNECTIONS ━━━━━━━━━━━━━━━━━━━━
     Connections {
         target: backend
         enabled: backend !== null
@@ -621,8 +521,6 @@ Rectangle {
             if (mainWindow) mainWindow.showModDownloadProgress()
             pendingModDownload = {}
         }
-        onRejected: {
-            pendingModDownload = {}
-        }
+        onRejected: { pendingModDownload = {} }
     }
 }

@@ -118,6 +118,8 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/AnimationTokens.qml
         qml/ConfirmDialog.qml
         qml/CrashDialog.qml
+        qml/DetailInfoCard.qml
+        qml/DetailVersionCard.qml
         qml/DownloadPage.qml
         qml/DownloadProgressPage.qml
         qml/HomePage.qml
