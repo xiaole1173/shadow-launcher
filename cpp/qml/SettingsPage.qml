@@ -238,7 +238,14 @@ Rectangle {
                         spacing: 12
                         Text { text: "系统内存"; font.pixelSize: 13; color: "#8890a0" }
                         Rectangle { width: 1; height: 14; color: "#1a1f2a" }
-                        Text { text: backend ? backend.systemMemoryInfo || "未知" : ""; font.pixelSize: 13; color: "#b8c0d0"; Layout.fillWidth: true }
+                        Text { text: {
+                            if (!backend) return ""
+                            var info = backend.systemMemoryInfo
+                            if (!info || !info.total) return "未知"
+                            var gb = (info.total / 1024).toFixed(1)
+                            var availGb = (info.available / 1024).toFixed(1)
+                            return availGb + " GB 可用 / " + gb + " GB 总计"
+                        }; font.pixelSize: 13; color: "#b8c0d0"; Layout.fillWidth: true }
                     }
                 }
 
