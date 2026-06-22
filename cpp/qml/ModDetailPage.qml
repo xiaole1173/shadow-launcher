@@ -137,6 +137,7 @@ Rectangle {
 
             // Back button — InstallPage style
             Rectangle {
+                id: backBtnRect
                 width: backLabel.implicitWidth + 20; height: 30; radius: 6
                 color: backMouse.containsMouse ? "#1a2440" : "transparent"
                 Behavior on color { ColorAnimation { duration: 150 } }
