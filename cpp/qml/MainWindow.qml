@@ -537,9 +537,11 @@ Window {
         source: "LaunchOverlay.qml"
         active: true  // Always loaded for smooth hide animation
         onLoaded: {
+            console.log("[main] LaunchOverlay onLoaded, has item=" + (item !== null))
             if (item) {
                 item.backend = backend
                 item.toastManager = toastManager
+                console.log("[main] LaunchOverlay backend assigned: " + (item.backend ? "valid" : "null"))
             }
         }
     }

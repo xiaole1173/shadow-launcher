@@ -9,6 +9,8 @@ Rectangle {
     property var backend: null
     property var toastManager: null
 
+    Component.onCompleted: console.log("[overlay] LOADED backend=" + (backend ? "valid" : "null"))
+
     // Visibility: dismiss flag overrides all other conditions
     property bool _dismissed: false
     property bool _animatingOut: false
