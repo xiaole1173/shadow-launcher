@@ -1441,7 +1441,7 @@ Rectangle {
                                         }
                                     }
 
-                                    // Info
+                                    // Info + downloads
                                     ColumnLayout {
                                         Layout.fillWidth: true; spacing: 1
                                         Layout.alignment: Qt.AlignVCenter
@@ -1479,6 +1479,10 @@ Rectangle {
                                             text: model.desc || ""; color: "#606478"
                                             font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
                                         }
+
+                                        Text {
+                                            text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
+                                        }
                                     }
                                 }
 
@@ -1499,11 +1503,6 @@ Rectangle {
                                         page.modDetailLoading = true
                                         modDetailVerModel.clear()
                                         backend.fetchModVersions([model.slug])
-                                    }
-                                }
-                                        Text {
-                                            text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
-                                        }
                                     }
                                 }
                             }
