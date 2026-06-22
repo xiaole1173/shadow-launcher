@@ -2946,31 +2946,51 @@ Rectangle {
     property int _rpDetailDownloads: 0
     property string _rpDetailUpdated: ""
 
-    Loader {
-        id: rpDetailLoader
+    // ── RP Detail Overlay ──
+    Rectangle {
+        id: rpDetailOverlay
         anchors.fill: parent
+        color: "#0c0f16"
         z: 10
-        active: page._showRpDetail
-        source: active ? "ResourcePackDetailPage.qml" : ""
+        opacity: page._showRpDetail ? 1 : 0
+        visible: opacity > 0
 
-        Connections {
-            id: rpGoBackConn
-            target: null
-            function onGoBack() { page._showRpDetail = false }
-        }
+        Loader {
+            id: rpDetailLoader
+            anchors.fill: parent
+            property bool _keepActive: false
+            active: page._showRpDetail || _keepActive
+            source: active ? "ResourcePackDetailPage.qml" : ""
 
-        onLoaded: {
-            item.backend = backend
-            item.toastManager = toastManager
-            item.mainWindow = mainWindow
-            item.rpDetailSlug = page._rpDetailSlug
-            item.rpDetailTitle = page._rpDetailTitle
-            item.rpDetailIconUrl = page._rpDetailIconUrl
-            item.rpDetailAuthor = page._rpDetailAuthor
-            item.rpDetailDesc = page._rpDetailDesc
-            item.rpDetailDownloads = page._rpDetailDownloads
-            item.rpDetailUpdated = page._rpDetailUpdated
-            rpGoBackConn.target = item
+            onLoaded: {
+                _keepActive = true
+                item.backend = backend
+                item.toastManager = toastManager
+                item.mainWindow = mainWindow
+                item.rpDetailSlug = page._rpDetailSlug
+                item.rpDetailTitle = page._rpDetailTitle
+                item.rpDetailIconUrl = page._rpDetailIconUrl
+                item.rpDetailAuthor = page._rpDetailAuthor
+                item.rpDetailDesc = page._rpDetailDesc
+                item.rpDetailDownloads = page._rpDetailDownloads
+                item.rpDetailUpdated = page._rpDetailUpdated
+                item.goBack.connect(function() { page._showRpDetail = false })
+            }
+
+            Connections {
+                target: page
+                function on_ShowRpDetailChanged() {
+                    if (!page._showRpDetail) {
+                        rpUnloadTimer.start()
+                    }
+                }
+            }
+
+            Timer {
+                id: rpUnloadTimer
+                interval: 500
+                onTriggered: { if (!page._showRpDetail) rpDetailLoader._keepActive = false }
+            }
         }
     }
 
@@ -2981,28 +3001,48 @@ Rectangle {
     property string _modDetailDesc: ""
     property string _modDetailIcon: ""
 
-    Loader {
-        id: modDetailLoader
+    // ── Mod Detail Overlay ──
+    Rectangle {
+        id: modDetailOverlay
         anchors.fill: parent
+        color: "#0c0f16"
         z: 10
-        active: page._showModDetail
-        source: active ? "ModDetailPage.qml" : ""
+        opacity: page._showModDetail ? 1 : 0
+        visible: opacity > 0
 
-        Connections {
-            id: modGoBackConn
-            target: null
-            function onGoBack() { page._showModDetail = false }
-        }
+        Loader {
+            id: modDetailLoader
+            anchors.fill: parent
+            property bool _keepActive: false
+            active: page._showModDetail || _keepActive
+            source: active ? "ModDetailPage.qml" : ""
 
-        onLoaded: {
-            item.backend = backend
-            item.toastManager = toastManager
-            item.mainWindow = mainWindow
-            item.modDetailSlug = page._modDetailSlug
-            item.modDetailTitle = page._modDetailTitle
-            item.modDetailDesc = page._modDetailDesc
-            item.modDetailIcon = page._modDetailIcon
-            modGoBackConn.target = item
+            onLoaded: {
+                _keepActive = true
+                item.backend = backend
+                item.toastManager = toastManager
+                item.mainWindow = mainWindow
+                item.modDetailSlug = page._modDetailSlug
+                item.modDetailTitle = page._modDetailTitle
+                item.modDetailDesc = page._modDetailDesc
+                item.modDetailIcon = page._modDetailIcon
+                item.goBack.connect(function() { page._showModDetail = false })
+            }
+
+            Connections {
+                target: page
+                function on_ShowModDetailChanged() {
+                    if (!page._showModDetail) {
+                        modUnloadTimer.start()
+                    }
+                }
+            }
+
+            Timer {
+                id: modUnloadTimer
+                interval: 500
+                onTriggered: { if (!page._showModDetail) modDetailLoader._keepActive = false }
+            }
         }
     }
 
