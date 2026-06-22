@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQml
 
 Rectangle {
     id: page
@@ -3019,7 +3020,7 @@ Rectangle {
             anchors.fill: parent
             property bool _keepActive: false
             active: page._showModDetail || _keepActive
-            source: active ? "ModDetailPage.qml" : ""
+            source: active ? Qt.resolvedUrl("ModDetailPage.qml") : ""
 
             onLoaded: {
                 _keepActive = true
