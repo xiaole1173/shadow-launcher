@@ -23,20 +23,19 @@ Rectangle {
         _circumference = 2 * Math.PI * r
     }
 
-    // Continuous rotation: dashOffset moves counter-clockwise on canvas
-    // This makes the visible arc rotate clockwise on screen
+    // Rotation: dashOffset decreases → visible arc moves clockwise on screen
     NumberAnimation on _dashOffset {
         running: root._spinning
-        from: 0; to: _circumference; duration: 2000; loops: Animation.Infinite
+        from: 0; to: -_circumference; duration: 2400; loops: Animation.Infinite
     }
 
-    // 3-phase arc length cycle (on full circumference circle)
+    // 3-phase: stretch (fast) → crawl (slow) → catch-up (tail chases)
     SequentialAnimation on _dashLen {
         running: root._spinning
         loops: Animation.Infinite
-        NumberAnimation { from: 0.01; to: _circumference * 0.68; duration: 700; easing.type: Easing.OutCubic }
-        NumberAnimation { from: _circumference * 0.68; to: _circumference * 0.85; duration: 900; easing.type: Easing.InQuart }
-        NumberAnimation { from: _circumference * 0.85; to: 0.01; duration: 400; easing.type: Easing.OutExpo }
+        NumberAnimation { from: 0.01; to: _circumference * 0.62; duration: 700; easing.type: Easing.OutCubic }
+        NumberAnimation { from: _circumference * 0.62; to: _circumference * 0.80; duration: 900; easing.type: Easing.InQuart }
+        NumberAnimation { from: _circumference * 0.80; to: 0.01; duration: 800; easing.type: Easing.OutExpo }
     }
 
     Canvas {
