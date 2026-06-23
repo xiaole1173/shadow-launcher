@@ -1122,20 +1122,11 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     auto& st = m_dlStates[versionId];
     st.file = fileName;
 
-    // ── Per-category byte tracking (categorize by URL path) ──
+    // ── Determine category for merged-install step routing ──
     int cat = -1;
     if (url.contains(QStringLiteral("/versions/"))) cat = 0;
     else if (url.contains(QStringLiteral("/libraries/"))) cat = 1;
     else if (url.contains(QStringLiteral("/assets/"))) cat = 2;
-
-    if (cat >= 0 && cat <= 2) {
-        if (received <= 0 && total > 0) {
-            st.catBytesTotal[cat] += total;  // File starting: add to category total
-        }
-        if (received >= total && total > 0) {
-            st.catBytesDl[cat] += total;      // File completed: add to category done
-        }
-    }
 
     if (versionId == primaryVersionId()) {
         m_installFile = fileName;
