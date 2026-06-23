@@ -154,9 +154,22 @@ VersionBackend::VersionBackend(QObject* parent)
             if (total > 0 && total != m_mergedMlFileTotal && m_mergedMlFileTotal > 0) {
                 m_mergedMlBytesDone += m_mergedMlFileTotal;
             }
-            if (total > 0) m_mergedMlFileTotal = total;
+
+            // ── Tier (a)/(b): real Content-Length available ──
+            if (total > 0) {
+                m_mergedMlFileTotal = total;
+                m_mergedMlBytesAll = m_mergedMlBytesDone + total;
+            }
+            // ── Tier (c): dynamic adaptive — no Content-Length, estimate from downloaded bytes ──
+            else if (received > 0) {
+                // Estimate: assume file is ~1.2× what we've downloaded (shrinks as download progresses)
+                qint64 dynEst = received + qMax(received / 5, qint64(524288));  // at least 512KB headroom
+                if (dynEst > m_mergedMlBytesAll)
+                    m_mergedMlBytesAll = m_mergedMlBytesDone + dynEst;
+                m_mergedMlFileTotal = dynEst;
+            }
+
             m_mergedMlBytesDl = m_mergedMlBytesDone + received;
-            m_mergedMlBytesAll = m_mergedMlBytesDone + (total > 0 ? total : 0);
             // Byte-weighted total progress (跨阶段)
             qint64 grandDone = m_mergedMcBytesAll + m_mergedMlBytesDl;
             qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
@@ -963,11 +976,20 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     // ── Merged install: accumulate MC phase bytes ──
     if (m_isMergedInstall && versionId == m_mergedMcVersion) {
         m_mergedMcBytesDl = db;
-        m_mergedMcBytesAll = tb;
+        // Tier (a)/(b): real total from version JSON or Content-Length
+        if (tb > 0) {
+            m_mergedMcBytesAll = tb;
+        }
+        // Tier (c): dynamic adaptive — no total available
+        else if (db > 0) {
+            qint64 dynEst = db + qMax(db / 5, qint64(524288));
+            if (dynEst > m_mergedMcBytesAll)
+                m_mergedMcBytesAll = dynEst;
+        }
         // Also update per-step byte totals for step percentage display
-        m_mergedMcStepTotal[0] = qMax(m_mergedMcStepTotal[0], tb / 4);   // versions ~25%
-        m_mergedMcStepTotal[1] = qMax(m_mergedMcStepTotal[1], tb / 2);   // libraries ~50%
-        m_mergedMcStepTotal[2] = qMax(m_mergedMcStepTotal[2], tb / 4);   // assets ~25%
+        m_mergedMcStepTotal[0] = qMax(m_mergedMcStepTotal[0], m_mergedMcBytesAll / 4);   // versions ~25%
+        m_mergedMcStepTotal[1] = qMax(m_mergedMcStepTotal[1], m_mergedMcBytesAll / 2);   // libraries ~50%
+        m_mergedMcStepTotal[2] = qMax(m_mergedMcStepTotal[2], m_mergedMcBytesAll / 4);   // assets ~25%
         // Distribute done bytes proportionally to steps 0-2
         int activeSi = m_mergedLoadedStep < 3 ? m_mergedLoadedStep : 0;
         qint64 stepDone = qMin(db, m_mergedMcStepTotal[activeSi]);
