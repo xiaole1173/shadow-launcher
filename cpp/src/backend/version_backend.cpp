@@ -446,7 +446,14 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                 // ── Connect downloader signals (lambdas capture versionId) ──
                 connect(downloader,
                         &VersionDownloader::progressChanged, this,
-                        [this, versionId](int cf, int tf, qint64 db, qint64 tb) {
+                        [this, versionId, downloader](int cf, int tf, qint64 db, qint64 tb) {
+                            // On first call: pre-set category totals from task list
+                            auto& st = m_dlStates[versionId];
+                            if (st.catBytesTotal[0] <= 0 && st.catBytesTotal[1] <= 0 && st.catBytesTotal[2] <= 0) {
+                                st.catBytesTotal[0] = downloader->categoryTotalBytes(0);
+                                st.catBytesTotal[1] = downloader->categoryTotalBytes(1);
+                                st.catBytesTotal[2] = downloader->categoryTotalBytes(2);
+                            }
                             updateDownloadProgress(versionId, cf, tf, db, tb);
                         });
 

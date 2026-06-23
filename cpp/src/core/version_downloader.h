@@ -84,6 +84,9 @@ public:
     // Integrity verification (public for backend use)
     QStringList verifyIntegrity(const QJsonObject& versionJson, const QString& versionId);
 
+    // Per-category total bytes (pre-computed from task list)
+    qint64 categoryTotalBytes(int cat) const { return m_categoryTotalBytes[cat]; }
+
 signals:
     void progressChanged(int completedFiles, int totalFiles,
                          qint64 downloadedBytes, qint64 totalBytes);
@@ -153,6 +156,9 @@ private:
     QMap<QString, QJsonObject> m_assetObjects;
     QJsonObject m_currentVersionJson;
     QStringList m_taskDestPaths;
+
+    // Per-category total bytes (pre-computed from all tasks)
+    qint64 m_categoryTotalBytes[3] = {0, 0, 0};
 };
 
 } // namespace ShadowLauncher

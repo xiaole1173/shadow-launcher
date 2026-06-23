@@ -539,6 +539,19 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         tasks.append(assetTask);
         m_taskDestPaths.append(dest);
     }
+
+    // ── Pre-compute category totals (for concurrent step display) ──
+    m_categoryTotalBytes[0] = 0;
+    m_categoryTotalBytes[1] = 0;
+    m_categoryTotalBytes[2] = 0;
+    for (const auto& t : tasks) {
+        if (t.url.contains(QStringLiteral("/versions/"))) 
+            m_categoryTotalBytes[0] += t.totalBytes;
+        else if (t.url.contains(QStringLiteral("/libraries/"))) 
+            m_categoryTotalBytes[1] += t.totalBytes;
+        else if (t.url.contains(QStringLiteral("/assets/"))) 
+            m_categoryTotalBytes[2] += t.totalBytes;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════

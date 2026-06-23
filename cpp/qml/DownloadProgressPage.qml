@@ -60,15 +60,14 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
                 property var _parsedSteps: {
-                    var s = JSON.parse(model.steps || "[]")
-                    var str = JSON.stringify(s)
-                    if (str === _parsedStepsKey) return _parsedStepsVal
-                    _parsedStepsKey = str
-                    _parsedStepsVal = s
-                    return s
+                    try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
                 }
-                property string _parsedStepsKey: ""
-                property var _parsedStepsVal: []
+                // Shared spin angle — survives Repeater delegate recreation
+                property real _spinAngle: 0
+                Timer {
+                    interval: 16; running: true; repeat: true
+                    onTriggered: _spinAngle = (_spinAngle + 6) % 360
+                }
 
                 // ── card header ──
                 RowLayout { spacing: 8; Layout.fillWidth: true
@@ -163,15 +162,11 @@ Rectangle {
                                         anchors.centerIn: parent; font.pixelSize: 11
                                         text: "✘"; color: "#e06060"
                                     }
-                                    // Active: rotating arc (pure QML, no Canvas flicker)
+                                    // Active: rotating arc (pure QML, shared Timer driven)
                                     Item {
                                         visible: modelData && modelData.status === "active"
                                         anchors.centerIn: parent; width: 16; height: 16
-                                        RotationAnimation on rotation {
-                                            running: modelData && modelData.status === "active"
-                                            from: 0; to: 360; duration: 1200
-                                            loops: Animation.Infinite; easing.type: Easing.Linear
-                                        }
+                                        rotation: cardContent._spinAngle
                                         // 270-degree arc: full circle + mask to hide 90-degree sector
                                         Rectangle {
                                             anchors.centerIn: parent; width: 14; height: 14; radius: 7
