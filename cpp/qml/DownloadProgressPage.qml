@@ -31,7 +31,7 @@ Rectangle {
     // ── empty state ──
     Rectangle {
         anchors.fill: parent; color: "#0c0f16"
-        visible: !cardsView.count
+        visible: backend.installCardsModel.count === 0
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
             Text { Layout.alignment: Qt.AlignHCenter; text: "\u2501\u2501"; font.pixelSize: 32; color: "#1e2230" }
@@ -45,8 +45,8 @@ Rectangle {
         id: cardsView
         anchors.fill: parent; anchors.margins: 16
         model: {
-            var _ = root._refreshTick  // Re-evaluate every 200ms
-            return backend ? backend.installCardsModel : null
+            var _ = backend.installCardsModel.generation
+            return backend.installCardsModel
         }
         spacing: 12; clip: true
 

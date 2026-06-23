@@ -1986,6 +1986,8 @@ void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
     beginResetModel();
     m_cards = cards;
     endResetModel();
+    m_generation++;
+    emit generationChanged();
 }
 
 // ============================================================

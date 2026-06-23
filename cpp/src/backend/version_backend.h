@@ -36,6 +36,8 @@ struct InstallCard {
 // --- InstallCardModel: QAbstractListModel with explicit role names ---
 class InstallCardModel : public QAbstractListModel {
     Q_OBJECT
+    Q_PROPERTY(int count READ count NOTIFY generationChanged)
+    Q_PROPERTY(int generation READ generation NOTIFY generationChanged)
 public:
     enum CardRoles {
         IidRole = Qt::UserRole + 1,
@@ -58,9 +60,14 @@ public:
 
     void rebuild(const QVector<InstallCard>& cards);
     int count() const { return m_cards.size(); }
+    int generation() const { return m_generation; }
+
+signals:
+    void generationChanged();
 
 private:
     QVector<InstallCard> m_cards;
+    int m_generation = 0;
 };
 
 class VersionManager;
