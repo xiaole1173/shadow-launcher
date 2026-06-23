@@ -659,7 +659,7 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                 + QStringLiteral("/") + libVer + QStringLiteral("/")
                 + filePrefix + QStringLiteral("-") + libVer + QStringLiteral("-client.jar");
 
-            // Find the version folder installer created (matches version.json id, not m_installName)
+            // Find version folders that have .json but no .jar
             const QDir vDir(versionsDir());
             const QStringList subDirs = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time);
             for (const QString& sub : subDirs) {
@@ -667,24 +667,24 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                     + QStringLiteral("/") + sub + QStringLiteral(".json");
                 const QString jarPath  = versionsDir() + QStringLiteral("/") + sub
                     + QStringLiteral("/") + sub + QStringLiteral(".jar");
-                // Skip if already has jar or no json (not a Forge version)
                 if (!QFile::exists(jsonPath) || QFile::exists(jarPath)) continue;
-                // Read id from JSON to verify it's our version
-                QFile jf(jsonPath);
-                if (jf.open(QIODevice::ReadOnly)) {
-                    QJsonDocument doc = QJsonDocument::fromJson(jf.readAll());
-                    jf.close();
-                    QString jsonId = doc.object().value(QStringLiteral("id")).toString();
-                    if (jsonId == sub) {  // Sanity check
-                        if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPath))
-                            qDebug() << "[ModLoader] Copied client jar to" << jarPath;
-                        else if (!QFile::exists(clientJar))
-                            qDebug() << "[ModLoader] No client jar at" << clientJar << "— older format";
-                        else
-                            qWarning() << "[ModLoader] Failed to copy client jar to" << jarPath;
-                        break;  // Only one version per install
-                    }
+
+                // Try client jar first (spec:1 with :client classifier)
+                // Fallback to universal jar (spec:1 without classifier, or older spec:0)
+                const QString universalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
+                    + QStringLiteral("/") + libVer + QStringLiteral("/")
+                    + filePrefix + QStringLiteral("-") + libVer + QStringLiteral(".jar");
+
+                bool copied = false;
+                if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPath)) {
+                    qDebug() << "[ModLoader] Copied client jar to" << jarPath;
+                    copied = true;
+                } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPath)) {
+                    qDebug() << "[ModLoader] Copied universal jar to" << jarPath;
+                    copied = true;
                 }
+                if (copied) break;
+                // Otherwise installer already handled it (spec:0 / processors)
             }
             emit finished(true, QString());
         } else {
