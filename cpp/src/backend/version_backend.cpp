@@ -96,7 +96,12 @@ VersionBackend::VersionBackend(QObject* parent)
             int prevIdx = ses.isMerged ? (step - 2 + 3) : (step - 2);
             updateStep(mlId, prevIdx, QStringLiteral("completed"), 100);
         }
-        updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
+        // Only reset to 0% if this step wasn't already active
+        // (prevents progress dip during prefetch→installer transition)
+        QVariantMap curStep = (stepIdx >= 0 && stepIdx < ses.steps.size()) ? ses.steps[stepIdx].toMap() : QVariantMap{};
+        if (curStep.value(QStringLiteral("status")).toString() != QStringLiteral("active")) {
+            updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
+        }
         computeTotalProgress(mlId);
     });
     connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
