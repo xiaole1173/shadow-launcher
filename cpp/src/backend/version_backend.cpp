@@ -2081,13 +2081,17 @@ void VersionBackend::rebuildInstallCards() {
 
         if (m_dlStates.contains(vid)) {
             const DlState& st = m_dlStates[vid];
-            c.progress = qMin(1.0, st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0);
+            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+            if (verifying) {
+                c.progress = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+            } else {
+                c.progress = qMin(1.0, st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0);
+            }
             c.speed = st.speed;
             c.phase = st.phase;
 
             // Build per-category steps
             QVariantList vSteps;
-            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
             auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
                 int pct = (tot > 0) ? (int)(dl * 100 / tot) : (status == QStringLiteral("completed") ? 100 : 0);
                 vSteps.append(QVariantMap{{"name", name}, {"status", status}, {"percentage", pct}, {"show", true}});

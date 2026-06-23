@@ -60,8 +60,15 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
                 property var _parsedSteps: {
-                    try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
+                    var s = JSON.parse(model.steps || "[]")
+                    var str = JSON.stringify(s)
+                    if (str === _parsedStepsKey) return _parsedStepsVal
+                    _parsedStepsKey = str
+                    _parsedStepsVal = s
+                    return s
                 }
+                property string _parsedStepsKey: ""
+                property var _parsedStepsVal: []
 
                 // ── card header ──
                 RowLayout { spacing: 8; Layout.fillWidth: true
