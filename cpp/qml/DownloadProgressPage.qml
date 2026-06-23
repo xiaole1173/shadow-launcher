@@ -59,6 +59,9 @@ Rectangle {
                 id: cardContent
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
+                property var _parsedSteps: {
+                    try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
+                }
 
                 // ── card header ──
                 RowLayout { spacing: 8; Layout.fillWidth: true
@@ -112,15 +115,11 @@ Rectangle {
 
                 // ── step list ──
                 ColumnLayout {
-                    visible: {
-                        try { return JSON.parse(model.steps || "[]").length > 0 } catch(e) { return false }
-                    }
+                    visible: cardContent._parsedSteps.length > 0
                     spacing: 4; Layout.fillWidth: true
 
                     Repeater {
-                        model: {
-                            try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
-                        }
+                        model: cardContent._parsedSteps
                         delegate: Rectangle {
                             visible: (modelData && modelData.show !== undefined) ? modelData.show : true
                             Layout.fillWidth: true; implicitHeight: 28; color: "transparent"
