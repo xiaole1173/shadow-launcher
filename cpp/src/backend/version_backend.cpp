@@ -958,14 +958,11 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     // ── Speed: EWMA (α=0.3) ──
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (st.speedLastBytes > 0 && st.speedLastTimeMs > 0 && db > st.speedLastBytes) {
-        qint64 dt = now - st.speedLastTimeMs;
+        qint64 dt = qMax(now - st.speedLastTimeMs, qint64(100));  // min 100ms to cap burst spikes
         qint64 delta = db - st.speedLastBytes;
-        qint64 instant = (dt > 0) ? (delta * 1000 / dt) : 0;
-        if (st.speed <= 0) {
-            st.speed = instant;  // first sample: use directly
-        } else {
-            st.speed = st.speed * 7 / 10 + instant * 3 / 10;  // EWMA α=0.3
-        }
+        qint64 instant = delta * 1000 / dt;
+        // Always use EWMA — no raw first-sample passthrough
+        st.speed = (st.speed > 0) ? (st.speed * 7 / 10 + instant * 3 / 10) : (instant * 3 / 10);
     }
     st.speedLastBytes = db;
     st.speedLastTimeMs = now;
