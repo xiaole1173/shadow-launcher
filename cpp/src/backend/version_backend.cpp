@@ -21,6 +21,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QCryptographicHash>
+#include <QSet>
 
 #ifdef Q_OS_WIN
 #include <QClipboard>
@@ -37,6 +38,8 @@ VersionBackend::VersionBackend(QObject* parent)
     : QObject(parent)
 {
     qCInfo(logVersion) << "VersionBackend constructed";
+
+    m_installCardsModel = new InstallCardModel(this);
 
     // Throttle activeInstallsChanged to 300ms intervals (avoid flicker)
     m_activeInstallsThrottle.setSingleShot(true);
@@ -1756,10 +1759,11 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
 }
 
 void VersionBackend::emitActiveInstallsChanged() {
-    if (m_activeInstallsPending) return;  // already scheduled, throttle
+    if (m_activeInstallsPending) return;
     m_activeInstallsPending = true;
-    emit activeInstallsChanged();        // emit IMMEDIATELY first time
-    m_activeInstallsThrottle.start();    // block subsequent for 300ms
+    rebuildInstallCards();
+    emit activeInstallsChanged();
+    m_activeInstallsThrottle.start();
 }
 
 void VersionBackend::computeTotalProgress() {
@@ -1931,6 +1935,153 @@ void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, c
 void VersionBackend::removeResourceCard(const QString& cardId) {
     m_extraCards.remove(cardId);
     emitActiveInstallsChanged();
+}
+
+// ============================================================
+// InstallCardModel  implementation
+// ============================================================
+
+InstallCardModel::InstallCardModel(QObject* parent)
+    : QAbstractListModel(parent) {}
+
+int InstallCardModel::rowCount(const QModelIndex& parent) const {
+    return parent.isValid() ? 0 : m_cards.size();
+}
+
+QVariant InstallCardModel::data(const QModelIndex& index, int role) const {
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_cards.size())
+        return QVariant();
+    const InstallCard& c = m_cards[index.row()];
+    switch (role) {
+    case IidRole:       return c.iid;
+    case NameRole:      return c.name;
+    case TypeRole:      return c.type;
+    case ProgressRole:  return c.progress;
+    case SpeedRole:     return QVariant::fromValue<qint64>(c.speed);
+    case PhaseRole:     return c.phase;
+    case RemainingRole: return c.remaining;
+    case StepsRole:     return c.steps;
+    case FailedRole:    return c.failed;
+    case ErrorRole:     return c.error;
+    default:            return QVariant();
+    }
+}
+
+QHash<int, QByteArray> InstallCardModel::roleNames() const {
+    return {
+        {IidRole, "iid"},
+        {NameRole, "name"},
+        {TypeRole, "type"},
+        {ProgressRole, "progress"},
+        {SpeedRole, "speed"},
+        {PhaseRole, "phase"},
+        {RemainingRole, "remaining"},
+        {StepsRole, "steps"},
+        {FailedRole, "failed"},
+        {ErrorRole, "error"}
+    };
+}
+
+void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
+    beginResetModel();
+    m_cards = cards;
+    endResetModel();
+}
+
+// ============================================================
+// rebuildInstallCards  -- unified card construction
+// ============================================================
+
+void VersionBackend::rebuildInstallCards() {
+    if (!m_installCardsModel) return;
+
+    QVector<InstallCard> cards;
+    QSet<QString> seen;
+
+    // 1. Mod loader card
+    bool mlPending = m_hasPendingLoader && !m_pendingLoaderName.isEmpty();
+    bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty();
+    bool mlMerged = m_isMergedInstall && !m_modLoaderInstallId.isEmpty();
+    bool mlFailed = m_installFailed && !m_modLoaderInstallId.isEmpty();
+    if (mlActive || mlFailed || mlPending || mlMerged) {
+        QString cardId = mlPending ? m_pendingLoaderName : m_modLoaderInstallId;
+        InstallCard c;
+        c.iid = cardId;
+        c.type = QStringLiteral("mod_loader");
+        c.name = cardId;
+        c.progress = mlPending ? 0.0 : m_installSmoothProgress;
+        c.speed = mlPending ? 0 : m_installSpeed;
+        c.phase = m_installFailed ? QStringLiteral("\u5931\u8d25") : m_installPhase;
+        c.remaining = mlPending ? 0 : installRemainingSteps();
+        c.steps = mlPending ? QVariantList{} : m_installSteps;
+        c.failed = m_installFailed;
+        c.error = m_installError;
+        cards.append(c);
+        seen.insert(cardId);
+    }
+
+    // 2. Version cards
+    for (const QString& vid : m_activeIds) {
+        if (seen.contains(vid)) continue;
+        if (m_isMergedInstall && vid == m_mergedMcVersion) continue;
+        seen.insert(vid);
+
+        InstallCard c;
+        c.iid = vid;
+        c.type = QStringLiteral("version");
+        c.name = vid;
+        c.remaining = 0;
+        c.steps = QVariantList{};
+
+        if (m_dlStates.contains(vid)) {
+            const DlState& st = m_dlStates[vid];
+            c.progress = st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0;
+            c.speed = st.speed;
+            c.phase = st.phase;
+
+            // Build per-category steps
+            QVariantList vSteps;
+            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+            auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
+                int pct = (tot > 0) ? (int)(dl * 100 / tot) : (status == QStringLiteral("completed") ? 100 : 0);
+                vSteps.append(QVariantMap{{"name", name}, {"status", status}, {"percentage", pct}, {"show", true}});
+            };
+            if (verifying) {
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), "completed", st.catBytesTotal[0], st.catBytesTotal[0]);
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), "completed", st.catBytesTotal[1], st.catBytesTotal[1]);
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), "completed", st.catBytesTotal[2], st.catBytesTotal[2]);
+                addVStep(QStringLiteral("\u6821\u9a8c\u6587\u4ef6"), "active", st.progress, st.total);
+                c.remaining = 1;
+            } else {
+                auto catStatus = [&](int ci) { return st.catBytesTotal[ci] <= 0 ? QStringLiteral("completed") : QStringLiteral("active"); };
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), catStatus(0), st.catBytesDl[0], st.catBytesTotal[0]);
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), catStatus(1), st.catBytesDl[1], st.catBytesTotal[1]);
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), catStatus(2), st.catBytesDl[2], st.catBytesTotal[2]);
+                c.remaining = 3;
+            }
+            c.steps = vSteps;
+        }
+        cards.append(c);
+    }
+
+    // 3. Resource cards (from m_extraCards)
+    for (auto it = m_extraCards.begin(); it != m_extraCards.end(); ++it) {
+        const QString& cardId = it.key();
+        if (seen.contains(cardId)) continue;
+        const QVariantMap& cm = it.value();
+        InstallCard c;
+        c.iid = cardId;
+        c.type = cm.value(QStringLiteral("type"), QStringLiteral("resource")).toString();
+        c.name = cm.value(QStringLiteral("displayName"), cardId).toString();
+        c.progress = cm.value(QStringLiteral("totalProgress"), 0.0).toReal();
+        c.speed = cm.value(QStringLiteral("speed"), QVariant::fromValue<qint64>(0)).value<qint64>();
+        c.phase = cm.value(QStringLiteral("installPhase"), QString()).toString();
+        c.remaining = 0;
+        c.steps = QVariantList{};
+        cards.append(c);
+    }
+
+    m_installCardsModel->rebuild(cards);
 }
 
 } // namespace ShadowLauncher

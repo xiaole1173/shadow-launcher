@@ -12,11 +12,56 @@
 #include <QAtomicInt>
 #include <QMap>
 #include <QVector>
+#include <QAbstractListModel>
 #include <memory>
 
 #include "../utils/types.h"
 
 namespace ShadowLauncher {
+
+// --- InstallCard: per-card data struct ---
+struct InstallCard {
+    QString iid;
+    QString name;
+    QString type;
+    qreal progress = 0.0;
+    qint64 speed = 0;
+    QString phase;
+    int remaining = 0;
+    QVariantList steps;
+    bool failed = false;
+    QString error;
+};
+
+// --- InstallCardModel: QAbstractListModel with explicit role names ---
+class InstallCardModel : public QAbstractListModel {
+    Q_OBJECT
+public:
+    enum CardRoles {
+        IidRole = Qt::UserRole + 1,
+        NameRole,
+        TypeRole,
+        ProgressRole,
+        SpeedRole,
+        PhaseRole,
+        RemainingRole,
+        StepsRole,
+        FailedRole,
+        ErrorRole
+    };
+
+    explicit InstallCardModel(QObject* parent = nullptr);
+
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    QHash<int, QByteArray> roleNames() const override;
+
+    void rebuild(const QVector<InstallCard>& cards);
+    int count() const { return m_cards.size(); }
+
+private:
+    QVector<InstallCard> m_cards;
+};
 
 class VersionManager;
 class VersionDownloader;
@@ -39,6 +84,7 @@ class VersionBackend : public QObject {
     Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
     // Multi-card active installs
     Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
+    Q_PROPERTY(QObject* installCardsModel READ installCardsModel CONSTANT)
     Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
     Q_PROPERTY(bool installPaused READ isInstallPaused NOTIFY installPausedChanged)
@@ -67,6 +113,7 @@ public:
     int installRemainingSteps() const;
     // Multi-card
     QVariantList activeInstalls() const;
+    QObject* installCardsModel() const { return m_installCardsModel; }
     qint64 installSpeed() const { return m_installSpeed; }
     qint64 installBytesDownloaded() const { return m_installBytesDl; }
     qint64 installBytesTotal() const { return m_installBytesTotal; }
@@ -241,11 +288,14 @@ private:
     QTimer m_activeInstallsThrottle;
     bool m_activeInstallsPending = false;
 
+    InstallCardModel* m_installCardsModel = nullptr;
+
     void rebuildSteps(const QStringList& names, const QVector<qreal>& weights = {},
                       const QVector<bool>& showFlags = {});
     void updateStep(int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void emitActiveInstallsChanged();
     void computeTotalProgress();
+    void rebuildInstallCards();
 
     int m_verifyChecked = 0;
     int m_verifyTotal = 0;
