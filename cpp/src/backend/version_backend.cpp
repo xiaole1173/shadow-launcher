@@ -459,10 +459,11 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
                 connect(downloader,
                         &VersionDownloader::fileProgress, this,
-                        [this, versionId](const QString& fileName,
+                        [this, versionId](const QString& url,
+                               const QString& fileName,
                                qint64 received,
                                qint64 total) {
-                            updateDownloadFile(versionId, fileName, received, total);
+                            updateDownloadFile(versionId, url, fileName, received, total);
                         });
 
                 connect(downloader,
@@ -944,11 +945,20 @@ void VersionBackend::syncPrimaryProgress()
     }
 
     const auto& st = m_dlStates[pid];
-    m_installProgress = st.progress;
-    m_installTotal = st.total;
     m_installBytesDl = st.bytesDl;
     m_installBytesTotal = st.bytesTotal;
     m_installSpeed = st.speed;
+
+    // Two-segment progress: download 0-90%, verify 90-100%
+    bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+    m_installTotal = 100;
+    if (verifying) {
+        qreal seg = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+        m_installProgress = qRound(90.0 + seg * 10.0);
+    } else {
+        qreal seg = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+        m_installProgress = qRound(seg * 90.0);
+    }
     m_installFile = st.file;
     setInstallPhase(st.phase);
 
@@ -1049,6 +1059,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 }
 
 void VersionBackend::updateDownloadFile(const QString& versionId,
+                                        const QString& url,
                                         const QString& fileName,
                                         qint64 received,
                                         qint64 total)
@@ -1056,11 +1067,11 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     auto& st = m_dlStates[versionId];
     st.file = fileName;
 
-    // ── Per-category byte tracking (2b: bounds-checked) ──
+    // ── Per-category byte tracking (categorize by URL path) ──
     int cat = -1;
-    if (fileName.contains("/versions/")) cat = 0;
-    else if (fileName.contains("/libraries/")) cat = 1;
-    else if (fileName.contains("/assets/")) cat = 2;
+    if (url.contains(QStringLiteral("/versions/"))) cat = 0;
+    else if (url.contains(QStringLiteral("/libraries/"))) cat = 1;
+    else if (url.contains(QStringLiteral("/assets/"))) cat = 2;
 
     if (cat >= 0 && cat <= 2) {
         if (received <= 0 && total > 0) {
@@ -1742,19 +1753,6 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
                                  qint64 bytesRecv, qint64 bytesTotal) {
     if (index < 0 || index >= m_installSteps.size()) return;
     QVariantMap s = m_installSteps[index].toMap();
-    QString oldStatus = s["status"].toString();
-
-    // Mark previous steps as completed when a new step activates
-    if (status == QStringLiteral("active") && oldStatus != QStringLiteral("active")) {
-        for (int i = 0; i < index; i++) {
-            QVariantMap prev = m_installSteps[i].toMap();
-            if (prev["status"].toString() != QStringLiteral("completed")) {
-                prev["status"] = QStringLiteral("completed");
-                prev["percentage"] = 100;
-                m_installSteps[i] = prev;
-            }
-        }
-    }
 
     // Auto-compute percentage from bytes if provided and no explicit percentage given
     if (percentage == 0 && bytesRecv > 0 && bytesTotal > 0) {

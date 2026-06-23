@@ -315,7 +315,7 @@ private:
     QString primaryVersionId() const;
     void syncPrimaryProgress();
     void updateDownloadProgress(const QString& versionId, int cf, int tf, qint64 db, qint64 tb);
-    void updateDownloadFile(const QString& versionId, const QString& fileName, qint64 received, qint64 total);
+    void updateDownloadFile(const QString& versionId, const QString& url, const QString& fileName, qint64 received, qint64 total);
     void startNextFromQueue();
 
     class VerifyWorker;

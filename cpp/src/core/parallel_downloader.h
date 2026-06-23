@@ -67,7 +67,7 @@ public:
 signals:
     void progressChanged(int completedFiles, int totalFiles,
                          qint64 downloadedBytes, qint64 totalBytes);
-    void fileProgress(const QString& fileName, qint64 received, qint64 total);
+    void fileProgress(const QString& url, const QString& fileName, qint64 received, qint64 total);
     void fileCompleted(const QString& fileName, bool success);
     /// @param failedFiles  List of file names that failed after all mirror retries
     void allFinished(bool success, int failedCount, const QStringList& failedFiles);

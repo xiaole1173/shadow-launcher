@@ -609,7 +609,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
         if (verifySha1File(finalPath, task.sha1)) {
             const qint64 fileSize = QFileInfo(finalPath).size();
             m_downloadedBytes.fetchAndAddRelaxed(fileSize);
-            emit fileProgress(taskName, fileSize, fileSize);
+            emit fileProgress(task.url, taskName, fileSize, fileSize);
             emit logMessage(QString::fromUtf8("⊘ 跳过(已存在SHA1): %1").arg(taskName));
             return true;
         }
@@ -620,7 +620,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
         // No SHA1, file exists — assume complete
         const qint64 fileSize = QFileInfo(finalPath).size();
         m_downloadedBytes.fetchAndAddRelaxed(fileSize);
-        emit fileProgress(taskName, fileSize, fileSize);
+        emit fileProgress(task.url, taskName, fileSize, fileSize);
         emit logMessage(QString::fromUtf8("⊘ 跳过(已存在): %1").arg(taskName));
         return true;
     }
@@ -761,7 +761,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
 
     const qint64 fileSize = QFileInfo(finalPath).size();
     m_downloadedBytes.fetchAndAddRelaxed(fileSize);
-    emit fileProgress(taskName, fileSize, fileSize);
+    emit fileProgress(task.url, taskName, fileSize, fileSize);
     emit logMessage(QString::fromUtf8("  ✓ 完成: %1").arg(taskName));
     return true;
 }

@@ -66,7 +66,7 @@ Rectangle {
                 property real _spinAngle: 0
                 Timer {
                     interval: 16; running: true; repeat: true
-                    onTriggered: _spinAngle = (_spinAngle + 6) % 360
+                    onTriggered: cardContent._spinAngle = (cardContent._spinAngle + 6) % 360
                 }
 
                 // ── card header ──
