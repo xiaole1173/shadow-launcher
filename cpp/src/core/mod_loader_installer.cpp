@@ -497,12 +497,27 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
         return;
     }
 
-    // 4. Extract library list from version.json
-    QJsonArray libraries = versionDoc.object().value(QStringLiteral("libraries")).toArray();
-    qDebug() << "[ModLoader] PCL Forge install:" << libraries.size() << "libraries to download";
-
-    // 5. Build download list (BMCLAPI mirror URLs → local paths)
+    // 4. Extract bundled maven jars from installer to gameDir/libraries/
     QString libBase = m_gameDir + QStringLiteral("/libraries");
+    int extractedCount = 0;
+    const auto& fileList = reader.fileInfoList();
+    for (const auto& info : fileList) {
+        QString fp = info.filePath;
+        if (!fp.startsWith(QStringLiteral("maven/"))) continue;
+        if (!fp.endsWith(QStringLiteral(".jar"))) continue;
+        QString relPath = fp.mid(6);
+        QString target = libBase + QStringLiteral("/") + relPath;
+        if (QFile::exists(target)) continue;
+        QByteArray jarBytes = reader.fileData(fp);
+        if (jarBytes.isEmpty()) continue;
+        QDir().mkpath(QFileInfo(target).absolutePath());
+        QFile jf(target);
+        if (jf.open(QIODevice::WriteOnly)) { jf.write(jarBytes); jf.close(); extractedCount++; }
+    }
+    qDebug() << "[ModLoader] Extracted" << extractedCount << "jars from installer";
+
+    // 5. Build download list for EXTERNAL libraries
+    QJsonArray libraries = versionDoc.object().value(QStringLiteral("libraries")).toArray();
     QString bmclBase = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
 
     struct DlTask { QString url; QString path; };
@@ -532,14 +547,17 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
             : QStringLiteral("%1-%2-%3.%4").arg(artifact, version, classifier, ext);
         QString relPath = QStringLiteral("%1/%2/%3/%4").arg(groupPath, artifact, version, fileName);
 
-        QString url = bmclBase + QStringLiteral("/") + relPath;
         QString localPath = libBase + QStringLiteral("/") + relPath;
+        if (QFile::exists(localPath)) continue;
+        QString url = bmclBase + QStringLiteral("/") + relPath;
         downloads.append({url, localPath});
     }
 
     if (downloads.isEmpty()) {
-        qWarning() << "[ModLoader] No libraries to download, writing version config only";
-    } else {
+        qDebug() << "[ModLoader] No external libs, running installer directly";
+        runInstallerProcess(jarData);
+        return;
+    }
         qDebug() << "[ModLoader] Downloading" << downloads.size() << "Forge libraries via BMCLAPI";
 
         // 6. Concurrent download (max 8), BMCLAPI → Maven fallback
@@ -558,25 +576,7 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
 
                 // All downloads complete
                 if (*failedCount == 0) {
-                    // 7. Write version JSON
-                    QString versionBase = versionsDir() + QStringLiteral("/") + m_installName;
-                    QDir().mkpath(versionBase);
-                    QString jsonPath = versionBase + QStringLiteral("/") + m_installName + QStringLiteral(".json");
-
-                    QFile jsonFile(jsonPath);
-                    if (!jsonFile.open(QIODevice::WriteOnly)) {
-                        emit finished(false, "无法写入版本配置文件");
-                        m_running = false;
-                        return;
-                    }
-                    QJsonObject vObj = versionDoc.object();
-                    vObj[QStringLiteral("id")] = m_installName;
-                    jsonFile.write(QJsonDocument(vObj).toJson());
-                    jsonFile.close();
-
-                    emit progressChanged(3, m_totalSteps, "安装完成");
-                    emit finished(true, QString());
-                    m_running = false;
+                    runInstallerProcess(jarData);
                 } else {
                     emit finished(false, QString("支持库下载失败: %1/%2").arg(*failedCount).arg(downloads.size()));
                     m_running = false;
@@ -621,27 +621,43 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
         for (int i = 0; i < initial; i++)
             (*processNext)();
         return; // Async — finished() emitted by callback above
-    }
+}
 
-    // No libraries to download — write config immediately
-    QString versionBase = versionsDir() + QStringLiteral("/") + m_installName;
-    QDir().mkpath(versionBase);
-    QString jsonPath = versionBase + QStringLiteral("/") + m_installName + QStringLiteral(".json");
+void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
+    emit progressChanged(3, m_totalSteps, "正在安装 Forge...");
 
-    QFile jsonFile(jsonPath);
-    if (!jsonFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "无法写入版本配置文件");
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString jarPath = tempDir + "/forge-installer-" + m_installName + ".jar";
+    QFile jarFile(jarPath);
+    if (!jarFile.open(QIODevice::WriteOnly)) {
+        emit finished(false, "无法写入临时文件");
         m_running = false;
         return;
     }
-    QJsonObject vObj = versionDoc.object();
-    vObj[QStringLiteral("id")] = m_installName;
-    jsonFile.write(QJsonDocument(vObj).toJson());
-    jsonFile.close();
+    jarFile.write(jarData);
+    jarFile.close();
 
-    emit progressChanged(3, m_totalSteps, "安装完成");
-    emit finished(true, QString());
-    m_running = false;
+    QStringList args;
+    args << QStringLiteral("-jar") << jarPath
+         << QStringLiteral("-Xmx512M")
+         << QStringLiteral("-Djava.net.preferIPv4Stack=true")
+         << QStringLiteral("--installClient") << m_gameDir;
+    qDebug() << "[ModLoader] Running Forge installer: java" << args;
+
+    auto* proc = new QProcess(this);
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
+        proc->deleteLater();
+        QFile::remove(jarPath);
+        if (exitCode == 0) {
+            emit finished(true, QString());
+        } else {
+            QString stderrStr = QString::fromUtf8(proc->readAllStandardError());
+            emit finished(false, QString("Forge 安装程序运行失败（退出码: %1）: %2").arg(exitCode).arg(stderrStr));
+        }
+        m_running = false;
+    });
+    proc->start(QStringLiteral("java"), args);
 }
 
 void ModLoaderInstaller::neoForgeStep3_PCLinstall(const QByteArray& jarData) {

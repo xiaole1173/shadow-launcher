@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QObject>
 #include <QString>
@@ -77,6 +77,7 @@ private:
     // PCL-style install (extract version.json → download libraries → write config)
     void forgeStep3_PCLinstall(const QByteArray& jarData);
     void neoForgeStep3_PCLinstall(const QByteArray& jarData);
+    void runInstallerProcess(const QByteArray& jarData);
 
     // Fabric
     void fabricStep1_downloadProfile();
