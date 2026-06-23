@@ -85,7 +85,7 @@ Rectangle {
                         height: parent.height; radius: 3
                         color: model.failed ? "#802020" : "#3a5ecc"
                         width: parent.width * Math.min(1, (model.progress || 0))
-                        Behavior on width { SmoothedAnimation { duration: 350; velocity: 0.5 } }
+                        Behavior on width { NumberAnimation { duration: 1200; easing.type: Easing.OutCubic } }
                     }
                 }
 
@@ -110,13 +110,16 @@ Rectangle {
                     }
                 }
 
-                // ── step list (mod_loader only) ──
+                // ── step list ──
                 ColumnLayout {
-                    visible: model.steps && (model.steps.length || 0) > 0
+                    property var _stepsParsed: {
+                        try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
+                    }
+                    visible: _stepsParsed && _stepsParsed.length > 0
                     spacing: 4; Layout.fillWidth: true
 
                     Repeater {
-                        model: model.steps || []
+                        model: _stepsParsed
                         delegate: Rectangle {
                             visible: (modelData && modelData.show !== undefined) ? modelData.show : true
                             Layout.fillWidth: true; implicitHeight: 28; color: "transparent"

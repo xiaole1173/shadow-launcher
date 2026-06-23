@@ -21,6 +21,8 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QCryptographicHash>
+#include <QJsonDocument>
+#include <QJsonArray>
 #include <QSet>
 #include <QDebug>
 
@@ -182,8 +184,8 @@ VersionBackend::VersionBackend(QObject* parent)
             qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
             m_installTotalProgress = raw;
             // EMA smoothing
-            if (m_installSmoothProgress <= 0.0 || raw > m_installSmoothProgress + 0.5) {
-                m_installSmoothProgress = raw;
+            if (m_installSmoothProgress <= 0.0) {
+                m_installSmoothProgress = raw * 0.3;
             } else {
                 m_installSmoothProgress = m_installSmoothProgress * 0.7 + raw * 0.3;
             }
@@ -1789,8 +1791,8 @@ void VersionBackend::computeTotalProgress() {
 
     // Exponential smoothing (PCL-style: current * 0.9 + new * 0.1)
     // Fast-forward: if raw jumped significantly (e.g. step completed), jump too
-    if (m_installSmoothProgress <= 0.0 || rawProgress > m_installSmoothProgress + 0.15) {
-        m_installSmoothProgress = rawProgress;
+    if (m_installSmoothProgress <= 0.0) {
+        m_installSmoothProgress = rawProgress * 0.3;
     } else {
         m_installSmoothProgress = m_installSmoothProgress * 0.85 + rawProgress * 0.15;
     }
@@ -1971,7 +1973,7 @@ QVariant InstallCardModel::data(const QModelIndex& index, int role) const {
     case SpeedRole:     return QVariant::fromValue<qint64>(c.speed);
     case PhaseRole:     return c.phase;
     case RemainingRole: return c.remaining;
-    case StepsRole:     return c.steps;
+    case StepsRole:     return QJsonDocument(QJsonArray::fromVariantList(c.steps)).toJson(QJsonDocument::Compact);
     case FailedRole:    return c.failed;
     case ErrorRole:     return c.error;
     default:            return QVariant();
@@ -2064,7 +2066,7 @@ void VersionBackend::rebuildInstallCards() {
 
         if (m_dlStates.contains(vid)) {
             const DlState& st = m_dlStates[vid];
-            c.progress = st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0;
+            c.progress = qMin(1.0, st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0);
             c.speed = st.speed;
             c.phase = st.phase;
 
