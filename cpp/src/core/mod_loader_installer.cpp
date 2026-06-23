@@ -569,7 +569,7 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
 
         auto processNext = QSharedPointer<std::function<void()>>::create();
         *processNext = [=]() {
-            if (*remaining <= 0) {
+            if (*completed >= downloads.size()) {
                 // Guard against multiple concurrent callbacks
                 if (*doneCalled) return;
                 *doneCalled = true;
@@ -583,6 +583,8 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
                 }
                 return;
             }
+
+            if (*remaining <= 0) return;  // No more tasks to start, waiting for inflight
 
             int idx = downloads.size() - *remaining;
             (*remaining)--;
@@ -653,7 +655,11 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
             emit finished(true, QString());
         } else {
             QString stderrStr = QString::fromUtf8(proc->readAllStandardError());
-            emit finished(false, QString("Forge 安装程序运行失败（退出码: %1）: %2").arg(exitCode).arg(stderrStr));
+            QString stdoutStr = QString::fromUtf8(proc->readAllStandardOutput());
+            QString detail = (stdoutStr + QStringLiteral(" ") + stderrStr).trimmed();
+            if (detail.isEmpty()) detail = QStringLiteral("无输出");
+            qWarning() << "[ModLoader] Installer failed. exitCode:" << exitCode << "stdout:" << stdoutStr << "stderr:" << stderrStr;
+            emit finished(false, QString("Forge 安装程序运行失败（退出码: %1）\n%2").arg(exitCode).arg(detail));
         }
         m_running = false;
     });
