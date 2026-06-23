@@ -616,9 +616,9 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
     jarFile.close();
 
     QStringList args;
-    args << QStringLiteral("-jar") << jarPath
-         << QStringLiteral("-Xmx512M")
+    args << QStringLiteral("-Xmx512M")
          << QStringLiteral("-Djava.net.preferIPv4Stack=true")
+         << QStringLiteral("-jar") << jarPath
          << QStringLiteral("--installClient") << m_gameDir;
     qDebug() << "[ModLoader] Running Forge installer: java" << args;
 
