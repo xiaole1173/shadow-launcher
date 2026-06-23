@@ -352,17 +352,19 @@ Rectangle {
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
                 disabledReason: root.activeLoader === "forge" ? "Forge \u5df2\u9009\u4e2d" : root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0d\u517c\u5bb9 Fabric" : ""
                 selectedVersion: root.selectedFabric
-                onVersionSelected: function(ver) { root.selectedFabric = ver; root.activeLoader = "fabric"; root.customName = "" }
+                onVersionSelected: function(ver) { root.selectedFabric = ver; root.activeLoader = "fabric"; root.customName = ""; console.log("[install] Fabric selected: " + ver + ", activeLoader=" + root.activeLoader) }
                 onVersionCleared: { root.selectedFabric = ""; root.activeLoader = ""; root.customName = "" }
             }
 
             // Fabric API (visible only when Fabric is selected)
             Rectangle {
                 id: fabricApiCard
-                Layout.fillWidth: true; height: root.activeLoader === "fabric" ? 52 : 0
+                Layout.fillWidth: true
+                Layout.preferredHeight: root.activeLoader === "fabric" ? 52 : 0
                 visible: root.activeLoader === "fabric"; color: "#11141c"; radius: 8
                 border.color: "#1e2230"; border.width: 1; clip: true
-                Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                onVisibleChanged: console.log("[install] Fabric API card visible=" + visible + " activeLoader=" + root.activeLoader + " prefH=" + Layout.preferredHeight)
                 RowLayout { anchors.fill: parent; anchors.margins: 14; spacing: 8
                     Rectangle { width: 8; height: 8; radius: 4; color: root.selectedFabricApi ? "#4bc870" : "#505868" }
                     Text { text: "Fabric API"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2" }
