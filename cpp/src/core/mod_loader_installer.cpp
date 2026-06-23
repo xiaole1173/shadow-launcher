@@ -636,8 +636,8 @@ void ModLoaderInstaller::forgePrepopulateLibraries(
     QSharedPointer<int> completed(new int(0));
     const int MAX_CONCURRENT = 8;
 
-    std::function<void()> processNext;
-    processNext = [=, &processNext]() {
+    auto processNext = QSharedPointer<std::function<void()>>::create();
+    *processNext = [=]() {
         if (m_cancelled || *remaining <= 0) {
             if (!m_cancelled)
                 done(true, QString());
@@ -652,7 +652,7 @@ void ModLoaderInstaller::forgePrepopulateLibraries(
         // Create parent directories
         QDir().mkpath(QFileInfo(localPath).absolutePath());
 
-        downloadToFile(url, localPath, [=, &processNext](bool ok, const QString& err) {
+        downloadToFile(url, localPath, [=](bool ok, const QString& err) {
             Q_UNUSED(err)
             if (!ok) {
                 qWarning() << "[ModLoader] Prefetch failed:" << url;
@@ -661,14 +661,14 @@ void ModLoaderInstaller::forgePrepopulateLibraries(
             (*completed)++;
             if (completed && downloads->size() > 0)
                 progress(*completed, downloads->size());
-            processNext();
+            (*processNext)();
         });
     };
 
     // Start MAX_CONCURRENT downloads
     int initial = qMin(MAX_CONCURRENT, downloads->size());
     for (int i = 0; i < initial; i++) {
-        processNext();
+        (*processNext)();
     }
 }
 

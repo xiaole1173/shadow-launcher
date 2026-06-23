@@ -102,7 +102,6 @@ VersionBackend::VersionBackend(QObject* parent)
         if (curStep.value(QStringLiteral("status")).toString() != QStringLiteral("active")) {
             updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
         }
-        computeTotalProgress(mlId);
     });
     connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
             [this](int step, int percentage) {
@@ -111,6 +110,19 @@ VersionBackend::VersionBackend(QObject* parent)
         auto& ses = session(mlId);
         int stepIdx = ses.isMerged ? (step - 1 + 3) : (step - 1);
         updateStep(mlId, stepIdx, QStringLiteral("active"), percentage);
+
+        // Non-merged installs: stepProgress drives smoothProgress during install phases
+        if (!ses.isMerged) {
+            qreal raw = percentage / 100.0;
+            ses.totalProgress = raw;
+            if (ses.smoothProgress <= 0.0)
+                ses.smoothProgress = raw * 0.3;
+            else
+                ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
+            emit installTotalProgressChanged();
+            emit installSmoothProgressChanged();
+            emitActiveInstallsChanged();
+        }
     });
     connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
             [this](bool success, const QString& errMsg) {
@@ -223,15 +235,41 @@ VersionBackend::VersionBackend(QObject* parent)
             m_installBytesDl = received;
             m_installBytesTotal = total;
             emit installBytesProgress(received, total);
+
+            // Non-merged byte-weighted smoothProgress (download phases only)
+            if (total > 0) {
+                qreal raw = qMin(1.0, (qreal)received / total);
+                ses.totalProgress = raw;
+                if (ses.smoothProgress <= 0.0)
+                    ses.smoothProgress = raw * 0.3;
+                else
+                    ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
+                emit installTotalProgressChanged();
+                emit installSmoothProgressChanged();
+                emitActiveInstallsChanged();
+            }
         }
 
-        // Update the MOST RECENT active step with byte progress (iterate backward)
-        for (int i = ses.steps.size() - 1; i >= 0; i--) {
-            if (ses.steps[i].toMap()["status"].toString() == QStringLiteral("active")) {
-                int pct = total > 0 ? (int)(received * 100 / total) : 0;
-                updateStep(mlId, i, QStringLiteral("active"), pct, received, total);
-                computeTotalProgress(mlId);
-                break;
+        // Update the active step card (display only) from byte progress during download phases.
+        // In install phases, stepProgress from ModLoaderInstaller is the canonical percentage source.
+        {
+            int activeIdx = -1;
+            for (int i = ses.steps.size() - 1; i >= 0; i--) {
+                if (ses.steps[i].toMap()["status"].toString() == QStringLiteral("active")) {
+                    activeIdx = i;
+                    break;
+                }
+            }
+            if (activeIdx >= 0) {
+                QString stepName = ses.steps[activeIdx].toMap()["name"].toString();
+                // Only for download/verify steps — install steps use stepProgress
+                if (stepName.contains(QStringLiteral("\u4e0b\u8f7d"))       // 下载
+                    || stepName.contains(QStringLiteral("\u6821\u9a8c"))    // 校验
+                    || stepName.contains(QStringLiteral("Downloading"))
+                    || stepName.contains(QStringLiteral("Verifying"))) {
+                    int pct = total > 0 ? (int)(received * 100 / total) : 0;
+                    updateStep(mlId, activeIdx, QStringLiteral("active"), pct, received, total);
+                }
             }
         }
     });
@@ -1078,7 +1116,20 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                            mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
             }
         }
-        computeTotalProgress(mergedSessionId);
+        // Byte-weighted progress for merged install MC phase
+        {
+            qint64 grandDone = mSes.mcBytesDl + mSes.mlBytesDl;
+            qint64 grandTotal = mSes.mcBytesAll + mSes.mlBytesAll;
+            qreal raw = (grandTotal > 0) ? qMin(1.0, (qreal)grandDone / grandTotal) : 0.0;
+            mSes.totalProgress = raw;
+            if (mSes.smoothProgress <= 0.0)
+                mSes.smoothProgress = raw * 0.3;
+            else
+                mSes.smoothProgress = mSes.smoothProgress * 0.7 + raw * 0.3;
+            emit installTotalProgressChanged();
+            emit installSmoothProgressChanged();
+            emitActiveInstallsChanged();
+        }
     }
 
     // ── If this is the primary download, sync to main properties ──
@@ -1865,35 +1916,6 @@ void VersionBackend::emitActiveInstallsChanged() {
     rebuildInstallCards();
     emit activeInstallsChanged();
     m_activeInstallsThrottle.start();
-}
-
-void VersionBackend::computeTotalProgress(const QString& installId) {
-    auto& ses = session(installId);
-    if (ses.steps.isEmpty()) { ses.totalProgress = 0.0; ses.smoothProgress = 0.0; return; }
-    qreal totalWeight = 0.0;
-    qreal weightedSum = 0.0;
-    for (const QVariant& v : ses.steps) {
-        QVariantMap step = v.toMap();
-        qreal w = step.value(QStringLiteral("weight"), QVariant(1.0)).toReal();
-        QString st = step["status"].toString();
-        if (st == QStringLiteral("completed"))
-            weightedSum += w;
-        else if (st == QStringLiteral("active"))
-            weightedSum += w * qBound(0.0, step["percentage"].toReal() / 100.0, 1.0);
-        totalWeight += w;
-    }
-    qreal rawProgress = qMin(1.0, (totalWeight > 0.0) ? (weightedSum / totalWeight) : 0.0);
-    ses.totalProgress = rawProgress;
-
-    if (ses.smoothProgress <= 0.0) {
-        ses.smoothProgress = rawProgress * 0.3;
-    } else {
-        ses.smoothProgress = ses.smoothProgress * 0.85 + rawProgress * 0.15;
-    }
-
-    emit installTotalProgressChanged();
-    emit installSmoothProgressChanged();
-    emitActiveInstallsChanged();
 }
 
 QVariantList VersionBackend::activeInstalls() const {

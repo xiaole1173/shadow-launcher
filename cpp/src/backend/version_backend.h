@@ -316,7 +316,6 @@ private:
                       const QVector<bool>& showFlags = {});
     void updateStep(const QString& installId, int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void emitActiveInstallsChanged();
-    void computeTotalProgress(const QString& installId);
     void rebuildInstallCards();
 
     int m_verifyChecked = 0;
