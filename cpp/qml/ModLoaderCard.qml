@@ -32,6 +32,9 @@ Rectangle {
 
     property string badgeText: ""  // Optional badge after title, e.g. "建议安装"
 
+    signal versionSelected(string version)
+    signal versionCleared()
+
     // Fixed-height version list — no layout feedback loop
     property int headerHeight: 44
     property int itemRowH: 40
