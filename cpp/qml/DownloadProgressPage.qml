@@ -44,10 +44,7 @@ Rectangle {
     ListView {
         id: cardsView
         anchors.fill: parent; anchors.margins: 16
-        model: {
-            var _ = backend.installCardsModel.generation
-            return backend.installCardsModel
-        }
+        model: backend.installCardsModel
         spacing: 12; clip: true
 
         delegate: Rectangle {

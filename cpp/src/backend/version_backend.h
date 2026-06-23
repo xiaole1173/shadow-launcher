@@ -91,7 +91,7 @@ class VersionBackend : public QObject {
     Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
     // Multi-card active installs
     Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
-    Q_PROPERTY(QObject* installCardsModel READ installCardsModel CONSTANT)
+    Q_PROPERTY(QObject* installCardsModel READ installCardsModel NOTIFY installCardsModelChanged)
     Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
     Q_PROPERTY(bool installPaused READ isInstallPaused NOTIFY installPausedChanged)
@@ -194,6 +194,7 @@ signals:
     void installTotalProgressChanged();
     void installSmoothProgressChanged();
     void activeInstallsChanged();
+    void installCardsModelChanged();
     void logMessage(const QString& msg);
 
     void verifyStarted();
