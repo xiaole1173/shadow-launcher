@@ -89,54 +89,60 @@ VersionBackend::VersionBackend(QObject* parent)
         setInstallPhase(QStringLiteral("模组加载器: ") + desc);
         // Update step model: current step active
         // In merged mode, steps are offset by 3 (MC steps 0-2)
-        int stepIdx = m_isMergedInstall ? (step - 1 + 3) : (step - 1);
-        updateStep(stepIdx, QStringLiteral("active"), 0);
+        const QString mlId = m_modLoaderInstallId;
+        if (mlId.isEmpty()) return;
+        auto& ses = session(mlId);
+        int stepIdx = ses.isMerged ? (step - 1 + 3) : (step - 1);
+        updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
     });
     connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
             [this](int step, int percentage) {
-        // Sub-progress within a step (e.g. Forge installer stdout milestones)
-        int stepIdx = m_isMergedInstall ? (step - 1 + 3) : (step - 1);
-        updateStep(stepIdx, QStringLiteral("active"), percentage);
+        const QString mlId = m_modLoaderInstallId;
+        if (mlId.isEmpty()) return;
+        auto& ses = session(mlId);
+        int stepIdx = ses.isMerged ? (step - 1 + 3) : (step - 1);
+        updateStep(mlId, stepIdx, QStringLiteral("active"), percentage);
     });
     connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
-            [this](bool success, const QString& error) {
+            [this](bool success, const QString& errMsg) {
+        const QString mlId = m_modLoaderInstallId;
+        auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
+        if (!mlId.isEmpty() && !m_sessions.contains(mlId))
+            return;
         if (success) {
             // Mark all steps completed
-            if (m_isMergedInstall) {
-                for (int i = 0; i < m_installSteps.size(); i++)
-                    updateStep(i, QStringLiteral("completed"), 100);
-                // Merged install complete — clean up
-                m_isMergedInstall = false;
-                m_mergedMcVersion.clear();
-                m_mergedLoaderType.clear();
-                m_mergedLoaderVer.clear();
-            } else {
-                for (int i = 0; i < m_installSteps.size(); i++)
-                    updateStep(i, QStringLiteral("completed"), 100);
+            for (int i = 0; i < ses.steps.size(); i++)
+                updateStep(mlId, i, QStringLiteral("completed"), 100);
+            // Merged install complete — clean up session
+            if (ses.isMerged) {
+                ses.isMerged = false;
+                ses.mcVersion.clear();
+                ses.loaderType.clear();
+                ses.loaderVer.clear();
             }
             emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
             setInstallPhase("done");
             updateInstalledList();
         } else {
-            emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + error);
+            emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + errMsg);
             // Mark last step as failed, keep card visible for diagnostics
-            for (int i = m_installSteps.size() - 1; i >= 0; i--) {
-                QVariantMap s = m_installSteps[i].toMap();
+            for (int i = ses.steps.size() - 1; i >= 0; i--) {
+                QVariantMap s = ses.steps[i].toMap();
                 if (s["status"].toString() == QStringLiteral("active")) {
                     s["status"] = QStringLiteral("failed");
                     s["percentage"] = 0;
-                    m_installSteps[i] = s;
-                    m_installFailed = true;
-                    m_installError = error;
+                    ses.steps[i] = s;
+                    ses.failed = true;
+                    ses.error = errMsg;
                     emit installStepsChanged();
                     break;
                 }
             }
-            if (m_isMergedInstall) {
-                m_isMergedInstall = false;
-                m_mergedMcVersion.clear();
-                m_mergedLoaderType.clear();
-                m_mergedLoaderVer.clear();
+            if (ses.isMerged) {
+                ses.isMerged = false;
+                ses.mcVersion.clear();
+                ses.loaderType.clear();
+                ses.loaderVer.clear();
             }
         }
         setInstalling(false);
@@ -156,8 +162,11 @@ VersionBackend::VersionBackend(QObject* parent)
         emit installFileProgress(file);
         emit installSpeedChanged(speed);
 
+        const QString mlId = m_modLoaderInstallId;
+        auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
+
         // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
-        if (m_isMergedInstall) {
+        if (ses.isMerged) {
             // Detect file transition: total changes → previous file completed
             if (total > 0 && total != m_mergedMlFileTotal && m_mergedMlFileTotal > 0) {
                 m_mergedMlBytesDone += m_mergedMlFileTotal;
@@ -182,12 +191,12 @@ VersionBackend::VersionBackend(QObject* parent)
             qint64 grandDone = m_mergedMcBytesAll + m_mergedMlBytesDl;
             qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
             qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
-            m_installTotalProgress = raw;
+            ses.totalProgress = raw;
             // EMA smoothing
-            if (m_installSmoothProgress <= 0.0) {
-                m_installSmoothProgress = raw * 0.3;
+            if (ses.smoothProgress <= 0.0) {
+                ses.smoothProgress = raw * 0.3;
             } else {
-                m_installSmoothProgress = m_installSmoothProgress * 0.7 + raw * 0.3;
+                ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
             }
             emit installTotalProgressChanged();
             emit installSmoothProgressChanged();
@@ -199,10 +208,10 @@ VersionBackend::VersionBackend(QObject* parent)
         }
 
         // Update current active step with byte progress
-        for (int i = 0; i < m_installSteps.size(); i++) {
-            if (m_installSteps[i].toMap()["status"].toString() == QStringLiteral("active")) {
+        for (int i = 0; i < ses.steps.size(); i++) {
+            if (ses.steps[i].toMap()["status"].toString() == QStringLiteral("active")) {
                 int pct = total > 0 ? (int)(received * 100 / total) : 0;
-                updateStep(i, QStringLiteral("active"), pct, received, total);
+                updateStep(mlId, i, QStringLiteral("active"), pct, received, total);
                 break;
             }
         }
@@ -750,28 +759,33 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     emit installFinished(success);
 
     // ── Update overall state ──
-    // ── Update overall state ──
     if (m_activeCount == 0) {
-        if (m_isMergedInstall && success && m_mergedMcVersion == finishedId) {
-            // Merged install: MC done, transitioning to loader — keep card alive
-            qDebug() << "[install] Merged: MC download complete, starting" << m_mergedLoaderType;
-            // Lock MC phase bytes as fully done
-            m_mergedMcBytesDl = m_mergedMcBytesAll;
-            // Mark MC steps (0-2) as completed
-            for (int i = 0; i < 3 && i < m_installSteps.size(); i++) {
-                updateStep(i, QStringLiteral("completed"), 100);
+        // Check ALL sessions for merged installs waiting on this MC version
+        bool anyMergedLaunched = false;
+        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+            auto& ses = it.value();
+            if (ses.isMerged && ses.mcVersion == finishedId) {
+                // Merged install: MC done, transitioning to loader — keep card alive
+                qDebug() << "[install] Merged: MC download complete, starting" << ses.loaderType;
+                // Lock MC phase bytes as fully done
+                m_mergedMcBytesDl = m_mergedMcBytesAll;
+                // Mark MC steps (0-2) as completed
+                for (int i = 0; i < 3 && i < ses.steps.size(); i++) {
+                    updateStep(it.key(), i, QStringLiteral("completed"), 100);
+                }
+                // Start loader install
+                m_mlInstaller->setGameDir(m_gameDir);
+                if (ses.loaderType == QStringLiteral("forge")) {
+                    m_mlInstaller->installForge(ses.mcVersion, ses.loaderVer, it.key());
+                } else if (ses.loaderType == QStringLiteral("neoforge")) {
+                    m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, it.key());
+                } else if (ses.loaderType == QStringLiteral("fabric")) {
+                    m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, it.key());
+                }
+                anyMergedLaunched = true;
             }
-            // Start loader install
-            m_mlInstaller->setGameDir(m_gameDir);
-            if (m_mergedLoaderType == QStringLiteral("forge")) {
-                m_mlInstaller->installForge(m_mergedMcVersion, m_mergedLoaderVer, m_modLoaderInstallId);
-            } else if (m_mergedLoaderType == QStringLiteral("neoforge")) {
-                m_mlInstaller->installNeoForge(m_mergedMcVersion, m_mergedLoaderVer, m_modLoaderInstallId);
-            } else if (m_mergedLoaderType == QStringLiteral("fabric")) {
-                m_mlInstaller->installFabric(m_mergedMcVersion, m_mergedLoaderVer, m_modLoaderInstallId);
-            }
-            // ModLoaderInstaller progress will update merged steps via connectModLoaderSignals
-        } else {
+        }
+        if (!anyMergedLaunched) {
             setInstalling(false);
         }
         setInstallPhase(QStringLiteral("done"));
@@ -788,14 +802,18 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     startNextFromQueue();
     qCDebug(logLaunch) << "[DOWNLOAD] finished=" << finishedId << " active=" << m_activeCount << "/" << MAX_CONCURRENT << " queue=" << m_installQueue.size();
 
-    // Check if a pending loader is waiting for this MC version
-    if (m_hasPendingLoader && success && m_pendingLoaderMc == finishedId) {
-        qDebug() << "[install] MC" << finishedId << "installed, starting pending loader:" << m_pendingLoaderName;
-        m_hasPendingLoader = false;
-        if (m_pendingLoaderType == QStringLiteral("optifine")) {
-            installOptifine(m_pendingLoaderMc, m_pendingLoaderVer, QString(), m_pendingLoaderName);
-        } else {
-            installModLoader(m_pendingLoaderMc, m_pendingLoaderType, m_pendingLoaderVer, m_pendingLoaderName);
+    // Check ALL sessions for pending loaders waiting for this MC version
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        auto& ses = it.value();
+        if (ses.hasPendingLoader && success && ses.pendingLoaderMc == finishedId) {
+            qDebug() << "[install] MC" << finishedId << "installed, starting pending loader:" << ses.pendingLoaderName;
+            ses.hasPendingLoader = false;
+            if (ses.pendingLoaderType == QStringLiteral("optifine")) {
+                installOptifine(ses.pendingLoaderMc, ses.pendingLoaderVer, QString(), ses.pendingLoaderName);
+            } else {
+                installModLoader(ses.pendingLoaderMc, ses.pendingLoaderType, ses.pendingLoaderVer, ses.pendingLoaderName);
+            }
+            break;  // Only one pending loader per MC version
         }
     }
 }
@@ -895,7 +913,7 @@ void VersionBackend::setInstalling(bool v)
     bool isNowInstalling = m_installing || (m_activeCount > 0);
     qDebug() << "[install] setInstalling" << v << "was:" << wasInstalling << "now:" << isNowInstalling
              << "m_activeCount:" << m_activeCount << "ml_running:" << (m_mlInstaller ? m_mlInstaller->isRunning() : false)
-             << "ml_steps:" << m_installSteps.size();
+             << "ml_steps:" << (m_sessions.isEmpty() ? 0 : m_sessions.first().steps.size());
     if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }
@@ -997,7 +1015,16 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     }
 
     // ── Merged install: accumulate MC phase bytes ──
-    if (m_isMergedInstall && versionId == m_mergedMcVersion) {
+    // Find session whose merged MC version matches this download
+    QString mergedSessionId;
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        if (it.value().isMerged && it.value().mcVersion == versionId) {
+            mergedSessionId = it.key();
+            break;
+        }
+    }
+    if (!mergedSessionId.isEmpty()) {
+        auto& mSes = m_sessions[mergedSessionId];
         m_mergedMcBytesDl = db;
         // Tier (a)/(b): real total from version JSON or Content-Length
         if (tb > 0) {
@@ -1014,9 +1041,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         m_mergedMcStepTotal[1] = qMax(m_mergedMcStepTotal[1], m_mergedMcBytesAll / 2);   // libraries ~50%
         m_mergedMcStepTotal[2] = qMax(m_mergedMcStepTotal[2], m_mergedMcBytesAll / 4);   // assets ~25%
         // Distribute done bytes proportionally to steps 0-2
-        int activeSi = m_mergedLoadedStep < 3 ? m_mergedLoadedStep : 0;
+        int activeSi = mSes.loadedStep < 3 ? mSes.loadedStep : 0;
         qint64 stepDone = qMin(db, m_mergedMcStepTotal[activeSi]);
-        updateStep(activeSi, QStringLiteral("active"), 0, stepDone, m_mergedMcStepTotal[activeSi]);
+        updateStep(mergedSessionId, activeSi, QStringLiteral("active"), 0, stepDone, m_mergedMcStepTotal[activeSi]);
     }
 
     // ── If this is the primary download, sync to main properties ──
@@ -1028,21 +1055,27 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         m_installSpeed = st.speed;
 
         // Byte-weighted total progress ── raw ──
-        if (m_isMergedInstall) {
+        // Find merged session for grand-total calculation
+        qreal rawTotalProgress = 0.0;
+        if (!mergedSessionId.isEmpty()) {
             qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
             qint64 grandDone = m_mergedMcBytesDl + m_mergedMlBytesDl;
-            m_installTotalProgress = (grandTotal > 0)
+            rawTotalProgress = (grandTotal > 0)
                 ? (qreal)grandDone / grandTotal
                 : (tb > 0 ? (qreal)db / tb : 0.0);
         } else {
-            m_installTotalProgress = (tb > 0) ? (qreal)db / tb : 0.0;
+            rawTotalProgress = (tb > 0) ? (qreal)db / tb : 0.0;
         }
 
+        // Update session total/smooth progress for primary install
+        auto& pSes = activeSession();
+        pSes.totalProgress = rawTotalProgress;
+
         // ── EMA smoothing (Layer ②: display = old×0.7 + new×0.3) ──
-        if (m_installSmoothProgress <= 0.0 || m_installTotalProgress > m_installSmoothProgress + 0.5) {
-            m_installSmoothProgress = m_installTotalProgress;  // initial or large jump: snap
+        if (pSes.smoothProgress <= 0.0 || rawTotalProgress > pSes.smoothProgress + 0.5) {
+            pSes.smoothProgress = rawTotalProgress;  // initial or large jump: snap
         } else {
-            m_installSmoothProgress = m_installSmoothProgress * 0.7 + m_installTotalProgress * 0.3;
+            pSes.smoothProgress = pSes.smoothProgress * 0.7 + rawTotalProgress * 0.3;
         }
 
         if (m_installPhase != QStringLiteral("校验中...")) {
@@ -1088,7 +1121,14 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     }
 
     // ── Merged install: route MC download phase to steps 0-2 ──
-    if (m_isMergedInstall && versionId == m_mergedMcVersion) {
+    QString mergedSessionId;
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        if (it.value().isMerged && it.value().mcVersion == versionId) {
+            mergedSessionId = it.key();
+            break;
+        }
+    }
+    if (!mergedSessionId.isEmpty()) {
         if (cat >= 0 && cat <= 2) {
             // Cumulative tracking: accumulate per-step bytes to avoid per-file reset oscillation
             if (received <= 0) {
@@ -1100,8 +1140,8 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
                 m_mergedMcStepDone[cat] += total;
                 accDone = m_mergedMcStepDone[cat];
             }
-            updateStep(cat, QStringLiteral("active"), 0, accDone, accTotal);
-            m_mergedLoadedStep = cat + 1;
+            updateStep(mergedSessionId, cat, QStringLiteral("active"), 0, accDone, accTotal);
+            m_sessions[mergedSessionId].loadedStep = cat + 1;
         }
     }
 }
@@ -1606,18 +1646,20 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                        const QString& loaderVersion, const QString& installName) {
     if (!m_mlInstaller) return;
 
+    m_modLoaderInstallId = installName;
+    auto& ses = session(installName);
+    ses.failed = false;
+    ses.error.clear();
+
     // Step 0: Ensure vanilla MC is installed first
     if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
         // ── Merged install: MC + loader in ONE card ──
         qDebug() << "[install] Merged install: MC" << mcVersion << "+" << loaderType << loaderVersion;
-        m_isMergedInstall = true;
-        m_mergedMcVersion = mcVersion;
-        m_mergedLoaderType = loaderType;
-        m_mergedLoaderVer = loaderVersion;
-        m_hasPendingLoader = false;
-        m_modLoaderInstallId = installName;
-        m_installFailed = false;
-        m_installError.clear();
+        ses.isMerged = true;
+        ses.mcVersion = mcVersion;
+        ses.loaderType = loaderType;
+        ses.loaderVer = loaderVersion;
+        ses.hasPendingLoader = false;
         // Reset byte accumulators for new merged install
         m_mergedMcBytesDl = 0;
         m_mergedMcBytesAll = 0;
@@ -1632,7 +1674,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         QString loaderLabel = QStringLiteral("Forge");
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
-        rebuildSteps({
+        rebuildSteps(installName, {
             QStringLiteral("下载原版 json文件"),
             QStringLiteral("下载原版支持库文件"),
             QStringLiteral("下载原版资源文件"),
@@ -1641,8 +1683,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             QStringLiteral("安装 %1").arg(loaderLabel)
         }, {3.0, 8.0, 5.0, 6.0, 0.5, 10.0},  // installer重量级10，下载库8，资源5
          {true, true, true, true, false, true});  // 校验不展示
-        updateStep(0, QStringLiteral("active"), 0);
-        m_mergedLoadedStep = 1;
+        updateStep(installName, 0, QStringLiteral("active"), 0);
+        ses.loadedStep = 1;
 
         // Start MC download (will NOT create separate version card — suppressed in activeInstalls)
         setInstalling(true);
@@ -1652,28 +1694,25 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
     // MC is installed or downloading — proceed with loader
     m_mlInstaller->setGameDir(m_gameDir);
-    m_modLoaderInstallId = installName;
-    m_installFailed = false;
-    m_installError.clear();
     qDebug() << "[install] installModLoader ENTRY" << loaderType << mcVersion << loaderVersion << "->" << installName;
 
     // Build step list
     if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
-        rebuildSteps({QStringLiteral("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
+        rebuildSteps(installName, {QStringLiteral("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
                       QStringLiteral("校验安装程序完整性"),
                       QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
                      {3.0, 0.5, 10.0},  // installer 重量级10
                      {true, false, true});
     } else if (loaderType == QStringLiteral("fabric")) {
-        rebuildSteps({QStringLiteral("下载 Fabric 配置"),
+        rebuildSteps(installName, {QStringLiteral("下载 Fabric 配置"),
                       QStringLiteral("校验配置完整性"),
                       QStringLiteral("创建版本配置")},
                      {2.0, 0.3, 1.0},  // Fabric轻量级，无Java进程
                      {true, false, true});
     } else {
-        rebuildSteps({QStringLiteral("安装 %1").arg(installName)});
+        rebuildSteps(installName, {QStringLiteral("安装 %1").arg(installName)});
     }
-    updateStep(0, QStringLiteral("active"), 0);
+    updateStep(installName, 0, QStringLiteral("active"), 0);
 
     qDebug() << "[install] installModLoader calling installForge, m_running before:" << m_mlInstaller->isRunning();
     if (loaderType == QStringLiteral("forge")) {
@@ -1683,7 +1722,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     } else if (loaderType == QStringLiteral("neoforge")) {
         m_mlInstaller->installNeoForge(mcVersion, loaderVersion, installName);
     }
-    qDebug() << "[install] installModLoader after installForge, m_running:" << m_mlInstaller->isRunning() << "m_steps:" << m_installSteps.size();
+    qDebug() << "[install] installModLoader after installForge, m_running:" << m_mlInstaller->isRunning() << "m_steps:" << ses.steps.size();
     setInstalling(true);
     qDebug() << "[install] installModLoader after setInstalling, m_installing:" << m_installing;
 }
@@ -1692,14 +1731,16 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         const QString& forgeVersion, const QString& installName) {
     if (!m_mlInstaller) return;
 
+    auto& ses = session(installName);
+
     // Ensure vanilla MC is installed first
     if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
         qDebug() << "[install] Vanilla MC" << mcVersion << "not installed for Optifine, downloading first...";
-        m_pendingLoaderMc = mcVersion;
-        m_pendingLoaderType = QStringLiteral("optifine");
-        m_pendingLoaderVer = optifineVersion;
-        m_pendingLoaderName = installName;
-        m_hasPendingLoader = true;
+        ses.pendingLoaderMc = mcVersion;
+        ses.pendingLoaderType = QStringLiteral("optifine");
+        ses.pendingLoaderVer = optifineVersion;
+        ses.pendingLoaderName = installName;
+        ses.hasPendingLoader = true;
         // Also store forge version so the callback knows
         installVersion(mcVersion, 0);
         return;
@@ -1728,42 +1769,60 @@ bool VersionBackend::isModLoaderInstalling() const {
 // Unified Step Model
 // ============================================================
 
-void VersionBackend::rebuildSteps(const QStringList& names, const QVector<qreal>& weights,
-                                   const QVector<bool>& showFlags) {
-    m_installSteps.clear();
-    for (int i = 0; i < names.size(); i++) {
-        QVariantMap s;
-        s["name"] = names[i];
-        s["status"] = QStringLiteral("pending");
-        s["percentage"] = 0;
-        s["bytesReceived"] = QVariant::fromValue<qint64>(0);
-        s["bytesTotal"] = QVariant::fromValue<qint64>(0);
-        s["weight"] = (i < weights.size()) ? weights[i] : 1.0;
-        s["show"] = (i < showFlags.size()) ? showFlags[i] : true;
-        m_installSteps.append(s);
+// ═══════════ Session helpers ═══════════
+
+InstallSession& VersionBackend::session(const QString& installId) {
+    if (!m_sessions.contains(installId)) {
+        m_sessions[installId] = InstallSession{};
     }
-    m_installTotalProgress = 0.0;
-    m_installSmoothProgress = 0.0;
+    return m_sessions[installId];
+}
+
+InstallSession& VersionBackend::activeSession() {
+    // Return first active session (for backward-compat access)
+    static InstallSession s_empty;
+    if (m_sessions.isEmpty()) return s_empty;
+    return m_sessions.first();
+}
+
+void VersionBackend::rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights,
+                                   const QVector<bool>& showFlags) {
+    auto& ses = session(installId);
+    ses.steps.clear();
+    for (int i = 0; i < names.size(); i++) {
+        QVariantMap step;
+        step["name"] = names[i];
+        step["status"] = QStringLiteral("pending");
+        step["percentage"] = 0;
+        step["bytesReceived"] = QVariant::fromValue<qint64>(0);
+        step["bytesTotal"] = QVariant::fromValue<qint64>(0);
+        step["weight"] = (i < weights.size()) ? weights[i] : 1.0;
+        step["show"] = (i < showFlags.size()) ? showFlags[i] : true;
+        ses.steps.append(step);
+    }
+    ses.totalProgress = 0.0;
+    ses.smoothProgress = 0.0;
     emit installStepsChanged();
     emit installTotalProgressChanged();
     emit installSmoothProgressChanged();
 }
 
-void VersionBackend::updateStep(int index, const QString& status, int percentage,
+void VersionBackend::updateStep(const QString& installId, int index, const QString& status, int percentage,
                                  qint64 bytesRecv, qint64 bytesTotal) {
-    if (index < 0 || index >= m_installSteps.size()) return;
-    QVariantMap s = m_installSteps[index].toMap();
+    auto& s = session(installId);
+    if (index < 0 || index >= s.steps.size()) return;
+    QVariantMap step = s.steps[index].toMap();
 
     // Auto-compute percentage from bytes if provided and no explicit percentage given
     if (percentage == 0 && bytesRecv > 0 && bytesTotal > 0) {
         percentage = (int)((bytesRecv * 100) / bytesTotal);
     }
 
-    s["status"] = status;
-    s["percentage"] = percentage;
-    s["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
-    s["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
-    m_installSteps[index] = s;
+    step["status"] = status;
+    step["percentage"] = percentage;
+    step["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
+    step["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
+    s.steps[index] = step;
 
     emit installStepsChanged();
 }
@@ -1777,29 +1836,28 @@ void VersionBackend::emitActiveInstallsChanged() {
     m_activeInstallsThrottle.start();
 }
 
-void VersionBackend::computeTotalProgress() {
-    if (m_installSteps.isEmpty()) { m_installTotalProgress = 0.0; m_installSmoothProgress = 0.0; return; }
+void VersionBackend::computeTotalProgress(const QString& installId) {
+    auto& ses = session(installId);
+    if (ses.steps.isEmpty()) { ses.totalProgress = 0.0; ses.smoothProgress = 0.0; return; }
     qreal totalWeight = 0.0;
     qreal weightedSum = 0.0;
-    for (const QVariant& v : m_installSteps) {
-        QVariantMap s = v.toMap();
-        qreal w = s.value(QStringLiteral("weight"), QVariant(1.0)).toReal();
-        QString st = s["status"].toString();
+    for (const QVariant& v : ses.steps) {
+        QVariantMap step = v.toMap();
+        qreal w = step.value(QStringLiteral("weight"), QVariant(1.0)).toReal();
+        QString st = step["status"].toString();
         if (st == QStringLiteral("completed"))
-            weightedSum += w;  // completed steps contribute full weight
+            weightedSum += w;
         else if (st == QStringLiteral("active"))
-            weightedSum += w * qBound(0.0, s["percentage"].toReal() / 100.0, 1.0);
+            weightedSum += w * qBound(0.0, step["percentage"].toReal() / 100.0, 1.0);
         totalWeight += w;
     }
-    qreal rawProgress = (totalWeight > 0.0) ? (weightedSum / totalWeight) : 0.0;
-    m_installTotalProgress = rawProgress;
+    qreal rawProgress = qMin(1.0, (totalWeight > 0.0) ? (weightedSum / totalWeight) : 0.0);
+    ses.totalProgress = rawProgress;
 
-    // Exponential smoothing (PCL-style: current * 0.9 + new * 0.1)
-    // Fast-forward: if raw jumped significantly (e.g. step completed), jump too
-    if (m_installSmoothProgress <= 0.0) {
-        m_installSmoothProgress = rawProgress * 0.3;
+    if (ses.smoothProgress <= 0.0) {
+        ses.smoothProgress = rawProgress * 0.3;
     } else {
-        m_installSmoothProgress = m_installSmoothProgress * 0.85 + rawProgress * 0.15;
+        ses.smoothProgress = ses.smoothProgress * 0.85 + rawProgress * 0.15;
     }
 
     emit installTotalProgressChanged();
@@ -1809,35 +1867,45 @@ void VersionBackend::computeTotalProgress() {
 
 QVariantList VersionBackend::activeInstalls() const {
     QVariantList list;
-    // 1. Mod loader install (running, pending, merged, or recently failed)
-    bool mlPending = m_hasPendingLoader && !m_pendingLoaderName.isEmpty();
-    bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty();
-    bool mlMerged = m_isMergedInstall && !m_modLoaderInstallId.isEmpty();
-    bool mlFailed = m_installFailed && !m_modLoaderInstallId.isEmpty();
-    if (mlActive || mlFailed || mlPending || mlMerged) {
-        QString cardId = mlPending ? m_pendingLoaderName : m_modLoaderInstallId;
+    QSet<QString> seen;
+
+    // 1. Iterate sessions: build mod_loader cards from session state
+    for (auto sit = m_sessions.constBegin(); sit != m_sessions.constEnd(); ++sit) {
+        const QString& sid = sit.key();
+        const InstallSession& ses = sit.value();
+        bool mlPending = ses.hasPendingLoader && !ses.pendingLoaderName.isEmpty();
+        bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && m_modLoaderInstallId == sid;
+        bool mlMerged = ses.isMerged;
+        bool mlFailed = ses.failed;
+        if (!mlActive && !mlFailed && !mlPending && !mlMerged) continue;
+
+        QString cardId = mlPending ? ses.pendingLoaderName : sid;
         qDebug() << "[install] activeInstalls: mod_loader card" << cardId
-                 << "totalProgress:" << m_installTotalProgress << "steps:" << m_installSteps.size()
+                 << "totalProgress:" << ses.totalProgress << "steps:" << ses.steps.size()
                  << (mlFailed ? "FAILED" : (mlMerged ? "MERGED" : (mlPending ? "PENDING" : "running")));
         QVariantMap card;
         card["installId"] = cardId;
         card["installType"] = QStringLiteral("mod_loader");
         card["displayName"] = cardId;
-        card["totalProgress"] = mlPending ? 0.0 : m_installSmoothProgress;
+        card["totalProgress"] = mlPending ? 0.0 : ses.smoothProgress;
         card["speed"] = mlPending ? QVariant::fromValue<qint64>(0LL) : QVariant::fromValue<qint64>(m_installSpeed);
-        card["installPhase"] = m_installFailed ? QStringLiteral("失败")
+        card["installPhase"] = mlFailed ? QStringLiteral("失败")
                               : mlMerged ? m_installPhase
                               : mlPending ? QStringLiteral("等待MC本体下载完成...")
                               : m_installPhase;
         card["remainingSteps"] = mlPending ? 0 : installRemainingSteps();
-        card["installFailed"] = m_installFailed;
-        card["installError"] = m_installError;
-        card["steps"] = mlPending ? QVariantList{} : m_installSteps;
+        card["installFailed"] = mlFailed;
+        card["installError"] = ses.error;
+        card["steps"] = mlPending ? QVariantList{} : ses.steps;
         list.append(card);
+        seen.insert(cardId);
+        if (ses.isMerged && !ses.mcVersion.isEmpty()) seen.insert(ses.mcVersion);
     }
-    // 2. Active version downloads (hide the merged MC one)
+
+    // 2. Active version downloads (hide versions that are part of a merged session)
     for (const QString& vid : m_activeIds) {
-        if (m_isMergedInstall && vid == m_mergedMcVersion) continue;  // shown in merged card
+        if (seen.contains(vid)) continue;
+        seen.insert(vid);
         QVariantMap card;
         card["installId"] = vid;
         card["installType"] = QStringLiteral("version");
@@ -1850,45 +1918,37 @@ QVariantList VersionBackend::activeInstalls() const {
             card["speed"] = QVariant::fromValue<qint64>(st.speed);
             card["installPhase"] = st.phase;
             // Auto-generate step list from real per-category bytes
-            if (!m_isMergedInstall || vid != m_mergedMcVersion) {
-                QVariantList vSteps;
-                bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
-                auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
-                    // 2a: zero-div protection — empty completed categories show 100%
-                    int pct = (tot > 0) ? (int)(dl * 100 / tot)
-                              : (status == QStringLiteral("completed") ? 100 : 0);
-                    vSteps.append(QVariantMap{
-                        {"name", name}, {"status", status},
-                        {"percentage", pct}, {"show", true}
-                    });
-                };
+            QVariantList vSteps;
+            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+            auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
+                int pct = (tot > 0) ? (int)(dl * 100 / tot)
+                          : (status == QStringLiteral("completed") ? 100 : 0);
+                vSteps.append(QVariantMap{
+                    {"name", name}, {"status", status},
+                    {"percentage", pct}, {"show", true}
+                });
+            };
 
-                // 2d: auto-complete empty categories
-                auto catStatus = [&](int ci) {
-                    if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
-                    return QStringLiteral("active");
-                };
-                auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
-                auto catTot = [&](int ci) {
-                    // 2c: use stored total, corrected by each file completion
-                    return st.catBytesTotal[ci];
-                };
+            auto catStatus = [&](int ci) {
+                if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
+                return QStringLiteral("active");
+            };
+            auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
+            auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
 
-                if (verifying) {
-                    addVStep("\u4e0b\u8f7d\u7248\u672cJSON", "completed", catTot(0), catTot(0));
-                    addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", "completed", catTot(1), catTot(1));
-                    addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", "completed", catTot(2), catTot(2));
-                    int vPct = (st.total > 0) ? (st.progress * 100 / st.total) : 0;
-                    addVStep("\u6821\u9a8c\u6587\u4ef6", "active", st.progress, st.total);
-                    card["remainingSteps"] = 1;
-                } else {
-                    addVStep("\u4e0b\u8f7d\u7248\u672cJSON", catStatus(0), catDl(0), catTot(0));
-                    addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", catStatus(1), catDl(1), catTot(1));
-                    addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", catStatus(2), catDl(2), catTot(2));
-                    card["remainingSteps"] = 3;
-                }
-                card["steps"] = vSteps;
+            if (verifying) {
+                addVStep("\u4e0b\u8f7d\u7248\u672cJSON", "completed", catTot(0), catTot(0));
+                addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", "completed", catTot(1), catTot(1));
+                addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", "completed", catTot(2), catTot(2));
+                addVStep("\u6821\u9a8c\u6587\u4ef6", "active", st.progress, st.total);
+                card["remainingSteps"] = 1;
+            } else {
+                addVStep("\u4e0b\u8f7d\u7248\u672cJSON", catStatus(0), catDl(0), catTot(0));
+                addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", catStatus(1), catDl(1), catTot(1));
+                addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", catStatus(2), catDl(2), catTot(2));
+                card["remainingSteps"] = 3;
             }
+            card["steps"] = vSteps;
         } else {
             // Placeholder — download just started, no progress data yet
             card["totalProgress"] = 0.0;
@@ -1906,14 +1966,17 @@ QVariantList VersionBackend::activeInstalls() const {
         qDebug() << "[install] activeInstalls EMPTY — mlInstaller:" << !!m_mlInstaller
                  << "isRunning:" << (m_mlInstaller ? m_mlInstaller->isRunning() : false)
                  << "mlId:" << m_modLoaderInstallId
-                 << "activeCount:" << m_activeCount << "extraCards:" << m_extraCards.size();
+                 << "sessions:" << m_sessions.size() << "activeCount:" << m_activeCount
+                 << "extraCards:" << m_extraCards.size();
     }
     return list;
 }
 
 int VersionBackend::installRemainingSteps() const {
+    if (m_sessions.isEmpty()) return 0;
+    const auto& ses = m_sessions.first();
     int n = 0;
-    for (const QVariant& v : m_installSteps) {
+    for (const QVariant& v : ses.steps) {
         QString s = v.toMap().value(QStringLiteral("status")).toString();
         if (s == QStringLiteral("pending") || s == QStringLiteral("active")) n++;
     }
@@ -2049,32 +2112,36 @@ void VersionBackend::rebuildInstallCards() {
     QVector<InstallCard> cards;
     QSet<QString> seen;
 
-    // 1. Mod loader card
-    bool mlPending = m_hasPendingLoader && !m_pendingLoaderName.isEmpty();
-    bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && !m_modLoaderInstallId.isEmpty();
-    bool mlMerged = m_isMergedInstall && !m_modLoaderInstallId.isEmpty();
-    bool mlFailed = m_installFailed && !m_modLoaderInstallId.isEmpty();
-    if (mlActive || mlFailed || mlPending || mlMerged) {
-        QString cardId = mlPending ? m_pendingLoaderName : m_modLoaderInstallId;
+    // 1. Iterate sessions: build mod_loader cards from session state
+    for (auto sit = m_sessions.constBegin(); sit != m_sessions.constEnd(); ++sit) {
+        const QString& sid = sit.key();
+        const InstallSession& ses = sit.value();
+        bool mlPending = ses.hasPendingLoader && !ses.pendingLoaderName.isEmpty();
+        bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && m_modLoaderInstallId == sid;
+        bool mlMerged = ses.isMerged;
+        bool mlFailed = ses.failed;
+        if (!mlActive && !mlFailed && !mlPending && !mlMerged) continue;
+
+        QString cardId = mlPending ? ses.pendingLoaderName : sid;
         InstallCard c;
         c.iid = cardId;
         c.type = QStringLiteral("mod_loader");
         c.name = cardId;
-        c.progress = mlPending ? 0.0 : m_installSmoothProgress;
+        c.progress = mlPending ? 0.0 : ses.smoothProgress;
         c.speed = mlPending ? 0 : m_installSpeed;
-        c.phase = m_installFailed ? QStringLiteral("\u5931\u8d25") : m_installPhase;
+        c.phase = mlFailed ? QStringLiteral("\u5931\u8d25") : m_installPhase;
         c.remaining = mlPending ? 0 : installRemainingSteps();
-        c.steps = mlPending ? QVariantList{} : m_installSteps;
-        c.failed = m_installFailed;
-        c.error = m_installError;
+        c.steps = mlPending ? QVariantList{} : ses.steps;
+        c.failed = mlFailed;
+        c.error = ses.error;
         cards.append(c);
         seen.insert(cardId);
+        if (ses.isMerged && !ses.mcVersion.isEmpty()) seen.insert(ses.mcVersion);
     }
 
     // 2. Version cards
     for (const QString& vid : m_activeIds) {
         if (seen.contains(vid)) continue;
-        if (m_isMergedInstall && vid == m_mergedMcVersion) continue;
         seen.insert(vid);
 
         InstallCard c;

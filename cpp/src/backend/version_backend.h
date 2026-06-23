@@ -33,6 +33,26 @@ struct InstallCard {
     QString error;
 };
 
+// --- InstallSession: per-install isolated state (supports concurrent merged installs) ---
+struct InstallSession {
+    QVariantList steps;
+    qreal totalProgress = 0.0;
+    qreal smoothProgress = 0.0;
+    bool isMerged = false;
+    QString mcVersion;
+    QString loaderType;
+    QString loaderVer;
+    bool failed = false;
+    bool hasPendingLoader = false;
+    QString pendingLoaderName;
+    QString pendingLoaderVer;
+    qreal pendingLoaderWeight = 0.0;
+    QString pendingLoaderMc;       // MC version waiting for pending loader
+    QString pendingLoaderType;     // "optifine" / "forge" / etc for pending loader
+    QString error;                 // Install error message on failure
+    int loadedStep = 0;  // which step is currently active
+};
+
 // --- InstallCardModel: QAbstractListModel with explicit role names ---
 class InstallCardModel : public QAbstractListModel {
     Q_OBJECT
@@ -114,9 +134,9 @@ public:
     QString installVersionId() const { return m_modLoaderInstallId.isEmpty() ? (m_activeIds.isEmpty() ? QString() : m_activeIds.first()) : m_modLoaderInstallId; }
     QString installPhase() const { return m_installPhase; }
     // Backward compat — returns primary install's steps
-    QVariantList installSteps() const { return m_installSteps; }
-    qreal installTotalProgress() const { return m_installTotalProgress; }
-    qreal installSmoothProgress() const { return m_installSmoothProgress; }
+    QVariantList installSteps() const { return m_sessions.isEmpty() ? QVariantList() : m_sessions.first().steps; }
+    qreal installTotalProgress() const { return m_sessions.isEmpty() ? 0.0 : m_sessions.first().totalProgress; }
+    qreal installSmoothProgress() const { return m_sessions.isEmpty() ? 0.0 : m_sessions.first().smoothProgress; }
     int installRemainingSteps() const;
     // Multi-card
     QVariantList activeInstalls() const;
@@ -136,8 +156,11 @@ public:
         }
         if (!m_modLoaderInstallId.isEmpty() && !names.contains(m_modLoaderInstallId))
             names.append(m_modLoaderInstallId);
-        if (m_hasPendingLoader && !m_pendingLoaderName.isEmpty() && !names.contains(m_pendingLoaderName))
-            names.append(m_pendingLoaderName);
+        for (auto it = m_sessions.constBegin(); it != m_sessions.constEnd(); ++it) {
+            if (it.value().hasPendingLoader && !it.value().pendingLoaderName.isEmpty()
+                && !names.contains(it.value().pendingLoaderName))
+                names.append(it.value().pendingLoaderName);
+        }
         return names;
     }
     QString selectedVersion() const { return m_selectedVersion; }
@@ -268,28 +291,12 @@ private:
     qint64 m_installSpeed = 0;
     QString m_installPhase = "idle";
 
-    // Per-install step model + extra cards (resource, mod)
-    QVariantList m_installSteps;
-    QMap<QString, QVariantMap> m_extraCards;  // cardId → {installId,displayName,type,totalProgress,speed,installPhase}
-    bool m_installFailed = false;
-    QString m_installError;
+    // Per-install state (keyed by installId, supports concurrent merged installs)
+    QMap<QString, InstallSession> m_sessions;
+    QMap<QString, QVariantMap> m_extraCards;
 
-    // Pending loader install (waiting for vanilla MC to finish)
-    QString m_pendingLoaderMc;
-    QString m_pendingLoaderType;
-    QString m_pendingLoaderVer;
-    QString m_pendingLoaderName;
-    bool m_hasPendingLoader = false;
-
-    // Merged install: MC + loader in one card
-    bool m_isMergedInstall = false;
-    QString m_mergedMcVersion;
-    QString m_mergedLoaderType;
-    QString m_mergedLoaderVer;
-    int m_mergedLoadedStep = 0;  // which of the 9 steps is currently active
-
-    qreal m_installTotalProgress = 0.0;
-    qreal m_installSmoothProgress = 0.0;
+    InstallSession& session(const QString& installId);
+    InstallSession& activeSession();
 
     // Throttle activeInstallsChanged emissions (avoid UI flicker from 100ms updates)
     QTimer m_activeInstallsThrottle;
@@ -297,11 +304,11 @@ private:
 
     InstallCardModel* m_installCardsModel = nullptr;
 
-    void rebuildSteps(const QStringList& names, const QVector<qreal>& weights = {},
+    void rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights = {},
                       const QVector<bool>& showFlags = {});
-    void updateStep(int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
+    void updateStep(const QString& installId, int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void emitActiveInstallsChanged();
-    void computeTotalProgress();
+    void computeTotalProgress(const QString& installId);
     void rebuildInstallCards();
 
     int m_verifyChecked = 0;
