@@ -288,103 +288,56 @@ QString ModLoaderInstaller::setupTempMc() {
 }
 
 void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString& jarPath) {
-    // Find newly created version folder (Forge installer generates one)
-    QDir verDir(tempMc + "/versions");
-    QString foundJson;
-    QStringList subDirs = verDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QString& subDir : subDirs) {
-        if (subDir == m_mcVersion) continue;  // skip our copied vanilla
-        QString jsonPath = verDir.absolutePath() + "/" + subDir + "/" + subDir + ".json";
-        if (QFile::exists(jsonPath)) {
-            foundJson = jsonPath;
-            qDebug() << "[ModLoader] Found Forge output JSON:" << foundJson;
-            break;
+    // Copy version JSON and jar from temp to game dir
+    QString versionsSrc = tempMc + "/versions";
+    if (!QDir(versionsSrc).exists()) return;
+
+    QStringList dirs = QDir(versionsSrc).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString& d : dirs) {
+        if (d == m_mcVersion) continue;
+        QString srcDir = versionsSrc + "/" + d;
+        QString dstDir = m_gameDir + "/versions/" + d;
+        QDir().mkpath(dstDir);
+        QStringList files = QDir(srcDir).entryList(QDir::Files);
+        for (const QString& f : files) {
+            QString src = srcDir + "/" + f;
+            QString dst = dstDir + "/" + f;
+            if (QFile::exists(dst)) QFile::remove(dst);
+            QFile::copy(src, dst);
+        }
+        qDebug() << "[ModLoader] Copied version:" << d;
+    }
+
+    // Copy libraries from temp
+    QString libSrc = tempMc + "/libraries";
+    if (QDir(libSrc).exists()) {
+        QStringList dirs2 = QDir(libSrc).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& d : dirs2) {
+            copyRecursive(libSrc + "/" + d, m_gameDir + "/libraries/" + d);
         }
     }
+    Q_UNUSED(jarPath);
+}
 
-    // Write version JSON to real game dir
-    QString targetVerDir = m_gameDir + "/versions/" + m_installName;
-    QDir().mkpath(targetVerDir);
-    QString targetJson = targetVerDir + "/" + m_installName + ".json";
-    auto fixJsonId = [&](const QString& jsonPath) {
-        QFile f(jsonPath);
-        if (!f.open(QIODevice::ReadOnly)) return;
-        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-        f.close();
-        if (!doc.isObject()) return;
-        QJsonObject obj = doc.object();
-        if (obj.value(QStringLiteral("id")).toString() == m_installName) return;
-        obj[QStringLiteral("id")] = m_installName;
-        qDebug() << "[ModLoader] Fixing JSON id →" << m_installName;
-        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
-        f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
-        f.close();
-    };
-
-    if (!foundJson.isEmpty() && QFile::exists(foundJson)) {
-        if (QFile::exists(targetJson)) QFile::remove(targetJson);
-        QFile::copy(foundJson, targetJson);
-        qDebug() << "[ModLoader] Forge JSON copied to" << targetJson;
-        fixJsonId(targetJson);
-    } else {
-        qWarning() << "[ModLoader] No Forge output JSON found, trying fallback name";
-        // Try the predicted folder name
-        QString predictedJson = verDir.absolutePath() + "/" + m_installName + "/" + m_installName + ".json";
-        if (QFile::exists(predictedJson)) {
-            QFile::copy(predictedJson, targetJson);
-            qDebug() << "[ModLoader] Forge JSON copied from predicted path:" << predictedJson;
-            fixJsonId(targetJson);
-        } else {
-            qWarning() << "[ModLoader] Cannot find Forge output JSON at all";
-        }
+void ModLoaderInstaller::copyRecursive(const QString& srcDir, const QString& dstDir) {
+    QDir dir(srcDir);
+    if (!dir.exists()) return;
+    QDir().mkpath(dstDir);
+    for (const QFileInfo& info : dir.entryInfoList(QDir::Files)) {
+        QString dst = dstDir + "/" + info.fileName();
+        if (!QFile::exists(dst))
+            QFile::copy(info.absoluteFilePath(), dst);
     }
-
-    // Copy vanilla JAR
-    QString vanillaJar = tempMc + "/versions/" + m_mcVersion + "/" + m_mcVersion + ".jar";
-    QString targetJar = targetVerDir + "/" + m_installName + ".jar";
-    if (QFile::exists(vanillaJar) && !QFile::exists(targetJar)) {
-        QFile::copy(vanillaJar, targetJar);
+    for (const QFileInfo& info : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        copyRecursive(info.absoluteFilePath(), dstDir + "/" + info.fileName());
     }
-
-    // Copy libraries from temp to real game dir
-    QString tempLibDir = tempMc + "/libraries";
-    QString realLibDir = m_gameDir + "/libraries";
-    if (QDir(tempLibDir).exists()) {
-        QDir().mkpath(realLibDir);
-        // Copy recursively
-        auto copyDir = [](const QString& src, const QString& dst, auto& self) -> void {
-            QDir(src).mkpath(dst);
-            QDir d(src);
-            for (const QFileInfo& info : d.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
-                QString s = info.absoluteFilePath();
-                QString t = dst + "/" + info.fileName();
-                if (info.isDir()) {
-                    self(s, t, self);
-                } else {
-                    if (!QFile::exists(t)) QFile::copy(s, t);
-                }
-            }
-        };
-        copyDir(tempLibDir, realLibDir, copyDir);
-        qDebug() << "[ModLoader] Libraries copied from temp to real game dir";
-    }
-
-    // Cleanup temp installer JAR (the path passed via QProcess)
-    if (!jarPath.isEmpty()) QFile::remove(jarPath);
 }
 
 void ModLoaderInstaller::cleanupTempMc(const QString& tempDir) {
-    if (tempDir.isEmpty()) return;
-    QDir d(tempDir);
-    if (d.exists()) {
-        d.removeRecursively();
-        qDebug() << "[ModLoader] Temp .minecraft cleaned:" << tempDir;
-    }
+    QDir dir(tempDir);
+    if (dir.exists()) dir.removeRecursively();
+    qDebug() << "[ModLoader] Temp cleaned:" << tempDir;
 }
-
-// ============================================================
-// Forge
-// ============================================================
 
 void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     m_currentStep = 1;
@@ -425,7 +378,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             if (!ok || sha1Data.isEmpty()) {
                 qWarning() << "[ModLoader] Cannot fetch official Forge SHA1, skip verification";
                 emit verifyFinished(false);
-                maybeRunForgeStep3(jarData);
+                forgeStep3_PCLinstall(jarData);
                 return;
             }
             QString expectedSha1 = QString::fromUtf8(sha1Data).trimmed();
@@ -433,7 +386,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             qDebug() << "[ModLoader] Forge SHA1 (official) expected:" << expectedSha1 << "actual:" << actualSha1 << "match:" << match;
             emit verifyFinished(match);
             if (!match) { emit finished(false, "Forge 安装程序校验失败（SHA1 不匹配）"); m_running = false; return; }
-            maybeRunForgeStep3(jarData);
+            forgeStep3_PCLinstall(jarData);
         });
         return;
     }
@@ -445,7 +398,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
         if (!ok || forgeData.isEmpty()) {
             qWarning() << "[ModLoader] Cannot fetch SHA1, skip verification";
             emit verifyFinished(false);
-            maybeRunForgeStep3(jarData);
+            forgeStep3_PCLinstall(jarData);
             return;
         }
 
@@ -482,438 +435,202 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
-        maybeRunForgeStep3(jarData);
+        forgeStep3_PCLinstall(jarData);
     });
 }
 
 
-void ModLoaderInstaller::maybeRunForgeStep3(const QByteArray& jarData) {
-    if (m_pauseAfterVerify) {
-        m_pausedJarData = jarData;
-        qDebug() << "[ModLoader] Pausing after verify, waiting for MC to complete...";
-        emit waitingForMC();
-        return;
-    }
-    forgeStep3_prefetchAndRun(jarData);
-}
-
-void ModLoaderInstaller::continueAfterPause() {
-    if (!m_pausedJarData.isEmpty()) {
-        QByteArray data = m_pausedJarData;
-        m_pausedJarData.clear();
-        m_pauseAfterVerify = false;
-        qDebug() << "[ModLoader] Resuming after MC ready, running installer...";
-        forgeStep3_prefetchAndRun(data);
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════
-// PCL-style library pre-population — downloads libs via BMCLAPI
-// before the installer runs, eliminating slow Mojang CDN fetches
+// PCL-style Forge install — extracts version.json from installer
+// JAR, downloads all libraries via BMCLAPI mirrors, then writes
+// the version config to gameDir. No java process needed.
 // ═══════════════════════════════════════════════════════════════
 
-void ModLoaderInstaller::forgePrepopulateLibraries(
-    const QByteArray& jarData, const QDir& tempMc,
-    std::function<void(int done, int total)> progress,
-    std::function<void(bool success, const QString& error)> done)
-{
-    if (m_cancelled) { done(false, "Cancelled"); return; }
+void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
+    if (m_cancelled) return;
+
+    m_currentStep = 3;
+    emit progressChanged(3, m_totalSteps, "正在准备 Forge libraries...");
 
     // 1. Open installer JAR as ZIP
     QBuffer buffer;
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
-        qWarning() << "[ModLoader] Cannot open JAR buffer";
-        done(false, "Cannot open JAR buffer");
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
         return;
     }
     QZipReader reader(&buffer);
 
-    // 2. Extract install_profile.json
+    // 2. Extract install_profile.json → version.json path
     QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
     if (profileData.isEmpty()) {
-        qWarning() << "[ModLoader] No install_profile.json in installer JAR, skipping prefetch";
-        done(false, "No install_profile.json found");
+        qWarning() << "[ModLoader] No install_profile.json in installer JAR";
+        emit finished(false, "安装程序缺少 install_profile.json");
+        m_running = false;
         return;
     }
-
-    // 3. Parse to get path to version.json
     QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
     if (!profileDoc.isObject()) {
-        qWarning() << "[ModLoader] Invalid install_profile.json";
-        done(false, "Invalid install_profile.json");
+        emit finished(false, "install_profile.json 格式无效");
+        m_running = false;
         return;
     }
     QString versionJsonPath = profileDoc.object().value(QStringLiteral("json")).toString();
-    // Strip leading slash if present (ZIP entries usually don't have one)
-    if (versionJsonPath.startsWith(QLatin1Char('/')))
-        versionJsonPath = versionJsonPath.mid(1);
-
-    // 4. Extract version.json
-    QByteArray versionData = reader.fileData(versionJsonPath);
-    if (versionData.isEmpty()) {
-        // Retry with leading slash
-        versionData = reader.fileData(QStringLiteral("/") + versionJsonPath);
-        if (versionData.isEmpty()) {
-            qWarning() << "[ModLoader] Cannot extract version.json:" << versionJsonPath;
-            done(false, "Cannot extract version.json from installer JAR");
-            return;
-        }
+    if (versionJsonPath.isEmpty()) {
+        emit finished(false, "install_profile.json 未指定 version.json 路径");
+        m_running = false;
+        return;
     }
 
-    // 5. Parse version.json → libraries array
+    // 3. Extract version.json
+    QByteArray versionData = reader.fileData(versionJsonPath.startsWith('/') ? versionJsonPath.mid(1) : versionJsonPath);
+    if (versionData.isEmpty()) {
+        emit finished(false, "安装程序中未找到版本配置");
+        m_running = false;
+        return;
+    }
     QJsonDocument versionDoc = QJsonDocument::fromJson(versionData);
     if (!versionDoc.isObject()) {
-        qWarning() << "[ModLoader] Invalid version.json";
-        done(false, "Invalid version.json");
-        return;
-    }
-    QJsonObject versionObj = versionDoc.object();
-    QJsonArray libraries = versionObj.value(QStringLiteral("libraries")).toArray();
-
-    if (libraries.isEmpty()) {
-        qWarning() << "[ModLoader] No libraries in version.json";
-        done(false, "No libraries to prefetch");
+        emit finished(false, "版本配置 JSON 格式无效");
+        m_running = false;
         return;
     }
 
-    // 6. Build download list: {url, localPath}
-    QSharedPointer<QList<QPair<QString, QString>>> downloads(
-        new QList<QPair<QString, QString>>());
-    QString libBase = tempMc.absolutePath() + QStringLiteral("/libraries/");
+    // 4. Extract library list from version.json
+    QJsonArray libraries = versionDoc.object().value(QStringLiteral("libraries")).toArray();
+    qDebug() << "[ModLoader] PCL Forge install:" << libraries.size() << "libraries to download";
 
-    for (const QJsonValue& val : libraries) {
-        QJsonObject lib = val.toObject();
-        QJsonObject dlObj = lib.value(QStringLiteral("downloads")).toObject();
-        QJsonObject artifact = dlObj.value(QStringLiteral("artifact")).toObject();
-        if (artifact.isEmpty()) continue;
+    // 5. Build download list (BMCLAPI mirror URLs → local paths)
+    QString libBase = m_gameDir + QStringLiteral("/libraries");
+    QString bmclBase = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
 
-        QString relPath = artifact.value(QStringLiteral("path")).toString();
-        if (relPath.isEmpty()) continue;
+    struct DlTask { QString url; QString path; };
+    QList<DlTask> downloads;
+    for (const QJsonValue& v : libraries) {
+        QJsonObject lib = v.toObject();
+        QString name = lib.value(QStringLiteral("name")).toString();
+        if (name.isEmpty()) continue;
 
-        // Build BMCLAPI Maven URL from the artifact URL
-        QString originalUrl = artifact.value(QStringLiteral("url")).toString();
-        QString bmclUrl;
-        if (!originalUrl.isEmpty()) {
-            // Replace the domain portion with BMCLAPI mirror
-            int slashSlash = originalUrl.indexOf(QStringLiteral("://"));
-            if (slashSlash > 0) {
-                int pathStart = originalUrl.indexOf(QLatin1Char('/'), slashSlash + 3);
-                if (pathStart > 0)
-                    bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven") + originalUrl.mid(pathStart);
-            }
-        }
+        // Parse Maven coordinate: group:artifact:version[:classifier@ext]
+        // Convert to URL path: group/dotted/path/artifact/version/artifact-version[-classifier].ext
+        QStringList parts = name.split(':');
+        if (parts.size() < 3) continue;
+        QString group = parts[0];
+        QString artifact = parts[1];
+        QString version = parts[2];
+        QString classifier, ext = QStringLiteral("jar");
 
-        // Fallback: construct from Maven coordinate (groupId:artifactId:version)
-        if (bmclUrl.isEmpty()) {
-            QString name = lib.value(QStringLiteral("name")).toString();
-            QStringList parts = name.split(QLatin1Char(':'));
-            if (parts.size() >= 3) {
-                QString groupPath = QString(parts[0]).replace(QLatin1Char('.'), QLatin1Char('/'));
-                QString artifactId = parts[1];
-                QString version = parts[2];
-                bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.jar")
-                              .arg(groupPath, artifactId, version);
-            }
-        }
+        // Parse optional @ext and :classifier from version field
+        int atPos = version.indexOf('@');
+        if (atPos > 0) { ext = version.mid(atPos + 1); version = version.left(atPos); }
+        if (parts.size() > 3) classifier = parts[3];
 
-        if (bmclUrl.isEmpty()) continue;
+        QString groupPath = QString(group).replace('.', '/');
+        QString fileName = classifier.isEmpty()
+            ? QStringLiteral("%1-%2.%3").arg(artifact, version, ext)
+            : QStringLiteral("%1-%2-%3.%4").arg(artifact, version, classifier, ext);
+        QString relPath = QStringLiteral("%1/%2/%3/%4").arg(groupPath, artifact, version, fileName);
 
-        QString localPath = libBase + relPath;
-        downloads->append({bmclUrl, localPath});
+        QString url = bmclBase + QStringLiteral("/") + relPath;
+        QString localPath = libBase + QStringLiteral("/") + relPath;
+        downloads.append({url, localPath});
     }
 
-    if (downloads->isEmpty()) {
-        qWarning() << "[ModLoader] No downloadable libraries after URL filtering";
-        done(false, "No downloadable libraries");
-        return;
-    }
+    if (downloads.isEmpty()) {
+        qWarning() << "[ModLoader] No libraries to download, writing version config only";
+    } else {
+        qDebug() << "[ModLoader] Downloading" << downloads.size() << "Forge libraries via BMCLAPI";
 
-    qDebug() << "[ModLoader] Prefetching" << downloads->size() << "libraries via BMCLAPI...";
+        // 6. Concurrent download (max 8)
+        QSharedPointer<int> remaining(new int(downloads.size()));
+        QSharedPointer<int> completed(new int(0));
+        QSharedPointer<bool> allOk(new bool(true));
+        const int MAX_CONCURRENT = 8;
 
-    // 7. Download in parallel (max 8 concurrent)
-    QSharedPointer<int> remaining(new int(downloads->size()));
-    QSharedPointer<int> completed(new int(0));
-    const int MAX_CONCURRENT = 8;
+        auto processNext = QSharedPointer<std::function<void()>>::create();
+        *processNext = [=]() {
+            if (*remaining <= 0) {
+                // All downloads complete
+                if (*allOk) {
+                    // 7. Write version JSON
+                    QString versionBase = versionsDir() + QStringLiteral("/") + m_installName;
+                    QDir().mkpath(versionBase);
+                    QString jsonPath = versionBase + QStringLiteral("/") + m_installName + QStringLiteral(".json");
 
-    auto processNext = QSharedPointer<std::function<void()>>::create();
-    *processNext = [=]() {
-        if (m_cancelled || *remaining <= 0) {
-            if (!m_cancelled)
-                done(true, QString());
-            return;
-        }
-        int idx = downloads->size() - *remaining;
-        (*remaining)--;
+                    QFile jsonFile(jsonPath);
+                    if (!jsonFile.open(QIODevice::WriteOnly)) {
+                        emit finished(false, "无法写入版本配置文件");
+                        m_running = false;
+                        return;
+                    }
+                    // Set the version id
+                    QJsonObject vObj = versionDoc.object();
+                    vObj[QStringLiteral("id")] = m_installName;
+                    jsonFile.write(QJsonDocument(vObj).toJson());
+                    jsonFile.close();
 
-        QString url = downloads->at(idx).first;
-        QString localPath = downloads->at(idx).second;
-
-        // Create parent directories
-        QDir().mkpath(QFileInfo(localPath).absolutePath());
-
-        downloadToFile(url, localPath, [=](bool ok, const QString& err) {
-            Q_UNUSED(err)
-            if (!ok) {
-                qWarning() << "[ModLoader] Prefetch failed:" << url;
-                // Continue anyway — installer will download this lib itself
+                    emit progressChanged(3, m_totalSteps, "安装完成");
+                    emit finished(true, QString());
+                    m_running = false;
+                } else {
+                    emit finished(false, "部分支持库下载失败");
+                    m_running = false;
+                }
+                return;
             }
-            (*completed)++;
-            if (completed && downloads->size() > 0)
-                progress(*completed, downloads->size());
+
+            int idx = downloads.size() - *remaining;
+            (*remaining)--;
+            const DlTask& t = downloads.at(idx);
+
+            // Create parent directory
+            QDir().mkpath(QFileInfo(t.path).absolutePath());
+
+            downloadToFile(t.url, t.path, [=](bool ok, const QString& err) {
+                Q_UNUSED(err);
+                if (!ok) *allOk = false;
+                (*completed)++;
+                int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                emit stepProgress(3, pct);
+                (*processNext)();
+            });
+        };
+
+        int initial = qMin(MAX_CONCURRENT, downloads.size());
+        for (int i = 0; i < initial; i++)
             (*processNext)();
-        });
-    };
-
-    // Start MAX_CONCURRENT downloads
-    int initial = qMin(MAX_CONCURRENT, downloads->size());
-    for (int i = 0; i < initial; i++) {
-        (*processNext)();
+        return; // Async — finished() emitted by callback above
     }
-}
 
-void ModLoaderInstaller::neoForgePrepopulateLibraries(
-    const QByteArray& jarData, const QDir& tempMc,
-    std::function<void(int done, int total)> progress,
-    std::function<void(bool success, const QString& error)> done)
-{
-    // NeoForge installer has the same format as Forge
-    forgePrepopulateLibraries(jarData, tempMc, progress, done);
-}
+    // No libraries to download — write config immediately
+    QString versionBase = versionsDir() + QStringLiteral("/") + m_installName;
+    QDir().mkpath(versionBase);
+    QString jsonPath = versionBase + QStringLiteral("/") + m_installName + QStringLiteral(".json");
 
-// ═══════════════════════════════════════════════════════════════
-// Run the Forge/NeoForge installer process (extracted from old
-// forgeStep3_runInstaller for reuse after library prefetch)
-// ═══════════════════════════════════════════════════════════════
-
-void ModLoaderInstaller::runForgeInstallerProcess(const QByteArray& jarData,
-                                                   const QDir& tempMcDir,
-                                                   const QString& tempMcRoot)
-{
-    if (m_cancelled) return;
-
-    // Write installer JAR to temp
-    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString jarPath = tempDir + "/forge-installer-" + m_installName + ".jar";
-    QFile jarFile(jarPath);
-    if (!jarFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "无法写入临时文件");
+    QFile jsonFile(jsonPath);
+    if (!jsonFile.open(QIODevice::WriteOnly)) {
+        emit finished(false, "无法写入版本配置文件");
         m_running = false;
         return;
     }
-    jarFile.write(jarData);
-    jarFile.close();
+    QJsonObject vObj = versionDoc.object();
+    vObj[QStringLiteral("id")] = m_installName;
+    jsonFile.write(QJsonDocument(vObj).toJson());
+    jsonFile.close();
 
-    QProcess* proc = new QProcess(this);
-    QStringList args;
-    args << "-jar" << jarPath << "--installClient" << tempMcDir.absolutePath();
-
-    qDebug() << "[ModLoader] Forge install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
-
-    // Reset library counter for installer sub-progress parsing
-    m_forgeLibCount.storeRelaxed(0);
-
-    connect(proc, &QProcess::readyReadStandardError, this, [this, proc]() {
-        QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
-        if (!err.isEmpty()) {
-            qWarning().noquote() << "[ModLoader] Forge stderr:" << err;
-            emit logMessage(QStringLiteral("Forge: ") + err.left(200));
-        }
-    });
-    connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
-        while (proc->canReadLine()) {
-            QString line = QString::fromUtf8(proc->readLine()).trimmed();
-            if (line.isEmpty()) continue;
-            qDebug().noquote() << "[ModLoader] Forge stdout:" << line;
-            if (line.contains(QStringLiteral("Extracting"), Qt::CaseInsensitive) && line.contains(QStringLiteral("json"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 7 * 20 / 100) : 7);
-            else if (line.contains(QStringLiteral("Downloading"), Qt::CaseInsensitive) && line.contains(QStringLiteral("librar"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 8 * 20 / 100) : 8);
-            else if (line.contains(QStringLiteral("Considering library"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + qMin(18, 8 + m_forgeLibCount.fetchAndAddRelaxed(1)) * 20 / 100) : qMin(18, 8 + m_forgeLibCount.fetchAndAddRelaxed(1)));
-            else if (line.contains(QStringLiteral("Building processors"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 18 * 20 / 100) : 18);
-            else if (line.contains(QStringLiteral("DOWNLOAD_MOJMAPS"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 20 * 20 / 100) : 20);
-            else if (line.contains(QStringLiteral("MERGE_MAPPING"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 30 * 20 / 100) : 30);
-            else if (line.contains(QStringLiteral("Splitting"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 35 * 20 / 100) : 35);
-            else if (line.contains(QStringLiteral("Processing"), Qt::CaseInsensitive) && line.contains(QStringLiteral("Complete"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 50 * 20 / 100) : 50);
-            else if (line.contains(QStringLiteral("Remapping"), Qt::CaseInsensitive)) {
-                if (line.contains(QStringLiteral("final"), Qt::CaseInsensitive))
-                    emit stepProgress(3, m_prefetchDone ? (80 + 72 * 20 / 100) : 72);
-                else {
-                    QRegularExpression pctRe(QStringLiteral("(\\d+)\\s*%"));
-                    auto m = pctRe.match(line);
-                    if (m.hasMatch()) emit stepProgress(3, m_prefetchDone ? (80 + (72 + m.captured(1).toInt() / 10) * 20 / 100) : (72 + m.captured(1).toInt() / 10));
-                }
-            } else if (line.contains(QStringLiteral("Injecting"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 91 * 20 / 100) : 91);
-        }
-    });
-
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
-        QString stderrRemaining = QString::fromUtf8(proc->readAllStandardError()).trimmed();
-        if (!stderrRemaining.isEmpty()) {
-            qWarning().noquote() << "[ModLoader] Forge stderr (final):" << stderrRemaining;
-        }
-        proc->deleteLater();
-
-        if (m_cancelled || exitCode != 0) {
-            cleanupTempMc(tempMcRoot);
-            QString msg = QString("Forge 安装程序运行失败（退出码: %1）: %2")
-                .arg(exitCode).arg(stderrRemaining.isEmpty() ? QStringLiteral("未知错误") : stderrRemaining);
-            qWarning() << "[ModLoader]" << msg;
-            emit finished(false, msg);
-            m_running = false;
-            return;
-        }
-
-        // Copy installer output from temp to real game dir
-        collectForgeOutput(tempMcDir.absolutePath(), jarPath);
-        cleanupTempMc(tempMcRoot);
-
-        qDebug() << "[ModLoader] Forge install complete";
-        emit progressChanged(3, m_totalSteps, "安装完成");
-        emit finished(true, QString());
-        m_running = false;
-    });
-
-    proc->start("java", args);
+    emit progressChanged(3, m_totalSteps, "安装完成");
+    emit finished(true, QString());
+    m_running = false;
 }
 
-void ModLoaderInstaller::runNeoForgeInstallerProcess(const QByteArray& jarData,
-                                                      const QDir& tempMcDir,
-                                                      const QString& tempMcRoot)
-{
-    if (m_cancelled) return;
-
-    // Write installer JAR to temp
-    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString jarPath = tempDir + "/neoforge-installer-" + m_installName + ".jar";
-    QFile jarFile(jarPath);
-    if (!jarFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "无法写入临时文件");
-        m_running = false;
-        return;
-    }
-    jarFile.write(jarData);
-    jarFile.close();
-
-    QProcess* proc = new QProcess(this);
-    QStringList args;
-    args << "-jar" << jarPath << "--installClient" << tempMcDir.absolutePath();
-
-    qDebug() << "[ModLoader] NeoForge install (isolated): java" << args << "→ tempMc:" << tempMcDir.absolutePath();
-
-    // Reset counter for stdout sub-progress parsing (same format as Forge)
-    m_forgeLibCount.storeRelaxed(0);
-
-    connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc]() {
-        while (proc->canReadLine()) {
-            QString line = QString::fromUtf8(proc->readLine()).trimmed();
-            if (line.isEmpty()) continue;
-            qDebug().noquote() << "[ModLoader] NeoForge stdout:" << line;
-            if (line.contains(QStringLiteral("Extracting"), Qt::CaseInsensitive) && line.contains(QStringLiteral("json"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 7 * 20 / 100) : 7);
-            else if (line.contains(QStringLiteral("Downloading"), Qt::CaseInsensitive) && line.contains(QStringLiteral("librar"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 8 * 20 / 100) : 8);
-            else if (line.contains(QStringLiteral("Considering library"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + qMin(18, 8 + m_forgeLibCount.fetchAndAddRelaxed(1)) * 20 / 100) : qMin(18, 8 + m_forgeLibCount.fetchAndAddRelaxed(1)));
-            else if (line.contains(QStringLiteral("Building processors"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 18 * 20 / 100) : 18);
-            else if (line.contains(QStringLiteral("DOWNLOAD_MOJMAPS"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 20 * 20 / 100) : 20);
-            else if (line.contains(QStringLiteral("MERGE_MAPPING"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 30 * 20 / 100) : 30);
-            else if (line.contains(QStringLiteral("Splitting"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 35 * 20 / 100) : 35);
-            else if (line.contains(QStringLiteral("Processing"), Qt::CaseInsensitive) && line.contains(QStringLiteral("Complete"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 50 * 20 / 100) : 50);
-            else if (line.contains(QStringLiteral("Remapping"), Qt::CaseInsensitive)) {
-                if (line.contains(QStringLiteral("final"), Qt::CaseInsensitive))
-                    emit stepProgress(3, m_prefetchDone ? (80 + 72 * 20 / 100) : 72);
-                else {
-                    QRegularExpression pctRe(QStringLiteral("(\\d+)\\s*%"));
-                    auto m = pctRe.match(line);
-                    if (m.hasMatch()) emit stepProgress(3, m_prefetchDone ? (80 + (72 + m.captured(1).toInt() / 10) * 20 / 100) : (72 + m.captured(1).toInt() / 10));
-                }
-            } else if (line.contains(QStringLiteral("Injecting"), Qt::CaseInsensitive))
-                emit stepProgress(3, m_prefetchDone ? (80 + 91 * 20 / 100) : 91);
-        }
-    });
-
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
-        proc->deleteLater();
-        if (m_cancelled || exitCode != 0) {
-            cleanupTempMc(tempMcRoot);
-            qWarning() << "[ModLoader] NeoForge installer failed, exit:" << exitCode;
-            emit finished(false, QString("安装程序运行失败（退出码: %1）").arg(exitCode));
-            m_running = false;
-            return;
-        }
-
-        collectForgeOutput(tempMcDir.absolutePath(), jarPath);
-        cleanupTempMc(tempMcRoot);
-
-        qDebug() << "[ModLoader] NeoForge install complete";
-        emit progressChanged(3, m_totalSteps, "安装完成");
-        emit finished(true, QString());
-        m_running = false;
-    });
-
-    proc->start("java", args);
+void ModLoaderInstaller::neoForgeStep3_PCLinstall(const QByteArray& jarData) {
+    // NeoForge uses the same PCL install logic as Forge
+    // (NeoForge installer JARs use install_profile.json format)
+    // Reuse the Forge implementation
+    forgeStep3_PCLinstall(jarData);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Forge Step 3 (renamed): pre-populate libs via BMCLAPI, then
-// run the installer on pre-populated temp directory
-// ═══════════════════════════════════════════════════════════════
-
-void ModLoaderInstaller::forgeStep3_prefetchAndRun(const QByteArray& jarData) {
-    m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "正在准备 Forge libraries...");
-
-    // Set up temp .minecraft (same as before)
-    QDir tempMcDir = setupTempMc();
-    QString tempMcRoot;
-    {
-        QString tmp = tempMcDir.absolutePath();
-        if (tmp.endsWith("/.minecraft"))
-            tempMcRoot = tmp.left(tmp.length() - 11);  // strip "/.minecraft"
-        else
-            tempMcRoot = tmp;
-    }
-
-    // Pre-populate libraries via BMCLAPI mirrors (PCL-style)
-    forgePrepopulateLibraries(jarData, tempMcDir,
-        [this](int done, int total) {
-            // Step 3 progress: 0 → 80% while downloading libs
-            int pct = total > 0 ? (done * 80 / total) : 0;
-            emit stepProgress(3, pct);
-            // Update card description during prefetch
-            if (done == 0)
-                emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备 Forge libraries..."));
-        },
-        [this, jarData, tempMcDir, tempMcRoot](bool success, const QString& error) {
-            m_prefetchDone = success;  // enable stdout percentage offset
-            if (!success)
-                qWarning() << "[ModLoader] Library prefetch failed, falling back to installer:" << error;
-            else
-                emit progressChanged(3, m_totalSteps, "正在安装 Forge...");
-            // Now run the installer on pre-populated temp .minecraft
-            runForgeInstallerProcess(jarData, tempMcDir, tempMcRoot);
-        }
-    );
-}
-
-// ============================================================
-// Fabric — download BMCLAPI, verify against official meta
-// ============================================================
 
 void ModLoaderInstaller::fabricStep1_downloadProfile() {
     m_currentStep = 1;
@@ -1046,7 +763,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
         if (!ok || sha1Data.isEmpty()) {
             qWarning() << "[ModLoader] Cannot fetch NeoForge SHA1, skip verification";
             emit verifyFinished(false);
-            neoStep3_prefetchAndRun(jarData);
+            neoForgeStep3_PCLinstall(jarData);
             return;
         }
 
@@ -1062,38 +779,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
-        neoStep3_prefetchAndRun(jarData);
+        neoForgeStep3_PCLinstall(jarData);
     });
 }
 
-void ModLoaderInstaller::neoStep3_prefetchAndRun(const QByteArray& jarData) {
-    m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "正在准备 NeoForge libraries...");
-
-    // Set up temp .minecraft
-    QDir tempMcDir = setupTempMc();
-    QString tempMcRoot;
-    {
-        QString tmp = tempMcDir.absolutePath();
-        tempMcRoot = tmp.endsWith("/.minecraft") ? tmp.left(tmp.length() - 11) : tmp;
-    }
-
-    // Pre-populate libraries via BMCLAPI mirrors
-    neoForgePrepopulateLibraries(jarData, tempMcDir,
-        [this](int done, int total) {
-            int pct = total > 0 ? (done * 80 / total) : 0;
-            emit stepProgress(3, pct);
-            if (done == 0)
-                emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备 NeoForge libraries..."));
-        },
-        [this, jarData, tempMcDir, tempMcRoot](bool success, const QString& error) {
-            m_prefetchDone = success;
-            if (!success) {
-                qWarning() << "[ModLoader] NeoForge library prefetch failed, falling back to installer:" << error;
-            } else {
-                emit progressChanged(3, m_totalSteps, QStringLiteral("正在安装 NeoForge..."));
-            }
-            runNeoForgeInstallerProcess(jarData, tempMcDir, tempMcRoot);
-        }
-    );
-}

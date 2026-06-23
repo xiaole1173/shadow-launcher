@@ -63,50 +63,28 @@ private:
     QString computeSha1(const QByteArray& data);
     void emitByteProgress(const QString& name, qint64 received, qint64 total);
 
-    // Temp .minecraft isolation (PCL-style)
-    QString setupTempMc();                                  // returns temp .minecraft path
+    // Temp .minecraft isolation for OptiFine standalone installer
+    QString setupTempMc();
     void collectForgeOutput(const QString& tempMc, const QString& jarPath);
     void cleanupTempMc(const QString& tempDir);
+    void copyRecursive(const QString& srcDir, const QString& dstDir);
 
-    // Forge installer stdout progress counter
-    QAtomicInt m_forgeLibCount;
-
-    // True after library prefetch completes → offset installer stdout percentages
-    bool m_prefetchDone = false;
-
-    // Forge
+    // Forge/NeoForge
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
-    void forgeStep3_prefetchAndRun(const QByteArray& jarData);
-    void maybeRunForgeStep3(const QByteArray& jarData);
-
-    // PCL-style library pre-population (pre-download via BMCLAPI mirrors)
-    void forgePrepopulateLibraries(const QByteArray& jarData, const QDir& tempMc,
-                                    std::function<void(int done, int total)> progress,
-                                    std::function<void(bool success, const QString& error)> done);
-    void neoForgePrepopulateLibraries(const QByteArray& jarData, const QDir& tempMc,
-                                       std::function<void(int done, int total)> progress,
-                                       std::function<void(bool success, const QString& error)> done);
-    void runForgeInstallerProcess(const QByteArray& jarData, const QDir& tempMcDir, const QString& tempMcRoot);
-    void runNeoForgeInstallerProcess(const QByteArray& jarData, const QDir& tempMcDir, const QString& tempMcRoot);
+    void neoStep1_downloadInstaller();
+    void neoStep2_verify(const QByteArray& jarData);
+    // PCL-style install (extract version.json → download libraries → write config)
+    void forgeStep3_PCLinstall(const QByteArray& jarData);
+    void neoForgeStep3_PCLinstall(const QByteArray& jarData);
 
     // Fabric
     void fabricStep1_downloadProfile();
     void fabricStep2_verify(const QByteArray& bmclProfile);
     void fabricStep3_writeVersion(const QByteArray& profileData);
 
-    // NeoForge
-    void neoStep1_downloadInstaller();
-    void neoStep2_verify(const QByteArray& jarData);
-    void neoStep3_prefetchAndRun(const QByteArray& jarData);
-
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
-
-    // Pause/resume for parallel downloads (merged install)
-    void setPauseAfterVerify(bool v) { m_pauseAfterVerify = v; }
-    bool isPaused() const { return !m_pausedJarData.isEmpty(); }
-    void continueAfterPause();
 
     // ── state ──
     QString m_gameDir;
@@ -122,8 +100,6 @@ private:
     bool m_usedFallback = false;
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
-    bool m_pauseAfterVerify = false;
-    QByteArray m_pausedJarData;
 
     // byte progress tracking
     qint64 m_bytesReceived = 0;
