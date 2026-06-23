@@ -9,6 +9,10 @@ Rectangle {
     anchors.fill: parent
     color: "#0c0f16"
     property var backend: null
+    onBackendChanged: {
+        if (backend && backend.installCardsModel)
+            cardsView.model = backend.installCardsModel
+    }
     property var toastManager: null
 
     // ── Local refresh timer (200ms) — avoids C++ model-rebuild storm ──
