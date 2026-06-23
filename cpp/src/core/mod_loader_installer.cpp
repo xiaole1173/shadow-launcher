@@ -637,14 +637,59 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
             this, [this, proc, jarPath](int exitCode, QProcess::ExitStatus) {
         proc->deleteLater();
         QFile::remove(jarPath);
+
+        QString stdoutStr = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+        QString stderrStr = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        qDebug() << "[ModLoader] Installer exitCode:" << exitCode
+                 << "stdout:" << stdoutStr << "stderr:" << stderrStr;
+
         if (exitCode == 0) {
+            // Forge/NeoForge (spec:1) stores client jar in libraries/.
+            // Find the version folder the installer actually created and copy jar there.
+            const QString libVer = m_loaderType == QStringLiteral("neoforge")
+                ? m_loaderVersion
+                : (m_mcVersion + QStringLiteral("-") + m_loaderVersion);
+            const QString loaderGroup = m_loaderType == QStringLiteral("neoforge")
+                ? QStringLiteral("net/neoforged/neoforge")
+                : QStringLiteral("net/minecraftforge/forge");
+            const QString filePrefix = m_loaderType == QStringLiteral("neoforge")
+                ? QStringLiteral("neoforge")
+                : QStringLiteral("forge");
+            const QString clientJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
+                + QStringLiteral("/") + libVer + QStringLiteral("/")
+                + filePrefix + QStringLiteral("-") + libVer + QStringLiteral("-client.jar");
+
+            // Find the version folder installer created (matches version.json id, not m_installName)
+            const QDir vDir(versionsDir());
+            const QStringList subDirs = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time);
+            for (const QString& sub : subDirs) {
+                const QString jsonPath = versionsDir() + QStringLiteral("/") + sub
+                    + QStringLiteral("/") + sub + QStringLiteral(".json");
+                const QString jarPath  = versionsDir() + QStringLiteral("/") + sub
+                    + QStringLiteral("/") + sub + QStringLiteral(".jar");
+                // Skip if already has jar or no json (not a Forge version)
+                if (!QFile::exists(jsonPath) || QFile::exists(jarPath)) continue;
+                // Read id from JSON to verify it's our version
+                QFile jf(jsonPath);
+                if (jf.open(QIODevice::ReadOnly)) {
+                    QJsonDocument doc = QJsonDocument::fromJson(jf.readAll());
+                    jf.close();
+                    QString jsonId = doc.object().value(QStringLiteral("id")).toString();
+                    if (jsonId == sub) {  // Sanity check
+                        if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPath))
+                            qDebug() << "[ModLoader] Copied client jar to" << jarPath;
+                        else if (!QFile::exists(clientJar))
+                            qDebug() << "[ModLoader] No client jar at" << clientJar << "— older format";
+                        else
+                            qWarning() << "[ModLoader] Failed to copy client jar to" << jarPath;
+                        break;  // Only one version per install
+                    }
+                }
+            }
             emit finished(true, QString());
         } else {
-            QString stderrStr = QString::fromUtf8(proc->readAllStandardError());
-            QString stdoutStr = QString::fromUtf8(proc->readAllStandardOutput());
             QString detail = (stdoutStr + QStringLiteral(" ") + stderrStr).trimmed();
             if (detail.isEmpty()) detail = QStringLiteral("无输出");
-            qWarning() << "[ModLoader] Installer failed. exitCode:" << exitCode << "stdout:" << stdoutStr << "stderr:" << stderrStr;
             emit finished(false, QString("Forge 安装程序运行失败（退出码: %1）\n%2").arg(exitCode).arg(detail));
         }
         m_running = false;
