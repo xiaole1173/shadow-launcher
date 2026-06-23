@@ -148,13 +148,18 @@ VersionBackend::VersionBackend(QObject* parent)
         emit installFileProgress(file);
         emit installSpeedChanged(speed);
 
-        // ── Merged install: accumulate ML phase bytes ──
+        // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
         if (m_isMergedInstall) {
-            m_mergedMlBytesDl = received;
-            if (total > 0) m_mergedMlBytesAll = qMax(m_mergedMlBytesAll, total);
+            // Detect file transition: total changes → previous file completed
+            if (total > 0 && total != m_mergedMlFileTotal && m_mergedMlFileTotal > 0) {
+                m_mergedMlBytesDone += m_mergedMlFileTotal;
+            }
+            if (total > 0) m_mergedMlFileTotal = total;
+            m_mergedMlBytesDl = m_mergedMlBytesDone + received;
+            m_mergedMlBytesAll = m_mergedMlBytesDone + (total > 0 ? total : 0);
             // Byte-weighted total progress (跨阶段)
+            qint64 grandDone = m_mergedMcBytesAll + m_mergedMlBytesDl;
             qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
-            qint64 grandDone = m_mergedMcBytesAll + received;  // MC fully done + ML current
             qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
             m_installTotalProgress = raw;
             // EMA smoothing
@@ -1562,6 +1567,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         m_modLoaderInstallId = installName;
         m_installFailed = false;
         m_installError.clear();
+        // Reset byte accumulators for new merged install
+        m_mergedMcBytesDl = 0;
+        m_mergedMcBytesAll = 0;
+        m_mergedMlBytesDl = 0;
+        m_mergedMlBytesAll = 0;
+        m_mergedMlBytesDone = 0;
+        m_mergedMlFileTotal = 0;
         // Reset cumulative byte tracking for merged install steps
         for (int i = 0; i < 3; i++) { m_mergedMcStepDone[i] = 0; m_mergedMcStepTotal[i] = 0; }
 

@@ -182,8 +182,10 @@ private:
     // Merged install: global byte pool (cross-phase aggregation)
     qint64 m_mergedMcBytesDl = 0;    // MC version phase downloaded
     qint64 m_mergedMcBytesAll = 0;   // MC version phase total (from JSON)
-    qint64 m_mergedMlBytesDl = 0;    // Mod loader phase downloaded
+    qint64 m_mergedMlBytesDl = 0;    // Mod loader phase downloaded (current file's received)
     qint64 m_mergedMlBytesAll = 0;   // Mod loader phase total (estimated)
+    qint64 m_mergedMlBytesDone = 0;  // Sum of completed ML files
+    qint64 m_mergedMlFileTotal = 0;  // Current ML file's total (for file-transition detection)
 
     struct DlState {
         int progress = 0;
