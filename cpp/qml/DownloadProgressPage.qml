@@ -31,7 +31,13 @@ Rectangle {
     // ── empty state ──
     Rectangle {
         anchors.fill: parent; color: "#0c0f16"
-        visible: backend.installCardsModel.count === 0
+        visible: {
+            var mdl = backend.installCardsModel
+            var c = mdl ? mdl.count : -1
+            var g = mdl ? mdl.generation : -1
+            console.log("[QML] placeholder visible?", c === 0, "count=", c, "gen=", g)
+            return c === 0
+        }
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
             Text { Layout.alignment: Qt.AlignHCenter; text: "\u2501\u2501"; font.pixelSize: 32; color: "#1e2230" }
@@ -44,7 +50,11 @@ Rectangle {
     ListView {
         id: cardsView
         anchors.fill: parent; anchors.margins: 16
-        model: backend.installCardsModel
+        model: {
+            var m = backend.installCardsModel
+            console.log("[QML] model binding, model=", m, "count=", m ? m.count : -1, "gen=", m ? m.generation : -1)
+            return m
+        }
         spacing: 12; clip: true
 
         delegate: Rectangle {
@@ -54,6 +64,7 @@ Rectangle {
 
             ColumnLayout {
                 id: cardContent
+                Component.onCompleted: console.log("[QML] delegate CREATED index=", index)
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
 

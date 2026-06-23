@@ -22,7 +22,10 @@
 #include <QUrl>
 #include <QCryptographicHash>
 #include <QSet>
+#include <QDebug>
 
+// Tracing tag
+#define LOG_CARDS() qDebug() << "[CARDS]"
 #ifdef Q_OS_WIN
 #include <QClipboard>
 #include <QApplication>
@@ -1759,6 +1762,7 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
 }
 
 void VersionBackend::emitActiveInstallsChanged() {
+    LOG_CARDS() << "emitActiveInstallsChanged() pending=" << m_activeInstallsPending;
     if (m_activeInstallsPending) return;
     m_activeInstallsPending = true;
     rebuildInstallCards();
@@ -1942,16 +1946,23 @@ void VersionBackend::removeResourceCard(const QString& cardId) {
 // ============================================================
 
 InstallCardModel::InstallCardModel(QObject* parent)
-    : QAbstractListModel(parent) {}
+    : QAbstractListModel(parent) {
+    LOG_CARDS() << "InstallCardModel created";
+}
 
 int InstallCardModel::rowCount(const QModelIndex& parent) const {
-    return parent.isValid() ? 0 : m_cards.size();
+    int c = parent.isValid() ? 0 : m_cards.size();
+    LOG_CARDS() << "rowCount() =>" << c << " parent.valid=" << parent.isValid();
+    return c;
 }
 
 QVariant InstallCardModel::data(const QModelIndex& index, int role) const {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_cards.size())
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_cards.size()) {
+        LOG_CARDS() << "data() SKIP idx=" << index.row() << " valid=" << index.isValid() << " size=" << m_cards.size();
         return QVariant();
+    }
     const InstallCard& c = m_cards[index.row()];
+    LOG_CARDS() << "data() row=" << index.row() << " role=" << role << " name=" << c.name;
     switch (role) {
     case IidRole:       return c.iid;
     case NameRole:      return c.name;
@@ -1983,11 +1994,19 @@ QHash<int, QByteArray> InstallCardModel::roleNames() const {
 }
 
 void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
+    LOG_CARDS() << "rebuild() START oldSize=" << m_cards.size() << " newSize=" << cards.size()
+                 << "gen=" << m_generation;
+    for (int i = 0; i < cards.size(); ++i) {
+        LOG_CARDS() << "  card[" << i << "] iid=" << cards[i].iid << " name=" << cards[i].name
+                     << " progress=" << cards[i].progress << " steps=" << cards[i].steps.size();
+    }
     beginResetModel();
     m_cards = cards;
     endResetModel();
     m_generation++;
+    LOG_CARDS() << "rebuild() END rowCount=" << m_cards.size() << " gen=" << m_generation;
     emit generationChanged();
+    LOG_CARDS() << "rebuild() emitted generationChanged";
 }
 
 // ============================================================
@@ -1995,7 +2014,11 @@ void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
 // ============================================================
 
 void VersionBackend::rebuildInstallCards() {
-    if (!m_installCardsModel) return;
+    LOG_CARDS() << "=== rebuildInstallCards() CALLED ===";
+    if (!m_installCardsModel) {
+        LOG_CARDS() << "  ABORT: m_installCardsModel is null!";
+        return;
+    }
 
     QVector<InstallCard> cards;
     QSet<QString> seen;
@@ -2083,7 +2106,9 @@ void VersionBackend::rebuildInstallCards() {
         cards.append(c);
     }
 
+    LOG_CARDS() << "  total cards built:" << cards.size();
     m_installCardsModel->rebuild(cards);
+    LOG_CARDS() << "=== rebuildInstallCards() DONE ===";
 }
 
 } // namespace ShadowLauncher
