@@ -120,7 +120,7 @@ Rectangle {
                             Layout.fillWidth: true; implicitHeight: 28; color: "transparent"
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 4; spacing: 8
-                                // Status dot
+                                // Status dot — animated for active state
                                 Rectangle {
                                     implicitWidth: 20; implicitHeight: 20; radius: 10
                                     color: {
@@ -138,21 +138,34 @@ Rectangle {
                                         return "#2a2a3a"
                                     }
                                     border.width: 1
+
+                                    // Completed: checkmark
                                     Text {
-                                        anchors.centerIn: parent; font.pixelSize: 10
-                                        text: {
-                                            var s = (modelData && modelData.status) ? modelData.status : "pending"
-                                            if (s === "completed") return "\u2714"
-                                            if (s === "active") return "\u22EF"
-                                            if (s === "failed") return "\u2718"
-                                            return ""
-                                        }
-                                        color: {
-                                            var s = (modelData && modelData.status) ? modelData.status : "pending"
-                                            if (s === "completed") return "#4bc870"
-                                            if (s === "active") return "#5d6fe0"
-                                            if (s === "failed") return "#e06060"
-                                            return "#4a5060"
+                                        visible: modelData && modelData.status === "completed"
+                                        anchors.centerIn: parent; font.pixelSize: 11
+                                        text: "✔"; color: "#4bc870"
+                                    }
+                                    // Failed: cross
+                                    Text {
+                                        visible: modelData && modelData.status === "failed"
+                                        anchors.centerIn: parent; font.pixelSize: 11
+                                        text: "✘"; color: "#e06060"
+                                    }
+                                    // Active: loading spinner (arc rotation)
+                                    Canvas {
+                                        visible: modelData && modelData.status === "active"
+                                        anchors.centerIn: parent; width: 14; height: 14
+                                        property real _angle: 0
+                                        NumberAnimation on _angle { running: visible; from: 0; to: 360; duration: 1000; loops: Animation.Infinite }
+                                        onPaint: {
+                                            var ctx = getContext("2d");
+                                            ctx.clearRect(0, 0, width, height);
+                                            ctx.lineWidth = 2;
+                                            ctx.strokeStyle = "#5d6fe0";
+                                            ctx.lineCap = "round";
+                                            ctx.beginPath();
+                                            ctx.arc(7, 7, 5, (_angle - 90) * Math.PI / 180, (_angle + 180) * Math.PI / 180);
+                                            ctx.stroke();
                                         }
                                     }
                                 }
@@ -169,7 +182,7 @@ Rectangle {
                                     elide: Text.ElideRight
                                 }
                                 Text {
-                                    visible: modelData && modelData.status === "active" && (modelData.percentage || 0) > 0
+                                    visible: modelData && modelData.status === "active"
                                     text: (modelData && modelData.status === "active") ? (modelData.percentage || 0) + "%" : ""
                                     font.pixelSize: 12; font.weight: Font.Bold; color: "#5d6fe0"
                                 }

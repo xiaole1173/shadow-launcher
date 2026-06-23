@@ -359,11 +359,25 @@ void ParallelDownloader::start()
         m_workers.append(worker);
         worker->start();
     }
+
+    // Start periodic progress emission (200ms throttle, Layer ① anti-jitter)
+    if (!m_progressTimer) {
+        m_progressTimer = new QTimer(this);
+        connect(m_progressTimer, &QTimer::timeout, this, [this]() {
+            if (m_state != Running) return;
+            emit progressChanged(m_completedFiles.loadRelaxed(),
+                                 m_tasks.size(),
+                                 m_downloadedBytes.loadRelaxed(),
+                                 m_totalBytes.loadRelaxed());
+        });
+    }
+    m_progressTimer->start(200);
 }
 
 void ParallelDownloader::pause()
 {
     if (m_state != Running) return;
+    if (m_progressTimer) m_progressTimer->stop();
     m_state = Paused;
     {
         QMutexLocker lock(&m_mutex);
@@ -382,6 +396,7 @@ void ParallelDownloader::resume()
         m_paused = false;
         m_pauseCond.wakeAll();
     }
+    if (m_progressTimer) m_progressTimer->start(200);
     emit logMessage(QString::fromUtf8("▶ 下载已恢复"));
     emit stateChanged();
 }
@@ -389,6 +404,7 @@ void ParallelDownloader::resume()
 void ParallelDownloader::cancel()
 {
     if (m_state != Running && m_state != Paused) return;
+    if (m_progressTimer) m_progressTimer->stop();
     m_state = Cancelled;
     m_cancelled = true;
     {
@@ -554,6 +570,9 @@ void ParallelDownloader::runWorker()
 
     // Last-worker-exit
     if (m_activeWorkers.deref() == 0) {
+        // Stop periodic progress timer
+        if (m_progressTimer) m_progressTimer->stop();
+
         if (!m_cancelled) {
             const int failed = m_failedCount.loadRelaxed();
             const bool success = (failed == 0);

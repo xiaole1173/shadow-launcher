@@ -144,10 +144,34 @@ VersionBackend::VersionBackend(QObject* parent)
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
         m_installFile = file;
-        m_installBytesDl = received;
-        m_installBytesTotal = total;
         m_installSpeed = speed;
         emit installFileProgress(file);
+        emit installSpeedChanged(speed);
+
+        // ── Merged install: accumulate ML phase bytes ──
+        if (m_isMergedInstall) {
+            m_mergedMlBytesDl = received;
+            if (total > 0) m_mergedMlBytesAll = qMax(m_mergedMlBytesAll, total);
+            // Byte-weighted total progress (跨阶段)
+            qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
+            qint64 grandDone = m_mergedMcBytesAll + received;  // MC fully done + ML current
+            qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
+            m_installTotalProgress = raw;
+            // EMA smoothing
+            if (m_installSmoothProgress <= 0.0 || raw > m_installSmoothProgress + 0.5) {
+                m_installSmoothProgress = raw;
+            } else {
+                m_installSmoothProgress = m_installSmoothProgress * 0.7 + raw * 0.3;
+            }
+            emit installTotalProgressChanged();
+            emit installSmoothProgressChanged();
+            emitActiveInstallsChanged();
+        } else {
+            m_installBytesDl = received;
+            m_installBytesTotal = total;
+            emit installBytesProgress(received, total);
+        }
+
         // Update current active step with byte progress
         for (int i = 0; i < m_installSteps.size(); i++) {
             if (m_installSteps[i].toMap()["status"].toString() == QStringLiteral("active")) {
@@ -696,6 +720,8 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (m_isMergedInstall && success && m_mergedMcVersion == finishedId) {
             // Merged install: MC done, transitioning to loader — keep card alive
             qDebug() << "[install] Merged: MC download complete, starting" << m_mergedLoaderType;
+            // Lock MC phase bytes as fully done
+            m_mergedMcBytesDl = m_mergedMcBytesAll;
             // Mark MC steps (0-2) as completed
             for (int i = 0; i < 3 && i < m_installSteps.size(); i++) {
                 updateStep(i, QStringLiteral("completed"), 100);
@@ -715,7 +741,6 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         }
         setInstallPhase(QStringLiteral("done"));
         m_installSpeed = 0;
-        m_speedWindow.clear();
         emit installSpeedChanged(0);
         emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
     } else {
@@ -911,25 +936,37 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     st.bytesDl = db;
     st.bytesTotal = tb;
 
-    // Speed calculation — per-instance sliding window (PCL-style: 3s window)
+    // ── Speed: EWMA (α=0.3) ──
     qint64 now = QDateTime::currentMSecsSinceEpoch();
-    st.speedWindow.append({now, db});
-    // Purge records older than 3s
-    while (!st.speedWindow.isEmpty() && st.speedWindow.first().first < now - DlState::kSpeedWindowMs) {
-        st.speedWindow.removeFirst();
+    if (st.speedLastBytes > 0 && st.speedLastTimeMs > 0 && db > st.speedLastBytes) {
+        qint64 dt = now - st.speedLastTimeMs;
+        qint64 delta = db - st.speedLastBytes;
+        qint64 instant = (dt > 0) ? (delta * 1000 / dt) : 0;
+        if (st.speed <= 0) {
+            st.speed = instant;  // first sample: use directly
+        } else {
+            st.speed = st.speed * 7 / 10 + instant * 3 / 10;  // EWMA α=0.3
+        }
     }
-    if (st.speedWindow.size() >= 2) {
-        auto& first = st.speedWindow.first();
-        auto& last = st.speedWindow.last();
-        qint64 dt = last.first - first.first;
-        qint64 delta = last.second - first.second;
-        st.speed = (dt > 0 && delta > 0) ? (delta * 1000 / dt) : 0;
-    } else {
-        st.speed = 0;
-    }
+    st.speedLastBytes = db;
+    st.speedLastTimeMs = now;
 
     if (st.phase != QStringLiteral("校验中...")) {
         st.phase = QStringLiteral("下载中...");
+    }
+
+    // ── Merged install: accumulate MC phase bytes ──
+    if (m_isMergedInstall && versionId == m_mergedMcVersion) {
+        m_mergedMcBytesDl = db;
+        m_mergedMcBytesAll = tb;
+        // Also update per-step byte totals for step percentage display
+        m_mergedMcStepTotal[0] = qMax(m_mergedMcStepTotal[0], tb / 4);   // versions ~25%
+        m_mergedMcStepTotal[1] = qMax(m_mergedMcStepTotal[1], tb / 2);   // libraries ~50%
+        m_mergedMcStepTotal[2] = qMax(m_mergedMcStepTotal[2], tb / 4);   // assets ~25%
+        // Distribute done bytes proportionally to steps 0-2
+        int activeSi = m_mergedLoadedStep < 3 ? m_mergedLoadedStep : 0;
+        qint64 stepDone = qMin(db, m_mergedMcStepTotal[activeSi]);
+        updateStep(activeSi, QStringLiteral("active"), 0, stepDone, m_mergedMcStepTotal[activeSi]);
     }
 
     // ── If this is the primary download, sync to main properties ──
@@ -940,16 +977,35 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         m_installBytesTotal = tb;
         m_installSpeed = st.speed;
 
+        // Byte-weighted total progress ── raw ──
+        if (m_isMergedInstall) {
+            qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
+            qint64 grandDone = m_mergedMcBytesDl + m_mergedMlBytesDl;
+            m_installTotalProgress = (grandTotal > 0)
+                ? (qreal)grandDone / grandTotal
+                : (tb > 0 ? (qreal)db / tb : 0.0);
+        } else {
+            m_installTotalProgress = (tb > 0) ? (qreal)db / tb : 0.0;
+        }
+
+        // ── EMA smoothing (Layer ②: display = old×0.7 + new×0.3) ──
+        if (m_installSmoothProgress <= 0.0 || m_installTotalProgress > m_installSmoothProgress + 0.5) {
+            m_installSmoothProgress = m_installTotalProgress;  // initial or large jump: snap
+        } else {
+            m_installSmoothProgress = m_installSmoothProgress * 0.7 + m_installTotalProgress * 0.3;
+        }
+
         if (m_installPhase != QStringLiteral("校验中...")) {
             setInstallPhase(QStringLiteral("下载中..."));
         }
 
         emit installProgressChanged();
         emit installTotalChanged();
+        emit installTotalProgressChanged();
+        emit installSmoothProgressChanged();
         emit installBytesProgress(db, tb);
-        if (st.speed > 0) {
-            emit installSpeedChanged(st.speed);
-        }
+        emit installSpeedChanged(st.speed);
+        emitActiveInstallsChanged();
     }
 }
 
@@ -1659,7 +1715,6 @@ void VersionBackend::updateStep(int index, const QString& status, int percentage
     s["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
     m_installSteps[index] = s;
 
-    computeTotalProgress();
     emit installStepsChanged();
 }
 

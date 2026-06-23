@@ -148,6 +148,10 @@ private:
     QStringList m_failedFiles;
 
     // ------------------------------------------------------------------
+    // --- Periodic progress timer (200ms throttle) ---
+    QTimer* m_progressTimer = nullptr;
+
+    // ------------------------------------------------------------------
     // Version-level concurrency: static queue across ParallelDownloader instances
     // ------------------------------------------------------------------
 public:

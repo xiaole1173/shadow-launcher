@@ -179,6 +179,11 @@ private:
     // Merged install: cumulative byte tracking per MC download step (0=json, 1=libraries, 2=assets)
     qint64 m_mergedMcStepDone[3] = {};
     qint64 m_mergedMcStepTotal[3] = {};
+    // Merged install: global byte pool (cross-phase aggregation)
+    qint64 m_mergedMcBytesDl = 0;    // MC version phase downloaded
+    qint64 m_mergedMcBytesAll = 0;   // MC version phase total (from JSON)
+    qint64 m_mergedMlBytesDl = 0;    // Mod loader phase downloaded
+    qint64 m_mergedMlBytesAll = 0;   // Mod loader phase total (estimated)
 
     struct DlState {
         int progress = 0;
@@ -188,12 +193,9 @@ private:
         qint64 speed = 0;
         QString file;
         QString phase = QStringLiteral("idle");
-        // Per-instance sliding-window speed tracking (PCL-style: 3s window)
-        QElapsedTimer speedTimer;
-        qint64 lastSpeedBytes = 0;
-        // Sliding window: {timestamp_ms, bytes}
-        QList<QPair<qint64, qint64>> speedWindow;
-        static constexpr qint64 kSpeedWindowMs = 3000;
+        // EWMA speed tracking (α=0.3)
+        qint64 speedLastBytes = 0;
+        qint64 speedLastTimeMs = 0;
     };
     QMap<QString, DlState> m_dlStates;
     QMap<QString, VersionDownloader*> m_downloaders;
