@@ -1130,9 +1130,12 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     }
     if (!mergedSessionId.isEmpty()) {
         if (cat >= 0 && cat <= 2) {
-            // Cumulative tracking: accumulate per-step bytes to avoid per-file reset oscillation
-            if (received <= 0) {
+            // Cumulative tracking: accumulate per-step bytes
+            // Track per-file: only add total once (normal start: received=0; cached: received=total)
+            const bool firstForFile = !m_mergedMcFileAdded.contains(fileName);
+            if (firstForFile && total > 0) {
                 m_mergedMcStepTotal[cat] += total;
+                m_mergedMcFileAdded.insert(fileName);
             }
             qint64 accDone = m_mergedMcStepDone[cat] + received;
             qint64 accTotal = m_mergedMcStepTotal[cat];
@@ -1669,6 +1672,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         m_mergedMlFileTotal = 0;
         // Reset cumulative byte tracking for merged install steps
         for (int i = 0; i < 3; i++) { m_mergedMcStepDone[i] = 0; m_mergedMcStepTotal[i] = 0; }
+        m_mergedMcFileAdded.clear();
 
         // Build 9-step list
         QString loaderLabel = QStringLiteral("Forge");

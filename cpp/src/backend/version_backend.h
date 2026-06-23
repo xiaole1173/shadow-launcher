@@ -256,6 +256,7 @@ private:
     // Merged install: cumulative byte tracking per MC download step (0=json, 1=libraries, 2=assets)
     qint64 m_mergedMcStepDone[3] = {};
     qint64 m_mergedMcStepTotal[3] = {};
+    QSet<QString> m_mergedMcFileAdded;  // fileNames whose total was added to m_mergedMcStepTotal
     // Merged install: global byte pool (cross-phase aggregation)
     qint64 m_mergedMcBytesDl = 0;    // MC version phase downloaded
     qint64 m_mergedMcBytesAll = 0;   // MC version phase total (from JSON)
