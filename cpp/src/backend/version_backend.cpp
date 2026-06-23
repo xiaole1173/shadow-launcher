@@ -1833,19 +1833,28 @@ QVariantList VersionBackend::activeInstalls() const {
             card["installPhase"] = st.phase;
             // Auto-generate step list for version downloads
             if (!m_isMergedInstall || vid != m_mergedMcVersion) {
-                card["remainingSteps"] = 0;
                 QVariantList vSteps;
-                auto addVStep = [&](const QString& name, qint64 dl, qint64 tot) {
+                bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+                auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
                     int pct = tot > 0 ? (int)(dl * 100 / tot) : 0;
                     vSteps.append(QVariantMap{
-                        {"name", name}, {"status", QStringLiteral("active")},
+                        {"name", name}, {"status", status},
                         {"percentage", pct}, {"show", true}
                     });
                 };
-                // Proportionally distribute bytes across 3 phases
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), st.bytesDl / 3, st.bytesTotal / 3);
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), st.bytesDl / 2, st.bytesTotal / 2);
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), st.bytesDl / 4, st.bytesTotal / 4);
+                if (verifying) {
+                    // Download complete — steps 0-2 done, step 3 verify active
+                    addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), QStringLiteral("completed"), st.bytesTotal / 3, st.bytesTotal / 3);
+                    addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), QStringLiteral("completed"), st.bytesTotal / 2, st.bytesTotal / 2);
+                    addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), QStringLiteral("completed"), st.bytesTotal / 4, st.bytesTotal / 4);
+                    int vPct = (st.total > 0 && st.progress >= 0) ? (st.progress * 100 / st.total) : 0;
+                    addVStep(QStringLiteral("\u6821\u9a8c\u6587\u4ef6"), QStringLiteral("active"), st.progress, st.total);
+                } else {
+                    addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), QStringLiteral("active"), st.bytesDl / 3, st.bytesTotal / 3);
+                    addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), QStringLiteral("active"), st.bytesDl / 2, st.bytesTotal / 2);
+                    addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), QStringLiteral("active"), st.bytesDl / 4, st.bytesTotal / 4);
+                }
+                card["remainingSteps"] = verifying ? 1 : 3;
                 card["steps"] = vSteps;
             }
         } else {
