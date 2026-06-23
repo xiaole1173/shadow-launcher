@@ -30,8 +30,7 @@ Rectangle {
     property bool cardHovered: false
     property bool cardDisabled: disabled
 
-    signal versionSelected(string version)
-    signal versionCleared()
+    property string badgeText: ""  // Optional badge after title, e.g. "建议安装"
 
     // Fixed-height version list — no layout feedback loop
     property int headerHeight: 44
@@ -67,6 +66,13 @@ Rectangle {
             anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 8
             Rectangle { width: 10; height: 10; radius: 5; color: cardDisabled ? "#404858" : selectedVersion ? "#4bc870" : "#505868" }
             Text { text: card.title; font.pixelSize: 14; font.weight: Font.DemiBold; color: cardDisabled ? "#687080" : "#e4e8f2" }
+            // Optional badge (e.g. "建议安装")
+            Rectangle {
+                visible: card.badgeText !== ""
+                implicitWidth: badgeLabel.implicitWidth + 12; implicitHeight: 20; radius: 4
+                color: "#1a2e1a"; border.color: "#3a6830"; border.width: 1
+                Text { id: badgeLabel; anchors.centerIn: parent; text: card.badgeText; font.pixelSize: 10; color: "#60b050" }
+            }
             Text {
                 visible: cardDisabled && disabledReason
                 text: cardDisabled ? "[X] " + disabledReason : ""

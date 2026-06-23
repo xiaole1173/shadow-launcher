@@ -352,68 +352,32 @@ Rectangle {
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
                 disabledReason: root.activeLoader === "forge" ? "Forge \u5df2\u9009\u4e2d" : root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0d\u517c\u5bb9 Fabric" : ""
                 selectedVersion: root.selectedFabric
-                onVersionSelected: function(ver) { root.selectedFabric = ver; root.activeLoader = "fabric"; root.customName = ""; console.log("[install] Fabric selected: " + ver + ", activeLoader=" + root.activeLoader) }
+                onVersionSelected: function(ver) { root.selectedFabric = ver; root.activeLoader = "fabric"; root.customName = "" }
                 onVersionCleared: { root.selectedFabric = ""; root.activeLoader = ""; root.customName = "" }
             }
 
-            // Fabric API (visible only when Fabric is selected)
-            Rectangle {
-                id: fabricApiCard
-                Layout.fillWidth: true
-                Layout.preferredHeight: root.activeLoader === "fabric" ? 52 : 0
-                visible: root.activeLoader === "fabric"; color: "#11141c"; radius: 8
-                border.color: "#1e2230"; border.width: 1; clip: true
-                Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                onVisibleChanged: console.log("[install] Fabric API card visible=" + visible + " activeLoader=" + root.activeLoader + " prefH=" + Layout.preferredHeight)
-                RowLayout { anchors.fill: parent; anchors.margins: 14; spacing: 8
-                    Rectangle { width: 8; height: 8; radius: 4; color: root.selectedFabricApi ? "#4bc870" : "#505868" }
-                    Text { text: "Fabric API"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2" }
-                    // Recommended badge
-                    Rectangle {
-                        implicitWidth: recLabel.implicitWidth + 12; implicitHeight: 20; radius: 4
-                        color: "#1a2e1a"; border.color: "#3a6830"; border.width: 1
-                        visible: root.activeLoader === "fabric" && !root.selectedFabricApi
-                        Text { id: recLabel; anchors.centerIn: parent; text: "建议安装"; font.pixelSize: 10; color: "#60b050" }
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text: root.fabricApiLoading ? "Loading..." : (root.selectedFabricApi || "\u672a\u9009\u62e9")
-                        font.pixelSize: 12; color: root.selectedFabricApi ? "#40c8c8" : "#9498a8"
-                    }
-                    Text { text: "\u25be"; font.pixelSize: 10; color: "#606880" }
-                }
-                MouseArea {
-                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: { if (root.fabricApiVersions.length > 0) apiVersionPopup.open() }
-                }
-                Popup {
-                    id: apiVersionPopup; y: parent.height; x: 0; width: parent.width
-                    padding: 4; background: Rectangle { color: "#141820"; radius: 6; border.color: "#2a3040"; border.width: 1 }
-                    contentItem: ListView {
-                        implicitHeight: Math.min(240, root.fabricApiVersions.length * 38); clip: true
-                        model: root.fabricApiVersions
-                        delegate: Rectangle {
-                            width: apiVersionPopup.width - 8; height: 38; radius: 4
-                            color: root.selectedFabricApi === modelData.version ? "#1a2840" : (ma.containsMouse ? "#1a2230" : "transparent")
-                            Text {
-                                anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.version; font.pixelSize: 12; color: "#c0c8e0"
-                            }
-                            Text {
-                                anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.date || ""; font.pixelSize: 10; color: "#707880"
-                            }
-                            MouseArea {
-                                id: ma; anchors.fill: parent; hoverEnabled: true
-                                onClicked: {
-                                    root.selectedFabricApi = modelData.version
-                                    root.selectedFabricApiUrl = modelData.url
-                                    root.selectedFabricApiFile = modelData.filename
-                                    apiVersionPopup.close()
-                                }
-                            }
+            // Fabric API (unified card, visible only when Fabric is selected)
+            ModLoaderCard {
+                Layout.fillWidth: true; title: "Fabric API"; loaderKey: "fabric_api"
+                visible: root.activeLoader === "fabric"
+                badgeText: root.activeLoader === "fabric" && !root.selectedFabricApi ? "\u5efa\u8bae\u5b89\u88c5" : ""
+                disabled: false
+                versions: root.fabricApiLoading ? [{version: "Loading...", type: "", date: ""}] : root.fabricApiVersions
+                selectedVersion: root.selectedFabricApi
+                onVersionSelected: function(ver) {
+                    root.selectedFabricApi = ver
+                    for (var i = 0; i < root.fabricApiVersions.length; i++) {
+                        if (root.fabricApiVersions[i].version === ver) {
+                            root.selectedFabricApiUrl = root.fabricApiVersions[i].url
+                            root.selectedFabricApiFile = root.fabricApiVersions[i].filename
+                            break
                         }
                     }
+                }
+                onVersionCleared: {
+                    root.selectedFabricApi = ""
+                    root.selectedFabricApiUrl = ""
+                    root.selectedFabricApiFile = ""
                 }
             }
 
