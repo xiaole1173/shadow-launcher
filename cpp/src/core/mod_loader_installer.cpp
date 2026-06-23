@@ -481,8 +481,124 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
     }
     qDebug() << "[ModLoader] Extracted" << extractedCount << "jars from installer";
 
-    // 3. Run installer — it handles all remaining downloads via Forge mirror list
-    runInstallerProcess(jarData);
+    // 3. Read install_profile.json → get version.json path
+    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
+    if (profileData.isEmpty()) {
+        qWarning() << "[ModLoader] No install_profile.json, running installer directly";
+        runInstallerProcess(jarData);
+        return;
+    }
+    QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
+    if (!profileDoc.isObject()) {
+        qWarning() << "[ModLoader] Invalid install_profile.json, running installer directly";
+        runInstallerProcess(jarData);
+        return;
+    }
+    QString versionJsonPath = profileDoc.object().value(QStringLiteral("json")).toString();
+    if (versionJsonPath.isEmpty()) {
+        qWarning() << "[ModLoader] No json path in install_profile, running installer directly";
+        runInstallerProcess(jarData);
+        return;
+    }
+
+    // 4. Read version.json → get game libraries
+    QString actualPath = versionJsonPath.startsWith(QLatin1Char('/')) ? versionJsonPath.mid(1) : versionJsonPath;
+    QByteArray versionData = reader.fileData(actualPath);
+    if (versionData.isEmpty()) {
+        qWarning() << "[ModLoader] No version.json in installer, running installer directly";
+        runInstallerProcess(jarData);
+        return;
+    }
+    QJsonDocument versionDoc = QJsonDocument::fromJson(versionData);
+    if (!versionDoc.isObject()) {
+        qWarning() << "[ModLoader] Invalid version.json, running installer directly";
+        runInstallerProcess(jarData);
+        return;
+    }
+    QJsonArray libraries = versionDoc.object().value(QStringLiteral("libraries")).toArray();
+
+    // 5. Build download list: skip empty URLs, skip already-extracted files
+    struct DlItem { QString url; QString path; QString name; };
+    QList<DlItem> downloads;
+    for (const QJsonValue& v : libraries) {
+        QJsonObject lib = v.toObject();
+        QJsonObject downloadsObj = lib.value(QStringLiteral("downloads")).toObject();
+        QJsonObject artifact = downloadsObj.value(QStringLiteral("artifact")).toObject();
+        QString url = artifact.value(QStringLiteral("url")).toString();
+        if (url.isEmpty()) continue;  // client.jar etc — installer generates
+
+        QString pathStr = artifact.value(QStringLiteral("path")).toString();
+        if (pathStr.isEmpty()) continue;
+        QString localPath = libBase + QStringLiteral("/") + pathStr;
+        if (QFile::exists(localPath)) continue;  // already extracted from maven/
+
+        // Convert official URL → BMCLAPI mirror
+        QString bmclUrl = QString(url).replace(
+            QStringLiteral("maven.minecraftforge.net"),
+            QStringLiteral("bmclapi2.bangbang93.com/maven"));
+        bmclUrl.replace(
+            QStringLiteral("libraries.minecraft.net"),
+            QStringLiteral("bmclapi2.bangbang93.com/libraries"));
+
+        downloads.append({bmclUrl, localPath, lib.value(QStringLiteral("name")).toString()});
+    }
+
+    qDebug() << "[ModLoader] Pre-downloading" << downloads.size() << "libs (skipped" << (libraries.size() - downloads.size()) << ")";
+
+    if (downloads.isEmpty()) {
+        runInstallerProcess(jarData);
+        return;
+    }
+
+    // 6. Concurrent download (max 8), BMCLAPI → Maven fallback
+    //    Failed downloads logged but do NOT abort — installer handles the rest
+    QSharedPointer<int> remaining(new int(downloads.size()));
+    QSharedPointer<int> completed(new int(0));
+    QSharedPointer<bool> doneCalled(new bool(false));
+    const int MAX_CONCURRENT = 8;
+
+    auto processNext = QSharedPointer<std::function<void()>>::create();
+    *processNext = [=]() {
+        if (*completed >= downloads.size()) {
+            if (*doneCalled) return;
+            *doneCalled = true;
+            // Always run installer — it fills any gaps
+            runInstallerProcess(jarData);
+            return;
+        }
+        if (*remaining <= 0) return;  // No more to start, waiting for inflight
+
+        int idx = downloads.size() - *remaining;
+        (*remaining)--;
+        const DlItem& t = downloads.at(idx);
+        QDir().mkpath(QFileInfo(t.path).absolutePath());
+
+        downloadToFile(t.url, t.path, [=](bool ok, const QString& err) {
+            if (ok) {
+                (*completed)++;
+                int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                emit stepProgress(3, pct);
+                (*processNext)();
+            } else {
+                // BMCLAPI failed → try Maven Central
+                QString mavenUrl = QString(t.url).replace(
+                    QStringLiteral("bmclapi2.bangbang93.com"),
+                    QStringLiteral("repo1.maven.org"));
+                downloadToFile(mavenUrl, t.path, [=](bool ok2, const QString& err2) {
+                    if (!ok2)
+                        qWarning() << "[ModLoader] Lib unavailable (installer will handle):" << t.name << err2;
+                    (*completed)++;
+                    int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                    emit stepProgress(3, pct);
+                    (*processNext)();
+                });
+            }
+        });
+    };
+
+    int initial = qMin(MAX_CONCURRENT, downloads.size());
+    for (int i = 0; i < initial; i++)
+        (*processNext)();
 }
 
 void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
