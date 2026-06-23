@@ -2019,6 +2019,10 @@ void VersionBackend::rebuildInstallCards() {
         LOG_CARDS() << "  ABORT: m_installCardsModel is null!";
         return;
     }
+    LOG_CARDS() << "  model qobject_cast<QAbstractItemModel>:"
+                 << (qobject_cast<QAbstractItemModel*>(m_installCardsModel) ? "OK" : "FAIL")
+                 << "qobject_cast<QAbstractListModel>:"
+                 << (qobject_cast<QAbstractListModel*>(m_installCardsModel) ? "OK" : "FAIL");
 
     QVector<InstallCard> cards;
     QSet<QString> seen;

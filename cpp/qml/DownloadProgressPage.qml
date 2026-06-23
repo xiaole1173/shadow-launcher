@@ -48,7 +48,6 @@ Rectangle {
     ListView {
         id: cardsView
         anchors.fill: parent; anchors.margins: 16
-        model: backend.installCardsModel
         spacing: 12; clip: true
 
         delegate: Rectangle {
@@ -58,7 +57,6 @@ Rectangle {
 
             ColumnLayout {
                 id: cardContent
-                Component.onCompleted: console.log("[QML] delegate CREATED index=", index)
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
 

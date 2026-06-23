@@ -574,6 +574,10 @@ QVariantList ShadowBackend::activeInstalls() const {
     return m_version ? m_version->activeInstalls() : QVariantList{};
 }
 
+QObject* ShadowBackend::installCardsModel() const {
+    return m_version ? m_version->installCardsModel() : nullptr;
+}
+
 int ShadowBackend::verifyChecked() const {
     return m_version ? m_version->verifyChecked() : 0;
 }

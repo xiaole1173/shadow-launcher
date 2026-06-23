@@ -116,6 +116,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
     Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
     Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
+    // InstallCardModel (QAbstractListModel) — exposed as QObject* for QML compat
+    Q_PROPERTY(QObject* installCardsModel READ installCardsModel CONSTANT)
 
 public:
     explicit ShadowBackend(QObject* parent = nullptr);
@@ -214,6 +216,7 @@ public:
     qreal installTotalProgress() const;
     int installRemainingSteps() const;
     QVariantList activeInstalls() const;
+    QObject* installCardsModel() const;
     bool installPaused() const;
     int verifyProgressDone() const { return 0; }
     int verifyProgressTotal() const { return 0; }
