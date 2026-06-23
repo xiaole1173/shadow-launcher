@@ -337,7 +337,7 @@ void ParallelDownloader::start()
         for (const auto& t : m_tasks)
             totalEstimate += t.totalBytes;
     }
-    m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+    m_totalBytes.storeRelaxed(totalEstimate);
 
     emit logMessage(QString::fromUtf8("准备下载 %1 个文件, 预估 %2")
                         .arg(m_tasks.size())
@@ -608,7 +608,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
     if (QFileInfo::exists(finalPath) && !task.sha1.isEmpty()) {
         if (verifySha1File(finalPath, task.sha1)) {
             const qint64 fileSize = QFileInfo(finalPath).size();
-            m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
+            m_downloadedBytes.fetchAndAddRelaxed(fileSize);
             emit fileProgress(taskName, fileSize, fileSize);
             emit logMessage(QString::fromUtf8("⊘ 跳过(已存在SHA1): %1").arg(taskName));
             return true;
@@ -619,7 +619,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
     } else if (QFileInfo::exists(finalPath) && task.sha1.isEmpty()) {
         // No SHA1, file exists — assume complete
         const qint64 fileSize = QFileInfo(finalPath).size();
-        m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
+        m_downloadedBytes.fetchAndAddRelaxed(fileSize);
         emit fileProgress(taskName, fileSize, fileSize);
         emit logMessage(QString::fromUtf8("⊘ 跳过(已存在): %1").arg(taskName));
         return true;
@@ -705,7 +705,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
 
         if (ok && QFileInfo::exists(chunkPath)) {
             ci.completed = true;
-            m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(bytesReceived));
+            m_downloadedBytes.fetchAndAddRelaxed(bytesReceived);
 
             // Update checkpoint after each chunk
             saveCheckpoint(taskName, chunks);
@@ -760,7 +760,7 @@ bool ParallelDownloader::downloadSingleFile(const DownloadTask& task)
     clearCheckpoint(taskName);
 
     const qint64 fileSize = QFileInfo(finalPath).size();
-    m_downloadedBytes.fetchAndAddRelaxed(static_cast<int>(fileSize));
+    m_downloadedBytes.fetchAndAddRelaxed(fileSize);
     emit fileProgress(taskName, fileSize, fileSize);
     emit logMessage(QString::fromUtf8("  ✓ 完成: %1").arg(taskName));
     return true;

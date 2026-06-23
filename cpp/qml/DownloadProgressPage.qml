@@ -11,6 +11,10 @@ Rectangle {
     property var backend: null
     property var toastManager: null
 
+    // ── Local refresh timer (200ms) — avoids C++ model-rebuild storm ──
+    property int _refreshTick: 0
+    Timer { interval: 200; running: true; repeat: true; onTriggered: _refreshTick++ }
+
     function fmtSize(bytes) {
         if (!bytes || bytes < 0) return "0 B"
         var units = ["B", "KB", "MB", "GB"]
@@ -41,8 +45,8 @@ Rectangle {
         id: cardsView
         anchors.fill: parent; anchors.margins: 16
         model: {
+            var _ = root._refreshTick  // Re-evaluate every 200ms
             var ai = backend ? (backend.activeInstalls || []) : []
-            console.log("[progress-ui] activeInstalls model has", ai.length, "cards")
             return ai
         }
         spacing: 12; clip: true
@@ -150,21 +154,26 @@ Rectangle {
                                         anchors.centerIn: parent; font.pixelSize: 11
                                         text: "✘"; color: "#e06060"
                                     }
-                                    // Active: loading spinner (arc rotation)
-                                    Canvas {
+                                    // Active: rotating arc (pure QML, no Canvas flicker)
+                                    Item {
                                         visible: modelData && modelData.status === "active"
-                                        anchors.centerIn: parent; width: 14; height: 14
-                                        property real _angle: 0
-                                        NumberAnimation on _angle { running: visible; from: 0; to: 360; duration: 1000; loops: Animation.Infinite }
-                                        onPaint: {
-                                            var ctx = getContext("2d");
-                                            ctx.clearRect(0, 0, width, height);
-                                            ctx.lineWidth = 2;
-                                            ctx.strokeStyle = "#5d6fe0";
-                                            ctx.lineCap = "round";
-                                            ctx.beginPath();
-                                            ctx.arc(7, 7, 5, (_angle - 90) * Math.PI / 180, (_angle + 180) * Math.PI / 180);
-                                            ctx.stroke();
+                                        anchors.centerIn: parent; width: 16; height: 16
+                                        RotationAnimation on rotation {
+                                            running: modelData && modelData.status === "active"
+                                            from: 0; to: 360; duration: 1200
+                                            loops: Animation.Infinite; easing.type: Easing.Linear
+                                        }
+                                        // 270-degree arc: full circle + mask to hide 90-degree sector
+                                        Rectangle {
+                                            anchors.centerIn: parent; width: 14; height: 14; radius: 7
+                                            color: "transparent"
+                                            border.width: 2; border.color: "#5d6fe0"
+                                        }
+                                        // Mask covers top-right quadrant to create arc gap
+                                        Rectangle {
+                                            width: 8; height: 16
+                                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                            color: "#1a1a3a"  // matches active status dot background
                                         }
                                     }
                                 }

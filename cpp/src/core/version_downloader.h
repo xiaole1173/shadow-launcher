@@ -141,8 +141,8 @@ private:
 
     QAtomicInt m_completedFiles{0};
     QAtomicInt m_totalFiles{0};
-    QAtomicInt m_totalBytes{0};
-    QAtomicInt m_downloadedBytes{0};
+    QAtomicInteger<qint64> m_totalBytes{0};
+    QAtomicInteger<qint64> m_downloadedBytes{0};
 
     enum State { Idle, Running, Paused, Cancelled, Verifying, Done, Failed };
     State m_state = Idle;

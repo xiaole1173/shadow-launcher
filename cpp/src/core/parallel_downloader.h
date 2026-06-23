@@ -121,8 +121,8 @@ private:
 
     // Atomic counters
     QAtomicInt m_completedFiles{0};
-    QAtomicInt m_totalBytes{0};
-    QAtomicInt m_downloadedBytes{0};
+    QAtomicInteger<qint64> m_totalBytes{0};
+    QAtomicInteger<qint64> m_downloadedBytes{0};
     QAtomicInt m_failedCount{0};
     QAtomicInt m_activeWorkers{0};
     QAtomicInt m_nextTask{0};

@@ -458,6 +458,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             st.phase = QStringLiteral("校验中...");
                             st.progress = checked;
                             st.total = total;
+                            st.speed = 0;  // No download speed during verify
                             // Sync primary
                             syncPrimaryProgress();
                         });
@@ -1032,7 +1033,6 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         emit installSmoothProgressChanged();
         emit installBytesProgress(db, tb);
         emit installSpeedChanged(st.speed);
-        emitActiveInstallsChanged();
     }
 }
 
@@ -1043,8 +1043,21 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 {
     auto& st = m_dlStates[versionId];
     st.file = fileName;
-    st.bytesDl = received;
-    st.bytesTotal = total;
+
+    // ── Per-category byte tracking (2b: bounds-checked) ──
+    int cat = -1;
+    if (fileName.contains("/versions/")) cat = 0;
+    else if (fileName.contains("/libraries/")) cat = 1;
+    else if (fileName.contains("/assets/")) cat = 2;
+
+    if (cat >= 0 && cat <= 2) {
+        if (received <= 0 && total > 0) {
+            st.catBytesTotal[cat] += total;  // File starting: add to category total
+        }
+        if (received >= total && total > 0) {
+            st.catBytesDl[cat] += total;      // File completed: add to category done
+        }
+    }
 
     if (versionId == primaryVersionId()) {
         m_installFile = fileName;
@@ -1053,26 +1066,19 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
     // ── Merged install: route MC download phase to steps 0-2 ──
     if (m_isMergedInstall && versionId == m_mergedMcVersion) {
-        int stepIdx = -1;
-        if (fileName.contains("/versions/")) stepIdx = 0;
-        else if (fileName.contains("/libraries/")) stepIdx = 1;
-        else if (fileName.contains("/assets/")) stepIdx = 2;
-        if (stepIdx >= 0) {
+        if (cat >= 0 && cat <= 2) {
             // Cumulative tracking: accumulate per-step bytes to avoid per-file reset oscillation
             if (received <= 0) {
-                // File starting: add its total to the step's expected total
-                m_mergedMcStepTotal[stepIdx] += total;
+                m_mergedMcStepTotal[cat] += total;
             }
-            // Track current file's progress within accumulated totals
-            qint64 accDone = m_mergedMcStepDone[stepIdx] + received;
-            qint64 accTotal = m_mergedMcStepTotal[stepIdx];
-            // When a file completes, move its bytes to the done accumulator
+            qint64 accDone = m_mergedMcStepDone[cat] + received;
+            qint64 accTotal = m_mergedMcStepTotal[cat];
             if (received >= total && total > 0) {
-                m_mergedMcStepDone[stepIdx] += total;
-                accDone = m_mergedMcStepDone[stepIdx];
+                m_mergedMcStepDone[cat] += total;
+                accDone = m_mergedMcStepDone[cat];
             }
-            updateStep(stepIdx, QStringLiteral("active"), 0, accDone, accTotal);
-            m_mergedLoadedStep = stepIdx + 1;
+            updateStep(cat, QStringLiteral("active"), 0, accDone, accTotal);
+            m_mergedLoadedStep = cat + 1;
         }
     }
 }
@@ -1831,30 +1837,44 @@ QVariantList VersionBackend::activeInstalls() const {
             card["totalProgress"] = st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0;  // byte-weighted
             card["speed"] = QVariant::fromValue<qint64>(st.speed);
             card["installPhase"] = st.phase;
-            // Auto-generate step list for version downloads
+            // Auto-generate step list from real per-category bytes
             if (!m_isMergedInstall || vid != m_mergedMcVersion) {
                 QVariantList vSteps;
                 bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
                 auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
-                    int pct = tot > 0 ? (int)(dl * 100 / tot) : 0;
+                    // 2a: zero-div protection — empty completed categories show 100%
+                    int pct = (tot > 0) ? (int)(dl * 100 / tot)
+                              : (status == QStringLiteral("completed") ? 100 : 0);
                     vSteps.append(QVariantMap{
                         {"name", name}, {"status", status},
                         {"percentage", pct}, {"show", true}
                     });
                 };
+
+                // 2d: auto-complete empty categories
+                auto catStatus = [&](int ci) {
+                    if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
+                    return QStringLiteral("active");
+                };
+                auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
+                auto catTot = [&](int ci) {
+                    // 2c: use stored total, corrected by each file completion
+                    return st.catBytesTotal[ci];
+                };
+
                 if (verifying) {
-                    // Download complete — steps 0-2 done, step 3 verify active
-                    addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), QStringLiteral("completed"), st.bytesTotal / 3, st.bytesTotal / 3);
-                    addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), QStringLiteral("completed"), st.bytesTotal / 2, st.bytesTotal / 2);
-                    addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), QStringLiteral("completed"), st.bytesTotal / 4, st.bytesTotal / 4);
-                    int vPct = (st.total > 0 && st.progress >= 0) ? (st.progress * 100 / st.total) : 0;
-                    addVStep(QStringLiteral("\u6821\u9a8c\u6587\u4ef6"), QStringLiteral("active"), st.progress, st.total);
+                    addVStep("\u4e0b\u8f7d\u7248\u672cJSON", "completed", catTot(0), catTot(0));
+                    addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", "completed", catTot(1), catTot(1));
+                    addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", "completed", catTot(2), catTot(2));
+                    int vPct = (st.total > 0) ? (st.progress * 100 / st.total) : 0;
+                    addVStep("\u6821\u9a8c\u6587\u4ef6", "active", st.progress, st.total);
+                    card["remainingSteps"] = 1;
                 } else {
-                    addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), QStringLiteral("active"), st.bytesDl / 3, st.bytesTotal / 3);
-                    addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), QStringLiteral("active"), st.bytesDl / 2, st.bytesTotal / 2);
-                    addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), QStringLiteral("active"), st.bytesDl / 4, st.bytesTotal / 4);
+                    addVStep("\u4e0b\u8f7d\u7248\u672cJSON", catStatus(0), catDl(0), catTot(0));
+                    addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", catStatus(1), catDl(1), catTot(1));
+                    addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", catStatus(2), catDl(2), catTot(2));
+                    card["remainingSteps"] = 3;
                 }
-                card["remainingSteps"] = verifying ? 1 : 3;
                 card["steps"] = vSteps;
             }
         } else {

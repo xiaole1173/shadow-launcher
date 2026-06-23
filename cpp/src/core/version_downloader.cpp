@@ -91,8 +91,8 @@ VersionDownloader::VersionDownloader(QObject* parent)
             this, [this](int completed, int total, qint64 dlBytes, qint64 totBytes) {
         m_completedFiles.storeRelaxed(completed);
         m_totalFiles.storeRelaxed(total);
-        m_downloadedBytes.storeRelaxed(static_cast<int>(dlBytes));
-        m_totalBytes.storeRelaxed(static_cast<int>(totBytes));
+        m_downloadedBytes.storeRelaxed(dlBytes);
+        m_totalBytes.storeRelaxed(totBytes);
         emit progressChanged(completed, total, dlBytes, totBytes);
     });
 
@@ -198,7 +198,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         }
         qint64 totalEstimate = 0;
         for (const auto& t : tasks) totalEstimate += t.totalBytes;
-        m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+        m_totalBytes.storeRelaxed(totalEstimate);
         emit logMessage(QStringLiteral("准备下载 %1 个文件").arg(tasks.size()));
         // Set checkpoint dir for resume support
         const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
@@ -594,7 +594,7 @@ void VersionDownloader::retryWithNextMirror()
 
     qint64 totalEstimate = 0;
     for (const auto& t : tasks) totalEstimate += t.totalBytes;
-    m_totalBytes.storeRelaxed(static_cast<int>(totalEstimate));
+    m_totalBytes.storeRelaxed(totalEstimate);
 
     const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + m_currentVersionId;
     m_downloader->setCheckpointDir(versionDir);
