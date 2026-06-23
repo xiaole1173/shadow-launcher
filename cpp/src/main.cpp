@@ -107,7 +107,9 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     // Add exe dir to import path so module can find qmldir
     engine.addImportPath(QCoreApplication::applicationDirPath());
-    engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
+    if (!qEnvironmentVariableIsSet("SHADOW_DEV")) {
+        engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
+    }
     checkpoint(QStringLiteral("QML engine created"));
 
     // Expose backend and data directory to QML
@@ -141,8 +143,12 @@ int main(int argc, char *argv[])
 
     // Load QML — dev mode (file://) when SHADOW_DEV=1, otherwise qrc precompiled
     bool devMode = qEnvironmentVariableIsSet("SHADOW_DEV");
+    // Filesystem import path: always added, but dev mode prioritizes it
     engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/qml"));
-    engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
+    // QRC import path: only in release mode (dev mode forces filesystem resolution)
+    if (!devMode) {
+        engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
+    }
 
     QUrl url;
     if (devMode) {
@@ -150,6 +156,8 @@ int main(int argc, char *argv[])
         if (QFile::exists(devPath)) {
             checkpoint(QStringLiteral("Loading QML (filesystem dev mode)..."));
             url = QUrl::fromLocalFile(devPath);
+            qCInfo(logApp) << "[DEV MODE] Loading MainWindow from filesystem:" << devPath;
+            qCInfo(logApp) << "[DEV MODE] All QML files will load from filesystem (QRC import paths disabled)";
         } else {
             qCWarning(logApp) << "SHADOW_DEV set but" << devPath << "not found — falling back to qrc";
             url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
