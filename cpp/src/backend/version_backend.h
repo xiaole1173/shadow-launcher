@@ -188,6 +188,12 @@ private:
         qint64 speed = 0;
         QString file;
         QString phase = QStringLiteral("idle");
+        // Per-instance sliding-window speed tracking (PCL-style: 3s window)
+        QElapsedTimer speedTimer;
+        qint64 lastSpeedBytes = 0;
+        // Sliding window: {timestamp_ms, bytes}
+        QList<QPair<qint64, qint64>> speedWindow;
+        static constexpr qint64 kSpeedWindowMs = 3000;
     };
     QMap<QString, DlState> m_dlStates;
     QMap<QString, VersionDownloader*> m_downloaders;
@@ -237,8 +243,8 @@ private:
     int m_verifyChecked = 0;
     int m_verifyTotal = 0;
     bool m_installPaused = false;
-    QElapsedTimer m_speedTimer;
-    qint64 m_lastSpeedBytes = 0;
+    // Global sliding speed window (for primary/backward-compat speed display)
+    QList<QPair<qint64, qint64>> m_speedWindow;
     QQueue<QPair<QString, int>> m_installQueue;
 
     VersionDownloader* primaryDownloader() const;

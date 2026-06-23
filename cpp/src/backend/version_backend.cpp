@@ -11,6 +11,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -585,24 +586,23 @@ void VersionBackend::onVersionDownloadProgress(int cf, int tf,
     m_installBytesDl     = db;
     m_installBytesTotal  = tb;
 
-    // Speed calculation (bytes/sec)
-    if (!m_speedTimer.isValid()) {
-        m_speedTimer.start();
-        m_lastSpeedBytes = db;
-        m_installSpeed = 0;
-    } else {
-        qint64 elapsedMs = m_speedTimer.elapsed();
-        if (elapsedMs >= 500) {
-            qint64 deltaBytes = db - m_lastSpeedBytes;
-            if (deltaBytes > 0 && elapsedMs > 0) {
-                m_installSpeed = deltaBytes * 1000 / elapsedMs;
-            } else {
-                m_installSpeed = 0;
-            }
-            m_speedTimer.restart();
-            m_lastSpeedBytes = db;
-            emit installSpeedChanged(m_installSpeed);
+    // Speed calculation — sliding window (PCL-style: 3s window)
+    {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        m_speedWindow.append({now, db});
+        while (!m_speedWindow.isEmpty() && m_speedWindow.first().first < now - 3000) {
+            m_speedWindow.removeFirst();
         }
+        if (m_speedWindow.size() >= 2) {
+            auto& first = m_speedWindow.first();
+            auto& last = m_speedWindow.last();
+            qint64 dt = last.first - first.first;
+            qint64 delta = last.second - first.second;
+            m_installSpeed = (dt > 0 && delta > 0) ? (delta * 1000 / dt) : 0;
+        } else {
+            m_installSpeed = 0;
+        }
+        if (m_installSpeed > 0) emit installSpeedChanged(m_installSpeed);
     }
 
     // Phase detection: if file count > 0 we're downloading
@@ -715,8 +715,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         }
         setInstallPhase(QStringLiteral("done"));
         m_installSpeed = 0;
-        m_speedTimer.invalidate();
-        m_lastSpeedBytes = 0;
+        m_speedWindow.clear();
         emit installSpeedChanged(0);
         emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
     } else {
@@ -912,23 +911,21 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     st.bytesDl = db;
     st.bytesTotal = tb;
 
-    // Speed calculation
-    if (!m_speedTimer.isValid()) {
-        m_speedTimer.start();
-        m_lastSpeedBytes = db;
-        st.speed = 0;
+    // Speed calculation — per-instance sliding window (PCL-style: 3s window)
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    st.speedWindow.append({now, db});
+    // Purge records older than 3s
+    while (!st.speedWindow.isEmpty() && st.speedWindow.first().first < now - DlState::kSpeedWindowMs) {
+        st.speedWindow.removeFirst();
+    }
+    if (st.speedWindow.size() >= 2) {
+        auto& first = st.speedWindow.first();
+        auto& last = st.speedWindow.last();
+        qint64 dt = last.first - first.first;
+        qint64 delta = last.second - first.second;
+        st.speed = (dt > 0 && delta > 0) ? (delta * 1000 / dt) : 0;
     } else {
-        qint64 elapsedMs = m_speedTimer.elapsed();
-        if (elapsedMs >= 500) {
-            qint64 deltaBytes = db - m_lastSpeedBytes;
-            if (deltaBytes > 0 && elapsedMs > 0) {
-                st.speed = deltaBytes * 1000 / elapsedMs;
-            } else {
-                st.speed = 0;
-            }
-            m_speedTimer.restart();
-            m_lastSpeedBytes = db;
-        }
+        st.speed = 0;
     }
 
     if (st.phase != QStringLiteral("校验中...")) {
@@ -950,7 +947,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         emit installProgressChanged();
         emit installTotalChanged();
         emit installBytesProgress(db, tb);
-        if (st.speed > 0 || m_speedTimer.elapsed() >= 500) {
+        if (st.speed > 0) {
             emit installSpeedChanged(st.speed);
         }
     }

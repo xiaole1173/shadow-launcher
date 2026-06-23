@@ -82,7 +82,7 @@ Rectangle {
                         height: parent.height; radius: 3
                         color: cardContent.card.installFailed ? "#802020" : "#3a5ecc"
                         width: parent.width * Math.min(1, (cardContent.card.totalProgress || 0))
-                        Behavior on width { NumberAnimation { duration: 200 } }
+                        Behavior on width { SmoothedAnimation { duration: 350; velocity: 0.5 } }
                     }
                 }
 

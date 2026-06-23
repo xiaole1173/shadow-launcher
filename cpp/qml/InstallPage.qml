@@ -68,12 +68,6 @@ Rectangle {
         }
         function onFabricApiVersionsReady(list) {
             fabricApiLoading = false; fabricApiVersions = list
-            // Auto-select the latest (first) version
-            if (list.length > 0 && selectedFabricApi === "") {
-                selectedFabricApi = list[0].version
-                selectedFabricApiUrl = list[0].url
-                selectedFabricApiFile = list[0].filename
-            }
         }
         function onInstalledVersionsChanged() {
             var n = customName !== "" ? customName : fullVersionName
@@ -362,16 +356,22 @@ Rectangle {
                 onVersionCleared: { root.selectedFabric = ""; root.activeLoader = ""; root.customName = "" }
             }
 
-            // Fabric API
+            // Fabric API (always visible, user decides)
             Rectangle {
                 id: fabricApiCard
-                Layout.fillWidth: true; height: root.activeLoader === "fabric" ? 52 : 0
-                visible: root.activeLoader === "fabric"; color: "#11141c"; radius: 8
+                Layout.fillWidth: true; height: 52
+                visible: true; color: "#11141c"; radius: 8
                 border.color: "#1e2230"; border.width: 1; clip: true
-                Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 RowLayout { anchors.fill: parent; anchors.margins: 14; spacing: 8
                     Rectangle { width: 8; height: 8; radius: 4; color: root.selectedFabricApi ? "#4bc870" : "#505868" }
                     Text { text: "Fabric API"; font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e4e8f2" }
+                    // Recommended badge
+                    Rectangle {
+                        implicitWidth: recLabel.implicitWidth + 12; implicitHeight: 20; radius: 4
+                        color: "#1a2e1a"; border.color: "#3a6830"; border.width: 1
+                        visible: root.activeLoader === "fabric" && !root.selectedFabricApi
+                        Text { id: recLabel; anchors.centerIn: parent; text: "建议安装"; font.pixelSize: 10; color: "#60b050" }
+                    }
                     Item { Layout.fillWidth: true }
                     Text {
                         text: root.fabricApiLoading ? "Loading..." : (root.selectedFabricApi || "\u672a\u9009\u62e9")

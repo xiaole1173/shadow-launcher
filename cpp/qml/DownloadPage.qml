@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
-import QtQml
 
 Rectangle {
     id: page
@@ -466,7 +465,6 @@ Rectangle {
                             text: "(" + modelData.countFn() + ")"
                             color: page.currentFilter === modelData.key ? "#93acf0" : "#505468"
                             font.pixelSize: 11
-                            visible: pillRow.width + 20 <= 140
                         }
                     }
 
@@ -3020,12 +3018,12 @@ Rectangle {
             anchors.fill: parent
             property bool _keepActive: false
             active: page._showModDetail || _keepActive
-            source: active ? Qt.resolvedUrl("ModDetailPage.qml") : ""
+            source: active ? "ModDetailPage.qml" : ""
 
             onLoaded: {
                 _keepActive = true
                 if (item) {
-                    item.goBack.connect(function() { console.log("[mod-detail-overlay] goBack handler running, parent=" + parent + " opacity=" + parent.opacity); parent.opacity = 0; _showModDetail = false; _keepActive = false; console.log("[mod-detail-overlay] goBack handler done: opacity=" + parent.opacity + " show=" + _showModDetail + " active=" + _keepActive) })
+                    item.goBack.connect(function() { parent.opacity = 0; _showModDetail = false; _keepActive = false })
                     item.backend = backend
                     item.toastManager = toastManager
                     item.mainWindow = mainWindow

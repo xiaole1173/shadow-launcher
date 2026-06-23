@@ -713,7 +713,8 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
     emit progressChanged(1, m_totalSteps, "Downloading NeoForge installer...");
 
     QString ver = m_loaderVersion;
-    QString bmclUrl = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(ver);
+    // BMCLAPI Maven mirror (same path as official Maven)
+    QString bmclUrl = QString("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(ver);
 
     downloadToMemory(bmclUrl, [this, ver](bool ok, const QByteArray& data) {
         if (ok) {
