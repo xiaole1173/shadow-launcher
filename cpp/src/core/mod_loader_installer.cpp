@@ -615,6 +615,16 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
     jarFile.write(jarData);
     jarFile.close();
 
+    // Forge installer requires launcher_profiles.json in game dir
+    QString profilesPath = m_gameDir + QStringLiteral("/launcher_profiles.json");
+    if (!QFile::exists(profilesPath)) {
+        QFile pf(profilesPath);
+        if (pf.open(QIODevice::WriteOnly)) {
+            pf.write(QStringLiteral("{\"profiles\":{}}").toUtf8());
+            pf.close();
+        }
+    }
+
     QStringList args;
     args << QStringLiteral("-Xmx512M")
          << QStringLiteral("-Djava.net.preferIPv4Stack=true")
