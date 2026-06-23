@@ -202,6 +202,56 @@ Rectangle {
                         }
                     }
                 }
+
+                // ── Control buttons (hidden during verify/done/failed) ──
+                RowLayout {
+                    visible: {
+                        var ph = model.phase || ""
+                        return ph !== "verifying" && ph !== "done" && !model.failed
+                            && (ph.includes("下载") || ph.includes("安装") || backend.installPaused)
+                    }
+                    spacing: 6; Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
+
+                    // Pause / Resume
+                    Item { Layout.fillWidth: true }  // spacer
+                    Rectangle {
+                        implicitWidth: pauseBtnText.implicitWidth + 20; implicitHeight: 28
+                        radius: 6; color: "#191c28"; border.color: "#2a3040"; border.width: 1
+                        Text {
+                            id: pauseBtnText
+                            anchors.centerIn: parent
+                            text: backend.installPaused ? "▶ 继续" : "⏸ 暂停"
+                            font.pixelSize: 12; color: "#8a90b0"
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (!backend) return
+                                backend.installPaused ? backend.resumeInstall() : backend.pauseInstall()
+                            }
+                        }
+                    }
+
+                    // Cancel
+                    Rectangle {
+                        implicitWidth: cancelBtnText.implicitWidth + 20; implicitHeight: 28
+                        radius: 6; color: "#191c28"; border.color: "#2a3040"; border.width: 1
+                        Text {
+                            id: cancelBtnText
+                            anchors.centerIn: parent
+                            text: "✕ 取消"
+                            font.pixelSize: 12; color: "#c06050"
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (!backend) return
+                                var cid = model.installId || model.name || ""
+                                if (cid) backend.cancelInstall(cid)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
