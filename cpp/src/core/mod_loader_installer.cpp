@@ -148,7 +148,7 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
         // Standalone: run installer to create version JSON
         m_totalSteps = 2;
         m_currentStep = 1;
-        emit progressChanged(1, m_totalSteps, "Downloading Optifine...");
+        emit progressChanged(1, m_totalSteps, "正在下载 OptiFine...");
         downloadToMemory(url, [this, filename](bool ok, const QByteArray& data) {
             if (!ok) {
                 qDebug() << "[ModLoader] BMCLAPI Optifine download failed, trying official...";
@@ -157,7 +157,7 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
                 QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
                 downloadToMemory(offUrl, [this, filename](bool ok2, const QByteArray& data2) {
                     if (!ok2) {
-                        emit finished(false, "Optifine download failed (BMCLAPI + official both failed)");
+                        emit finished(false, "OptiFine 下载失败（BMCLAPI 和官方源均失败）");
                         m_running = false;
                         return;
                     }
@@ -175,24 +175,24 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
         QDir().mkpath(md);
         QString savePath = md + "/" + filename;
         m_currentStep = 1;
-        emit progressChanged(1, 1, "Downloading Optifine...");
+        emit progressChanged(1, 1, "正在下载 OptiFine...");
         downloadToFile(url, savePath, [this, filename, savePath](bool ok, const QString& error) {
             if (!ok) {
                 qDebug() << "[ModLoader] BMCLAPI Optifine download failed, trying official...";
                 QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
                 downloadToFile(offUrl, savePath, [this](bool ok2, const QString& err2) {
                     if (!ok2) {
-                        emit finished(false, err2.isEmpty() ? "Optifine download failed (BMCLAPI + official both failed)" : err2);
+                        emit finished(false, err2.isEmpty() ? "OptiFine 下载失败（BMCLAPI 和官方源均失败）" : err2);
                         m_running = false;
                         return;
                     }
-                    emit progressChanged(1, 1, "Optifine installed (mods/)");
+                    emit progressChanged(1, 1, "OptiFine 已安装 (mods/)");
                     emit finished(true, QString());
                     m_running = false;
                 });
                 return;
             }
-            emit progressChanged(1, 1, "Optifine installed (mods/)");
+            emit progressChanged(1, 1, "OptiFine 已安装 (mods/)");
             emit finished(true, QString());
             m_running = false;
         });
@@ -201,13 +201,13 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
 
 void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const QString& filename) {
     m_currentStep = 2;
-    emit progressChanged(2, m_totalSteps, "Running Optifine installer...");
+    emit progressChanged(2, m_totalSteps, "正在运行 OptiFine 安装程序...");
 
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString jarPath = tempDir + "/optifine-" + m_installName + ".jar";
     QFile jarFile(jarPath);
     if (!jarFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "Cannot write Optifine JAR");
+        emit finished(false, "无法写入 OptiFine 临时文件");
         m_running = false;
         return;
     }
@@ -234,7 +234,7 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
         if (m_cancelled || exitCode != 0) {
             cleanupTempMc(tempMcRoot);
             qWarning() << "[ModLoader] Optifine installer failed, exit:" << exitCode;
-            emit finished(false, QString("Optifine installer failed (exit %1)").arg(exitCode));
+            emit finished(false, QString("OptiFine 安装程序运行失败（退出码: %1）").arg(exitCode));
             m_running = false;
             return;
         }
@@ -244,7 +244,7 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
         cleanupTempMc(tempMcRoot);
 
         qDebug() << "[ModLoader] Optifine standalone install complete";
-        emit progressChanged(2, m_totalSteps, "Optifine installed");
+        emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
         emit finished(true, QString());
         m_running = false;
     });
@@ -388,7 +388,7 @@ void ModLoaderInstaller::cleanupTempMc(const QString& tempDir) {
 
 void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     m_currentStep = 1;
-    emit progressChanged(1, m_totalSteps, "Downloading Forge installer...");
+    emit progressChanged(1, m_totalSteps, "正在下载 Forge 安装程序...");
 
     QString verArg = m_mcVersion + "-" + m_loaderVersion;
     QString bmclUrl = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
@@ -403,7 +403,7 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
         qDebug() << "[ModLoader] BMCLAPI Forge download failed, trying official Maven...";
         QString officialUrl = QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
-            if (!ok2) { emit finished(false, "Forge installer download failed (BMCLAPI + official both failed)"); m_running = false; return; }
+            if (!ok2) { emit finished(false, "Forge 安装程序下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
             m_usedFallback = true;
             forgeStep2_verify(data2);
         }, "forge-installer.jar");
@@ -412,7 +412,7 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
 
 void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
     m_currentStep = 2;
-    emit progressChanged(2, m_totalSteps, "Verifying Forge installer...");
+    emit progressChanged(2, m_totalSteps, "正在校验 Forge 安装程序...");
     emit verifyStarted();
 
     QString actualSha1 = computeSha1(jarData);
@@ -432,7 +432,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             bool match = (actualSha1 == expectedSha1);
             qDebug() << "[ModLoader] Forge SHA1 (official) expected:" << expectedSha1 << "actual:" << actualSha1 << "match:" << match;
             emit verifyFinished(match);
-            if (!match) { emit finished(false, "Forge installer SHA1 mismatch"); m_running = false; return; }
+            if (!match) { emit finished(false, "Forge 安装程序校验失败（SHA1 不匹配）"); m_running = false; return; }
             maybeRunForgeStep3(jarData);
         });
         return;
@@ -478,7 +478,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
         qDebug() << "[ModLoader] Forge SHA1 expected:" << expectedSha1 << "actual:" << actualSha1 << "match:" << match;
         emit verifyFinished(match);
         if (!match && !expectedSha1.isEmpty()) {
-            emit finished(false, "Forge installer SHA1 mismatch");
+            emit finished(false, "Forge 安装程序校验失败（SHA1 不匹配）");
             m_running = false;
             return;
         }
@@ -697,7 +697,7 @@ void ModLoaderInstaller::runForgeInstallerProcess(const QByteArray& jarData,
     QString jarPath = tempDir + "/forge-installer-" + m_installName + ".jar";
     QFile jarFile(jarPath);
     if (!jarFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "Cannot write temp JAR");
+        emit finished(false, "无法写入临时文件");
         m_running = false;
         return;
     }
@@ -764,8 +764,8 @@ void ModLoaderInstaller::runForgeInstallerProcess(const QByteArray& jarData,
 
         if (m_cancelled || exitCode != 0) {
             cleanupTempMc(tempMcRoot);
-            QString msg = QString("Forge installer failed (exit %1): %2")
-                .arg(exitCode).arg(stderrRemaining.isEmpty() ? QStringLiteral("unknown error") : stderrRemaining);
+            QString msg = QString("Forge 安装程序运行失败（退出码: %1）: %2")
+                .arg(exitCode).arg(stderrRemaining.isEmpty() ? QStringLiteral("未知错误") : stderrRemaining);
             qWarning() << "[ModLoader]" << msg;
             emit finished(false, msg);
             m_running = false;
@@ -777,7 +777,7 @@ void ModLoaderInstaller::runForgeInstallerProcess(const QByteArray& jarData,
         cleanupTempMc(tempMcRoot);
 
         qDebug() << "[ModLoader] Forge install complete";
-        emit progressChanged(3, m_totalSteps, "Install complete");
+        emit progressChanged(3, m_totalSteps, "安装完成");
         emit finished(true, QString());
         m_running = false;
     });
@@ -796,7 +796,7 @@ void ModLoaderInstaller::runNeoForgeInstallerProcess(const QByteArray& jarData,
     QString jarPath = tempDir + "/neoforge-installer-" + m_installName + ".jar";
     QFile jarFile(jarPath);
     if (!jarFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "Cannot write temp JAR");
+        emit finished(false, "无法写入临时文件");
         m_running = false;
         return;
     }
@@ -852,7 +852,7 @@ void ModLoaderInstaller::runNeoForgeInstallerProcess(const QByteArray& jarData,
         if (m_cancelled || exitCode != 0) {
             cleanupTempMc(tempMcRoot);
             qWarning() << "[ModLoader] NeoForge installer failed, exit:" << exitCode;
-            emit finished(false, QString("Installer failed (exit %1)").arg(exitCode));
+            emit finished(false, QString("安装程序运行失败（退出码: %1）").arg(exitCode));
             m_running = false;
             return;
         }
@@ -861,7 +861,7 @@ void ModLoaderInstaller::runNeoForgeInstallerProcess(const QByteArray& jarData,
         cleanupTempMc(tempMcRoot);
 
         qDebug() << "[ModLoader] NeoForge install complete";
-        emit progressChanged(3, m_totalSteps, "Install complete");
+        emit progressChanged(3, m_totalSteps, "安装完成");
         emit finished(true, QString());
         m_running = false;
     });
@@ -876,7 +876,7 @@ void ModLoaderInstaller::runNeoForgeInstallerProcess(const QByteArray& jarData,
 
 void ModLoaderInstaller::forgeStep3_prefetchAndRun(const QByteArray& jarData) {
     m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "Preparing Forge libraries...");
+    emit progressChanged(3, m_totalSteps, "正在准备 Forge libraries...");
 
     // Set up temp .minecraft (same as before)
     QDir tempMcDir = setupTempMc();
@@ -897,14 +897,14 @@ void ModLoaderInstaller::forgeStep3_prefetchAndRun(const QByteArray& jarData) {
             emit stepProgress(3, pct);
             // Update card description during prefetch
             if (done == 0)
-                emit progressChanged(3, m_totalSteps, QStringLiteral("Preparing Forge libraries..."));
+                emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备 Forge libraries..."));
         },
         [this, jarData, tempMcDir, tempMcRoot](bool success, const QString& error) {
             m_prefetchDone = success;  // enable stdout percentage offset
             if (!success)
                 qWarning() << "[ModLoader] Library prefetch failed, falling back to installer:" << error;
             else
-                emit progressChanged(3, m_totalSteps, "Installing Forge...");
+                emit progressChanged(3, m_totalSteps, "正在安装 Forge...");
             // Now run the installer on pre-populated temp .minecraft
             runForgeInstallerProcess(jarData, tempMcDir, tempMcRoot);
         }
@@ -917,7 +917,7 @@ void ModLoaderInstaller::forgeStep3_prefetchAndRun(const QByteArray& jarData) {
 
 void ModLoaderInstaller::fabricStep1_downloadProfile() {
     m_currentStep = 1;
-    emit progressChanged(1, m_totalSteps, "Downloading Fabric profile...");
+    emit progressChanged(1, m_totalSteps, "正在下载 Fabric 配置...");
 
     QString url = QString("https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/%1/%2/profile/json")
                       .arg(m_mcVersion, m_loaderVersion);
@@ -933,7 +933,7 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
         QString officialUrl = QString("https://meta.fabricmc.net/v2/versions/loader/%1/%2/profile/json")
                                    .arg(m_mcVersion, m_loaderVersion);
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
-            if (!ok2) { emit finished(false, "Fabric profile download failed (BMCLAPI + official both failed)"); m_running = false; return; }
+            if (!ok2) { emit finished(false, "Fabric 配置下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
             m_usedFallback = true;
             fabricStep2_verify(data2);
         }, "fabric-profile.json");
@@ -942,7 +942,7 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
 
 void ModLoaderInstaller::fabricStep2_verify(const QByteArray& bmclProfile) {
     m_currentStep = 2;
-    emit progressChanged(2, m_totalSteps, "Verifying Fabric profile...");
+    emit progressChanged(2, m_totalSteps, "正在校验 Fabric 配置...");
     emit verifyStarted();
 
     // Fetch from official Fabric meta to compare
@@ -973,10 +973,10 @@ void ModLoaderInstaller::fabricStep2_verify(const QByteArray& bmclProfile) {
 
 void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData) {
     m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "Creating version config...");
+    emit progressChanged(3, m_totalSteps, "正在创建版本配置...");
 
     QJsonDocument doc = QJsonDocument::fromJson(profileData);
-    if (doc.isNull()) { emit finished(false, "Invalid Fabric profile JSON"); m_running = false; return; }
+    if (doc.isNull()) { emit finished(false, "Fabric 配置 JSON 格式无效"); m_running = false; return; }
 
     QJsonObject json = doc.object();
     json["id"] = m_installName;
@@ -1000,7 +1000,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     }
 
     qDebug() << "[ModLoader] Fabric version JSON:" << jsonPath;
-    emit progressChanged(3, m_totalSteps, "Fabric install complete");
+    emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
     emit finished(true, QString());
     m_running = false;
 }
@@ -1011,7 +1011,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
 
 void ModLoaderInstaller::neoStep1_downloadInstaller() {
     m_currentStep = 1;
-    emit progressChanged(1, m_totalSteps, "Downloading NeoForge installer...");
+    emit progressChanged(1, m_totalSteps, "正在下载 NeoForge 安装程序...");
 
     QString ver = m_loaderVersion;
     // BMCLAPI Maven mirror (same path as official Maven)
@@ -1026,7 +1026,7 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
         qDebug() << "[ModLoader] BMCLAPI NeoForge download failed, trying official Maven...";
         QString officialUrl = QString("https://maven.neoforged.net/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(ver);
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
-            if (!ok2) { emit finished(false, "NeoForge installer download failed (BMCLAPI + official both failed)"); m_running = false; return; }
+            if (!ok2) { emit finished(false, "NeoForge 安装程序下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
             m_usedFallback = true;
             neoStep2_verify(data2);
         }, "neoforge-installer.jar");
@@ -1035,7 +1035,7 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
 
 void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
     m_currentStep = 2;
-    emit progressChanged(2, m_totalSteps, "Verifying NeoForge installer...");
+    emit progressChanged(2, m_totalSteps, "正在校验 NeoForge 安装程序...");
     emit verifyStarted();
 
     // Official NeoForge Maven provides .sha1 files
@@ -1058,7 +1058,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
         emit verifyFinished(match);
 
         if (!match) {
-            emit finished(false, "NeoForge installer SHA1 mismatch");
+            emit finished(false, "NeoForge 安装程序校验失败（SHA1 不匹配）");
             m_running = false;
             return;
         }
@@ -1068,7 +1068,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
 
 void ModLoaderInstaller::neoStep3_prefetchAndRun(const QByteArray& jarData) {
     m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "Preparing NeoForge libraries...");
+    emit progressChanged(3, m_totalSteps, "正在准备 NeoForge libraries...");
 
     // Set up temp .minecraft
     QDir tempMcDir = setupTempMc();
@@ -1084,14 +1084,14 @@ void ModLoaderInstaller::neoStep3_prefetchAndRun(const QByteArray& jarData) {
             int pct = total > 0 ? (done * 80 / total) : 0;
             emit stepProgress(3, pct);
             if (done == 0)
-                emit progressChanged(3, m_totalSteps, QStringLiteral("Preparing NeoForge libraries..."));
+                emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备 NeoForge libraries..."));
         },
         [this, jarData, tempMcDir, tempMcRoot](bool success, const QString& error) {
             m_prefetchDone = success;
             if (!success) {
                 qWarning() << "[ModLoader] NeoForge library prefetch failed, falling back to installer:" << error;
             } else {
-                emit progressChanged(3, m_totalSteps, QStringLiteral("Installing NeoForge..."));
+                emit progressChanged(3, m_totalSteps, QStringLiteral("正在安装 NeoForge..."));
             }
             runNeoForgeInstallerProcess(jarData, tempMcDir, tempMcRoot);
         }

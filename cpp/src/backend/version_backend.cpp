@@ -130,7 +130,7 @@ VersionBackend::VersionBackend(QObject* parent)
                 ses.loaderVer.clear();
             }
             emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
-            setInstallPhase("done");
+            setInstallPhase("完成");
             updateInstalledList();
         } else {
             emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + errMsg);
@@ -239,7 +239,7 @@ VersionBackend::VersionBackend(QObject* parent)
     // Verification
     connect(m_mlInstaller, &ModLoaderInstaller::verifyStarted, this,
             [this]() {
-        setInstallPhase("verifying");
+        setInstallPhase("校验中");
         m_verifyChecked = 0;
         m_verifyTotal = 1;
         emit verifyStarted();
@@ -581,7 +581,7 @@ void VersionBackend::cancelActiveDownload(const QString& versionId)
     if (m_activeCount > 0) m_activeCount--;
     if (m_activeCount == 0) {
         setInstalling(false);
-        setInstallPhase(QStringLiteral("idle"));
+        setInstallPhase(QStringLiteral("空闲"));
     }
     emit installStateChanged();
 }
@@ -807,7 +807,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (!anyMergedLaunched) {
             setInstalling(false);
         }
-        setInstallPhase(QStringLiteral("done"));
+        setInstallPhase(QStringLiteral("完成"));
         m_installSpeed = 0;
         emit installSpeedChanged(0);
         emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
@@ -973,7 +973,7 @@ void VersionBackend::syncPrimaryProgress()
         m_installBytesTotal = 0;
         m_installSpeed = 0;
         m_installFile.clear();
-        setInstallPhase(QStringLiteral("idle"));
+        setInstallPhase(QStringLiteral("空闲"));
         emit installProgressChanged();
         emit installTotalChanged();
         emit installSpeedChanged(0);
@@ -1254,7 +1254,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
         return;
     }
 
-    setInstallPhase(QStringLiteral("verifying"));
+    setInstallPhase(QStringLiteral("校验中"));
     m_verifyChecked = 0;
     m_verifyTotal = 0;
     emit verifyStarted();
@@ -1268,7 +1268,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
         emit logMessage(QStringLiteral("❌ 无法读取版本配置: %1").arg(jsonPath));
-        setInstallPhase(QStringLiteral("idle"));
+        setInstallPhase(QStringLiteral("空闲"));
         emit verifyFinished(false);
         return;
     }
@@ -1279,7 +1279,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
         emit logMessage(QStringLiteral("❌ 版本配置解析失败: %1").arg(parseErr.errorString()));
-        setInstallPhase(QStringLiteral("idle"));
+        setInstallPhase(QStringLiteral("空闲"));
         emit verifyFinished(false);
         return;
     }
@@ -1409,7 +1409,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
                 m_verifyTotal = total;
                 emit verifyProgress(checked, total);
                 emit logMessage(QStringLiteral("⚠ 校验已取消"));
-                setInstallPhase(QStringLiteral("idle"));
+                setInstallPhase(QStringLiteral("空闲"));
                 emit verifyCancelled();
             }, Qt::QueuedConnection);
 
@@ -1436,7 +1436,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
                     m_failedPathsCache = failedPaths;
                 }
 
-                setInstallPhase(QStringLiteral("idle"));
+                setInstallPhase(QStringLiteral("空闲"));
                 emit verifyFinished(allPassed);
 
                 // Cleanup worker + thread
@@ -1706,7 +1706,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
         rebuildSteps(installName, {
-            QStringLiteral("下载原版 json文件"),
+            QStringLiteral("下载原版 JSON 文件"),
             QStringLiteral("下载原版支持库文件"),
             QStringLiteral("下载原版资源文件"),
             QStringLiteral("下载 %1 主文件").arg(loaderLabel),
