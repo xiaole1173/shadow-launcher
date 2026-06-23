@@ -462,42 +462,7 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
     }
     QZipReader reader(&buffer);
 
-    // 2. Extract install_profile.json → version.json path
-    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
-    if (profileData.isEmpty()) {
-        qWarning() << "[ModLoader] No install_profile.json in installer JAR";
-        emit finished(false, "安装程序缺少 install_profile.json");
-        m_running = false;
-        return;
-    }
-    QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
-    if (!profileDoc.isObject()) {
-        emit finished(false, "install_profile.json 格式无效");
-        m_running = false;
-        return;
-    }
-    QString versionJsonPath = profileDoc.object().value(QStringLiteral("json")).toString();
-    if (versionJsonPath.isEmpty()) {
-        emit finished(false, "install_profile.json 未指定 version.json 路径");
-        m_running = false;
-        return;
-    }
-
-    // 3. Extract version.json
-    QByteArray versionData = reader.fileData(versionJsonPath.startsWith('/') ? versionJsonPath.mid(1) : versionJsonPath);
-    if (versionData.isEmpty()) {
-        emit finished(false, "安装程序中未找到版本配置");
-        m_running = false;
-        return;
-    }
-    QJsonDocument versionDoc = QJsonDocument::fromJson(versionData);
-    if (!versionDoc.isObject()) {
-        emit finished(false, "版本配置 JSON 格式无效");
-        m_running = false;
-        return;
-    }
-
-    // 4. Extract bundled maven jars from installer to gameDir/libraries/
+    // 2. Extract bundled maven jars from installer to gameDir/libraries/
     QString libBase = m_gameDir + QStringLiteral("/libraries");
     int extractedCount = 0;
     const auto& fileList = reader.fileInfoList();
@@ -516,113 +481,8 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
     }
     qDebug() << "[ModLoader] Extracted" << extractedCount << "jars from installer";
 
-    // 5. Build download list for EXTERNAL libraries
-    QJsonArray libraries = versionDoc.object().value(QStringLiteral("libraries")).toArray();
-    QString bmclBase = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
-
-    struct DlTask { QString url; QString path; };
-    QList<DlTask> downloads;
-    for (const QJsonValue& v : libraries) {
-        QJsonObject lib = v.toObject();
-        QString name = lib.value(QStringLiteral("name")).toString();
-        if (name.isEmpty()) continue;
-
-        // Parse Maven coordinate: group:artifact:version[:classifier@ext]
-        // Convert to URL path: group/dotted/path/artifact/version/artifact-version[-classifier].ext
-        QStringList parts = name.split(':');
-        if (parts.size() < 3) continue;
-        QString group = parts[0];
-        QString artifact = parts[1];
-        QString version = parts[2];
-        QString classifier, ext = QStringLiteral("jar");
-
-        // Parse optional @ext and :classifier from version field
-        int atPos = version.indexOf('@');
-        if (atPos > 0) { ext = version.mid(atPos + 1); version = version.left(atPos); }
-        if (parts.size() > 3) classifier = parts[3];
-
-        QString groupPath = QString(group).replace('.', '/');
-        QString fileName = classifier.isEmpty()
-            ? QStringLiteral("%1-%2.%3").arg(artifact, version, ext)
-            : QStringLiteral("%1-%2-%3.%4").arg(artifact, version, classifier, ext);
-        QString relPath = QStringLiteral("%1/%2/%3/%4").arg(groupPath, artifact, version, fileName);
-
-        QString localPath = libBase + QStringLiteral("/") + relPath;
-        if (QFile::exists(localPath)) continue;
-        QString url = bmclBase + QStringLiteral("/") + relPath;
-        downloads.append({url, localPath});
-    }
-
-    if (downloads.isEmpty()) {
-        qDebug() << "[ModLoader] No external libs, running installer directly";
-        runInstallerProcess(jarData);
-        return;
-    }
-        qDebug() << "[ModLoader] Downloading" << downloads.size() << "Forge libraries via BMCLAPI";
-
-        // 6. Concurrent download (max 8), BMCLAPI → Maven fallback
-        QSharedPointer<int> remaining(new int(downloads.size()));
-        QSharedPointer<int> completed(new int(0));
-        QSharedPointer<int> failedCount(new int(0));
-        QSharedPointer<bool> doneCalled(new bool(false));
-        const int MAX_CONCURRENT = 8;
-
-        auto processNext = QSharedPointer<std::function<void()>>::create();
-        *processNext = [=]() {
-            if (*completed >= downloads.size()) {
-                // Guard against multiple concurrent callbacks
-                if (*doneCalled) return;
-                *doneCalled = true;
-
-                // All downloads complete
-                if (*failedCount == 0) {
-                    runInstallerProcess(jarData);
-                } else {
-                    emit finished(false, QString("支持库下载失败: %1/%2").arg(*failedCount).arg(downloads.size()));
-                    m_running = false;
-                }
-                return;
-            }
-
-            if (*remaining <= 0) return;  // No more tasks to start, waiting for inflight
-
-            int idx = downloads.size() - *remaining;
-            (*remaining)--;
-            const DlTask& t = downloads.at(idx);
-
-            // Create parent directory
-            QDir().mkpath(QFileInfo(t.path).absolutePath());
-
-            // Download: try BMCLAPI first, fallback to Maven Central
-            downloadToFile(t.url, t.path, [=](bool ok, const QString& err) {
-                if (ok) {
-                    (*completed)++;
-                    int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
-                    emit stepProgress(3, pct);
-                    (*processNext)();
-                } else {
-                    // BMCLAPI failed, try Maven Central fallback
-                    QString mavenUrl = QString(t.url).replace(
-                        QStringLiteral("bmclapi2.bangbang93.com/maven"),
-                        QStringLiteral("repo1.maven.org/maven2"));
-                    downloadToFile(mavenUrl, t.path, [=](bool ok2, const QString& err2) {
-                        if (!ok2) {
-                            qWarning() << "[ModLoader] PCL library failed (both sources):" << t.url << "|" << mavenUrl << err2;
-                            (*failedCount)++;
-                        }
-                        (*completed)++;
-                        int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
-                        emit stepProgress(3, pct);
-                        (*processNext)();
-                    });
-                }
-            });
-        };
-
-        int initial = qMin(MAX_CONCURRENT, downloads.size());
-        for (int i = 0; i < initial; i++)
-            (*processNext)();
-        return; // Async — finished() emitted by callback above
+    // 3. Run installer — it handles all remaining downloads via Forge mirror list
+    runInstallerProcess(jarData);
 }
 
 void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
