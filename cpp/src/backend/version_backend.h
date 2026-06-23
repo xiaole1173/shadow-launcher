@@ -51,6 +51,25 @@ struct InstallSession {
     QString pendingLoaderType;     // "optifine" / "forge" / etc for pending loader
     QString error;                 // Install error message on failure
     int loadedStep = 0;  // which step is currently active
+    
+    // Per-install MC download byte tracking (was global singletons)
+    qint64 mcStepDone[3] = {};
+    qint64 mcStepTotal[3] = {};
+    QSet<QString> mcFileAdded;
+    qint64 mcBytesDl = 0;
+    qint64 mcBytesAll = 0;
+    
+    // Per-install ML download byte tracking
+    qint64 mlBytesDl = 0;
+    qint64 mlBytesAll = 0;
+    qint64 mlBytesDone = 0;
+    
+    // EWMA speed tracking for ML byte progress
+    qint64 mlSpeedLastBytes = 0;
+    qint64 mlSpeedLastTimeMs = 0;
+    
+    // Current ML file total for file-transition detection
+    qint64 mlFileTotal = 0;
 };
 
 // --- InstallCardModel: QAbstractListModel with explicit role names ---
@@ -252,18 +271,6 @@ private:
     QString m_modLoaderInstallId;
     static constexpr int MAX_CONCURRENT = 2;
     QVector<QString> m_activeIds;
-
-    // Merged install: cumulative byte tracking per MC download step (0=json, 1=libraries, 2=assets)
-    qint64 m_mergedMcStepDone[3] = {};
-    qint64 m_mergedMcStepTotal[3] = {};
-    QSet<QString> m_mergedMcFileAdded;  // fileNames whose total was added to m_mergedMcStepTotal
-    // Merged install: global byte pool (cross-phase aggregation)
-    qint64 m_mergedMcBytesDl = 0;    // MC version phase downloaded
-    qint64 m_mergedMcBytesAll = 0;   // MC version phase total (from JSON)
-    qint64 m_mergedMlBytesDl = 0;    // Mod loader phase downloaded (current file's received)
-    qint64 m_mergedMlBytesAll = 0;   // Mod loader phase total (estimated)
-    qint64 m_mergedMlBytesDone = 0;  // Sum of completed ML files
-    qint64 m_mergedMlFileTotal = 0;  // Current ML file's total (for file-transition detection)
 
     struct DlState {
         int progress = 0;

@@ -162,38 +162,47 @@ VersionBackend::VersionBackend(QObject* parent)
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
         m_installFile = file;
-        m_installSpeed = speed;
         emit installFileProgress(file);
-        emit installSpeedChanged(speed);
-
+        // ── EWMA speed smoothing (same algorithm as updateDownloadProgress) ──
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
+        if (ses.mlSpeedLastBytes > 0 && received > ses.mlSpeedLastBytes) {
+            qint64 dt = qMax(now - ses.mlSpeedLastTimeMs, qint64(100));
+            qint64 instant = (received - ses.mlSpeedLastBytes) * 1000 / dt;
+            m_installSpeed = (m_installSpeed > 0) ? (m_installSpeed * 7 / 10 + instant * 3 / 10) : 0;
+        } else {
+            m_installSpeed = 0;
+        }
+        ses.mlSpeedLastBytes = received;
+        ses.mlSpeedLastTimeMs = now;
+        emit installSpeedChanged(m_installSpeed);
 
         // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
         if (ses.isMerged) {
             // Detect file transition: total changes → previous file completed
-            if (total > 0 && total != m_mergedMlFileTotal && m_mergedMlFileTotal > 0) {
-                m_mergedMlBytesDone += m_mergedMlFileTotal;
+            if (total > 0 && total != ses.mlFileTotal && ses.mlFileTotal > 0) {
+                ses.mlBytesDone += ses.mlFileTotal;
             }
 
             // ── Tier (a)/(b): real Content-Length available ──
             if (total > 0) {
-                m_mergedMlFileTotal = total;
-                m_mergedMlBytesAll = m_mergedMlBytesDone + total;
+                ses.mlFileTotal = total;
+                ses.mlBytesAll = ses.mlBytesDone + total;
             }
             // ── Tier (c): dynamic adaptive — no Content-Length, estimate from downloaded bytes ──
             else if (received > 0) {
                 // Estimate: assume file is ~1.2× what we've downloaded (shrinks as download progresses)
                 qint64 dynEst = received + qMax(received / 5, qint64(524288));  // at least 512KB headroom
-                if (dynEst > m_mergedMlBytesAll)
-                    m_mergedMlBytesAll = m_mergedMlBytesDone + dynEst;
-                m_mergedMlFileTotal = dynEst;
+                if (dynEst > ses.mlBytesAll)
+                    ses.mlBytesAll = ses.mlBytesDone + dynEst;
+                ses.mlFileTotal = dynEst;
             }
 
-            m_mergedMlBytesDl = m_mergedMlBytesDone + received;
+            ses.mlBytesDl = ses.mlBytesDone + received;
             // Byte-weighted total progress (跨阶段)
-            qint64 grandDone = m_mergedMcBytesAll + m_mergedMlBytesDl;
-            qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
+            qint64 grandDone = ses.mcBytesAll + ses.mlBytesDl;
+            qint64 grandTotal = ses.mcBytesAll + ses.mlBytesAll;
             qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
             ses.totalProgress = raw;
             // EMA smoothing
@@ -773,7 +782,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
                 // Merged install: MC done, transitioning to loader — keep card alive
                 qDebug() << "[install] Merged: MC download complete, starting" << ses.loaderType;
                 // Lock MC phase bytes as fully done
-                m_mergedMcBytesDl = m_mergedMcBytesAll;
+                ses.mcBytesDl = ses.mcBytesAll;
                 // Mark MC steps (0-2) as completed
                 for (int i = 0; i < 3 && i < ses.steps.size(); i++) {
                     updateStep(it.key(), i, QStringLiteral("completed"), 100);
@@ -1046,22 +1055,22 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     }
     if (!mergedSessionId.isEmpty()) {
         auto& mSes = m_sessions[mergedSessionId];
-        m_mergedMcBytesDl = db;
+        mSes.mcBytesDl = db;
         // Tier (a)/(b): real total from version JSON or Content-Length
         if (tb > 0) {
-            m_mergedMcBytesAll = tb;
+            mSes.mcBytesAll = tb;
         }
         // Tier (c): dynamic adaptive — no total available
         else if (db > 0) {
             qint64 dynEst = db + qMax(db / 5, qint64(524288));
-            if (dynEst > m_mergedMcBytesAll)
-                m_mergedMcBytesAll = dynEst;
+            if (dynEst > mSes.mcBytesAll)
+                mSes.mcBytesAll = dynEst;
         }
         // Push real per-category byte progress to all 3 MC download steps
         for (int ci = 0; ci < 3; ci++) {
-            if (m_mergedMcStepTotal[ci] > 0) {
+            if (mSes.mcStepTotal[ci] > 0) {
                 updateStep(mergedSessionId, ci, QStringLiteral("active"), 0,
-                           m_mergedMcStepDone[ci], m_mergedMcStepTotal[ci]);
+                           mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
             }
         }
         computeTotalProgress(mergedSessionId);
@@ -1079,8 +1088,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         // Find merged session for grand-total calculation
         qreal rawTotalProgress = 0.0;
         if (!mergedSessionId.isEmpty()) {
-            qint64 grandTotal = m_mergedMcBytesAll + m_mergedMlBytesAll;
-            qint64 grandDone = m_mergedMcBytesDl + m_mergedMlBytesDl;
+            qint64 grandTotal = session(mergedSessionId).mcBytesAll + session(mergedSessionId).mlBytesAll;
+            qint64 grandDone = session(mergedSessionId).mcBytesDl + session(mergedSessionId).mlBytesDl;
             rawTotalProgress = (grandTotal > 0)
                 ? (qreal)grandDone / grandTotal
                 : (tb > 0 ? (qreal)db / tb : 0.0);
@@ -1145,16 +1154,16 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
         if (cat >= 0 && cat <= 2) {
             // Cumulative tracking: accumulate per-step bytes
             // Track per-file: only add total once (normal start: received=0; cached: received=total)
-            const bool firstForFile = !m_mergedMcFileAdded.contains(fileName);
+            const bool firstForFile = !session(mergedSessionId).mcFileAdded.contains(fileName);
             if (firstForFile && total > 0) {
-                m_mergedMcStepTotal[cat] += total;
-                m_mergedMcFileAdded.insert(fileName);
+                session(mergedSessionId).mcStepTotal[cat] += total;
+                session(mergedSessionId).mcFileAdded.insert(fileName);
             }
-            qint64 accDone = m_mergedMcStepDone[cat] + received;
-            qint64 accTotal = m_mergedMcStepTotal[cat];
+            qint64 accDone = session(mergedSessionId).mcStepDone[cat] + received;
+            qint64 accTotal = session(mergedSessionId).mcStepTotal[cat];
             if (received >= total && total > 0) {
-                m_mergedMcStepDone[cat] += total;
-                accDone = m_mergedMcStepDone[cat];
+                session(mergedSessionId).mcStepDone[cat] += total;
+                accDone = session(mergedSessionId).mcStepDone[cat];
             }
             updateStep(mergedSessionId, cat, QStringLiteral("active"), 0, accDone, accTotal);
             m_sessions[mergedSessionId].loadedStep = cat + 1;
@@ -1677,15 +1686,15 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         ses.loaderVer = loaderVersion;
         ses.hasPendingLoader = false;
         // Reset byte accumulators for new merged install
-        m_mergedMcBytesDl = 0;
-        m_mergedMcBytesAll = 0;
-        m_mergedMlBytesDl = 0;
-        m_mergedMlBytesAll = 0;
-        m_mergedMlBytesDone = 0;
-        m_mergedMlFileTotal = 0;
+        ses.mcBytesDl = 0;
+        ses.mcBytesAll = 0;
+        ses.mlBytesDl = 0;
+        ses.mlBytesAll = 0;
+        ses.mlBytesDone = 0;
+        ses.mlFileTotal = 0;
         // Reset cumulative byte tracking for merged install steps
-        for (int i = 0; i < 3; i++) { m_mergedMcStepDone[i] = 0; m_mergedMcStepTotal[i] = 0; }
-        m_mergedMcFileAdded.clear();
+        for (int i = 0; i < 3; i++) { ses.mcStepDone[i] = 0; ses.mcStepTotal[i] = 0; }
+        ses.mcFileAdded.clear();
 
         // Build 9-step list
         QString loaderLabel = QStringLiteral("Forge");

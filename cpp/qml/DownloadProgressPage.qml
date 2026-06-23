@@ -206,9 +206,10 @@ Rectangle {
                 // ── Control buttons (hidden during verify/done/failed) ──
                 RowLayout {
                     visible: {
-                        var ph = model.phase || ""
+                        var ph = model.installPhase || ""
                         return ph !== "verifying" && ph !== "done" && !model.failed
-                            && (ph.includes("下载") || ph.includes("安装") || backend.installPaused)
+                            && ph !== ""
+                            && (ph.includes("下载") || ph.includes("安装") || ph.includes("准备") || backend.installPaused)
                     }
                     spacing: 6; Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
 
@@ -246,8 +247,9 @@ Rectangle {
                             anchors.fill: parent
                             onClicked: {
                                 if (!backend) return
-                                var cid = model.installId || model.name || ""
-                                if (cid) backend.cancelInstall(cid)
+                                var iid = model.installId || ""
+                                if (model.installType === "mod_loader") backend.cancelModLoaderInstall()
+                                else if (iid) backend.cancelInstall(iid)
                             }
                         }
                     }
