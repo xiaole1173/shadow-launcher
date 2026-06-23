@@ -112,14 +112,15 @@ Rectangle {
 
                 // ── step list ──
                 ColumnLayout {
-                    property var _stepsParsed: {
-                        try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
+                    visible: {
+                        try { return JSON.parse(model.steps || "[]").length > 0 } catch(e) { return false }
                     }
-                    visible: _stepsParsed && _stepsParsed.length > 0
                     spacing: 4; Layout.fillWidth: true
 
                     Repeater {
-                        model: _stepsParsed
+                        model: {
+                            try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
+                        }
                         delegate: Rectangle {
                             visible: (modelData && modelData.show !== undefined) ? modelData.show : true
                             Layout.fillWidth: true; implicitHeight: 28; color: "transparent"

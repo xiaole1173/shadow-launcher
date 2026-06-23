@@ -2002,9 +2002,24 @@ void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
         LOG_CARDS() << "  card[" << i << "] iid=" << cards[i].iid << " name=" << cards[i].name
                      << " progress=" << cards[i].progress << " steps=" << cards[i].steps.size();
     }
-    beginResetModel();
-    m_cards = cards;
-    endResetModel();
+
+    // Same size: update in-place (dataChanged) — preserves delegates & animations
+    // Different size: full reset (beginResetModel/endResetModel)
+    if (cards.size() == m_cards.size()) {
+        for (int i = 0; i < cards.size(); ++i) {
+            m_cards[i] = cards[i];
+        }
+        if (!cards.isEmpty()) {
+            QModelIndex topLeft = index(0);
+            QModelIndex bottomRight = index(cards.size() - 1);
+            emit dataChanged(topLeft, bottomRight);
+        }
+    } else {
+        beginResetModel();
+        m_cards = cards;
+        endResetModel();
+    }
+
     m_generation++;
     LOG_CARDS() << "rebuild() END rowCount=" << m_cards.size() << " gen=" << m_generation;
     emit generationChanged();
