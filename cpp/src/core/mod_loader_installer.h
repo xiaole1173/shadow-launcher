@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QElapsedTimer>
@@ -70,11 +71,24 @@ private:
     // Forge installer stdout progress counter
     QAtomicInt m_forgeLibCount;
 
+    // True after library prefetch completes → offset installer stdout percentages
+    bool m_prefetchDone = false;
+
     // Forge
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
-    void forgeStep3_runInstaller(const QByteArray& jarData);
+    void forgeStep3_prefetchAndRun(const QByteArray& jarData);
     void maybeRunForgeStep3(const QByteArray& jarData);
+
+    // PCL-style library pre-population (pre-download via BMCLAPI mirrors)
+    void forgePrepopulateLibraries(const QByteArray& jarData, const QDir& tempMc,
+                                    std::function<void(int done, int total)> progress,
+                                    std::function<void(bool success, const QString& error)> done);
+    void neoForgePrepopulateLibraries(const QByteArray& jarData, const QDir& tempMc,
+                                       std::function<void(int done, int total)> progress,
+                                       std::function<void(bool success, const QString& error)> done);
+    void runForgeInstallerProcess(const QByteArray& jarData, const QDir& tempMcDir, const QString& tempMcRoot);
+    void runNeoForgeInstallerProcess(const QByteArray& jarData, const QDir& tempMcDir, const QString& tempMcRoot);
 
     // Fabric
     void fabricStep1_downloadProfile();
@@ -84,7 +98,7 @@ private:
     // NeoForge
     void neoStep1_downloadInstaller();
     void neoStep2_verify(const QByteArray& jarData);
-    void neoStep3_runInstaller(const QByteArray& jarData);
+    void neoStep3_prefetchAndRun(const QByteArray& jarData);
 
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
