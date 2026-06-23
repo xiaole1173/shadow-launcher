@@ -1828,9 +1828,26 @@ QVariantList VersionBackend::activeInstalls() const {
         card["steps"] = QVariantList{};
         if (m_dlStates.contains(vid)) {
             const DlState& st = m_dlStates[vid];
-            card["totalProgress"] = st.total > 0 ? (qreal)st.progress / st.total : 0.0;
+            card["totalProgress"] = st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0;  // byte-weighted
             card["speed"] = QVariant::fromValue<qint64>(st.speed);
             card["installPhase"] = st.phase;
+            // Auto-generate step list for version downloads
+            if (!m_isMergedInstall || vid != m_mergedMcVersion) {
+                card["remainingSteps"] = 0;
+                QVariantList vSteps;
+                auto addVStep = [&](const QString& name, qint64 dl, qint64 tot) {
+                    int pct = tot > 0 ? (int)(dl * 100 / tot) : 0;
+                    vSteps.append(QVariantMap{
+                        {"name", name}, {"status", QStringLiteral("active")},
+                        {"percentage", pct}, {"show", true}
+                    });
+                };
+                // Proportionally distribute bytes across 3 phases
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), st.bytesDl / 3, st.bytesTotal / 3);
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), st.bytesDl / 2, st.bytesTotal / 2);
+                addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), st.bytesDl / 4, st.bytesTotal / 4);
+                card["steps"] = vSteps;
+            }
         } else {
             // Placeholder — download just started, no progress data yet
             card["totalProgress"] = 0.0;

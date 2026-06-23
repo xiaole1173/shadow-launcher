@@ -109,8 +109,7 @@ Rectangle {
 
                 // ── step list (mod_loader only) ──
                 ColumnLayout {
-                    visible: cardContent.card.installType === "mod_loader" && cardContent.card.steps
-                             && (cardContent.card.steps.length || 0) > 0
+                    visible: cardContent.card.steps && (cardContent.card.steps.length || 0) > 0
                     spacing: 4; Layout.fillWidth: true
 
                     Repeater {
