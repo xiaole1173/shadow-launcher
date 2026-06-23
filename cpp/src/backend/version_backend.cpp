@@ -82,18 +82,22 @@ VersionBackend::VersionBackend(QObject* parent)
     // ModLoaderInstaller init
     m_mlInstaller = new ModLoaderInstaller(this);
     connect(m_mlInstaller, &ModLoaderInstaller::progressChanged, this,
-            [this](int step, int total, const QString& desc) {
+            [this](int step, int totalSteps, const QString& desc) {
         m_installProgress = step;
-        m_installTotal = total;
+        m_installTotal = totalSteps;
         emit installProgressChanged();
         setInstallPhase(QStringLiteral("模组加载器: ") + desc);
-        // Update step model: current step active
-        // In merged mode, steps are offset by 3 (MC steps 0-2)
         const QString mlId = m_modLoaderInstallId;
         if (mlId.isEmpty()) return;
         auto& ses = session(mlId);
         int stepIdx = ses.isMerged ? (step - 1 + 3) : (step - 1);
+        // ── Mark previous step as completed when advancing ──
+        if (step > 1) {
+            int prevIdx = ses.isMerged ? (step - 2 + 3) : (step - 2);
+            updateStep(mlId, prevIdx, QStringLiteral("completed"), 100);
+        }
         updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
+        computeTotalProgress(mlId);
     });
     connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
             [this](int step, int percentage) {
@@ -207,11 +211,12 @@ VersionBackend::VersionBackend(QObject* parent)
             emit installBytesProgress(received, total);
         }
 
-        // Update current active step with byte progress
-        for (int i = 0; i < ses.steps.size(); i++) {
+        // Update the MOST RECENT active step with byte progress (iterate backward)
+        for (int i = ses.steps.size() - 1; i >= 0; i--) {
             if (ses.steps[i].toMap()["status"].toString() == QStringLiteral("active")) {
                 int pct = total > 0 ? (int)(received * 100 / total) : 0;
                 updateStep(mlId, i, QStringLiteral("active"), pct, received, total);
+                computeTotalProgress(mlId);
                 break;
             }
         }
@@ -1036,14 +1041,14 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             if (dynEst > m_mergedMcBytesAll)
                 m_mergedMcBytesAll = dynEst;
         }
-        // Also update per-step byte totals for step percentage display
-        m_mergedMcStepTotal[0] = qMax(m_mergedMcStepTotal[0], m_mergedMcBytesAll / 4);   // versions ~25%
-        m_mergedMcStepTotal[1] = qMax(m_mergedMcStepTotal[1], m_mergedMcBytesAll / 2);   // libraries ~50%
-        m_mergedMcStepTotal[2] = qMax(m_mergedMcStepTotal[2], m_mergedMcBytesAll / 4);   // assets ~25%
-        // Distribute done bytes proportionally to steps 0-2
-        int activeSi = mSes.loadedStep < 3 ? mSes.loadedStep : 0;
-        qint64 stepDone = qMin(db, m_mergedMcStepTotal[activeSi]);
-        updateStep(mergedSessionId, activeSi, QStringLiteral("active"), 0, stepDone, m_mergedMcStepTotal[activeSi]);
+        // Push real per-category byte progress to all 3 MC download steps
+        for (int ci = 0; ci < 3; ci++) {
+            if (m_mergedMcStepTotal[ci] > 0) {
+                updateStep(mergedSessionId, ci, QStringLiteral("active"), 0,
+                           m_mergedMcStepDone[ci], m_mergedMcStepTotal[ci]);
+            }
+        }
+        computeTotalProgress(mergedSessionId);
     }
 
     // ── If this is the primary download, sync to main properties ──
@@ -1067,15 +1072,16 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             rawTotalProgress = (tb > 0) ? (qreal)db / tb : 0.0;
         }
 
-        // Update session total/smooth progress for primary install
-        auto& pSes = activeSession();
-        pSes.totalProgress = rawTotalProgress;
-
-        // ── EMA smoothing (Layer ②: display = old×0.7 + new×0.3) ──
-        if (pSes.smoothProgress <= 0.0 || rawTotalProgress > pSes.smoothProgress + 0.5) {
-            pSes.smoothProgress = rawTotalProgress;  // initial or large jump: snap
-        } else {
-            pSes.smoothProgress = pSes.smoothProgress * 0.7 + rawTotalProgress * 0.3;
+        // Update session total/smooth progress for THIS session (not activeSession which may be wrong)
+        if (!mergedSessionId.isEmpty()) {
+            auto& mSes = m_sessions[mergedSessionId];
+            mSes.totalProgress = rawTotalProgress;
+            // ── EMA smoothing ──
+            if (mSes.smoothProgress <= 0.0 || rawTotalProgress > mSes.smoothProgress + 0.5) {
+                mSes.smoothProgress = rawTotalProgress;
+            } else {
+                mSes.smoothProgress = mSes.smoothProgress * 0.7 + rawTotalProgress * 0.3;
+            }
         }
 
         if (m_installPhase != QStringLiteral("校验中...")) {
