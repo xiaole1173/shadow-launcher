@@ -542,17 +542,22 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
     } else {
         qDebug() << "[ModLoader] Downloading" << downloads.size() << "Forge libraries via BMCLAPI";
 
-        // 6. Concurrent download (max 8)
+        // 6. Concurrent download (max 8), BMCLAPI → Maven fallback
         QSharedPointer<int> remaining(new int(downloads.size()));
         QSharedPointer<int> completed(new int(0));
-        QSharedPointer<bool> allOk(new bool(true));
+        QSharedPointer<int> failedCount(new int(0));
+        QSharedPointer<bool> doneCalled(new bool(false));
         const int MAX_CONCURRENT = 8;
 
         auto processNext = QSharedPointer<std::function<void()>>::create();
         *processNext = [=]() {
             if (*remaining <= 0) {
+                // Guard against multiple concurrent callbacks
+                if (*doneCalled) return;
+                *doneCalled = true;
+
                 // All downloads complete
-                if (*allOk) {
+                if (*failedCount == 0) {
                     // 7. Write version JSON
                     QString versionBase = versionsDir() + QStringLiteral("/") + m_installName;
                     QDir().mkpath(versionBase);
@@ -564,7 +569,6 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
                         m_running = false;
                         return;
                     }
-                    // Set the version id
                     QJsonObject vObj = versionDoc.object();
                     vObj[QStringLiteral("id")] = m_installName;
                     jsonFile.write(QJsonDocument(vObj).toJson());
@@ -574,7 +578,7 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
                     emit finished(true, QString());
                     m_running = false;
                 } else {
-                    emit finished(false, "部分支持库下载失败");
+                    emit finished(false, QString("支持库下载失败: %1/%2").arg(*failedCount).arg(downloads.size()));
                     m_running = false;
                 }
                 return;
@@ -587,13 +591,29 @@ void ModLoaderInstaller::forgeStep3_PCLinstall(const QByteArray& jarData) {
             // Create parent directory
             QDir().mkpath(QFileInfo(t.path).absolutePath());
 
+            // Download: try BMCLAPI first, fallback to Maven Central
             downloadToFile(t.url, t.path, [=](bool ok, const QString& err) {
-                Q_UNUSED(err);
-                if (!ok) *allOk = false;
-                (*completed)++;
-                int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
-                emit stepProgress(3, pct);
-                (*processNext)();
+                if (ok) {
+                    (*completed)++;
+                    int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                    emit stepProgress(3, pct);
+                    (*processNext)();
+                } else {
+                    // BMCLAPI failed, try Maven Central fallback
+                    QString mavenUrl = QString(t.url).replace(
+                        QStringLiteral("bmclapi2.bangbang93.com/maven"),
+                        QStringLiteral("repo1.maven.org/maven2"));
+                    downloadToFile(mavenUrl, t.path, [=](bool ok2, const QString& err2) {
+                        if (!ok2) {
+                            qWarning() << "[ModLoader] PCL library failed (both sources):" << t.url << "|" << mavenUrl << err2;
+                            (*failedCount)++;
+                        }
+                        (*completed)++;
+                        int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                        emit stepProgress(3, pct);
+                        (*processNext)();
+                    });
+                }
             });
         };
 
