@@ -1019,6 +1019,22 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         st.phase = QStringLiteral("下载中...");
     }
 
+    // ── Sync per-category done bytes with real-time global progress ──
+    if (tb > 0) {
+        // Try to use pre-computed full category totals first
+        auto dl = m_downloaders.value(versionId);
+        const bool havePrecomputed = dl && dl->categoryTotalBytes(0) > 0
+                                      && dl->categoryTotalBytes(1) > 0
+                                      && dl->categoryTotalBytes(2) > 0;
+        for (int ci = 0; ci < 3; ci++) {
+            const qint64 catTot = havePrecomputed ? dl->categoryTotalBytes(ci) : st.catBytesTotal[ci];
+            if (catTot > 0) {
+                st.catBytesDl[ci] = (qint64)((qreal)db * catTot / tb);
+                st.catBytesTotal[ci] = catTot;  // also fix the denominator
+            }
+        }
+    }
+
     // ── Merged install: accumulate MC phase bytes ──
     // Find session whose merged MC version matches this download
     QString mergedSessionId;
