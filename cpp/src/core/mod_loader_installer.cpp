@@ -100,7 +100,11 @@ void ModLoaderInstaller::downloadSmall(const QString& url,
 void ModLoaderInstaller::installForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
                                          const QString& forgeVersion, const QString& installName)
 {
-    if (m_running) return;
+    if (m_running) {
+        qDebug() << "[ModLoader] Forge from data queued (busy):" << installName;
+        m_pendingQueue.enqueue({installerJar, mcVersion, forgeVersion, installName, QStringLiteral("forge")});
+        return;
+    }
     m_running = true; m_cancelled = false;
     m_mcVersion = mcVersion; m_loaderVersion = forgeVersion;
     m_installName = installName; m_loaderType = "forge";
@@ -113,7 +117,11 @@ void ModLoaderInstaller::installForgeFromData(const QByteArray& installerJar, co
 void ModLoaderInstaller::installNeoForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
                                          const QString& neoVersion, const QString& installName)
 {
-    if (m_running) return;
+    if (m_running) {
+        qDebug() << "[ModLoader] NeoForge from data queued (busy):" << installName;
+        m_pendingQueue.enqueue({installerJar, mcVersion, neoVersion, installName, QStringLiteral("neoforge")});
+        return;
+    }
     m_running = true; m_cancelled = false;
     m_mcVersion = mcVersion; m_loaderVersion = neoVersion;
     m_installName = installName; m_loaderType = "neoforge";
@@ -772,6 +780,7 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
             emit finished(false, QString("Forge 安装程序运行失败（退出码: %1）\n%2").arg(exitCode).arg(detail));
         }
         m_running = false;
+        processNextPending();
     });
     proc->start(QStringLiteral("java"), args);
 }
@@ -961,5 +970,19 @@ void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QStri
     }
 
     qDebug() << "[ModLoader] Renamed version:" << oldName << "→" << newName;
+}
+
+void ModLoaderInstaller::processNextPending()
+{
+    if (m_pendingQueue.isEmpty()) return;
+
+    PendingInstall next = m_pendingQueue.dequeue();
+    qDebug() << "[ModLoader] Dequeuing pending install:" << next.installName << "type:" << next.type;
+
+    if (next.type == QStringLiteral("neoforge")) {
+        installNeoForgeFromData(next.jarData, next.mcVersion, next.loaderVersion, next.installName);
+    } else if (next.type == QStringLiteral("forge")) {
+        installForgeFromData(next.jarData, next.mcVersion, next.loaderVersion, next.installName);
+    }
 }
 

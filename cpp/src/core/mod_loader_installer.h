@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QElapsedTimer>
 #include <QAtomicInt>
+#include <QQueue>
 #include <functional>
 
 namespace ShadowLauncher {
@@ -112,6 +113,14 @@ private:
     bool m_running = false;
     bool m_cancelled = false;
     bool m_usedFallback = false;
+
+    // Queue for concurrent merged installs (single ModLoaderInstaller, serial execution)
+    struct PendingInstall {
+        QByteArray jarData;
+        QString mcVersion, loaderVersion, installName, type;  // type: "forge" / "neoforge"
+    };
+    QQueue<PendingInstall> m_pendingQueue;
+    void processNextPending();
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
 
