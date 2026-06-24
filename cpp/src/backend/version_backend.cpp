@@ -294,6 +294,11 @@ VersionBackend::VersionBackend(QObject* parent)
         m_verifyTotal = 1;
         emit verifyStarted();
         emit verifyProgress(0, 1);
+        const QString mlId = m_modLoaderInstallId;
+        if (!mlId.isEmpty()) {
+            auto& ses = session(mlId);
+            updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), 30);
+        }
     });
     connect(m_mlInstaller, &ModLoaderInstaller::verifyFinished, this,
             [this](bool ok) {
@@ -301,6 +306,11 @@ VersionBackend::VersionBackend(QObject* parent)
         m_verifyChecked = 1;
         emit verifyProgress(1, 1);
         emit verifyFinished(ok);
+        const QString mlId = m_modLoaderInstallId;
+        if (!mlId.isEmpty()) {
+            auto& ses = session(mlId);
+            updateStep(mlId, ses.loaderStepIdx, QStringLiteral("completed"), 100);
+        }
     });
 
     // Defer initial fetch until setGameDir() sets m_dataDir
@@ -1784,7 +1794,16 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             // ── 1. Start MC download ──
             installVersion(mcVersion, 0);
 
-            // ── 2. Start loader download IN PARALLEL ──
+            // ── 2. Fabric: tiny profile JSON, no parallel download needed ──
+            if (loaderType == QStringLiteral("fabric")) {
+                ses.loaderDownloadReady = true;
+                if (ses.mcDownloadDone) {
+                    proceedToLoaderInstall(installName);
+                }
+                return;
+            }
+
+            // ── 2. Start loader download IN PARALLEL (Forge/NeoForge JAR) ──
             // Use the SAME URL as ModLoaderInstaller (BMCLAPI Forge API, not Maven)
             QString verArg = mcVersion + "-" + loaderVersion;
             QString loaderDlUrl;
@@ -1962,7 +1981,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     }
     updateStep(installName, 0, QStringLiteral("active"), 0);
 
-    qDebug() << "[install] installModLoader calling installForge, m_running before:" << m_mlInstaller->isRunning();
+    qDebug() << "[install] installModLoader calling install" << loaderType << ", m_running before:" << m_mlInstaller->isRunning();
     if (loaderType == QStringLiteral("forge")) {
         m_mlInstaller->installForge(mcVersion, loaderVersion, installName);
     } else if (loaderType == QStringLiteral("fabric")) {
@@ -1970,7 +1989,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     } else if (loaderType == QStringLiteral("neoforge")) {
         m_mlInstaller->installNeoForge(mcVersion, loaderVersion, installName);
     }
-    qDebug() << "[install] installModLoader after installForge, m_running:" << m_mlInstaller->isRunning() << "m_steps:" << ses.steps.size();
+    qDebug() << "[install] installModLoader after install, m_running:" << m_mlInstaller->isRunning() << "m_steps:" << ses.steps.size();
     setInstalling(true);
     qDebug() << "[install] installModLoader after setInstalling, m_installing:" << m_installing;
 }
