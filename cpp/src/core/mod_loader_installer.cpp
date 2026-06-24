@@ -940,32 +940,51 @@ void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
     }
     qDebug() << "[ModLoader] Extracted" << extractedCount << "jars from NeoForge installer";
 
-    // 3. Read install_profile.json -> get versionInfo
+    // 3. Read install_profile.json -> get version.json path
     QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
-    reader.close();
-
     if (profileData.isEmpty()) {
+        reader.close();
         emit finished(false, "NeoForge 安装程序格式无效（无 install_profile.json）");
         m_running = false;
         return;
     }
     QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
     if (!profileDoc.isObject()) {
+        reader.close();
         emit finished(false, "NeoForge 安装程序 JSON 格式无效");
         m_running = false;
         return;
     }
     QJsonObject profile = profileDoc.object();
-    QJsonObject versionInfo = profile.value(QStringLiteral("versionInfo")).toObject();
-    if (versionInfo.isEmpty()) {
-        qWarning() << "[ModLoader] NeoForge install_profile.json has no versionInfo";
-        emit finished(false, "NeoForge profile 中缺少 versionInfo");
+    QString versionJsonPath = profile.value(QStringLiteral("json")).toString();
+    if (versionJsonPath.isEmpty()) {
+        reader.close();
+        emit finished(false, "NeoForge profile 中缺少 json 字段");
         m_running = false;
         return;
     }
 
-    // 4. Build download list for missing libraries
-    QJsonArray libraries = versionInfo.value(QStringLiteral("libraries")).toArray();
+    // 4. Read version.json (referenced by install_profile.json's "json" key)
+    QString actualPath = versionJsonPath.startsWith(QLatin1Char('/'))
+        ? versionJsonPath.mid(1) : versionJsonPath;
+    QByteArray versionData = reader.fileData(actualPath);
+    reader.close();
+
+    if (versionData.isEmpty()) {
+        emit finished(false, "NeoForge 安装程序找不到 version.json");
+        m_running = false;
+        return;
+    }
+    QJsonDocument versionDoc = QJsonDocument::fromJson(versionData);
+    if (!versionDoc.isObject()) {
+        emit finished(false, "NeoForge version.json 格式无效");
+        m_running = false;
+        return;
+    }
+    QJsonObject versionJson = versionDoc.object();
+
+    // 5. Build download list for missing libraries
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
     struct DlItem { QString url; QString path; QString name; };
     QList<DlItem> downloads;
     for (const QJsonValue& v : libraries) {
@@ -992,11 +1011,11 @@ void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
              << "libs (skipped" << (libraries.size() - downloads.size()) << ")";
 
     if (downloads.isEmpty()) {
-        writeNeoForgeVersion(versionInfo);
+        writeNeoForgeVersion(versionJson);
         return;
     }
 
-    // 5. Concurrent download (max 8) -> write version when done
+    // 6. Concurrent download (max 8) -> write version when done
     QSharedPointer<int> remaining(new int(downloads.size()));
     QSharedPointer<int> completed(new int(0));
     QSharedPointer<bool> doneCalled(new bool(false));
@@ -1007,7 +1026,7 @@ void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
         if (*completed >= downloads.size()) {
             if (*doneCalled) return;
             *doneCalled = true;
-            writeNeoForgeVersion(versionInfo);
+            writeNeoForgeVersion(versionJson);
             return;
         }
         if (*remaining <= 0) return;
