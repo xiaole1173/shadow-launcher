@@ -478,8 +478,19 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         }
     }
     // Add chain JVM args after memory flags, before user/default flags
+    // Replace NeoForge template variables (${library_directory}, ${classpath_separator}, etc.)
+    const QString libDir = m_gameDir + QStringLiteral("/libraries");
+#ifdef Q_OS_WIN
+    const QString classpathSep(QStringLiteral(";"));
+#else
+    const QString classpathSep(QStringLiteral(":"));
+#endif
     for (const QString& a : chainJvmArgs) {
-        args << a;
+        QString arg = a;
+        arg.replace(QStringLiteral("${library_directory}"), libDir);
+        arg.replace(QStringLiteral("${classpath_separator}"), classpathSep);
+        arg.replace(QStringLiteral("${version_name}"), versionId);
+        args << arg;
     }
 
     if (!m_jvmArgs.isEmpty()) {
