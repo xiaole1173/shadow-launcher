@@ -1240,6 +1240,33 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
             jarCopied = QFile::copy(clientJar, jarPath);
         }
 
+        // Inject Minecraft-Dists:client into version JAR manifest (FML requires it)
+        if (jarCopied && QFile::exists(jarPath)) {
+            const QString mfDir = QDir::tempPath() + QStringLiteral("/neoforge_mf_%1").arg(
+                QRandomGenerator::global()->generate());
+            QDir().mkpath(mfDir + QStringLiteral("/META-INF"));
+            // Extract current manifest → append line → write temp manifest
+            QZipReader reader(jarPath);
+            QByteArray mfData = reader.fileData(QStringLiteral("META-INF/MANIFEST.MF"));
+            reader.close();
+            if (!mfData.isEmpty() && !mfData.contains("Minecraft-Dists")) {
+                mfData.append("Minecraft-Dists: client\r\n");
+                QFile mfOut(mfDir + QStringLiteral("/META-INF/MANIFEST.MF"));
+                if (mfOut.open(QIODevice::WriteOnly)) { mfOut.write(mfData); mfOut.close(); }
+                // Use jar tool (JDK) to update JAR manifest
+                QProcess jp;
+                jp.setWorkingDirectory(mfDir);
+                jp.start(QStringLiteral("jar"), { QStringLiteral("uf"),
+                    QDir::toNativeSeparators(jarPath),
+                    QStringLiteral("META-INF/MANIFEST.MF") });
+                jp.waitForFinished(30000);
+                qDebug() << "[ModLoader] jar uf exitCode:" << jp.exitCode()
+                         << "stdout:" << jp.readAllStandardOutput()
+                         << "stderr:" << jp.readAllStandardError();
+            }
+            QDir(mfDir).removeRecursively();
+        }
+
         // Delete installer's auto-named version folder
         QDir instDir(installedVerName);
         if (instDir.exists()) instDir.removeRecursively();
