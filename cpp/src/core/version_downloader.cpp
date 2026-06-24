@@ -205,13 +205,38 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
 
     if (idxUrl.isEmpty() || QFileInfo::exists(idxPath)) { startTasks(); return; }
 
-    emit logMessage(QStringLiteral("下载资源索引..."));
+    emit logMessage(QStringLiteral("正在下载资源索引..."));
     QDir().mkpath(QFileInfo(idxPath).absolutePath());
-    HttpClient::instance().download(idxUrl, idxPath, nullptr,
-        [this, startTasks](bool ok, const QString&) {
-            if (!ok) emit logMessage(QStringLiteral("资源索引下载失败，跳过资源"));
-            startTasks();
-        });
+
+    // Build mirror + official URLs for retry
+    QStringList idxUrls;
+    // BMCLAPI mirror (faster in China)
+    int slashPack = idxUrl.indexOf(QStringLiteral("/v1/packages/"));
+    if (slashPack >= 0)
+        idxUrls << QStringLiteral("https://bmclapi2.bangbang93.com") + idxUrl.mid(slashPack);
+    idxUrls << idxUrl;  // official Mojang fallback
+
+    auto retry = QSharedPointer<std::function<void(int)>>::create();
+    *retry = [this, idxPath, startTasks, retry, idxUrls](int attempt) {
+        if (attempt >= idxUrls.size()) {
+            qCritical() << "[VersionDownloader] Asset index download FAILED after" << attempt << "attempts";
+            emit logMessage(QStringLiteral("资源索引下载失败，请检查网络连接后重试"));
+            startTasks();  // still call to avoid hanging
+            return;
+        }
+        QString url = idxUrls[attempt];
+        qDebug() << "[VersionDownloader] Downloading asset index (attempt" << (attempt+1) << "):" << url;
+        HttpClient::instance().download(url, idxPath, nullptr,
+            [this, idxPath, startTasks, retry, attempt](bool ok, const QString& err) {
+                if (ok && QFileInfo::exists(idxPath) && QFileInfo(idxPath).size() > 0) {
+                    startTasks();
+                } else {
+                    qWarning() << "[VersionDownloader] Asset index attempt" << (attempt+1) << "failed:" << err;
+                    (*retry)(attempt + 1);
+                }
+            });
+    };
+    (*retry)(0);
 }
 
 // ═══════════════════════════════════════════════════════════
