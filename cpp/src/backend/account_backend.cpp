@@ -649,24 +649,32 @@ void AccountBackend::loadMicrosoftSession()
     m_msTokenExpiresIn = static_cast<qint64>(obj[QStringLiteral("tokenExpiresIn")].toDouble());
 
     qint64 now = QDateTime::currentSecsSinceEpoch();
-    bool tokenExpired = (m_msTokenExpiresIn > 0) && (m_msTokenObtainedAt > 0)
+    bool knownExpired = (m_msTokenExpiresIn > 0) && (m_msTokenObtainedAt > 0)
                         && (now > m_msTokenObtainedAt + m_msTokenExpiresIn);
 
-    // Session loaded — consider logged in if either refreshToken or mcToken exists AND not expired
-    if ((!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) && !tokenExpired) {
+    // Session loaded — only trust token expiry timestamps (new format)
+    // For old sessions without timestamps, must verify via refresh
+    if ((!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) && !knownExpired) {
         qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
-        m_loggedIn = true;
+        // DON'T set m_loggedIn yet — wait for refresh to validate
         m_isOnline = true;
         downloadSkin(m_username);
         if (!m_msRefreshToken.isEmpty()) {
+            m_refreshingToken = true;  // initially-load refresh
             QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
+        } else {
+            // MC token only (no refresh token) — try with what we have
+            m_loggedIn = true;
+            emit accountChanged();
         }
-    } else if (tokenExpired) {
-        qCInfo(logAccount) << "Saved Microsoft session token expired, ignoring";
+    } else if (knownExpired) {
+        qCInfo(logAccount) << "Saved Microsoft session token expired, clearing";
         m_msMcToken.clear();
         m_msRefreshToken.clear();
         m_msTokenObtainedAt = 0;
         m_msTokenExpiresIn = 0;
+        m_username.clear();
+        m_uuid.clear();
         saveMicrosoftSession();
     }
 }
