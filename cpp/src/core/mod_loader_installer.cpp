@@ -17,15 +17,16 @@
 
 // ── JAR manifest attribute injector (Java streaming, zero memory) ──
 namespace {
-bool injectJarManifestAttribute(const QString& jarPath,
-                                  const QString& key, const QString& value) {
+void injectJarManifestAttributeAsync(const QString& jarPath,
+                                  const QString& key, const QString& value,
+                                  std::function<void(bool)> callback) {
     // Use Java single-file source execution (Java 11+)
     // JarInputStream/JarOutputStream streaming — O(1) memory, no tools needed
     const QString tmpJava = QDir::tempPath() + QStringLiteral("/inject_mf_%1.java")
         .arg(QRandomGenerator::global()->generate());
     {
         QFile jf(tmpJava);
-        if (!jf.open(QIODevice::WriteOnly)) return false;
+        if (!jf.open(QIODevice::WriteOnly)) { callback(false); return; }
         jf.write(QStringLiteral(
             "import java.io.*;import java.util.jar.*;import java.util.zip.*;\n"
             "public class _IM {\n"
@@ -48,18 +49,18 @@ bool injectJarManifestAttribute(const QString& jarPath,
             " }}\n").toUtf8());
         jf.close();
     }
-    QProcess proc;
-    proc.start(QStringLiteral("java"), { QDir::toNativeSeparators(tmpJava),
+    QProcess* proc = new QProcess();
+    QObject::connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+        [proc, tmpJava, callback](int exitCode, QProcess::ExitStatus) {
+            QFile::remove(tmpJava);
+            qDebug() << "[ModLoader] Java manifest inject exitCode:" << exitCode
+                     << "stderr:" << proc->readAllStandardError();
+            callback(exitCode == 0);
+            proc->deleteLater();
+        });
+    proc->start(QStringLiteral("java"), { QDir::toNativeSeparators(tmpJava),
         jarPath, key, value });
-    if (!proc.waitForFinished(180000)) {
-        proc.kill();
-        QFile::remove(tmpJava);
-        return false;
-    }
-    QFile::remove(tmpJava);
-    qDebug() << "[ModLoader] Java manifest inject exitCode:" << proc.exitCode()
-             << "stderr:" << proc.readAllStandardError();
-    return proc.exitCode() == 0;
+    // No timeout — process will be cleaned up on callback
 }
 } // anonymous namespace
 #include <private/qzipreader_p.h>
@@ -1301,12 +1302,33 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
 
         // Inject Minecraft-Dists:client into version JAR manifest (FML requires it)
         if (jarCopied && QFile::exists(jarPath)) {
-            if (!injectJarManifestAttribute(jarPath,
-                    QStringLiteral("Minecraft-Dists"), QStringLiteral("client"))) {
-                qDebug() << "[ModLoader] WARNING: Failed to inject Minecraft-Dists into JAR";
-            } else {
-                qDebug() << "[ModLoader] Minecraft-Dists:client injected (pure C++)";
-            }
+            emit progressChanged(m_currentStep, m_totalSteps, "正在注入清单属性...");
+            injectJarManifestAttributeAsync(jarPath,
+                QStringLiteral("Minecraft-Dists"), QStringLiteral("client"),
+                [this, installedVerName, exitCode](bool ok) {
+                    if (!ok)
+                        qDebug() << "[ModLoader] WARNING: Failed to inject Minecraft-Dists";
+                    else
+                        qDebug() << "[ModLoader] Minecraft-Dists:client injected (async Java)";
+
+                    // Delete installer's auto-named version folder
+                    QDir instDir(installedVerName);
+                    if (instDir.exists()) instDir.removeRecursively();
+
+                    // Delete vanilla MC version folder (merged into standalone JSON above)
+                    const QString vanillaVer = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
+                    QDir(vanillaVer).removeRecursively();
+
+                    if (exitCode == 0) {
+                        emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
+                        emit finished(true, QString());
+                    } else {
+                        emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装失败");
+                        emit finished(false, QStringLiteral("NeoForge 安装程序失败 (exitCode=%1)").arg(exitCode));
+                    }
+                    m_running = false;
+                });
+            return; // rest runs in callback above
         }
 
         // Delete installer's auto-named version folder
