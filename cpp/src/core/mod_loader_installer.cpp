@@ -1137,40 +1137,67 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
         if (!stderrStr.isEmpty())
             qDebug() << "[ModLoader] NeoForge installer stderr:" << stderrStr.left(500);
 
-        // Post-install: find and copy patched client JAR to version directory
-        // New NeoForge (26.x+ FancyModLoader): minecraft-client-patched group
-        // Old NeoForge (21.x): neoforge/{ver}/neoforge-{ver}-client.jar
-        const QString jarPath = m_gameDir + QStringLiteral("/versions/%1/%1.jar").arg(m_installName);
+        // Post-install: use INSTALLER's output, not our partial JSON from install_profile.json
+        //  1. Copy installer-generated version JSON (complete libraries + JVM args)
+        //  2. Copy patched client JAR (from minecraft-client-patched)
+        //  3. Delete installer's auto-named version folder
+        //  4. Delete vanilla MC JAR (keep JSON for inheritsFrom, hide from version list)
 
+        const QString verDir = m_gameDir + QStringLiteral("/versions") + QStringLiteral("/") + m_installName;
+        const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
+        const QString jarPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+
+        // Copy installer's COMPLETE JSON → overwrite our partial one
+        const QString installedVerName = m_gameDir
+            + QStringLiteral("/versions/neoforge-%1").arg(m_loaderVersion);
+        const QString installedJson = installedVerName + QStringLiteral("/neoforge-%1.json").arg(m_loaderVersion);
+        if (QFile::exists(installedJson)) {
+            // Read installer JSON, change id to user's name
+            QFile ijf(installedJson);
+            if (ijf.open(QIODevice::ReadOnly)) {
+                QJsonDocument doc = QJsonDocument::fromJson(ijf.readAll());
+                ijf.close();
+                QJsonObject obj = doc.object();
+                obj[QStringLiteral("id")] = m_installName;
+                QDir().mkpath(QFileInfo(jsonPath).absolutePath());
+                QFile jf(jsonPath);
+                if (jf.open(QIODevice::WriteOnly)) {
+                    jf.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+                    jf.close();
+                    qDebug() << "[ModLoader] Copied installer-generated JSON →" << jsonPath;
+                }
+            }
+        }
+
+        // Copy patched client JAR
         bool jarCopied = false;
-        // Try new FancyModLoader path first (26.x+)
+        // New path (26.x+ FancyModLoader)
         const QString patchedJarNew = m_gameDir
             + QStringLiteral("/libraries/net/neoforged/minecraft-client-patched/%1/minecraft-client-patched-%1.jar")
                 .arg(m_loaderVersion);
         if (!jarCopied && QFile::exists(patchedJarNew)) {
             if (QFile::exists(jarPath)) QFile::remove(jarPath);
             jarCopied = QFile::copy(patchedJarNew, jarPath);
-            qDebug() << "[ModLoader] Copied patched client (minecraft-client-patched):" << jarPath;
+            qDebug() << "[ModLoader] Copied patched client:" << patchedJarNew;
         }
-        // Try old path (21.x)
+        // Old path (21.x)
         const QString clientJar = m_gameDir
             + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-client.jar")
                 .arg(m_loaderVersion);
         if (!jarCopied && QFile::exists(clientJar)) {
             if (QFile::exists(jarPath)) QFile::remove(jarPath);
             jarCopied = QFile::copy(clientJar, jarPath);
-            qDebug() << "[ModLoader] Copied patched client (neoforge/client):" << jarPath;
         }
-        // Fallback: universal jar (mod code only, NOT patched Minecraft)
-        if (!jarCopied) {
-            const QString universalJar = m_gameDir
-                + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-universal.jar")
-                    .arg(m_loaderVersion);
-            if (QFile::exists(universalJar)) {
-                if (QFile::exists(jarPath)) QFile::remove(jarPath);
-                jarCopied = QFile::copy(universalJar, jarPath);
-                qWarning() << "[ModLoader] Fallback: copied universal jar (NOT patched client):" << jarPath;
-            }
+
+        // Delete installer's auto-named version folder
+        QDir instDir(installedVerName);
+        if (instDir.exists()) instDir.removeRecursively();
+
+        // Delete vanilla MC JAR to hide it from version list (keep JSON for inheritsFrom)
+        const QString vanillaJar = m_gameDir + QStringLiteral("/versions/%1/%1.jar").arg(m_mcVersion);
+        if (QFile::exists(vanillaJar)) {
+            QFile::remove(vanillaJar);
+            qDebug() << "[ModLoader] Removed vanilla JAR to hide from list:" << vanillaJar;
         }
 
         if (exitCode == 0) {
