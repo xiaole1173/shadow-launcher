@@ -733,6 +733,10 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                 const QString universalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
                     + QStringLiteral("/") + libVer + QStringLiteral("/")
                     + filePrefix + QStringLiteral("-") + libVer + QStringLiteral(".jar");
+                // NeoForge universal jar uses explicit -universal classifier
+                const QString explicitUniversalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
+                    + QStringLiteral("/") + libVer + QStringLiteral("/")
+                    + filePrefix + QStringLiteral("-") + libVer + QStringLiteral("-universal.jar");
 
                 bool copied = false;
                 if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPath)) {
@@ -740,6 +744,9 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                     copied = true;
                 } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPath)) {
                     qDebug() << "[ModLoader] Copied universal jar to" << jarPath;
+                    copied = true;
+                } else if (QFile::exists(explicitUniversalJar) && QFile::copy(explicitUniversalJar, jarPath)) {
+                    qDebug() << "[ModLoader] Copied explicit-universal jar to" << jarPath;
                     copied = true;
                 }
                 if (copied) break;
