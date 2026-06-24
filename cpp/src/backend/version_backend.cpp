@@ -8,6 +8,7 @@
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
 #include "../core/mod_loader_installer.h"
+#include "../core/download_coordinator.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -1731,9 +1732,57 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         updateStep(installName, 0, QStringLiteral("active"), 0);
         ses.loadedStep = 1;
 
-        // Start MC download (will NOT create separate version card — suppressed in activeInstalls)
+        // ── Run preflight: connectivity test + total bytes ──
         setInstalling(true);
-        installVersion(mcVersion, 0);
+        setInstallPhase(QStringLiteral("连通性测试中..."));
+
+        // Determine mirror base URL for connectivity test
+        QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
+        MirrorSource mirror = mirrors.isEmpty() ? MirrorSource{} : mirrors[0];
+        QString mcBaseUrl = QStringLiteral("https://bmclapi2.bangbang93.com");
+        if (!mirror.libraryBase.isEmpty()) {
+            mcBaseUrl = mirror.libraryBase;
+        }
+
+        // Build loader download URL
+        QString loaderUrl;
+        if (loaderType == QStringLiteral("forge")) {
+            loaderUrl = QStringLiteral("%1/maven/maven/net/minecraftforge/forge/%2/forge-%2-installer.jar")
+                .arg(mcBaseUrl).arg(loaderVersion);
+        } else if (loaderType == QStringLiteral("neoforge")) {
+            loaderUrl = QStringLiteral("%1/maven/maven/net/neoforged/neoforge/%2/neoforge-%2-installer.jar")
+                .arg(mcBaseUrl).arg(loaderVersion);
+        } else if (loaderType == QStringLiteral("fabric")) {
+            loaderUrl = QStringLiteral("%1/fabric-meta/v2/versions/loader/%2/%3/profile/json")
+                .arg(mcBaseUrl).arg(mcVersion).arg(loaderVersion);
+        }
+
+        auto* coord = new DownloadCoordinator(this);
+        coord->addSource(QStringLiteral("mc"), mcBaseUrl);
+        if (!loaderUrl.isEmpty()) coord->addSource(loaderType, loaderUrl);
+
+        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, coord, installName](qint64 totalBytes) {
+            // Store total bytes for progress bar scaling
+            auto& ses = session(installName);
+            ses.mcBytesAll = totalBytes;  // Used for overall progress reference
+            qDebug() << "[Coordinator] Preflight OK. Total bytes:" << totalBytes;
+            emit logMessage(QStringLiteral("✓ 连通性测试通过，总下载量: %1 MB").arg(totalBytes / 1048576.0, 0, 'f', 1));
+            installVersion(mcVersion, 0);
+            coord->deleteLater();
+        });
+        connect(coord, &DownloadCoordinator::connectivityFailed, this,
+                [this, coord, installName](const QString& taskId, const QString& reason) {
+            emit logMessage(QStringLiteral("✗ 连通性测试失败: %1 — %2").arg(taskId).arg(reason));
+            // Mark install as failed
+            auto& ses = session(installName);
+            ses.failed = true;
+            ses.error = QStringLiteral("网络不可达: ") + taskId;
+            rebuildInstallCards();
+            setInstalling(false);
+            coord->deleteLater();
+        });
+
+        coord->start();
         return;
     }
 

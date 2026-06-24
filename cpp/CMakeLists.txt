@@ -57,6 +57,7 @@ set(SOURCES
     src/core/microsoft_auth.cpp
     src/core/version_isolation.cpp
     src/core/mod_loader_installer.cpp
+    src/core/download_coordinator.cpp
     src/core/crash_detector.cpp
 
     # Backend (Phase 3 — added progressively)
@@ -80,6 +81,7 @@ set(HEADERS
     src/core/version_manager.h
     src/core/downloader.h
     src/core/parallel_downloader.h
+    src/core/download_coordinator.h
     src/core/version_downloader.h
     src/core/launcher.h
     src/core/mod_manager.h
