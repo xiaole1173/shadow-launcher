@@ -44,6 +44,7 @@ struct InstallSession {
     bool loaderDownloadReady = false; // Loader file downloaded + verified
     QByteArray loaderDownloadData;    // Cached loader file bytes
     int loaderVerifyStep = -1;         // Step index for verify (5 for forge)
+    int loaderStepIdx = -1;            // Active ML step index for byteProgress update
     QString mcVersion;
     QString loaderType;
     QString loaderVer;

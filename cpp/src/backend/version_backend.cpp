@@ -105,6 +105,7 @@ VersionBackend::VersionBackend(QObject* parent)
                 showStep(mlId, stepIdx);
             }
             updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
+            ses.loaderStepIdx = stepIdx;
         }
     });
     connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
@@ -228,6 +229,11 @@ VersionBackend::VersionBackend(QObject* parent)
             }
 
             ses.mlBytesDl = ses.mlBytesDone + received;
+            // Push byte progress to the active ML step
+            if (ses.loaderStepIdx >= 0 && ses.loaderStepIdx < ses.steps.size() && ses.mlBytesAll > 0) {
+                int pct = (int)(ses.mlBytesDl * 100 / ses.mlBytesAll);
+                updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), pct, ses.mlBytesDl, ses.mlBytesAll);
+            }
             // Byte-weighted total progress (跨阶段)
             qint64 grandDone = ses.mcBytesAll + ses.mlBytesDl;
             qint64 grandTotal = ses.mcBytesAll + ses.mlBytesAll;
