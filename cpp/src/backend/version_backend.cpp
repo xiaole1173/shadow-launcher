@@ -297,7 +297,12 @@ VersionBackend::VersionBackend(QObject* parent)
         const QString mlId = m_modLoaderInstallId;
         if (!mlId.isEmpty()) {
             auto& ses = session(mlId);
-            updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), 30);
+            // Reset byte accumulators for verify phase (SHA1 is ~40B, independent of JAR download)
+            ses.mlBytesDl = 0;
+            ses.mlBytesDone = 0;
+            ses.mlBytesAll = 0;
+            ses.mlFileTotal = 0;
+            updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), 0);
         }
     });
     connect(m_mlInstaller, &ModLoaderInstaller::verifyFinished, this,
