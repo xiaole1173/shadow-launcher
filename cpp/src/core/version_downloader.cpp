@@ -532,7 +532,7 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
     for (const auto& t : tasks) {
         if (t.url.contains(QStringLiteral("/versions/"))) 
             m_categoryTotalBytes[0] += t.totalBytes;
-        else if (t.url.contains(QStringLiteral("/libraries/"))) 
+        else if (t.url.contains(QStringLiteral("/libraries/")) || t.url.contains(QStringLiteral("/maven/"))) 
             m_categoryTotalBytes[1] += t.totalBytes;
         else if (t.url.contains(QStringLiteral("/assets/"))) 
             m_categoryTotalBytes[2] += t.totalBytes;

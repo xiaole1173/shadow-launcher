@@ -1144,7 +1144,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     // ── Determine category for merged-install step routing ──
     int cat = -1;
     if (url.contains(QStringLiteral("/versions/"))) cat = 0;
-    else if (url.contains(QStringLiteral("/libraries/"))) cat = 1;
+    else if (url.contains(QStringLiteral("/libraries/")) || url.contains(QStringLiteral("/maven/"))) cat = 1;
     else if (url.contains(QStringLiteral("/assets/"))) cat = 2;
 
     if (versionId == primaryVersionId()) {
