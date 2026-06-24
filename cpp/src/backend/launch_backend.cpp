@@ -284,7 +284,10 @@ void LaunchBackend::runNextCheck()
                             qCInfo(logLaunch) << "Pre-launch check passed: token refreshed";
                             m_authToken = m_account->mcToken();
                         } else {
-                            qCWarning(logLaunch) << "Token refresh failed, proceeding with existing token";
+                            qCWarning(logLaunch) << "Token refresh failed — blocking launch";
+                            abortCheck(QStringLiteral("登录状态"),
+                                       QStringLiteral("正版登录已过期，请重新登录"));
+                            return;
                         }
                         // Either way, continue the check
                         if (m_checkTimer && !m_checkTimer->isActive()) {

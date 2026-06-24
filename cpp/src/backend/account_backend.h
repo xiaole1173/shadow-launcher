@@ -91,6 +91,8 @@ private:
     QString m_msStatus;
     QString m_msRefreshToken;
     QString m_msMcToken;
+    qint64 m_msTokenObtainedAt = 0;   // QDateTime::currentSecsSinceEpoch() when MC token was obtained
+    qint64 m_msTokenExpiresIn = 0;    // seconds until expiry (from Mojang response)
 
     QString m_username;
     QString m_uuid;

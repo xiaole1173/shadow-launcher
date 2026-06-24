@@ -55,6 +55,8 @@ AccountBackend::AccountBackend(QObject *parent)
         m_loggedIn = true;
         m_isOnline = true;
         m_msStatus.clear();
+        m_msTokenObtainedAt = QDateTime::currentSecsSinceEpoch();
+        m_msTokenExpiresIn = 86400;  // Mojang MC token: ~24 hours
         qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
         saveMicrosoftSession();
         if (m_refreshingToken) {
@@ -614,6 +616,8 @@ void AccountBackend::saveMicrosoftSession()
     obj[QStringLiteral("uuid")] = m_uuid;
     obj[QStringLiteral("mcToken")] = m_msMcToken;
     obj[QStringLiteral("refreshToken")] = m_msRefreshToken;
+    obj[QStringLiteral("tokenObtainedAt")] = m_msTokenObtainedAt;
+    obj[QStringLiteral("tokenExpiresIn")] = m_msTokenExpiresIn;
 
     QString path = m_dataDir + QStringLiteral("/microsoft_session.json");
     QFileInfo fi(path);
@@ -641,9 +645,15 @@ void AccountBackend::loadMicrosoftSession()
     m_uuid = obj[QStringLiteral("uuid")].toString();
     m_msMcToken = obj[QStringLiteral("mcToken")].toString();
     m_msRefreshToken = obj[QStringLiteral("refreshToken")].toString();
+    m_msTokenObtainedAt = static_cast<qint64>(obj[QStringLiteral("tokenObtainedAt")].toDouble());
+    m_msTokenExpiresIn = static_cast<qint64>(obj[QStringLiteral("tokenExpiresIn")].toDouble());
 
-    // Session loaded — consider logged in if either refreshToken or mcToken exists
-    if (!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) {
+    qint64 now = QDateTime::currentSecsSinceEpoch();
+    bool tokenExpired = (m_msTokenExpiresIn > 0) && (m_msTokenObtainedAt > 0)
+                        && (now > m_msTokenObtainedAt + m_msTokenExpiresIn);
+
+    // Session loaded — consider logged in if either refreshToken or mcToken exists AND not expired
+    if ((!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) && !tokenExpired) {
         qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
         m_loggedIn = true;
         m_isOnline = true;
@@ -651,6 +661,13 @@ void AccountBackend::loadMicrosoftSession()
         if (!m_msRefreshToken.isEmpty()) {
             QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
         }
+    } else if (tokenExpired) {
+        qCInfo(logAccount) << "Saved Microsoft session token expired, ignoring";
+        m_msMcToken.clear();
+        m_msRefreshToken.clear();
+        m_msTokenObtainedAt = 0;
+        m_msTokenExpiresIn = 0;
+        saveMicrosoftSession();
     }
 }
 
@@ -679,7 +696,19 @@ void AccountBackend::refreshMicrosoftToken()
 
         if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
             qCInfo(logAccount) << "Microsoft token refresh failed (need re-login):" << raw.left(200);
-            if (m_refreshingToken) { m_refreshingToken = false; emit tokenRefreshed(false); }
+            bool wasRefreshing = m_refreshingToken;
+            m_refreshingToken = false;
+            if (wasRefreshing) emit tokenRefreshed(false);
+            // Login session is dead — clear state
+            m_msMcToken.clear();
+            m_msRefreshToken.clear();
+            m_msTokenObtainedAt = 0;
+            m_msTokenExpiresIn = 0;
+            m_loggedIn = false;
+            m_isOnline = false;
+            saveMicrosoftSession();
+            emit accountChanged();
+            emit logMessage(QStringLiteral("正版登录已失效，请重新登录"));
             return;
         }
 
