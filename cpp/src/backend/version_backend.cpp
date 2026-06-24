@@ -801,7 +801,17 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     // ── Emit finished signal (per-download) ──
     emit installFinished(success);
-    if (success) emit installComplete(finishedId);
+    if (success) {
+        // For merged installs, let onModLoaderFinished emit the full name
+        bool isMergedId = false;
+        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+            if (it.value().isMerged && it.value().mcVersion == finishedId) {
+                isMergedId = true;
+                break;
+            }
+        }
+        if (!isMergedId) emit installComplete(finishedId);
+    }
 
     // ── Update overall state ──
     if (m_activeCount == 0) {
