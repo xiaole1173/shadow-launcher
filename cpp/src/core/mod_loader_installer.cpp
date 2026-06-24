@@ -14,7 +14,233 @@
 #include <QDebug>
 #include <QBuffer>
 #include <QSharedPointer>
+#include <QDataStream>
 #include <private/qzipreader_p.h>
+
+// ── CRC-32 for ZIP ──
+namespace {
+static const quint32 kCrc32Table[256] = {
+    0x00000000,0x77073096,0xEE0E612C,0x990951BA,0x076DC419,0x706AF48F,0xE963A535,0x9E6495A3,
+    0x0EDB8832,0x79DCB8A4,0xE0D5E91E,0x97D2D988,0x09B64C2B,0x7EB17CBD,0xE7B82D07,0x90BF1D91,
+    0x1DB71064,0x6AB020F2,0xF3B97148,0x84BE41DE,0x1ADAD47D,0x6DDDE4EB,0xF4D4B551,0x83D385C7,
+    0x136C9856,0x646BA8C0,0xFD62F97A,0x8A65C9EC,0x14015C4F,0x63066CD9,0xFA0F3D63,0x8D080DF5,
+    0x3B6E20C8,0x4C69105E,0xD56041E4,0xA2677172,0x3C03E4D1,0x4B04D447,0xD20D85FD,0xA50AB56B,
+    0x35B5A8FA,0x42B2986C,0xDBBBC9D6,0xACBCF940,0x32D86CE3,0x45DF5C75,0xDCD60DCF,0xABD13D59,
+    0x26D930AC,0x51DE003A,0xC8D75180,0xBFD06116,0x21B4F4B5,0x56B3C423,0xCFBA9599,0xB8BDA50F,
+    0x2802B89E,0x5F058808,0xC60CD9B2,0xB10BE924,0x2F6F7C7B,0x58684CED,0xC1611DAB,0xB6662D3D,
+    0x76DC4190,0x01DB7106,0x98D220BC,0xEFD5102A,0x71B18589,0x06B6B51F,0x9FBFE4A5,0xE8B8D433,
+    0x7807C9A2,0x0F00F934,0x9609A88E,0xE10E9818,0x7F6A0DBB,0x086D3D2D,0x91646C97,0xE6635C01,
+    0x6B6B51F4,0x1C6C6162,0x856530D8,0xF262004E,0x6C0695ED,0x1B01A57B,0x8208F4C1,0xF50FC457,
+    0x65B0D9C6,0x12B7E950,0x8BBEB8EA,0xFCB9887C,0x62DD1DDF,0x15DA2D49,0x8CD37CF3,0xFBD44C65,
+    0x4DB26158,0x3AB551CE,0xA3BC0074,0xD4BB30E2,0x4ADFA541,0x3DD895D7,0xA4D1C46D,0xD3D6F4FB,
+    0x4369E96A,0x346ED9FC,0xAD678846,0xDA60B8D0,0x44042D73,0x33031DE5,0xAA0A4C5F,0xDD0D7CC9,
+    0x5005713C,0x270241AA,0xBE0B1010,0xC90C2086,0x5768B525,0x206F85B3,0xB966D409,0xCE61E49F,
+    0x5EDEF90E,0x29D9C998,0xB0D09822,0xC7D7A8B4,0x59B33D17,0x2EB40D81,0xB7BD5C3B,0xC0BA6CAD,
+    0xEDB88320,0x9ABFB3B6,0x03B6E20C,0x74B1D29A,0xEAD54739,0x9DD277AF,0x04DB2615,0x73DC1683,
+    0xE3630B12,0x94643B84,0x0D6D6A3E,0x7A6A5AA8,0xE40ECF0B,0x9309FF9D,0x0A00AE27,0x7D079EB1,
+    0xF00F9344,0x8708A3D2,0x1E01F268,0x6906C2FE,0xF762575D,0x806567CB,0x196C3671,0x6E6B06E7,
+    0xFED41B76,0x89D32BE0,0x10DA7A5A,0x67DD4ACC,0xF9B9DF6F,0x8EBEEFF9,0x17B7BE43,0x60B08ED5,
+    0xD6D6A3E8,0xA1D1937E,0x38D8C2C4,0x4FDFF252,0xD1BB67F1,0xA6BC5767,0x3FB506DD,0x48B2364B,
+    0xD80D2BDA,0xAF0A1B4C,0x36034AF6,0x41047A60,0xDF60EFC3,0xA867DF55,0x316E8BEF,0x4669BE79,
+    0xCB61B38C,0xBC66831A,0x256FD2A0,0x5268E236,0xCC0C7795,0xBB0B4703,0x220216B9,0x5505262F,
+    0xC5BA3BBE,0xB2BD0B28,0x2BB45A92,0x5CB30A04,0xC2D7FFA7,0xB5D0CF31,0x2CD99E8B,0x5BDEAE1D,
+    0x9B64C2B0,0xEC63F226,0x756AA39C,0x026D930A,0x9C0906A9,0xEB0E363F,0x72076785,0x05005713,
+    0x95BF4A82,0xE2B87A14,0x7BB12BAE,0x0CB61B38,0x92D28E9B,0xE5D5BE0D,0x7CDCEFB7,0x0BDBDF21,
+    0x86D3D2D4,0xF1D4E242,0x68DDB3F8,0x1FDA836E,0x81BE16CD,0xF6B9265B,0x6FB077E1,0x18B74777,
+    0x88085AE6,0xFF0F6A70,0x66063BCA,0x11010B5C,0x8F659EFF,0xF862AE69,0x616BFFD3,0x166CCF45,
+    0xA00AE278,0xD70DD2EE,0x4E048354,0x3903B3C2,0xA7672661,0xD06016F7,0x4969474D,0x3E6E77DB,
+    0xAED16A4A,0xD9D65ADC,0x40DF0B66,0x37D83BF0,0xA9BCAE53,0xD8BBDE25,0x41B23DEB,0x36B56B7D,
+    0xAFB0B63B,0xD8B7EDAD,0x41BEFC17,0x36B9DC81,0xA8DD490A,0xDFDA799C,0x46D32826,0x31D418B0,
+    0xABEAB321,0xDCEDC0B7,0x45E4D10D,0x32E3E19B,0xAC865E78,0xDB816EEE,0x4289DF54,0x358EF5C2,
+};
+
+quint32 crc32(const QByteArray& data) {
+    quint32 c = 0xFFFFFFFF;
+    for (int i = 0; i < data.size(); ++i)
+        c = kCrc32Table[(c ^ quint8(data[i])) & 0xFF] ^ (c >> 8);
+    return c ^ 0xFFFFFFFF;
+}
+
+// Raw deflate from qCompress (strip Qt+zlib wrappers)
+QByteArray rawDeflate(const QByteArray& data) {
+    QByteArray c = qCompress(data);
+    if (c.size() < 10) return data; // fallback to store
+    return c.mid(6, c.size() - 10);
+}
+
+QByteArray rawInflate(const QByteArray& data, quint32 uncompSize) {
+    // Re-wrap with zlib header+trailer for qUncompress
+    QByteArray wrapped;
+    wrapped.append(char(0x78));  // CMF
+    wrapped.append(char(0x9C));  // FLG (default compression)
+    wrapped.append(data);
+    // Adler-32 (can be zero — qUncompress skips verification)
+    wrapped.append(char(0)); wrapped.append(char(0));
+    wrapped.append(char(0)); wrapped.append(char(0));
+    QByteArray result = qUncompress(wrapped);
+    if (result.isEmpty() && uncompSize > 0) {
+        // Try as raw stored
+        return data;
+    }
+    return result.isEmpty() ? data : result;
+}
+
+// ── Pure C++ JAR manifest attribute injector (no external tools) ──
+bool injectJarManifestAttribute(const QString& jarPath,
+                                  const QString& key, const QString& value) {
+    const QString tmpPath = jarPath + QStringLiteral(".tmp");
+    QZipReader reader(jarPath);
+    if (!reader.isReadable()) return false;
+
+    // Collect entries
+    struct Entry {
+        QString path;
+        QByteArray data;
+        bool isDir = false;
+    };
+    QList<Entry> entries;
+    const QList<QZipReader::FileInfo> infos = reader.fileInfoList();
+    for (const QZipReader::FileInfo& info : infos) {
+        Entry e;
+        e.path = info.filePath;
+        e.isDir = info.isDir;
+        if (!e.isDir)
+            e.data = reader.fileData(info.filePath);
+        entries.append(e);
+    }
+    reader.close();
+
+    // Modify MANIFEST.MF
+    bool modified = false;
+    for (auto& e : entries) {
+        if (e.path == QStringLiteral("META-INF/MANIFEST.MF")) {
+            QByteArray mf = e.data;
+            if (!mf.contains(key.toUtf8())) {
+                QByteArrayList lines = mf.split('\n');
+                QByteArrayList out;
+                for (const auto& line : lines) {
+                    if (!line.startsWith(key.toUtf8()))
+                        out.append(line);
+                }
+                QByteArrayList result;
+                for (const auto& line : out) {
+                    result.append(line);
+                    if (line.startsWith("Main-Class:")) {
+                        QByteArray attr = key.toUtf8() + ": " + value.toUtf8();
+                        result.append(attr);
+                    }
+                }
+                e.data = result.join(QByteArrayLiteral("\r\n"));
+                modified = true;
+            }
+            break;
+        }
+    }
+    if (!modified) { QFile::remove(tmpPath); return true; } // already has attr
+
+    // Write new ZIP
+    QFile outFile(tmpPath);
+    if (!outFile.open(QIODevice::WriteOnly)) return false;
+    QDataStream ds(&outFile);
+    ds.setByteOrder(QDataStream::LittleEndian);
+
+    struct CDF {
+        QString name;
+        quint32 crc = 0;
+        quint32 compSize = 0;
+        quint32 uncompSize = 0;
+        quint32 lhOffset = 0;
+        quint16 method = 0;
+    };
+    QList<CDF> cdEntries;
+    quint32 offset = 0;
+
+    for (auto& e : entries) {
+        QByteArray nameBytes = e.path.toUtf8();
+        QByteArray storeData = e.isDir ? QByteArray() : e.data;
+        QByteArray compData;
+        quint16 method;
+        if (e.isDir) {
+            method = 0; // store
+            compData = storeData;
+        } else {
+            QByteArray deflated = rawDeflate(storeData);
+            if (!deflated.isEmpty() && deflated.size() < storeData.size()) {
+                method = 8; // deflate
+                compData = deflated;
+            } else {
+                method = 0; // store
+                compData = storeData;
+            }
+        }
+        quint32 crc = e.isDir ? 0 : crc32(storeData);
+        quint32 compSz = compData.size();
+        quint32 uncompSz = storeData.size();
+
+        // Local file header
+        ds << quint32(0x04034b50);  // signature
+        ds << quint16(20);          // version needed
+        ds << quint16(0);           // flags
+        ds << method;
+        ds << quint16(0);           // mod time
+        ds << quint16(0);           // mod date
+        ds << crc;
+        ds << compSz;
+        ds << uncompSz;
+        ds << quint16(nameBytes.size());
+        ds << quint16(0);           // extra field
+        ds.writeRawData(nameBytes.constData(), nameBytes.size());
+        if (!compData.isEmpty())
+            ds.writeRawData(compData.constData(), compData.size());
+
+        cdEntries.append({e.path, crc, compSz, uncompSz, offset, method});
+        offset += 30 + nameBytes.size();
+        if (!compData.isEmpty()) offset += compData.size();
+    }
+
+    // Central directory
+    quint32 cdOffset = offset;
+    for (const auto& cd : cdEntries) {
+        QByteArray nameBytes = cd.name.toUtf8();
+        ds << quint32(0x02014b50);  // signature
+        ds << quint16(20);          // version made by
+        ds << quint16(20);          // version needed
+        ds << quint16(0);           // flags
+        ds << cd.method;
+        ds << quint16(0);           // mod time
+        ds << quint16(0);           // mod date
+        ds << cd.crc;
+        ds << cd.compSize;
+        ds << cd.uncompSize;
+        ds << quint16(nameBytes.size());
+        ds << quint16(0);           // extra
+        ds << quint16(0);           // comment
+        ds << quint16(0);           // disk start
+        ds << quint16(0);           // internal attrs
+        ds << quint32(0);           // external attrs
+        ds << cd.lhOffset;
+        ds.writeRawData(nameBytes.constData(), nameBytes.size());
+    }
+    quint32 cdSize = outFile.pos() - cdOffset;
+
+    // End of central directory
+    ds << quint32(0x06054b50);  // signature
+    ds << quint16(0);           // disk number
+    ds << quint16(0);           // start disk
+    ds << quint16(cdEntries.size());
+    ds << quint16(cdEntries.size());
+    ds << cdSize;
+    ds << cdOffset;
+    ds << quint16(0);           // comment
+
+    outFile.close();
+
+    // Replace original
+    if (!QFile::remove(jarPath)) return false;
+    if (!QFile::rename(tmpPath, jarPath)) return false;
+    return true;
+}
+} // anonymous namespace
 
 using namespace ShadowLauncher;
 
@@ -1253,65 +1479,12 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
 
         // Inject Minecraft-Dists:client into version JAR manifest (FML requires it)
         if (jarCopied && QFile::exists(jarPath)) {
-            const QString mfDir = QDir::tempPath() + QStringLiteral("/neoforge_mf_%1").arg(
-                QRandomGenerator::global()->generate());
-            QDir().mkpath(mfDir + QStringLiteral("/META-INF"));
-            // Extract current manifest → append line → write temp manifest
-            QZipReader reader(jarPath);
-            QByteArray mfData = reader.fileData(QStringLiteral("META-INF/MANIFEST.MF"));
-            reader.close();
-            if (!mfData.isEmpty() && !mfData.contains("Minecraft-Dists")) {
-                // Remove any stray Minecraft-Dists, then insert after Main-Class
-                QByteArrayList inLines = mfData.split('\n');
-                QByteArrayList outLines;
-                for (const QByteArray& line : inLines) {
-                    if (!line.startsWith("Minecraft-Dists"))
-                        outLines.append(line);
-                }
-                QByteArrayList result;
-                for (const QByteArray& line : outLines) {
-                    result.append(line);
-                    if (line.startsWith("Main-Class:"))
-                        result.append(QByteArrayLiteral("Minecraft-Dists: client"));
-                }
-                mfData = result.join(QByteArrayLiteral("\r\n"));
-                QFile mfOut(mfDir + QStringLiteral("/META-INF/MANIFEST.MF"));
-                if (mfOut.open(QIODevice::WriteOnly)) { mfOut.write(mfData); mfOut.close(); }
-                // Use jar tool (JDK) to update JAR manifest
-                QProcess jp;
-                jp.setWorkingDirectory(mfDir);
-                jp.start(QStringLiteral("jar"), { QStringLiteral("uf"),
-                    QDir::toNativeSeparators(jarPath),
-                    QStringLiteral("META-INF/MANIFEST.MF") });
-                jp.waitForFinished(30000);
-                qDebug() << "[ModLoader] jar uf exitCode:" << jp.exitCode()
-                         << "stdout:" << jp.readAllStandardOutput()
-                         << "stderr:" << jp.readAllStandardError();
-                // Fallback: Python zipfile if jar tool not in PATH (JRE-only system)
-                if (jp.exitCode() != 0) {
-                    qDebug() << "[ModLoader] jar failed, trying Python zipfile...";
-                    QProcess py;
-                    py.start(QStringLiteral("python"), { QStringLiteral("-c"),
-                        QStringLiteral("import zipfile,os\n"
-                        "p=r'%1'\nt=p+'.tmp'\n"
-                        "with zipfile.ZipFile(p,'r') as z:\n"
-                        " with zipfile.ZipFile(t,'w',zipfile.ZIP_DEFLATED) as o:\n"
-                        "  for e in z.infolist():\n"
-                        "   d=z.read(e.filename)\n"
-                        "   if e.filename=='META-INF/MANIFEST.MF' and b'Minecraft-Dists' not in d:\n"
-                        "    l=d.split(b'\\r\\n')\n"
-                        "    r=[]\n"
-                        "    for x in l:\n"
-                        "     r.append(x)\n"
-                        "     if x.startswith(b'Main-Class:'):r.append(b'Minecraft-Dists: client')\n"
-                        "    d=b'\\r\\n'.join(r)\n"
-                        "   o.writestr(e,d)\n"
-                        "os.replace(t,p)").arg(jarPath) });
-                    py.waitForFinished(60000);
-                    qDebug() << "[ModLoader] Python fallback exitCode:" << py.exitCode();
-                }
+            if (!injectJarManifestAttribute(jarPath,
+                    QStringLiteral("Minecraft-Dists"), QStringLiteral("client"))) {
+                qDebug() << "[ModLoader] WARNING: Failed to inject Minecraft-Dists into JAR";
+            } else {
+                qDebug() << "[ModLoader] Minecraft-Dists:client injected (pure C++)";
             }
-            QDir(mfDir).removeRecursively();
         }
 
         // Delete installer's auto-named version folder
