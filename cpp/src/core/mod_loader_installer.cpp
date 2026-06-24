@@ -143,10 +143,10 @@ void ModLoaderInstaller::neoForgeContinueInstall()
         emit finished(false, "无缓存的安装程序");
         return;
     }
-    qDebug() << "[ModLoader] Continuing NeoForge PCL install";
+    qDebug() << "[ModLoader] Continuing NeoForge install (build from installer)";
     m_verifyOnly = false;
     m_running = true;
-    neoForgeStep3_PCLinstall(m_cachedJar);
+    neoForgeStep3_buildVersion(m_cachedJar);
 }
 
 void ModLoaderInstaller::installForge(const QString& mcVersion, const QString& forgeVersion,
@@ -776,14 +776,6 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
     proc->start(QStringLiteral("java"), args);
 }
 
-void ModLoaderInstaller::neoForgeStep3_PCLinstall(const QByteArray& jarData) {
-    // NeoForge uses the same PCL install logic as Forge
-    // (NeoForge installer JARs use install_profile.json format)
-    // Reuse the Forge implementation
-    forgeStep3_PCLinstall(jarData);
-}
-
-
 void ModLoaderInstaller::fabricStep1_downloadProfile() {
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, "正在下载 Fabric 配置...");
@@ -885,7 +877,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
             qWarning() << "[ModLoader] Cannot fetch NeoForge SHA1, skip verification";
             emit verifyFinished(false);
             if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
-            neoForgeStep3_PCLinstall(jarData);
+            neoForgeStep3_buildVersion(jarData);
             return;
         }
 
@@ -902,13 +894,189 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
             return;
         }
         if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
-        neoForgeStep3_PCLinstall(jarData);
+        neoForgeStep3_buildVersion(jarData);
     });
 }
 
 // ============================================================
 // Post-install: rename version folder to user's chosen name
 // ============================================================
+
+// ============================================================
+// NeoForge — extract version from installer, download libs, write JSON
+// ============================================================
+
+void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
+{
+    m_currentStep = 3;
+    emit progressChanged(3, m_totalSteps, "正在准备 NeoForge 运行库...");
+
+    // 1. Open installer JAR as ZIP
+    QBuffer buffer;
+    buffer.setData(jarData);
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
+        return;
+    }
+    QZipReader reader(&buffer);
+
+    // 2. Extract bundled maven jars from installer to libraries/
+    QString libBase = m_gameDir + QStringLiteral("/libraries");
+    int extractedCount = 0;
+    const auto& fileList = reader.fileInfoList();
+    for (const auto& info : fileList) {
+        QString fp = info.filePath;
+        if (!fp.startsWith(QStringLiteral("maven/"))) continue;
+        if (!fp.endsWith(QStringLiteral(".jar"))) continue;
+        QString relPath = fp.mid(6);
+        QString target = libBase + QStringLiteral("/") + relPath;
+        if (QFile::exists(target)) continue;
+        QByteArray jarBytes = reader.fileData(fp);
+        if (jarBytes.isEmpty()) continue;
+        QDir().mkpath(QFileInfo(target).absolutePath());
+        QFile jf(target);
+        if (jf.open(QIODevice::WriteOnly)) { jf.write(jarBytes); jf.close(); extractedCount++; }
+    }
+    qDebug() << "[ModLoader] Extracted" << extractedCount << "jars from NeoForge installer";
+
+    // 3. Read install_profile.json -> get versionInfo
+    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
+    reader.close();
+
+    if (profileData.isEmpty()) {
+        emit finished(false, "NeoForge 安装程序格式无效（无 install_profile.json）");
+        m_running = false;
+        return;
+    }
+    QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
+    if (!profileDoc.isObject()) {
+        emit finished(false, "NeoForge 安装程序 JSON 格式无效");
+        m_running = false;
+        return;
+    }
+    QJsonObject profile = profileDoc.object();
+    QJsonObject versionInfo = profile.value(QStringLiteral("versionInfo")).toObject();
+    if (versionInfo.isEmpty()) {
+        qWarning() << "[ModLoader] NeoForge install_profile.json has no versionInfo";
+        emit finished(false, "NeoForge profile 中缺少 versionInfo");
+        m_running = false;
+        return;
+    }
+
+    // 4. Build download list for missing libraries
+    QJsonArray libraries = versionInfo.value(QStringLiteral("libraries")).toArray();
+    struct DlItem { QString url; QString path; QString name; };
+    QList<DlItem> downloads;
+    for (const QJsonValue& v : libraries) {
+        QJsonObject lib = v.toObject();
+        QJsonObject artifact = lib.value(QStringLiteral("downloads")).toObject()
+            .value(QStringLiteral("artifact")).toObject();
+        QString url = artifact.value(QStringLiteral("url")).toString();
+        if (url.isEmpty()) continue;
+        QString pathStr = artifact.value(QStringLiteral("path")).toString();
+        if (pathStr.isEmpty()) continue;
+        QString localPath = libBase + QStringLiteral("/") + pathStr;
+        if (QFile::exists(localPath)) continue;
+
+        // Convert to BMCLAPI mirror first
+        QString bmclUrl = QString(url)
+            .replace(QStringLiteral("libraries.minecraft.net"),
+                     QStringLiteral("bmclapi2.bangbang93.com/libraries"))
+            .replace(QStringLiteral("maven.neoforged.net"),
+                     QStringLiteral("bmclapi2.bangbang93.com/maven"));
+
+        downloads.append({bmclUrl, localPath, lib.value(QStringLiteral("name")).toString()});
+    }
+    qDebug() << "[ModLoader] NeoForge: downloading" << downloads.size()
+             << "libs (skipped" << (libraries.size() - downloads.size()) << ")";
+
+    if (downloads.isEmpty()) {
+        writeNeoForgeVersion(versionInfo);
+        return;
+    }
+
+    // 5. Concurrent download (max 8) -> write version when done
+    QSharedPointer<int> remaining(new int(downloads.size()));
+    QSharedPointer<int> completed(new int(0));
+    QSharedPointer<bool> doneCalled(new bool(false));
+    const int MAX_CONCURRENT = 8;
+
+    auto processNext = QSharedPointer<std::function<void()>>::create();
+    *processNext = [=]() {
+        if (*completed >= downloads.size()) {
+            if (*doneCalled) return;
+            *doneCalled = true;
+            writeNeoForgeVersion(versionInfo);
+            return;
+        }
+        if (*remaining <= 0) return;
+
+        int idx = downloads.size() - *remaining;
+        (*remaining)--;
+        const DlItem& t = downloads.at(idx);
+        QDir().mkpath(QFileInfo(t.path).absolutePath());
+
+        downloadToFile(t.url, t.path, [=](bool ok, const QString& err) {
+            if (ok) {
+                (*completed)++;
+                int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                emit stepProgress(3, pct);
+                (*processNext)();
+            } else {
+                // BMCLAPI failed -> try original source
+                QString origUrl = QString(t.url)
+                    .replace(QStringLiteral("bmclapi2.bangbang93.com/libraries"),
+                             QStringLiteral("libraries.minecraft.net"))
+                    .replace(QStringLiteral("bmclapi2.bangbang93.com/maven"),
+                             QStringLiteral("maven.neoforged.net"));
+                downloadToFile(origUrl, t.path, [=](bool ok2, const QString& err2) {
+                    if (!ok2)
+                        qWarning() << "[ModLoader] NeoForge lib unavailable:" << t.name << err2;
+                    (*completed)++;
+                    int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
+                    emit stepProgress(3, pct);
+                    (*processNext)();
+                });
+            }
+        });
+    };
+
+    int initial = qMin(MAX_CONCURRENT, downloads.size());
+    for (int i = 0; i < initial; i++)
+        (*processNext)();
+}
+
+void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
+{
+    QJsonObject json = versionInfo;
+    json[QStringLiteral("id")] = m_installName;
+
+    QString versionsPath = m_gameDir + QStringLiteral("/versions");
+    QString verDir = versionsPath + QStringLiteral("/") + m_installName;
+    QDir().mkpath(verDir);
+
+    QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
+    QFile f(jsonPath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(json).toJson(QJsonDocument::Indented));
+        f.close();
+    }
+
+    // Copy vanilla jar
+    QString vanillaJar = versionsPath + QStringLiteral("/") + m_mcVersion
+        + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+    QString targetJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+    if (QFile::exists(vanillaJar)) {
+        if (QFile::exists(targetJar)) QFile::remove(targetJar);
+        QFile::copy(vanillaJar, targetJar);
+    }
+
+    qDebug() << "[ModLoader] NeoForge version JSON written:" << jsonPath;
+    emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
+    emit finished(true, QString());
+    m_running = false;
+}
 
 void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QString& newName)
 {

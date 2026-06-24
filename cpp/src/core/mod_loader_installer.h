@@ -89,8 +89,9 @@ private:
     void forgeStep3_PCLinstall(const QByteArray& jarData);
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
-    void neoForgeStep3_PCLinstall(const QByteArray& jarData);
+    void neoForgeStep3_buildVersion(const QByteArray& jarData);
     void runInstallerProcess(const QByteArray& jarData);
+    void writeNeoForgeVersion(const QJsonObject& versionInfo);
     void renameVersionFolder(const QString& oldName, const QString& newName);
 
     // Fabric
