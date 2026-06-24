@@ -31,6 +31,7 @@ struct InstallCard {
     QVariantList steps;
     bool failed = false;
     QString error;
+    bool totalProgressVisible = true;  // show total bar only during download phase
 };
 
 // --- InstallSession: per-install isolated state (supports concurrent merged installs) ---
@@ -88,7 +89,8 @@ public:
         RemainingRole,
         StepsRole,
         FailedRole,
-        ErrorRole
+        ErrorRole,
+        TotalProgressVisibleRole
     };
 
     explicit InstallCardModel(QObject* parent = nullptr);

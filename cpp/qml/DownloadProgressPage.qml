@@ -90,6 +90,7 @@ Rectangle {
                 // ── progress bar ──
                 Rectangle {
                     Layout.fillWidth: true; implicitHeight: 6; radius: 3; color: "#1e2230"
+                    visible: model.totalProgressVisible !== undefined ? model.totalProgressVisible : true
                     Rectangle {
                         height: parent.height; radius: 3
                         color: model.failed ? "#802020" : "#3a5ecc"
@@ -203,13 +204,13 @@ Rectangle {
                     }
                 }
 
-                // ── Control buttons (hidden during verify/done/failed) ──
+                // ── Control buttons ──
                 RowLayout {
                     visible: {
-                        var ph = model.installPhase || ""
-                        return ph !== "verifying" && ph !== "done" && !model.failed
+                        var ph = model.phase || ""
+                        return ph !== "\u6821\u9a8c\u4e2d..." && ph !== "idle" && !model.failed
                             && ph !== ""
-                            && (ph.includes("下载") || ph.includes("安装") || ph.includes("准备") || backend.installPaused)
+                            && (ph.includes("\u4e0b\u8f7d") || ph.includes("\u5b89\u88c5") || ph.includes("\u51c6\u5907"))
                     }
                     spacing: 6; Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
 
@@ -247,8 +248,8 @@ Rectangle {
                             anchors.fill: parent
                             onClicked: {
                                 if (!backend) return
-                                var iid = model.installId || ""
-                                if (model.installType === "mod_loader") backend.cancelModLoaderInstall()
+                                var iid = model.iid || ""
+                                if (model.type === "mod_loader") backend.cancelModLoaderInstall()
                                 else if (iid) backend.cancelInstall(iid)
                             }
                         }

@@ -90,10 +90,12 @@ VersionBackend::VersionBackend(QObject* parent)
         const QString mlId = m_modLoaderInstallId;
         if (mlId.isEmpty()) return;
         auto& ses = session(mlId);
-        int stepIdx = ses.isMerged ? (step - 1 + 3) : (step - 1);
+        // Merged: MC steps 0-2, MC verify step 3, loader steps 4+ (offset=4)
+        // Standalone: loader steps start at 0 (offset=0)
+        int stepIdx = ses.isMerged ? (step - 1 + 4) : (step - 1);
         // ── Mark previous step as completed when advancing ──
         if (step > 1) {
-            int prevIdx = ses.isMerged ? (step - 2 + 3) : (step - 2);
+            int prevIdx = ses.isMerged ? (step - 2 + 4) : (step - 2);
             updateStep(mlId, prevIdx, QStringLiteral("completed"), 100);
         }
         // Only reset to 0% if this step wasn't already active
@@ -108,7 +110,8 @@ VersionBackend::VersionBackend(QObject* parent)
         const QString mlId = m_modLoaderInstallId;
         if (mlId.isEmpty()) return;
         auto& ses = session(mlId);
-        int stepIdx = ses.isMerged ? (step - 1 + 3) : (step - 1);
+        // Merged: MC steps 0-2, MC verify 3, loader steps 4+ (offset=4)
+        int stepIdx = ses.isMerged ? (step - 1 + 4) : (step - 1);
         updateStep(mlId, stepIdx, QStringLiteral("active"), percentage);
 
         // Non-merged installs: stepProgress drives smoothProgress during install phases
@@ -541,6 +544,22 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             st.progress = checked;
                             st.total = total;
                             st.speed = 0;  // No download speed during verify
+                            // Activate MC verify step for merged installs
+                            for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
+                                if (sit.value().isMerged && sit.value().mcVersion == versionId) {
+                                    // Mark MC download steps (0-2) as completed
+                                    for (int i = 0; i < 3 && i < sit.value().steps.size(); i++) {
+                                        updateStep(sit.key(), i, QStringLiteral("completed"), 100);
+                                    }
+                                    // Activate MC verify step (index 3)
+                                    int verifyIdx = 3;
+                                    if (verifyIdx < sit.value().steps.size()) {
+                                        int pct = total > 0 ? (checked * 100 / total) : 0;
+                                        updateStep(sit.key(), verifyIdx, QStringLiteral("active"), pct, checked, total);
+                                    }
+                                    break;
+                                }
+                            }
                             // Sync primary
                             syncPrimaryProgress();
                         });
@@ -826,9 +845,14 @@ void VersionBackend::onVersionDownloadFinished(bool success,
                 qDebug() << "[install] Merged: MC download complete, starting" << ses.loaderType;
                 // Lock MC phase bytes as fully done
                 ses.mcBytesDl = ses.mcBytesAll;
-                // Mark MC steps (0-2) as completed
+                // Mark MC download steps (0-2) as completed
                 for (int i = 0; i < 3 && i < ses.steps.size(); i++) {
                     updateStep(it.key(), i, QStringLiteral("completed"), 100);
+                }
+                // Mark MC verify step (index 3) as completed
+                int verifyIdx = 3;
+                if (verifyIdx < ses.steps.size()) {
+                    updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
                 }
                 // Start loader install
                 m_mlInstaller->setGameDir(m_gameDir);
@@ -1752,7 +1776,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         for (int i = 0; i < 3; i++) { ses.mcStepDone[i] = 0; ses.mcStepTotal[i] = 0; }
         ses.mcFileAdded.clear();
 
-        // Build 9-step list
+        // Build 7-step list (3 MC download + 1 MC verify + 3 loader)
         QString loaderLabel = QStringLiteral("Forge");
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
@@ -1760,11 +1784,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             QStringLiteral("下载原版 JSON 文件"),
             QStringLiteral("下载原版支持库文件"),
             QStringLiteral("下载原版资源文件"),
+            QStringLiteral("校验游戏资源完整性"),
             QStringLiteral("下载 %1 主文件").arg(loaderLabel),
             QStringLiteral("校验 %1 完整性").arg(loaderLabel),
             QStringLiteral("安装 %1").arg(loaderLabel)
-        }, {3.0, 8.0, 5.0, 6.0, 0.5, 10.0},  // installer重量级10，下载库8，资源5
-         {true, true, true, true, false, true});  // 校验不展示
+        }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
+         {true, true, true, true, true, true, true});  // All steps visible
         updateStep(installName, 0, QStringLiteral("active"), 0);
         ses.loadedStep = 1;
 
@@ -2096,8 +2121,9 @@ QVariant InstallCardModel::data(const QModelIndex& index, int role) const {
     case RemainingRole: return c.remaining;
     case StepsRole:     return QJsonDocument(QJsonArray::fromVariantList(c.steps)).toJson(QJsonDocument::Compact);
     case FailedRole:    return c.failed;
-    case ErrorRole:     return c.error;
-    default:            return QVariant();
+    case ErrorRole:                return c.error;
+    case TotalProgressVisibleRole: return c.totalProgressVisible;
+    default:                       return QVariant();
     }
 }
 
@@ -2112,7 +2138,8 @@ QHash<int, QByteArray> InstallCardModel::roleNames() const {
         {RemainingRole, "remaining"},
         {StepsRole, "steps"},
         {FailedRole, "failed"},
-        {ErrorRole, "error"}
+        {ErrorRole, "error"},
+        {TotalProgressVisibleRole, "totalProgressVisible"}
     };
 }
 
@@ -2187,6 +2214,21 @@ void VersionBackend::rebuildInstallCards() {
         c.steps = mlPending ? QVariantList{} : ses.steps;
         c.failed = mlFailed;
         c.error = ses.error;
+        // Total progress bar: visible only when a download step is active
+        {
+            bool hasActiveDownload = false;
+            if (!mlPending && !mlFailed) {
+                for (const QVariant& vs : ses.steps) {
+                    QVariantMap step = vs.toMap();
+                    if (step.value(QStringLiteral("status")).toString() == QStringLiteral("active")
+                        && step.value(QStringLiteral("name")).toString().contains(QStringLiteral("\u4e0b\u8f7d"))) {
+                        hasActiveDownload = true;
+                        break;
+                    }
+                }
+            }
+            c.totalProgressVisible = hasActiveDownload;
+        }
         cards.append(c);
         seen.insert(cardId);
         if (ses.isMerged && !ses.mcVersion.isEmpty()) seen.insert(ses.mcVersion);
@@ -2203,37 +2245,42 @@ void VersionBackend::rebuildInstallCards() {
         c.name = vid;
         c.remaining = 0;
         c.steps = QVariantList{};
+        c.totalProgressVisible = true;
 
         if (m_dlStates.contains(vid)) {
             const DlState& st = m_dlStates[vid];
             bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
             if (verifying) {
                 c.progress = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+                c.totalProgressVisible = false;
             } else {
                 c.progress = qMin(1.0, st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0);
             }
             c.speed = st.speed;
             c.phase = st.phase;
 
-            // Build per-category steps
+            // Always build 4 steps (3 download + 1 verify) — verify stays pending until phase transitions
             QVariantList vSteps;
             auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
                 int pct = (tot > 0) ? (int)(dl * 100 / tot) : (status == QStringLiteral("completed") ? 100 : 0);
                 vSteps.append(QVariantMap{{"name", name}, {"status", status}, {"percentage", pct}, {"show", true}});
             };
-            if (verifying) {
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), "completed", st.catBytesTotal[0], st.catBytesTotal[0]);
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), "completed", st.catBytesTotal[1], st.catBytesTotal[1]);
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), "completed", st.catBytesTotal[2], st.catBytesTotal[2]);
-                addVStep(QStringLiteral("\u6821\u9a8c\u6587\u4ef6"), "active", st.progress, st.total);
-                c.remaining = 1;
-            } else {
-                auto catStatus = [&](int ci) { return st.catBytesTotal[ci] <= 0 ? QStringLiteral("completed") : QStringLiteral("active"); };
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), catStatus(0), st.catBytesDl[0], st.catBytesTotal[0]);
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), catStatus(1), st.catBytesDl[1], st.catBytesTotal[1]);
-                addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), catStatus(2), st.catBytesDl[2], st.catBytesTotal[2]);
-                c.remaining = 3;
-            }
+
+            auto catStatus = [&](int ci) {
+                if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
+                return QStringLiteral("active");
+            };
+            auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
+            auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
+
+            addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), verifying ? QStringLiteral("completed") : catStatus(0), catDl(0), catTot(0));
+            addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), verifying ? QStringLiteral("completed") : catStatus(1), catDl(1), catTot(1));
+            addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), verifying ? QStringLiteral("completed") : catStatus(2), catDl(2), catTot(2));
+            addVStep(QStringLiteral("\u6821\u9a8c\u6e38\u620f\u8d44\u6e90\u5b8c\u6574\u6027"),
+                     verifying ? QStringLiteral("active") : QStringLiteral("pending"),
+                     verifying ? st.progress : qint64(0),
+                     verifying ? st.total : qint64(0));
+            c.remaining = verifying ? 1 : 0;
             c.steps = vSteps;
         }
         cards.append(c);
