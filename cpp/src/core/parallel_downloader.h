@@ -19,7 +19,7 @@ namespace ShadowLauncher {
 /// pause/resume, checkpoint resume, and version-level concurrency queue.
 ///
 /// Key design changes from v2 (mirror-race):
-///  - Large files (>1MB) are split into chunks assigned to different mirrors (BMCLAPI, Mojang, MCBBS)
+///  - Large files (>1MB) are split into chunks assigned to different mirrors (BMCLAPI, Mojang)
 ///  - Small files (<=1MB) go directly to Mojang official first
 ///  - Workers download chunks to .tmp files, then merge at completion
 ///  - Checkpoint .download_progress.json enables resume across crashes

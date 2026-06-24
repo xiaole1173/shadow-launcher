@@ -29,12 +29,11 @@ struct MirrorSource {
 
     // BMCLAPI 协议合规相关
     QString healthCheckUrl;     // 用于镜像健康检测的探测 URL
-    QString attribution;        // 使用协议标注文案（BMCLAPI/MCBBS 必须标注来源）
+    QString attribution;        // 使用协议标注文案（BMCLAPI 必须标注来源）
     bool isAvailable = true;    // 运行时可用状态
 
     static MirrorSource bmclapi();
     static MirrorSource mojang();
-    static MirrorSource mcbbs();
     static QVector<MirrorSource> allMirrors();
 };
 

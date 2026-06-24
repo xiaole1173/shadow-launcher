@@ -1,4 +1,4 @@
-// Shadow Launcher — VersionDownloader
+﻿// Shadow Launcher — VersionDownloader
 // Minecraft version installation pipeline: client.jar + libraries + assets.
 // Uses ParallelDownloader for concurrent multi-file downloads and
 // HttpClient for single-file asset index retrieval.
@@ -55,24 +55,9 @@ MirrorSource MirrorSource::mojang()
     return m;
 }
 
-MirrorSource MirrorSource::mcbbs()
-{
-    MirrorSource m;
-    m.name           = QStringLiteral("MCBBS 镜像");
-    m.desc           = QStringLiteral("国内备用 · 可靠");
-    m.manifestUrl    = QStringLiteral("https://download.mcbbs.net/mc/game/version_manifest.json");
-    m.versionMetaHost = QStringLiteral("download.mcbbs.net");
-    m.resourceBase   = QStringLiteral("https://download.mcbbs.net/assets");
-    m.libraryBase    = QStringLiteral("https://download.mcbbs.net/maven");
-    m.jarHost        = QStringLiteral("download.mcbbs.net");
-    m.healthCheckUrl = QStringLiteral("https://download.mcbbs.net/");
-    m.attribution    = QStringLiteral("资源由 MCBBS 镜像加速 | 文件归源站点所有");
-    return m;
-}
-
 QVector<MirrorSource> MirrorSource::allMirrors()
 {
-    return { bmclapi(), mojang(), mcbbs() };
+    return { bmclapi(), mojang() };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -470,7 +455,7 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         jarTask.sha1      = client.value(QStringLiteral("sha1")).toString();
         jarTask.totalBytes = static_cast<qint64>(client.value(QStringLiteral("size")).toDouble());
 
-        // Build fallback mirrors: MCBBS jar host + Mojang direct
+        // Build fallback mirrors: Mojang direct
         QStringList jarMirrors;
         jarMirrors << origUrl;  // Mojang direct (final fallback)
         for (const MirrorSource& m : MirrorSource::allMirrors()) {
@@ -503,7 +488,7 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
     QStringList assetMirrorBases;
     // Primary mirror (selected by user)
     assetMirrorBases << m_mirror.resourceBase;
-    // Alternate mirrors (MCBBS etc.), excluding Mojang official
+    // Alternate mirrors, excluding Mojang official
     for (const MirrorSource& m : MirrorSource::allMirrors()) {
         if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
             if (!assetMirrorBases.contains(m.resourceBase))
@@ -687,7 +672,7 @@ void VersionDownloader::addLibraryTasks(const QJsonObject& lib,
 
         // Build fallback mirrors for resilience:
         //   mirror[0]: primary (already set as task.url via buildMirrorUrl)
-        //   mirror[1..]: alternate mirrors (MCBBS, etc.)
+        //   mirror[1..]: alternate mirrors
         //   mirror[last]: Mojang direct (final fallback)
         QStringList libMirrors;
         libMirrors << url;  // Mojang direct (original URL)
