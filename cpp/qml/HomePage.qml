@@ -182,8 +182,10 @@ Rectangle {
     }
 
     // Microsoft login signal handlers
+    // Login form progress — active during both manual login and background refresh
+    property bool msInProgress: false
     Connections {
-        target: backend; enabled: backend !== null && msLoginForm.msInProgress
+        target: backend
         function onMicrosoftLoginProgress(step, detail) {
             msLoginForm.msStatusText = step + ": " + detail
         }
