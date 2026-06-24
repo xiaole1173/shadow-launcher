@@ -922,8 +922,20 @@ void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
     QZipReader reader(&buffer);
 
     // 2. Extract bundled maven jars from installer to libraries/
+    //    AND save installer JAR itself for later binary patching
     QString libBase = m_gameDir + QStringLiteral("/libraries");
     int extractedCount = 0;
+
+    // Save installer JAR to maven path for runInstallerProcess later
+    QString installerPath = QStringLiteral("%1/net/neoforged/neoforge/%2/neoforge-%2-installer.jar")
+        .arg(libBase, m_loaderVersion);
+    if (!QFile::exists(installerPath)) {
+        QDir().mkpath(QFileInfo(installerPath).absolutePath());
+        QFile jf(installerPath);
+        if (jf.open(QIODevice::WriteOnly)) { jf.write(jarData); jf.close(); }
+        qDebug() << "[ModLoader] Saved NeoForge installer to" << installerPath;
+    }
+
     const auto& fileList = reader.fileInfoList();
     for (const auto& info : fileList) {
         QString fp = info.filePath;
@@ -1082,19 +1094,79 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
         f.close();
     }
 
-    // Copy vanilla jar
-    QString vanillaJar = versionsPath + QStringLiteral("/") + m_mcVersion
-        + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
-    QString targetJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-    if (QFile::exists(vanillaJar)) {
-        if (QFile::exists(targetJar)) QFile::remove(targetJar);
-        QFile::copy(vanillaJar, targetJar);
+    qDebug() << "[ModLoader] NeoForge version JSON written:" << jsonPath;
+
+    // Step 4: Run installer for binary patching only (all libs already downloaded)
+    m_currentStep = 4;
+    emit progressChanged(4, m_totalSteps, QStringLiteral("正在安装 NeoForge（二进制补丁）..."));
+
+    QString installerPath = m_gameDir + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-installer.jar")
+        .arg(m_loaderVersion);
+
+    if (!QFile::exists(installerPath)) {
+        qWarning() << "[ModLoader] NeoForge installer not found, falling back to vanilla JAR copy";
+        QString vanillaJar = versionsPath + QStringLiteral("/") + m_mcVersion
+            + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+        QString targetJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+        if (QFile::exists(vanillaJar)) {
+            if (QFile::exists(targetJar)) QFile::remove(targetJar);
+            QFile::copy(vanillaJar, targetJar);
+        }
+        emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
+        emit finished(true, QString());
+        m_running = false;
+        return;
     }
 
-    qDebug() << "[ModLoader] NeoForge version JSON written:" << jsonPath;
-    emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
-    emit finished(true, QString());
-    m_running = false;
+    // Run installer with --installClient (libraries already cached → binary patching only, ~5s)
+    QStringList args;
+    args << QStringLiteral("-Xmx512M")
+         << QStringLiteral("-Djava.net.preferIPv4Stack=true")
+         << QStringLiteral("-jar") << QDir::toNativeSeparators(installerPath)
+         << QStringLiteral("--installClient") << QDir::toNativeSeparators(m_gameDir);
+    qDebug() << "[ModLoader] Running NeoForge installer:" << args;
+
+    auto* proc = new QProcess(this);
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc](int exitCode, QProcess::ExitStatus) {
+        proc->deleteLater();
+        QString stdoutStr = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+        QString stderrStr = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        qDebug() << "[ModLoader] NeoForge installer exitCode:" << exitCode;
+
+        // Post-install: find and copy patched client JAR to version directory
+        // NeoForge spec:1 → client jar in libraries/net/neoforged/neoforge/{ver}/neoforge-{ver}-client.jar
+        const QString clientJar = m_gameDir + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-client.jar")
+            .arg(m_loaderVersion);
+        const QString jarPath = m_gameDir + QStringLiteral("/versions/%1/%1.jar").arg(m_installName);
+
+        bool jarCopied = false;
+        if (QFile::exists(clientJar)) {
+            if (QFile::exists(jarPath)) QFile::remove(jarPath);
+            jarCopied = QFile::copy(clientJar, jarPath);
+        }
+        // Also try universal jar location (alt naming)
+        if (!jarCopied) {
+            const QString universalJar = m_gameDir
+                + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-universal.jar")
+                    .arg(m_loaderVersion);
+            if (QFile::exists(universalJar)) {
+                if (QFile::exists(jarPath)) QFile::remove(jarPath);
+                jarCopied = QFile::copy(universalJar, jarPath);
+                qDebug() << "[ModLoader] Copied universal jar as version jar:" << jarPath;
+            }
+        }
+
+        if (exitCode == 0) {
+            emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
+            emit finished(true, QString());
+        } else {
+            emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装失败");
+            emit finished(false, QStringLiteral("NeoForge 安装程序失败 (exitCode=%1)").arg(exitCode));
+        }
+        m_running = false;
+    });
+    proc->start(QStringLiteral("java"), args);
 }
 
 void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QString& newName)
