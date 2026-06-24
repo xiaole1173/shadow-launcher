@@ -1747,29 +1747,41 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         setInstalling(true);
         setInstallPhase(QStringLiteral("连通性测试中..."));
 
-        // Determine mirror base URL for connectivity test
+        // Determine mirror base URL for connectivity test (use manifestUrl — returns 200 reliably)
         QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
         MirrorSource mirror = mirrors.isEmpty() ? MirrorSource{} : mirrors[0];
-        QString mcBaseUrl = QStringLiteral("https://bmclapi2.bangbang93.com");
+        // Forge/Fabric download URLs are built relative to libraryBase (Maven path)
+        QString libBase = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
+        QString mcTestUrl = QStringLiteral("https://bmclapi2.bangbang93.com");
         if (!mirror.libraryBase.isEmpty()) {
-            mcBaseUrl = mirror.libraryBase;
+            libBase = mirror.libraryBase;
+        }
+        if (!mirror.manifestUrl.isEmpty()) {
+            mcTestUrl = mirror.manifestUrl;  // guaranteed 200
         }
 
         // Build loader download URL
         QString loaderUrl;
         if (loaderType == QStringLiteral("forge")) {
-            loaderUrl = QStringLiteral("%1/maven/maven/net/minecraftforge/forge/%2/forge-%2-installer.jar")
-                .arg(mcBaseUrl).arg(loaderVersion);
+            loaderUrl = QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar")
+                .arg(libBase).arg(loaderVersion);
         } else if (loaderType == QStringLiteral("neoforge")) {
-            loaderUrl = QStringLiteral("%1/maven/maven/net/neoforged/neoforge/%2/neoforge-%2-installer.jar")
-                .arg(mcBaseUrl).arg(loaderVersion);
+            loaderUrl = QStringLiteral("%1/net/neoforged/neoforge/%2/neoforge-%2-installer.jar")
+                .arg(libBase).arg(loaderVersion);
         } else if (loaderType == QStringLiteral("fabric")) {
+            // Fabric uses BMCLAPI fabric-meta endpoint (not Maven)
+            QString fabricBase = QStringLiteral("https://bmclapi2.bangbang93.com");
+            if (!mirror.manifestUrl.isEmpty()) {
+                // Extract base domain from manifestUrl
+                QUrl mUrl(mirror.manifestUrl);
+                fabricBase = mUrl.scheme() + "://" + mUrl.host();
+            }
             loaderUrl = QStringLiteral("%1/fabric-meta/v2/versions/loader/%2/%3/profile/json")
-                .arg(mcBaseUrl).arg(mcVersion).arg(loaderVersion);
+                .arg(fabricBase).arg(mcVersion).arg(loaderVersion);
         }
 
         auto* coord = new DownloadCoordinator(this);
-        coord->addSource(QStringLiteral("mc"), mcBaseUrl);
+        coord->addSource(QStringLiteral("mc"), mcTestUrl);
         if (!loaderUrl.isEmpty()) coord->addSource(loaderType, loaderUrl);
 
         connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName, loaderUrl](qint64 totalBytes) {
