@@ -1900,8 +1900,34 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     } else {
         m_mlInstaller->setModsDir(QString());  // reset to default (gameDir/mods)
     }
+
+    // ── Preflight: connectivity test ──
+    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+
+    auto* coord = new DownloadCoordinator(this);
+    coord->addSource(QStringLiteral("optifine"), url);
+    setInstallPhase(QStringLiteral("连通性测试中..."));
     setInstalling(true);
-    m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
+
+    connect(coord, &DownloadCoordinator::ready, this,
+            [this, mcVersion, optifineVersion, forgeVersion, installName, coord](qint64) {
+        coord->deleteLater();
+        emit logMessage(QStringLiteral("✓ OptiFine 连通性测试通过"));
+        m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
+    });
+    connect(coord, &DownloadCoordinator::connectivityFailed, this,
+            [this, coord, installName](const QString& taskId, const QString& reason) {
+        coord->deleteLater();
+        emit logMessage(QStringLiteral("✗ OptiFine 连通性测试失败: %1").arg(reason));
+        auto& ses = session(installName);
+        ses.failed = true;
+        ses.error = QStringLiteral("OptiFine 网络不可达");
+        rebuildInstallCards();
+        setInstalling(false);
+    });
+    coord->start();
+    return;
 }
 
 void VersionBackend::cancelModLoaderInstall() {
