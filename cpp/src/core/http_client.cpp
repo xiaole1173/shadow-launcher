@@ -229,6 +229,93 @@ void HttpClient::download(const QString& url, const QString& savePath,
         });
 }
 
+// --------------- URL mirror mapping ---------------
+
+static QString mirrorUrl(const QString& url)
+{
+    // piston-meta.mojang.com → BMCLAPI
+    if (url.contains(QStringLiteral("piston-meta.mojang.com"))) {
+        QString m = url;
+        m.replace(QStringLiteral("piston-meta.mojang.com"),
+                  QStringLiteral("bmclapi2.bangbang93.com"));
+        return m;
+    }
+    // launchermeta.mojang.com → BMCLAPI
+    if (url.contains(QStringLiteral("launchermeta.mojang.com"))) {
+        QString m = url;
+        m.replace(QStringLiteral("launchermeta.mojang.com"),
+                  QStringLiteral("bmclapi2.bangbang93.com"));
+        return m;
+    }
+    // libraries.minecraft.net → BMCLAPI libraries
+    if (url.contains(QStringLiteral("libraries.minecraft.net"))) {
+        QString m = url;
+        m.replace(QStringLiteral("https://libraries.minecraft.net/"),
+                  QStringLiteral("https://bmclapi2.bangbang93.com/libraries/"));
+        return m;
+    }
+    // resources.download.minecraft.net → BMCLAPI assets
+    if (url.contains(QStringLiteral("resources.download.minecraft.net"))) {
+        QString m = url;
+        m.replace(QStringLiteral("resources.download.minecraft.net"),
+                  QStringLiteral("bmclapi2.bangbang93.com/assets"));
+        return m;
+    }
+    return {};
+}
+
+// --------------- GET with mirror fallback ---------------
+
+void HttpClient::getWithFallback(const QString& url,
+                     std::function<void(int, const QByteArray&)> callback,
+                     std::function<void(const QString&)> onError)
+{
+    // Try BMCLAPI mirror first
+    QString mirror = mirrorUrl(url);
+    if (mirror.isEmpty()) {
+        get(url, std::move(callback), std::move(onError));
+        return;
+    }
+    qDebug() << "[NET] GET fallback: mirror →" << mirror;
+    get(mirror, [this, url, callback = std::move(callback), onError = std::move(onError)](int status, const QByteArray& body) {
+        if (status == 200) {
+            if (callback) callback(status, body);
+        } else {
+            qDebug() << "[NET] Mirror GET failed (HTTP" << status << "), trying official:" << url;
+            get(url, std::move(callback), std::move(onError));
+        }
+    }, [this, url, callback = std::move(callback), onError = std::move(onError)](const QString& err) {
+        qDebug() << "[NET] Mirror GET error:" << err << "→ trying official:" << url;
+        get(url, std::move(callback), std::move(onError));
+    });
+}
+
+// --------------- download with mirror fallback ---------------
+
+void HttpClient::downloadWithFallback(const QString& url, const QString& savePath,
+                          std::function<void(qint64, qint64)> progress,
+                          std::function<void(bool, const QString&)> done)
+{
+    // Try BMCLAPI mirror first
+    QString mirror = mirrorUrl(url);
+    if (mirror.isEmpty()) {
+        download(url, savePath, std::move(progress), std::move(done));
+        return;
+    }
+    qDebug() << "[NET] Download fallback: mirror →" << mirror;
+    download(mirror, savePath, std::move(progress),
+        [this, url, savePath, progress = std::move(progress), done = std::move(done)](bool ok, const QString& err) {
+            if (ok) {
+                if (done) done(true, {});
+            } else {
+                qDebug() << "[NET] Mirror download failed:" << err << "→ trying official";
+                download(url, savePath, std::move(progress), std::move(done));
+            }
+        });
+}
+
+// --------------- downloadWithReply ---------------
+
 QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& savePath,
                   std::function<void(qint64, qint64)> progress,
                   std::function<void(bool, const QString&)> done,
