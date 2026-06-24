@@ -692,7 +692,10 @@ void AccountBackend::loadMicrosoftSession()
         m_msMcToken.clear();
         m_username.clear();
         m_uuid.clear();
-        saveMicrosoftSession();
+        // Do NOT save — don't overwrite file with empty data
+    } else if (m_msRefreshToken.isEmpty() && m_msMcToken.isEmpty()) {
+        // Empty session — corrupted or first run, silently skip
+        qCInfo(logAccount) << "Saved session is empty, starting fresh";
     } else if (knownExpired) {
         if (!m_msRefreshToken.isEmpty()) {
             // MC token expired, but we have a refresh token (valid up to 90 days)
