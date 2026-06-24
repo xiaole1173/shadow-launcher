@@ -87,6 +87,9 @@ void ModLoaderInstaller::downloadSmall(const QString& url,
     HttpClient::instance().get(url, [this, done](int status, const QByteArray& body) {
         if (m_cancelled) { done(false, QByteArray()); return; }
         done(status == 200, body);
+    }, [this, done](const QString&) {
+        if (m_cancelled) return;
+        done(false, QByteArray());
     });
 }
 
@@ -839,7 +842,7 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
             return;
         }
         qDebug() << "[ModLoader] BMCLAPI NeoForge download failed, trying official Maven...";
-        QString officialUrl = QString("https://maven.neoforged.net/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(ver);
+        QString officialUrl = QString("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(ver);
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
             if (!ok2) { emit finished(false, "NeoForge 安装程序下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
             m_usedFallback = true;
@@ -854,7 +857,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
     emit verifyStarted();
 
     // Official NeoForge Maven provides .sha1 files
-    QString sha1Url = QString("https://maven.neoforged.net/net/neoforged/neoforge/%1/neoforge-%1-installer.jar.sha1")
+    QString sha1Url = QString("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar.sha1")
                            .arg(m_loaderVersion);
 
     downloadSmall(sha1Url, [this, jarData](bool ok, const QByteArray& sha1Data) {

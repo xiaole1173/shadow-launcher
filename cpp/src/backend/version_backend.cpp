@@ -1848,7 +1848,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                 QString verArg = mcVersion + "-" + loaderVersion;
                                 fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
                             } else if (loaderType == QStringLiteral("neoforge")) {
-                                fallbackUrl = QStringLiteral("https://maven.neoforged.net/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+                                fallbackUrl = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
                             }
                             if (!fallbackUrl.isEmpty()) {
                                 qWarning() << "[Coordinator] BMCLAPI failed, trying official:" << fallbackUrl;
