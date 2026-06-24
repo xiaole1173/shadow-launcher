@@ -286,7 +286,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
 
     // Use HttpClient::download() for the actual transfer.
     // TODO: switch to ParallelDownloader with mirror support once implemented.
-    HttpClient::instance().download(
+    HttpClient::instance().downloadWithFallback(
         dlUrl, destPath,
         [this, slug](qint64 received, qint64 total) {
             emit downloadProgress(slug, received, total);
@@ -575,7 +575,7 @@ void ModManager::downloadResourcepack(
 
             emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
 
-            HttpClient::instance().download(
+            HttpClient::instance().downloadWithFallback(
                 dlUrl, destPath,
                 [this, slug](qint64 received, qint64 total) {
                     emit downloadProgress(slug, received, total);
@@ -661,7 +661,7 @@ void ModManager::downloadShader(
 
             emit logMessage(QStringLiteral("[MODRINTH] 光影文件: %1 → %2").arg(filename, dlUrl));
 
-            HttpClient::instance().download(
+            HttpClient::instance().downloadWithFallback(
                 dlUrl, destPath,
                 [this, slug](qint64 received, qint64 total) {
                     emit downloadProgress(slug, received, total);

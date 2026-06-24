@@ -388,7 +388,7 @@ bool VersionDownloader::downloadAssetIndex(const QJsonObject& assetIdx)
         bool ok = false;
         QString errMsg;
 
-        HttpClient::instance().download(url, idxPath, nullptr,
+        HttpClient::instance().downloadWithFallback(url, idxPath, nullptr,
             [&](bool success, const QString& error) {
                 ok = success;
                 errMsg = error;

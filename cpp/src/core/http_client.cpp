@@ -303,13 +303,12 @@ void HttpClient::getWithFallback(const QString& url,
     });
 }
 
-// --------------- download with mirror fallback ---------------
+// --------------- downloadWithFallback (delegates to download which has mirror built-in) ---------------
 
 void HttpClient::downloadWithFallback(const QString& url, const QString& savePath,
                           std::function<void(qint64, qint64)> progress,
                           std::function<void(bool, const QString&)> done)
 {
-    // download() already has mirror-first → official fallback built in
     download(url, savePath, std::move(progress), std::move(done));
 }
 
@@ -521,7 +520,7 @@ void DownloadQueue::scheduleNext()
             }
         };
 
-        HttpClient::instance().download(item->url, item->savePath,
+        HttpClient::instance().downloadWithFallback(item->url, item->savePath,
                                         std::move(progressCb),
                                         std::move(doneCb));
     }

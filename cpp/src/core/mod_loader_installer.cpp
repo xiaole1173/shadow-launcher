@@ -51,7 +51,7 @@ void ModLoaderInstaller::downloadToFile(const QString& url, const QString& saveP
                                          std::function<void(bool ok, const QString& error)> done) {
     if (m_cancelled) { done(false, "Cancelled"); return; }
     QString fileName = savePath.section('/', -1);
-    HttpClient::instance().download(url, savePath,
+    HttpClient::instance().downloadWithFallback(url, savePath,
         [this, fileName](qint64 received, qint64 total) {
             if (m_cancelled) return;
             emitByteProgress(fileName, received, total);
