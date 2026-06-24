@@ -99,6 +99,7 @@ private:
 
     // ── Async check state ──
     QTimer* m_checkTimer = nullptr;
+    QTimer* m_refreshTimeoutTimer = nullptr;  // Cancel on crash to avoid stale abort
     int m_checkStep = 0;
     QString m_pendingVersionId;
     QString m_pendingJavaPath;

@@ -396,9 +396,17 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
 
             QString libPath = resolveLibraryPath(lib, libsDir);
             if (!libPath.isEmpty() && QFileInfo::exists(libPath)) {
-                // Skip JARs that are on the module path (NeoForge -p flag)
+                // Skip JARs whose group:artifact is on the module path (NeoForge -p flag)
+                // Uses prefix match to exclude ALL versions, not just exact JAR paths
                 QString relativePath = libPath.mid(libsDir.length() + 1);
-                if (moduleExcludePaths.contains(relativePath)) {
+                bool isModuleJar = false;
+                for (const QString& prefix : moduleExcludePaths) {
+                    if (relativePath.startsWith(prefix)) {
+                        isModuleJar = true;
+                        break;
+                    }
+                }
+                if (isModuleJar) {
                     qDebug() << "[Launch] Skipping module-path JAR:" << relativePath;
                     continue;
                 }
@@ -524,7 +532,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                          + QStringLiteral("/natives");
     args << QStringLiteral("-Djava.library.path=%1").arg(nativesDir);
 
-    // ── Extract module-path JARs (from NeoForge -p flag) to exclude from classpath ──
+    // ── Extract module-path group:artifact prefixes (from NeoForge -p flag)
+    //     to exclude ALL versions from classpath, not just exact JAR paths
     QSet<QString> moduleExclude;
     bool inModulePath = false;
     for (const QString& a : args) {
@@ -534,7 +543,17 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             const QStringList jars = a.split(classpathSep, Qt::SkipEmptyParts);
             for (const QString& jar : jars) {
                 if (jar.startsWith(libPrefix)) {
-                    moduleExclude.insert(jar.mid(libPrefix.length()));
+                    QString rel = jar.mid(libPrefix.length());
+                    // Trim version/ and filename.jar → group/artifact/ prefix
+                    // e.g. org/ow2/asm/asm/9.7/asm-9.7.jar → org/ow2/asm/asm
+                    QStringList parts = rel.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+                    if (parts.size() >= 3) {
+                        parts.removeLast();  // remove filename.jar
+                        if (!parts.isEmpty()) parts.removeLast();  // remove version/
+                        if (!parts.isEmpty()) {
+                            moduleExclude.insert(parts.join(QLatin1Char('/')) + QLatin1Char('/'));
+                        }
+                    }
                 }
             }
             inModulePath = false;

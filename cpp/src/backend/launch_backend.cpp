@@ -267,12 +267,19 @@ void LaunchBackend::runNextCheck()
             } else {
                 m_checkTimer->stop();  // Pause until refresh completes
                 // Timeout guard: resume after 12s even if refresh never responds
-                QTimer::singleShot(12000, this, [this]() {
+                if (!m_refreshTimeoutTimer) {
+                    m_refreshTimeoutTimer = new QTimer(this);
+                    m_refreshTimeoutTimer->setSingleShot(true);
+                }
+                m_refreshTimeoutTimer->stop();
+                m_refreshTimeoutTimer->start(12000);
+                connect(m_refreshTimeoutTimer, &QTimer::timeout, this, [this]() {
                     if (m_checkTimer && !m_checkTimer->isActive()) {
                         qCWarning(logLaunch) << "Token refresh timed out — blocking launch";
                         abortCheck(QStringLiteral("登录状态"),
                                    QStringLiteral("网络超时，无法验证正版登录状态"));
                     }
+                    if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
                 });
                 // Temporary connection: resume on refresh result
                 QMetaObject::Connection* conn = new QMetaObject::Connection();
@@ -528,6 +535,9 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
     qCDebug(logLaunch) << "[PROCESS] minecraftStopped emitted";
 
     if (!m_launching) return;  // Already handled in handleLaunchStarted death check
+
+    // Cancel any pending refresh timeout — game already finished
+    if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
 
     m_launching = false;
     if (success) {
