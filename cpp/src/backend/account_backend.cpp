@@ -662,10 +662,12 @@ void AccountBackend::loadMicrosoftSession()
             m_refreshingToken = true;  // initially-load refresh
             QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
         } else {
-            // MC token only (no refresh token) — try with what we have
-            m_loggedIn = true;
-            m_isOnline = true;
-            emit accountChanged();
+            // MC token without refresh token = incomplete session
+            qCInfo(logAccount) << "Saved session has no refresh token, clearing";
+            m_msMcToken.clear();
+            m_username.clear();
+            m_uuid.clear();
+            saveMicrosoftSession();
         }
     } else if (knownExpired) {
         qCInfo(logAccount) << "Saved Microsoft session token expired, clearing";
