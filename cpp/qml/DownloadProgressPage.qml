@@ -206,50 +206,41 @@ Rectangle {
                 RowLayout {
                     visible: {
                         var ph = model.phase || ""
-                        // Hide only when idle, empty, failed, or done
                         return !model.failed && ph !== "" && ph !== "idle"
                             && ph !== "完成" && ph !== "空闲"
                     }
                     spacing: 6; Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
 
-                    // Pause / Resume (version downloads only — ModLoaderInstaller has no pause)
                     Item { Layout.fillWidth: true }  // spacer
-                    Rectangle {
-                        visible: model.type !== "mod_loader"
-                        implicitWidth: pauseBtnText.implicitWidth + 20; implicitHeight: 28
-                        radius: 6; color: "#191c28"; border.color: "#2a3040"; border.width: 1
-                        Text {
-                            id: pauseBtnText
-                            anchors.centerIn: parent
-                            text: backend.installPaused ? "▶ 继续" : "⏸ 暂停"
-                            font.pixelSize: 12; color: "#8a90b0"
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                if (!backend) return
-                                backend.installPaused ? backend.resumeInstall() : backend.pauseInstall()
-                            }
-                        }
-                    }
 
-                    // Cancel
+                    // Cancel — greyed out during SHA1 verify (instant, can't interrupt)
+                    property bool verifying: {
+                        var ph = model.phase || ""
+                        return ph.includes("校验")
+                    }
                     Rectangle {
                         implicitWidth: cancelBtnText.implicitWidth + 20; implicitHeight: 28
-                        radius: 6; color: "#191c28"; border.color: "#2a3040"; border.width: 1
+                        radius: 6
+                        color: parent.verifying ? "#141720" : "#191c28"
+                        border.color: parent.verifying ? "#1e2230" : "#2a3040"
+                        border.width: 1
+                        opacity: parent.verifying ? 0.4 : 1.0
                         Text {
                             id: cancelBtnText
                             anchors.centerIn: parent
-                            text: "✕ 取消"
-                            font.pixelSize: 12; color: "#c06050"
+                            text: parent.verifying ? "校验中..." : "✕ 取消"
+                            font.pixelSize: 12
+                            color: parent.verifying ? "#404860" : "#c06050"
                         }
                         MouseArea {
                             anchors.fill: parent
+                            enabled: !parent.verifying
                             onClicked: {
                                 if (!backend) return
+                                // Cancel BOTH: VersionDownloader if active, ModLoaderInstaller if running
                                 var iid = model.iid || ""
-                                if (model.type === "mod_loader") backend.cancelModLoaderInstall()
-                                else if (iid) backend.cancelInstall(iid)
+                                backend.cancelModLoaderInstall()
+                                if (iid) backend.cancelInstall(iid)
                             }
                         }
                     }

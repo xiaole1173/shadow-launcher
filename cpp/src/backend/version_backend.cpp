@@ -672,28 +672,6 @@ void VersionBackend::cancelInstall(const QString& versionId)
     startNextFromQueue();
 }
 
-void VersionBackend::pauseInstall()
-{
-    auto* dl = primaryDownloader();
-    if (dl) {
-        dl->pause();
-        m_installPaused = true;
-        emit installPausedChanged(true);
-        emit logMessage(QStringLiteral("⏸ 安装已暂停 (断点文件已保留)"));
-    }
-}
-
-void VersionBackend::resumeInstall()
-{
-    auto* dl = primaryDownloader();
-    if (dl) {
-        dl->resume();
-        m_installPaused = false;
-        emit installPausedChanged(false);
-        emit logMessage(QStringLiteral("▶ 安装已恢复"));
-    }
-}
-
 // ============================================================
 // Version isolation
 // ============================================================
@@ -1860,7 +1838,26 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 }
 
 void VersionBackend::cancelModLoaderInstall() {
+    // Cancel ModLoaderInstaller if running
     if (m_mlInstaller) m_mlInstaller->cancel();
+    // Also cancel any active VersionDownloader (merged install MC download phase)
+    for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
+        it.value()->cancel();
+        it.value()->disconnect();
+        it.value()->deleteLater();
+    }
+    m_downloaders.clear();
+    m_dlStates.clear();
+    m_activeIds.clear();
+    m_activeCount = 0;
+    // Clean up session state
+    if (!m_modLoaderInstallId.isEmpty() && m_sessions.contains(m_modLoaderInstallId)) {
+        m_sessions[m_modLoaderInstallId].failed = true;
+        m_sessions[m_modLoaderInstallId].error = QStringLiteral("已取消");
+    }
+    setInstalling(false);
+    setInstallPhase(QStringLiteral("空闲"));
+    emit logMessage(QStringLiteral("安装已取消"));
 }
 
 bool VersionBackend::isModLoaderInstalling() const {

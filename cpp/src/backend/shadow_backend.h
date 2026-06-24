@@ -54,7 +54,6 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
-    Q_PROPERTY(bool installPaused READ installPaused NOTIFY installPausedChanged)
 
     // ── Launch ──
     Q_PROPERTY(bool launching READ isLaunching NOTIFY launchStateChanged)
@@ -196,7 +195,6 @@ public:
     int verifyChecked() const;
     int verifyTotal() const;
     QObject* installCardsModel() const;
-    bool installPaused() const;
     int verifyProgressDone() const { return 0; }
     int verifyProgressTotal() const { return 0; }
     bool verifyResultOk() const { return true; }
@@ -313,8 +311,6 @@ public:
     Q_INVOKABLE void migrateVersion(const QString&) {}
     Q_INVOKABLE void openConfigFolder() { openGameDir({}); }
     Q_INVOKABLE void removeGameDir(int) {}
-    Q_INVOKABLE void pauseInstall();
-    Q_INVOKABLE void resumeInstall();
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
@@ -385,7 +381,6 @@ signals:
     void verifyRunningChanged();
     void verifyCheckedChanged();
     void verifyTotalChanged();
-    void installPausedChanged();
     void downloadQueueChanged();
     void searchResultsReady(const QVariantList& results);
     void gameDirChanged();

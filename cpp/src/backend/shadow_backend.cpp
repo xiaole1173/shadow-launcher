@@ -202,8 +202,6 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_version, &VersionBackend::installFinished,
             this, &ShadowBackend::installFinished);
-        connect(m_version, &VersionBackend::installPausedChanged,
-            this, [this](bool) { emit installPausedChanged(); });
     connect(m_version, &VersionBackend::logMessage,
             this, &ShadowBackend::logMessage);
     connect(m_version, &VersionBackend::verifyStarted,
@@ -543,10 +541,6 @@ int ShadowBackend::verifyChecked() const {
 
 int ShadowBackend::verifyTotal() const {
     return m_version ? m_version->verifyTotal() : 0;
-}
-
-bool ShadowBackend::installPaused() const {
-    return m_version ? m_version->isInstallPaused() : false;
 }
 
 QString ShadowBackend::installVersionId() const {
@@ -1094,14 +1088,6 @@ QString ShadowBackend::bmclapiComplianceNotice() {
 
 void ShadowBackend::cancelInstall() {
     m_version->cancelInstall();
-}
-
-void ShadowBackend::pauseInstall() {
-    m_version->pauseInstall();
-}
-
-void ShadowBackend::resumeInstall() {
-    m_version->resumeInstall();
 }
 
 void ShadowBackend::cancelQueuedDownload(const QString& versionId) {

@@ -125,7 +125,6 @@ class VersionBackend : public QObject {
     Q_PROPERTY(QObject* installCardsModel READ installCardsModel CONSTANT)
     Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
-    Q_PROPERTY(bool installPaused READ isInstallPaused NOTIFY installPausedChanged)
     Q_PROPERTY(QStringList versionIds READ versionIds NOTIFY versionListReady)
     Q_PROPERTY(QStringList installedIds READ installedIds NOTIFY installedVersionsChanged)
     Q_PROPERTY(QString selectedVersion READ selectedVersion NOTIFY selectedVersionChanged)
@@ -145,7 +144,6 @@ public:
     QObject* installCardsModel() const { return m_installCardsModel; }
     int verifyChecked() const { return m_verifyChecked; }
     int verifyTotal() const { return m_verifyTotal; }
-    bool isInstallPaused() const { return m_installPaused; }
     QStringList versionIds() const { return m_versionIds; }
     QStringList installedIds() const { return m_installedIds; }
     QStringList activeVersionNames() const {
@@ -172,8 +170,6 @@ public:
     Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void cancelInstall(const QString& versionId);
-    Q_INVOKABLE void pauseInstall();
-    Q_INVOKABLE void resumeInstall();
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     Q_INVOKABLE QVariantList downloadQueue() const;
     Q_INVOKABLE QVariantList activeDownloads() const;
@@ -214,7 +210,6 @@ signals:
     void verifyProgressChanged(int checked, int total);
     void verifyFinished(bool allPassed);
     void verifyFailedFiles(const QStringList& failedFiles);
-    void installPausedChanged(bool paused);
     void verifyCancelled();
     void downloadQueueChanged();
 
@@ -288,7 +283,6 @@ private:
 
     int m_verifyChecked = 0;
     int m_verifyTotal = 0;
-    bool m_installPaused = false;
     QQueue<QPair<QString, int>> m_installQueue;
 
     VersionDownloader* primaryDownloader() const;
