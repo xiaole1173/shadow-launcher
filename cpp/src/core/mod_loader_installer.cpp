@@ -1160,6 +1160,41 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
                 QJsonObject obj = doc.object();
                 obj[QStringLiteral("id")] = m_installName;
 
+                // Merge parent MC version content → standalone JSON (no inheritsFrom needed)
+                const QString mcJsonPath = m_gameDir + QStringLiteral("/versions/%1/%1.json").arg(m_mcVersion);
+                QFile mcf(mcJsonPath);
+                if (mcf.open(QIODevice::ReadOnly)) {
+                    QJsonDocument mcDoc = QJsonDocument::fromJson(mcf.readAll());
+                    mcf.close();
+                    QJsonObject mcObj = mcDoc.object();
+
+                    // Merge libraries: prepend MC libs (NeoForge libs already present)
+                    QJsonArray mcLibs = mcObj[QStringLiteral("libraries")].toArray();
+                    QJsonArray allLibs = obj[QStringLiteral("libraries")].toArray();
+                    for (const QJsonValue& v : mcLibs)
+                        allLibs.append(v);
+                    obj[QStringLiteral("libraries")] = allLibs;
+
+                    // Merge game arguments (MC base + NeoForge additions)
+                    QJsonObject mcArgs = mcObj[QStringLiteral("arguments")].toObject();
+                    QJsonObject objArgs = obj[QStringLiteral("arguments")].toObject();
+                    QJsonArray mcGameArgs = mcArgs[QStringLiteral("game")].toArray();
+                    QJsonArray objGameArgs = objArgs[QStringLiteral("game")].toArray();
+                    for (const QJsonValue& v : mcGameArgs)
+                        objGameArgs.append(v);
+                    objArgs[QStringLiteral("game")] = objGameArgs;
+                    obj[QStringLiteral("arguments")] = objArgs;
+
+                    // Inherit fields that the launcher reads from the parent
+                    obj[QStringLiteral("inheritsFrom")] = QJsonValue();  // Remove — standalone now
+                    if (obj[QStringLiteral("assetIndex")].isUndefined())
+                        obj[QStringLiteral("assetIndex")] = mcObj[QStringLiteral("assetIndex")];
+                    if (obj[QStringLiteral("assets")].isUndefined())
+                        obj[QStringLiteral("assets")] = mcObj[QStringLiteral("assets")];
+                    if (obj[QStringLiteral("minimumLauncherVersion")].isUndefined())
+                        obj[QStringLiteral("minimumLauncherVersion")] = mcObj[QStringLiteral("minimumLauncherVersion")];
+                }
+
                 // Add universal JAR as library (contains NeoForgeMod.class etc.)
                 // The installer doesn't include it in libraries — it's on the module path
                 // but our launcher builds classpath from libraries, so we must add it
@@ -1209,12 +1244,9 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
         QDir instDir(installedVerName);
         if (instDir.exists()) instDir.removeRecursively();
 
-        // Delete vanilla MC JAR to hide it from version list (keep JSON for inheritsFrom)
-        const QString vanillaJar = m_gameDir + QStringLiteral("/versions/%1/%1.jar").arg(m_mcVersion);
-        if (QFile::exists(vanillaJar)) {
-            QFile::remove(vanillaJar);
-            qDebug() << "[ModLoader] Removed vanilla JAR to hide from list:" << vanillaJar;
-        }
+        // Delete vanilla MC version folder (merged into standalone JSON above)
+        const QString vanillaVer = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
+        QDir(vanillaVer).removeRecursively();
 
         if (exitCode == 0) {
             emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
