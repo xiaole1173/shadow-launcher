@@ -26,8 +26,6 @@
 #include <QJsonArray>
 #include <QSet>
 #include <QDebug>
-#include <memory>
-#include <functional>
 
 // Tracing tag
 #define LOG_CARDS() qDebug() << "[CARDS]"
@@ -1782,13 +1780,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 // Shared downloader: try BMCLAPI, fall back to official on failure
                 auto* nam = new QNetworkAccessManager(this);
                 int loaderDlStepIdx = (ses.steps.size() >= 5) ? 4 : 4;
-                struct LoaderDlState { bool retried = false; };
-                auto dlState = std::make_shared<LoaderDlState>();
 
-                std::function<void(const QString&, bool)> doLoaderDownload;
-                doLoaderDownload = [this, nam, installName, loaderType, loaderVersion, mcVersion, loaderDlStepIdx, dlState, &doLoaderDownload](const QString& url, bool isFallback) {
-                    qDebug() << "[Coordinator] Loader" << (isFallback ? "FALLBACK" : "") << "download:" << url;
-                    QUrl qurl(url);
+                // Phase 1: try BMCLAPI
+                qDebug() << "[Coordinator] Loader download:" << loaderDlUrl;
+                {
+                    QUrl qurl(loaderDlUrl);
                     QNetworkRequest req(qurl);
                     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
                     req.setTransferTimeout(300000);
@@ -1801,31 +1797,74 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     });
 
                     connect(reply, &QNetworkReply::finished, this,
-                            [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, loaderDlStepIdx, dlState, doLoaderDownload]() {
+                            [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, loaderDlStepIdx]() {
                         reply->deleteLater();
                         if (reply->error() != QNetworkReply::NoError) {
-                            // Try fallback URL once before giving up
-                            if (!dlState->retried) {
-                                dlState->retried = true;
-                                QString fallbackUrl;
-                                if (loaderType == QStringLiteral("forge")) {
-                                    QString verArg = mcVersion + "-" + loaderVersion;
-                                    fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
-                                } else if (loaderType == QStringLiteral("neoforge")) {
-                                    fallbackUrl = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
-                                }
-                                if (!fallbackUrl.isEmpty()) {
-                                    qWarning() << "[Coordinator] BMCLAPI failed, trying official:" << fallbackUrl;
-                                    emit logMessage(QStringLiteral(" BMCLAPI 不通，尝试官方源..."));
-                                    doLoaderDownload(fallbackUrl, true);
-                                    return;
-                                }
+                            // Phase 2: try official fallback
+                            QString fallbackUrl;
+                            if (loaderType == QStringLiteral("forge")) {
+                                QString verArg = mcVersion + "-" + loaderVersion;
+                                fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+                            } else if (loaderType == QStringLiteral("neoforge")) {
+                                fallbackUrl = QStringLiteral("https://maven.neoforged.net/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
                             }
-                            // Both failed
-                            qWarning() << "[Coordinator] Loader download FAILED:" << reply->errorString();
-                            emit logMessage(QStringLiteral(" %1 下载失败: %2").arg(loaderType).arg(reply->errorString()));
+                            if (!fallbackUrl.isEmpty()) {
+                                qWarning() << "[Coordinator] BMCLAPI failed, trying official:" << fallbackUrl;
+                                emit logMessage(QStringLiteral(" BMCLAPI \u4e0d\u901a\uff0c\u5c1d\u8bd5\u5b98\u65b9\u6e90..."));
+                                QUrl qurl2(fallbackUrl);
+                                QNetworkRequest req2(qurl2);
+                                req2.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+                                req2.setTransferTimeout(300000);
+                                QNetworkReply* r2 = nam->get(req2);
+                                connect(r2, &QNetworkReply::downloadProgress, this,
+                                        [this, installName, loaderDlStepIdx](qint64 recv, qint64 total) {
+                                    updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
+                                               total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
+                                });
+                                connect(r2, &QNetworkReply::finished, this,
+                                        [this, nam, r2, installName, loaderType, mcVersion, loaderDlStepIdx]() {
+                                    r2->deleteLater();
+                                    if (r2->error() != QNetworkReply::NoError) {
+                                        qWarning() << "[Coordinator] Loader download FAILED:" << r2->errorString();
+                                        emit logMessage(QStringLiteral(" %1 \u4e0b\u8f7d\u5931\u8d25: %2").arg(loaderType).arg(r2->errorString()));
+                                        nam->deleteLater();
+                                        for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
+                                            if (it.key() == mcVersion) {
+                                                it.value()->cancel();
+                                                it.value()->disconnect();
+                                                it.value()->deleteLater();
+                                                m_downloaders.erase(it);
+                                                break;
+                                            }
+                                        }
+                                        m_dlStates.remove(mcVersion);
+                                        m_activeIds.removeAll(mcVersion);
+                                        if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
+                                        if (m_sessions.contains(installName)) {
+                                            auto& ses = session(installName);
+                                            ses.failed = true;
+                                            ses.error = r2->errorString();
+                                        }
+                                        rebuildInstallCards();
+                                        return;
+                                    }
+                                    QByteArray data = r2->readAll();
+                                    qDebug() << "[Coordinator] Loader FALLBACK download complete:" << data.size() << "bytes";
+                                    nam->deleteLater();
+                                    if (!m_sessions.contains(installName)) return;
+                                    auto& ses = session(installName);
+                                    ses.loaderDownloadData = data;
+                                    updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
+                                    ses.loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
+                                    m_mlInstaller->setGameDir(m_gameDir);
+                                    m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
+                                });
+                                return;
+                            }
+                            // No fallback URL, fail immediately
+                            qWarning() << "[Coordinator] Loader download FAILED (no fallback):" << reply->errorString();
+                            emit logMessage(QStringLiteral(" %1 \u4e0b\u8f7d\u5931\u8d25: %2").arg(loaderType).arg(reply->errorString()));
                             nam->deleteLater();
-                            // Cancel MC download (running in parallel)
                             for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
                                 if (it.key() == mcVersion) {
                                     it.value()->cancel();
@@ -1838,7 +1877,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             m_dlStates.remove(mcVersion);
                             m_activeIds.removeAll(mcVersion);
                             if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
-                            // Mark session failed (so user can dismiss)
                             if (m_sessions.contains(installName)) {
                                 auto& ses = session(installName);
                                 ses.failed = true;
@@ -1847,23 +1885,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             rebuildInstallCards();
                             return;
                         }
-                        // Download OK
                         QByteArray data = reply->readAll();
                         qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
                         nam->deleteLater();
                         if (!m_sessions.contains(installName)) return;
                         auto& ses = session(installName);
                         ses.loaderDownloadData = data;
-                        // Mark download step as completed
                         updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
-                        // Start verify IMMEDIATELY, don't wait for MC
                         ses.loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
                         m_mlInstaller->setGameDir(m_gameDir);
                         m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
                     });
-                };
+                }
 
-                doLoaderDownload(loaderDlUrl, false);
             }
         });
         connect(coord, &DownloadCoordinator::connectivityFailed, this,
