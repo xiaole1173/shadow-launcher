@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -206,15 +206,16 @@ Rectangle {
                 RowLayout {
                     visible: {
                         var ph = model.phase || ""
-                        return ph !== "\u6821\u9a8c\u4e2d..." && ph !== "idle" && !model.failed
-                            && ph !== ""
-                            && (ph.includes("\u4e0b\u8f7d") || ph.includes("\u5b89\u88c5") || ph.includes("\u51c6\u5907"))
+                        // Hide only when idle, empty, failed, or done
+                        return !model.failed && ph !== "" && ph !== "idle"
+                            && ph !== "完成" && ph !== "空闲"
                     }
                     spacing: 6; Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
 
-                    // Pause / Resume
+                    // Pause / Resume (version downloads only — ModLoaderInstaller has no pause)
                     Item { Layout.fillWidth: true }  // spacer
                     Rectangle {
+                        visible: model.type !== "mod_loader"
                         implicitWidth: pauseBtnText.implicitWidth + 20; implicitHeight: 28
                         radius: 6; color: "#191c28"; border.color: "#2a3040"; border.width: 1
                         Text {

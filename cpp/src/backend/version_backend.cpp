@@ -2007,7 +2007,7 @@ QVariant InstallCardModel::data(const QModelIndex& index, int role) const {
     case SpeedRole:     return QVariant::fromValue<qint64>(c.speed);
     case PhaseRole:     return c.phase;
     case RemainingRole: return c.remaining;
-    case StepsRole:     return QJsonDocument(QJsonArray::fromVariantList(c.steps)).toJson(QJsonDocument::Compact);
+    case StepsRole:     return QVariant::fromValue(c.steps);  // QVariantList → JS array directly
     case FailedRole:    return c.failed;
     case ErrorRole:                return c.error;
     case TotalProgressVisibleRole: return c.totalProgressVisible;
