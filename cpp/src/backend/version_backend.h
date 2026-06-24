@@ -40,9 +40,6 @@ struct InstallSession {
     qreal totalProgress = 0.0;
     qreal smoothProgress = 0.0;
     bool isMerged = false;
-    bool mcDownloadDone = false;      // MC download phase complete
-    bool loaderDownloadReady = false; // Loader file downloaded
-    QByteArray loaderDownloadData;    // Cached loader file bytes
     QString mcVersion;
     QString loaderType;
     QString loaderVer;
@@ -226,7 +223,6 @@ private slots:
     void onVersionDownloadFinished(bool success, const QString& error);
 
 private:
-    void proceedToLoaderInstall(const QString& installId);
     void updateInstalledList();
     void setInstalling(bool v);
     void setInstallPhase(const QString& phase);

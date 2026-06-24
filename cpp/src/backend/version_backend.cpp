@@ -793,7 +793,8 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
             auto& ses = it.value();
             if (ses.isMerged && ses.mcVersion == finishedId) {
-                qDebug() << "[install] Merged: MC download complete" << ses.loaderType;
+                // Merged install: MC done, transitioning to loader
+                qDebug() << "[install] Merged: MC download complete, starting" << ses.loaderType;
                 ses.mcBytesDl = ses.mcBytesAll;
                 for (int i = 0; i < 3 && i < ses.steps.size(); i++) {
                     updateStep(it.key(), i, QStringLiteral("completed"), 100);
@@ -802,13 +803,13 @@ void VersionBackend::onVersionDownloadFinished(bool success,
                 if (verifyIdx < ses.steps.size()) {
                     updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
                 }
-                // Mark MC as done — if loader also downloaded, proceed
-                ses.mcDownloadDone = true;
-                if (ses.loaderDownloadReady) {
-                    proceedToLoaderInstall(it.key());
-                } else {
-                    qDebug() << "[install] MC done, waiting for loader download...";
-                    emit logMessage(QStringLiteral("MC下载完成，等待 %1 下载...").arg(ses.loaderType));
+                m_mlInstaller->setGameDir(m_gameDir);
+                if (ses.loaderType == QStringLiteral("forge")) {
+                    m_mlInstaller->installForge(ses.mcVersion, ses.loaderVer, it.key());
+                } else if (ses.loaderType == QStringLiteral("neoforge")) {
+                    m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, it.key());
+                } else if (ses.loaderType == QStringLiteral("fabric")) {
+                    m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, it.key());
                 }
                 anyMergedLaunched = true;
             }
@@ -930,22 +931,6 @@ void VersionBackend::updateInstalledList()
                 m_installedIds.append(subDir);
             }
         }
-    }
-}
-
-void VersionBackend::proceedToLoaderInstall(const QString& installId) {
-    if (!m_mlInstaller || !m_sessions.contains(installId)) return;
-    auto& ses = session(installId);
-    qDebug() << "[install] Both downloads complete, starting" << ses.loaderType << "install";
-    emit logMessage(QStringLiteral("全部下载完成，开始安装 %1...").arg(ses.loaderType));
-
-    m_mlInstaller->setGameDir(m_gameDir);
-    if (ses.loaderType == QStringLiteral("forge")) {
-        m_mlInstaller->installForge(ses.mcVersion, ses.loaderVer, installId);
-    } else if (ses.loaderType == QStringLiteral("neoforge")) {
-        m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, installId);
-    } else if (ses.loaderType == QStringLiteral("fabric")) {
-        m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, installId);
     }
 }
 
@@ -1747,92 +1732,27 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         setInstalling(true);
         setInstallPhase(QStringLiteral("连通性测试中..."));
 
-        // Determine mirror base URL for connectivity test (use manifestUrl — returns 200 reliably)
+        // Determine mirror URL for connectivity test (use manifestUrl — returns 200 reliably)
         QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
         MirrorSource mirror = mirrors.isEmpty() ? MirrorSource{} : mirrors[0];
-        // Forge/Fabric download URLs are built relative to libraryBase (Maven path)
-        QString libBase = QStringLiteral("https://bmclapi2.bangbang93.com/maven");
-        QString mcTestUrl = QStringLiteral("https://bmclapi2.bangbang93.com");
-        if (!mirror.libraryBase.isEmpty()) {
-            libBase = mirror.libraryBase;
-        }
+        QString mcTestUrl = QStringLiteral("https://bmclapi2.bangbang93.com/mc/game/version_manifest.json");
         if (!mirror.manifestUrl.isEmpty()) {
             mcTestUrl = mirror.manifestUrl;  // guaranteed 200
         }
 
-        // Build loader download URL
-        QString loaderUrl;
-        if (loaderType == QStringLiteral("forge")) {
-            loaderUrl = QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar")
-                .arg(libBase).arg(loaderVersion);
-        } else if (loaderType == QStringLiteral("neoforge")) {
-            loaderUrl = QStringLiteral("%1/net/neoforged/neoforge/%2/neoforge-%2-installer.jar")
-                .arg(libBase).arg(loaderVersion);
-        } else if (loaderType == QStringLiteral("fabric")) {
-            // Fabric uses BMCLAPI fabric-meta endpoint (not Maven)
-            QString fabricBase = QStringLiteral("https://bmclapi2.bangbang93.com");
-            if (!mirror.manifestUrl.isEmpty()) {
-                // Extract base domain from manifestUrl
-                QUrl mUrl(mirror.manifestUrl);
-                fabricBase = mUrl.scheme() + "://" + mUrl.host();
-            }
-            loaderUrl = QStringLiteral("%1/fabric-meta/v2/versions/loader/%2/%3/profile/json")
-                .arg(fabricBase).arg(mcVersion).arg(loaderVersion);
-        }
+        // Build loader download URL (unused for coordinator, needed by ModLoaderInstaller later)
 
         auto* coord = new DownloadCoordinator(this);
-        coord->addSource(QStringLiteral("mc"), mcTestUrl);
-        if (!loaderUrl.isEmpty()) coord->addSource(loaderType, loaderUrl);
+        coord->addSource(QStringLiteral("bmclapi"), mcTestUrl);  // One HEAD covers all BMCLAPI sub-services
 
-        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName, loaderUrl](qint64 totalBytes) {
+        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, coord, installName](qint64 totalBytes) {
             auto& ses = session(installName);
             ses.mcBytesAll = totalBytes;
             qDebug() << "[Coordinator] Preflight OK. Total bytes:" << totalBytes;
-            emit logMessage(QStringLiteral("✓ 连通性测试通过，总下载量: %1 MB").arg(totalBytes / 1048576.0, 0, 'f', 1));
+            emit logMessage(QStringLiteral("✓ 连通性测试通过"));
 
-            // ── Start MC download ──
+            // Start MC download — loader follows after MC completes (ModLoaderInstaller handles its own download)
             installVersion(mcVersion, 0);
-
-            // ── Start loader download IN PARALLEL (Forge/NeoForge only — Fabric is tiny, sequential is fine)
-            bool isHeavyLoader = (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge"));
-            if (!loaderUrl.isEmpty() && isHeavyLoader) {
-                qDebug() << "[Coordinator] Starting parallel loader download:" << loaderUrl;
-                auto* nam = new QNetworkAccessManager(this);
-                QUrl url(loaderUrl);
-                QNetworkRequest req(url);
-                req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-                req.setTransferTimeout(120000);
-                QNetworkReply* reply = nam->get(req);
-                reply->setProperty("installName", installName);
-                connect(reply, &QNetworkReply::finished, this, [this, nam, reply, installName, loaderType, loaderVersion, mcVersion]() {
-                    reply->deleteLater();
-                    nam->deleteLater();
-                    if (reply->error() != QNetworkReply::NoError) {
-                        emit logMessage(QStringLiteral("✗ %1 下载失败: %2").arg(loaderType).arg(reply->errorString()));
-                        auto& ses = session(installName);
-                        ses.failed = true;
-                        ses.error = reply->errorString();
-                        rebuildInstallCards();
-                        return;
-                    }
-                    QByteArray data = reply->readAll();
-                    qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
-                    // Store data and check if MC is also done
-                    if (!m_sessions.contains(installName)) return;
-                    auto& ses = session(installName);
-                    ses.loaderDownloadData = data;
-                    ses.loaderDownloadReady = true;
-                    // If MC is already done, proceed to install
-                    if (ses.mcDownloadDone) {
-                        proceedToLoaderInstall(installName);
-                    }
-                });
-            } else if (!loaderUrl.isEmpty()) {
-                // Fabric/OptiFine: tiny download, no parallel — mark ready immediately
-                auto& ses = session(installName);
-                ses.loaderDownloadReady = true;
-            }
-
             coord->deleteLater();
         });
         connect(coord, &DownloadCoordinator::connectivityFailed, this,
@@ -1913,12 +1833,9 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         m_mlInstaller->setModsDir(QString());  // reset to default (gameDir/mods)
     }
 
-    // ── Preflight: connectivity test ──
-    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
-
+    // Preflight: connectivity test (use manifestUrl, not the actual download URL — HEAD blocked by CDN)
     auto* coord = new DownloadCoordinator(this);
-    coord->addSource(QStringLiteral("optifine"), url);
+    coord->addSource(QStringLiteral("bmclapi"), QStringLiteral("https://bmclapi2.bangbang93.com/mc/game/version_manifest.json"));
     setInstallPhase(QStringLiteral("连通性测试中..."));
     setInstalling(true);
 
