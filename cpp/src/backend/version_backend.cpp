@@ -938,7 +938,7 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
     m_mlInstaller->setGameDir(m_gameDir);
     if (ses.loaderType == QStringLiteral("forge")) {
-        m_mlInstaller->installForgeFromData(ses.loaderDownloadData, ses.mcVersion, ses.loaderVer, installId);
+        m_mlInstaller->forgeContinueInstall();
     } else if (ses.loaderType == QStringLiteral("neoforge")) {
         m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, installId);
     } else if (ses.loaderType == QStringLiteral("fabric")) {
@@ -1037,22 +1037,6 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     if (st.phase != QStringLiteral("校验中...")) {
         st.phase = QStringLiteral("下载中...");
-    }
-
-    // ── Sync per-category done bytes with real-time global progress ──
-    if (tb > 0) {
-        // Try to use pre-computed full category totals first
-        auto dl = m_downloaders.value(versionId);
-        const bool havePrecomputed = dl && dl->categoryTotalBytes(0) > 0
-                                      && dl->categoryTotalBytes(1) > 0
-                                      && dl->categoryTotalBytes(2) > 0;
-        for (int ci = 0; ci < 3; ci++) {
-            const qint64 catTot = havePrecomputed ? dl->categoryTotalBytes(ci) : st.catBytesTotal[ci];
-            if (catTot > 0) {
-                st.catBytesDl[ci] = (qint64)((qreal)db * catTot / tb);
-                st.catBytesTotal[ci] = catTot;  // also fix the denominator
-            }
-        }
     }
 
     // ── Merged install: accumulate MC phase bytes ──
@@ -1154,6 +1138,21 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
     if (versionId == primaryVersionId()) {
             }
+
+    // ── Per-category byte tracking for DlState (version cards) ──
+    if (cat >= 0 && cat <= 2) {
+        const bool firstForFile = !st.fileSeen.contains(fileName);
+        if (firstForFile && total > 0) {
+            st.catBytesTotal[cat] += total;
+            st.fileSeen.insert(fileName);
+        }
+        qint64 catDone = st.catBytesDoneBase[cat] + received;
+        if (received >= total && total > 0) {
+            st.catBytesDoneBase[cat] += total;
+            catDone = st.catBytesDoneBase[cat];
+        }
+        st.catBytesDl[cat] = catDone;
+    }
 
     // ── Merged install: route MC download phase to steps 0-2 ──
     QString mergedSessionId;
@@ -1736,7 +1735,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 QStringLiteral("校验 %1 完整性").arg(loaderLabel),
                 QStringLiteral("安装 %1").arg(loaderLabel)
             }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
-             {true, true, true, false, true, false, true});
+             {true, true, true, false, true, false, false});
         }
         updateStep(installName, 0, QStringLiteral("active"), 0);
         ses.loadedStep = 1;
@@ -2331,7 +2330,10 @@ void VersionBackend::doRebuildInstallCards() {
             // Always build 4 steps (3 download + 1 verify) — verify stays pending until phase transitions
             auto catStatus = [&](int ci) {
                 if (verifying) return QStringLiteral("active");
-                if (st.catBytesTotal[ci] <= 0) return QStringLiteral("pending");  // not yet populated
+                if (st.catBytesTotal[ci] <= 0) {
+                    // Not yet populated by first file, but overall download is active
+                    return (st.bytesDl > 0) ? QStringLiteral("active") : QStringLiteral("pending");
+                }
                 return QStringLiteral("active");
             };
             auto catDl = [&](int ci) { return st.catBytesDl[ci]; };

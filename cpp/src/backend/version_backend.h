@@ -256,6 +256,8 @@ private:
         // Per-category byte tracking (0=versions, 1=libraries, 2=assets)
         qint64 catBytesDl[3] = {};
         qint64 catBytesTotal[3] = {};
+        qint64 catBytesDoneBase[3] = {};
+        QSet<QString> fileSeen;
     };
     QMap<QString, DlState> m_dlStates;
     QMap<QString, VersionDownloader*> m_downloaders;
