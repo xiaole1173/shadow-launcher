@@ -128,7 +128,7 @@ Window {
         function onInstallComplete(installName) {
             console.log("[main] installComplete:", installName)
             if (toastManager) {
-                toastManager.show("版本下载完成")
+                toastManager.show(installName + " 下载完成")
             }
             if (navListIndex >= 3) {
                 switchPage(0)
