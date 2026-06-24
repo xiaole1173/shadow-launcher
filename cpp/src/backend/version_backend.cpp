@@ -957,7 +957,7 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
     if (ses.loaderType == QStringLiteral("forge")) {
         m_mlInstaller->forgeContinueInstall();
     } else if (ses.loaderType == QStringLiteral("neoforge")) {
-        m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, installId);
+        m_mlInstaller->neoForgeContinueInstall();
     } else if (ses.loaderType == QStringLiteral("fabric")) {
         m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, installId);
     }
@@ -1863,7 +1863,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                     updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
                                     ses.loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
                                     m_mlInstaller->setGameDir(m_gameDir);
-                                    m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
+                                    if (loaderType == QStringLiteral("neoforge"))
+                                        m_mlInstaller->installNeoForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
+                                    else
+                                        m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
                                 });
                                 return;
                             }
@@ -1900,7 +1903,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
                         ses.loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
                         m_mlInstaller->setGameDir(m_gameDir);
-                        m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
+                        if (loaderType == QStringLiteral("neoforge"))
+                            m_mlInstaller->installNeoForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
+                        else
+                            m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
                     });
                 }
 

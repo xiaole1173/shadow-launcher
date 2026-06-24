@@ -37,6 +37,10 @@ public:
                              const QString& forgeVersion, const QString& installName);
     // Continue after verify-only: start PCL install phase
     void forgeContinueInstall();
+    void installNeoForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
+                                  const QString& neoVersion, const QString& installName);
+    void neoForgeContinueInstall();
+
     void cancel();
 
 signals:

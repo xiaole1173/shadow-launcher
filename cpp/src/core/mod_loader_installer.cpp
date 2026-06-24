@@ -107,6 +107,19 @@ void ModLoaderInstaller::installForgeFromData(const QByteArray& installerJar, co
     forgeStep2_verify(installerJar);
 }
 
+void ModLoaderInstaller::installNeoForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
+                                         const QString& neoVersion, const QString& installName)
+{
+    if (m_running) return;
+    m_running = true; m_cancelled = false;
+    m_mcVersion = mcVersion; m_loaderVersion = neoVersion;
+    m_installName = installName; m_loaderType = "neoforge";
+    m_totalSteps = 2; m_currentStep = 0;  // verify + install (download skipped)
+    m_verifyOnly = true;
+    qDebug() << "[ModLoader] NeoForge from data (verify-only): MC" << mcVersion << "NeoForge" << neoVersion;
+    neoStep2_verify(installerJar);
+}
+
 void ModLoaderInstaller::forgeContinueInstall()
 {
     if (m_cachedJar.isEmpty()) {
@@ -118,6 +131,19 @@ void ModLoaderInstaller::forgeContinueInstall()
     m_verifyOnly = false;
     m_running = true;
     forgeStep3_PCLinstall(m_cachedJar);
+}
+
+void ModLoaderInstaller::neoForgeContinueInstall()
+{
+    if (m_cachedJar.isEmpty()) {
+        qWarning() << "[ModLoader] neoForgeContinueInstall but no cached jar";
+        emit finished(false, "无缓存的安装程序");
+        return;
+    }
+    qDebug() << "[ModLoader] Continuing NeoForge PCL install";
+    m_verifyOnly = false;
+    m_running = true;
+    neoForgeStep3_PCLinstall(m_cachedJar);
 }
 
 void ModLoaderInstaller::installForge(const QString& mcVersion, const QString& forgeVersion,
@@ -835,6 +861,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
         if (!ok || sha1Data.isEmpty()) {
             qWarning() << "[ModLoader] Cannot fetch NeoForge SHA1, skip verification";
             emit verifyFinished(false);
+            if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
             neoForgeStep3_PCLinstall(jarData);
             return;
         }
@@ -851,6 +878,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
+        if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
         neoForgeStep3_PCLinstall(jarData);
     });
 }
