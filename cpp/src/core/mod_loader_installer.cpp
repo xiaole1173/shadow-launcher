@@ -1186,13 +1186,20 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
                     obj[QStringLiteral("arguments")] = objArgs;
 
                     // Inherit fields that the launcher reads from the parent
-                    obj[QStringLiteral("inheritsFrom")] = QJsonValue();  // Remove — standalone now
-                    if (obj[QStringLiteral("assetIndex")].isUndefined())
-                        obj[QStringLiteral("assetIndex")] = mcObj[QStringLiteral("assetIndex")];
-                    if (obj[QStringLiteral("assets")].isUndefined())
-                        obj[QStringLiteral("assets")] = mcObj[QStringLiteral("assets")];
-                    if (obj[QStringLiteral("minimumLauncherVersion")].isUndefined())
-                        obj[QStringLiteral("minimumLauncherVersion")] = mcObj[QStringLiteral("minimumLauncherVersion")];
+                    // Remove inheritsFrom (standalone now) — must be absent, not null
+                    obj.remove(QStringLiteral("inheritsFrom"));
+                    // Copy null/missing fields from MC parent
+                    auto cpIfNeeded = [&](const QString& key) {
+                        QJsonValue v = obj[key];
+                        if (v.isUndefined() || v.isNull())
+                            obj[key] = mcObj[key];
+                    };
+                    cpIfNeeded(QStringLiteral("assetIndex"));
+                    cpIfNeeded(QStringLiteral("assets"));
+                    cpIfNeeded(QStringLiteral("minimumLauncherVersion"));
+                    cpIfNeeded(QStringLiteral("type"));
+                    cpIfNeeded(QStringLiteral("releaseTime"));
+                    cpIfNeeded(QStringLiteral("time"));
                 }
 
                 // Add universal JAR as library (contains NeoForgeMod.class etc.)
