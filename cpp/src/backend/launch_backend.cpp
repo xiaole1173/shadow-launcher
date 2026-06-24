@@ -269,9 +269,9 @@ void LaunchBackend::runNextCheck()
                 // Timeout guard: resume after 12s even if refresh never responds
                 QTimer::singleShot(12000, this, [this]() {
                     if (m_checkTimer && !m_checkTimer->isActive()) {
-                        qCWarning(logLaunch) << "Token refresh timed out, proceeding anyway";
-                        m_checkStep++;
-                        m_checkTimer->start();
+                        qCWarning(logLaunch) << "Token refresh timed out — blocking launch";
+                        abortCheck(QStringLiteral("登录状态"),
+                                   QStringLiteral("网络超时，无法验证正版登录状态"));
                     }
                 });
                 // Temporary connection: resume on refresh result

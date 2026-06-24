@@ -656,8 +656,7 @@ void AccountBackend::loadMicrosoftSession()
     // For old sessions without timestamps, must verify via refresh
     if ((!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) && !knownExpired) {
         qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
-        // DON'T set m_loggedIn yet — wait for refresh to validate
-        m_isOnline = true;
+        // DON'T set m_loggedIn or m_isOnline yet — wait for refresh to validate
         downloadSkin(m_username);
         if (!m_msRefreshToken.isEmpty()) {
             m_refreshingToken = true;  // initially-load refresh
@@ -665,6 +664,7 @@ void AccountBackend::loadMicrosoftSession()
         } else {
             // MC token only (no refresh token) — try with what we have
             m_loggedIn = true;
+            m_isOnline = true;
             emit accountChanged();
         }
     } else if (knownExpired) {
@@ -683,6 +683,7 @@ void AccountBackend::refreshMicrosoftToken()
 {
     if (m_msRefreshToken.isEmpty()) return;
     qCInfo(logAccount) << "Attempting Microsoft token refresh...";
+    m_refreshingToken = true;
 
     QUrlQuery postData;
     postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f"));
@@ -725,14 +726,9 @@ void AccountBackend::refreshMicrosoftToken()
         qCInfo(logAccount) << "Microsoft token refreshed! Now refreshing MC token...";
 
         // Continue the chain: MS access_token → XBL → XSTS → Minecraft token
-        m_refreshingToken = true;
+        // m_refreshingToken already true from function entry
+        // Don't set m_loggedIn here — wait for MC chain to complete via loginSuccess/loginFailed
         m_msAuth->refreshMcChain(newAccessToken);
-
-        // Token refreshed — keep alive, but DON'T flip login mode
-        m_loggedIn = true;
-        saveMicrosoftSession();
-        emit accountChanged();
-        emit logMessage(QStringLiteral("已自动刷新登录: %1").arg(m_username));
     });
 }
 
