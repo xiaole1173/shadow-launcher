@@ -26,6 +26,8 @@
 #include <QJsonArray>
 #include <QSet>
 #include <QDebug>
+#include <memory>
+#include <functional>
 
 // Tracing tag
 #define LOG_CARDS() qDebug() << "[CARDS]"
@@ -526,16 +528,10 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                 st.catBytesTotal[2] = downloader->categoryTotalBytes(2);
                             }
                             updateDownloadProgress(versionId, cf, tf, db, tb);
-                            // ── Sync session steps for merged installs ──
+                            // ── Merged install: keep mcBytesAll accurate from real tb ──
                             for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
-                                auto& ses = it.value();
-                                if (ses.isMerged && ses.mcVersion == versionId) {
-                                    if (tb > 0) ses.mcBytesAll = qMax(ses.mcBytesAll, tb);
-                                    for (int ci = 0; ci < 3 && ci < ses.steps.size(); ci++) {
-                                        int pct = st.catBytesTotal[ci] > 0 ? (int)(st.catBytesDl[ci] * 100 / st.catBytesTotal[ci]) : 0;
-                                        updateStep(it.key(), ci, QStringLiteral("active"), pct,
-                                                   st.catBytesDl[ci], st.catBytesTotal[ci]);
-                                    }
+                                if (it.value().isMerged && it.value().mcVersion == versionId) {
+                                    if (tb > 0) it.value().mcBytesAll = qMax(it.value().mcBytesAll, tb);
                                     break;
                                 }
                             }
@@ -1086,7 +1082,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         // Push real per-category byte progress to all 3 MC download steps
         for (int ci = 0; ci < 3; ci++) {
             if (mSes.mcStepTotal[ci] > 0) {
-                updateStep(mergedSessionId, ci, QStringLiteral("active"), 0,
+                int pct = (int)(mSes.mcStepDone[ci] * 100 / mSes.mcStepTotal[ci]);
+                updateStep(mergedSessionId, ci, QStringLiteral("active"), pct,
                            mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
             }
         }
@@ -1781,53 +1778,93 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
             }
 
-            if (!loaderDlUrl.isEmpty()) {
-                qDebug() << "[Coordinator] Parallel loader download:" << loaderDlUrl;
+                        if (!loaderDlUrl.isEmpty()) {
+                // Shared downloader: try BMCLAPI, fall back to official on failure
                 auto* nam = new QNetworkAccessManager(this);
-                QUrl url(loaderDlUrl);
-                QNetworkRequest req(url);
-                req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-                req.setTransferTimeout(300000);  // 5min for large installer jars
-                QNetworkReply* reply = nam->get(req);
-                reply->setProperty("installName", installName);
-                // Track download progress for step entry
                 int loaderDlStepIdx = (ses.steps.size() >= 5) ? 4 : 4;
-                connect(reply, &QNetworkReply::downloadProgress, this,
-                        [this, installName, loaderDlStepIdx](qint64 recv, qint64 total) {
-                    updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-                               total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
-                });
-                connect(reply, &QNetworkReply::finished, this,
-                        [this, nam, reply, installName, loaderType, loaderVersion, mcVersion]() {
-                    reply->deleteLater();
-                    nam->deleteLater();
-                    if (reply->error() != QNetworkReply::NoError) {
-                        qWarning() << "[Coordinator] Loader download FAILED:" << reply->errorString();
-                        emit logMessage(QStringLiteral("✗ %1 下载失败: %2").arg(loaderType).arg(reply->errorString()));
-                        if (m_sessions.contains(installName)) {
-                            auto& ses = session(installName);
-                            ses.failed = true;
-                            ses.error = reply->errorString();
+                struct LoaderDlState { bool retried = false; };
+                auto dlState = std::make_shared<LoaderDlState>();
+
+                std::function<void(const QString&, bool)> doLoaderDownload;
+                doLoaderDownload = [this, nam, installName, loaderType, loaderVersion, mcVersion, loaderDlStepIdx, dlState, &doLoaderDownload](const QString& url, bool isFallback) {
+                    qDebug() << "[Coordinator] Loader" << (isFallback ? "FALLBACK" : "") << "download:" << url;
+                    QUrl qurl(url);
+                    QNetworkRequest req(qurl);
+                    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+                    req.setTransferTimeout(300000);
+                    QNetworkReply* reply = nam->get(req);
+
+                    connect(reply, &QNetworkReply::downloadProgress, this,
+                            [this, installName, loaderDlStepIdx](qint64 recv, qint64 total) {
+                        updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
+                                   total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
+                    });
+
+                    connect(reply, &QNetworkReply::finished, this,
+                            [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, loaderDlStepIdx, dlState, doLoaderDownload]() {
+                        reply->deleteLater();
+                        if (reply->error() != QNetworkReply::NoError) {
+                            // Try fallback URL once before giving up
+                            if (!dlState->retried) {
+                                dlState->retried = true;
+                                QString fallbackUrl;
+                                if (loaderType == QStringLiteral("forge")) {
+                                    QString verArg = mcVersion + "-" + loaderVersion;
+                                    fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+                                } else if (loaderType == QStringLiteral("neoforge")) {
+                                    fallbackUrl = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+                                }
+                                if (!fallbackUrl.isEmpty()) {
+                                    qWarning() << "[Coordinator] BMCLAPI failed, trying official:" << fallbackUrl;
+                                    emit logMessage(QStringLiteral(" BMCLAPI 不通，尝试官方源..."));
+                                    doLoaderDownload(fallbackUrl, true);
+                                    return;
+                                }
+                            }
+                            // Both failed
+                            qWarning() << "[Coordinator] Loader download FAILED:" << reply->errorString();
+                            emit logMessage(QStringLiteral(" %1 下载失败: %2").arg(loaderType).arg(reply->errorString()));
+                            nam->deleteLater();
+                            // Cancel MC download (running in parallel)
+                            for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
+                                if (it.key() == mcVersion) {
+                                    it.value()->cancel();
+                                    it.value()->disconnect();
+                                    it.value()->deleteLater();
+                                    m_downloaders.erase(it);
+                                    break;
+                                }
+                            }
+                            m_dlStates.remove(mcVersion);
+                            m_activeIds.removeAll(mcVersion);
+                            if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
+                            // Mark session failed (so user can dismiss)
+                            if (m_sessions.contains(installName)) {
+                                auto& ses = session(installName);
+                                ses.failed = true;
+                                ses.error = reply->errorString();
+                            }
+                            rebuildInstallCards();
+                            return;
                         }
-                        rebuildInstallCards();
-                        return;
-                    }
-                    QByteArray data = reply->readAll();
-                    qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
-                    if (!m_sessions.contains(installName)) return;
-                    auto& ses = session(installName);
-                    ses.loaderDownloadData = data;
-                    ses.loaderDownloadReady = true;
-                    // Mark download step as completed
-                    int dlStep = (ses.steps.size() >= 5) ? 4 : 4;
-                    updateStep(installName, dlStep, QStringLiteral("completed"), 100, data.size(), data.size());
-                    // If MC is already done, proceed to verify+install
-                    if (ses.mcDownloadDone) {
-                        proceedToLoaderInstall(installName);
-                    }
-                });
+                        // Download OK
+                        QByteArray data = reply->readAll();
+                        qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
+                        nam->deleteLater();
+                        if (!m_sessions.contains(installName)) return;
+                        auto& ses = session(installName);
+                        ses.loaderDownloadData = data;
+                        // Mark download step as completed
+                        updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
+                        // Start verify IMMEDIATELY, don't wait for MC
+                        ses.loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
+                        m_mlInstaller->setGameDir(m_gameDir);
+                        m_mlInstaller->installForgeFromData(data, ses.mcVersion, ses.loaderVer, installName);
+                    });
+                };
+
+                doLoaderDownload(loaderDlUrl, false);
             }
-            coord->deleteLater();
         });
         connect(coord, &DownloadCoordinator::connectivityFailed, this,
                 [this, coord, installName](const QString& taskId, const QString& reason) {
@@ -2239,6 +2276,12 @@ void VersionBackend::doRebuildInstallCards() {
         c.steps = QVariantList{};
         c.totalProgressVisible = true;
 
+        // Always build 4-step template (even before first progress event)
+        QVariantList vSteps;
+        auto addVStep = [&](const QString& name, const QString& status, int pct, qint64 dl, qint64 tot) {
+            vSteps.append(QVariantMap{{"name", name}, {"status", status}, {"percentage", pct}, {"show", true}});
+        };
+
         if (m_dlStates.contains(vid)) {
             const DlState& st = m_dlStates[vid];
             bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
@@ -2252,27 +2295,33 @@ void VersionBackend::doRebuildInstallCards() {
             c.phase = st.phase;
 
             // Always build 4 steps (3 download + 1 verify) — verify stays pending until phase transitions
-            QVariantList vSteps;
-            auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
-                int pct = (tot > 0) ? (int)(dl * 100 / tot) : (status == QStringLiteral("completed") ? 100 : 0);
-                vSteps.append(QVariantMap{{"name", name}, {"status", status}, {"percentage", pct}, {"show", true}});
-            };
-
             auto catStatus = [&](int ci) {
-                if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
+                if (verifying) return QStringLiteral("active");
+                if (st.catBytesTotal[ci] <= 0) return QStringLiteral("pending");  // not yet populated
                 return QStringLiteral("active");
             };
             auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
             auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
 
-            addVStep(QStringLiteral("\u4e0b\u8f7d\u7248\u672cJSON"), verifying ? QStringLiteral("completed") : catStatus(0), catDl(0), catTot(0));
-            addVStep(QStringLiteral("\u4e0b\u8f7d\u652f\u6301\u5e93"), verifying ? QStringLiteral("completed") : catStatus(1), catDl(1), catTot(1));
-            addVStep(QStringLiteral("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6"), verifying ? QStringLiteral("completed") : catStatus(2), catDl(2), catTot(2));
-            addVStep(QStringLiteral("\u6821\u9a8c\u6e38\u620f\u8d44\u6e90\u5b8c\u6574\u6027"),
+            addVStep(QStringLiteral("下载版本JSON"), verifying ? QStringLiteral("completed") : catStatus(0),
+                     (st.catBytesTotal[0] > 0) ? (int)(st.catBytesDl[0] * 100 / st.catBytesTotal[0]) : 0, catDl(0), catTot(0));
+            addVStep(QStringLiteral("下载支持库"), verifying ? QStringLiteral("completed") : catStatus(1),
+                     (st.catBytesTotal[1] > 0) ? (int)(st.catBytesDl[1] * 100 / st.catBytesTotal[1]) : 0, catDl(1), catTot(1));
+            addVStep(QStringLiteral("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
+                     (st.catBytesTotal[2] > 0) ? (int)(st.catBytesDl[2] * 100 / st.catBytesTotal[2]) : 0, catDl(2), catTot(2));
+            addVStep(QStringLiteral("校验游戏资源完整性"),
                      verifying ? QStringLiteral("active") : QStringLiteral("pending"),
+                     verifying ? (st.total > 0 ? (int)(st.progress * 100 / st.total) : 0) : 0,
                      verifying ? st.progress : qint64(0),
                      verifying ? st.total : qint64(0));
             c.remaining = verifying ? 1 : 0;
+            c.steps = vSteps;
+        } else {
+            // DlState not created yet (no progress signal) — build pending template
+            addVStep(QStringLiteral("下载版本JSON"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(QStringLiteral("下载支持库"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(QStringLiteral("下载资源文件"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(QStringLiteral("校验游戏资源完整性"), QStringLiteral("pending"), 0, 0, 0);
             c.steps = vSteps;
         }
         cards.append(c);

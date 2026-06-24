@@ -202,8 +202,7 @@ Rectangle {
                 RowLayout {
                     visible: {
                         var ph = model.phase || ""
-                        return !model.failed && ph !== "" && ph !== "idle"
-                            && ph !== "完成" && ph !== "空闲"
+                        return ph !== "" && ph !== "idle" && ph !== "完成" && ph !== "空闲"
                     }
                     spacing: 6; Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
 
