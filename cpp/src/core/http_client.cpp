@@ -148,87 +148,6 @@ void HttpClient::get(const QString& url,
         });
 }
 
-// --------------- download (stream to file) ---------------
-
-void HttpClient::download(const QString& url, const QString& savePath,
-                          std::function<void(qint64, qint64)> progress,
-                          std::function<void(bool, const QString&)> done)
-{
-    const QString tmpPath = savePath + QStringLiteral(".tmp");
-
-    // Ensure parent directory exists
-    const QFileInfo fi(savePath);
-    QDir().mkpath(fi.absolutePath());
-
-    // Remove stale .tmp
-    QFile::remove(tmpPath);
-
-    QNetworkRequest req = buildRequest(m_config, QUrl(url));
-    QNetworkReply* reply = m_manager->get(req);
-
-    // --- open output file ---
-    auto* file = new QFile(tmpPath);
-    if (!file->open(QIODevice::WriteOnly)) {
-        reply->abort();
-        reply->deleteLater();
-        const QString err = QStringLiteral("Cannot open file: %1").arg(tmpPath);
-        delete file;
-        if (done) {
-            done(false, err);
-        }
-        return;
-    }
-
-    // --- incremental write ---
-    QObject::connect(reply, &QNetworkReply::readyRead, this,
-        [reply, file]() {
-            file->write(reply->readAll());
-        });
-
-    // --- progress ---
-    if (progress) {
-        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
-            [progress = std::move(progress)](qint64 received, qint64 total) {
-                progress(received, total);
-            });
-    }
-
-    // --- completion ---
-    QObject::connect(reply, &QNetworkReply::finished, this,
-        [reply, file, savePath, tmpPath, done = std::move(done)]() {
-            file->close();
-            delete file;
-
-            const int status = reply->attribute(
-                QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            const bool networkOk = (reply->error() == QNetworkReply::NoError);
-            const QString errorStr = reply->errorString();
-
-            reply->deleteLater();
-
-            if (networkOk && status == 200) {
-                // Atomic rename: remove target, rename tmp → target
-                QFile::remove(savePath);
-                if (QFile::rename(tmpPath, savePath)) {
-                    if (done) done(true, {});
-                } else {
-                    QFile::remove(tmpPath);
-                    if (done)
-                        done(false,
-                             QStringLiteral("Failed to rename: %1").arg(tmpPath));
-                }
-            } else {
-                QFile::remove(tmpPath);
-                if (done) {
-                    if (!networkOk)
-                        done(false, errorStr);
-                    else
-                        done(false, QStringLiteral("HTTP %1").arg(status));
-                }
-            }
-        });
-}
-
 // --------------- URL mirror mapping ---------------
 
 static QString mirrorUrl(const QString& url)
@@ -264,6 +183,100 @@ static QString mirrorUrl(const QString& url)
     return {};
 }
 
+// --------------- download (stream to file) ---------------
+
+void HttpClient::download(const QString& url, const QString& savePath,
+                          std::function<void(qint64, qint64)> progress,
+                          std::function<void(bool, const QString&)> done)
+{
+    const QString tmpPath = savePath + QStringLiteral(".tmp");
+
+    // Ensure parent directory exists
+    const QFileInfo fi(savePath);
+    QDir().mkpath(fi.absolutePath());
+
+    // Remove stale .tmp
+    QFile::remove(tmpPath);
+
+    // Build request (prefer BMCLAPI mirror, fallback to official)
+    QString mirror = mirrorUrl(url);
+    QString primaryUrl = mirror.isEmpty() ? url : mirror;
+
+    QNetworkRequest req = buildRequest(m_config, QUrl(primaryUrl));
+    QNetworkReply* reply = m_manager->get(req);
+
+    // --- open output file ---
+    auto* file = new QFile(tmpPath);
+    if (!file->open(QIODevice::WriteOnly)) {
+        reply->abort();
+        reply->deleteLater();
+        const QString err = QStringLiteral("Cannot open file: %1").arg(tmpPath);
+        delete file;
+        if (done) {
+            done(false, err);
+        }
+        return;
+    }
+
+    // --- incremental write ---
+    QObject::connect(reply, &QNetworkReply::readyRead, this,
+        [reply, file]() {
+            file->write(reply->readAll());
+        });
+
+    // --- progress ---
+    auto sharedProgress = std::make_shared<std::function<void(qint64, qint64)>>(std::move(progress));
+    auto sharedDone = std::make_shared<std::function<void(bool, const QString&)>>(std::move(done));
+
+    if (*sharedProgress) {
+        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
+            [sharedProgress](qint64 received, qint64 total) {
+                (*sharedProgress)(received, total);
+            });
+    }
+
+    // --- completion (mirror-first → official fallback) ---
+    QObject::connect(reply, &QNetworkReply::finished, this,
+        [this, primaryUrl, mirror, url, reply, file, savePath, tmpPath,
+         sharedProgress, sharedDone]() mutable {
+            file->close();
+            delete file;
+
+            const int status = reply->attribute(
+                QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const bool networkOk = (reply->error() == QNetworkReply::NoError);
+            const QString errorStr = reply->errorString();
+
+            reply->deleteLater();
+
+            if (networkOk && status == 200) {
+                // Success — atomic rename
+                QFile::remove(savePath);
+                if (QFile::rename(tmpPath, savePath)) {
+                    if (*sharedDone) (*sharedDone)(true, {});
+                } else {
+                    QFile::remove(tmpPath);
+                    if (*sharedDone) (*sharedDone)(false, QStringLiteral("Failed to rename: %1").arg(tmpPath));
+                }
+            } else if (!mirror.isEmpty() && primaryUrl == mirror) {
+                // Mirror failed — retry with official URL
+                qDebug() << "[NET] Mirror failed:" << errorStr << "→ trying official:" << url;
+                QFile::remove(tmpPath);
+                // Recurse with official URL (mirror.isEmpty() prevents infinite loop)
+                download(url, savePath, sharedProgress ? *sharedProgress : nullptr,
+                         sharedDone ? *sharedDone : nullptr);
+            } else {
+                // Official URL also failed, or no mirror available
+                QFile::remove(tmpPath);
+                if (*sharedDone) {
+                    if (!networkOk)
+                        (*sharedDone)(false, errorStr);
+                    else
+                        (*sharedDone)(false, QStringLiteral("HTTP %1").arg(status));
+                }
+            }
+        });
+}
 // --------------- GET with mirror fallback ---------------
 
 void HttpClient::getWithFallback(const QString& url,
@@ -296,22 +309,8 @@ void HttpClient::downloadWithFallback(const QString& url, const QString& savePat
                           std::function<void(qint64, qint64)> progress,
                           std::function<void(bool, const QString&)> done)
 {
-    // Try BMCLAPI mirror first
-    QString mirror = mirrorUrl(url);
-    if (mirror.isEmpty()) {
-        download(url, savePath, std::move(progress), std::move(done));
-        return;
-    }
-    qDebug() << "[NET] Download fallback: mirror →" << mirror;
-    download(mirror, savePath, std::move(progress),
-        [this, url, savePath, progress = std::move(progress), done = std::move(done)](bool ok, const QString& err) {
-            if (ok) {
-                if (done) done(true, {});
-            } else {
-                qDebug() << "[NET] Mirror download failed:" << err << "→ trying official";
-                download(url, savePath, std::move(progress), std::move(done));
-            }
-        });
+    // download() already has mirror-first → official fallback built in
+    download(url, savePath, std::move(progress), std::move(done));
 }
 
 // --------------- downloadWithReply ---------------
