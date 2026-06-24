@@ -175,6 +175,19 @@ VersionBackend::VersionBackend(QObject* parent)
     // Pause between verify and install (merged install: wait for MC)
     connect(m_mlInstaller, &ModLoaderInstaller::waitingForMC, this, [this]() {
         setInstallPhase(QStringLiteral("等待MC下载完成..."));
+        // Mark verify step completed
+        const QString mlId = m_modLoaderInstallId;
+        if (!mlId.isEmpty() && m_sessions.contains(mlId)) {
+            auto& ses = session(mlId);
+            int verifyStep = ses.loaderVerifyStep;
+            if (verifyStep >= 0 && verifyStep < ses.steps.size()) {
+                updateStep(mlId, verifyStep, QStringLiteral("completed"), 100);
+            }
+            ses.loaderDownloadReady = true;
+            if (ses.mcDownloadDone) {
+                proceedToLoaderInstall(mlId);
+            }
+        }
     });
 
     // Byte-level download progress → update current active step

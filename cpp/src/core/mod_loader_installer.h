@@ -30,10 +30,13 @@ public:
                          const QString& forgeVersion, const QString& installName);
 
     bool isRunning() const { return m_running; }
+    QString loaderVersion() const { return m_loaderVersion; }
+    bool hasCachedJar() const { return !m_cachedJar.isEmpty(); }
 
-    // Start Forge/NeoForge install from pre-downloaded jar (skip download step)
     void installForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
                              const QString& forgeVersion, const QString& installName);
+    // Continue after verify-only: start PCL install phase
+    void forgeContinueInstall();
     void cancel();
 
 signals:
@@ -80,6 +83,8 @@ private:
     void neoStep2_verify(const QByteArray& jarData);
     // PCL-style install (extract version.json → download libraries → write config)
     void forgeStep3_PCLinstall(const QByteArray& jarData);
+    QByteArray m_cachedJar;
+    bool m_verifyOnly = false;
     void neoForgeStep3_PCLinstall(const QByteArray& jarData);
     void runInstallerProcess(const QByteArray& jarData);
 

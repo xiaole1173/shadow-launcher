@@ -102,8 +102,22 @@ void ModLoaderInstaller::installForgeFromData(const QByteArray& installerJar, co
     m_mcVersion = mcVersion; m_loaderVersion = forgeVersion;
     m_installName = installName; m_loaderType = "forge";
     m_totalSteps = 2; m_currentStep = 0;  // verify + install (download skipped)
-    qDebug() << "[ModLoader] Forge from data: MC" << mcVersion << "Forge" << forgeVersion;
+    m_verifyOnly = true;
+    qDebug() << "[ModLoader] Forge from data (verify-only): MC" << mcVersion << "Forge" << forgeVersion;
     forgeStep2_verify(installerJar);
+}
+
+void ModLoaderInstaller::forgeContinueInstall()
+{
+    if (m_cachedJar.isEmpty()) {
+        qWarning() << "[ModLoader] forgeContinueInstall but no cached jar";
+        emit finished(false, "无缓存的安装程序");
+        return;
+    }
+    qDebug() << "[ModLoader] Continuing Forge PCL install";
+    m_verifyOnly = false;
+    m_running = true;
+    forgeStep3_PCLinstall(m_cachedJar);
 }
 
 void ModLoaderInstaller::installForge(const QString& mcVersion, const QString& forgeVersion,
@@ -390,6 +404,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             if (!ok || sha1Data.isEmpty()) {
                 qWarning() << "[ModLoader] Cannot fetch official Forge SHA1, skip verification";
                 emit verifyFinished(false);
+                if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
                 forgeStep3_PCLinstall(jarData);
                 return;
             }
@@ -398,6 +413,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             qDebug() << "[ModLoader] Forge SHA1 (official) expected:" << expectedSha1 << "actual:" << actualSha1 << "match:" << match;
             emit verifyFinished(match);
             if (!match) { emit finished(false, "Forge 安装程序校验失败（SHA1 不匹配）"); m_running = false; return; }
+            if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
             forgeStep3_PCLinstall(jarData);
         });
         return;
@@ -410,6 +426,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
         if (!ok || forgeData.isEmpty()) {
             qWarning() << "[ModLoader] Cannot fetch SHA1, skip verification";
             emit verifyFinished(false);
+            if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
             forgeStep3_PCLinstall(jarData);
             return;
         }

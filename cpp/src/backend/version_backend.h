@@ -43,6 +43,7 @@ struct InstallSession {
     bool mcDownloadDone = false;      // MC download + verify phase complete
     bool loaderDownloadReady = false; // Loader file downloaded + verified
     QByteArray loaderDownloadData;    // Cached loader file bytes
+    int loaderVerifyStep = -1;         // Step index for verify (5 for forge)
     QString mcVersion;
     QString loaderType;
     QString loaderVer;
