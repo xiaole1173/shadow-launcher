@@ -130,9 +130,7 @@ Window {
             if (toastManager) {
                 toastManager.show(installName + " 下载完成")
             }
-            if (navListIndex >= 3) {
-                switchPage(0)
-            }
+            hideDownloadNav()
         }
         function onResourceDownloadStateChanged() {
             console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)
