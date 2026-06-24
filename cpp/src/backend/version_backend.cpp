@@ -793,27 +793,22 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
             auto& ses = it.value();
             if (ses.isMerged && ses.mcVersion == finishedId) {
-                // Merged install: MC done, transitioning to loader — keep card alive
-                qDebug() << "[install] Merged: MC download complete, starting" << ses.loaderType;
-                // Lock MC phase bytes as fully done
+                qDebug() << "[install] Merged: MC download complete" << ses.loaderType;
                 ses.mcBytesDl = ses.mcBytesAll;
-                // Mark MC download steps (0-2) as completed
                 for (int i = 0; i < 3 && i < ses.steps.size(); i++) {
                     updateStep(it.key(), i, QStringLiteral("completed"), 100);
                 }
-                // Mark MC verify step (index 3) as completed
                 int verifyIdx = 3;
                 if (verifyIdx < ses.steps.size()) {
                     updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
                 }
-                // Start loader install
-                m_mlInstaller->setGameDir(m_gameDir);
-                if (ses.loaderType == QStringLiteral("forge")) {
-                    m_mlInstaller->installForge(ses.mcVersion, ses.loaderVer, it.key());
-                } else if (ses.loaderType == QStringLiteral("neoforge")) {
-                    m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, it.key());
-                } else if (ses.loaderType == QStringLiteral("fabric")) {
-                    m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, it.key());
+                // Mark MC as done — if loader also downloaded, proceed
+                ses.mcDownloadDone = true;
+                if (ses.loaderDownloadReady) {
+                    proceedToLoaderInstall(it.key());
+                } else {
+                    qDebug() << "[install] MC done, waiting for loader download...";
+                    emit logMessage(QStringLiteral("MC下载完成，等待 %1 下载...").arg(ses.loaderType));
                 }
                 anyMergedLaunched = true;
             }
@@ -935,6 +930,22 @@ void VersionBackend::updateInstalledList()
                 m_installedIds.append(subDir);
             }
         }
+    }
+}
+
+void VersionBackend::proceedToLoaderInstall(const QString& installId) {
+    if (!m_mlInstaller || !m_sessions.contains(installId)) return;
+    auto& ses = session(installId);
+    qDebug() << "[install] Both downloads complete, starting" << ses.loaderType << "install";
+    emit logMessage(QStringLiteral("全部下载完成，开始安装 %1...").arg(ses.loaderType));
+
+    m_mlInstaller->setGameDir(m_gameDir);
+    if (ses.loaderType == QStringLiteral("forge")) {
+        m_mlInstaller->installForge(ses.mcVersion, ses.loaderVer, installId);
+    } else if (ses.loaderType == QStringLiteral("neoforge")) {
+        m_mlInstaller->installNeoForge(ses.mcVersion, ses.loaderVer, installId);
+    } else if (ses.loaderType == QStringLiteral("fabric")) {
+        m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, installId);
     }
 }
 
@@ -1761,13 +1772,50 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         coord->addSource(QStringLiteral("mc"), mcBaseUrl);
         if (!loaderUrl.isEmpty()) coord->addSource(loaderType, loaderUrl);
 
-        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, coord, installName](qint64 totalBytes) {
-            // Store total bytes for progress bar scaling
+        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName, loaderUrl](qint64 totalBytes) {
             auto& ses = session(installName);
-            ses.mcBytesAll = totalBytes;  // Used for overall progress reference
+            ses.mcBytesAll = totalBytes;
             qDebug() << "[Coordinator] Preflight OK. Total bytes:" << totalBytes;
             emit logMessage(QStringLiteral("✓ 连通性测试通过，总下载量: %1 MB").arg(totalBytes / 1048576.0, 0, 'f', 1));
+
+            // ── Start MC download ──
             installVersion(mcVersion, 0);
+
+            // ── Start loader download IN PARALLEL ──
+            if (!loaderUrl.isEmpty()) {
+                qDebug() << "[Coordinator] Starting parallel loader download:" << loaderUrl;
+                auto* nam = new QNetworkAccessManager(this);
+                QUrl url(loaderUrl);
+                QNetworkRequest req(url);
+                req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+                req.setTransferTimeout(120000);
+                QNetworkReply* reply = nam->get(req);
+                reply->setProperty("installName", installName);
+                connect(reply, &QNetworkReply::finished, this, [this, nam, reply, installName, loaderType, loaderVersion, mcVersion]() {
+                    reply->deleteLater();
+                    nam->deleteLater();
+                    if (reply->error() != QNetworkReply::NoError) {
+                        emit logMessage(QStringLiteral("✗ %1 下载失败: %2").arg(loaderType).arg(reply->errorString()));
+                        auto& ses = session(installName);
+                        ses.failed = true;
+                        ses.error = reply->errorString();
+                        rebuildInstallCards();
+                        return;
+                    }
+                    QByteArray data = reply->readAll();
+                    qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
+                    // Store data and check if MC is also done
+                    if (!m_sessions.contains(installName)) return;
+                    auto& ses = session(installName);
+                    ses.loaderDownloadData = data;
+                    ses.loaderDownloadReady = true;
+                    // If MC is already done, proceed to install
+                    if (ses.mcDownloadDone) {
+                        proceedToLoaderInstall(installName);
+                    }
+                });
+            }
+
             coord->deleteLater();
         });
         connect(coord, &DownloadCoordinator::connectivityFailed, this,
