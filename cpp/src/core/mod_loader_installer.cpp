@@ -1250,7 +1250,20 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
             QByteArray mfData = reader.fileData(QStringLiteral("META-INF/MANIFEST.MF"));
             reader.close();
             if (!mfData.isEmpty() && !mfData.contains("Minecraft-Dists")) {
-                mfData.append("Minecraft-Dists: client\r\n");
+                // Remove any stray Minecraft-Dists, then insert after Main-Class
+                QByteArrayList inLines = mfData.split('\n');
+                QByteArrayList outLines;
+                for (const QByteArray& line : inLines) {
+                    if (!line.startsWith("Minecraft-Dists"))
+                        outLines.append(line);
+                }
+                QByteArrayList result;
+                for (const QByteArray& line : outLines) {
+                    result.append(line);
+                    if (line.startsWith("Main-Class:"))
+                        result.append(QByteArrayLiteral("Minecraft-Dists: client"));
+                }
+                mfData = result.join(QByteArrayLiteral("\r\n"));
                 QFile mfOut(mfDir + QStringLiteral("/META-INF/MANIFEST.MF"));
                 if (mfOut.open(QIODevice::WriteOnly)) { mfOut.write(mfData); mfOut.close(); }
                 // Use jar tool (JDK) to update JAR manifest
