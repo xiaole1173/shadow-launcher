@@ -1200,6 +1200,10 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
                     cpIfNeeded(QStringLiteral("type"));
                     cpIfNeeded(QStringLiteral("releaseTime"));
                     cpIfNeeded(QStringLiteral("time"));
+                    cpIfNeeded(QStringLiteral("javaVersion"));
+                    cpIfNeeded(QStringLiteral("logging"));
+                    cpIfNeeded(QStringLiteral("complianceLevel"));
+                    cpIfNeeded(QStringLiteral("downloads"));
                 }
 
                 // Add universal JAR as library (contains NeoForgeMod.class etc.)
@@ -1283,6 +1287,29 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
                 qDebug() << "[ModLoader] jar uf exitCode:" << jp.exitCode()
                          << "stdout:" << jp.readAllStandardOutput()
                          << "stderr:" << jp.readAllStandardError();
+                // Fallback: Python zipfile if jar tool not in PATH (JRE-only system)
+                if (jp.exitCode() != 0) {
+                    qDebug() << "[ModLoader] jar failed, trying Python zipfile...";
+                    QProcess py;
+                    py.start(QStringLiteral("python"), { QStringLiteral("-c"),
+                        QStringLiteral("import zipfile,os\n"
+                        "p=r'%1'\nt=p+'.tmp'\n"
+                        "with zipfile.ZipFile(p,'r') as z:\n"
+                        " with zipfile.ZipFile(t,'w',zipfile.ZIP_DEFLATED) as o:\n"
+                        "  for e in z.infolist():\n"
+                        "   d=z.read(e.filename)\n"
+                        "   if e.filename=='META-INF/MANIFEST.MF' and b'Minecraft-Dists' not in d:\n"
+                        "    l=d.split(b'\\r\\n')\n"
+                        "    r=[]\n"
+                        "    for x in l:\n"
+                        "     r.append(x)\n"
+                        "     if x.startswith(b'Main-Class:'):r.append(b'Minecraft-Dists: client')\n"
+                        "    d=b'\\r\\n'.join(r)\n"
+                        "   o.writestr(e,d)\n"
+                        "os.replace(t,p)").arg(jarPath) });
+                    py.waitForFinished(60000);
+                    qDebug() << "[ModLoader] Python fallback exitCode:" << py.exitCode();
+                }
             }
             QDir(mfDir).removeRecursively();
         }
