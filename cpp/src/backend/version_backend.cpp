@@ -523,12 +523,16 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             st.catBytesTotal[0] = downloader->categoryTotalBytes(0);
                             st.catBytesTotal[1] = downloader->categoryTotalBytes(1);
                             st.catBytesTotal[2] = downloader->categoryTotalBytes(2);
+                            bool firstPulse = (st.bytesDl == 0 && db > 0);
                             // Also inject into session for merged install mod_loader card
                             for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
                                 if (sit.value().isMerged && sit.value().mcVersion == versionId) {
                                     sit.value().mcStepTotal[0] = downloader->categoryTotalBytes(0);
                                     sit.value().mcStepTotal[1] = downloader->categoryTotalBytes(1);
                                     sit.value().mcStepTotal[2] = downloader->categoryTotalBytes(2);
+                                    if (firstPulse) {
+                                        updateStep(sit.key(), 0, QStringLiteral("completed"), 100);
+                                    }
                                     break;
                                 }
                             }
@@ -1086,7 +1090,6 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 mSes.smoothProgress = raw * 0.3;
             else
                 mSes.smoothProgress = mSes.smoothProgress * 0.7 + raw * 0.3;
-                                    rebuildInstallCards();
         }
     }
 
@@ -1125,7 +1128,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             setInstallPhase(QStringLiteral("下载中..."));
         }
 
-                                                    }
+        rebuildInstallCards();
+    }
 }
 
 void VersionBackend::updateDownloadFile(const QString& versionId,
@@ -2336,8 +2340,13 @@ void VersionBackend::doRebuildInstallCards() {
             auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
             auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
 
-            addVStep(QStringLiteral("下载版本JSON"), verifying ? QStringLiteral("completed") : catStatus(0),
-                     (st.catBytesTotal[0] > 0) ? (int)(st.catBytesDl[0] * 100 / st.catBytesTotal[0]) : 0, catDl(0), catTot(0));
+            // JSON downloaded separately before parallel start: completed once download begins
+            addVStep(QStringLiteral("下载版本JSON"),
+                     verifying ? QStringLiteral("completed")
+                               : (st.bytesDl > 0 ? QStringLiteral("completed") : catStatus(0)),
+                     verifying ? 100 : (st.bytesDl > 0 ? 100
+                         : ((st.catBytesTotal[0] > 0) ? (int)(st.catBytesDl[0] * 100 / st.catBytesTotal[0]) : 0)),
+                     catDl(0), catTot(0));
             addVStep(QStringLiteral("下载支持库"), verifying ? QStringLiteral("completed") : catStatus(1),
                      (st.catBytesTotal[1] > 0) ? (int)(st.catBytesDl[1] * 100 / st.catBytesTotal[1]) : 0, catDl(1), catTot(1));
             addVStep(QStringLiteral("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
