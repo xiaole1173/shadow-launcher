@@ -122,11 +122,11 @@ Rectangle {
 
     property string versionSuffix: {
         var parts = []
-        if (activeLoader === "forge" && selectedForge) parts.push("Forge-" + selectedForge)
-        if (activeLoader === "neoforge" && selectedNeoForge) parts.push("NeoForge-" + selectedNeoForge)
-        if (activeLoader === "fabric" && selectedFabric) parts.push("Fabric-" + selectedFabric)
-        if (activeLoader === "fabric" && selectedFabricApi) parts.push("FabricAPI-" + selectedFabricApi)
-        if (selectedOptifine) parts.push("OptiFine-" + selectedOptifine)
+        if (activeLoader === "forge" && selectedForge) parts.push("forge-" + selectedForge)
+        if (activeLoader === "neoforge" && selectedNeoForge) parts.push("neoforge-" + selectedNeoForge)
+        if (activeLoader === "fabric" && selectedFabric) parts.push("fabric-" + selectedFabric)
+        if (activeLoader === "fabric" && selectedFabricApi) parts.push("fabric-api-" + selectedFabricApi)
+        if (selectedOptifine) parts.push("optifine-" + selectedOptifine)
         return parts.join("-")
     }
 

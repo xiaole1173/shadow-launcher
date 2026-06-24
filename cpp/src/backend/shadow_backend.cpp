@@ -1180,11 +1180,11 @@ int ShadowBackend::requiredJavaMajor(const QString& versionId)
     }
 
     // Fallback: parse MC version from versionId and infer Java requirement
-    // Examples: "1.12.2-Forge-14.23.5.2860" → "1.12.2" → Java 8
-    //           "26.1.1-Forge-63.0.2" → "26.1.1" → no known mapping → try base version
+    // Examples: "1.12.2-forge-14.23.5.2860" → "1.12.2" → Java 8
+    //           "26.1.1-forge-63.0.2" → "26.1.1" → no known mapping → try base version
     // Parse MC version: everything before first "-" that follows a digit
     QString mcVer;
-    // Strip loader suffix: "X.Y.Z-Forge-..." → "X.Y.Z"
+    // Strip loader suffix: "X.Y.Z-forge-..." → "X.Y.Z"
     static QRegularExpression mcVerRe(QStringLiteral("^(\\d+\\.\\d+(?:\\.\\d+)?)"));
     QRegularExpressionMatch match = mcVerRe.match(versionId);
     if (match.hasMatch()) {
