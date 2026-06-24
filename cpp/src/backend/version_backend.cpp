@@ -1,4 +1,4 @@
-﻿// Shadow Launcher — VersionBackend
+// Shadow Launcher — VersionBackend
 // QML-facing backend for version list, installation, and lifecycle management.
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 
@@ -99,6 +99,10 @@ VersionBackend::VersionBackend(QObject* parent)
         // (prevents progress dip during prefetch→installer transition)
         QVariantMap curStep = (stepIdx >= 0 && stepIdx < ses.steps.size()) ? ses.steps[stepIdx].toMap() : QVariantMap{};
         if (curStep.value(QStringLiteral("status")).toString() != QStringLiteral("active")) {
+            // If step was hidden (verify step), make it visible first
+            if (!curStep.value(QStringLiteral("show")).toBool()) {
+                showStep(mlId, stepIdx);
+            }
             updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
         }
     });
@@ -535,9 +539,10 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                     for (int i = 0; i < 3 && i < sit.value().steps.size(); i++) {
                                         updateStep(sit.key(), i, QStringLiteral("completed"), 100);
                                     }
-                                    // Activate MC verify step (index 3)
+                                    // Show MC verify step (index 3, initially hidden)
                                     int verifyIdx = 3;
                                     if (verifyIdx < sit.value().steps.size()) {
+                                        showStep(sit.key(), verifyIdx);
                                         int pct = total > 0 ? (checked * 100 / total) : 0;
                                         updateStep(sit.key(), verifyIdx, QStringLiteral("active"), pct, checked, total);
                                     }
@@ -1694,20 +1699,35 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         for (int i = 0; i < 3; i++) { ses.mcStepDone[i] = 0; ses.mcStepTotal[i] = 0; }
         ses.mcFileAdded.clear();
 
-        // Build 7-step list (3 MC download + 1 MC verify + 3 loader)
+        // Build step list — Forge/NeoForge: 7 steps, Fabric: 6 (no loader verify)
         QString loaderLabel = QStringLiteral("Forge");
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
-        rebuildSteps(installName, {
-            QStringLiteral("下载原版 JSON 文件"),
-            QStringLiteral("下载原版支持库文件"),
-            QStringLiteral("下载原版资源文件"),
-            QStringLiteral("校验游戏资源完整性"),
-            QStringLiteral("下载 %1 主文件").arg(loaderLabel),
-            QStringLiteral("校验 %1 完整性").arg(loaderLabel),
-            QStringLiteral("安装 %1").arg(loaderLabel)
-        }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
-         {true, true, true, true, true, true, true});  // All steps visible
+
+        if (loaderType == QStringLiteral("fabric")) {
+            // Fabric: 6 steps (3 MC download + 1 MC verify + 1 Fabric download + 1 install)
+            rebuildSteps(installName, {
+                QStringLiteral("下载原版 JSON 文件"),
+                QStringLiteral("下载原版支持库文件"),
+                QStringLiteral("下载原版资源文件"),
+                QStringLiteral("校验游戏资源完整性"),
+                QStringLiteral("下载 Fabric 配置"),
+                QStringLiteral("安装 Fabric")
+            }, {3.0, 8.0, 5.0, 0.5, 2.0, 1.0},
+             {true, true, true, false, true, true});
+        } else {
+            // Forge/NeoForge: 7 steps (3 MC + 1 MC verify + 1 download + 1 verify + 1 install)
+            rebuildSteps(installName, {
+                QStringLiteral("下载原版 JSON 文件"),
+                QStringLiteral("下载原版支持库文件"),
+                QStringLiteral("下载原版资源文件"),
+                QStringLiteral("校验游戏资源完整性"),
+                QStringLiteral("下载 %1 主文件").arg(loaderLabel),
+                QStringLiteral("校验 %1 完整性").arg(loaderLabel),
+                QStringLiteral("安装 %1").arg(loaderLabel)
+            }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
+             {true, true, true, false, true, false, true});
+        }
         updateStep(installName, 0, QStringLiteral("active"), 0);
         ses.loadedStep = 1;
 
@@ -1727,13 +1747,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                       QStringLiteral("校验安装程序完整性"),
                       QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
                      {3.0, 0.5, 10.0},  // installer 重量级10
-                     {true, false, true});
+                     {true, false, true});  // verify hidden until download completes
     } else if (loaderType == QStringLiteral("fabric")) {
+        // Fabric: 2 steps (download + install, no SHA1 verify)
         rebuildSteps(installName, {QStringLiteral("下载 Fabric 配置"),
-                      QStringLiteral("校验配置完整性"),
-                      QStringLiteral("创建版本配置")},
-                     {2.0, 0.3, 1.0},  // Fabric轻量级，无Java进程
-                     {true, false, true});
+                      QStringLiteral("安装 Fabric")},
+                     {2.0, 1.0},
+                     {true, true});
     } else {
         rebuildSteps(installName, {QStringLiteral("安装 %1").arg(installName)});
     }
@@ -1827,7 +1847,18 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
     }
     ses.totalProgress = 0.0;
     ses.smoothProgress = 0.0;
-            }
+}
+
+void VersionBackend::showStep(const QString& installId, int index) {
+    auto& s = session(installId);
+    if (index < 0 || index >= s.steps.size()) return;
+    QVariantMap step = s.steps[index].toMap();
+    step["show"] = true;
+    step["status"] = QStringLiteral("active");
+    step["percentage"] = 0;
+    s.steps[index] = step;
+    rebuildInstallCards();
+}
 
 void VersionBackend::updateStep(const QString& installId, int index, const QString& status, int percentage,
                                  qint64 bytesRecv, qint64 bytesTotal) {
