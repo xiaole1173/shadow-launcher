@@ -47,12 +47,12 @@ VersionBackend::VersionBackend(QObject* parent)
     m_installCardsModel = new InstallCardModel(this);
 
     // Throttle activeInstallsChanged to 300ms intervals (avoid flicker)
-    m_cardsRebuildThrottle.setSingleShot(true);
-    m_cardsRebuildThrottle.setInterval(300);
-    connect(&m_cardsRebuildThrottle, &QTimer::timeout, this, [this]() {
-        if (m_cardsRebuildPending) {
-            m_cardsRebuildPending = false;
-            rebuildInstallCards();
+    m_activeInstallsThrottle.setSingleShot(true);
+    m_activeInstallsThrottle.setInterval(300);
+    connect(&m_activeInstallsThrottle, &QTimer::timeout, this, [this]() {
+        if (m_activeInstallsPending) {
+            m_activeInstallsPending = false;
+            emitActiveInstallsChanged();
         }
     });
 
@@ -83,7 +83,10 @@ VersionBackend::VersionBackend(QObject* parent)
     m_mlInstaller = new ModLoaderInstaller(this);
     connect(m_mlInstaller, &ModLoaderInstaller::progressChanged, this,
             [this](int step, int totalSteps, const QString& desc) {
-                setInstallPhase(QStringLiteral("模组加载器: ") + desc);
+        m_installProgress = step;
+        m_installTotal = totalSteps;
+        emit installProgressChanged();
+        setInstallPhase(QStringLiteral("模组加载器: ") + desc);
         const QString mlId = m_modLoaderInstallId;
         if (mlId.isEmpty()) return;
         auto& ses = session(mlId);
@@ -119,7 +122,9 @@ VersionBackend::VersionBackend(QObject* parent)
                 ses.smoothProgress = raw * 0.3;
             else
                 ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
-                                    rebuildInstallCards();
+            emit installTotalProgressChanged();
+            emit installSmoothProgressChanged();
+            emitActiveInstallsChanged();
         }
     });
     connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
@@ -153,7 +158,8 @@ VersionBackend::VersionBackend(QObject* parent)
                     ses.steps[i] = s;
                     ses.failed = true;
                     ses.error = errMsg;
-                                        break;
+                    emit installStepsChanged();
+                    break;
                 }
             }
             if (ses.isMerged) {
@@ -175,7 +181,9 @@ VersionBackend::VersionBackend(QObject* parent)
     // Byte-level download progress → update current active step
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
-                // ── EWMA speed smoothing (same algorithm as updateDownloadProgress) ──
+        m_installFile = file;
+        emit installFileProgress(file);
+        // ── EWMA speed smoothing (same algorithm as updateDownloadProgress) ──
         qint64 now = QDateTime::currentMSecsSinceEpoch();
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
@@ -188,7 +196,9 @@ VersionBackend::VersionBackend(QObject* parent)
         }
         ses.mlSpeedLastBytes = received;
         ses.mlSpeedLastTimeMs = now;
-                // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
+        emit installSpeedChanged(m_installSpeed);
+
+        // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
         if (ses.isMerged) {
             // Detect file transition: total changes → previous file completed
             if (total > 0 && total != ses.mlFileTotal && ses.mlFileTotal > 0) {
@@ -221,11 +231,15 @@ VersionBackend::VersionBackend(QObject* parent)
             } else {
                 ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
             }
-                                    rebuildInstallCards();
+            emit installTotalProgressChanged();
+            emit installSmoothProgressChanged();
+            emitActiveInstallsChanged();
         } else {
             m_installBytesDl = received;
             m_installBytesTotal = total;
-                        // Non-merged byte-weighted smoothProgress (download phases only)
+            emit installBytesProgress(received, total);
+
+            // Non-merged byte-weighted smoothProgress (download phases only)
             if (total > 0) {
                 qreal raw = qMin(1.0, (qreal)received / total);
                 ses.totalProgress = raw;
@@ -233,7 +247,9 @@ VersionBackend::VersionBackend(QObject* parent)
                     ses.smoothProgress = raw * 0.3;
                 else
                     ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
-                                                rebuildInstallCards();
+                emit installTotalProgressChanged();
+                emit installSmoothProgressChanged();
+                emitActiveInstallsChanged();
             }
         }
 
@@ -704,6 +720,44 @@ QString VersionBackend::getVersionGameDir(const QString& versionId) const
 // Private slots — signal forwarding
 // ============================================================
 
+// NOTE: This slot is no longer directly connected (lambdas call updateDownloadProgress instead).
+// Kept for backward compatibility if anything else connects to it.
+void VersionBackend::onVersionDownloadProgress(int cf, int tf,
+                                               qint64 db, qint64 tb)
+{
+    m_installProgress    = cf;
+    m_installTotal       = tf;
+    m_installBytesDl     = db;
+    m_installBytesTotal  = tb;
+
+    // Speed calculation — sliding window (PCL-style: 3s window)
+    {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        m_speedWindow.append({now, db});
+        while (!m_speedWindow.isEmpty() && m_speedWindow.first().first < now - 3000) {
+            m_speedWindow.removeFirst();
+        }
+        if (m_speedWindow.size() >= 2) {
+            auto& first = m_speedWindow.first();
+            auto& last = m_speedWindow.last();
+            qint64 dt = last.first - first.first;
+            qint64 delta = last.second - first.second;
+            m_installSpeed = (dt > 0 && delta > 0) ? (delta * 1000 / dt) : 0;
+        } else {
+            m_installSpeed = 0;
+        }
+        if (m_installSpeed > 0) emit installSpeedChanged(m_installSpeed);
+    }
+
+    // Phase detection: if file count > 0 we're downloading
+    if (m_installPhase != QStringLiteral("校验中...")) {
+        setInstallPhase(QStringLiteral("下载中..."));
+    }
+
+    emit installProgressChanged();
+    emit installTotalChanged();
+    emit installBytesProgress(db, tb);
+}
 
 void VersionBackend::onVersionDownloadLog(const QString& msg)
 {
@@ -817,7 +871,8 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         }
         setInstallPhase(QStringLiteral("完成"));
         m_installSpeed = 0;
-                emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
+        emit installSpeedChanged(0);
+        emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
     } else {
         // Still have active downloads — sync primary display AND notify QML to re-read
         syncPrimaryProgress();
@@ -943,7 +998,7 @@ void VersionBackend::setInstalling(bool v)
     if (wasInstalling != isNowInstalling) {
         emit installStateChanged();
     }
-    rebuildInstallCards();
+    emitActiveInstallsChanged();
 }
 
 void VersionBackend::setInstallPhase(const QString& phase)
@@ -974,11 +1029,17 @@ void VersionBackend::syncPrimaryProgress()
     const QString pid = primaryVersionId();
     if (pid.isEmpty() || !m_dlStates.contains(pid)) {
         // No active download
+        m_installProgress = 0;
+        m_installTotal = 0;
         m_installBytesDl = 0;
         m_installBytesTotal = 0;
         m_installSpeed = 0;
+        m_installFile.clear();
         setInstallPhase(QStringLiteral("空闲"));
-                                emit installStateChanged();
+        emit installProgressChanged();
+        emit installTotalChanged();
+        emit installSpeedChanged(0);
+        emit installStateChanged();
         return;
     }
 
@@ -989,14 +1050,23 @@ void VersionBackend::syncPrimaryProgress()
 
     // Two-segment progress: download 0-90%, verify 90-100%
     bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+    m_installTotal = 100;
     if (verifying) {
         qreal seg = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+        m_installProgress = qRound(90.0 + seg * 10.0);
     } else {
         qreal seg = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+        m_installProgress = qRound(seg * 90.0);
     }
+    m_installFile = st.file;
     setInstallPhase(st.phase);
 
-                    }
+    emit installProgressChanged();
+    emit installTotalChanged();
+    emit installSpeedChanged(st.speed);
+    emit installFileProgress(st.file);
+    emit installBytesProgress(st.bytesDl, st.bytesTotal);
+}
 
 void VersionBackend::updateDownloadProgress(const QString& versionId,
                                             int cf, int tf,
@@ -1080,12 +1150,16 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 mSes.smoothProgress = raw * 0.3;
             else
                 mSes.smoothProgress = mSes.smoothProgress * 0.7 + raw * 0.3;
-                                    rebuildInstallCards();
+            emit installTotalProgressChanged();
+            emit installSmoothProgressChanged();
+            emitActiveInstallsChanged();
         }
     }
 
     // ── If this is the primary download, sync to main properties ──
     if (versionId == primaryVersionId()) {
+        m_installProgress = cf;
+        m_installTotal = tf;
         m_installBytesDl = db;
         m_installBytesTotal = tb;
         m_installSpeed = st.speed;
@@ -1119,7 +1193,13 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             setInstallPhase(QStringLiteral("下载中..."));
         }
 
-                                                    }
+        emit installProgressChanged();
+        emit installTotalChanged();
+        emit installTotalProgressChanged();
+        emit installSmoothProgressChanged();
+        emit installBytesProgress(db, tb);
+        emit installSpeedChanged(st.speed);
+    }
 }
 
 void VersionBackend::updateDownloadFile(const QString& versionId,
@@ -1138,7 +1218,9 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     else if (url.contains(QStringLiteral("/assets/"))) cat = 2;
 
     if (versionId == primaryVersionId()) {
-            }
+        m_installFile = fileName;
+        emit installFileProgress(fileName);
+    }
 
     // ── Merged install: route MC download phase to steps 0-2 ──
     QString mergedSessionId;
@@ -1827,7 +1909,10 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
     }
     ses.totalProgress = 0.0;
     ses.smoothProgress = 0.0;
-            }
+    emit installStepsChanged();
+    emit installTotalProgressChanged();
+    emit installSmoothProgressChanged();
+}
 
 void VersionBackend::updateStep(const QString& installId, int index, const QString& status, int percentage,
                                  qint64 bytesRecv, qint64 bytesTotal) {
@@ -1846,9 +1931,124 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
     step["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
     s.steps[index] = step;
 
+    emit installStepsChanged();
+}
+
+void VersionBackend::emitActiveInstallsChanged() {
+    LOG_CARDS() << "emitActiveInstallsChanged() pending=" << m_activeInstallsPending;
+    if (m_activeInstallsPending) return;
+    m_activeInstallsPending = true;
+    rebuildInstallCards();
+    emit activeInstallsChanged();
+    m_activeInstallsThrottle.start();
+}
+
+QVariantList VersionBackend::activeInstalls() const {
+    QVariantList list;
+    QSet<QString> seen;
+
+    // 1. Iterate sessions: build mod_loader cards from session state
+    for (auto sit = m_sessions.constBegin(); sit != m_sessions.constEnd(); ++sit) {
+        const QString& sid = sit.key();
+        const InstallSession& ses = sit.value();
+        bool mlPending = ses.hasPendingLoader && !ses.pendingLoaderName.isEmpty();
+        bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && m_modLoaderInstallId == sid;
+        bool mlMerged = ses.isMerged;
+        bool mlFailed = ses.failed;
+        if (!mlActive && !mlFailed && !mlPending && !mlMerged) continue;
+
+        QString cardId = mlPending ? ses.pendingLoaderName : sid;
+        qDebug() << "[install] activeInstalls: mod_loader card" << cardId
+                 << "totalProgress:" << ses.totalProgress << "steps:" << ses.steps.size()
+                 << (mlFailed ? "FAILED" : (mlMerged ? "MERGED" : (mlPending ? "PENDING" : "running")));
+        QVariantMap card;
+        card["installId"] = cardId;
+        card["installType"] = QStringLiteral("mod_loader");
+        card["displayName"] = cardId;
+        card["totalProgress"] = mlPending ? 0.0 : ses.smoothProgress;
+        card["speed"] = mlPending ? QVariant::fromValue<qint64>(0LL) : QVariant::fromValue<qint64>(m_installSpeed);
+        card["installPhase"] = mlFailed ? QStringLiteral("失败")
+                              : mlMerged ? m_installPhase
+                              : mlPending ? QStringLiteral("等待MC本体下载完成...")
+                              : m_installPhase;
+        card["remainingSteps"] = mlPending ? 0 : installRemainingSteps();
+        card["installFailed"] = mlFailed;
+        card["installError"] = ses.error;
+        card["steps"] = mlPending ? QVariantList{} : ses.steps;
+        list.append(card);
+        seen.insert(cardId);
+        if (ses.isMerged && !ses.mcVersion.isEmpty()) seen.insert(ses.mcVersion);
     }
 
+    // 2. Active version downloads (hide versions that are part of a merged session)
+    for (const QString& vid : m_activeIds) {
+        if (seen.contains(vid)) continue;
+        seen.insert(vid);
+        QVariantMap card;
+        card["installId"] = vid;
+        card["installType"] = QStringLiteral("version");
+        card["displayName"] = vid;
+        card["remainingSteps"] = 0;
+        card["steps"] = QVariantList{};
+        if (m_dlStates.contains(vid)) {
+            const DlState& st = m_dlStates[vid];
+            card["totalProgress"] = st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0;  // byte-weighted
+            card["speed"] = QVariant::fromValue<qint64>(st.speed);
+            card["installPhase"] = st.phase;
+            // Auto-generate step list from real per-category bytes
+            QVariantList vSteps;
+            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+            auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
+                int pct = (tot > 0) ? (int)(dl * 100 / tot)
+                          : (status == QStringLiteral("completed") ? 100 : 0);
+                vSteps.append(QVariantMap{
+                    {"name", name}, {"status", status},
+                    {"percentage", pct}, {"show", true}
+                });
+            };
 
+            auto catStatus = [&](int ci) {
+                if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
+                return QStringLiteral("active");
+            };
+            auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
+            auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
+
+            if (verifying) {
+                addVStep("\u4e0b\u8f7d\u7248\u672cJSON", "completed", catTot(0), catTot(0));
+                addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", "completed", catTot(1), catTot(1));
+                addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", "completed", catTot(2), catTot(2));
+                addVStep("\u6821\u9a8c\u6587\u4ef6", "active", st.progress, st.total);
+                card["remainingSteps"] = 1;
+            } else {
+                addVStep("\u4e0b\u8f7d\u7248\u672cJSON", catStatus(0), catDl(0), catTot(0));
+                addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", catStatus(1), catDl(1), catTot(1));
+                addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", catStatus(2), catDl(2), catTot(2));
+                card["remainingSteps"] = 3;
+            }
+            card["steps"] = vSteps;
+        } else {
+            // Placeholder — download just started, no progress data yet
+            card["totalProgress"] = 0.0;
+            card["speed"] = QVariant::fromValue<qint64>(0LL);
+            card["installPhase"] = QStringLiteral("准备中...");
+        }
+        list.append(card);
+    }
+    // 3. Extra cards (resource / mod)
+    for (auto it = m_extraCards.cbegin(); it != m_extraCards.cend(); ++it) {
+        list.append(it.value());
+    }
+    qDebug() << "[install] activeInstalls returning" << list.size() << "cards";
+    if (list.isEmpty()) {
+        qDebug() << "[install] activeInstalls EMPTY — mlInstaller:" << !!m_mlInstaller
+                 << "isRunning:" << (m_mlInstaller ? m_mlInstaller->isRunning() : false)
+                 << "mlId:" << m_modLoaderInstallId
+                 << "sessions:" << m_sessions.size() << "activeCount:" << m_activeCount
+                 << "extraCards:" << m_extraCards.size();
+    }
+    return list;
+}
 
 int VersionBackend::installRemainingSteps() const {
     if (m_sessions.isEmpty()) return 0;
@@ -1872,7 +2072,7 @@ void VersionBackend::addResourceCard(const QString& cardId, const QString& displ
     c["remainingSteps"] = 0;
     c["steps"] = QVariantList{};
     m_extraCards[cardId] = c;
-    rebuildInstallCards();
+    emitActiveInstallsChanged();
 }
 
 void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, const QString& status) {
@@ -1881,12 +2081,12 @@ void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, c
     c["totalProgress"] = progress;
     if (!status.isEmpty()) c["installPhase"] = status;
     m_extraCards[cardId] = c;
-    rebuildInstallCards();
+    emitActiveInstallsChanged();
 }
 
 void VersionBackend::removeResourceCard(const QString& cardId) {
     m_extraCards.remove(cardId);
-    rebuildInstallCards();
+    emitActiveInstallsChanged();
 }
 
 // ============================================================

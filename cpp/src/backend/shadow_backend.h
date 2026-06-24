@@ -52,14 +52,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QStringList installedVersions READ installedVersions NOTIFY installedVersionsChanged)
     Q_PROPERTY(QStringList activeVersionNames READ activeVersionNames NOTIFY activeVersionNamesChanged)
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
-    Q_PROPERTY(int installProgress READ installProgress NOTIFY installProgressChanged)
-    Q_PROPERTY(int installTotal READ installTotal NOTIFY installTotalChanged)
-    Q_PROPERTY(QString installFile READ installFile NOTIFY installFileProgress)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
-    Q_PROPERTY(qint64 installSpeed READ installSpeed NOTIFY installSpeedChanged)
-    Q_PROPERTY(qint64 installBytesDownloaded READ installBytesDownloaded NOTIFY installBytesProgress)
-    Q_PROPERTY(qint64 installBytesTotal READ installBytesTotal NOTIFY installBytesProgress)
     Q_PROPERTY(bool installPaused READ installPaused NOTIFY installPausedChanged)
 
     // ── Launch ──
@@ -111,11 +105,6 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyTotalChanged)
     Q_PROPERTY(bool verifyResultOk READ verifyResultOk CONSTANT)
     Q_PROPERTY(QString verifyResultText READ verifyResultText CONSTANT)
-    // Unified install step model
-    Q_PROPERTY(QVariantList installSteps READ installSteps NOTIFY installStepsChanged)
-    Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
-    Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
-    Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
     // InstallCardModel (QAbstractListModel) — exposed as QObject* for QML compat
     Q_PROPERTY(QObject* installCardsModel READ installCardsModel CONSTANT)
 
@@ -155,14 +144,8 @@ public:
     QStringList installedVersions() const;
     QStringList activeVersionNames() const;
     bool isInstalling() const;
-    int installProgress() const;
-    int installTotal() const;
-    QString installFile() const;
     QString installVersionId() const;
     QString installPhase() const;
-    qint64 installSpeed() const;
-    qint64 installBytesDownloaded() const;
-    qint64 installBytesTotal() const;
     QVariantList versionDetails() const { return m_versionDetails; }
     QVariantMap currentVersionSummary() const { return m_currentVersionSummary; }
 
@@ -212,10 +195,6 @@ public:
     bool verifyRunning() const;
     int verifyChecked() const;
     int verifyTotal() const;
-    QVariantList installSteps() const;
-    qreal installTotalProgress() const;
-    int installRemainingSteps() const;
-    QVariantList activeInstalls() const;
     QObject* installCardsModel() const;
     bool installPaused() const;
     int verifyProgressDone() const { return 0; }
@@ -367,13 +346,8 @@ signals:
     void selectedVersionClearedAfterDelete();
     void currentVersionSummaryChanged();
     void installStateChanged();
-    void installProgressChanged();
-    void installTotalChanged();
-    void installFileProgress();
-    void installBytesProgress(qint64 dl, qint64 total);
     void installPhaseChanged();
     void installFinished(bool success);
-    void installSpeedChanged();
     void launchProgressChanged(int progress, const QString& status);
     void launchStateChanged();
     void minecraftStarted();
@@ -411,9 +385,6 @@ signals:
     void verifyRunningChanged();
     void verifyCheckedChanged();
     void verifyTotalChanged();
-    void installStepsChanged();
-    void installTotalProgressChanged();
-    void activeInstallsChanged();
     void installPausedChanged();
     void downloadQueueChanged();
     void searchResultsReady(const QVariantList& results);

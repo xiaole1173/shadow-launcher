@@ -138,9 +138,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::installedVersionsChanged);
     connect(m_version, &VersionBackend::installedVersionsChanged,
             this, &ShadowBackend::activeVersionNamesChanged);
-    connect(m_version, &VersionBackend::activeInstallsChanged,
-            this, &ShadowBackend::activeVersionNamesChanged);
-    connect(m_version, &VersionBackend::installStateChanged,
+        connect(m_version, &VersionBackend::installStateChanged,
             this, &ShadowBackend::activeVersionNamesChanged);
     connect(m_version, &VersionBackend::selectedVersionChanged,
             this, &ShadowBackend::selectedVersionChanged);
@@ -195,17 +193,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     });
     connect(m_version, &VersionBackend::installStateChanged,
             this, &ShadowBackend::installStateChanged);
-    connect(m_version, &VersionBackend::installProgressChanged,
-            this, &ShadowBackend::installProgressChanged);
-    connect(m_version, &VersionBackend::installTotalChanged,
-            this, &ShadowBackend::installTotalChanged);
-    // installFileProgress signal with different signature:
-    // VersionBackend emits installFileProgress(const QString&), ShadowBackend emits installFileProgress()
-    connect(m_version, &VersionBackend::installFileProgress,
-            this, [this](const QString&) { emit installFileProgress(); });
-    connect(m_version, &VersionBackend::installBytesProgress,
-            this, &ShadowBackend::installBytesProgress);
-    // installPhaseChanged signal with different signature:
+        // installPhaseChanged signal with different signature:
     // VersionBackend emits installPhaseChanged(const QString&), ShadowBackend emits installPhaseChanged()
     connect(m_version, &VersionBackend::installPhaseChanged,
             this, [this](const QString&) {
@@ -214,9 +202,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_version, &VersionBackend::installFinished,
             this, &ShadowBackend::installFinished);
-    connect(m_version, &VersionBackend::installSpeedChanged,
-            this, &ShadowBackend::installSpeedChanged);
-    connect(m_version, &VersionBackend::installPausedChanged,
+        connect(m_version, &VersionBackend::installPausedChanged,
             this, [this](bool) { emit installPausedChanged(); });
     connect(m_version, &VersionBackend::logMessage,
             this, &ShadowBackend::logMessage);
@@ -230,13 +216,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_version, &VersionBackend::verifyFinished,
             this, &ShadowBackend::verifyFinished);
-    connect(m_version, &VersionBackend::installStepsChanged,
-            this, &ShadowBackend::installStepsChanged);
-    connect(m_version, &VersionBackend::installTotalProgressChanged,
-            this, &ShadowBackend::installTotalProgressChanged);
-    connect(m_version, &VersionBackend::activeInstallsChanged,
-            this, &ShadowBackend::activeInstallsChanged);
-    connect(m_version, &VersionBackend::verifyFailedFiles,
+                connect(m_version, &VersionBackend::verifyFailedFiles,
             this, [this](const QStringList& failedFiles) {
                 // Generate error report
                 if (!failedFiles.isEmpty()) {
@@ -541,38 +521,17 @@ bool ShadowBackend::isInstalling() const {
     return m_version->isInstalling();
 }
 
-int ShadowBackend::installProgress() const {
-    return m_version->installProgress();
-}
 
-int ShadowBackend::installTotal() const {
-    return m_version->installTotal();
-}
 
-QString ShadowBackend::installFile() const {
-    return m_version->installFile();
-}
 
 bool ShadowBackend::verifyRunning() const {
     return m_version && (m_version->installPhase() == QStringLiteral("verifying")
                         || m_version->installPhase() == QStringLiteral("校验中..."));
 }
 
-QVariantList ShadowBackend::installSteps() const {
-    return m_version ? m_version->installSteps() : QVariantList{};
-}
 
-qreal ShadowBackend::installTotalProgress() const {
-    return m_version ? m_version->installTotalProgress() : 0.0;
-}
 
-int ShadowBackend::installRemainingSteps() const {
-    return m_version ? m_version->installRemainingSteps() : 0;
-}
 
-QVariantList ShadowBackend::activeInstalls() const {
-    return m_version ? m_version->activeInstalls() : QVariantList{};
-}
 
 QObject* ShadowBackend::installCardsModel() const {
     return m_version ? m_version->installCardsModel() : nullptr;
@@ -598,17 +557,8 @@ QString ShadowBackend::installPhase() const {
     return m_version->installPhase();
 }
 
-qint64 ShadowBackend::installSpeed() const {
-    return m_version ? m_version->installSpeed() : 0;
-}
 
-qint64 ShadowBackend::installBytesDownloaded() const {
-    return m_version ? m_version->installBytesDownloaded() : 0;
-}
 
-qint64 ShadowBackend::installBytesTotal() const {
-    return m_version ? m_version->installBytesTotal() : 0;
-}
 
 QVariantList ShadowBackend::downloadQueue() const {
     return m_version ? m_version->downloadQueue() : QVariantList{};

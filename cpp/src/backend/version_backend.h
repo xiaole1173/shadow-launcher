@@ -120,18 +120,8 @@ class VersionBackend : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool installing READ isInstalling NOTIFY installStateChanged)
     Q_PROPERTY(int activeCount READ activeCount NOTIFY installStateChanged)
-    Q_PROPERTY(int installProgress READ installProgress NOTIFY installProgressChanged)
-    Q_PROPERTY(int installTotal READ installTotal NOTIFY installProgressChanged)
-    Q_PROPERTY(QString installFile READ installFile NOTIFY installProgressChanged)
     Q_PROPERTY(QString installVersionId READ installVersionId NOTIFY installStateChanged)
     Q_PROPERTY(QString installPhase READ installPhase NOTIFY installPhaseChanged)
-    // Per-install step model (backward compat: returns primary install)
-    Q_PROPERTY(QVariantList installSteps READ installSteps NOTIFY installStepsChanged)
-    Q_PROPERTY(qreal installTotalProgress READ installTotalProgress NOTIFY installTotalProgressChanged)
-    Q_PROPERTY(qreal installSmoothProgress READ installSmoothProgress NOTIFY installSmoothProgressChanged)
-    Q_PROPERTY(int installRemainingSteps READ installRemainingSteps NOTIFY installStepsChanged)
-    // Multi-card active installs
-    Q_PROPERTY(QVariantList activeInstalls READ activeInstalls NOTIFY activeInstallsChanged)
     Q_PROPERTY(QObject* installCardsModel READ installCardsModel CONSTANT)
     Q_PROPERTY(int verifyChecked READ verifyChecked NOTIFY verifyProgressChanged)
     Q_PROPERTY(int verifyTotal READ verifyTotal NOTIFY verifyProgressChanged)
@@ -149,22 +139,10 @@ public:
 
     QVariantList versionInfoList() const;
     QVector<McVersion> cachedMcVersions() const;
-    int installProgress() const { return m_installProgress; }
-    int installTotal() const { return m_installTotal; }
-    QString installFile() const { return m_installFile; }
     QString installVersionId() const { return m_modLoaderInstallId.isEmpty() ? (m_activeIds.isEmpty() ? QString() : m_activeIds.first()) : m_modLoaderInstallId; }
     QString installPhase() const { return m_installPhase; }
-    // Backward compat — returns primary install's steps
-    QVariantList installSteps() const { return m_sessions.isEmpty() ? QVariantList() : m_sessions.first().steps; }
-    qreal installTotalProgress() const { return m_sessions.isEmpty() ? 0.0 : m_sessions.first().totalProgress; }
-    qreal installSmoothProgress() const { return m_sessions.isEmpty() ? 0.0 : m_sessions.first().smoothProgress; }
     int installRemainingSteps() const;
-    // Multi-card
-    QVariantList activeInstalls() const;
     QObject* installCardsModel() const { return m_installCardsModel; }
-    qint64 installSpeed() const { return m_installSpeed; }
-    qint64 installBytesDownloaded() const { return m_installBytesDl; }
-    qint64 installBytesTotal() const { return m_installBytesTotal; }
     int verifyChecked() const { return m_verifyChecked; }
     int verifyTotal() const { return m_verifyTotal; }
     bool isInstallPaused() const { return m_installPaused; }
@@ -227,17 +205,8 @@ signals:
     void installedVersionsChanged();
     void selectedVersionChanged();
     void installStateChanged();
-    void installProgressChanged();
-    void installTotalChanged();
-    void installFileProgress(const QString& name);
-    void installBytesProgress(qint64 dl, qint64 total);
     void installPhaseChanged(const QString& phase);
     void installFinished(bool success);
-    void installSpeedChanged(qint64 speed);
-    void installStepsChanged();
-    void installTotalProgressChanged();
-    void installSmoothProgressChanged();
-    void activeInstallsChanged();
     void logMessage(const QString& msg);
 
     void verifyStarted();
@@ -250,7 +219,6 @@ signals:
     void downloadQueueChanged();
 
 private slots:
-    void onVersionDownloadProgress(int cf, int tf, qint64 db, qint64 tb);
     void onVersionDownloadLog(const QString& msg);
     void onVersionDownloadFinished(bool success, const QString& error);
 
@@ -293,9 +261,6 @@ private:
     QMap<QString, VersionDownloader*> m_downloaders;
 
     bool m_initialFetchDone = false;
-    int m_installProgress = 0;
-    int m_installTotal = 0;
-    QString m_installFile;
     qint64 m_installBytesDl = 0;
     qint64 m_installBytesTotal = 0;
     qint64 m_installSpeed = 0;
@@ -308,23 +273,20 @@ private:
     InstallSession& session(const QString& installId);
     InstallSession& activeSession();
 
-    // Throttle activeInstallsChanged emissions (avoid UI flicker from 100ms updates)
-    QTimer m_activeInstallsThrottle;
-    bool m_activeInstallsPending = false;
+    // Throttle card rebuilds (300ms interval to avoid flicker)
+    QTimer m_cardsRebuildThrottle;
+    bool m_cardsRebuildPending = false;
 
     InstallCardModel* m_installCardsModel = nullptr;
 
     void rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights = {},
                       const QVector<bool>& showFlags = {});
     void updateStep(const QString& installId, int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
-    void emitActiveInstallsChanged();
     void rebuildInstallCards();
 
     int m_verifyChecked = 0;
     int m_verifyTotal = 0;
     bool m_installPaused = false;
-    // Global sliding speed window (for primary/backward-compat speed display)
-    QList<QPair<qint64, qint64>> m_speedWindow;
     QQueue<QPair<QString, int>> m_installQueue;
 
     VersionDownloader* primaryDownloader() const;

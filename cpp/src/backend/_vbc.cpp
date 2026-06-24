@@ -1,4 +1,4 @@
-﻿// Shadow Launcher — VersionBackend
+﻿// Shadow Launcher 锟斤拷 VersionBackend
 // QML-facing backend for version list, installation, and lifecycle management.
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 
@@ -56,10 +56,10 @@ VersionBackend::VersionBackend(QObject* parent)
         }
     });
 
-    // ── VersionManager: fetch + cache version manifest ──
+    // 锟斤拷锟斤拷 VersionManager: fetch + cache version manifest 锟斤拷锟斤拷
     m_versionMgr = new VersionManager(this);
     
-    // Manifest ready → populate m_versionIds → notify QML
+    // Manifest ready 锟斤拷 populate m_versionIds 锟斤拷 notify QML
     connect(m_versionMgr, &VersionManager::versionsReady, this,
             [this](const QVector<McVersion>& versions) {
                 m_versionIds.clear();
@@ -67,7 +67,7 @@ VersionBackend::VersionBackend(QObject* parent)
                     m_versionIds.append(v.id);
                 }
                 emit logMessage(
-                    QStringLiteral("版本列表已加载 (%1 个版本)")
+                    QStringLiteral("锟芥本锟叫憋拷锟窖硷拷锟斤拷 (%1 锟斤拷锟芥本)")
                         .arg(m_versionIds.size()));
                 emit versionListReady();
             });
@@ -76,27 +76,29 @@ VersionBackend::VersionBackend(QObject* parent)
     connect(m_versionMgr, &VersionManager::fetchError, this,
             [this](const QString& err) {
                 emit logMessage(
-                    QStringLiteral("获取版本列表失败: %1").arg(err));
+                    QStringLiteral("锟斤拷取锟芥本锟叫憋拷失锟斤拷: %1").arg(err));
             });
 
     // ModLoaderInstaller init
     m_mlInstaller = new ModLoaderInstaller(this);
     connect(m_mlInstaller, &ModLoaderInstaller::progressChanged, this,
             [this](int step, int totalSteps, const QString& desc) {
-                setInstallPhase(QStringLiteral("模组加载器: ") + desc);
+        // removed
+        // removed
+                setInstallPhase(QStringLiteral("模锟斤拷锟斤拷锟斤拷锟? ") + desc);
         const QString mlId = m_modLoaderInstallId;
         if (mlId.isEmpty()) return;
         auto& ses = session(mlId);
         // Merged: MC steps 0-2, MC verify step 3, loader steps 4+ (offset=4)
         // Standalone: loader steps start at 0 (offset=0)
         int stepIdx = ses.isMerged ? (step - 1 + 4) : (step - 1);
-        // ── Mark previous step as completed when advancing ──
+        // 锟斤拷锟斤拷 Mark previous step as completed when advancing 锟斤拷锟斤拷
         if (step > 1) {
             int prevIdx = ses.isMerged ? (step - 2 + 4) : (step - 2);
             updateStep(mlId, prevIdx, QStringLiteral("completed"), 100);
         }
         // Only reset to 0% if this step wasn't already active
-        // (prevents progress dip during prefetch→installer transition)
+        // (prevents progress dip during prefetch锟斤拷installer transition)
         QVariantMap curStep = (stepIdx >= 0 && stepIdx < ses.steps.size()) ? ses.steps[stepIdx].toMap() : QVariantMap{};
         if (curStep.value(QStringLiteral("status")).toString() != QStringLiteral("active")) {
             updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
@@ -132,18 +134,18 @@ VersionBackend::VersionBackend(QObject* parent)
             // Mark all steps completed
             for (int i = 0; i < ses.steps.size(); i++)
                 updateStep(mlId, i, QStringLiteral("completed"), 100);
-            // Merged install complete — clean up session
+            // Merged install complete 锟斤拷 clean up session
             if (ses.isMerged) {
                 ses.isMerged = false;
                 ses.mcVersion.clear();
                 ses.loaderType.clear();
                 ses.loaderVer.clear();
             }
-            emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
-            setInstallPhase("完成");
+            emit logMessage(QStringLiteral("[ModLoader] 锟斤拷装锟斤拷锟?));
+            setInstallPhase("锟斤拷锟?);
             updateInstalledList();
         } else {
-            emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + errMsg);
+            emit logMessage(QStringLiteral("[ModLoader] 锟斤拷装失锟斤拷: ") + errMsg);
             // Mark last step as failed, keep card visible for diagnostics
             for (int i = ses.steps.size() - 1; i >= 0; i--) {
                 QVariantMap s = ses.steps[i].toMap();
@@ -169,13 +171,14 @@ VersionBackend::VersionBackend(QObject* parent)
 
     // Pause between verify and install (merged install: wait for MC)
     connect(m_mlInstaller, &ModLoaderInstaller::waitingForMC, this, [this]() {
-        setInstallPhase(QStringLiteral("等待MC下载完成..."));
+        setInstallPhase(QStringLiteral("锟饺达拷MC锟斤拷锟斤拷锟斤拷锟?.."));
     });
 
-    // Byte-level download progress → update current active step
+    // Byte-level download progress 锟斤拷 update current active step
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
-                // ── EWMA speed smoothing (same algorithm as updateDownloadProgress) ──
+        // removed
+                // 锟斤拷锟斤拷 EWMA speed smoothing (same algorithm as updateDownloadProgress) 锟斤拷锟斤拷
         qint64 now = QDateTime::currentMSecsSinceEpoch();
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
@@ -188,21 +191,21 @@ VersionBackend::VersionBackend(QObject* parent)
         }
         ses.mlSpeedLastBytes = received;
         ses.mlSpeedLastTimeMs = now;
-                // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
+                // 锟斤拷锟斤拷 Merged install: accumulate ML phase bytes (cross-file aggregation) 锟斤拷锟斤拷
         if (ses.isMerged) {
-            // Detect file transition: total changes → previous file completed
+            // Detect file transition: total changes 锟斤拷 previous file completed
             if (total > 0 && total != ses.mlFileTotal && ses.mlFileTotal > 0) {
                 ses.mlBytesDone += ses.mlFileTotal;
             }
 
-            // ── Tier (a)/(b): real Content-Length available ──
+            // 锟斤拷锟斤拷 Tier (a)/(b): real Content-Length available 锟斤拷锟斤拷
             if (total > 0) {
                 ses.mlFileTotal = total;
                 ses.mlBytesAll = ses.mlBytesDone + total;
             }
-            // ── Tier (c): dynamic adaptive — no Content-Length, estimate from downloaded bytes ──
+            // 锟斤拷锟斤拷 Tier (c): dynamic adaptive 锟斤拷 no Content-Length, estimate from downloaded bytes 锟斤拷锟斤拷
             else if (received > 0) {
-                // Estimate: assume file is ~1.2× what we've downloaded (shrinks as download progresses)
+                // Estimate: assume file is ~1.2锟斤拷 what we've downloaded (shrinks as download progresses)
                 qint64 dynEst = received + qMax(received / 5, qint64(524288));  // at least 512KB headroom
                 if (dynEst > ses.mlBytesAll)
                     ses.mlBytesAll = ses.mlBytesDone + dynEst;
@@ -210,7 +213,7 @@ VersionBackend::VersionBackend(QObject* parent)
             }
 
             ses.mlBytesDl = ses.mlBytesDone + received;
-            // Byte-weighted total progress (跨阶段)
+            // Byte-weighted total progress (锟斤拷锥锟?
             qint64 grandDone = ses.mcBytesAll + ses.mlBytesDl;
             qint64 grandTotal = ses.mcBytesAll + ses.mlBytesAll;
             qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
@@ -249,9 +252,9 @@ VersionBackend::VersionBackend(QObject* parent)
             }
             if (activeIdx >= 0) {
                 QString stepName = ses.steps[activeIdx].toMap()["name"].toString();
-                // Only for download/verify steps — install steps use stepProgress
-                if (stepName.contains(QStringLiteral("\u4e0b\u8f7d"))       // 下载
-                    || stepName.contains(QStringLiteral("\u6821\u9a8c"))    // 校验
+                // Only for download/verify steps 锟斤拷 install steps use stepProgress
+                if (stepName.contains(QStringLiteral("\u4e0b\u8f7d"))       // 锟斤拷锟斤拷
+                    || stepName.contains(QStringLiteral("\u6821\u9a8c"))    // 校锟斤拷
                     || stepName.contains(QStringLiteral("Downloading"))
                     || stepName.contains(QStringLiteral("Verifying"))) {
                     int pct = total > 0 ? (int)(received * 100 / total) : 0;
@@ -264,7 +267,7 @@ VersionBackend::VersionBackend(QObject* parent)
     // Verification
     connect(m_mlInstaller, &ModLoaderInstaller::verifyStarted, this,
             [this]() {
-        setInstallPhase("校验中");
+        setInstallPhase("校锟斤拷锟斤拷");
         m_verifyChecked = 0;
         m_verifyTotal = 1;
         emit verifyStarted();
@@ -286,7 +289,7 @@ VersionBackend::VersionBackend(QObject* parent)
 VersionBackend::~VersionBackend() = default;
 
 // ============================================================
-// Slots — version selection
+// Slots 锟斤拷 version selection
 // ============================================================
 
 void VersionBackend::setGameDir(const QString& dir)
@@ -295,7 +298,7 @@ void VersionBackend::setGameDir(const QString& dir)
         m_gameDir = dir;
         m_versionMgr->setDataDir(dir + QStringLiteral("/.."));
         m_versionMgr->setGameDir(dir);
-        // Defer disk I/O to event loop — avoid blocking construction
+        // Defer disk I/O to event loop 锟斤拷 avoid blocking construction
         QTimer::singleShot(0, this, [this]() {
             refreshInstalled();
             // Initial version list fetch: now that data dir is set, cache works
@@ -316,7 +319,7 @@ void VersionBackend::setSelectedVersion(const QString& versionId)
 }
 
 // ============================================================
-// Slots — version list
+// Slots 锟斤拷 version list
 // ============================================================
 
 QVariantList VersionBackend::versionInfoList() const
@@ -340,7 +343,7 @@ QVector<McVersion> VersionBackend::cachedMcVersions() const
 void VersionBackend::refreshVersionList()
 {
     qCInfo(logVersion) << "Refreshing version list";
-    emit logMessage(QStringLiteral("正在获取版本列表..."));
+    emit logMessage(QStringLiteral("锟斤拷锟节伙拷取锟芥本锟叫憋拷..."));
     m_versionMgr->fetchVersions();
 }
 
@@ -351,30 +354,30 @@ void VersionBackend::refreshInstalled()
 }
 
 // ============================================================
-// Slots — install lifecycle
+// Slots 锟斤拷 install lifecycle
 // ============================================================
 
 void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 {
-    // ── Check if already active ──
+    // 锟斤拷锟斤拷 Check if already active 锟斤拷锟斤拷
     if (m_activeIds.contains(versionId)) {
-        emit logMessage(QStringLiteral("⚠ %1 正在下载中").arg(versionId));
+        emit logMessage(QStringLiteral("? %1 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷").arg(versionId));
         return;
     }
 
-    // ── Check queue for duplicates ──
+    // 锟斤拷锟斤拷 Check queue for duplicates 锟斤拷锟斤拷
     for (const auto& entry : m_installQueue) {
         if (entry.first == versionId) {
-            emit logMessage(QStringLiteral("⏳ %1 已在下载队列中").arg(versionId));
+            emit logMessage(QStringLiteral("? %1 锟斤拷锟斤拷锟斤拷锟截讹拷锟斤拷锟斤拷").arg(versionId));
             return;
         }
     }
 
-    // ── Queue: if at max concurrency, enqueue ──
+    // 锟斤拷锟斤拷 Queue: if at max concurrency, enqueue 锟斤拷锟斤拷
     if (m_activeCount >= MAX_CONCURRENT) {
         m_installQueue.enqueue({versionId, sourceIndex});
         qCDebug(logLaunch) << "[DOWNLOAD] enqueued=" << versionId << "pos=" << m_installQueue.size() << "active=" << m_activeCount;
-        emit logMessage(QStringLiteral("⏳ %1 已加入下载队列 (位置 %2)")
+        emit logMessage(QStringLiteral("? %1 锟窖硷拷锟斤拷锟斤拷锟截讹拷锟斤拷 (位锟斤拷 %2)")
                             .arg(versionId)
                             .arg(m_installQueue.size()));
         emit installStateChanged();
@@ -384,14 +387,14 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
     qCDebug(logLaunch) << "[DOWNLOAD] starting=" << versionId << "active=" << m_activeCount << "/" << MAX_CONCURRENT;
 
-    // ── Check for resume checkpoint files in version dir ──
+    // 锟斤拷锟斤拷 Check for resume checkpoint files in version dir 锟斤拷锟斤拷
     const QString versionDir = m_versionMgr->gameDir()
                                + QStringLiteral("/versions/")
                                + versionId;
     const QString progressMarker = versionDir
                                    + QStringLiteral("/.download_progress.json");
     if (QFileInfo::exists(progressMarker)) {
-        emit logMessage(QStringLiteral("📦 发现断点续传文件: %1").arg(versionId));
+        emit logMessage(QStringLiteral("?? 锟斤拷锟街断碉拷锟斤拷锟斤拷锟侥硷拷: %1").arg(versionId));
     }
 
     // Check for individual chunk .checkpoint.json files
@@ -400,17 +403,17 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
         {QStringLiteral("*.checkpoint.json")},
         QDir::Files | QDir::NoDotAndDotDot);
     if (!checkpointFiles.isEmpty()) {
-        emit logMessage(QStringLiteral("📦 发现 %1 个断点续传块文件")
+        emit logMessage(QStringLiteral("?? 锟斤拷锟斤拷 %1 锟斤拷锟较碉拷锟斤拷锟斤拷锟斤拷锟侥硷拷")
                             .arg(checkpointFiles.size()));
     }
 
-    // ── Resolve mirror source ──
+    // 锟斤拷锟斤拷 Resolve mirror source 锟斤拷锟斤拷
     QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
     MirrorSource mirror = (sourceIndex >= 0 && sourceIndex < mirrors.size())
                               ? mirrors[sourceIndex]
                               : mirrors[0]; // default: BMCLAPI
 
-    // ── Find version metadata in cached list ──
+    // 锟斤拷锟斤拷 Find version metadata in cached list 锟斤拷锟斤拷
     QVector<McVersion> versions = m_versionMgr->cachedVersions();
     McVersion targetVersion;
     bool found = false;
@@ -424,21 +427,21 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
     if (!found) {
         emit logMessage(
-            QStringLiteral("未找到版本: %1").arg(versionId));
+            QStringLiteral("未锟揭碉拷锟芥本: %1").arg(versionId));
         return;
     }
 
-    // ── Set installing state BEFORE async version JSON fetch ──
+    // 锟斤拷锟斤拷 Set installing state BEFORE async version JSON fetch 锟斤拷锟斤拷
     // Critical: the UI must react immediately on click, not wait 500ms+ network RTT
     m_activeCount++;
     m_activeIds.append(versionId);
-    setInstallPhase(QStringLiteral("准备中..."));
+    setInstallPhase(QStringLiteral("准锟斤拷锟斤拷..."));
     setInstalling(true);
-    emit logMessage(QStringLiteral("正在获取 %1 版本信息...").arg(versionId));
+    emit logMessage(QStringLiteral("锟斤拷锟节伙拷取 %1 锟芥本锟斤拷息...").arg(versionId));
     qCDebug(logLaunch) << "[DOWNLOAD] state-set=" << versionId
                         << "active=" << m_activeCount << "/" << MAX_CONCURRENT;
 
-    // ── Fetch version JSON using mirror URL (BMCLAPI for China) ──
+    // 锟斤拷锟斤拷 Fetch version JSON using mirror URL (BMCLAPI for China) 锟斤拷锟斤拷
     auto* nam = new QNetworkAccessManager(this);
     // Apply mirror: replace Mojang host with BMCLAPI
     QString versionJsonUrl = targetVersion.url;
@@ -460,7 +463,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                 if (reply->error() != QNetworkReply::NoError) {
                     // Rollback: version JSON fetch failed
                     emit logMessage(
-                        QStringLiteral("获取版本信息失败: %1")
+                        QStringLiteral("锟斤拷取锟芥本锟斤拷息失锟斤拷: %1")
                             .arg(reply->errorString()));
                     cancelActiveDownload(versionId);
                     return;
@@ -474,7 +477,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                     !doc.isObject()) {
                     // Rollback: JSON parse failed
                     emit logMessage(
-                        QStringLiteral("版本信息格式错误: %1")
+                        QStringLiteral("锟芥本锟斤拷息锟斤拷式锟斤拷锟斤拷: %1")
                             .arg(parseErr.errorString()));
                     cancelActiveDownload(versionId);
                     return;
@@ -482,7 +485,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
                 QJsonObject versionJson = doc.object();
 
-                // ── Cancel any existing downloader for this version ──
+                // 锟斤拷锟斤拷 Cancel any existing downloader for this version 锟斤拷锟斤拷
                 if (m_downloaders.contains(versionId)) {
                     m_downloaders[versionId]->cancel();
                     m_downloaders[versionId]->disconnect();
@@ -490,13 +493,13 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                     m_downloaders.remove(versionId);
                 }
 
-                // ── Create & configure downloader ──
+                // 锟斤拷锟斤拷 Create & configure downloader 锟斤拷锟斤拷
                 auto* downloader = new VersionDownloader(this);
                 downloader->setMirror(mirror);
                 downloader->setMinecraftDir(m_versionMgr->gameDir());
                 downloader->setMaxWorkers(32);
 
-                // ── Connect downloader signals (lambdas capture versionId) ──
+                // 锟斤拷锟斤拷 Connect downloader signals (lambdas capture versionId) 锟斤拷锟斤拷
                 connect(downloader,
                         &VersionDownloader::progressChanged, this,
                         [this, versionId, downloader](int cf, int tf, qint64 db, qint64 tb) {
@@ -524,7 +527,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                         [this, versionId](int checked, int total) {
                             // Update per-download state
                             auto& st = m_dlStates[versionId];
-                            st.phase = QStringLiteral("校验中...");
+                            st.phase = QStringLiteral("校锟斤拷锟斤拷...");
                             st.progress = checked;
                             st.total = total;
                             st.speed = 0;  // No download speed during verify
@@ -557,7 +560,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                         this,
                         &VersionBackend::onVersionDownloadFinished);
 
-                // ── Create download progress marker for resume detection ──
+                // 锟斤拷锟斤拷 Create download progress marker for resume detection 锟斤拷锟斤拷
                 const QString markerPath = m_versionMgr->gameDir()
                     + QStringLiteral("/versions/") + versionId
                     + QStringLiteral("/.download_progress.json");
@@ -578,12 +581,12 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                     }
                 }
 
-                // ── Install started (state already set synchronously above) ──
+                // 锟斤拷锟斤拷 Install started (state already set synchronously above) 锟斤拷锟斤拷
                 qCInfo(logVersion) << "Install started:" << versionId
                                    << "mirror:" << mirror.name
                                    << "(active:" << m_activeCount << "/" << MAX_CONCURRENT << ")";
 
-                // ── Track downloader in map ──
+                // 锟斤拷锟斤拷 Track downloader in map 锟斤拷锟斤拷
                 m_downloaders[versionId] = downloader;
 
                 downloader->downloadVersion(versionJson,
@@ -593,7 +596,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
 void VersionBackend::cancelInstall()
 {
-    // ── Cancel all active downloads ──
+    // 锟斤拷锟斤拷 Cancel all active downloads 锟斤拷锟斤拷
     for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
         it.value()->cancel();
         it.value()->disconnect();
@@ -604,7 +607,7 @@ void VersionBackend::cancelInstall()
     m_activeIds.clear();
     m_activeCount = 0;
     setInstalling(false);
-    emit logMessage(QStringLiteral("所有安装已取消"));
+    emit logMessage(QStringLiteral("锟斤拷锟叫帮拷装锟斤拷取锟斤拷"));
 }
 
 void VersionBackend::cancelActiveDownload(const QString& versionId)
@@ -622,7 +625,7 @@ void VersionBackend::cancelActiveDownload(const QString& versionId)
     if (m_activeCount > 0) m_activeCount--;
     if (m_activeCount == 0) {
         setInstalling(false);
-        setInstallPhase(QStringLiteral("空闲"));
+        setInstallPhase(QStringLiteral("锟斤拷锟斤拷"));
     }
     emit installStateChanged();
 }
@@ -634,7 +637,7 @@ void VersionBackend::cancelInstall(const QString& versionId)
         for (int i = 0; i < m_installQueue.size(); ++i) {
             if (m_installQueue[i].first == versionId) {
                 m_installQueue.removeAt(i);
-                emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
+                emit logMessage(QStringLiteral("锟斤拷取锟斤拷锟斤拷锟斤拷锟叫碉拷 %1").arg(versionId));
                 emit installStateChanged();
                 emit downloadQueueChanged();
                 return;
@@ -652,7 +655,7 @@ void VersionBackend::cancelInstall(const QString& versionId)
     m_activeIds.removeOne(versionId);
     m_activeCount--;
 
-    emit logMessage(QStringLiteral("已取消 %1 的安装").arg(versionId));
+    emit logMessage(QStringLiteral("锟斤拷取锟斤拷 %1 锟侥帮拷装").arg(versionId));
 
     // Update installing state
     if (m_activeCount == 0) {
@@ -673,7 +676,7 @@ void VersionBackend::pauseInstall()
         dl->pause();
         m_installPaused = true;
         emit installPausedChanged(true);
-        emit logMessage(QStringLiteral("⏸ 安装已暂停 (断点文件已保留)"));
+        emit logMessage(QStringLiteral("? 锟斤拷装锟斤拷锟斤拷停 (锟较碉拷锟侥硷拷锟窖憋拷锟斤拷)"));
     }
 }
 
@@ -684,7 +687,7 @@ void VersionBackend::resumeInstall()
         dl->resume();
         m_installPaused = false;
         emit installPausedChanged(false);
-        emit logMessage(QStringLiteral("▶ 安装已恢复"));
+        emit logMessage(QStringLiteral("? 锟斤拷装锟窖恢革拷"));
     }
 }
 
@@ -701,9 +704,8 @@ QString VersionBackend::getVersionGameDir(const QString& versionId) const
 }
 
 // ============================================================
-// Private slots — signal forwarding
+// Private slots 锟斤拷 signal forwarding
 // ============================================================
-
 
 void VersionBackend::onVersionDownloadLog(const QString& msg)
 {
@@ -713,7 +715,7 @@ void VersionBackend::onVersionDownloadLog(const QString& msg)
 void VersionBackend::onVersionDownloadFinished(bool success,
                                                const QString& error)
 {
-    // ── Identify which downloader finished ──
+    // 锟斤拷锟斤拷 Identify which downloader finished 锟斤拷锟斤拷
     auto* finishedDl = qobject_cast<VersionDownloader*>(sender());
     if (!finishedDl) {
         qCWarning(logVersion) << "onVersionDownloadFinished: unknown sender";
@@ -734,7 +736,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         return;
     }
 
-    // ── Cleanup this downloader ──
+    // 锟斤拷锟斤拷 Cleanup this downloader 锟斤拷锟斤拷
     finishedDl->disconnect();
     finishedDl->deleteLater();
     m_downloaders.remove(finishedId);
@@ -742,7 +744,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     m_activeIds.removeOne(finishedId);
     m_activeCount--;
 
-    // ── Handle result ──
+    // 锟斤拷锟斤拷 Handle result 锟斤拷锟斤拷
     if (success) {
         // Clean up download progress marker on success
         const QString markerPath = m_versionMgr->gameDir()
@@ -752,42 +754,42 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         qCInfo(logVersion) << "Install completed:" << finishedId;
         emit logMessage(
-            QStringLiteral("✅ %1 安装完成")
+            QStringLiteral("? %1 锟斤拷装锟斤拷锟?)
                 .arg(finishedId));
         refreshInstalled();
     } else {
         const auto& st = m_dlStates.value(finishedId);
-        bool wasVerifying = (st.phase == QStringLiteral("校验中..."));
+        bool wasVerifying = (st.phase == QStringLiteral("校锟斤拷锟斤拷..."));
         if (wasVerifying) {
             QString errDetail = error.isEmpty()
-                                    ? QStringLiteral("校验失败")
+                                    ? QStringLiteral("校锟斤拷失锟斤拷")
                                     : error;
             qCCritical(logVersion) << "Verify failed for" << finishedId << ":" << errDetail;
             emit logMessage(
-                QStringLiteral("❌ %1 校验失败: %2")
+                QStringLiteral("? %1 校锟斤拷失锟斤拷: %2")
                     .arg(finishedId, errDetail));
         } else {
             QString errDetail = error.isEmpty()
-                                    ? QStringLiteral("未知错误")
+                                    ? QStringLiteral("未知锟斤拷锟斤拷")
                                     : error;
             qCCritical(logVersion) << "Install failed for" << finishedId << ":" << errDetail;
             emit logMessage(
-                QStringLiteral("❌ %1 安装失败: %2")
+                QStringLiteral("? %1 锟斤拷装失锟斤拷: %2")
                     .arg(finishedId, errDetail));
         }
     }
 
-    // ── Emit finished signal (per-download) ──
+    // 锟斤拷锟斤拷 Emit finished signal (per-download) 锟斤拷锟斤拷
     emit installFinished(success);
 
-    // ── Update overall state ──
+    // 锟斤拷锟斤拷 Update overall state 锟斤拷锟斤拷
     if (m_activeCount == 0) {
         // Check ALL sessions for merged installs waiting on this MC version
         bool anyMergedLaunched = false;
         for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
             auto& ses = it.value();
             if (ses.isMerged && ses.mcVersion == finishedId) {
-                // Merged install: MC done, transitioning to loader — keep card alive
+                // Merged install: MC done, transitioning to loader 锟斤拷 keep card alive
                 qDebug() << "[install] Merged: MC download complete, starting" << ses.loaderType;
                 // Lock MC phase bytes as fully done
                 ses.mcBytesDl = ses.mcBytesAll;
@@ -815,16 +817,16 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (!anyMergedLaunched) {
             setInstalling(false);
         }
-        setInstallPhase(QStringLiteral("完成"));
+        setInstallPhase(QStringLiteral("锟斤拷锟?));
         m_installSpeed = 0;
-                emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
+                emit logMessage(QStringLiteral("?? 锟斤拷锟叫版本锟斤拷装锟斤拷桑锟?));
     } else {
-        // Still have active downloads — sync primary display AND notify QML to re-read
+        // Still have active downloads 锟斤拷 sync primary display AND notify QML to re-read
         syncPrimaryProgress();
         emit installStateChanged();
     }
 
-    // ── Try to start next from queue ──
+    // 锟斤拷锟斤拷 Try to start next from queue 锟斤拷锟斤拷
     startNextFromQueue();
     qCDebug(logLaunch) << "[DOWNLOAD] finished=" << finishedId << " active=" << m_activeCount << "/" << MAX_CONCURRENT << " queue=" << m_installQueue.size();
 
@@ -850,7 +852,7 @@ void VersionBackend::cancelQueuedDownload(const QString& versionId)
     for (int i = 0; i < m_installQueue.size(); ++i) {
         if (m_installQueue[i].first == versionId) {
             m_installQueue.removeAt(i);
-            emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
+            emit logMessage(QStringLiteral("锟斤拷取锟斤拷锟斤拷锟斤拷锟叫碉拷 %1").arg(versionId));
             emit installStateChanged();
             emit downloadQueueChanged();
             return;
@@ -974,10 +976,13 @@ void VersionBackend::syncPrimaryProgress()
     const QString pid = primaryVersionId();
     if (pid.isEmpty() || !m_dlStates.contains(pid)) {
         // No active download
+        // removed
+        // removed
         m_installBytesDl = 0;
         m_installBytesTotal = 0;
         m_installSpeed = 0;
-        setInstallPhase(QStringLiteral("空闲"));
+        m_installFile.clear();
+        setInstallPhase(QStringLiteral("锟斤拷锟斤拷"));
                                 emit installStateChanged();
         return;
     }
@@ -989,11 +994,15 @@ void VersionBackend::syncPrimaryProgress()
 
     // Two-segment progress: download 0-90%, verify 90-100%
     bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+    // removed
     if (verifying) {
         qreal seg = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+        m_installProgress = qRound(90.0 + seg * 10.0);
     } else {
         qreal seg = (st.total > 0) ? (qreal)st.progress / st.total : 0.0;
+        m_installProgress = qRound(seg * 90.0);
     }
+    // removed
     setInstallPhase(st.phase);
 
                     }
@@ -1002,30 +1011,30 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                                             int cf, int tf,
                                             qint64 db, qint64 tb)
 {
-    // ── Update per-download state ──
+    // 锟斤拷锟斤拷 Update per-download state 锟斤拷锟斤拷
     auto& st = m_dlStates[versionId];
     st.progress = cf;
     st.total = tf;
     st.bytesDl = db;
     st.bytesTotal = tb;
 
-    // ── Speed: EWMA (α=0.3) ──
+    // 锟斤拷锟斤拷 Speed: EWMA (锟斤拷=0.3) 锟斤拷锟斤拷
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (st.speedLastBytes > 0 && st.speedLastTimeMs > 0 && db > st.speedLastBytes) {
         qint64 dt = qMax(now - st.speedLastTimeMs, qint64(100));  // min 100ms to cap burst spikes
         qint64 delta = db - st.speedLastBytes;
         qint64 instant = delta * 1000 / dt;
-        // Always use EWMA — no raw first-sample passthrough
+        // Always use EWMA 锟斤拷 no raw first-sample passthrough
         st.speed = (st.speed > 0) ? (st.speed * 7 / 10 + instant * 3 / 10) : (instant * 3 / 10);
     }
     st.speedLastBytes = db;
     st.speedLastTimeMs = now;
 
-    if (st.phase != QStringLiteral("校验中...")) {
-        st.phase = QStringLiteral("下载中...");
+    if (st.phase != QStringLiteral("校锟斤拷锟斤拷...")) {
+        st.phase = QStringLiteral("锟斤拷锟斤拷锟斤拷...");
     }
 
-    // ── Sync per-category done bytes with real-time global progress ──
+    // 锟斤拷锟斤拷 Sync per-category done bytes with real-time global progress 锟斤拷锟斤拷
     if (tb > 0) {
         // Try to use pre-computed full category totals first
         auto dl = m_downloaders.value(versionId);
@@ -1041,7 +1050,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         }
     }
 
-    // ── Merged install: accumulate MC phase bytes ──
+    // 锟斤拷锟斤拷 Merged install: accumulate MC phase bytes 锟斤拷锟斤拷
     // Find session whose merged MC version matches this download
     QString mergedSessionId;
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
@@ -1057,7 +1066,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         if (tb > 0) {
             mSes.mcBytesAll = tb;
         }
-        // Tier (c): dynamic adaptive — no total available
+        // Tier (c): dynamic adaptive 锟斤拷 no total available
         else if (db > 0) {
             qint64 dynEst = db + qMax(db / 5, qint64(524288));
             if (dynEst > mSes.mcBytesAll)
@@ -1084,13 +1093,15 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         }
     }
 
-    // ── If this is the primary download, sync to main properties ──
+    // 锟斤拷锟斤拷 If this is the primary download, sync to main properties 锟斤拷锟斤拷
     if (versionId == primaryVersionId()) {
+        // removed
+        // removed
         m_installBytesDl = db;
         m_installBytesTotal = tb;
         m_installSpeed = st.speed;
 
-        // Byte-weighted total progress ── raw ──
+        // Byte-weighted total progress 锟斤拷锟斤拷 raw 锟斤拷锟斤拷
         // Find merged session for grand-total calculation
         qreal rawTotalProgress = 0.0;
         if (!mergedSessionId.isEmpty()) {
@@ -1107,7 +1118,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         if (!mergedSessionId.isEmpty()) {
             auto& mSes = m_sessions[mergedSessionId];
             mSes.totalProgress = rawTotalProgress;
-            // ── EMA smoothing ──
+            // 锟斤拷锟斤拷 EMA smoothing 锟斤拷锟斤拷
             if (mSes.smoothProgress <= 0.0 || rawTotalProgress > mSes.smoothProgress + 0.5) {
                 mSes.smoothProgress = rawTotalProgress;
             } else {
@@ -1115,8 +1126,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             }
         }
 
-        if (m_installPhase != QStringLiteral("校验中...")) {
-            setInstallPhase(QStringLiteral("下载中..."));
+        if (m_installPhase != QStringLiteral("校锟斤拷锟斤拷...")) {
+            setInstallPhase(QStringLiteral("锟斤拷锟斤拷锟斤拷..."));
         }
 
                                                     }
@@ -1131,16 +1142,17 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     auto& st = m_dlStates[versionId];
     st.file = fileName;
 
-    // ── Determine category for merged-install step routing ──
+    // 锟斤拷锟斤拷 Determine category for merged-install step routing 锟斤拷锟斤拷
     int cat = -1;
     if (url.contains(QStringLiteral("/versions/"))) cat = 0;
     else if (url.contains(QStringLiteral("/libraries/"))) cat = 1;
     else if (url.contains(QStringLiteral("/assets/"))) cat = 2;
 
     if (versionId == primaryVersionId()) {
+        // removed
             }
 
-    // ── Merged install: route MC download phase to steps 0-2 ──
+    // 锟斤拷锟斤拷 Merged install: route MC download phase to steps 0-2 锟斤拷锟斤拷
     QString mergedSessionId;
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         if (it.value().isMerged && it.value().mcVersion == versionId) {
@@ -1177,8 +1189,8 @@ void VersionBackend::startNextFromQueue()
         int nextSource = next.second;
         qCDebug(logLaunch) << "[DOWNLOAD] dequeue=" << nextId << " remaining=" << m_installQueue.size();
         emit downloadQueueChanged();
-        emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
-        // Direct recursive call — installVersion will enqueue again if still full
+        emit logMessage(QStringLiteral("? 锟斤拷始锟斤拷锟斤拷锟斤拷锟斤拷一锟斤拷锟芥本: %1").arg(nextId));
+        // Direct recursive call 锟斤拷 installVersion will enqueue again if still full
         QTimer::singleShot(200, this, [this, nextId, nextSource]() {
             installVersion(nextId, nextSource);
         });
@@ -1186,7 +1198,7 @@ void VersionBackend::startNextFromQueue()
 }
 
 // ============================================================
-// VerifyWorker — background SHA1 verification
+// VerifyWorker 锟斤拷 background SHA1 verification
 // ============================================================
 
 QString VersionBackend::VerifyWorker::sha1FileFast(const QString& filePath) {
@@ -1224,7 +1236,7 @@ void VersionBackend::VerifyWorker::process() {
             QString actual = sha1FileFast(item.path);
             if (actual.compare(item.sha1, Qt::CaseInsensitive) != 0) {
                 m_failed++;
-                m_failedFiles.append(item.name + QStringLiteral(" (校验失败)"));
+                m_failedFiles.append(item.name + QStringLiteral(" (校锟斤拷失锟斤拷)"));
                 m_failedPaths.append(item.path);
             }
         }
@@ -1243,16 +1255,16 @@ void VersionBackend::verifyVersion(const QString& versionId)
 {
     // Guard: don't allow concurrent verify
     if (m_verifyThread && m_verifyThread->isRunning()) {
-        emit logMessage(QStringLiteral("校验已在运行中"));
+        emit logMessage(QStringLiteral("校锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷"));
         return;
     }
 
-    setInstallPhase(QStringLiteral("校验中"));
+    setInstallPhase(QStringLiteral("校锟斤拷锟斤拷"));
     m_verifyChecked = 0;
     m_verifyTotal = 0;
     emit verifyStarted();
     qCInfo(logVersion) << "Verify started:" << versionId;
-    emit logMessage(QStringLiteral("正在校验版本 %1...").arg(versionId));
+    emit logMessage(QStringLiteral("锟斤拷锟斤拷校锟斤拷姹?%1...").arg(versionId));
 
     const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
@@ -1260,8 +1272,8 @@ void VersionBackend::verifyVersion(const QString& versionId)
     // Load version JSON
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
-        emit logMessage(QStringLiteral("❌ 无法读取版本配置: %1").arg(jsonPath));
-        setInstallPhase(QStringLiteral("空闲"));
+        emit logMessage(QStringLiteral("? 锟睫凤拷锟斤拷取锟芥本锟斤拷锟斤拷: %1").arg(jsonPath));
+        setInstallPhase(QStringLiteral("锟斤拷锟斤拷"));
         emit verifyFinished(false);
         return;
     }
@@ -1271,8 +1283,8 @@ void VersionBackend::verifyVersion(const QString& versionId)
     jsonFile.close();
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
-        emit logMessage(QStringLiteral("❌ 版本配置解析失败: %1").arg(parseErr.errorString()));
-        setInstallPhase(QStringLiteral("空闲"));
+        emit logMessage(QStringLiteral("? 锟芥本锟斤拷锟矫斤拷锟斤拷失锟斤拷: %1").arg(parseErr.errorString()));
+        setInstallPhase(QStringLiteral("锟斤拷锟斤拷"));
         emit verifyFinished(false);
         return;
     }
@@ -1303,7 +1315,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
     for (const QJsonValue& libVal : libraries) {
         QJsonObject lib = libVal.toObject();
 
-        // Check platform rules — skip if not applicable to Windows
+        // Check platform rules 锟斤拷 skip if not applicable to Windows
         QJsonArray rules = lib.value(QStringLiteral("rules")).toArray();
         bool allowWindows = true;
         for (const QJsonValue& ruleVal : rules) {
@@ -1378,10 +1390,10 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
     const int total = items.size();
     m_verifyTotal = total;
-    emit logMessage(QStringLiteral("校验 %1 个文件...").arg(total));
+    emit logMessage(QStringLiteral("校锟斤拷 %1 锟斤拷锟侥硷拷...").arg(total));
     emit verifyProgress(0, total);
 
-    // ── Create worker + thread ──
+    // 锟斤拷锟斤拷 Create worker + thread 锟斤拷锟斤拷
     m_verifyThread = new QThread(this);
     m_verifyWorker = new VerifyWorker;
     m_verifyWorker->setItems(items);
@@ -1401,8 +1413,8 @@ void VersionBackend::verifyVersion(const QString& versionId)
                 m_verifyChecked = checked;
                 m_verifyTotal = total;
                 emit verifyProgress(checked, total);
-                emit logMessage(QStringLiteral("⚠ 校验已取消"));
-                setInstallPhase(QStringLiteral("空闲"));
+                emit logMessage(QStringLiteral("? 校锟斤拷锟斤拷取锟斤拷"));
+                setInstallPhase(QStringLiteral("锟斤拷锟斤拷"));
                 emit verifyCancelled();
             }, Qt::QueuedConnection);
 
@@ -1411,25 +1423,25 @@ void VersionBackend::verifyVersion(const QString& versionId)
             [this](bool allPassed, const QStringList& failedFiles,
                    const QStringList& failedPaths) {
                 if (allPassed) {
-                    qCInfo(logVersion) << "Verify completed — all" << m_verifyTotal << "files passed";
-                    emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(m_verifyTotal));
+                    qCInfo(logVersion) << "Verify completed 锟斤拷 all" << m_verifyTotal << "files passed";
+                    emit logMessage(QStringLiteral("? 校锟斤拷锟斤拷锟? %1 锟斤拷锟侥硷拷全锟斤拷通锟斤拷").arg(m_verifyTotal));
                 } else {
                     int failed = failedFiles.size();
-                    qCCritical(logVersion) << "Verify completed —" << failed << "/" << m_verifyTotal << "files failed";
+                    qCCritical(logVersion) << "Verify completed 锟斤拷" << failed << "/" << m_verifyTotal << "files failed";
 
                     QString detail = failedFiles.join(QStringLiteral(", "));
                     if (detail.length() > 250) {
                         detail = detail.left(250) + QStringLiteral("...");
                     }
-                    emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(m_verifyTotal));
-                    emit logMessage(QStringLiteral("   失败文件: %1").arg(detail));
+                    emit logMessage(QStringLiteral("? 校锟斤拷锟斤拷锟? %1/%2 锟斤拷锟侥硷拷失锟斤拷").arg(failed).arg(m_verifyTotal));
+                    emit logMessage(QStringLiteral("   失锟斤拷锟侥硷拷: %1").arg(detail));
                     emit verifyFailedFiles(failedFiles);
 
                     // Store failed paths for later cleanup
                     m_failedPathsCache = failedPaths;
                 }
 
-                setInstallPhase(QStringLiteral("空闲"));
+                setInstallPhase(QStringLiteral("锟斤拷锟斤拷"));
                 emit verifyFinished(allPassed);
 
                 // Cleanup worker + thread
@@ -1455,7 +1467,7 @@ void VersionBackend::cancelVerify()
 {
     if (m_verifyWorker) {
         m_verifyWorker->cancel();
-        emit logMessage(QStringLiteral("正在取消校验..."));
+        emit logMessage(QStringLiteral("锟斤拷锟斤拷取锟斤拷校锟斤拷..."));
     }
 }
 
@@ -1466,7 +1478,7 @@ void VersionBackend::cancelVerify()
 void VersionBackend::cleanCorruptVersion(const QString& versionId)
 {
     if (m_failedPathsCache.isEmpty()) {
-        emit logMessage(QStringLiteral("没有可清理的校验结果"));
+        emit logMessage(QStringLiteral("没锟叫匡拷锟斤拷锟斤拷锟叫ｏ拷锟斤拷锟?));
         return;
     }
 
@@ -1484,15 +1496,15 @@ void VersionBackend::cleanCorruptVersion(const QString& versionId)
     }
 
     m_failedPathsCache.clear();
-    emit logMessage(QStringLiteral("🧹 清理完成: 删除 %1 个损坏文件, %2 个文件已不存在")
+    emit logMessage(QStringLiteral("?? 锟斤拷锟斤拷锟斤拷锟? 删锟斤拷 %1 锟斤拷锟斤拷锟侥硷拷, %2 锟斤拷锟侥硷拷锟窖诧拷锟斤拷锟斤拷")
                         .arg(removed).arg(cleaned));
-    emit logMessage(QStringLiteral("💡 请重新下载版本 %1 以恢复缺失文件").arg(versionId));
+    emit logMessage(QStringLiteral("?? 锟斤拷锟斤拷锟斤拷锟斤拷锟截版本 %1 锟皆恢革拷缺失锟侥硷拷").arg(versionId));
 }
 
 void VersionBackend::repairVersion(const QString& versionId)
 {
     if (m_failedPathsCache.isEmpty()) {
-        emit logMessage(QStringLiteral("没有需要修复的文件"));
+        emit logMessage(QStringLiteral("没锟斤拷锟斤拷要锟睫革拷锟斤拷锟侥硷拷"));
         return;
     }
 
@@ -1503,17 +1515,16 @@ void VersionBackend::repairVersion(const QString& versionId)
         }
     }
 
-    emit logMessage(QStringLiteral("🔧 修复中: 已删除 %1 个损坏文件，开始重新下载...").arg(removed));
+    emit logMessage(QStringLiteral("?? 锟睫革拷锟斤拷: 锟斤拷删锟斤拷 %1 锟斤拷锟斤拷锟侥硷拷锟斤拷锟斤拷始锟斤拷锟斤拷锟斤拷锟斤拷...").arg(removed));
 
-    // 清除缓存，避免 cleanCorruptVersion 重复删除
+    // 锟斤拷锟斤拷锟斤拷妫拷锟斤拷锟?cleanCorruptVersion 锟截革拷删锟斤拷
     m_failedPathsCache.clear();
 
-    // 重新下载版本 — 下载器会跳过 SHA1 匹配的文件，仅下载缺失/损坏的
+    // 锟斤拷锟斤拷锟斤拷锟截版本 锟斤拷 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷 SHA1 匹锟斤拷锟斤拷募锟斤拷锟斤拷锟斤拷锟斤拷锟饺笔?锟金坏碉拷
     if (m_activeIds.contains(versionId)) {
-        // 已在下载同一版本，先取消再重启
+        // 锟斤拷锟斤拷锟斤拷锟斤拷同一锟芥本锟斤拷锟斤拷取锟斤拷锟斤拷锟斤拷锟斤拷
         cancelInstall(versionId);
-        // 稍等取消完成后再安装
-        QTimer::singleShot(200, this, [this, versionId]() {
+        // 锟皆碉拷取锟斤拷锟斤拷珊锟斤拷侔锟阶?        QTimer::singleShot(200, this, [this, versionId]() {
             installVersion(versionId);
         });
     } else {
@@ -1528,7 +1539,7 @@ void VersionBackend::repairVersion(const QString& versionId)
 bool VersionBackend::renameVersion(const QString& oldId, const QString& newId)
 {
     if (oldId.isEmpty() || newId.isEmpty()) {
-        emit logMessage(QStringLiteral("重命名失败: ID不能为空"));
+        emit logMessage(QStringLiteral("锟斤拷锟斤拷锟斤拷失锟斤拷: ID锟斤拷锟斤拷为锟斤拷"));
         return false;
     }
 
@@ -1537,18 +1548,18 @@ bool VersionBackend::renameVersion(const QString& oldId, const QString& newId)
     const QString newDir = versionsDir + QStringLiteral("/") + newId;
 
     if (!QDir(oldDir).exists()) {
-        emit logMessage(QStringLiteral("重命名失败: 版本 %1 不存在").arg(oldId));
+        emit logMessage(QStringLiteral("锟斤拷锟斤拷锟斤拷失锟斤拷: 锟芥本 %1 锟斤拷锟斤拷锟斤拷").arg(oldId));
         return false;
     }
 
     if (QDir(newDir).exists()) {
-        emit logMessage(QStringLiteral("重命名失败: 目标 %1 已存在").arg(newId));
+        emit logMessage(QStringLiteral("锟斤拷锟斤拷锟斤拷失锟斤拷: 目锟斤拷 %1 锟窖达拷锟斤拷").arg(newId));
         return false;
     }
 
     // Rename directory
     if (!QDir().rename(oldDir, newDir)) {
-        emit logMessage(QStringLiteral("重命名失败: 无法重命名目录"));
+        emit logMessage(QStringLiteral("锟斤拷锟斤拷锟斤拷失锟斤拷: 锟睫凤拷锟斤拷锟斤拷锟斤拷目录"));
         return false;
     }
 
@@ -1566,7 +1577,7 @@ bool VersionBackend::renameVersion(const QString& oldId, const QString& newId)
         QFile::rename(oldJson, newJson);
     }
 
-    emit logMessage(QStringLiteral("版本已重命名: %1 → %2").arg(oldId, newId));
+    emit logMessage(QStringLiteral("锟芥本锟斤拷锟斤拷锟斤拷锟斤拷: %1 锟斤拷 %2").arg(oldId, newId));
     refreshInstalled();
     return true;
 }
@@ -1600,7 +1611,7 @@ static bool copyDirRecursive(const QString& srcPath, const QString& dstPath)
 bool VersionBackend::cloneVersion(const QString& sourceId, const QString& newId)
 {
     if (sourceId.isEmpty() || newId.isEmpty()) {
-        emit logMessage(QStringLiteral("克隆失败: ID不能为空"));
+        emit logMessage(QStringLiteral("锟斤拷隆失锟斤拷: ID锟斤拷锟斤拷为锟斤拷"));
         return false;
     }
 
@@ -1609,18 +1620,18 @@ bool VersionBackend::cloneVersion(const QString& sourceId, const QString& newId)
     const QString dstDir = versionsDir + QStringLiteral("/") + newId;
 
     if (!QDir(srcDir).exists()) {
-        emit logMessage(QStringLiteral("克隆失败: 源版本 %1 不存在").arg(sourceId));
+        emit logMessage(QStringLiteral("锟斤拷隆失锟斤拷: 源锟芥本 %1 锟斤拷锟斤拷锟斤拷").arg(sourceId));
         return false;
     }
 
     if (QDir(dstDir).exists()) {
-        emit logMessage(QStringLiteral("克隆失败: 目标 %1 已存在").arg(newId));
+        emit logMessage(QStringLiteral("锟斤拷隆失锟斤拷: 目锟斤拷 %1 锟窖达拷锟斤拷").arg(newId));
         return false;
     }
 
     // Recursively copy
     if (!copyDirRecursive(srcDir, dstDir)) {
-        emit logMessage(QStringLiteral("克隆失败: 复制过程中出错"));
+        emit logMessage(QStringLiteral("锟斤拷隆失锟斤拷: 锟斤拷锟狡癸拷锟斤拷锟叫筹拷锟斤拷"));
         return false;
     }
 
@@ -1637,7 +1648,7 @@ bool VersionBackend::cloneVersion(const QString& sourceId, const QString& newId)
         QFile::rename(oldJson, newJson);
     }
 
-    emit logMessage(QStringLiteral("版本已克隆: %1 → %2").arg(sourceId, newId));
+    emit logMessage(QStringLiteral("锟芥本锟窖匡拷隆: %1 锟斤拷 %2").arg(sourceId, newId));
     refreshInstalled();
     return true;
 }
@@ -1657,7 +1668,7 @@ QString VersionBackend::copyVersionPath(const QString& versionId)
     }
 #endif
 
-    emit logMessage(QStringLiteral("已复制路径: %1").arg(QDir::toNativeSeparators(path)));
+    emit logMessage(QStringLiteral("锟窖革拷锟斤拷路锟斤拷: %1").arg(QDir::toNativeSeparators(path)));
     return QDir::toNativeSeparators(path);
 }
 
@@ -1676,7 +1687,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
     // Step 0: Ensure vanilla MC is installed first
     if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
-        // ── Merged install: MC + loader in ONE card ──
+        // 锟斤拷锟斤拷 Merged install: MC + loader in ONE card 锟斤拷锟斤拷
         qDebug() << "[install] Merged install: MC" << mcVersion << "+" << loaderType << loaderVersion;
         ses.isMerged = true;
         ses.mcVersion = mcVersion;
@@ -1699,43 +1710,43 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
         rebuildSteps(installName, {
-            QStringLiteral("下载原版 JSON 文件"),
-            QStringLiteral("下载原版支持库文件"),
-            QStringLiteral("下载原版资源文件"),
-            QStringLiteral("校验游戏资源完整性"),
-            QStringLiteral("下载 %1 主文件").arg(loaderLabel),
-            QStringLiteral("校验 %1 完整性").arg(loaderLabel),
-            QStringLiteral("安装 %1").arg(loaderLabel)
+            QStringLiteral("锟斤拷锟斤拷原锟斤拷 JSON 锟侥硷拷"),
+            QStringLiteral("锟斤拷锟斤拷原锟斤拷支锟街匡拷锟侥硷拷"),
+            QStringLiteral("锟斤拷锟斤拷原锟斤拷锟斤拷源锟侥硷拷"),
+            QStringLiteral("校锟斤拷锟斤拷戏锟斤拷源锟斤拷锟斤拷锟斤拷"),
+            QStringLiteral("锟斤拷锟斤拷 %1 锟斤拷锟侥硷拷").arg(loaderLabel),
+            QStringLiteral("校锟斤拷 %1 锟斤拷锟斤拷锟斤拷").arg(loaderLabel),
+            QStringLiteral("锟斤拷装 %1").arg(loaderLabel)
         }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
          {true, true, true, true, true, true, true});  // All steps visible
         updateStep(installName, 0, QStringLiteral("active"), 0);
         ses.loadedStep = 1;
 
-        // Start MC download (will NOT create separate version card — suppressed in activeInstalls)
+        // Start MC download (will NOT create separate version card 锟斤拷 suppressed in activeInstalls)
         setInstalling(true);
         installVersion(mcVersion, 0);
         return;
     }
 
-    // MC is installed or downloading — proceed with loader
+    // MC is installed or downloading 锟斤拷 proceed with loader
     m_mlInstaller->setGameDir(m_gameDir);
     qDebug() << "[install] installModLoader ENTRY" << loaderType << mcVersion << loaderVersion << "->" << installName;
 
     // Build step list
     if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
-        rebuildSteps(installName, {QStringLiteral("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
-                      QStringLiteral("校验安装程序完整性"),
-                      QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
-                     {3.0, 0.5, 10.0},  // installer 重量级10
+        rebuildSteps(installName, {QStringLiteral("锟斤拷锟斤拷 %1 锟斤拷装锟斤拷锟斤拷").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
+                      QStringLiteral("校锟介安装锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷"),
+                      QStringLiteral("锟斤拷装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
+                     {3.0, 0.5, 10.0},  // installer 锟斤拷锟斤拷锟斤拷10
                      {true, false, true});
     } else if (loaderType == QStringLiteral("fabric")) {
-        rebuildSteps(installName, {QStringLiteral("下载 Fabric 配置"),
-                      QStringLiteral("校验配置完整性"),
-                      QStringLiteral("创建版本配置")},
-                     {2.0, 0.3, 1.0},  // Fabric轻量级，无Java进程
+        rebuildSteps(installName, {QStringLiteral("锟斤拷锟斤拷 Fabric 锟斤拷锟斤拷"),
+                      QStringLiteral("校锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷"),
+                      QStringLiteral("锟斤拷锟斤拷锟芥本锟斤拷锟斤拷")},
+                     {2.0, 0.3, 1.0},  // Fabric锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷Java锟斤拷锟斤拷
                      {true, false, true});
     } else {
-        rebuildSteps(installName, {QStringLiteral("安装 %1").arg(installName)});
+        rebuildSteps(installName, {QStringLiteral("锟斤拷装 %1").arg(installName)});
     }
     updateStep(installName, 0, QStringLiteral("active"), 0);
 
@@ -1794,7 +1805,7 @@ bool VersionBackend::isModLoaderInstalling() const {
 // Unified Step Model
 // ============================================================
 
-// ═══════════ Session helpers ═══════════
+// 锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋 Session helpers 锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋锟絋
 
 InstallSession& VersionBackend::session(const QString& installId) {
     if (!m_sessions.contains(installId)) {
@@ -1848,7 +1859,120 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
     }
 
+void VersionBackend::emitActiveInstallsChanged() {
+    LOG_CARDS() << "emitActiveInstallsChanged() pending=" << m_cardsRebuildPending;
+    if (m_cardsRebuildPending) return;
+    m_cardsRebuildPending = true;
+    rebuildInstallCards();
+        m_cardsRebuildThrottle.start();
+}
 
+QVariantList VersionBackend::activeInstalls() const {
+    QVariantList list;
+    QSet<QString> seen;
+
+    // 1. Iterate sessions: build mod_loader cards from session state
+    for (auto sit = m_sessions.constBegin(); sit != m_sessions.constEnd(); ++sit) {
+        const QString& sid = sit.key();
+        const InstallSession& ses = sit.value();
+        bool mlPending = ses.hasPendingLoader && !ses.pendingLoaderName.isEmpty();
+        bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && m_modLoaderInstallId == sid;
+        bool mlMerged = ses.isMerged;
+        bool mlFailed = ses.failed;
+        if (!mlActive && !mlFailed && !mlPending && !mlMerged) continue;
+
+        QString cardId = mlPending ? ses.pendingLoaderName : sid;
+        qDebug() << "[install] activeInstalls: mod_loader card" << cardId
+                 << "totalProgress:" << ses.totalProgress << "steps:" << ses.steps.size()
+                 << (mlFailed ? "FAILED" : (mlMerged ? "MERGED" : (mlPending ? "PENDING" : "running")));
+        QVariantMap card;
+        card["installId"] = cardId;
+        card["installType"] = QStringLiteral("mod_loader");
+        card["displayName"] = cardId;
+        card["totalProgress"] = mlPending ? 0.0 : ses.smoothProgress;
+        card["speed"] = mlPending ? QVariant::fromValue<qint64>(0LL) : QVariant::fromValue<qint64>(m_installSpeed);
+        card["installPhase"] = mlFailed ? QStringLiteral("失锟斤拷")
+                              : mlMerged ? m_installPhase
+                              : mlPending ? QStringLiteral("锟饺达拷MC锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟?..")
+                              : m_installPhase;
+        card["remainingSteps"] = mlPending ? 0 : installRemainingSteps();
+        card["installFailed"] = mlFailed;
+        card["installError"] = ses.error;
+        card["steps"] = mlPending ? QVariantList{} : ses.steps;
+        list.append(card);
+        seen.insert(cardId);
+        if (ses.isMerged && !ses.mcVersion.isEmpty()) seen.insert(ses.mcVersion);
+    }
+
+    // 2. Active version downloads (hide versions that are part of a merged session)
+    for (const QString& vid : m_activeIds) {
+        if (seen.contains(vid)) continue;
+        seen.insert(vid);
+        QVariantMap card;
+        card["installId"] = vid;
+        card["installType"] = QStringLiteral("version");
+        card["displayName"] = vid;
+        card["remainingSteps"] = 0;
+        card["steps"] = QVariantList{};
+        if (m_dlStates.contains(vid)) {
+            const DlState& st = m_dlStates[vid];
+            card["totalProgress"] = st.bytesTotal > 0 ? (qreal)st.bytesDl / st.bytesTotal : 0.0;  // byte-weighted
+            card["speed"] = QVariant::fromValue<qint64>(st.speed);
+            card["installPhase"] = st.phase;
+            // Auto-generate step list from real per-category bytes
+            QVariantList vSteps;
+            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+            auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
+                int pct = (tot > 0) ? (int)(dl * 100 / tot)
+                          : (status == QStringLiteral("completed") ? 100 : 0);
+                vSteps.append(QVariantMap{
+                    {"name", name}, {"status", status},
+                    {"percentage", pct}, {"show", true}
+                });
+            };
+
+            auto catStatus = [&](int ci) {
+                if (verifying || st.catBytesTotal[ci] <= 0) return QStringLiteral("completed");
+                return QStringLiteral("active");
+            };
+            auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
+            auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
+
+            if (verifying) {
+                addVStep("\u4e0b\u8f7d\u7248\u672cJSON", "completed", catTot(0), catTot(0));
+                addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", "completed", catTot(1), catTot(1));
+                addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", "completed", catTot(2), catTot(2));
+                addVStep("\u6821\u9a8c\u6587\u4ef6", "active", st.progress, st.total);
+                card["remainingSteps"] = 1;
+            } else {
+                addVStep("\u4e0b\u8f7d\u7248\u672cJSON", catStatus(0), catDl(0), catTot(0));
+                addVStep("\u4e0b\u8f7d\u652f\u6301\u5e93", catStatus(1), catDl(1), catTot(1));
+                addVStep("\u4e0b\u8f7d\u8d44\u6e90\u6587\u4ef6", catStatus(2), catDl(2), catTot(2));
+                card["remainingSteps"] = 3;
+            }
+            card["steps"] = vSteps;
+        } else {
+            // Placeholder 锟斤拷 download just started, no progress data yet
+            card["totalProgress"] = 0.0;
+            card["speed"] = QVariant::fromValue<qint64>(0LL);
+            card["installPhase"] = QStringLiteral("准锟斤拷锟斤拷...");
+        }
+        list.append(card);
+    }
+    // 3. Extra cards (resource / mod)
+    for (auto it = m_extraCards.cbegin(); it != m_extraCards.cend(); ++it) {
+        list.append(it.value());
+    }
+    qDebug() << "[install] activeInstalls returning" << list.size() << "cards";
+    if (list.isEmpty()) {
+        qDebug() << "[install] activeInstalls EMPTY 锟斤拷 mlInstaller:" << !!m_mlInstaller
+                 << "isRunning:" << (m_mlInstaller ? m_mlInstaller->isRunning() : false)
+                 << "mlId:" << m_modLoaderInstallId
+                 << "sessions:" << m_sessions.size() << "activeCount:" << m_activeCount
+                 << "extraCards:" << m_extraCards.size();
+    }
+    return list;
+}
 
 int VersionBackend::installRemainingSteps() const {
     if (m_sessions.isEmpty()) return 0;
@@ -1951,7 +2075,7 @@ void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
                      << " progress=" << cards[i].progress << " steps=" << cards[i].steps.size();
     }
 
-    // Same size: update in-place (dataChanged) — preserves delegates & animations
+    // Same size: update in-place (dataChanged) 锟斤拷 preserves delegates & animations
     // Different size: full reset (beginResetModel/endResetModel)
     if (cards.size() == m_cards.size()) {
         for (int i = 0; i < cards.size(); ++i) {
@@ -2059,7 +2183,7 @@ void VersionBackend::rebuildInstallCards() {
             c.speed = st.speed;
             c.phase = st.phase;
 
-            // Always build 4 steps (3 download + 1 verify) — verify stays pending until phase transitions
+            // Always build 4 steps (3 download + 1 verify) 锟斤拷 verify stays pending until phase transitions
             QVariantList vSteps;
             auto addVStep = [&](const QString& name, const QString& status, qint64 dl, qint64 tot) {
                 int pct = (tot > 0) ? (int)(dl * 100 / tot) : (status == QStringLiteral("completed") ? 100 : 0);
