@@ -350,6 +350,39 @@ Rectangle {
                 }
             }
 
+            // ── Relogin button (login check failures) ──
+            Rectangle {
+                width: 120; height: 34; radius: 6
+                color: reloginMouse ? (reloginMouse.containsMouse ? "#1a1a38" : "transparent") : "transparent"
+                border.color: reloginMouse ? (reloginMouse.containsMouse ? "#3868c0" : "#304070") : "#304070"
+                scale: reloginMouse ? (reloginMouse.pressed ? 0.9 : (reloginMouse.containsMouse ? 1.04 : 1.0)) : 1.0
+                visible: checkFailed && checkFailedPhase === "登录状态"
+                opacity: (checkFailed && checkFailedPhase === "登录状态") ? 1 : 0
+                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+                Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "重新登录"
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    color: reloginMouse ? (reloginMouse.containsMouse ? "#a0c8ff" : "#80a0e0") : "#80a0e0"
+                }
+
+                MouseArea {
+                    id: reloginMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        overlay.hide()
+                        if (backend) backend.microsoftLogin()
+                    }
+                }
+            }
+
             Rectangle {
                 width: checkFailed ? 140 : 120; height: 34; radius: 6
                 color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#1a2a18" : "transparent") : "transparent")
