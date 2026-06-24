@@ -94,6 +94,18 @@ void ModLoaderInstaller::downloadSmall(const QString& url,
 // Public API
 // ============================================================
 
+void ModLoaderInstaller::installForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
+                                         const QString& forgeVersion, const QString& installName)
+{
+    if (m_running) return;
+    m_running = true; m_cancelled = false;
+    m_mcVersion = mcVersion; m_loaderVersion = forgeVersion;
+    m_installName = installName; m_loaderType = "forge";
+    m_totalSteps = 2; m_currentStep = 0;  // verify + install (download skipped)
+    qDebug() << "[ModLoader] Forge from data: MC" << mcVersion << "Forge" << forgeVersion;
+    forgeStep2_verify(installerJar);
+}
+
 void ModLoaderInstaller::installForge(const QString& mcVersion, const QString& forgeVersion,
                                        const QString& installName) {
     qDebug() << "[ModLoader] installForge call — m_running before:" << m_running;

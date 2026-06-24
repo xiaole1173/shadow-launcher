@@ -30,6 +30,10 @@ public:
                          const QString& forgeVersion, const QString& installName);
 
     bool isRunning() const { return m_running; }
+
+    // Start Forge/NeoForge install from pre-downloaded jar (skip download step)
+    void installForgeFromData(const QByteArray& installerJar, const QString& mcVersion,
+                             const QString& forgeVersion, const QString& installName);
     void cancel();
 
 signals:

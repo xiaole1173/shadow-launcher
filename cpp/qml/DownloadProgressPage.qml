@@ -111,11 +111,7 @@ Rectangle {
                         font.pixelSize: 11; color: "#606888"
                         elide: Text.ElideRight
                     }
-                    Text {
-                        visible: (model.remaining || 0) > 0
-                        text: "剩余 " + (model.remaining || 0) + " 步"
-                        font.pixelSize: 11; color: "#c8a040"
-                    }
+
                 }
 
                 // ── step list ──
