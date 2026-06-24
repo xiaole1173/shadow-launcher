@@ -91,6 +91,7 @@ private:
     bool m_verifyOnly = false;
     void neoForgeStep3_PCLinstall(const QByteArray& jarData);
     void runInstallerProcess(const QByteArray& jarData);
+    void renameVersionFolder(const QString& oldName, const QString& newName);
 
     // Fabric
     void fabricStep1_downloadProfile();

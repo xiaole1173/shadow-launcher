@@ -752,6 +752,19 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                 if (copied) break;
                 // Otherwise installer already handled it (spec:0 / processors)
             }
+
+            // If the installer's default folder name differs from the user's
+            // custom/auto-generated installName, rename to match.
+            QString defaultName;
+            if (m_loaderType == QStringLiteral("neoforge")) {
+                defaultName = QStringLiteral("neoforge-") + m_loaderVersion;
+            } else if (m_loaderType == QStringLiteral("forge")) {
+                defaultName = m_mcVersion + QStringLiteral("-forge-") + m_loaderVersion;
+            }
+            if (!defaultName.isEmpty() && m_installName != defaultName) {
+                renameVersionFolder(defaultName, m_installName);
+            }
+
             emit finished(true, QString());
         } else {
             QString detail = (stdoutStr + QStringLiteral(" ") + stderrStr).trimmed();
@@ -891,5 +904,62 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
         if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
         neoForgeStep3_PCLinstall(jarData);
     });
+}
+
+// ============================================================
+// Post-install: rename version folder to user's chosen name
+// ============================================================
+
+void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QString& newName)
+{
+    const QString vd = versionsDir();
+    const QString oldDir = vd + QStringLiteral("/") + oldName;
+    const QString newDir = vd + QStringLiteral("/") + newName;
+
+    if (!QDir(oldDir).exists()) {
+        qDebug() << "[ModLoader] renameVersionFolder: old not found, skip" << oldDir;
+        return;
+    }
+    if (QDir(newDir).exists()) {
+        qDebug() << "[ModLoader] renameVersionFolder: target exists, skip" << newDir;
+        return;
+    }
+
+    // 1. Rename folder
+    if (!QDir().rename(oldDir, newDir)) {
+        qWarning() << "[ModLoader] renameVersionFolder: folder rename failed" << oldDir << "→" << newDir;
+        return;
+    }
+
+    // 2. Rename JSON
+    const QString oldJson = newDir + QStringLiteral("/") + oldName + QStringLiteral(".json");
+    const QString newJson = newDir + QStringLiteral("/") + newName + QStringLiteral(".json");
+    if (QFile::exists(oldJson) && !QFile::rename(oldJson, newJson)) {
+        qWarning() << "[ModLoader] renameVersionFolder: json rename failed" << oldJson << "→" << newJson;
+    }
+
+    // 3. Rename JAR (if exists)
+    const QString oldJar = newDir + QStringLiteral("/") + oldName + QStringLiteral(".jar");
+    const QString newJar = newDir + QStringLiteral("/") + newName + QStringLiteral(".jar");
+    if (QFile::exists(oldJar) && !QFile::rename(oldJar, newJar)) {
+        qWarning() << "[ModLoader] renameVersionFolder: jar rename failed" << oldJar << "→" << newJar;
+    }
+
+    // 4. Update JSON "id" field
+    QFile f(newJson);
+    if (f.open(QIODevice::ReadOnly)) {
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+        f.close();
+        if (doc.isObject()) {
+            QJsonObject obj = doc.object();
+            obj[QStringLiteral("id")] = newName;
+            if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                f.write(QJsonDocument(obj).toJson());
+                f.close();
+            }
+        }
+    }
+
+    qDebug() << "[ModLoader] Renamed version:" << oldName << "→" << newName;
 }
 
