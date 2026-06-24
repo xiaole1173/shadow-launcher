@@ -539,7 +539,7 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
     // Cancel any pending refresh timeout — game already finished
     if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
 
-    m_launching = false;
+    // Emit progress BEFORE setting launching=false so QML checkFailed is set first
     if (success) {
         m_launchProgress = 100;
         m_launchStatus = QStringLiteral("启动完成");
@@ -569,7 +569,7 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
             emit crashDetected(report);
         }
     }
-    emit launchStateChanged();
+    m_launching = false;
 }
 
 // ============================================================
