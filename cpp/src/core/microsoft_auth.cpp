@@ -165,7 +165,8 @@ void MicrosoftAuth::startLogin(const QString& clientId)
         "?client_id=%2"
         "&response_type=code"
         "&redirect_uri=%3"
-        "&scope=XboxLive.signin%20offline_access")
+        "&scope=XboxLive.signin%20offline_access"
+        "&prompt=select_account")
         .arg(QString::fromLatin1(kAuthUrl), clientId, m_localRedirectUri);
 
     qCInfo(logApp) << "[MSA] Auth URL:" << url;
@@ -363,7 +364,8 @@ void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs)
         }
 
         QString mcToken = obj[QStringLiteral("access_token")].toString();
-        qCInfo(logApp) << "[MSA] MC token ok";
+        m_msTokenExpiresIn = obj[QStringLiteral("expires_in")].toInt(86400);
+        qCInfo(logApp) << "[MSA] MC token ok, expires in" << m_msTokenExpiresIn << "s";
         emit loginProgress(QStringLiteral("档案"), QStringLiteral("正在获取 Minecraft 档案..."));
         fetchMcProfile(mcToken);
     });
@@ -394,7 +396,7 @@ void MicrosoftAuth::fetchMcProfile(const QString& mcToken)
         QString uuid = obj[QStringLiteral("id")].toString();
         QString username = obj[QStringLiteral("name")].toString();
         qCInfo(logApp) << "[MSA] LOGIN SUCCESS!" << username << uuid;
-        emit loginSuccess(m_msMcToken, username, uuid, m_msRefreshToken);
+        emit loginSuccess(m_msMcToken, username, uuid, m_msRefreshToken, m_msTokenExpiresIn);
     });
 }
 

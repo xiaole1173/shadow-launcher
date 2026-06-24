@@ -47,7 +47,7 @@ AccountBackend::AccountBackend(QObject *parent)
         m_msStatus = step + QStringLiteral(": ") + detail;
         emit microsoftLoginProgress(step, detail);
     });
-    connect(m_msAuth, &MicrosoftAuth::loginSuccess, this, [this](const QString& mcToken, const QString& username, const QString& uuid, const QString& refreshToken) {
+    connect(m_msAuth, &MicrosoftAuth::loginSuccess, this, [this](const QString& mcToken, const QString& username, const QString& uuid, const QString& refreshToken, int expiresIn) {
         m_msMcToken = mcToken;
         m_msRefreshToken = refreshToken;
         m_username = username;
@@ -56,9 +56,10 @@ AccountBackend::AccountBackend(QObject *parent)
         m_isOnline = true;
         m_msStatus.clear();
         m_msTokenObtainedAt = QDateTime::currentSecsSinceEpoch();
-        m_msTokenExpiresIn = 86400;  // Mojang MC token: ~24 hours
+        m_msTokenExpiresIn = expiresIn;  // from Mojang API response
         qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
         saveMicrosoftSession();
+        startBackgroundRefresh();
         if (m_refreshingToken) {
             m_refreshingToken = false;
             emit tokenRefreshed(true);
@@ -240,6 +241,31 @@ void AccountBackend::cancelMicrosoftLogin()
     if (!m_msAuth) return;
     m_msAuth->cancelLogin();
     emit microsoftLoginBusyChanged();
+}
+
+bool AccountBackend::shouldRefresh() const
+{
+    if (m_msRefreshToken.isEmpty()) return false;
+    if (m_msTokenExpiresIn <= 0 || m_msTokenObtainedAt <= 0) return true;
+    qint64 now = QDateTime::currentSecsSinceEpoch();
+    qint64 expiresAt = m_msTokenObtainedAt + m_msTokenExpiresIn;
+    return (now + 3600) >= expiresAt;
+}
+
+void AccountBackend::startBackgroundRefresh()
+{
+    if (m_refreshTimer) return;
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setInterval(3600000);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this]() {
+        if (shouldRefresh()) {
+            qCInfo(logAccount) << "Background refresh triggered";
+            m_refreshingToken = true;
+            refreshMicrosoftToken();
+        }
+    });
+    m_refreshTimer->start();
+    qCInfo(logAccount) << "Background token refresh timer started (1h interval)";
 }
 
 // ────────────────────────────────────────────────────────────

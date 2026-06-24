@@ -25,7 +25,7 @@ public:
 signals:
     void loginProgress(const QString& step, const QString& detail);
     void loginSuccess(const QString& minecraftToken, const QString& username,
-                      const QString& uuid, const QString& refreshToken);
+                      const QString& uuid, const QString& refreshToken, int expiresIn = 86400);
     void loginFailed(const QString& error);
 
     // Internal — progress step signals (used with QueuedConnection)
@@ -40,6 +40,7 @@ private:
     QString m_msAccessToken;
     QString m_msRefreshToken;
     QString m_msMcToken;
+    int m_msTokenExpiresIn = 86400;  // from Mojang authenticateMc response
     QTcpServer* m_localServer = nullptr;
 
     Q_INVOKABLE void exchangeCode(const QString& code, const QString& redirectUri);

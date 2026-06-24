@@ -50,6 +50,8 @@ public:
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
     QString msRefreshToken() const { return m_msRefreshToken; }
     void refreshMicrosoftToken();
+    bool shouldRefresh() const;
+    void startBackgroundRefresh();
 
     // Microsoft login state
     Q_PROPERTY(QString msStatus READ msStatus NOTIFY microsoftLoginProgress)
@@ -93,6 +95,7 @@ private:
     QString m_msMcToken;
     qint64 m_msTokenObtainedAt = 0;   // QDateTime::currentSecsSinceEpoch() when MC token was obtained
     qint64 m_msTokenExpiresIn = 0;    // seconds until expiry (from Mojang response)
+    QTimer* m_refreshTimer = nullptr; // periodic background token refresh
 
     QString m_username;
     QString m_uuid;
