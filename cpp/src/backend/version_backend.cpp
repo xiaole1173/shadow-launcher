@@ -236,9 +236,9 @@ VersionBackend::VersionBackend(QObject* parent)
                 updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), pct, ses.mlBytesDl, ses.mlBytesAll);
             }
             // Byte-weighted total progress (跨阶段)
-            qint64 grandDone = ses.mcBytesAll + ses.mlBytesDl;
+            qint64 grandDone = ses.mcBytesDl + ses.mlBytesDl;
             qint64 grandTotal = ses.mcBytesAll + ses.mlBytesAll;
-            qreal raw = (grandTotal > 0) ? (qreal)grandDone / grandTotal : 0.0;
+            qreal raw = (grandTotal > 0) ? qMin(1.0, (qreal)grandDone / grandTotal) : 0.0;
             ses.totalProgress = raw;
             // EMA smoothing
             if (ses.smoothProgress <= 0.0) {
