@@ -49,7 +49,10 @@ AccountBackend::AccountBackend(QObject *parent)
     });
     connect(m_msAuth, &MicrosoftAuth::loginSuccess, this, [this](const QString& mcToken, const QString& username, const QString& uuid, const QString& refreshToken, int expiresIn) {
         m_msMcToken = mcToken;
-        m_msRefreshToken = refreshToken;
+        // Only update refreshToken if non-empty (preserve existing during refresh)
+        if (!refreshToken.isEmpty()) {
+            m_msRefreshToken = refreshToken;
+        }
         m_username = username;
         m_uuid = uuid;
         m_loggedIn = true;
@@ -57,7 +60,8 @@ AccountBackend::AccountBackend(QObject *parent)
         m_msStatus.clear();
         m_msTokenObtainedAt = QDateTime::currentSecsSinceEpoch();
         m_msTokenExpiresIn = expiresIn;  // from Mojang API response
-        qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid;
+        qCInfo(logAccount) << "Microsoft login SUCCESS:" << username << uuid
+                           << "refreshToken:" << (refreshToken.isEmpty() ? QStringLiteral("EMPTY!") : QStringLiteral("present"));
         saveMicrosoftSession();
         startBackgroundRefresh();
         if (m_refreshingToken) {

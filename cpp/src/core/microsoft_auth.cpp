@@ -198,6 +198,7 @@ void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri
     postData.addQueryItem(QStringLiteral("code"), code);
     postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("authorization_code"));
     postData.addQueryItem(QStringLiteral("redirect_uri"), redirectUri);
+    postData.addQueryItem(QStringLiteral("scope"), QStringLiteral("XboxLive.signin offline_access"));
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
     qCInfo(logApp) << "[MSA] POST to token endpoint, body len:" << body.size();
@@ -226,6 +227,7 @@ void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri
 
     m_msAccessToken = obj[QStringLiteral("access_token")].toString();
     m_msRefreshToken = obj[QStringLiteral("refresh_token")].toString();
+    qCInfo(logApp) << "[MSA] refresh_token:" << (m_msRefreshToken.isEmpty() ? "EMPTY!" : m_msRefreshToken.left(20)+"...");
 
     if (m_msAccessToken.isEmpty()) {
         qCWarning(logApp) << "[MSA] Empty access_token in response";
