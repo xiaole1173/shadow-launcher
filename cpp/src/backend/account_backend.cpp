@@ -694,14 +694,29 @@ void AccountBackend::loadMicrosoftSession()
         m_uuid.clear();
         saveMicrosoftSession();
     } else if (knownExpired) {
-        qCInfo(logAccount) << "Saved Microsoft session token expired, clearing";
-        m_msMcToken.clear();
-        m_msRefreshToken.clear();
-        m_msTokenObtainedAt = 0;
-        m_msTokenExpiresIn = 0;
-        m_username.clear();
-        m_uuid.clear();
-        saveMicrosoftSession();
+        if (!m_msRefreshToken.isEmpty()) {
+            // MC token expired, but we have a refresh token (valid up to 90 days)
+            qCInfo(logAccount) << "Session MC token expired, reusing refresh token...";
+            m_loggedIn = true;
+            m_isOnline = true;
+            downloadSkin(m_username);
+            emit accountChanged();
+            refreshMicrosoftToken();
+            startBackgroundRefresh();
+        } else {
+            // Both tokens expired — truly need re-login
+            qCInfo(logAccount) << "Saved Microsoft session fully expired, clearing";
+            m_msMcToken.clear();
+            m_msRefreshToken.clear();
+            m_msTokenObtainedAt = 0;
+            m_msTokenExpiresIn = 0;
+            m_username.clear();
+            m_uuid.clear();
+            m_loggedIn = false;
+            m_isOnline = false;
+            saveMicrosoftSession();
+            emit accountChanged();
+        }
     }
 }
 
@@ -730,19 +745,11 @@ void AccountBackend::refreshMicrosoftToken()
         QJsonObject obj = QJsonDocument::fromJson(raw).object();
 
         if (reply->error() != QNetworkReply::NoError || !obj[QStringLiteral("access_token")].isString()) {
-            qCInfo(logAccount) << "Microsoft token refresh failed (need re-login):" << raw.left(200);
-            bool wasRefreshing = m_refreshingToken;
+            qCWarning(logAccount) << "Microsoft token refresh failed (need re-login):" << raw.left(200);
             m_refreshingToken = false;
-            if (wasRefreshing) emit tokenRefreshed(false);
-            // Login session is dead — clear state
-            m_msMcToken.clear();
-            m_msRefreshToken.clear();
-            m_msTokenObtainedAt = 0;
-            m_msTokenExpiresIn = 0;
-            m_loggedIn = false;
-            m_isOnline = false;
-            saveMicrosoftSession();
-            emit accountChanged();
+            emit tokenRefreshed(false);
+            // Don't auto-clear session or jump to login form —
+            // let the user decide when to re-authenticate
             emit logMessage(QStringLiteral("正版登录已失效，请重新登录"));
             return;
         }

@@ -369,7 +369,8 @@ static QString resolveLibraryPath(const QJsonObject& lib, const QString& librari
 }
 
 static QStringList buildClasspath(const QString& versionId, const QJsonObject& versionJson,
-                                   const QString& gameDir)
+                                   const QString& gameDir,
+                                   const QSet<QString>& moduleExcludePaths = {})
 {
     QStringList cp;
     QString libsDir = gameDir + QStringLiteral("/libraries");
@@ -395,6 +396,12 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
 
             QString libPath = resolveLibraryPath(lib, libsDir);
             if (!libPath.isEmpty() && QFileInfo::exists(libPath)) {
+                // Skip JARs that are on the module path (NeoForge -p flag)
+                QString relativePath = libPath.mid(libsDir.length() + 1);
+                if (moduleExcludePaths.contains(relativePath)) {
+                    qDebug() << "[Launch] Skipping module-path JAR:" << relativePath;
+                    continue;
+                }
                 // Deduplicate: same JAR may appear in both Forge and base JSON
                 if (!seenLibs.contains(libPath)) {
                     seenLibs.insert(libPath);
@@ -517,8 +524,25 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                          + QStringLiteral("/natives");
     args << QStringLiteral("-Djava.library.path=%1").arg(nativesDir);
 
+    // ── Extract module-path JARs (from NeoForge -p flag) to exclude from classpath ──
+    QSet<QString> moduleExclude;
+    bool inModulePath = false;
+    for (const QString& a : args) {
+        if (a == QStringLiteral("-p")) { inModulePath = true; continue; }
+        if (inModulePath) {
+            const QString libPrefix = m_gameDir + QStringLiteral("/libraries/");
+            const QStringList jars = a.split(classpathSep, Qt::SkipEmptyParts);
+            for (const QString& jar : jars) {
+                if (jar.startsWith(libPrefix)) {
+                    moduleExclude.insert(jar.mid(libPrefix.length()));
+                }
+            }
+            inModulePath = false;
+        }
+    }
+
     // ── Classpath from version JSON ──
-    QStringList cp = buildClasspath(versionId, versionJson, m_gameDir);
+    QStringList cp = buildClasspath(versionId, versionJson, m_gameDir, moduleExclude);
     if (!cp.isEmpty()) {
         args << QStringLiteral("-cp");
 #ifdef Q_OS_WIN
