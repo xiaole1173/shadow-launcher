@@ -652,23 +652,21 @@ void AccountBackend::loadMicrosoftSession()
     bool knownExpired = (m_msTokenExpiresIn > 0) && (m_msTokenObtainedAt > 0)
                         && (now > m_msTokenObtainedAt + m_msTokenExpiresIn);
 
-    // Session loaded — only trust token expiry timestamps (new format)
-    // For old sessions without timestamps, must verify via refresh
-    if ((!m_msRefreshToken.isEmpty() || !m_msMcToken.isEmpty()) && !knownExpired) {
-        qCInfo(logAccount) << "Found saved Microsoft session:" << m_username;
-        // DON'T set m_loggedIn or m_isOnline yet — wait for refresh to validate
+    // Session loaded
+    // Strategy: trust timestamps for display, verify on pre-launch
+    if (!m_msRefreshToken.isEmpty() && !knownExpired) {
+        qCInfo(logAccount) << "Found valid Microsoft session:" << m_username;
+        m_loggedIn = true;
+        m_isOnline = true;
         downloadSkin(m_username);
-        if (!m_msRefreshToken.isEmpty()) {
-            m_refreshingToken = true;  // initially-load refresh
-            QTimer::singleShot(500, this, [this]() { refreshMicrosoftToken(); });
-        } else {
-            // MC token without refresh token = incomplete session
-            qCInfo(logAccount) << "Saved session has no refresh token, clearing";
-            m_msMcToken.clear();
-            m_username.clear();
-            m_uuid.clear();
-            saveMicrosoftSession();
-        }
+        emit accountChanged();
+    } else if (m_msRefreshToken.isEmpty() && !m_msMcToken.isEmpty()) {
+        // MC token without refresh token = incomplete session, can't refresh
+        qCInfo(logAccount) << "Saved session has no refresh token, clearing";
+        m_msMcToken.clear();
+        m_username.clear();
+        m_uuid.clear();
+        saveMicrosoftSession();
     } else if (knownExpired) {
         qCInfo(logAccount) << "Saved Microsoft session token expired, clearing";
         m_msMcToken.clear();
