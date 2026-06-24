@@ -1132,20 +1132,36 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
         proc->deleteLater();
         QString stdoutStr = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
         QString stderrStr = QString::fromUtf8(proc->readAllStandardError()).trimmed();
-        qDebug() << "[ModLoader] NeoForge installer exitCode:" << exitCode;
+        qDebug() << "[ModLoader] NeoForge installer exitCode:" << exitCode
+                 << "stdout:" << (stdoutStr.isEmpty() ? "(empty)" : stdoutStr.left(500));
+        if (!stderrStr.isEmpty())
+            qDebug() << "[ModLoader] NeoForge installer stderr:" << stderrStr.left(500);
 
         // Post-install: find and copy patched client JAR to version directory
-        // NeoForge spec:1 → client jar in libraries/net/neoforged/neoforge/{ver}/neoforge-{ver}-client.jar
-        const QString clientJar = m_gameDir + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-client.jar")
-            .arg(m_loaderVersion);
+        // New NeoForge (26.x+ FancyModLoader): minecraft-client-patched group
+        // Old NeoForge (21.x): neoforge/{ver}/neoforge-{ver}-client.jar
         const QString jarPath = m_gameDir + QStringLiteral("/versions/%1/%1.jar").arg(m_installName);
 
         bool jarCopied = false;
-        if (QFile::exists(clientJar)) {
+        // Try new FancyModLoader path first (26.x+)
+        const QString patchedJarNew = m_gameDir
+            + QStringLiteral("/libraries/net/neoforged/minecraft-client-patched/%1/minecraft-client-patched-%1.jar")
+                .arg(m_loaderVersion);
+        if (!jarCopied && QFile::exists(patchedJarNew)) {
+            if (QFile::exists(jarPath)) QFile::remove(jarPath);
+            jarCopied = QFile::copy(patchedJarNew, jarPath);
+            qDebug() << "[ModLoader] Copied patched client (minecraft-client-patched):" << jarPath;
+        }
+        // Try old path (21.x)
+        const QString clientJar = m_gameDir
+            + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-client.jar")
+                .arg(m_loaderVersion);
+        if (!jarCopied && QFile::exists(clientJar)) {
             if (QFile::exists(jarPath)) QFile::remove(jarPath);
             jarCopied = QFile::copy(clientJar, jarPath);
+            qDebug() << "[ModLoader] Copied patched client (neoforge/client):" << jarPath;
         }
-        // Also try universal jar location (alt naming)
+        // Fallback: universal jar (mod code only, NOT patched Minecraft)
         if (!jarCopied) {
             const QString universalJar = m_gameDir
                 + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-universal.jar")
@@ -1153,7 +1169,7 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
             if (QFile::exists(universalJar)) {
                 if (QFile::exists(jarPath)) QFile::remove(jarPath);
                 jarCopied = QFile::copy(universalJar, jarPath);
-                qDebug() << "[ModLoader] Copied universal jar as version jar:" << jarPath;
+                qWarning() << "[ModLoader] Fallback: copied universal jar (NOT patched client):" << jarPath;
             }
         }
 
