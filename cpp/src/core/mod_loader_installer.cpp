@@ -1159,6 +1159,22 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
                 ijf.close();
                 QJsonObject obj = doc.object();
                 obj[QStringLiteral("id")] = m_installName;
+
+                // Add universal JAR as library (contains NeoForgeMod.class etc.)
+                // The installer doesn't include it in libraries — it's on the module path
+                // but our launcher builds classpath from libraries, so we must add it
+                QJsonArray libs = obj[QStringLiteral("libraries")].toArray();
+                QJsonObject uniLib;
+                uniLib[QStringLiteral("name")] = QStringLiteral("net.neoforged:neoforge:%1").arg(m_loaderVersion);
+                QJsonObject uniDl;
+                QJsonObject uniArt;
+                uniArt[QStringLiteral("path")] = QStringLiteral("net/neoforged/neoforge/%1/neoforge-%1-universal.jar").arg(m_loaderVersion);
+                uniArt[QStringLiteral("url")] = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-universal.jar").arg(m_loaderVersion);
+                uniDl[QStringLiteral("artifact")] = uniArt;
+                uniLib[QStringLiteral("downloads")] = uniDl;
+                libs.prepend(uniLib);
+                obj[QStringLiteral("libraries")] = libs;
+
                 QDir().mkpath(QFileInfo(jsonPath).absolutePath());
                 QFile jf(jsonPath);
                 if (jf.open(QIODevice::WriteOnly)) {
