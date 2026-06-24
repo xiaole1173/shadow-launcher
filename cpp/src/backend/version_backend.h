@@ -208,6 +208,7 @@ signals:
     void installStateChanged();
     void installPhaseChanged(const QString& phase);
     void installFinished(bool success);
+    void installComplete(const QString& installId);
     void logMessage(const QString& msg);
 
     void verifyStarted();

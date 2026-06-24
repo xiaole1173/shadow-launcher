@@ -125,6 +125,15 @@ Window {
         function onInstallFinished(success) {
             // Keep nav visible for a moment, will be hidden when user switches away
         }
+        function onInstallComplete(installName) {
+            console.log("[main] installComplete:", installName)
+            if (toastManager) {
+                toastManager.show("版本下载完成")
+            }
+            if (navListIndex >= 3) {
+                switchPage(0)
+            }
+        }
         function onResourceDownloadStateChanged() {
             console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)
             if (backend && backend.isResourceDownloading) {
@@ -406,8 +415,13 @@ Window {
                         Loader { asynchronous: true; anchors.fill: parent; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
-                    Rectangle { anchors.fill: parent; visible: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress"; color: "#0c0f16"
-                        Loader { id: progressLoader; asynchronous: true; anchors.fill: parent; active: navListIndex >= 3; source: active ? "DownloadProgressPage.qml" : ""; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } } }
+                    Rectangle {
+                        anchors.fill: parent; color: "#0c0f16"
+                        opacity: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress" ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.InOutCubic } }
+                        Loader { id: progressLoader; asynchronous: true; anchors.fill: parent; active: navListIndex >= 3; source: active ? "DownloadProgressPage.qml" : ""; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } }
+                    }
 
                     // ========== VERSION SELECT OVERLAY ==========
                     Loader {

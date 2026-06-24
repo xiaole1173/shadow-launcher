@@ -344,6 +344,7 @@ signals:
     void installStateChanged();
     void installPhaseChanged();
     void installFinished(bool success);
+    void installComplete(const QString& installName);
     void launchProgressChanged(int progress, const QString& status);
     void launchStateChanged();
     void minecraftStarted();

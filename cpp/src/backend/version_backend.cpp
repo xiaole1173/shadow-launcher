@@ -171,6 +171,7 @@ VersionBackend::VersionBackend(QObject* parent)
         }
         setInstalling(false);
         emit installFinished(success);
+        if (success) emit installComplete(mlId);
     });
 
     // Pause between verify and install (merged install: wait for MC)
@@ -800,6 +801,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     // ── Emit finished signal (per-download) ──
     emit installFinished(success);
+    if (success) emit installComplete(finishedId);
 
     // ── Update overall state ──
     if (m_activeCount == 0) {
