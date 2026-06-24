@@ -464,6 +464,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
+        if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
         forgeStep3_PCLinstall(jarData);
     });
 }
