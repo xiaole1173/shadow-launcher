@@ -59,9 +59,7 @@ Rectangle {
                 id: cardContent
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
-                property var _parsedSteps: {
-                    try { return JSON.parse(model.steps || "[]") } catch(e) { return [] }
-                }
+                property var _parsedSteps: model.steps || []  // QVariantList → already JS array, no JSON.parse needed
                 // Shared spin angle — survives Repeater delegate recreation
                 property real _spinAngle: 0
                 Timer {

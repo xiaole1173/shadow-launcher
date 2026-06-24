@@ -2067,7 +2067,18 @@ void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
 // ============================================================
 
 void VersionBackend::rebuildInstallCards() {
-    LOG_CARDS() << "=== rebuildInstallCards() CALLED ===";
+    // Batch: coalesce multiple calls within one event-loop tick
+    if (!m_cardsRebuildPending) {
+        m_cardsRebuildPending = true;
+        QTimer::singleShot(0, this, [this]() {
+            m_cardsRebuildPending = false;
+            doRebuildInstallCards();
+        });
+    }
+}
+
+void VersionBackend::doRebuildInstallCards() {
+    LOG_CARDS() << "=== doRebuildInstallCards() CALLED ===";
     if (!m_installCardsModel) {
         LOG_CARDS() << "  ABORT: m_installCardsModel is null!";
         return;
@@ -2193,7 +2204,7 @@ void VersionBackend::rebuildInstallCards() {
 
     LOG_CARDS() << "  total cards built:" << cards.size();
     m_installCardsModel->rebuild(cards);
-    LOG_CARDS() << "=== rebuildInstallCards() DONE ===";
+    LOG_CARDS() << "=== doRebuildInstallCards() DONE ===";
 }
 
 } // namespace ShadowLauncher
