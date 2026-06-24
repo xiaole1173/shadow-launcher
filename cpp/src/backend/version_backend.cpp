@@ -518,12 +518,19 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                 connect(downloader,
                         &VersionDownloader::progressChanged, this,
                         [this, versionId, downloader](int cf, int tf, qint64 db, qint64 tb) {
-                            // On first call: pre-set category totals from task list
+                            // Set authoritative category totals (pre-computed from task list)
                             auto& st = m_dlStates[versionId];
-                            if (st.catBytesTotal[0] <= 0 && st.catBytesTotal[1] <= 0 && st.catBytesTotal[2] <= 0) {
-                                st.catBytesTotal[0] = downloader->categoryTotalBytes(0);
-                                st.catBytesTotal[1] = downloader->categoryTotalBytes(1);
-                                st.catBytesTotal[2] = downloader->categoryTotalBytes(2);
+                            st.catBytesTotal[0] = downloader->categoryTotalBytes(0);
+                            st.catBytesTotal[1] = downloader->categoryTotalBytes(1);
+                            st.catBytesTotal[2] = downloader->categoryTotalBytes(2);
+                            // Also inject into session for merged install mod_loader card
+                            for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
+                                if (sit.value().isMerged && sit.value().mcVersion == versionId) {
+                                    sit.value().mcStepTotal[0] = downloader->categoryTotalBytes(0);
+                                    sit.value().mcStepTotal[1] = downloader->categoryTotalBytes(1);
+                                    sit.value().mcStepTotal[2] = downloader->categoryTotalBytes(2);
+                                    break;
+                                }
                             }
                             updateDownloadProgress(versionId, cf, tf, db, tb);
                             // ── Merged install: keep mcBytesAll accurate from real tb ──
@@ -1139,13 +1146,9 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     if (versionId == primaryVersionId()) {
             }
 
-    // ── Per-category byte tracking for DlState (version cards) ──
+    // ── Per-category done-byte tracking for DlState (version cards) ──
+    // Denominator (catBytesTotal) comes from progressChanged->categoryTotalBytes()
     if (cat >= 0 && cat <= 2) {
-        const bool firstForFile = !st.fileSeen.contains(fileName);
-        if (firstForFile && total > 0) {
-            st.catBytesTotal[cat] += total;
-            st.fileSeen.insert(fileName);
-        }
         qint64 catDone = st.catBytesDoneBase[cat] + received;
         if (received >= total && total > 0) {
             st.catBytesDoneBase[cat] += total;
@@ -1164,13 +1167,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     }
     if (!mergedSessionId.isEmpty()) {
         if (cat >= 0 && cat <= 2) {
-            // Cumulative tracking: accumulate per-step bytes
-            // Track per-file: only add total once (normal start: received=0; cached: received=total)
-            const bool firstForFile = !session(mergedSessionId).mcFileAdded.contains(fileName);
-            if (firstForFile && total > 0) {
-                session(mergedSessionId).mcStepTotal[cat] += total;
-                session(mergedSessionId).mcFileAdded.insert(fileName);
-            }
+            // Denominator (mcStepTotal) comes from progressChanged->categoryTotalBytes()
             qint64 accDone = session(mergedSessionId).mcStepDone[cat] + received;
             qint64 accTotal = session(mergedSessionId).mcStepTotal[cat];
             if (received >= total && total > 0) {
