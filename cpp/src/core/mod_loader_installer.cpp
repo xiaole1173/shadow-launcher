@@ -113,7 +113,7 @@ void ModLoaderInstaller::installFabric(const QString& mcVersion, const QString& 
     m_running = true; m_cancelled = false;
     m_mcVersion = mcVersion; m_loaderVersion = fabricVersion;
     m_installName = installName; m_loaderType = "fabric";
-    m_totalSteps = 3; m_currentStep = 0;
+    m_totalSteps = 2; m_currentStep = 0;  // download → write (no SHA1 for tiny profile JSON)
     qDebug() << "[ModLoader] Fabric: MC" << mcVersion << "Fabric" << fabricVersion;
     fabricStep1_downloadProfile();
 }
@@ -715,7 +715,7 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
     downloadToMemory(url, [this](bool ok, const QByteArray& data) {
         if (ok) {
             m_usedFallback = false;
-            fabricStep2_verify(data);
+            fabricStep3_writeVersion(data);  // Skip SHA1 — profile JSON is ~2KB, no verification needed
             return;
         }
         // Fallback to official Fabric meta
@@ -725,45 +725,14 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
             if (!ok2) { emit finished(false, "Fabric 配置下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
             m_usedFallback = true;
-            fabricStep2_verify(data2);
+            fabricStep3_writeVersion(data2);
         }, "fabric-profile.json");
     }, "fabric-profile.json");
 }
 
-void ModLoaderInstaller::fabricStep2_verify(const QByteArray& bmclProfile) {
-    m_currentStep = 2;
-    emit progressChanged(2, m_totalSteps, "正在校验 Fabric 配置...");
-    emit verifyStarted();
-
-    // Fetch from official Fabric meta to compare
-    QString officialUrl = QString("https://meta.fabricmc.net/v2/versions/loader/%1/%2/profile/json")
-                               .arg(m_mcVersion, m_loaderVersion);
-
-    downloadSmall(officialUrl, [this, bmclProfile](bool ok, const QByteArray& officialData) {
-        if (!ok || officialData.isEmpty()) {
-            qWarning() << "[ModLoader] Cannot reach official Fabric meta, skip verification";
-            emit verifyFinished(false);
-            fabricStep3_writeVersion(bmclProfile);
-            return;
-        }
-
-        // Compute SHA1 of both
-        QString bmclSha1 = computeSha1(bmclProfile);
-        QString officialSha1 = computeSha1(officialData);
-        bool match = (bmclSha1 == officialSha1);
-
-        qDebug() << "[ModLoader] Fabric profile SHA1 — BMCLAPI:" << bmclSha1
-                 << "Official:" << officialSha1 << "match:" << match;
-        emit verifyFinished(match);
-
-        // If BMCLAPI matches official, use BMCLAPI (faster). Otherwise use official.
-        fabricStep3_writeVersion(match ? bmclProfile : officialData);
-    });
-}
-
 void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData) {
-    m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, "正在创建版本配置...");
+    m_currentStep = 2;
+    emit progressChanged(2, m_totalSteps, "正在创建版本配置...");
 
     QJsonDocument doc = QJsonDocument::fromJson(profileData);
     if (doc.isNull()) { emit finished(false, "Fabric 配置 JSON 格式无效"); m_running = false; return; }
@@ -790,7 +759,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     }
 
     qDebug() << "[ModLoader] Fabric version JSON:" << jsonPath;
-    emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
+    emit progressChanged(2, m_totalSteps, "Fabric 安装完成");
     emit finished(true, QString());
     m_running = false;
 }

@@ -81,7 +81,6 @@ private:
 
     // Fabric
     void fabricStep1_downloadProfile();
-    void fabricStep2_verify(const QByteArray& bmclProfile);
     void fabricStep3_writeVersion(const QByteArray& profileData);
 
     // Optifine standalone

@@ -1781,8 +1781,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             // ── Start MC download ──
             installVersion(mcVersion, 0);
 
-            // ── Start loader download IN PARALLEL ──
-            if (!loaderUrl.isEmpty()) {
+            // ── Start loader download IN PARALLEL (Forge/NeoForge only — Fabric is tiny, sequential is fine)
+            bool isHeavyLoader = (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge"));
+            if (!loaderUrl.isEmpty() && isHeavyLoader) {
                 qDebug() << "[Coordinator] Starting parallel loader download:" << loaderUrl;
                 auto* nam = new QNetworkAccessManager(this);
                 QUrl url(loaderUrl);
@@ -1814,6 +1815,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         proceedToLoaderInstall(installName);
                     }
                 });
+            } else if (!loaderUrl.isEmpty()) {
+                // Fabric/OptiFine: tiny download, no parallel — mark ready immediately
+                auto& ses = session(installName);
+                ses.loaderDownloadReady = true;
             }
 
             coord->deleteLater();
