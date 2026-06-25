@@ -1,4 +1,4 @@
-﻿#include "mod_manager.h"
+#include "mod_manager.h"
 #include "http_client.h"
 
 #include <QJsonDocument>
@@ -74,7 +74,7 @@ void ModManager::searchModrinth(
     const QString& sort)
 {
     setBusy(true);
-    emit logMessage(QStringLiteral("正在搜索 Modrinth..."));
+    emit logMessage(tr("正在搜索 Modrinth..."));
 
     QString url = buildSearchUrl(query, categories, gameVersions, loaders,
                                  offset, limit, sort);
@@ -86,14 +86,14 @@ void ModManager::searchModrinth(
                 QJsonArray results = parseSearchResponse(body, totalHits);
                 m_lastTotalHits = totalHits;
                 emit searchCompleted(results, totalHits);
-                emit logMessage(QStringLiteral("搜索完成，共 %1 个结果").arg(totalHits));
+                emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
             } else {
-                emit searchFailed(QStringLiteral("搜索失败: HTTP %1").arg(status));
+                emit searchFailed(tr("搜索失败: HTTP %1").arg(status));
             }
             setBusy(false);
         },
         [this](const QString& error) {
-            emit searchFailed(QStringLiteral("网络错误: %1").arg(error));
+            emit searchFailed(tr("网络错误: %1").arg(error));
             setBusy(false);
         }
     );
@@ -109,7 +109,7 @@ void ModManager::searchModrinthProjects(
     const QString& sort)
 {
     setBusy(true);
-    emit logMessage(QStringLiteral("正在搜索 Modrinth (facets=%1)...").arg(facets.join(",")));
+    emit logMessage(tr("正在搜索 Modrinth (facets=%1)...").arg(facets.join(",")));
 
     QJsonArray facetArr;
     if (!facets.isEmpty()) {
@@ -150,14 +150,14 @@ void ModManager::searchModrinthProjects(
                 QJsonArray results = parseSearchResponse(body, totalHits);
                 m_lastTotalHits = totalHits;
                 emit searchCompleted(results, totalHits);
-                emit logMessage(QStringLiteral("搜索完成，共 %1 个结果").arg(totalHits));
+                emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
             } else {
-                emit searchFailed(QStringLiteral("搜索失败: HTTP %1").arg(status));
+                emit searchFailed(tr("搜索失败: HTTP %1").arg(status));
             }
             setBusy(false);
         },
         [this](const QString& error) {
-            emit searchFailed(QStringLiteral("网络错误: %1").arg(error));
+            emit searchFailed(tr("网络错误: %1").arg(error));
             setBusy(false);
         }
     );
@@ -173,7 +173,7 @@ void ModManager::getModVersions(
     const QStringList& gameVersions)
 {
     setBusy(true);
-    emit logMessage(QStringLiteral("正在获取 %1 的版本列表...").arg(slug));
+    emit logMessage(tr("正在获取 %1 的版本列表...").arg(slug));
 
     QUrl url(MODRINTH_API + "/project/" + slug + "/version");
     QUrlQuery params;
@@ -195,18 +195,18 @@ void ModManager::getModVersions(
         [this, slug](int status, const QByteArray& body) {
             if (status == 200) {
                 QJsonArray files = parseVersionsResponse(body);
-                emit logMessage(QStringLiteral("获取到 %1 的 %2 个文件版本")
+                emit logMessage(tr("获取到 %1 的 %2 个文件版本")
                                     .arg(slug).arg(files.size()));
                 emit versionsFetched(slug, files);
             } else {
                 emit versionsFailed(slug,
-                    QStringLiteral("获取版本失败: HTTP %1").arg(status));
+                    tr("获取版本失败: HTTP %1").arg(status));
             }
             setBusy(false);
         },
         [this, slug](const QString& error) {
             emit versionsFailed(slug,
-                QStringLiteral("网络错误: %1").arg(error));
+                tr("网络错误: %1").arg(error));
             setBusy(false);
         }
     );
@@ -226,7 +226,7 @@ void ModManager::downloadMod(
     m_minecraftDir = minecraftDir;
     m_pendingDownload = {slug, gameVersion, loader, targetDir, true};
 
-    emit logMessage(QStringLiteral("正在查找 %1 的 %2/%3 版本...")
+    emit logMessage(tr("正在查找 %1 的 %2/%3 版本...")
                         .arg(slug, loader, gameVersion));
     emit modDownloadStarted(slug);
 
@@ -247,7 +247,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
 
     if (files.isEmpty()) {
         emit logMessage(
-            QStringLiteral("❌ 未找到 %1 的 %2 %3 版本")
+            tr("❌ 未找到 %1 的 %2 %3 版本")
                 .arg(slug, m_pendingDownload.loader, m_pendingDownload.gameVersion));
         emit downloadFinished(slug, false, QString());
         return;
@@ -273,7 +273,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
     QString sha1      = chosen.value(QStringLiteral("sha1")).toString();
 
     emit logMessage(
-        QStringLiteral("找到 %1 个文件，选择: %2 (%3)")
+        tr("找到 %1 个文件，选择: %2 (%3)")
             .arg(files.size())
             .arg(filename, formatFileSize(fileSize)));
 
@@ -282,7 +282,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
     QDir().mkpath(destDir);
     QString destPath = destDir + QStringLiteral("/") + filename;
 
-    emit logMessage(QStringLiteral("开始下载: %1").arg(dlUrl));
+    emit logMessage(tr("开始下载: %1").arg(dlUrl));
 
     // Use HttpClient::download() for the actual transfer.
     // TODO: switch to ParallelDownloader with mirror support once implemented.
@@ -294,9 +294,9 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
         [this, slug, destPath, filename](bool ok, const QString& error) {
             setBusy(false);
             if (ok) {
-                emit logMessage(QStringLiteral("✅ %1 下载完成!").arg(filename));
+                emit logMessage(tr("✅ %1 下载完成!").arg(filename));
             } else {
-                emit logMessage(QStringLiteral("❌ %1 下载失败: %2").arg(filename, error));
+                emit logMessage(tr("❌ %1 下载失败: %2").arg(filename, error));
             }
             emit downloadFinished(slug, ok, ok ? destPath : QString());
         }
@@ -321,7 +321,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
     dl.sha1 = sha1;
     m_activeModDownloads[id] = dl;
 
-    emit logMessage(QStringLiteral("📦 开始下载 Mod: %1 → %2").arg(displayName, savePath));
+    emit logMessage(tr("📦 开始下载 Mod: %1 → %2").arg(displayName, savePath));
     if (resumeId < 0) {
         emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
     }
@@ -358,8 +358,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
                         f.close();
                         if (actual != sha1.toLower()) {
                             QFile::remove(savePath);
-                            QString errMsg = QStringLiteral(
-                                "SHA1 校验失败\n期望: %1\n实际: %2\n文件已损坏，已被删除")
+                            QString errMsg = tr("SHA1 校验失败\n期望: %1\n实际: %2\n文件已损坏，已被删除")
                                 .arg(sha1, actual);
                             emit logMessage(QStringLiteral("❌ %1 — %2").arg(displayName, errMsg.replace("\n", " ")));
                             it->failed = true;
@@ -370,15 +369,15 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
                     }
                 }
                 it->finished = true;
-                emit logMessage(QStringLiteral("✅ Mod 下载完成: %1").arg(displayName));
+                emit logMessage(tr("✅ Mod 下载完成: %1").arg(displayName));
                 emit modFileDownloadFinished(id, true, savePath, displayName);
             } else {
                 QFile::remove(savePath);
                 QFile::remove(savePath + ".tmp");
                 QString errDetail = error.isEmpty()
-                    ? QStringLiteral("网络连接失败，请检查网络后重试")
-                    : QStringLiteral("下载错误: %1").arg(error);
-                emit logMessage(QStringLiteral("❌ Mod 下载失败: %1 — %2").arg(displayName, errDetail));
+                    ? tr("网络连接失败，请检查网络后重试")
+                    : tr("下载错误: %1").arg(error);
+                emit logMessage(tr("❌ Mod 下载失败: %1 — %2").arg(displayName, errDetail));
                 it->failed = true;
                 it->errorDetail = errDetail;
                 emit modFileDownloadFailed(id, errDetail, displayName);
@@ -405,7 +404,7 @@ void ModManager::cancelModFileDownload(int downloadId)
     }
     QFile::remove(it->savePath);
     QFile::remove(it->savePath + ".tmp");
-    emit logMessage(QStringLiteral("🚫 已取消 Mod 下载: %1").arg(it->displayName));
+    emit logMessage(tr("🚫 已取消 Mod 下载: %1").arg(it->displayName));
 }
 
 void ModManager::pauseModFileDownload(int downloadId)
@@ -417,7 +416,7 @@ void ModManager::pauseModFileDownload(int downloadId)
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
     }
-    emit logMessage(QStringLiteral("⏸ 已暂停 Mod 下载: %1 (%2/%3)")
+    emit logMessage(tr("⏸ 已暂停 Mod 下载: %1 (%2/%3)")
         .arg(it->displayName).arg(it->received).arg(it->expectedSize));
     emit modFileDownloadProgress(downloadId, it->received, it->expectedSize);
 }
@@ -426,7 +425,7 @@ void ModManager::resumeModFileDownload(int downloadId)
 {
     auto it = m_activeModDownloads.find(downloadId);
     if (it == m_activeModDownloads.end() || !it->paused) return;
-    emit logMessage(QStringLiteral("▶ 继续 Mod 下载: %1").arg(it->displayName));
+    emit logMessage(tr("▶ 继续 Mod 下载: %1").arg(it->displayName));
     QString url = it->url;
     QString savePath = it->savePath;
     QString displayName = it->displayName;
@@ -449,7 +448,7 @@ void ModManager::retryModFileDownload(int downloadId)
     QString sha1 = it->sha1;
     QFile::remove(savePath);
     m_activeModDownloads.erase(it);
-    emit logMessage(QStringLiteral("🔄 重试下载 Mod: %1").arg(displayName));
+    emit logMessage(tr("🔄 重试下载 Mod: %1").arg(displayName));
     qint64 offset = it->received;
     downloadModFile(url, savePath, displayName, expectedSize, sha1, offset);
 }
@@ -498,7 +497,7 @@ void ModManager::searchResourcepacks(
     params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
     url.setQuery(params);
 
-    emit logMessage(QStringLiteral("[MODRINTH] 搜索资源包: %1").arg(url.toString()));
+    emit logMessage(tr("[MODRINTH] 搜索资源包: %1").arg(url.toString()));
 
     HttpClient::instance().get(url.toString(),
         [this](int /*status*/, const QByteArray& data) {
@@ -506,12 +505,12 @@ void ModManager::searchResourcepacks(
             int total = 0;
             QJsonArray hits = parseSearchResponse(data, total);
             emit resourcepackSearchCompleted(hits, total);
-            emit logMessage(QStringLiteral("[MODRINTH] 资源包搜索结果: %1/%2").arg(hits.size()).arg(total));
+            emit logMessage(tr("[MODRINTH] 资源包搜索结果: %1/%2").arg(hits.size()).arg(total));
         },
         [this](const QString& err) {
             setBusy(false);
             emit resourcepackSearchFailed(err);
-            emit logMessage(QStringLiteral("[MODRINTH] 资源包搜索失败: %1").arg(err));
+            emit logMessage(tr("[MODRINTH] 资源包搜索失败: %1").arg(err));
         }
     );
 }
@@ -524,7 +523,7 @@ void ModManager::downloadResourcepack(
     setBusy(true);
     m_minecraftDir = minecraftDir;
 
-    emit logMessage(QStringLiteral("[MODRINTH] 下载资源包: %1 MC%2").arg(slug, gameVersion));
+    emit logMessage(tr("[MODRINTH] 下载资源包: %1 MC%2").arg(slug, gameVersion));
 
     // Step 1: fetch versions filtered by game_version, pick matching primary file
     QUrl versionsUrl(MODRINTH_API + "/project/" + slug + "/version");
@@ -539,7 +538,7 @@ void ModManager::downloadResourcepack(
             QJsonArray files = parseVersionsResponse(data);
             if (files.isEmpty()) {
                 setBusy(false);
-                emit logMessage(QStringLiteral("[MODRINTH] 无文件匹配 MC%1").arg(gameVersion));
+                emit logMessage(tr("[MODRINTH] 无文件匹配 MC%1").arg(gameVersion));
                 emit resourcepackDownloadFinished(slug, false, {});
                 return;
             }
@@ -573,7 +572,7 @@ void ModManager::downloadResourcepack(
             QDir().mkpath(destDir);
             QString destPath = destDir + QStringLiteral("/") + filename;
 
-            emit logMessage(QStringLiteral("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
+            emit logMessage(tr("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
 
             HttpClient::instance().downloadWithFallback(
                 dlUrl, destPath,
@@ -583,9 +582,9 @@ void ModManager::downloadResourcepack(
                 [this, slug, destPath, filename](bool ok, const QString& error) {
                     setBusy(false);
                     if (ok)
-                        emit logMessage(QStringLiteral("[MODRINTH] 资源包下载完成: %1").arg(filename));
+                        emit logMessage(tr("[MODRINTH] 资源包下载完成: %1").arg(filename));
                     else
-                        emit logMessage(QStringLiteral("[MODRINTH] 资源包下载失败: %1").arg(error));
+                        emit logMessage(tr("[MODRINTH] 资源包下载失败: %1").arg(error));
                     emit resourcepackDownloadFinished(slug, ok, ok ? destPath : QString());
                 }
             );
@@ -593,7 +592,7 @@ void ModManager::downloadResourcepack(
         [this, slug](const QString& err) {
             setBusy(false);
             emit resourcepackDownloadFinished(slug, false, {});
-            emit logMessage(QStringLiteral("[MODRINTH] 获取版本列表失败: %1").arg(err));
+            emit logMessage(tr("[MODRINTH] 获取版本列表失败: %1").arg(err));
         }
     );
 }
@@ -610,7 +609,7 @@ void ModManager::downloadShader(
     setBusy(true);
     m_minecraftDir = minecraftDir;
 
-    emit logMessage(QStringLiteral("[MODRINTH] 下载光影: %1 MC%2").arg(slug, gameVersion));
+    emit logMessage(tr("[MODRINTH] 下载光影: %1 MC%2").arg(slug, gameVersion));
 
     // Step 1: fetch versions filtered by game_version, pick matching primary file
     QUrl versionsUrl(MODRINTH_API + "/project/" + slug + "/version");
@@ -625,7 +624,7 @@ void ModManager::downloadShader(
             QJsonArray files = parseVersionsResponse(data);
             if (files.isEmpty()) {
                 setBusy(false);
-                emit logMessage(QStringLiteral("[MODRINTH] 无光影文件匹配 MC%1").arg(gameVersion));
+                emit logMessage(tr("[MODRINTH] 无光影文件匹配 MC%1").arg(gameVersion));
                 emit shaderDownloadFinished(slug, false, {});
                 return;
             }
@@ -659,7 +658,7 @@ void ModManager::downloadShader(
             QDir().mkpath(destDir);
             QString destPath = destDir + QStringLiteral("/") + filename;
 
-            emit logMessage(QStringLiteral("[MODRINTH] 光影文件: %1 → %2").arg(filename, dlUrl));
+            emit logMessage(tr("[MODRINTH] 光影文件: %1 → %2").arg(filename, dlUrl));
 
             HttpClient::instance().downloadWithFallback(
                 dlUrl, destPath,
@@ -669,9 +668,9 @@ void ModManager::downloadShader(
                 [this, slug, destPath, filename](bool ok, const QString& error) {
                     setBusy(false);
                     if (ok)
-                        emit logMessage(QStringLiteral("[MODRINTH] 光影下载完成: %1").arg(filename));
+                        emit logMessage(tr("[MODRINTH] 光影下载完成: %1").arg(filename));
                     else
-                        emit logMessage(QStringLiteral("[MODRINTH] 光影下载失败: %1").arg(error));
+                        emit logMessage(tr("[MODRINTH] 光影下载失败: %1").arg(error));
                     emit shaderDownloadFinished(slug, ok, ok ? destPath : QString());
                 }
             );
@@ -679,7 +678,7 @@ void ModManager::downloadShader(
         [this, slug](const QString& err) {
             setBusy(false);
             emit shaderDownloadFinished(slug, false, {});
-            emit logMessage(QStringLiteral("[MODRINTH] 获取光影版本失败: %1").arg(err));
+            emit logMessage(tr("[MODRINTH] 获取光影版本失败: %1").arg(err));
         }
     );
 }
@@ -698,7 +697,7 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 
     static const int kBatchSize = 5;  // Max concurrent version fetches
 
-    emit logMessage(QStringLiteral("[MODRINTH] 获取 %1 个资源包版本 (批量 %2/次)")
+    emit logMessage(tr("[MODRINTH] 获取 %1 个资源包版本 (批量 %2/次)")
                     .arg(slugs.size()).arg(kBatchSize));
 
     // Emit progress signal so QML can show loading
@@ -707,11 +706,11 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
     // Shared version parser (avoids code duplication)
     auto processOne = [this, results, pending, resolved, total, slugList]() {
         int done = ++(*resolved);
-        emit logMessage(QStringLiteral("[MODRINTH-BATCH] 完成 %1/%2").arg(done).arg(*total));
+        emit logMessage(tr("[MODRINTH-BATCH] 完成 %1/%2").arg(done).arg(*total));
         emit resourcepackVersionsProgress(done, *total);
         if (done >= *total) {
             emit resourcepackVersionsLoaded(*results);
-            emit logMessage(QStringLiteral("[MODRINTH-BATCH] 全部完成 (%1 个)").arg(*total));
+            emit logMessage(tr("[MODRINTH-BATCH] 全部完成 (%1 个)").arg(*total));
         }
     };
 
@@ -725,7 +724,7 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 
         *indexPtr = end;
 
-        emit logMessage(QStringLiteral("[MODRINTH-BATCH] 启动批次 [%1..%2] (共%3个)")
+        emit logMessage(tr("[MODRINTH-BATCH] 启动批次 [%1..%2] (共%3个)")
                         .arg(start).arg(end - 1).arg(end - start));
 
         for (int i = start; i < end; ++i) {
@@ -851,17 +850,17 @@ void ModManager::fetchModVersions(const QStringList& slugs)
 
     static const int kBatchSize = 5;
 
-    emit logMessage(QStringLiteral("[MODRINTH-MOD] 获取 %1 个Mod版本 (批量 %2/次)")
+    emit logMessage(tr("[MODRINTH-MOD] 获取 %1 个Mod版本 (批量 %2/次)")
                     .arg(slugs.size()).arg(kBatchSize));
     emit modVersionsProgress(0, slugs.size());
 
     auto processOne = [this, results, pending, resolved, total, slugList]() {
         int done = ++(*resolved);
-        emit logMessage(QStringLiteral("[MODRINTH-MOD-BATCH] 完成 %1/%2").arg(done).arg(*total));
+        emit logMessage(tr("[MODRINTH-MOD-BATCH] 完成 %1/%2").arg(done).arg(*total));
         emit modVersionsProgress(done, *total);
         if (done >= *total) {
             emit modVersionsLoaded(*results);
-            emit logMessage(QStringLiteral("[MODRINTH-MOD-BATCH] 全部完成 (%1 个)").arg(*total));
+            emit logMessage(tr("[MODRINTH-MOD-BATCH] 全部完成 (%1 个)").arg(*total));
         }
     };
 
@@ -997,17 +996,17 @@ void ModManager::fetchShaderVersions(const QStringList& slugs)
 
     static const int kBatchSize = 5;
 
-    emit logMessage(QStringLiteral("[MODRINTH-SHADER] 获取 %1 个光影版本 (批量 %2/次)")
+    emit logMessage(tr("[MODRINTH-SHADER] 获取 %1 个光影版本 (批量 %2/次)")
                     .arg(slugs.size()).arg(kBatchSize));
     emit shaderVersionsProgress(0, slugs.size());
 
     auto processOne = [this, results, pending, resolved, total, slugList]() {
         int done = ++(*resolved);
-        emit logMessage(QStringLiteral("[MODRINTH-SHADER-BATCH] 完成 %1/%2").arg(done).arg(*total));
+        emit logMessage(tr("[MODRINTH-SHADER-BATCH] 完成 %1/%2").arg(done).arg(*total));
         emit shaderVersionsProgress(done, *total);
         if (done >= *total) {
             emit shaderVersionsLoaded(*results);
-            emit logMessage(QStringLiteral("[MODRINTH-SHADER-BATCH] 全部完成 (%1 个)").arg(*total));
+            emit logMessage(tr("[MODRINTH-SHADER-BATCH] 全部完成 (%1 个)").arg(*total));
         }
     };
 
@@ -1314,26 +1313,26 @@ QMap<QString, QJsonObject> ModManager::getPopularMods(const QString& loader)
             o[QStringLiteral("category")] = category;
             fabric[slug] = o;
         };
-        addFabric(QStringLiteral("sodium"),              QStringLiteral("Sodium"),              QStringLiteral("极致性能优化，FPS提升巨大"),           QStringLiteral("⚡"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("iris"),                 QStringLiteral("Iris Shaders"),        QStringLiteral("光影加载器，Fabric首选"),              QStringLiteral("✨"), QStringLiteral("shader"));
-        addFabric(QStringLiteral("lithium"),              QStringLiteral("Lithium"),             QStringLiteral("服务端性能优化，无兼容性问题"),         QStringLiteral("🚀"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("phosphor"),             QStringLiteral("Phosphor"),            QStringLiteral("光照引擎优化（已替代为Starlight）"),    QStringLiteral("💡"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("starlight"),            QStringLiteral("Starlight"),           QStringLiteral("新一代光照引擎，性能飞升"),            QStringLiteral("🌟"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("ferritecore"),          QStringLiteral("FerriteCore"),         QStringLiteral("大幅降低内存占用"),                     QStringLiteral("🧠"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("modmenu"),              QStringLiteral("Mod Menu"),            QStringLiteral("Fabric必备，Mod列表查看"),             QStringLiteral("📋"), QStringLiteral("utility"));
-        addFabric(QStringLiteral("cloth-config"),         QStringLiteral("Cloth Config"),        QStringLiteral("配置API，很多Mod依赖它"),              QStringLiteral("⚙️"), QStringLiteral("library"));
-        addFabric(QStringLiteral("sodium-extra"),         QStringLiteral("Sodium Extra"),        QStringLiteral("Sodium功能扩展"),                      QStringLiteral("🔧"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("reeses-sodium-options"),QStringLiteral("Reese's Sodium Options"), QStringLiteral("Sodium选项增强"),                QStringLiteral("🎛️"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("continuity"),           QStringLiteral("Continuity"),          QStringLiteral("连接纹理（类似OptiFine的玻璃效果）"),  QStringLiteral("🧱"), QStringLiteral("decoration"));
-        addFabric(QStringLiteral("lambda"),               QStringLiteral("LambdaBetterGrass"),   QStringLiteral("更好的草地渲染"),                      QStringLiteral("🌿"), QStringLiteral("decoration"));
-        addFabric(QStringLiteral("entityculling"),        QStringLiteral("Entity Culling"),      QStringLiteral("实体渲染优化"),                        QStringLiteral("👁️"), QStringLiteral("optimization"));
-        addFabric(QStringLiteral("indium"),               QStringLiteral("Indium"),              QStringLiteral("Sodium + Fabric渲染API兼容"),          QStringLiteral("🔄"), QStringLiteral("library"));
-        addFabric(QStringLiteral("fabric-api"),           QStringLiteral("Fabric API"),          QStringLiteral("Fabric核心API，必装"),                 QStringLiteral("🧵"), QStringLiteral("library"));
-        addFabric(QStringLiteral("lambdynamiclights"),    QStringLiteral("LambDynamicLights"),   QStringLiteral("动态光源（手持火把发光）"),           QStringLiteral("🔥"), QStringLiteral("decoration"));
-        addFabric(QStringLiteral("zoomify"),              QStringLiteral("Zoomify"),             QStringLiteral("缩放Mod（类似OptiFine的C键）"),       QStringLiteral("🔍"), QStringLiteral("utility"));
-        addFabric(QStringLiteral("detail-armor-bar"),     QStringLiteral("Detail Armor Bar"),    QStringLiteral("详细盔甲耐久显示"),                    QStringLiteral("🛡️"), QStringLiteral("utility"));
-        addFabric(QStringLiteral("xaeros-minimap"),       QStringLiteral("Xaero's Minimap"),     QStringLiteral("小地图Mod"),                           QStringLiteral("🗺️"), QStringLiteral("utility"));
-        addFabric(QStringLiteral("journeymap"),           QStringLiteral("JourneyMap"),          QStringLiteral("实时地图Mod"),                         QStringLiteral("🗺️"), QStringLiteral("utility"));
+        addFabric(QStringLiteral("sodium"),              QStringLiteral("Sodium"),              tr("极致性能优化，FPS提升巨大"),           QStringLiteral("⚡"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("iris"),                 QStringLiteral("Iris Shaders"),        tr("光影加载器，Fabric首选"),              QStringLiteral("✨"), QStringLiteral("shader"));
+        addFabric(QStringLiteral("lithium"),              QStringLiteral("Lithium"),             tr("服务端性能优化，无兼容性问题"),         QStringLiteral("🚀"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("phosphor"),             QStringLiteral("Phosphor"),            tr("光照引擎优化（已替代为Starlight）"),    QStringLiteral("💡"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("starlight"),            QStringLiteral("Starlight"),           tr("新一代光照引擎，性能飞升"),            QStringLiteral("🌟"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("ferritecore"),          QStringLiteral("FerriteCore"),         tr("大幅降低内存占用"),                     QStringLiteral("🧠"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("modmenu"),              QStringLiteral("Mod Menu"),            tr("Fabric必备，Mod列表查看"),             QStringLiteral("📋"), QStringLiteral("utility"));
+        addFabric(QStringLiteral("cloth-config"),         QStringLiteral("Cloth Config"),        tr("配置API，很多Mod依赖它"),              QStringLiteral("⚙️"), QStringLiteral("library"));
+        addFabric(QStringLiteral("sodium-extra"),         QStringLiteral("Sodium Extra"),        tr("Sodium功能扩展"),                      QStringLiteral("🔧"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("reeses-sodium-options"),QStringLiteral("Reese's Sodium Options"), tr("Sodium选项增强"),                QStringLiteral("🎛️"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("continuity"),           QStringLiteral("Continuity"),          tr("连接纹理（类似OptiFine的玻璃效果）"),  QStringLiteral("🧱"), QStringLiteral("decoration"));
+        addFabric(QStringLiteral("lambda"),               QStringLiteral("LambdaBetterGrass"),   tr("更好的草地渲染"),                      QStringLiteral("🌿"), QStringLiteral("decoration"));
+        addFabric(QStringLiteral("entityculling"),        QStringLiteral("Entity Culling"),      tr("实体渲染优化"),                        QStringLiteral("👁️"), QStringLiteral("optimization"));
+        addFabric(QStringLiteral("indium"),               QStringLiteral("Indium"),              tr("Sodium + Fabric渲染API兼容"),          QStringLiteral("🔄"), QStringLiteral("library"));
+        addFabric(QStringLiteral("fabric-api"),           QStringLiteral("Fabric API"),          tr("Fabric核心API，必装"),                 QStringLiteral("🧵"), QStringLiteral("library"));
+        addFabric(QStringLiteral("lambdynamiclights"),    QStringLiteral("LambDynamicLights"),   tr("动态光源（手持火把发光）"),           QStringLiteral("🔥"), QStringLiteral("decoration"));
+        addFabric(QStringLiteral("zoomify"),              QStringLiteral("Zoomify"),             tr("缩放Mod（类似OptiFine的C键）"),       QStringLiteral("🔍"), QStringLiteral("utility"));
+        addFabric(QStringLiteral("detail-armor-bar"),     QStringLiteral("Detail Armor Bar"),    tr("详细盔甲耐久显示"),                    QStringLiteral("🛡️"), QStringLiteral("utility"));
+        addFabric(QStringLiteral("xaeros-minimap"),       QStringLiteral("Xaero's Minimap"),     tr("小地图Mod"),                           QStringLiteral("🗺️"), QStringLiteral("utility"));
+        addFabric(QStringLiteral("journeymap"),           QStringLiteral("JourneyMap"),          tr("实时地图Mod"),                         QStringLiteral("🗺️"), QStringLiteral("utility"));
 
         // Forge
         QMap<QString, QJsonObject> forge;
@@ -1347,26 +1346,26 @@ QMap<QString, QJsonObject> ModManager::getPopularMods(const QString& loader)
             o[QStringLiteral("category")] = category;
             forge[slug] = o;
         };
-        addForge(QStringLiteral("jei"),                   QStringLiteral("JEI"),                 QStringLiteral("物品配方查看器，必备"),               QStringLiteral("📖"), QStringLiteral("utility"));
-        addForge(QStringLiteral("optifine"),              QStringLiteral("OptiFine"),            QStringLiteral("经典优化+光影Mod"),                    QStringLiteral("⚡"), QStringLiteral("optimization"));
-        addForge(QStringLiteral("create"),                QStringLiteral("Create"),              QStringLiteral("机械动力模组，工业化"),                QStringLiteral("⚙️"), QStringLiteral("technology"));
-        addForge(QStringLiteral("botania"),               QStringLiteral("Botania"),             QStringLiteral("植物魔法，自然魔法"),                  QStringLiteral("🌺"), QStringLiteral("magic"));
-        addForge(QStringLiteral("tinkers-construct"),     QStringLiteral("Tinkers' Construct"),  QStringLiteral("匠魂，自定义工具"),                    QStringLiteral("🔨"), QStringLiteral("equipment"));
-        addForge(QStringLiteral("iron-chests"),           QStringLiteral("Iron Chests"),         QStringLiteral("更多箱子类型"),                        QStringLiteral("📦"), QStringLiteral("storage"));
-        addForge(QStringLiteral("applied-energistics-2"), QStringLiteral("Applied Energistics 2"),QStringLiteral("AE2，数字化存储"),                  QStringLiteral("💾"), QStringLiteral("storage"));
-        addForge(QStringLiteral("thermal-expansion"),     QStringLiteral("Thermal Expansion"),   QStringLiteral("热能扩展，科技模组"),                  QStringLiteral("🔥"), QStringLiteral("technology"));
-        addForge(QStringLiteral("mekanism"),              QStringLiteral("Mekanism"),            QStringLiteral("通用机械，高科技工业"),                QStringLiteral("⚛️"), QStringLiteral("technology"));
-        addForge(QStringLiteral("biomes-o-plenty"),       QStringLiteral("Biomes O' Plenty"),    QStringLiteral("超多生物群系"),                        QStringLiteral("🌲"), QStringLiteral("world-generation"));
-        addForge(QStringLiteral("twilight-forest"),       QStringLiteral("Twilight Forest"),     QStringLiteral("暮色森林，经典冒险"),                  QStringLiteral("🌳"), QStringLiteral("adventure"));
-        addForge(QStringLiteral("pams-harvestcraft"),     QStringLiteral("Pam's HarvestCraft"),  QStringLiteral("更多农作物和食物"),                    QStringLiteral("🌾"), QStringLiteral("food"));
-        addForge(QStringLiteral("quark"),                 QStringLiteral("Quark"),               QStringLiteral("夸克，小而美的功能合集"),              QStringLiteral("🧩"), QStringLiteral("utility"));
-        addForge(QStringLiteral("chisel"),                QStringLiteral("Chisel"),              QStringLiteral("凿子，建筑方块变体"),                  QStringLiteral("🪨"), QStringLiteral("decoration"));
-        addForge(QStringLiteral("waystones"),             QStringLiteral("Waystones"),           QStringLiteral("传送石碑"),                            QStringLiteral("🏛️"), QStringLiteral("utility"));
-        addForge(QStringLiteral("gravestone"),            QStringLiteral("GraveStone Mod"),      QStringLiteral("死亡不掉落，墓碑留存"),                QStringLiteral("🪦"), QStringLiteral("utility"));
-        addForge(QStringLiteral("jade"),                  QStringLiteral("Jade"),                QStringLiteral("方块/实体信息显示"),                   QStringLiteral("ℹ️"), QStringLiteral("utility"));
-        addForge(QStringLiteral("the-one-probe"),         QStringLiteral("The One Probe"),       QStringLiteral("信息探头，查看方块详情"),              QStringLiteral("🔬"), QStringLiteral("utility"));
-        addForge(QStringLiteral("curios"),                QStringLiteral("Curios API"),          QStringLiteral("饰品API，多模组依赖"),                 QStringLiteral("💍"), QStringLiteral("library"));
-        addForge(QStringLiteral("patchouli"),             QStringLiteral("Patchouli"),           QStringLiteral("模组说明书API"),                       QStringLiteral("📚"), QStringLiteral("library"));
+        addForge(QStringLiteral("jei"),                   QStringLiteral("JEI"),                 tr("物品配方查看器，必备"),               QStringLiteral("📖"), QStringLiteral("utility"));
+        addForge(QStringLiteral("optifine"),              QStringLiteral("OptiFine"),            tr("经典优化+光影Mod"),                    QStringLiteral("⚡"), QStringLiteral("optimization"));
+        addForge(QStringLiteral("create"),                QStringLiteral("Create"),              tr("机械动力模组，工业化"),                QStringLiteral("⚙️"), QStringLiteral("technology"));
+        addForge(QStringLiteral("botania"),               QStringLiteral("Botania"),             tr("植物魔法，自然魔法"),                  QStringLiteral("🌺"), QStringLiteral("magic"));
+        addForge(QStringLiteral("tinkers-construct"),     QStringLiteral("Tinkers' Construct"),  tr("匠魂，自定义工具"),                    QStringLiteral("🔨"), QStringLiteral("equipment"));
+        addForge(QStringLiteral("iron-chests"),           QStringLiteral("Iron Chests"),         tr("更多箱子类型"),                        QStringLiteral("📦"), QStringLiteral("storage"));
+        addForge(QStringLiteral("applied-energistics-2"), QStringLiteral("Applied Energistics 2"),tr("AE2，数字化存储"),                  QStringLiteral("💾"), QStringLiteral("storage"));
+        addForge(QStringLiteral("thermal-expansion"),     QStringLiteral("Thermal Expansion"),   tr("热能扩展，科技模组"),                  QStringLiteral("🔥"), QStringLiteral("technology"));
+        addForge(QStringLiteral("mekanism"),              QStringLiteral("Mekanism"),            tr("通用机械，高科技工业"),                QStringLiteral("⚛️"), QStringLiteral("technology"));
+        addForge(QStringLiteral("biomes-o-plenty"),       QStringLiteral("Biomes O' Plenty"),    tr("超多生物群系"),                        QStringLiteral("🌲"), QStringLiteral("world-generation"));
+        addForge(QStringLiteral("twilight-forest"),       QStringLiteral("Twilight Forest"),     tr("暮色森林，经典冒险"),                  QStringLiteral("🌳"), QStringLiteral("adventure"));
+        addForge(QStringLiteral("pams-harvestcraft"),     QStringLiteral("Pam's HarvestCraft"),  tr("更多农作物和食物"),                    QStringLiteral("🌾"), QStringLiteral("food"));
+        addForge(QStringLiteral("quark"),                 QStringLiteral("Quark"),               tr("夸克，小而美的功能合集"),              QStringLiteral("🧩"), QStringLiteral("utility"));
+        addForge(QStringLiteral("chisel"),                QStringLiteral("Chisel"),              tr("凿子，建筑方块变体"),                  QStringLiteral("🪨"), QStringLiteral("decoration"));
+        addForge(QStringLiteral("waystones"),             QStringLiteral("Waystones"),           tr("传送石碑"),                            QStringLiteral("🏛️"), QStringLiteral("utility"));
+        addForge(QStringLiteral("gravestone"),            QStringLiteral("GraveStone Mod"),      tr("死亡不掉落，墓碑留存"),                QStringLiteral("🪦"), QStringLiteral("utility"));
+        addForge(QStringLiteral("jade"),                  QStringLiteral("Jade"),                tr("方块/实体信息显示"),                   QStringLiteral("ℹ️"), QStringLiteral("utility"));
+        addForge(QStringLiteral("the-one-probe"),         QStringLiteral("The One Probe"),       tr("信息探头，查看方块详情"),              QStringLiteral("🔬"), QStringLiteral("utility"));
+        addForge(QStringLiteral("curios"),                QStringLiteral("Curios API"),          tr("饰品API，多模组依赖"),                 QStringLiteral("💍"), QStringLiteral("library"));
+        addForge(QStringLiteral("patchouli"),             QStringLiteral("Patchouli"),           tr("模组说明书API"),                       QStringLiteral("📚"), QStringLiteral("library"));
 
         allMods[QStringLiteral("fabric")] = fabric;
         allMods[QStringLiteral("forge")]  = forge;
@@ -1393,21 +1392,21 @@ QMap<QString, QJsonObject> ModManager::getShaderList()
             shaders[slug] = o;
         };
 
-        add(QStringLiteral("bsl"),                     QStringLiteral("BSL Shaders"),                QStringLiteral("经典全能光影，性能画质平衡"),         QStringLiteral("✨"));
-        add(QStringLiteral("complementary"),            QStringLiteral("Complementary Shaders"),       QStringLiteral("BSL魔改，画面更精美"),                QStringLiteral("🎨"));
-        add(QStringLiteral("complementary-reimagined"), QStringLiteral("Complementary Reimagined"),    QStringLiteral("互补重制版，极致画面"),                QStringLiteral("🖼️"));
-        add(QStringLiteral("sildurs-vibrant"),          QStringLiteral("Sildur's Vibrant Shaders"),   QStringLiteral("色彩鲜艳，光影柔和"),                 QStringLiteral("🌈"));
-        add(QStringLiteral("sildurs-enhanced-default"), QStringLiteral("Sildur's Enhanced Default"),  QStringLiteral("轻量级，低配机可选"),                 QStringLiteral("💡"));
-        add(QStringLiteral("seus"),                    QStringLiteral("SEUS"),                        QStringLiteral("经典光追级光影"),                      QStringLiteral("☀️"));
-        add(QStringLiteral("seus-ptgi"),               QStringLiteral("SEUS PTGI"),                   QStringLiteral("路径追踪光影，画质巅峰"),              QStringLiteral("🌟"));
-        add(QStringLiteral("solas"),                   QStringLiteral("Solas Shader"),                QStringLiteral("纳斯达克同款 (Derivative)"),           QStringLiteral("🌅"));
-        add(QStringLiteral("rethinking-voxels"),       QStringLiteral("Rethinking Voxels"),           QStringLiteral("体素光照，原生风格"),                  QStringLiteral("🔆"));
-        add(QStringLiteral("photon"),                  QStringLiteral("Photon Shader"),               QStringLiteral("新锐光影，画面梦幻"),                  QStringLiteral("💫"));
-        add(QStringLiteral("astra"),                   QStringLiteral("AstraLex Shaders"),            QStringLiteral("BSL分支，特效丰富"),                  QStringLiteral("🌌"));
-        add(QStringLiteral("chocapic13"),              QStringLiteral("Chocapic13's Shaders"),        QStringLiteral("老牌光影，多配置档"),                  QStringLiteral("🌄"));
-        add(QStringLiteral("makeup-ultra-fast"),       QStringLiteral("MakeUp Ultra Fast"),           QStringLiteral("超轻量，低配福利"),                    QStringLiteral("⚡"));
-        add(QStringLiteral("vanilla-plus"),            QStringLiteral("Vanilla Plus"),                QStringLiteral("原版风格增强"),                        QStringLiteral("🌿"));
-        add(QStringLiteral("bliss"),                   QStringLiteral("Bliss Shader"),                QStringLiteral("自然写实风格"),                        QStringLiteral("🏞️"));
+        add(QStringLiteral("bsl"),                     QStringLiteral("BSL Shaders"),                tr("经典全能光影，性能画质平衡"),         QStringLiteral("✨"));
+        add(QStringLiteral("complementary"),            QStringLiteral("Complementary Shaders"),       tr("BSL魔改，画面更精美"),                QStringLiteral("🎨"));
+        add(QStringLiteral("complementary-reimagined"), QStringLiteral("Complementary Reimagined"),    tr("互补重制版，极致画面"),                QStringLiteral("🖼️"));
+        add(QStringLiteral("sildurs-vibrant"),          QStringLiteral("Sildur's Vibrant Shaders"),   tr("色彩鲜艳，光影柔和"),                 QStringLiteral("🌈"));
+        add(QStringLiteral("sildurs-enhanced-default"), QStringLiteral("Sildur's Enhanced Default"),  tr("轻量级，低配机可选"),                 QStringLiteral("💡"));
+        add(QStringLiteral("seus"),                    QStringLiteral("SEUS"),                        tr("经典光追级光影"),                      QStringLiteral("☀️"));
+        add(QStringLiteral("seus-ptgi"),               QStringLiteral("SEUS PTGI"),                   tr("路径追踪光影，画质巅峰"),              QStringLiteral("🌟"));
+        add(QStringLiteral("solas"),                   QStringLiteral("Solas Shader"),                tr("纳斯达克同款 (Derivative)"),           QStringLiteral("🌅"));
+        add(QStringLiteral("rethinking-voxels"),       QStringLiteral("Rethinking Voxels"),           tr("体素光照，原生风格"),                  QStringLiteral("🔆"));
+        add(QStringLiteral("photon"),                  QStringLiteral("Photon Shader"),               tr("新锐光影，画面梦幻"),                  QStringLiteral("💫"));
+        add(QStringLiteral("astra"),                   QStringLiteral("AstraLex Shaders"),            tr("BSL分支，特效丰富"),                  QStringLiteral("🌌"));
+        add(QStringLiteral("chocapic13"),              QStringLiteral("Chocapic13's Shaders"),        tr("老牌光影，多配置档"),                  QStringLiteral("🌄"));
+        add(QStringLiteral("makeup-ultra-fast"),       QStringLiteral("MakeUp Ultra Fast"),           tr("超轻量，低配福利"),                    QStringLiteral("⚡"));
+        add(QStringLiteral("vanilla-plus"),            QStringLiteral("Vanilla Plus"),                tr("原版风格增强"),                        QStringLiteral("🌿"));
+        add(QStringLiteral("bliss"),                   QStringLiteral("Bliss Shader"),                tr("自然写实风格"),                        QStringLiteral("🏞️"));
     }
 
     return shaders;
@@ -1422,25 +1421,25 @@ QMap<QString, QString> ModManager::getCategories()
     static QMap<QString, QString> categories;
 
     if (categories.isEmpty()) {
-        categories[QStringLiteral("adventure")]       = QStringLiteral("冒险");
-        categories[QStringLiteral("cursed")]          = QStringLiteral("整活");
-        categories[QStringLiteral("decoration")]      = QStringLiteral("装饰");
-        categories[QStringLiteral("economy")]         = QStringLiteral("经济");
-        categories[QStringLiteral("equipment")]       = QStringLiteral("装备");
-        categories[QStringLiteral("food")]            = QStringLiteral("食物");
-        categories[QStringLiteral("game-mechanics")]  = QStringLiteral("游戏机制");
-        categories[QStringLiteral("library")]         = QStringLiteral("前置库");
-        categories[QStringLiteral("magic")]           = QStringLiteral("魔法");
-        categories[QStringLiteral("management")]      = QStringLiteral("管理");
-        categories[QStringLiteral("minigame")]        = QStringLiteral("小游戏");
-        categories[QStringLiteral("mobs")]            = QStringLiteral("生物");
-        categories[QStringLiteral("optimization")]    = QStringLiteral("优化");
-        categories[QStringLiteral("social")]          = QStringLiteral("社交");
-        categories[QStringLiteral("storage")]         = QStringLiteral("存储");
-        categories[QStringLiteral("technology")]      = QStringLiteral("科技");
-        categories[QStringLiteral("transportation")]  = QStringLiteral("运输");
-        categories[QStringLiteral("utility")]         = QStringLiteral("工具");
-        categories[QStringLiteral("world-generation")]= QStringLiteral("世界生成");
+        categories[QStringLiteral("adventure")]       = tr("冒险");
+        categories[QStringLiteral("cursed")]          = tr("整活");
+        categories[QStringLiteral("decoration")]      = tr("装饰");
+        categories[QStringLiteral("economy")]         = tr("经济");
+        categories[QStringLiteral("equipment")]       = tr("装备");
+        categories[QStringLiteral("food")]            = tr("食物");
+        categories[QStringLiteral("game-mechanics")]  = tr("游戏机制");
+        categories[QStringLiteral("library")]         = tr("前置库");
+        categories[QStringLiteral("magic")]           = tr("魔法");
+        categories[QStringLiteral("management")]      = tr("管理");
+        categories[QStringLiteral("minigame")]        = tr("小游戏");
+        categories[QStringLiteral("mobs")]            = tr("生物");
+        categories[QStringLiteral("optimization")]    = tr("优化");
+        categories[QStringLiteral("social")]          = tr("社交");
+        categories[QStringLiteral("storage")]         = tr("存储");
+        categories[QStringLiteral("technology")]      = tr("科技");
+        categories[QStringLiteral("transportation")]  = tr("运输");
+        categories[QStringLiteral("utility")]         = tr("工具");
+        categories[QStringLiteral("world-generation")]= tr("世界生成");
     }
 
     return categories;

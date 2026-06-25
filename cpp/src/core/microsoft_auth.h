@@ -1,14 +1,18 @@
 #pragma once
 
 // ── Microsoft OAuth2 Authorization Code Flow for Minecraft ──
-// Step 1: startLogin() → local HTTP server on 127.0.0.1:PORT → browser
-// Step 2: browser callback → _internalCodeReady (QueuedConnection) → exchangeCode (WinHTTP)
-// Step 3-7: XBL → XSTS → MC auth → Profile (async via HttpClient)
+// Uses Microsoft Identity Platform v2 endpoint (consumers tenant)
+//
+// Mode A (default): localhost callback — system browser → localhost → code extraction
+// Mode B: embedded browser — QWebEngineView → URL interception → code extraction
 
 #include <QObject>
 #include <QString>
+#include <QWidget>
+#include <QPointer>
 
 class QTcpServer;
+class QWebEngineView;
 
 namespace ShadowLauncher {
 
@@ -16,8 +20,10 @@ class MicrosoftAuth : public QObject {
     Q_OBJECT
 public:
     explicit MicrosoftAuth(QObject* parent = nullptr);
+    ~MicrosoftAuth();
 
     Q_INVOKABLE void startLogin(const QString& clientId);
+    Q_INVOKABLE void startEmbeddedLogin(const QString& clientId);
     Q_INVOKABLE void cancelLogin();
     Q_INVOKABLE void refreshMcChain(const QString& msAccessToken);
     bool isBusy() const { return m_busy; }
@@ -34,14 +40,17 @@ signals:
 
 private:
     bool m_busy = false;
-    bool m_pendingCodeReady = false;
     QString m_clientId;
     QString m_localRedirectUri;
     QString m_msAccessToken;
     QString m_msRefreshToken;
     QString m_msMcToken;
-    int m_msTokenExpiresIn = 86400;  // from Mojang authenticateMc response
+    int m_msTokenExpiresIn = 86400;
     QTcpServer* m_localServer = nullptr;
+    QPointer<QWidget> m_embeddedWindow;
+    QPointer<QWebEngineView> m_webView;
+    bool m_embeddedMode = false;
+    bool m_codeCaptured = false;
 
     Q_INVOKABLE void exchangeCode(const QString& code, const QString& redirectUri);
     void authenticateXbl(const QString& accessToken);

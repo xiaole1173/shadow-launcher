@@ -1,4 +1,4 @@
-﻿#include "shadow_backend.h"
+#include "shadow_backend.h"
 #include "../core/http_client.h"
 #include "../core/mod_manager.h"
 #include "../core/version_downloader.h"
@@ -115,8 +115,16 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::generalSettingsChanged);
     connect(m_settings, &SettingsBackend::isolationChanged,
             this, &ShadowBackend::isolationChanged);
+    connect(m_settings, &SettingsBackend::embeddedLoginChanged,
+            this, &ShadowBackend::embeddedLoginChanged);
     connect(m_settings, &SettingsBackend::logMessage,
             this, &ShadowBackend::logMessage);
+
+    // ── Embedded login: sync SettingsBackend ↔ AccountBackend ──
+    m_account->setEmbeddedLoginEnabled(m_settings->embeddedLoginEnabled());
+    connect(m_settings, &SettingsBackend::embeddedLoginChanged, this, [this]() {
+        m_account->setEmbeddedLoginEnabled(m_settings->embeddedLoginEnabled());
+    });
 
     // ── Signal forwarding: CheckBackend → ShadowBackend ──
     connect(m_check, &CheckBackend::logMessage,
@@ -228,17 +236,17 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     QFile report(m_verifyReportPath);
                     if (report.open(QIODevice::WriteOnly | QIODevice::Text)) {
                         QTextStream out(&report);
-                        out << QStringLiteral("Shadow Launcher — 版本完整性校验报告\n");
+                        out << tr("Shadow Launcher — 版本完整性校验报告\n");
                         out << QStringLiteral("======================================\n");
-                        out << QStringLiteral("时间: ") << QDateTime::currentDateTime().toString(Qt::ISODate) << QStringLiteral("\n");
-                        out << QStringLiteral("版本: ") << m_version->selectedVersion() << QStringLiteral("\n");
-                        out << QStringLiteral("异常文件数: ") << failedFiles.size() << QStringLiteral("\n");
+                        out << tr("时间: ") << QDateTime::currentDateTime().toString(Qt::ISODate) << QStringLiteral("\n");
+                        out << tr("版本: ") << m_version->selectedVersion() << QStringLiteral("\n");
+                        out << tr("异常文件数: ") << failedFiles.size() << QStringLiteral("\n");
                         out << QStringLiteral("--------------------------------------\n");
                         for (int i = 0; i < failedFiles.size(); ++i) {
                             out << (i + 1) << QStringLiteral(". ") << failedFiles[i] << QStringLiteral("\n");
                         }
                         out << QStringLiteral("--------------------------------------\n");
-                        out << QStringLiteral("请使用「一键修复」重新下载损坏/缺失的文件。\n");
+                        out << tr("请使用「一键修复」重新下载损坏/缺失的文件。\n");
                     }
                 } else {
                     m_verifyReportPath.clear();
@@ -305,7 +313,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     m_resourceDlProgress = 0;
                     m_resourceDlTotal = 0;
                     m_resourceDlFile.clear();
-                    if (m_version) m_version->addResourceCard(QStringLiteral("resource"), QStringLiteral("资源包下载"));
+                    if (m_version) m_version->addResourceCard(QStringLiteral("resource"), tr("资源包下载"));
                 }
                 qCDebug(logLaunch) << "[RP-DOWNLOAD] stateChanged downloading=" << m_resource->isDownloading();
                 emit resourceDownloadStateChanged();
@@ -474,6 +482,14 @@ bool ShadowBackend::isolationEnabled() const {
     return m_isolationEnabled;
 }
 
+bool ShadowBackend::embeddedLoginEnabled() const {
+    return m_settings->embeddedLoginEnabled();
+}
+
+void ShadowBackend::setEmbeddedLoginEnabled(bool v) {
+    m_settings->setEmbeddedLoginEnabled(v);
+}
+
 QVariantList ShadowBackend::availableJavaList() const {
     return m_settings->availableJavaList();
 }
@@ -526,7 +542,7 @@ bool ShadowBackend::isInstalling() const {
 
 bool ShadowBackend::verifyRunning() const {
     return m_version && (m_version->installPhase() == QStringLiteral("verifying")
-                        || m_version->installPhase() == QStringLiteral("校验中..."));
+                        || m_version->installPhase() == tr("校验中..."));
 }
 
 
@@ -651,7 +667,7 @@ void ShadowBackend::refreshVersionDetails()
         detail[QStringLiteral("releaseTimeMs")] = rt.isValid() ? rt.toMSecsSinceEpoch() : 0;
 
         // Detect mod loader
-        QString loaderType = QStringLiteral("原版");
+        QString loaderType = tr("原版");
         QString loaderVersion;
         // Check for Forge
         QString forgeDir = verPath + QStringLiteral("/mods");
@@ -696,7 +712,7 @@ void ShadowBackend::refreshVersionDetails()
     }
 
     emit versionDetailsReady();
-    emit logMessage(QStringLiteral("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
+    emit logMessage(tr("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
 }
 
 void ShadowBackend::refreshGameDirInfo()
@@ -864,7 +880,7 @@ QString ShadowBackend::jvmArgs() const {
 
 void ShadowBackend::setJvmArgs(const QString& args) {
     m_app->setJvmArgs(args);
-    emit logMessage(QStringLiteral("[JVM] GC参数已更新: %1").arg(args));
+    emit logMessage(tr("[JVM] GC参数已更新: %1").arg(args));
     emit jvmArgsChanged();
 }
 
@@ -940,7 +956,7 @@ bool ShadowBackend::openGameDir(const QString& versionId) {
     QString dir = gameDirForVersion(versionId);
     QDir().mkpath(dir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
-    emit logMessage(QStringLiteral("已打开游戏目录") + (versionId.isEmpty() ? QString() : QStringLiteral(" (") + versionId + QStringLiteral(")")));
+    emit logMessage(tr("已打开游戏目录") + (versionId.isEmpty() ? QString() : QStringLiteral(" (") + versionId + QStringLiteral(")")));
     return true;
 }
 
@@ -949,7 +965,7 @@ bool ShadowBackend::openLatestLog(const QString& versionId) {
     QString latestLog = gameDir + QStringLiteral("/logs/latest.log");
     if (QFileInfo::exists(latestLog)) {
         QDesktopServices::openUrl(QUrl::fromLocalFile(latestLog));
-        emit logMessage(QStringLiteral("已打开最新日志"));
+        emit logMessage(tr("已打开最新日志"));
         return true;
     }
     return false;
@@ -959,7 +975,7 @@ bool ShadowBackend::openLogsFolder(const QString& versionId) {
     QString logsDir = gameDirForVersion(versionId) + QStringLiteral("/logs");
     QDir().mkpath(logsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
-    emit logMessage(QStringLiteral("已打开日志目录"));
+    emit logMessage(tr("已打开日志目录"));
     return true;
 }
 
@@ -972,7 +988,7 @@ bool ShadowBackend::openCrashLog(const QString& versionId) {
         QFileInfoList entries = cd.entryInfoList(filters, QDir::Files, QDir::Time);
         if (!entries.isEmpty()) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(entries.first().absoluteFilePath()));
-            emit logMessage(QStringLiteral("已打开崩溃日志"));
+            emit logMessage(tr("已打开崩溃日志"));
             return true;
         }
     }
@@ -984,7 +1000,7 @@ bool ShadowBackend::openCrashLog(const QString& versionId) {
         QFileInfoList entries = acd.entryInfoList(filters, QDir::Files, QDir::Time);
         if (!entries.isEmpty()) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(entries.first().absoluteFilePath()));
-            emit logMessage(QStringLiteral("已打开崩溃日志 (隔离目录)"));
+            emit logMessage(tr("已打开崩溃日志 (隔离目录)"));
             return true;
         }
     }
@@ -995,7 +1011,7 @@ bool ShadowBackend::openSavesFolder(const QString& versionId) {
     QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
     QDir().mkpath(savesDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(savesDir));
-    emit logMessage(QStringLiteral("已打开存档文件夹"));
+    emit logMessage(tr("已打开存档文件夹"));
     return true;
 }
 
@@ -1003,7 +1019,7 @@ bool ShadowBackend::openScreenshotsFolder(const QString& versionId) {
     QString screenshotsDir = gameDirForVersion(versionId) + QStringLiteral("/screenshots");
     QDir().mkpath(screenshotsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(screenshotsDir));
-    emit logMessage(QStringLiteral("已打开截图文件夹"));
+    emit logMessage(tr("已打开截图文件夹"));
     return true;
 }
 
@@ -1011,7 +1027,7 @@ bool ShadowBackend::openModsFolder(const QString& versionId) {
     QString modsDir = gameDirForVersion(versionId) + QStringLiteral("/mods");
     QDir().mkpath(modsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(modsDir));
-    emit logMessage(QStringLiteral("已打开 Mod 文件夹"));
+    emit logMessage(tr("已打开 Mod 文件夹"));
     return true;
 }
 
@@ -1019,7 +1035,7 @@ bool ShadowBackend::openResourcePacksFolder(const QString& versionId) {
     QString rpDir = gameDirForVersion(versionId) + QStringLiteral("/resourcepacks");
     QDir().mkpath(rpDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(rpDir));
-    emit logMessage(QStringLiteral("已打开资源包文件夹"));
+    emit logMessage(tr("已打开资源包文件夹"));
     return true;
 }
 
@@ -1027,7 +1043,7 @@ bool ShadowBackend::openShaderPacksFolder(const QString& versionId) {
     QString spDir = gameDirForVersion(versionId) + QStringLiteral("/shaderpacks");
     QDir().mkpath(spDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(spDir));
-    emit logMessage(QStringLiteral("已打开光影包文件夹"));
+    emit logMessage(tr("已打开光影包文件夹"));
     return true;
 }
 
@@ -1123,9 +1139,9 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
         if (m_settings->isJavaScanning()) {
             emit logMessage(QStringLiteral("[JAVA] Java scan still in progress, please wait and try again"));
         } else {
-            emit logMessage(QStringLiteral("❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
+            emit logMessage(tr("❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
                                 .arg(requiredMajor));
-            emit logMessage(QStringLiteral("👉 请安装 Java %1 后在设置中手动选择").arg(requiredMajor));
+            emit logMessage(tr("👉 请安装 Java %1 后在设置中手动选择").arg(requiredMajor));
         }
         return;
     }

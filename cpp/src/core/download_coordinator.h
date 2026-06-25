@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QVector>
 #include <QNetworkAccessManager>
@@ -34,7 +35,8 @@ public:
 signals:
     void phaseChanged(const QString& phase);
     void connectivityFailed(const QString& taskId, const QString& reason);
-    void ready(qint64 totalBytes);   // Preflight complete — launch downloads now
+    /// sourceIndex: which mirror passed connectivity (0=BMCLAPI, 1=Mojang, etc.)
+    void ready(int sourceIndex, qint64 totalBytes);
 
 private slots:
     void onHeadReply();
@@ -42,6 +44,7 @@ private slots:
 private:
     QNetworkAccessManager* m_nam;
     QVector<Source> m_sources;
+    QSet<QString> m_failedSources;   // taskIds that failed connectivity
     qint64 m_totalBytes = 0;
     int m_pendingHeads = 0;
 

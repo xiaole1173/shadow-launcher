@@ -57,7 +57,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
                            const QString& jvmArgs)
 {
     if (m_launching) {
-        emit logMessage(QStringLiteral("已在启动中"));
+        emit logMessage(tr("已在启动中"));
         return;
     }
 
@@ -65,14 +65,14 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     m_cancelled = false;
     m_launchProgress = 0;
 
-    m_launchStatus = QStringLiteral("正在准备...");
+    m_launchStatus = tr("正在准备...");
     emit launchStateChanged();
     qCInfo(logLaunch) << "Launch requested:" << versionId
                       << "java:" << javaPath
                       << "memory:" << maxMemoryMB << "MB"
                       << "jvmArgs:" << jvmArgs;
-    emit logMessage(QStringLiteral("启动 %1 | %2 | JVM: %3").arg(versionId, username,
-                      jvmArgs.isEmpty() ? QStringLiteral("默认G1GC") : jvmArgs));
+    emit logMessage(tr("启动 %1 | %2 | JVM: %3").arg(versionId, username,
+                      jvmArgs.isEmpty() ? tr("默认G1GC") : jvmArgs));
 
     // ============================================================
     // Async pre-launch checks (stepped with QTimer)
@@ -113,9 +113,9 @@ void LaunchBackend::cancelLaunch()
         }
         m_activeLauncher->deleteLater();
         m_activeLauncher = nullptr;
-        emit logMessage(QStringLiteral("用户取消启动，已结束游戏进程"));
+        emit logMessage(tr("用户取消启动，已结束游戏进程"));
     } else {
-        emit logMessage(QStringLiteral("用户取消了启动"));
+        emit logMessage(tr("用户取消了启动"));
     }
 
     m_launching = false;
@@ -144,7 +144,7 @@ void LaunchBackend::killGameProcess()
     emit launchProgressChanged(0, QString());
     emit runningCountChanged();
     emit isRunningChanged();
-    emit logMessage(QStringLiteral("已强制结束所有游戏进程"));
+    emit logMessage(tr("已强制结束所有游戏进程"));
 }
 
 void LaunchBackend::setAuthInfo(const QString& username, const QString& uuid,
@@ -236,7 +236,7 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
     emit launchCheckFailed(phase, reason);
     emit launchStateChanged();
     qCCritical(logLaunch) << "Pre-launch check FAILED:" << phase << "—" << reason;
-    emit logMessage(QStringLiteral("启动失败: %1").arg(reason));
+    emit logMessage(tr("启动失败: %1").arg(reason));
 }
 
 void LaunchBackend::runNextCheck()
@@ -249,13 +249,13 @@ void LaunchBackend::runNextCheck()
     switch (m_checkStep) {
     case 0: {
         // Step 0 (5%): Login status
-        emit launchCheckProgress(QStringLiteral("检查登录状态..."));
+        emit launchCheckProgress(tr("检查登录状态..."));
         m_launchProgress = 5;
-        emit launchProgressChanged(5, QStringLiteral("检查登录状态..."));
+        emit launchProgressChanged(5, tr("检查登录状态..."));
         qCDebug(logLaunch) << "[PROGRESS] 5% - 检查登录状态...";
         if (m_authName.isEmpty()) {
-            abortCheck(QStringLiteral("登录状态"),
-                       QStringLiteral("请先登录后再启动游戏"));
+            abortCheck(tr("登录状态"),
+                       tr("请先登录后再启动游戏"));
             return;
         }
         // For online auth: refresh the Minecraft token before launching
@@ -276,8 +276,8 @@ void LaunchBackend::runNextCheck()
                 connect(m_refreshTimeoutTimer, &QTimer::timeout, this, [this]() {
                     if (m_checkTimer && !m_checkTimer->isActive()) {
                         qCWarning(logLaunch) << "Token refresh timed out — blocking launch";
-                        abortCheck(QStringLiteral("登录状态"),
-                                   QStringLiteral("网络超时，无法验证正版登录状态"));
+                        abortCheck(tr("登录状态"),
+                                   tr("网络超时，无法验证正版登录状态"));
                     }
                     if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
                 });
@@ -292,8 +292,8 @@ void LaunchBackend::runNextCheck()
                             m_authToken = m_account->mcToken();
                         } else {
                             qCWarning(logLaunch) << "Token refresh failed — blocking launch";
-                            abortCheck(QStringLiteral("登录状态"),
-                                       QStringLiteral("正版登录已过期，请重新登录"));
+                            abortCheck(tr("登录状态"),
+                                       tr("正版登录已过期，请重新登录"));
                             return;
                         }
                         // Either way, continue the check
@@ -311,20 +311,20 @@ void LaunchBackend::runNextCheck()
     }
     case 1: {
         // Step 1 (10%): Java environment
-        emit launchCheckProgress(QStringLiteral("检查 Java 环境..."));
+        emit launchCheckProgress(tr("检查 Java 环境..."));
         m_launchProgress = 10;
-        emit launchProgressChanged(10, QStringLiteral("检查 Java 环境..."));
+        emit launchProgressChanged(10, tr("检查 Java 环境..."));
         qCDebug(logLaunch) << "[PROGRESS] 10% - 检查 Java 环境...";
         if (!QFileInfo::exists(m_pendingJavaPath)) {
-            abortCheck(QStringLiteral("Java 可执行文件"),
-                       QStringLiteral("路径: %1").arg(m_pendingJavaPath));
+            abortCheck(tr("Java 可执行文件"),
+                       tr("路径: %1").arg(m_pendingJavaPath));
             return;
         }
         QString arch = checkJavaArchitecture(m_pendingJavaPath);
         if (arch == QStringLiteral("32")) {
             if (m_pendingMaxMemory > 1536) {
                 m_pendingMaxMemory = 1536;
-                emit launchCheckWarning(QStringLiteral("检测到 32 位 Java，已限制内存 1536MB"));
+                emit launchCheckWarning(tr("检测到 32 位 Java，已限制内存 1536MB"));
             }
         }
         qCInfo(logLaunch) << "Pre-launch check passed: Java executable";
@@ -332,35 +332,35 @@ void LaunchBackend::runNextCheck()
     }
     case 2: {
         // Step 2 (30%): Version core files
-        emit launchCheckProgress(QStringLiteral("检查版本文件..."));
+        emit launchCheckProgress(tr("检查版本文件..."));
         m_launchProgress = 30;
-        emit launchProgressChanged(30, QStringLiteral("检查版本文件..."));
+        emit launchProgressChanged(30, tr("检查版本文件..."));
         qCDebug(logLaunch) << "[PROGRESS] 30% - 检查版本文件...";
         QString versionDir = m_gameDir + QStringLiteral("/versions/") + m_pendingVersionId;
         if (!QDir(versionDir).exists()) {
-            abortCheck(QStringLiteral("版本目录"), QStringLiteral("目录不存在")); return;
+            abortCheck(tr("版本目录"), tr("目录不存在")); return;
         }
         QString jarPath = versionDir + QStringLiteral("/") + m_pendingVersionId + QStringLiteral(".jar");
         if (!QFileInfo::exists(jarPath)) {
-            abortCheck(QStringLiteral("核心 Jar"), QStringLiteral("文件不存在")); return;
+            abortCheck(tr("核心 Jar"), tr("文件不存在")); return;
         }
         QString jsonPath = versionDir + QStringLiteral("/") + m_pendingVersionId + QStringLiteral(".json");
         QFile jsonFile(jsonPath);
         if (!jsonFile.open(QIODevice::ReadOnly)) {
-            abortCheck(QStringLiteral("版本配置"), QStringLiteral("配置文件缺失")); return;
+            abortCheck(tr("版本配置"), tr("配置文件缺失")); return;
         }
         QByteArray jsonBytes = jsonFile.readAll();
         jsonFile.close();
         QJsonParseError parseErr;
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonBytes, &parseErr);
         if (parseErr.error != QJsonParseError::NoError)
-            emit launchCheckWarning(QStringLiteral("JSON 格式警告"));
+            emit launchCheckWarning(tr("JSON 格式警告"));
         // Verify JSON's id matches the version folder name (catches corrupted install from naming bugs)
         if (jsonDoc.isObject()) {
             QString jsonId = jsonDoc.object().value(QStringLiteral("id")).toString();
             if (!jsonId.isEmpty() && jsonId != m_pendingVersionId) {
-                abortCheck(QStringLiteral("版本 JSON ID 不匹配"),
-                    QStringLiteral("版本名 \"%1\" 与配置内 id \"%2\" 不一致。建议重新安装此版本。")
+                abortCheck(tr("版本 JSON ID 不匹配"),
+                    tr("版本名 \"%1\" 与配置内 id \"%2\" 不一致。建议重新安装此版本。")
                         .arg(m_pendingVersionId, jsonId));
                 return;
             }
@@ -370,44 +370,44 @@ void LaunchBackend::runNextCheck()
     }
     case 3: {
         // Step 3 (50%): Dependencies
-        emit launchCheckProgress(QStringLiteral("检查依赖文件..."));
+        emit launchCheckProgress(tr("检查依赖文件..."));
         m_launchProgress = 50;
-        emit launchProgressChanged(50, QStringLiteral("检查依赖文件..."));
+        emit launchProgressChanged(50, tr("检查依赖文件..."));
         qCDebug(logLaunch) << "[PROGRESS] 50% - 检查依赖文件...";
         QStringList missingLibs = checkVersionLibraries(m_pendingVersionId);
         if (!missingLibs.isEmpty()) {
             QStringList d = missingLibs.mid(0, 5);
             QString detail = d.join(QStringLiteral(", "));
-            if (missingLibs.size() > 5) detail += QStringLiteral(" ...共%1个").arg(missingLibs.size());
-            abortCheck(QStringLiteral("依赖库文件"), QStringLiteral("缺少 %1 个").arg(missingLibs.size())); return;
+            if (missingLibs.size() > 5) detail += tr(" ...共%1个").arg(missingLibs.size());
+            abortCheck(tr("依赖库文件"), tr("缺少 %1 个").arg(missingLibs.size())); return;
         }
         QStringList missingNatives = checkVersionMissingNatives(m_pendingVersionId);
         if (!missingNatives.isEmpty()) {
             QStringList d = missingNatives.mid(0, 5);
             QString detail = d.join(QStringLiteral(", "));
-            if (missingNatives.size() > 5) detail += QStringLiteral(" ...共%1个").arg(missingNatives.size());
-            abortCheck(QStringLiteral("运行库文件"), QStringLiteral("缺少 %1 个").arg(missingNatives.size())); return;
+            if (missingNatives.size() > 5) detail += tr(" ...共%1个").arg(missingNatives.size());
+            abortCheck(tr("运行库文件"), tr("缺少 %1 个").arg(missingNatives.size())); return;
         }
         qCInfo(logLaunch) << "Pre-launch check passed: all library files present";
         break;
     }
     case 4: {
         // Step 4 (65%): Memory
-        emit launchCheckProgress(QStringLiteral("检查内存分配..."));
+        emit launchCheckProgress(tr("检查内存分配..."));
         m_launchProgress = 65;
-        emit launchProgressChanged(65, QStringLiteral("检查内存分配..."));
+        emit launchProgressChanged(65, tr("检查内存分配..."));
         qCDebug(logLaunch) << "[PROGRESS] 65% - 检查内存分配...";
         if (m_pendingMaxMemory < 512)
-            emit launchCheckWarning(QStringLiteral("内存不足 512MB，可能影响运行"));
+            emit launchCheckWarning(tr("内存不足 512MB，可能影响运行"));
         qCInfo(logLaunch) << "Pre-launch checks all passed — starting Minecraft";
         break;
     }
     case 5: {
         // Step 5 (75%): Launch
         m_checkTimer->stop();
-        emit launchCheckProgress(QStringLiteral("正在启动..."));
+        emit launchCheckProgress(tr("正在启动..."));
         m_launchProgress = 75;
-        emit launchProgressChanged(75, QStringLiteral("正在启动 Minecraft..."));
+        emit launchProgressChanged(75, tr("正在启动 Minecraft..."));
         qCDebug(logLaunch) << "[PROGRESS] 75% - 正在启动 Minecraft...";
         Launcher* launcher = new Launcher(this);
         launcher->setGameDir(m_gameDir);
@@ -445,7 +445,7 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
 
     // Phase 3: Process started, wait for window
     m_launchProgress = 80;
-    m_launchStatus = QStringLiteral("进程已启动，等待窗口...");
+    m_launchStatus = tr("进程已启动，等待窗口...");
     emit launchProgressChanged(80, m_launchStatus);
     qCDebug(logLaunch) << "[PROGRESS] 80% - 进程已启动，等待窗口...";
     emit minecraftStarted();
@@ -453,9 +453,9 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
     // After 3s, check if process still alive
     QTimer::singleShot(3000, this, [this, launcher]() {
         if (!launcher->isRunning()) {
-            emit launchProgressChanged(0, QStringLiteral("游戏进程意外退出"));
-            emit launchCheckFailed(QStringLiteral("进程存活"), QStringLiteral("游戏进程在窗口出现前退出"));
-            emit logMessage(QStringLiteral("启动失败: 进程意外退出"));
+            emit launchProgressChanged(0, tr("游戏进程意外退出"));
+            emit launchCheckFailed(tr("进程存活"), tr("游戏进程在窗口出现前退出"));
+            emit logMessage(tr("启动失败: 进程意外退出"));
             // Remove from list (guard: may have been removed by killGameByPid)
             if (m_runningLaunchers.contains(launcher)) {
                 m_runningLaunchers.removeOne(launcher);
@@ -473,11 +473,11 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
         }
         // Phase 4: Window ready
         m_launchProgress = 100;
-        m_launchStatus = QStringLiteral("启动完成");
+        m_launchStatus = tr("启动完成");
         emit launchProgressChanged(100, m_launchStatus);
         qCDebug(logLaunch) << "[PROGRESS] 100% - 启动完成 (窗口就绪)";
         qCInfo(logLaunch) << "Minecraft launch complete";
-        emit logMessage(QStringLiteral("Minecraft 启动完成"));
+        emit logMessage(tr("Minecraft 启动完成"));
         m_activeLauncher = nullptr;  // release progress isolation
         // Delay m_launching=false until after overlay animation
         QTimer::singleShot(2200, this, [this]() {
@@ -542,16 +542,16 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
     // Emit progress BEFORE setting launching=false so QML checkFailed is set first
     if (success) {
         m_launchProgress = 100;
-        m_launchStatus = QStringLiteral("启动完成");
-        emit launchProgressChanged(100, QStringLiteral("启动完成"));
+        m_launchStatus = tr("启动完成");
+        emit launchProgressChanged(100, tr("启动完成"));
         qCInfo(logLaunch) << "Minecraft launch succeeded";
-        emit logMessage(QStringLiteral("Minecraft 启动成功"));
+        emit logMessage(tr("Minecraft 启动成功"));
     } else {
         m_launchProgress = 0;
         m_launchStatus.clear();
         emit launchProgressChanged(0, errorMsg);
         qCCritical(logLaunch) << "Minecraft launch failed:" << errorMsg;
-        emit logMessage(QStringLiteral("启动失败: %1").arg(errorMsg));
+        emit logMessage(tr("启动失败: %1").arg(errorMsg));
 
         // ── Crash detection: scan for crash reports ──
         CrashDetector detector;
@@ -581,7 +581,7 @@ QString LaunchBackend::checkJavaArchitecture(const QString& javaPath)
 #ifdef Q_OS_WIN
     QFile f(javaPath);
     if (!f.open(QIODevice::ReadOnly)) {
-        emit logMessage(QStringLiteral("无法读取 Java 可执行文件以检测架构"));
+        emit logMessage(tr("无法读取 Java 可执行文件以检测架构"));
         return QStringLiteral("64");  // assume 64-bit as safe default
     }
 
@@ -614,7 +614,7 @@ QString LaunchBackend::checkJavaArchitecture(const QString& javaPath)
     QByteArray peSig = f.read(4);
     if (peSig.size() < 4 || peSig[0] != 'P' || peSig[1] != 'E') {
         f.close();
-        emit logMessage(QStringLiteral("无法识别 PE 签名，假设为 64-bit"));
+        emit logMessage(tr("无法识别 PE 签名，假设为 64-bit"));
         return QStringLiteral("64");
     }
 
@@ -631,17 +631,17 @@ QString LaunchBackend::checkJavaArchitecture(const QString& javaPath)
 
     // 0x014C = x86 (32-bit), 0x8664 = x64 (64-bit)
     if (machine == 0x014C) {
-        emit logMessage(QStringLiteral("检测到 32 位 Java (x86)"));
+        emit logMessage(tr("检测到 32 位 Java (x86)"));
         return QStringLiteral("32");
     } else if (machine == 0x8664) {
-        emit logMessage(QStringLiteral("检测到 64 位 Java (x64)"));
+        emit logMessage(tr("检测到 64 位 Java (x64)"));
         return QStringLiteral("64");
     } else if (machine == 0xAA64) {
-        emit logMessage(QStringLiteral("检测到 ARM64 Java"));
+        emit logMessage(tr("检测到 ARM64 Java"));
         return QStringLiteral("64");
     }
 
-    emit logMessage(QStringLiteral("未知架构 Machine=0x%1，假设为 64-bit")
+    emit logMessage(tr("未知架构 Machine=0x%1，假设为 64-bit")
                         .arg(machine, 4, 16, QLatin1Char('0')));
     return QStringLiteral("64");
 #else
@@ -685,7 +685,7 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
     // Read version JSON
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
-        emit logMessage(QStringLiteral("⚠ 无法读取版本 JSON 以检查库文件"));
+        emit logMessage(tr("⚠ 无法读取版本 JSON 以检查库文件"));
         return missing;
     }
 
@@ -694,7 +694,7 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
     jsonFile.close();
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
-        emit logMessage(QStringLiteral("⚠ 版本 JSON 解析失败，无法检查库文件"));
+        emit logMessage(tr("⚠ 版本 JSON 解析失败，无法检查库文件"));
         return missing;
     }
 
@@ -759,10 +759,10 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
 
     if (!missing.isEmpty()) {
         qCWarning(logLaunch) << "Missing" << missing.size() << "library files for" << versionId;
-        emit logMessage(QStringLiteral("⚠ 缺少 %1 个依赖库文件").arg(missing.size()));
+        emit logMessage(tr("⚠ 缺少 %1 个依赖库文件").arg(missing.size()));
     } else {
         qCInfo(logLaunch) << "All library files present for" << versionId;
-        emit logMessage(QStringLiteral("✅ 所有依赖库文件完整"));
+        emit logMessage(tr("✅ 所有依赖库文件完整"));
     }
 
     return missing;
@@ -793,14 +793,14 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
     if (QDir(primaryNatives).exists()) {
         QDirIterator it(primaryNatives, QStringList() << QStringLiteral("*.dll"), QDir::Files);
         if (it.hasNext()) {
-            emit logMessage(QStringLiteral("找到运行库: %1").arg(primaryNatives));
+            emit logMessage(tr("找到运行库: %1").arg(primaryNatives));
             hasExtractedNatives = true;
         }
     }
     if (!hasExtractedNatives && QDir(fallbackNatives).exists()) {
         QDirIterator it(fallbackNatives, QStringList() << QStringLiteral("*.dll"), QDir::Files);
         if (it.hasNext()) {
-            emit logMessage(QStringLiteral("找到运行库: %1").arg(fallbackNatives));
+            emit logMessage(tr("找到运行库: %1").arg(fallbackNatives));
             hasExtractedNatives = true;
         }
     }
@@ -816,8 +816,8 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
     // Read version JSON to find native libraries
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
-        emit logMessage(QStringLiteral("⚠ 无法读取版本 JSON 以检查原生库"));
-        missing.append(QStringLiteral("(无法读取版本配置)"));
+        emit logMessage(tr("⚠ 无法读取版本 JSON 以检查原生库"));
+        missing.append(tr("(无法读取版本配置)"));
         return missing;
     }
 
@@ -826,8 +826,8 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
     jsonFile.close();
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
-        emit logMessage(QStringLiteral("⚠ 版本 JSON 解析失败"));
-        missing.append(QStringLiteral("(版本配置解析失败)"));
+        emit logMessage(tr("⚠ 版本 JSON 解析失败"));
+        missing.append(tr("(版本配置解析失败)"));
         return missing;
     }
 
@@ -874,14 +874,14 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
 
     if (!foundAnyNative) {
         // No native libraries defined in JSON — this is fine for some versions
-        emit logMessage(QStringLiteral("版本未定义原生库 (可能无需原生库)"));
+        emit logMessage(tr("版本未定义原生库 (可能无需原生库)"));
         return missing; // empty = OK
     }
 
     if (!missing.isEmpty()) {
-        emit logMessage(QStringLiteral("⚠ 缺少 %1 个原生库文件").arg(missing.size()));
+        emit logMessage(tr("⚠ 缺少 %1 个原生库文件").arg(missing.size()));
     } else {
-        emit logMessage(QStringLiteral("✅ 所有原生库文件完整"));
+        emit logMessage(tr("✅ 所有原生库文件完整"));
     }
 
     return missing;
@@ -901,7 +901,7 @@ void LaunchBackend::killGameByPid(qint64 pid)
             launcher->deleteLater();
             emit runningCountChanged();
             if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
-            emit logMessage(QStringLiteral("已结束游戏进程 (PID: %1)").arg(pid));
+            emit logMessage(tr("已结束游戏进程 (PID: %1)").arg(pid));
             return;
         }
     }

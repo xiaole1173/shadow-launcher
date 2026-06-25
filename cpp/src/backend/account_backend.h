@@ -24,6 +24,7 @@ class AccountBackend : public QObject {
     Q_PROPERTY(QString capePath READ capePath NOTIFY capeReady)
     Q_PROPERTY(QStringList offlineUsernames READ offlineUsernames NOTIFY offlineHistoryChanged)
     Q_PROPERTY(bool microsoftLoginBusy READ isMicrosoftLoginBusy NOTIFY microsoftLoginBusyChanged)
+    Q_PROPERTY(bool embeddedLoginEnabled READ embeddedLoginEnabled WRITE setEmbeddedLoginEnabled NOTIFY embeddedLoginChanged)
 
 public:
     explicit AccountBackend(QObject *parent = nullptr);
@@ -48,6 +49,8 @@ public:
     Q_INVOKABLE void updateOfflineSkin(const QString &username);
     Q_INVOKABLE void logout();
     Q_INVOKABLE bool isMicrosoftLoginBusy() const { return m_msAuth && m_msAuth->isBusy(); }
+    bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
+    void setEmbeddedLoginEnabled(bool v);
     QString msRefreshToken() const { return m_msRefreshToken; }
     void refreshMicrosoftToken();
     bool shouldRefresh() const;
@@ -58,6 +61,7 @@ public:
     QString msStatus() const { return m_msStatus; }
 
 signals:
+    void embeddedLoginChanged();
     void accountChanged();
     void skinReady();
     void offlineSkinReady();
@@ -107,6 +111,7 @@ private:
     bool m_loggedIn = false;
     bool m_isOnline = false;
     QStringList m_offlineUsernames;
+    bool m_embeddedLoginEnabled = false;
     QString m_dataDir;
 };
 

@@ -1,7 +1,8 @@
 // Shadow Launcher — C++ Entry Point
 // Phase 4: Unified backend + QML UI port
 
-#include <QGuiApplication>
+#include <QApplication>
+#include <QWidget>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QIcon>
@@ -15,15 +16,22 @@
 #include <QScreen>
 #include <QPixmap>
 #include <QWindow>
+#include <QTranslator>
+#include <QSettings>
 #include <memory>
 
 #ifdef Q_OS_WIN
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
 #  include <windows.h>
 #endif
 
 #include "utils/logger.h"
 #include "backend/shadow_backend.h"
 #include "core/http_client.h"
+
+// ── Remove CEF references ──
 
 using namespace ShadowLauncher;
 
@@ -73,14 +81,25 @@ int main(int argc, char *argv[])
 
     // Qt attribute setup
     checkpoint(QStringLiteral("Setting Qt attributes..."));
-    QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QGuiApplication app(argc, argv);
-    checkpoint(QStringLiteral("QGuiApplication constructed"));
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication app(argc, argv);
+    checkpoint(QStringLiteral("QApplication constructed"));
 
     app.setApplicationName("Shadow Launcher");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("ShadowTeam");
     app.setOrganizationDomain("shadowteam.dev");
+
+    // ── Load saved language ──
+    QSettings settings;
+    QString lang = settings.value("language", "zh_CN").toString();
+    auto* translator = new QTranslator(&app);
+    if (translator->load(QStringLiteral(":/i18n/shadow_%1").arg(lang))) {
+        app.installTranslator(translator);
+        qCInfo(logApp) << "Loaded translation:" << lang;
+    } else {
+        qCInfo(logApp) << "No translation loaded (using source language):" << lang;
+    }
 
     // ── Initialise structured logging ──
     initLogger(QCoreApplication::applicationDirPath());

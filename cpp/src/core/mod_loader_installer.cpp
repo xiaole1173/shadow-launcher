@@ -1,4 +1,4 @@
-﻿#include "mod_loader_installer.h"
+#include "mod_loader_installer.h"
 #include "http_client.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QProcess>
+#include <QThread>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
 #include <QRegularExpression>
@@ -443,6 +444,41 @@ void ModLoaderInstaller::cleanupTempMc(const QString& tempDir) {
     qDebug() << "[ModLoader] Temp cleaned:" << tempDir;
 }
 
+void ModLoaderInstaller::cleanupAfterInstall(const QStringList& dirsToClean) {
+    const int maxRetries = 3;
+    const int retryDelayMs = 500;
+
+    for (const QString& dirPath : dirsToClean) {
+        QDir dir(dirPath);
+        if (!dir.exists()) {
+            qDebug() << "[ModLoader] Cleanup skip (not found):" << dirPath;
+            continue;
+        }
+
+        bool ok = false;
+        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
+            ok = dir.removeRecursively();
+            if (ok) {
+                qDebug() << "[ModLoader] Cleanup OK:" << dirPath
+                         << (attempt > 1 ? QStringLiteral("(attempt %1)").arg(attempt) : QString());
+                break;
+            }
+            // Check what's left
+            QStringList leftovers = dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+            qDebug() << "[ModLoader] Cleanup FAIL (attempt" << attempt << "/" << maxRetries
+                     << "):" << dirPath << "leftovers:" << leftovers;
+            if (attempt < maxRetries) {
+                QThread::msleep(retryDelayMs);
+            }
+        }
+
+        if (!ok) {
+            qWarning() << "[ModLoader] Cleanup GAVE UP after" << maxRetries
+                       << "attempts:" << dirPath;
+        }
+    }
+}
+
 void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, "正在下载 Forge 安装程序...");
@@ -817,7 +853,7 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
             emit finished(true, QString());
         } else {
             QString detail = (stdoutStr + QStringLiteral(" ") + stderrStr).trimmed();
-            if (detail.isEmpty()) detail = QStringLiteral("无输出");
+            if (detail.isEmpty()) detail = tr("无输出");
             emit finished(false, QString("Forge 安装程序运行失败（退出码: %1）\n%2").arg(exitCode).arg(detail));
         }
         m_running = false;
@@ -1147,7 +1183,7 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
 
     // Step 4: Run installer for binary patching only (all libs already downloaded)
     m_currentStep = 4;
-    emit progressChanged(4, m_totalSteps, QStringLiteral("正在安装 NeoForge（二进制补丁）..."));
+    emit progressChanged(4, m_totalSteps, tr("正在安装 NeoForge（二进制补丁）..."));
 
     QString installerPath = m_gameDir + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-installer.jar")
         .arg(m_loaderVersion);
@@ -1311,40 +1347,36 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
                     else
                         qDebug() << "[ModLoader] Minecraft-Dists:client injected (async Java)";
 
-                    // Delete installer's auto-named version folder
-                    QDir instDir(installedVerName);
-                    if (instDir.exists()) instDir.removeRecursively();
-
-                    // Delete vanilla MC version folder (merged into standalone JSON above)
-                    const QString vanillaVer = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
-                    QDir(vanillaVer).removeRecursively();
+                    // Unified cleanup
+                    cleanupAfterInstall({
+                        installedVerName,
+                        m_gameDir + QStringLiteral("/versions/") + m_mcVersion
+                    });
 
                     if (exitCode == 0) {
                         emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
                         emit finished(true, QString());
                     } else {
                         emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装失败");
-                        emit finished(false, QStringLiteral("NeoForge 安装程序失败 (exitCode=%1)").arg(exitCode));
+                        emit finished(false, tr("NeoForge 安装程序失败 (exitCode=%1)").arg(exitCode));
                     }
                     m_running = false;
                 });
             return; // rest runs in callback above
         }
 
-        // Delete installer's auto-named version folder
-        QDir instDir(installedVerName);
-        if (instDir.exists()) instDir.removeRecursively();
-
-        // Delete vanilla MC version folder (merged into standalone JSON above)
-        const QString vanillaVer = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
-        QDir(vanillaVer).removeRecursively();
+        // Unified cleanup
+        cleanupAfterInstall({
+            installedVerName,
+            m_gameDir + QStringLiteral("/versions/") + m_mcVersion
+        });
 
         if (exitCode == 0) {
             emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
             emit finished(true, QString());
         } else {
             emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装失败");
-            emit finished(false, QStringLiteral("NeoForge 安装程序失败 (exitCode=%1)").arg(exitCode));
+            emit finished(false, tr("NeoForge 安装程序失败 (exitCode=%1)").arg(exitCode));
         }
         m_running = false;
     });

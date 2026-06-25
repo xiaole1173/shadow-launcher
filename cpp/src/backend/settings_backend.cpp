@@ -90,6 +90,9 @@ void SettingsBackend::loadSettings()
     m_minMemoryMB = s.value(QStringLiteral("memory/minMB"), 512).toInt();
     m_maxMemoryMB = s.value(QStringLiteral("memory/maxMB"), 2048).toInt();
     m_closeAfterLaunch = s.value(QStringLiteral("general/closeAfterLaunch"), false).toBool();
+    m_embeddedLoginEnabled = s.value(QStringLiteral("general/embeddedLogin"), false).toBool();
+    m_languageIndex = s.value(QStringLiteral("general/languageIndex"), 0).toInt();
+    m_launchLanguageIndex = m_languageIndex;  // snapshot for restart detection
     m_lastLaunchedVersion = s.value(QStringLiteral("general/lastVersion"), QString()).toString();
     m_lastSelectedVersion = s.value(QStringLiteral("general/lastSelectedVersion"), QString()).toString();
 }
@@ -106,6 +109,8 @@ void SettingsBackend::saveSettings()
     s.setValue(QStringLiteral("memory/minMB"), m_minMemoryMB);
     s.setValue(QStringLiteral("memory/maxMB"), m_maxMemoryMB);
     s.setValue(QStringLiteral("general/closeAfterLaunch"), m_closeAfterLaunch);
+    s.setValue(QStringLiteral("general/embeddedLogin"), m_embeddedLoginEnabled);
+    s.setValue(QStringLiteral("general/languageIndex"), m_languageIndex);
     s.setValue(QStringLiteral("general/lastVersion"), m_lastLaunchedVersion);
     s.setValue(QStringLiteral("general/lastSelectedVersion"), m_lastSelectedVersion);
 }
@@ -118,7 +123,7 @@ void SettingsBackend::doAutoDetect()
 {
     // Skip if we already have a valid Java from saved settings
     if (m_javaReady && QFileInfo::exists(m_javaPath)) {
-        emit logMessage(QStringLiteral("Java 已配置: %1 (版本 %2)")
+        emit logMessage(tr("Java 已配置: %1 (版本 %2)")
                             .arg(m_javaPath, m_javaVersion));
         // Still scan in background to populate the list
         scanJavaInstallations();
@@ -126,7 +131,7 @@ void SettingsBackend::doAutoDetect()
     }
 
     // No Java configured — start async scan; auto-select happens in scan completion
-    emit logMessage(QStringLiteral("正在后台自动检测 Java..."));
+    emit logMessage(tr("正在后台自动检测 Java..."));
     scanJavaInstallations();
     saveSettings();
 }
@@ -139,12 +144,12 @@ void SettingsBackend::setJavaPath(const QString& path)
 {
     QFileInfo fi(path);
     if (!fi.isFile()) {
-        emit logMessage(QStringLiteral("❌ 路径不存在: %1").arg(path));
+        emit logMessage(tr("❌ 路径不存在: %1").arg(path));
         return;
     }
     JavaInfo info = getJavaInfo(path);
     if (info.major == 0) {
-        emit logMessage(QStringLiteral("❌ 无法获取 Java 版本: %1").arg(path));
+        emit logMessage(tr("❌ 无法获取 Java 版本: %1").arg(path));
         return;
     }
     m_javaPath = info.path;
@@ -157,7 +162,7 @@ void SettingsBackend::setJavaPath(const QString& path)
     }
 
     saveSettings();
-    emit logMessage(QStringLiteral("✅ Java 已设置: %1 (版本 %2)")
+    emit logMessage(tr("✅ Java 已设置: %1 (版本 %2)")
                         .arg(path, info.version));
     emit javaPathChanged();
 }
@@ -176,11 +181,11 @@ const QVector<SettingsBackend::JavaInfo>& SettingsBackend::cachedJavaList()
 QVariantList SettingsBackend::scanJavaInstallations()
 {
     if (m_javaScanning) {
-        emit logMessage(QStringLiteral("Java 扫描已在进行中..."));
+        emit logMessage(tr("Java 扫描已在进行中..."));
         return {};
     }
     m_javaScanning = true;
-    emit logMessage(QStringLiteral("正在后台扫描 Java 安装..."));
+    emit logMessage(tr("正在后台扫描 Java 安装..."));
     emit javaPathChanged();  // signal QML to show loading state
 
     // Use std::thread::detach() — NOT std::async whose future destructor blocks!
@@ -197,14 +202,14 @@ QVariantList SettingsBackend::scanJavaInstallations()
             m_javaScanning = false;
             emit javaPathChanged();
             if (!results.isEmpty()) {
-                emit logMessage(QStringLiteral("找到 %1 个 Java 安装，最新: Java %2")
+                emit logMessage(tr("找到 %1 个 Java 安装，最新: Java %2")
                                     .arg(results.size())
                                     .arg(results.first().major));
                 if (!m_javaReady || !QFileInfo::exists(m_javaPath)) {
                     autoSelectJava();
                 }
             } else {
-                emit logMessage(QStringLiteral("⚠ 未在系统中找到 Java 安装"));
+                emit logMessage(tr("⚠ 未在系统中找到 Java 安装"));
             }
         }, Qt::QueuedConnection);
     }).detach();
@@ -230,7 +235,7 @@ void SettingsBackend::selectJavaByIndex(int index)
 {
     const auto& results = cachedJavaList();
     if (index < 0 || index >= results.size()) {
-        emit logMessage(QStringLiteral("❌ Java 索引无效: %1").arg(index));
+        emit logMessage(tr("❌ Java 索引无效: %1").arg(index));
         return;
     }
     const auto& info = results[index];
@@ -239,7 +244,7 @@ void SettingsBackend::selectJavaByIndex(int index)
     m_javaMajor = info.major;
     m_javaReady = true;
     saveSettings();
-    emit logMessage(QStringLiteral("✅ 已切换 Java %1: %2")
+    emit logMessage(tr("✅ 已切换 Java %1: %2")
                         .arg(info.major).arg(info.path));
     emit javaPathChanged();
     emit javaReadyChanged();
@@ -259,13 +264,13 @@ QString SettingsBackend::autoSelectJava()
         m_javaMajor = best->major;
         m_javaReady = true;
         saveSettings();
-        emit logMessage(QStringLiteral("✅ 已选择 Java %1: %2")
+        emit logMessage(tr("✅ 已选择 Java %1: %2")
                             .arg(best->major).arg(best->path));
         emit javaPathChanged();
         emit javaReadyChanged();
         return best->path;
     }
-    emit logMessage(QStringLiteral("⚠ 未找到合适的 Java，请手动指定"));
+    emit logMessage(tr("⚠ 未找到合适的 Java，请手动指定"));
     return {};
 }
 
@@ -331,9 +336,9 @@ QString SettingsBackend::openJavaFileDialog()
     // Use the QML engine's root object as parent to avoid modal issues
     QWidget* parentWidget = nullptr;
     QString path = QFileDialog::getOpenFileName(
-        parentWidget, QStringLiteral("选择 Java 可执行文件"),
+        parentWidget, tr("选择 Java 可执行文件"),
         QStringLiteral("C:\\Program Files\\Java"),
-        QStringLiteral("Java 可执行文件 (java.exe javaw.exe);;所有文件 (*.*)"));
+        tr("Java 可执行文件 (java.exe javaw.exe);;所有文件 (*.*)"));
     if (!path.isEmpty()) {
         setJavaPath(path);
         return path;
@@ -398,6 +403,15 @@ void SettingsBackend::setCloseAfterLaunch(bool enabled)
     emit generalSettingsChanged();
 }
 
+void SettingsBackend::setEmbeddedLoginEnabled(bool v)
+{
+    if (m_embeddedLoginEnabled != v) {
+        m_embeddedLoginEnabled = v;
+        saveSettings();
+        emit embeddedLoginChanged();
+    }
+}
+
 // ============================================================
 // Isolation (delegates to VersionManager later)
 // ============================================================
@@ -410,7 +424,7 @@ void SettingsBackend::setMinecraftDir(const QString& dir)
         QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
         QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
         QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
-        emit logMessage(QStringLiteral("游戏目录已设置: %1").arg(m_gameDir));
+        emit logMessage(tr("游戏目录已设置: %1").arg(m_gameDir));
     }
 }
 
@@ -418,8 +432,8 @@ void SettingsBackend::setIsolationEnabled(bool enabled)
 {
     m_isolation->setEnabled(enabled);
     emit logMessage(enabled
-        ? QStringLiteral("版本隔离已开启 — 各版本拥有独立的存档/截图/配置")
-        : QStringLiteral("版本隔离已关闭 — 所有版本共享游戏目录"));
+        ? tr("版本隔离已开启 — 各版本拥有独立的存档/截图/配置")
+        : tr("版本隔离已关闭 — 所有版本共享游戏目录"));
     // isolationChanged signal is emitted by VersionIsolation
 }
 
@@ -427,9 +441,9 @@ void SettingsBackend::migrateVersionToIsolated(const QString& versionId)
 {
     bool ok = m_isolation->migrateToIsolated(versionId);
     if (ok) {
-        emit logMessage(QStringLiteral("版本 %1 已迁移到隔离模式").arg(versionId));
+        emit logMessage(tr("版本 %1 已迁移到隔离模式").arg(versionId));
     } else {
-        emit logMessage(QStringLiteral("版本 %1 迁移失败：未找到版本 JSON").arg(versionId));
+        emit logMessage(tr("版本 %1 迁移失败：未找到版本 JSON").arg(versionId));
     }
 }
 
@@ -532,7 +546,7 @@ void SettingsBackend::openPath(const QString& path)
     if (QFileInfo::exists(target))
         QDesktopServices::openUrl(QUrl::fromLocalFile(target));
     else
-        emit logMessage(QStringLiteral("路径不存在: %1").arg(path));
+        emit logMessage(tr("路径不存在: %1").arg(path));
 }
 
 // ============================================================
@@ -697,6 +711,22 @@ int SettingsBackend::parseMajorVersion(const QString& versionStr)
         bool ok; int v = parts[1].toInt(&ok); return ok ? v : 0;
     }
     bool ok; int v = parts[0].toInt(&ok); return ok ? v : 0;
+}
+
+void SettingsBackend::setLanguageIndex(int idx)
+{
+    if (idx < 0 || idx > 2) return;
+    if (idx == m_languageIndex) return;
+    m_languageIndex = idx;
+    saveSettings();
+    emit languageChanged();
+}
+
+void SettingsBackend::restartApp()
+{
+    QString exe = QCoreApplication::applicationFilePath();
+    QProcess::startDetached(exe, {}, QCoreApplication::applicationDirPath());
+    QCoreApplication::quit();
 }
 
 } // namespace ShadowLauncher

@@ -1,4 +1,4 @@
-﻿// Shadow Launcher — VersionBackend
+// Shadow Launcher — VersionBackend
 // QML-facing backend for version list, installation, and lifecycle management.
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 
@@ -68,7 +68,7 @@ VersionBackend::VersionBackend(QObject* parent)
                     m_versionIds.append(v.id);
                 }
                 emit logMessage(
-                    QStringLiteral("版本列表已加载 (%1 个版本)")
+                    tr("版本列表已加载 (%1 个版本)")
                         .arg(m_versionIds.size()));
                 emit versionListReady();
             });
@@ -77,14 +77,14 @@ VersionBackend::VersionBackend(QObject* parent)
     connect(m_versionMgr, &VersionManager::fetchError, this,
             [this](const QString& err) {
                 emit logMessage(
-                    QStringLiteral("获取版本列表失败: %1").arg(err));
+                    tr("获取版本列表失败: %1").arg(err));
             });
 
     // ModLoaderInstaller init
     m_mlInstaller = new ModLoaderInstaller(this);
     connect(m_mlInstaller, &ModLoaderInstaller::progressChanged, this,
             [this](int step, int totalSteps, const QString& desc) {
-                setInstallPhase(QStringLiteral("模组加载器: ") + desc);
+                setInstallPhase(tr("模组加载器: ") + desc);
         const QString mlId = m_modLoaderInstallId;
         if (mlId.isEmpty()) return;
         auto& ses = session(mlId);
@@ -145,11 +145,11 @@ VersionBackend::VersionBackend(QObject* parent)
                 ses.loaderType.clear();
                 ses.loaderVer.clear();
             }
-            emit logMessage(QStringLiteral("[ModLoader] 安装完成"));
-            setInstallPhase("完成");
+            emit logMessage(tr("[ModLoader] 安装完成"));
+            setInstallPhase(tr("完成"));
             updateInstalledList();
         } else {
-            emit logMessage(QStringLiteral("[ModLoader] 安装失败: ") + errMsg);
+            emit logMessage(tr("[ModLoader] 安装失败: ") + errMsg);
             // Mark last step as failed, keep card visible for diagnostics
             for (int i = ses.steps.size() - 1; i >= 0; i--) {
                 QVariantMap s = ses.steps[i].toMap();
@@ -176,7 +176,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
     // Pause between verify and install (merged install: wait for MC)
     connect(m_mlInstaller, &ModLoaderInstaller::waitingForMC, this, [this]() {
-        setInstallPhase(QStringLiteral("等待MC下载完成..."));
+        setInstallPhase(tr("等待MC下载完成..."));
         // Mark verify step completed
         const QString mlId = m_modLoaderInstallId;
         if (!mlId.isEmpty() && m_sessions.contains(mlId)) {
@@ -289,7 +289,7 @@ VersionBackend::VersionBackend(QObject* parent)
     // Verification
     connect(m_mlInstaller, &ModLoaderInstaller::verifyStarted, this,
             [this]() {
-        setInstallPhase("校验中");
+        setInstallPhase(tr("校验中"));
         m_verifyChecked = 0;
         m_verifyTotal = 1;
         emit verifyStarted();
@@ -380,7 +380,7 @@ QVector<McVersion> VersionBackend::cachedMcVersions() const
 void VersionBackend::refreshVersionList()
 {
     qCInfo(logVersion) << "Refreshing version list";
-    emit logMessage(QStringLiteral("正在获取版本列表..."));
+    emit logMessage(tr("正在获取版本列表..."));
     m_versionMgr->fetchVersions();
 }
 
@@ -398,14 +398,14 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 {
     // ── Check if already active ──
     if (m_activeIds.contains(versionId)) {
-        emit logMessage(QStringLiteral("⚠ %1 正在下载中").arg(versionId));
+        emit logMessage(tr("⚠ %1 正在下载中").arg(versionId));
         return;
     }
 
     // ── Check queue for duplicates ──
     for (const auto& entry : m_installQueue) {
         if (entry.first == versionId) {
-            emit logMessage(QStringLiteral("⏳ %1 已在下载队列中").arg(versionId));
+            emit logMessage(tr("⏳ %1 已在下载队列中").arg(versionId));
             return;
         }
     }
@@ -414,7 +414,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
     if (m_activeCount >= MAX_CONCURRENT) {
         m_installQueue.enqueue({versionId, sourceIndex});
         qCDebug(logLaunch) << "[DOWNLOAD] enqueued=" << versionId << "pos=" << m_installQueue.size() << "active=" << m_activeCount;
-        emit logMessage(QStringLiteral("⏳ %1 已加入下载队列 (位置 %2)")
+        emit logMessage(tr("⏳ %1 已加入下载队列 (位置 %2)")
                             .arg(versionId)
                             .arg(m_installQueue.size()));
         emit installStateChanged();
@@ -431,7 +431,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
     const QString progressMarker = versionDir
                                    + QStringLiteral("/.download_progress.json");
     if (QFileInfo::exists(progressMarker)) {
-        emit logMessage(QStringLiteral("📦 发现断点续传文件: %1").arg(versionId));
+        emit logMessage(tr("📦 发现断点续传文件: %1").arg(versionId));
     }
 
     // Check for individual chunk .checkpoint.json files
@@ -440,7 +440,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
         {QStringLiteral("*.checkpoint.json")},
         QDir::Files | QDir::NoDotAndDotDot);
     if (!checkpointFiles.isEmpty()) {
-        emit logMessage(QStringLiteral("📦 发现 %1 个断点续传块文件")
+        emit logMessage(tr("📦 发现 %1 个断点续传块文件")
                             .arg(checkpointFiles.size()));
     }
 
@@ -464,7 +464,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
     if (!found) {
         emit logMessage(
-            QStringLiteral("未找到版本: %1").arg(versionId));
+            tr("未找到版本: %1").arg(versionId));
         return;
     }
 
@@ -472,9 +472,9 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
     // Critical: the UI must react immediately on click, not wait 500ms+ network RTT
     m_activeCount++;
     m_activeIds.append(versionId);
-    setInstallPhase(QStringLiteral("准备中..."));
+    setInstallPhase(tr("准备中..."));
     setInstalling(true);
-    emit logMessage(QStringLiteral("正在获取 %1 版本信息...").arg(versionId));
+    emit logMessage(tr("正在获取 %1 版本信息...").arg(versionId));
     qCDebug(logLaunch) << "[DOWNLOAD] state-set=" << versionId
                         << "active=" << m_activeCount << "/" << MAX_CONCURRENT;
 
@@ -500,7 +500,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                 if (reply->error() != QNetworkReply::NoError) {
                     // Rollback: version JSON fetch failed
                     emit logMessage(
-                        QStringLiteral("获取版本信息失败: %1")
+                        tr("获取版本信息失败: %1")
                             .arg(reply->errorString()));
                     cancelActiveDownload(versionId);
                     return;
@@ -514,7 +514,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                     !doc.isObject()) {
                     // Rollback: JSON parse failed
                     emit logMessage(
-                        QStringLiteral("版本信息格式错误: %1")
+                        tr("版本信息格式错误: %1")
                             .arg(parseErr.errorString()));
                     cancelActiveDownload(versionId);
                     return;
@@ -582,7 +582,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                         [this, versionId](int checked, int total) {
                             // Update per-download state
                             auto& st = m_dlStates[versionId];
-                            st.phase = QStringLiteral("校验中...");
+                            st.phase = tr("校验中...");
                             st.progress = checked;
                             st.total = total;
                             st.speed = 0;  // No download speed during verify
@@ -663,7 +663,7 @@ void VersionBackend::cancelInstall()
     m_activeIds.clear();
     m_activeCount = 0;
     setInstalling(false);
-    emit logMessage(QStringLiteral("所有安装已取消"));
+    emit logMessage(tr("所有安装已取消"));
 }
 
 void VersionBackend::cancelActiveDownload(const QString& versionId)
@@ -681,7 +681,7 @@ void VersionBackend::cancelActiveDownload(const QString& versionId)
     if (m_activeCount > 0) m_activeCount--;
     if (m_activeCount == 0) {
         setInstalling(false);
-        setInstallPhase(QStringLiteral("空闲"));
+        setInstallPhase(tr("空闲"));
     }
     emit installStateChanged();
 }
@@ -693,7 +693,7 @@ void VersionBackend::cancelInstall(const QString& versionId)
         for (int i = 0; i < m_installQueue.size(); ++i) {
             if (m_installQueue[i].first == versionId) {
                 m_installQueue.removeAt(i);
-                emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
+                emit logMessage(tr("已取消队列中的 %1").arg(versionId));
                 emit installStateChanged();
                 emit downloadQueueChanged();
                 return;
@@ -711,7 +711,7 @@ void VersionBackend::cancelInstall(const QString& versionId)
     m_activeIds.removeOne(versionId);
     m_activeCount--;
 
-    emit logMessage(QStringLiteral("已取消 %1 的安装").arg(versionId));
+    emit logMessage(tr("已取消 %1 的安装").arg(versionId));
 
     // Update installing state
     if (m_activeCount == 0) {
@@ -789,27 +789,27 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         qCInfo(logVersion) << "Install completed:" << finishedId;
         emit logMessage(
-            QStringLiteral("✅ %1 安装完成")
+            tr("✅ %1 安装完成")
                 .arg(finishedId));
         refreshInstalled();
     } else {
         const auto& st = m_dlStates.value(finishedId);
-        bool wasVerifying = (st.phase == QStringLiteral("校验中..."));
+        bool wasVerifying = (st.phase == tr("校验中..."));
         if (wasVerifying) {
             QString errDetail = error.isEmpty()
-                                    ? QStringLiteral("校验失败")
+                                    ? tr("校验失败")
                                     : error;
             qCCritical(logVersion) << "Verify failed for" << finishedId << ":" << errDetail;
             emit logMessage(
-                QStringLiteral("❌ %1 校验失败: %2")
+                tr("❌ %1 校验失败: %2")
                     .arg(finishedId, errDetail));
         } else {
             QString errDetail = error.isEmpty()
-                                    ? QStringLiteral("未知错误")
+                                    ? tr("未知错误")
                                     : error;
             qCCritical(logVersion) << "Install failed for" << finishedId << ":" << errDetail;
             emit logMessage(
-                QStringLiteral("❌ %1 安装失败: %2")
+                tr("❌ %1 安装失败: %2")
                     .arg(finishedId, errDetail));
         }
     }
@@ -857,9 +857,9 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (!anyMergedLaunched) {
             setInstalling(false);
         }
-        setInstallPhase(QStringLiteral("完成"));
+        setInstallPhase(tr("完成"));
         m_installSpeed = 0;
-                emit logMessage(QStringLiteral("🎉 所有版本安装完成！"));
+                emit logMessage(tr("🎉 所有版本安装完成！"));
     } else {
         // Still have active downloads — sync primary display AND notify QML to re-read
         syncPrimaryProgress();
@@ -892,7 +892,7 @@ void VersionBackend::cancelQueuedDownload(const QString& versionId)
     for (int i = 0; i < m_installQueue.size(); ++i) {
         if (m_installQueue[i].first == versionId) {
             m_installQueue.removeAt(i);
-            emit logMessage(QStringLiteral("已取消队列中的 %1").arg(versionId));
+            emit logMessage(tr("已取消队列中的 %1").arg(versionId));
             emit installStateChanged();
             emit downloadQueueChanged();
             return;
@@ -978,7 +978,7 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
     if (!m_mlInstaller || !m_sessions.contains(installId)) return;
     auto& ses = session(installId);
     qDebug() << "[install] Both downloads complete, starting" << ses.loaderType << "verify/install";
-    emit logMessage(QStringLiteral("MC 和 %1 下载完成，开始安装...").arg(ses.loaderType));
+    emit logMessage(tr("MC 和 %1 下载完成，开始安装...").arg(ses.loaderType));
 
     m_mlInstaller->setGameDir(m_gameDir);
     if (ses.loaderType == QStringLiteral("forge")) {
@@ -1035,7 +1035,7 @@ void VersionBackend::syncPrimaryProgress()
         m_installBytesDl = 0;
         m_installBytesTotal = 0;
         m_installSpeed = 0;
-        setInstallPhase(QStringLiteral("空闲"));
+        setInstallPhase(tr("空闲"));
                                 emit installStateChanged();
         return;
     }
@@ -1079,8 +1079,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     st.speedLastBytes = db;
     st.speedLastTimeMs = now;
 
-    if (st.phase != QStringLiteral("校验中...")) {
-        st.phase = QStringLiteral("下载中...");
+    if (st.phase != tr("校验中...")) {
+        st.phase = tr("下载中...");
     }
 
     // ── Merged install: accumulate MC phase bytes ──
@@ -1157,8 +1157,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             }
         }
 
-        if (m_installPhase != QStringLiteral("校验中...")) {
-            setInstallPhase(QStringLiteral("下载中..."));
+        if (m_installPhase != tr("校验中...")) {
+            setInstallPhase(tr("下载中..."));
         }
 
         rebuildInstallCards();
@@ -1225,7 +1225,7 @@ void VersionBackend::startNextFromQueue()
         int nextSource = next.second;
         qCDebug(logLaunch) << "[DOWNLOAD] dequeue=" << nextId << " remaining=" << m_installQueue.size();
         emit downloadQueueChanged();
-        emit logMessage(QStringLiteral("▶ 开始队列中下一个版本: %1").arg(nextId));
+        emit logMessage(tr("▶ 开始队列中下一个版本: %1").arg(nextId));
         // Direct recursive call — installVersion will enqueue again if still full
         QTimer::singleShot(200, this, [this, nextId, nextSource]() {
             installVersion(nextId, nextSource);
@@ -1266,13 +1266,13 @@ void VersionBackend::VerifyWorker::process() {
 
         if (!QFileInfo::exists(item.path)) {
             m_failed++;
-            m_failedFiles.append(item.name + QStringLiteral(" (缺失)"));
+            m_failedFiles.append(item.name + tr(" (缺失)"));
             m_failedPaths.append(item.path);
         } else if (!item.sha1.isEmpty()) {
             QString actual = sha1FileFast(item.path);
             if (actual.compare(item.sha1, Qt::CaseInsensitive) != 0) {
                 m_failed++;
-                m_failedFiles.append(item.name + QStringLiteral(" (校验失败)"));
+                m_failedFiles.append(item.name + tr(" (校验失败)"));
                 m_failedPaths.append(item.path);
             }
         }
@@ -1291,16 +1291,16 @@ void VersionBackend::verifyVersion(const QString& versionId)
 {
     // Guard: don't allow concurrent verify
     if (m_verifyThread && m_verifyThread->isRunning()) {
-        emit logMessage(QStringLiteral("校验已在运行中"));
+        emit logMessage(tr("校验已在运行中"));
         return;
     }
 
-    setInstallPhase(QStringLiteral("校验中"));
+    setInstallPhase(tr("校验中"));
     m_verifyChecked = 0;
     m_verifyTotal = 0;
     emit verifyStarted();
     qCInfo(logVersion) << "Verify started:" << versionId;
-    emit logMessage(QStringLiteral("正在校验版本 %1...").arg(versionId));
+    emit logMessage(tr("正在校验版本 %1...").arg(versionId));
 
     const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
@@ -1308,8 +1308,8 @@ void VersionBackend::verifyVersion(const QString& versionId)
     // Load version JSON
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
-        emit logMessage(QStringLiteral("❌ 无法读取版本配置: %1").arg(jsonPath));
-        setInstallPhase(QStringLiteral("空闲"));
+        emit logMessage(tr("❌ 无法读取版本配置: %1").arg(jsonPath));
+        setInstallPhase(tr("空闲"));
         emit verifyFinished(false);
         return;
     }
@@ -1319,8 +1319,8 @@ void VersionBackend::verifyVersion(const QString& versionId)
     jsonFile.close();
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
-        emit logMessage(QStringLiteral("❌ 版本配置解析失败: %1").arg(parseErr.errorString()));
-        setInstallPhase(QStringLiteral("空闲"));
+        emit logMessage(tr("❌ 版本配置解析失败: %1").arg(parseErr.errorString()));
+        setInstallPhase(tr("空闲"));
         emit verifyFinished(false);
         return;
     }
@@ -1426,7 +1426,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
     const int total = items.size();
     m_verifyTotal = total;
-    emit logMessage(QStringLiteral("校验 %1 个文件...").arg(total));
+    emit logMessage(tr("校验 %1 个文件...").arg(total));
     emit verifyProgress(0, total);
 
     // ── Create worker + thread ──
@@ -1449,8 +1449,8 @@ void VersionBackend::verifyVersion(const QString& versionId)
                 m_verifyChecked = checked;
                 m_verifyTotal = total;
                 emit verifyProgress(checked, total);
-                emit logMessage(QStringLiteral("⚠ 校验已取消"));
-                setInstallPhase(QStringLiteral("空闲"));
+                emit logMessage(tr("⚠ 校验已取消"));
+                setInstallPhase(tr("空闲"));
                 emit verifyCancelled();
             }, Qt::QueuedConnection);
 
@@ -1460,7 +1460,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
                    const QStringList& failedPaths) {
                 if (allPassed) {
                     qCInfo(logVersion) << "Verify completed — all" << m_verifyTotal << "files passed";
-                    emit logMessage(QStringLiteral("✅ 校验完成: %1 个文件全部通过").arg(m_verifyTotal));
+                    emit logMessage(tr("✅ 校验完成: %1 个文件全部通过").arg(m_verifyTotal));
                 } else {
                     int failed = failedFiles.size();
                     qCCritical(logVersion) << "Verify completed —" << failed << "/" << m_verifyTotal << "files failed";
@@ -1469,15 +1469,15 @@ void VersionBackend::verifyVersion(const QString& versionId)
                     if (detail.length() > 250) {
                         detail = detail.left(250) + QStringLiteral("...");
                     }
-                    emit logMessage(QStringLiteral("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(m_verifyTotal));
-                    emit logMessage(QStringLiteral("   失败文件: %1").arg(detail));
+                    emit logMessage(tr("❌ 校验完成: %1/%2 个文件失败").arg(failed).arg(m_verifyTotal));
+                    emit logMessage(tr("   失败文件: %1").arg(detail));
                     emit verifyFailedFiles(failedFiles);
 
                     // Store failed paths for later cleanup
                     m_failedPathsCache = failedPaths;
                 }
 
-                setInstallPhase(QStringLiteral("空闲"));
+                setInstallPhase(tr("空闲"));
                 emit verifyFinished(allPassed);
 
                 // Cleanup worker + thread
@@ -1503,7 +1503,7 @@ void VersionBackend::cancelVerify()
 {
     if (m_verifyWorker) {
         m_verifyWorker->cancel();
-        emit logMessage(QStringLiteral("正在取消校验..."));
+        emit logMessage(tr("正在取消校验..."));
     }
 }
 
@@ -1514,7 +1514,7 @@ void VersionBackend::cancelVerify()
 void VersionBackend::cleanCorruptVersion(const QString& versionId)
 {
     if (m_failedPathsCache.isEmpty()) {
-        emit logMessage(QStringLiteral("没有可清理的校验结果"));
+        emit logMessage(tr("没有可清理的校验结果"));
         return;
     }
 
@@ -1532,15 +1532,15 @@ void VersionBackend::cleanCorruptVersion(const QString& versionId)
     }
 
     m_failedPathsCache.clear();
-    emit logMessage(QStringLiteral("🧹 清理完成: 删除 %1 个损坏文件, %2 个文件已不存在")
+    emit logMessage(tr("🧹 清理完成: 删除 %1 个损坏文件, %2 个文件已不存在")
                         .arg(removed).arg(cleaned));
-    emit logMessage(QStringLiteral("💡 请重新下载版本 %1 以恢复缺失文件").arg(versionId));
+    emit logMessage(tr("💡 请重新下载版本 %1 以恢复缺失文件").arg(versionId));
 }
 
 void VersionBackend::repairVersion(const QString& versionId)
 {
     if (m_failedPathsCache.isEmpty()) {
-        emit logMessage(QStringLiteral("没有需要修复的文件"));
+        emit logMessage(tr("没有需要修复的文件"));
         return;
     }
 
@@ -1551,7 +1551,7 @@ void VersionBackend::repairVersion(const QString& versionId)
         }
     }
 
-    emit logMessage(QStringLiteral("🔧 修复中: 已删除 %1 个损坏文件，开始重新下载...").arg(removed));
+    emit logMessage(tr("🔧 修复中: 已删除 %1 个损坏文件，开始重新下载...").arg(removed));
 
     // 清除缓存，避免 cleanCorruptVersion 重复删除
     m_failedPathsCache.clear();
@@ -1576,7 +1576,7 @@ void VersionBackend::repairVersion(const QString& versionId)
 bool VersionBackend::renameVersion(const QString& oldId, const QString& newId)
 {
     if (oldId.isEmpty() || newId.isEmpty()) {
-        emit logMessage(QStringLiteral("重命名失败: ID不能为空"));
+        emit logMessage(tr("重命名失败: ID不能为空"));
         return false;
     }
 
@@ -1585,18 +1585,18 @@ bool VersionBackend::renameVersion(const QString& oldId, const QString& newId)
     const QString newDir = versionsDir + QStringLiteral("/") + newId;
 
     if (!QDir(oldDir).exists()) {
-        emit logMessage(QStringLiteral("重命名失败: 版本 %1 不存在").arg(oldId));
+        emit logMessage(tr("重命名失败: 版本 %1 不存在").arg(oldId));
         return false;
     }
 
     if (QDir(newDir).exists()) {
-        emit logMessage(QStringLiteral("重命名失败: 目标 %1 已存在").arg(newId));
+        emit logMessage(tr("重命名失败: 目标 %1 已存在").arg(newId));
         return false;
     }
 
     // Rename directory
     if (!QDir().rename(oldDir, newDir)) {
-        emit logMessage(QStringLiteral("重命名失败: 无法重命名目录"));
+        emit logMessage(tr("重命名失败: 无法重命名目录"));
         return false;
     }
 
@@ -1614,7 +1614,7 @@ bool VersionBackend::renameVersion(const QString& oldId, const QString& newId)
         QFile::rename(oldJson, newJson);
     }
 
-    emit logMessage(QStringLiteral("版本已重命名: %1 → %2").arg(oldId, newId));
+    emit logMessage(tr("版本已重命名: %1 → %2").arg(oldId, newId));
     refreshInstalled();
     return true;
 }
@@ -1648,7 +1648,7 @@ static bool copyDirRecursive(const QString& srcPath, const QString& dstPath)
 bool VersionBackend::cloneVersion(const QString& sourceId, const QString& newId)
 {
     if (sourceId.isEmpty() || newId.isEmpty()) {
-        emit logMessage(QStringLiteral("克隆失败: ID不能为空"));
+        emit logMessage(tr("克隆失败: ID不能为空"));
         return false;
     }
 
@@ -1657,18 +1657,18 @@ bool VersionBackend::cloneVersion(const QString& sourceId, const QString& newId)
     const QString dstDir = versionsDir + QStringLiteral("/") + newId;
 
     if (!QDir(srcDir).exists()) {
-        emit logMessage(QStringLiteral("克隆失败: 源版本 %1 不存在").arg(sourceId));
+        emit logMessage(tr("克隆失败: 源版本 %1 不存在").arg(sourceId));
         return false;
     }
 
     if (QDir(dstDir).exists()) {
-        emit logMessage(QStringLiteral("克隆失败: 目标 %1 已存在").arg(newId));
+        emit logMessage(tr("克隆失败: 目标 %1 已存在").arg(newId));
         return false;
     }
 
     // Recursively copy
     if (!copyDirRecursive(srcDir, dstDir)) {
-        emit logMessage(QStringLiteral("克隆失败: 复制过程中出错"));
+        emit logMessage(tr("克隆失败: 复制过程中出错"));
         return false;
     }
 
@@ -1685,7 +1685,7 @@ bool VersionBackend::cloneVersion(const QString& sourceId, const QString& newId)
         QFile::rename(oldJson, newJson);
     }
 
-    emit logMessage(QStringLiteral("版本已克隆: %1 → %2").arg(sourceId, newId));
+    emit logMessage(tr("版本已克隆: %1 → %2").arg(sourceId, newId));
     refreshInstalled();
     return true;
 }
@@ -1705,7 +1705,7 @@ QString VersionBackend::copyVersionPath(const QString& versionId)
     }
 #endif
 
-    emit logMessage(QStringLiteral("已复制路径: %1").arg(QDir::toNativeSeparators(path)));
+    emit logMessage(tr("已复制路径: %1").arg(QDir::toNativeSeparators(path)));
     return QDir::toNativeSeparators(path);
 }
 
@@ -1750,24 +1750,24 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         if (loaderType == QStringLiteral("fabric")) {
             // Fabric: 6 steps (3 MC download + 1 MC verify + 1 Fabric download + 1 install)
             rebuildSteps(installName, {
-                QStringLiteral("下载原版 JSON 文件"),
-                QStringLiteral("下载原版支持库文件"),
-                QStringLiteral("下载原版资源文件"),
-                QStringLiteral("校验游戏资源完整性"),
-                QStringLiteral("下载 Fabric 配置"),
-                QStringLiteral("安装 Fabric")
+                tr("下载原版 JSON 文件"),
+                tr("下载原版支持库文件"),
+                tr("下载原版资源文件"),
+                tr("校验游戏资源完整性"),
+                tr("下载 Fabric 配置"),
+                tr("安装 Fabric")
             }, {3.0, 8.0, 5.0, 0.5, 2.0, 1.0},
              {true, true, true, false, true, true});
         } else {
             // Forge/NeoForge: 7 steps (3 MC + 1 MC verify + 1 download + 1 verify + 1 install)
             rebuildSteps(installName, {
-                QStringLiteral("下载原版 JSON 文件"),
-                QStringLiteral("下载原版支持库文件"),
-                QStringLiteral("下载原版资源文件"),
-                QStringLiteral("校验游戏资源完整性"),
-                QStringLiteral("下载 %1 主文件").arg(loaderLabel),
-                QStringLiteral("校验 %1 完整性").arg(loaderLabel),
-                QStringLiteral("安装 %1").arg(loaderLabel)
+                tr("下载原版 JSON 文件"),
+                tr("下载原版支持库文件"),
+                tr("下载原版资源文件"),
+                tr("校验游戏资源完整性"),
+                tr("下载 %1 主文件").arg(loaderLabel),
+                tr("校验 %1 完整性").arg(loaderLabel),
+                tr("安装 %1").arg(loaderLabel)
             }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
              {true, true, true, false, true, false, false});
         }
@@ -1776,7 +1776,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         // ── Run preflight: connectivity test + total bytes ──
         setInstalling(true);
-        setInstallPhase(QStringLiteral("连通性测试中..."));
+        setInstallPhase(tr("连通性测试中..."));
 
         // Determine mirror URL for connectivity test (use manifestUrl — returns 200 reliably)
         QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
@@ -1790,14 +1790,15 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         auto* coord = new DownloadCoordinator(this);
         coord->addSource(QStringLiteral("bmclapi"), mcTestUrl);  // One HEAD covers all BMCLAPI sub-services
+        coord->addSource(QStringLiteral("mojang"), MirrorSource::mojang().manifestUrl);
 
-        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName](qint64) {
+        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName](int sourceIndex, qint64) {
             auto& ses = session(installName);
-            qDebug() << "[Coordinator] Preflight OK, starting MC +" << loaderType << "download in PARALLEL";
-            emit logMessage(QStringLiteral("✓ 连通性测试通过，同时下载 MC 和 ") + loaderType);
+            qDebug() << "[Coordinator] Preflight OK, starting MC +" << loaderType << "download in PARALLEL (mirror" << sourceIndex << ")";
+            emit logMessage(tr("✓ 连通性测试通过，同时下载 MC 和 ") + loaderType);
 
-            // ── 1. Start MC download ──
-            installVersion(mcVersion, 0);
+            // ── 1. Start MC download with the mirror that passed connectivity ──
+            installVersion(mcVersion, sourceIndex);
 
             // ── 2. Fabric: tiny profile JSON, no parallel download needed ──
             if (loaderType == QStringLiteral("fabric")) {
@@ -1950,11 +1951,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         });
         connect(coord, &DownloadCoordinator::connectivityFailed, this,
                 [this, coord, installName](const QString& taskId, const QString& reason) {
-            emit logMessage(QStringLiteral("✗ 连通性测试失败: %1 — %2").arg(taskId).arg(reason));
+            emit logMessage(tr("✗ 连通性测试失败: %1 — %2").arg(taskId).arg(reason));
             // Mark install as failed
             auto& ses = session(installName);
             ses.failed = true;
-            ses.error = QStringLiteral("网络不可达: ") + taskId;
+            ses.error = tr("网络不可达: ") + taskId;
             rebuildInstallCards();
             setInstalling(false);
             coord->deleteLater();
@@ -1970,19 +1971,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
     // Build step list
     if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
-        rebuildSteps(installName, {QStringLiteral("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
-                      QStringLiteral("校验安装程序完整性"),
-                      QStringLiteral("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
+        rebuildSteps(installName, {tr("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
+                      tr("校验安装程序完整性"),
+                      tr("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
                      {3.0, 0.5, 10.0},  // installer 重量级10
                      {true, false, true});  // verify hidden until download completes
     } else if (loaderType == QStringLiteral("fabric")) {
         // Fabric: 2 steps (download + install, no SHA1 verify)
-        rebuildSteps(installName, {QStringLiteral("下载 Fabric 配置"),
-                      QStringLiteral("安装 Fabric")},
+        rebuildSteps(installName, {tr("下载 Fabric 配置"),
+                      tr("安装 Fabric")},
                      {2.0, 1.0},
                      {true, true});
     } else {
-        rebuildSteps(installName, {QStringLiteral("安装 %1").arg(installName)});
+        rebuildSteps(installName, {tr("安装 %1").arg(installName)});
     }
     updateStep(installName, 0, QStringLiteral("active"), 0);
 
@@ -2029,22 +2030,23 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     // Preflight: connectivity test (use manifestUrl, not the actual download URL — HEAD blocked by CDN)
     auto* coord = new DownloadCoordinator(this);
     coord->addSource(QStringLiteral("bmclapi"), QStringLiteral("https://bmclapi2.bangbang93.com/mc/game/version_manifest.json"));
-    setInstallPhase(QStringLiteral("连通性测试中..."));
+    coord->addSource(QStringLiteral("mojang"), MirrorSource::mojang().manifestUrl);
+    setInstallPhase(tr("连通性测试中..."));
     setInstalling(true);
 
     connect(coord, &DownloadCoordinator::ready, this,
-            [this, mcVersion, optifineVersion, forgeVersion, installName, coord](qint64) {
+            [this, mcVersion, optifineVersion, forgeVersion, installName, coord](int /*sourceIndex*/, qint64) {
         coord->deleteLater();
-        emit logMessage(QStringLiteral("✓ OptiFine 连通性测试通过"));
+        emit logMessage(tr("✓ OptiFine 连通性测试通过"));
         m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
     });
     connect(coord, &DownloadCoordinator::connectivityFailed, this,
             [this, coord, installName](const QString& taskId, const QString& reason) {
         coord->deleteLater();
-        emit logMessage(QStringLiteral("✗ OptiFine 连通性测试失败: %1").arg(reason));
+        emit logMessage(tr("✗ OptiFine 连通性测试失败: %1").arg(reason));
         auto& ses = session(installName);
         ses.failed = true;
-        ses.error = QStringLiteral("OptiFine 网络不可达");
+        ses.error = tr("OptiFine 网络不可达");
         rebuildInstallCards();
         setInstalling(false);
     });
@@ -2068,11 +2070,11 @@ void VersionBackend::cancelModLoaderInstall() {
     // Clean up session state
     if (!m_modLoaderInstallId.isEmpty() && m_sessions.contains(m_modLoaderInstallId)) {
         m_sessions[m_modLoaderInstallId].failed = true;
-        m_sessions[m_modLoaderInstallId].error = QStringLiteral("已取消");
+        m_sessions[m_modLoaderInstallId].error = tr("已取消");
     }
     setInstalling(false);
-    setInstallPhase(QStringLiteral("空闲"));
-    emit logMessage(QStringLiteral("安装已取消"));
+    setInstallPhase(tr("空闲"));
+    emit logMessage(tr("安装已取消"));
 }
 
 bool VersionBackend::isModLoaderInstalling() const {
@@ -2389,17 +2391,17 @@ void VersionBackend::doRebuildInstallCards() {
             auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
 
             // JSON downloaded separately before parallel start: completed once download begins
-            addVStep(QStringLiteral("下载版本JSON"),
+            addVStep(tr("下载版本JSON"),
                      verifying ? QStringLiteral("completed")
                                : (st.bytesDl > 0 ? QStringLiteral("completed") : catStatus(0)),
                      verifying ? 100 : (st.bytesDl > 0 ? 100
                          : ((st.catBytesTotal[0] > 0) ? (int)(st.catBytesDl[0] * 100 / st.catBytesTotal[0]) : 0)),
                      catDl(0), catTot(0));
-            addVStep(QStringLiteral("下载支持库"), verifying ? QStringLiteral("completed") : catStatus(1),
+            addVStep(tr("下载支持库"), verifying ? QStringLiteral("completed") : catStatus(1),
                      (st.catBytesTotal[1] > 0) ? (int)(st.catBytesDl[1] * 100 / st.catBytesTotal[1]) : 0, catDl(1), catTot(1));
-            addVStep(QStringLiteral("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
+            addVStep(tr("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
                      (st.catBytesTotal[2] > 0) ? (int)(st.catBytesDl[2] * 100 / st.catBytesTotal[2]) : 0, catDl(2), catTot(2));
-            addVStep(QStringLiteral("校验游戏资源完整性"),
+            addVStep(tr("校验游戏资源完整性"),
                      verifying ? QStringLiteral("active") : QStringLiteral("pending"),
                      verifying ? (st.total > 0 ? (int)(st.progress * 100 / st.total) : 0) : 0,
                      verifying ? st.progress : qint64(0),
@@ -2408,10 +2410,10 @@ void VersionBackend::doRebuildInstallCards() {
             c.steps = vSteps;
         } else {
             // DlState not created yet (no progress signal) — build pending template
-            addVStep(QStringLiteral("下载版本JSON"), QStringLiteral("pending"), 0, 0, 0);
-            addVStep(QStringLiteral("下载支持库"), QStringLiteral("pending"), 0, 0, 0);
-            addVStep(QStringLiteral("下载资源文件"), QStringLiteral("pending"), 0, 0, 0);
-            addVStep(QStringLiteral("校验游戏资源完整性"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(tr("下载版本JSON"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(tr("下载支持库"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(tr("下载资源文件"), QStringLiteral("pending"), 0, 0, 0);
+            addVStep(tr("校验游戏资源完整性"), QStringLiteral("pending"), 0, 0, 0);
             c.steps = vSteps;
         }
         cards.append(c);

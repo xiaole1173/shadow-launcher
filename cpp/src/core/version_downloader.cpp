@@ -1,4 +1,4 @@
-﻿// Shadow Launcher — VersionDownloader
+// Shadow Launcher — VersionDownloader
 // Minecraft version installation pipeline: client.jar + libraries + assets.
 // Uses ParallelDownloader for concurrent multi-file downloads and
 // HttpClient for single-file asset index retrieval.
@@ -124,7 +124,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                                          const QString& versionId)
 {
     if (m_state == Running || m_state == Paused) {
-        emit logMessage(QStringLiteral("⚠ 已有下载任务进行中"));
+        emit logMessage(tr("⚠ 已有下载任务进行中"));
         return;
     }
 
@@ -160,9 +160,9 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     if (jsonFile.open(QIODevice::WriteOnly)) {
         jsonFile.write(doc.toJson(QJsonDocument::Indented));
         jsonFile.close();
-        emit logMessage(QStringLiteral("已保存版本清单: %1").arg(jsonPath));
+        emit logMessage(tr("已保存版本清单: %1").arg(jsonPath));
     } else {
-        emit logMessage(QStringLiteral("⚠ 无法保存版本清单: %1").arg(jsonPath));
+        emit logMessage(tr("⚠ 无法保存版本清单: %1").arg(jsonPath));
     }
 
     // --- Step 2-4: Download asset index async, then collect & start tasks ---
@@ -184,7 +184,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         qint64 totalEstimate = 0;
         for (const auto& t : tasks) totalEstimate += t.totalBytes;
         m_totalBytes.storeRelaxed(totalEstimate);
-        emit logMessage(QStringLiteral("准备下载 %1 个文件").arg(tasks.size()));
+        emit logMessage(tr("准备下载 %1 个文件").arg(tasks.size()));
         // Set checkpoint dir for resume support
         const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
         m_downloader->setCheckpointDir(versionDir);
@@ -205,11 +205,11 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
 
     if (idxUrl.isEmpty() || QFileInfo::exists(idxPath)) { startTasks(); return; }
 
-    emit logMessage(QStringLiteral("正在下载资源索引..."));
+    emit logMessage(tr("正在下载资源索引..."));
     QDir().mkpath(QFileInfo(idxPath).absolutePath());
     HttpClient::instance().downloadWithFallback(idxUrl, idxPath, nullptr,
         [this, startTasks](bool ok, const QString& err) {
-            if (!ok) emit logMessage(QStringLiteral("资源索引下载失败（已尝试镜像）: %1").arg(err));
+            if (!ok) emit logMessage(tr("资源索引下载失败（已尝试镜像）: %1").arg(err));
             startTasks();
         });
 }
@@ -293,21 +293,21 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
                                         const QStringList& failedFiles)
 {
     if (m_state == Cancelled) {
-        emit downloadFinished(false, QStringLiteral("下载已取消"));
+        emit downloadFinished(false, tr("下载已取消"));
         return;
     }
 
     // Report failed files to QML (even before verify — allows partial-resume UI)
     if (!failedFiles.isEmpty()) {
         emit downloadFailedFiles(failedFiles);
-        emit logMessage(QStringLiteral("⚠ 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
+        emit logMessage(tr("⚠ 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
                             .arg(failedFiles.size()));
 
         // ── Mirror fallback: significant failures → retry with next mirror ──
         const double failRate = static_cast<double>(failedCount) / m_totalFiles.loadRelaxed();
         if (m_fallbackIndex + 1 < m_fallbackChain.size() && failRate >= kFallbackThreshold) {
             const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-            emit logMessage(QStringLiteral("🔄 %1%% 文件下载失败, 切换到 %2 重试...")
+            emit logMessage(tr("🔄 %1%% 文件下载失败, 切换到 %2 重试...")
                                 .arg(static_cast<int>(failRate * 100))
                                 .arg(next.name));
             retryWithNextMirror();
@@ -318,7 +318,7 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
     // --- Integrity verification ---
     m_state = Verifying;
     emit stateChanged();
-    emit logMessage(QStringLiteral("🔍 正在进行完整性校验..."));
+    emit logMessage(tr("🔍 正在进行完整性校验..."));
 
     const QStringList missing = verifyAllFiles(m_currentVersionJson, m_currentVersionId);
 
@@ -326,18 +326,18 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
     m_completedFiles.storeRelaxed(m_totalFiles.loadRelaxed());
 
     if (!missing.isEmpty()) {
-        emit logMessage(QStringLiteral("⚠ 完整性检查: %1 个文件缺失").arg(missing.size()));
+        emit logMessage(tr("⚠ 完整性检查: %1 个文件缺失").arg(missing.size()));
         for (int i = 0; i < qMin(missing.size(), 10); ++i)
-            emit logMessage(QStringLiteral("  缺失: %1").arg(missing[i]));
+            emit logMessage(tr("  缺失: %1").arg(missing[i]));
         if (missing.size() > 10)
-            emit logMessage(QStringLiteral("  ... 共 %1 个").arg(missing.size()));
+            emit logMessage(tr("  ... 共 %1 个").arg(missing.size()));
 
         emit downloadFailedFiles(missing);
 
         // ── Mirror fallback: missing files → retry with next mirror ──
         if (m_fallbackIndex + 1 < m_fallbackChain.size()) {
             const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-            emit logMessage(QStringLiteral("🔄 完整性校验未通过 (%1 缺失), 切换到 %2 重试...")
+            emit logMessage(tr("🔄 完整性校验未通过 (%1 缺失), 切换到 %2 重试...")
                                 .arg(missing.size())
                                 .arg(next.name));
             retryWithNextMirror();
@@ -347,17 +347,17 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
         m_state = Failed;
         emit stateChanged();
         emit downloadFinished(false,
-            QStringLiteral("%1 个文件缺失或校验失败").arg(missing.size()));
+            tr("%1 个文件缺失或校验失败").arg(missing.size()));
         return;
     }
 
     if (failedCount > 0) {
-        emit logMessage(QStringLiteral("⚠ %1 个文件下载失败，但已通过完整性校验").arg(failedCount));
+        emit logMessage(tr("⚠ %1 个文件下载失败，但已通过完整性校验").arg(failedCount));
     }
 
     m_state = Done;
     emit stateChanged();
-    emit logMessage(QStringLiteral("✅ 下载完成，所有文件通过校验"));
+    emit logMessage(tr("✅ 下载完成，所有文件通过校验"));
     emit downloadFinished(true, QString());
 }
 
@@ -459,7 +459,7 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         QStringList jarMirrors;
         jarMirrors << origUrl;  // Mojang direct (final fallback)
         for (const MirrorSource& m : MirrorSource::allMirrors()) {
-            if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
+            if (m.name != m_mirror.name && m.name != tr("Mojang 官方")) {
                 QString altUrl = QString(origUrl).replace(
                     QStringLiteral("launcher.mojang.com"), m.jarHost);
                 if (!jarMirrors.contains(altUrl))
@@ -490,7 +490,7 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
     assetMirrorBases << m_mirror.resourceBase;
     // Alternate mirrors, excluding Mojang official
     for (const MirrorSource& m : MirrorSource::allMirrors()) {
-        if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
+        if (m.name != m_mirror.name && m.name != tr("Mojang 官方")) {
             if (!assetMirrorBases.contains(m.resourceBase))
                 assetMirrorBases << m.resourceBase;
         }
@@ -600,7 +600,7 @@ void VersionDownloader::retryWithNextMirror()
 
     m_state = Running;
     emit stateChanged();
-    emit logMessage(QStringLiteral("🔄 已切换到 %1 (%2/%3), 重新下载 %4 个文件")
+    emit logMessage(tr("🔄 已切换到 %1 (%2/%3), 重新下载 %4 个文件")
                         .arg(next.name)
                         .arg(m_fallbackIndex + 1)
                         .arg(m_fallbackChain.size())
@@ -677,7 +677,7 @@ void VersionDownloader::addLibraryTasks(const QJsonObject& lib,
         QStringList libMirrors;
         libMirrors << url;  // Mojang direct (original URL)
         for (const MirrorSource& m : MirrorSource::allMirrors()) {
-            if (m.name != m_mirror.name && m.name != QStringLiteral("Mojang 官方")) {
+            if (m.name != m_mirror.name && m.name != tr("Mojang 官方")) {
                 // Replace the Mojang library host with the alternate mirror's libraryBase
                 QString altUrl = QString(url).replace(
                     QStringLiteral("https://libraries.minecraft.net"),
@@ -724,7 +724,7 @@ void VersionDownloader::addLibraryTasks(const QJsonObject& lib,
 QString VersionDownloader::buildMirrorUrl(const QString& originalUrl,
                                            const QString& kind) const
 {
-    if (originalUrl.isEmpty() || m_mirror.name == QStringLiteral("Mojang 官方"))
+    if (originalUrl.isEmpty() || m_mirror.name == tr("Mojang 官方"))
         return originalUrl;
 
     // Replace the full Mojang URL prefix (scheme+host) with the mirror's base URL.

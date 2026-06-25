@@ -40,6 +40,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int maxMemoryMb READ maxMemoryMb NOTIFY memorySettingsChanged)
     Q_PROPERTY(bool closeAfterLaunch READ closeAfterLaunch NOTIFY generalSettingsChanged)
     Q_PROPERTY(bool isolationEnabled READ isolationEnabled NOTIFY isolationChanged)
+    Q_PROPERTY(bool embeddedLoginEnabled READ embeddedLoginEnabled WRITE setEmbeddedLoginEnabled NOTIFY embeddedLoginChanged)
     Q_PROPERTY(QVariantList availableJavaList READ availableJavaList NOTIFY javaPathChanged)
 
     // ── Version ──
@@ -131,6 +132,8 @@ public:
     int maxMemoryMb() const;
     bool closeAfterLaunch() const;
     bool isolationEnabled() const;
+    bool embeddedLoginEnabled() const;
+    Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
     QVariantList availableJavaList() const;
 
     // ── Version getters ──
@@ -334,6 +337,7 @@ signals:
     void jvmArgsChanged();
     void generalSettingsChanged();
     void isolationChanged();
+    void embeddedLoginChanged();
     void versionListReady();
     void versionDetailsReady();
     void installedVersionsChanged();

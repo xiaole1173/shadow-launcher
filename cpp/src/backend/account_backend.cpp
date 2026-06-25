@@ -49,8 +49,9 @@ AccountBackend::AccountBackend(QObject *parent)
     });
     connect(m_msAuth, &MicrosoftAuth::loginSuccess, this, [this](const QString& mcToken, const QString& username, const QString& uuid, const QString& refreshToken, int expiresIn) {
         m_msMcToken = mcToken;
-        // Only update refreshToken if non-empty (preserve existing during refresh)
-        if (!refreshToken.isEmpty()) {
+        // Only update refreshToken if non-empty AND not during background refresh
+        // (refreshMicrosoftToken already stored the new token before calling refreshMcChain)
+        if (!m_refreshingToken && !refreshToken.isEmpty()) {
             m_msRefreshToken = refreshToken;
         }
         m_username = username;
@@ -71,7 +72,7 @@ AccountBackend::AccountBackend(QObject *parent)
             emit microsoftLoginSuccess(username, uuid);
         }
         emit accountChanged();
-        emit logMessage(QStringLiteral("正版登录成功: %1").arg(username));
+        emit logMessage(tr("正版登录成功: %1").arg(username));
         downloadSkin(username);
     });
     connect(m_msAuth, &MicrosoftAuth::loginFailed, this, [this](const QString& error) {
@@ -94,7 +95,7 @@ void AccountBackend::offlineLogin(const QString &username)
 {
     QString name = username.trimmed();
     if (name.isEmpty()) {
-        emit logMessage(QStringLiteral("用户名不能为空"));
+        emit logMessage(tr("用户名不能为空"));
         return;
     }
 
@@ -119,7 +120,7 @@ void AccountBackend::offlineLogin(const QString &username)
     updateOfflineSkin(name);
 
     qCInfo(logAccount) << "Offline login:" << name << "UUID:" << m_offlineUuid;
-    emit logMessage(QStringLiteral("离线登录: %1").arg(name));
+    emit logMessage(tr("离线登录: %1").arg(name));
 
     // Skin handled by updateOfflineSkin() above — no downloadSkin() call here
 }
@@ -222,22 +223,38 @@ void AccountBackend::logout()
 
     emit accountChanged();
     qCInfo(logAccount) << "Logged out";
-    emit logMessage(QStringLiteral("已登出"));
+    emit logMessage(tr("已登出"));
 }
 
 // ────────────────────────────────────────────────────────────
 // Microsoft Login
 // ────────────────────────────────────────────────────────────
 
+void AccountBackend::setEmbeddedLoginEnabled(bool v)
+{
+    if (m_embeddedLoginEnabled != v) {
+        m_embeddedLoginEnabled = v;
+        emit embeddedLoginChanged();
+        qCInfo(logAccount) << "Embedded login" << (v ? "enabled" : "disabled");
+    }
+}
+
 void AccountBackend::microsoftLogin()
 {
     if (!m_msAuth) return;
     if (m_msAuth->isBusy()) {
-        emit logMessage(QStringLiteral("Microsoft 登录已在进行中"));
+        emit logMessage(tr("Microsoft 登录已在进行中"));
         return;
     }
     emit microsoftLoginBusyChanged();
-    m_msAuth->startLogin(QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f"));
+    const QString clientId = QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f");
+    if (m_embeddedLoginEnabled) {
+        qCInfo(logAccount) << "Using embedded CEF login";
+        m_msAuth->startEmbeddedLogin(clientId);
+    } else {
+        qCInfo(logAccount) << "Using localhost callback login";
+        m_msAuth->startLogin(clientId);
+    }
 }
 
 void AccountBackend::cancelMicrosoftLogin()
@@ -741,7 +758,7 @@ void AccountBackend::refreshMicrosoftToken()
 
     QByteArray body = postData.toString(QUrl::FullyEncoded).toUtf8();
 
-    QNetworkRequest req(QUrl(QStringLiteral("https://login.live.com/oauth20_token.srf")));
+    QNetworkRequest req(QUrl(QStringLiteral("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
     req.setTransferTimeout(10000);
 
@@ -757,7 +774,7 @@ void AccountBackend::refreshMicrosoftToken()
             emit tokenRefreshed(false);
             // Don't auto-clear session or jump to login form —
             // let the user decide when to re-authenticate
-            emit logMessage(QStringLiteral("正版登录已失效，请重新登录"));
+            emit logMessage(tr("正版登录已失效，请重新登录"));
             return;
         }
 

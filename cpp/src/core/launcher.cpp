@@ -78,7 +78,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
 
     // --- Abort if already running ---
     if (isRunning()) {
-        emit launchFinished(false, QStringLiteral("另一个 Minecraft 实例已在运行"));
+        emit launchFinished(false, tr("另一个 Minecraft 实例已在运行"));
         return;
     }
 
@@ -91,7 +91,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
                        + QStringLiteral("/") + versionId + QStringLiteral(".json");
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
-        emit launchFinished(false, QStringLiteral("无法读取版本配置: %1").arg(jsonPath));
+        emit launchFinished(false, tr("无法读取版本配置: %1").arg(jsonPath));
         return;
     }
 
@@ -100,7 +100,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     jsonFile.close();
 
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
-        emit launchFinished(false, QStringLiteral("版本配置格式错误: %1").arg(parseErr.errorString()));
+        emit launchFinished(false, tr("版本配置格式错误: %1").arg(parseErr.errorString()));
         return;
     }
 
@@ -115,7 +115,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     // --- Build arguments ---
     QStringList args = buildArgs(versionId, maxMemoryMB, versionJson);
 
-    emit launchProgress(QStringLiteral("启动 Minecraft %1...").arg(versionId));
+    emit launchProgress(tr("启动 Minecraft %1...").arg(versionId));
 
     m_process->setWorkingDirectory(m_gameDir);
     m_process->start(javaPath, args);
@@ -126,7 +126,7 @@ void Launcher::cancel()
     if (!isRunning()) return;
 
     m_cancelling = true;
-    emit launchProgress(QStringLiteral("正在停止 Minecraft..."));
+    emit launchProgress(tr("正在停止 Minecraft..."));
 
     // Graceful close
     m_process->closeWriteChannel();
@@ -161,7 +161,7 @@ void Launcher::onProcessStarted()
 {
     m_pid = m_process->processId();
     emit launchStarted();
-    emit launchProgress(QStringLiteral("Minecraft 进程已启动 (PID: %1)")
+    emit launchProgress(tr("Minecraft 进程已启动 (PID: %1)")
                         .arg(m_pid));
 }
 
@@ -192,7 +192,7 @@ void Launcher::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
     } else if (exitCode == 0) {
         emit launchFinished(true, QString());
     } else {
-        QString msg = QStringLiteral("Minecraft 异常退出 (退出码: %1)").arg(exitCode);
+        QString msg = tr("Minecraft 异常退出 (退出码: %1)").arg(exitCode);
         emit launchFinished(false, msg);
     }
 }
@@ -210,8 +210,8 @@ void Launcher::onProcessError(QProcess::ProcessError error)
 
     int idx = static_cast<int>(error);
     QString msg = (idx >= 1 && idx <= 5)
-        ? QStringLiteral("启动失败: %1").arg(QString::fromLatin1(messages[idx]))
-        : QStringLiteral("未知进程错误");
+        ? tr("启动失败: %1").arg(QString::fromLatin1(messages[idx]))
+        : tr("未知进程错误");
 
     emit launchProgress(msg);
     emit launchFinished(false, msg);
@@ -226,28 +226,28 @@ bool Launcher::validateLaunch(const QString& versionId, const QString& javaPath,
 {
     // 1. Java executable exists
     if (!QFileInfo::exists(javaPath)) {
-        errorMsg = QStringLiteral("Java 未找到: %1").arg(javaPath);
+        errorMsg = tr("Java 未找到: %1").arg(javaPath);
         return false;
     }
 
     // 2. Version directory exists
     QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
     if (!QDir(versionDir).exists()) {
-        errorMsg = QStringLiteral("版本目录不存在: %1").arg(versionDir);
+        errorMsg = tr("版本目录不存在: %1").arg(versionDir);
         return false;
     }
 
     // 3. Version JAR exists
     QString jarPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
     if (!QFileInfo::exists(jarPath)) {
-        errorMsg = QStringLiteral("版本核心文件缺失: %1").arg(jarPath);
+        errorMsg = tr("版本核心文件缺失: %1").arg(jarPath);
         return false;
     }
 
     // 4. Version JSON exists
     QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
     if (!QFileInfo::exists(jsonPath)) {
-        errorMsg = QStringLiteral("版本配置文件缺失: %1").arg(jsonPath);
+        errorMsg = tr("版本配置文件缺失: %1").arg(jsonPath);
         return false;
     }
 

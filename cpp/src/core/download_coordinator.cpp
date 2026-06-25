@@ -26,11 +26,11 @@ void DownloadCoordinator::addSource(const QString& taskId, const QString& url)
 void DownloadCoordinator::start()
 {
     if (m_sources.isEmpty()) {
-        emit ready(0);
+        emit ready(0, 0);
         return;
     }
 
-    emit phaseChanged(QStringLiteral("连通性测试..."));
+    emit phaseChanged(tr("连通性测试..."));
     runHeads();
 }
 
@@ -38,6 +38,7 @@ void DownloadCoordinator::runHeads()
 {
     m_pendingHeads = m_sources.size();
     m_totalBytes = 0;
+    m_failedSources.clear();
 
     for (const auto& src : m_sources) {
         QUrl url(src.url);
@@ -63,7 +64,11 @@ void DownloadCoordinator::onHeadReply()
 
     if (reply->error() != QNetworkReply::NoError) {
         qDebug() << "[Coordinator] FAILED:" << taskId << reply->errorString();
-        emit connectivityFailed(taskId, reply->errorString());
+        m_failedSources.insert(taskId);
+        m_pendingHeads--;
+        if (m_pendingHeads <= 0) {
+            onAllHeadsDone();
+        }
         return;
     }
 
@@ -91,9 +96,30 @@ void DownloadCoordinator::onHeadReply()
 
 void DownloadCoordinator::onAllHeadsDone()
 {
-    emit phaseChanged(QStringLiteral("准备下载..."));
-    qDebug() << "[Coordinator] All sources OK. Total bytes:" << m_totalBytes;
-    emit ready(m_totalBytes);
+    // Check if all sources failed
+    const int totalSources = m_sources.size();
+    if (m_failedSources.size() >= totalSources) {
+        qWarning() << "[Coordinator] ALL sources failed." << m_failedSources;
+        for (const QString& taskId : m_failedSources) {
+            emit connectivityFailed(taskId, tr("网络不可达"));
+        }
+        return;
+    }
+
+    // At least one source passed — find the first passed source index
+    int passedIndex = 0;
+    for (int i = 0; i < m_sources.size(); ++i) {
+        if (!m_failedSources.contains(m_sources[i].taskId)) {
+            passedIndex = i;
+            break;
+        }
+    }
+
+    emit phaseChanged(tr("准备下载..."));
+    qDebug() << "[Coordinator] Using source index" << passedIndex
+             << "Total bytes:" << m_totalBytes
+             << "Failed:" << m_failedSources;
+    emit ready(passedIndex, m_totalBytes);
 }
 
 } // namespace ShadowLauncher

@@ -93,6 +93,7 @@ private:
     void runInstallerProcess(const QByteArray& jarData);
     void writeNeoForgeVersion(const QJsonObject& versionInfo);
     void renameVersionFolder(const QString& oldName, const QString& newName);
+    void cleanupAfterInstall(const QStringList& dirsToClean);
 
     // Fabric
     void fabricStep1_downloadProfile();

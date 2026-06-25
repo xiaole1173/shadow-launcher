@@ -90,7 +90,7 @@ CrashReport CrashDetector::parseJvmCrash(const QString& filePath)
             auto m = sigRe.match(line);
             if (m.hasMatch()) {
                 r.reason = m.captured(1);
-                r.description = QStringLiteral("JVM 崩溃: %1").arg(r.reason);
+                r.description = tr("JVM 崩溃: %1").arg(r.reason);
                 break;
             }
 
@@ -101,7 +101,7 @@ CrashReport CrashDetector::parseJvmCrash(const QString& filePath)
             m = internalRe.match(line);
             if (m.hasMatch()) {
                 r.reason = m.captured(1).trimmed();
-                r.description = QStringLiteral("JVM 内部错误: %1").arg(r.reason);
+                r.description = tr("JVM 内部错误: %1").arg(r.reason);
                 break;
             }
         }
@@ -109,7 +109,7 @@ CrashReport CrashDetector::parseJvmCrash(const QString& filePath)
 
     if (r.reason.isEmpty()) {
         r.reason = QStringLiteral("Unknown JVM crash");
-        r.description = QStringLiteral("JVM 异常崩溃，详见崩溃报告");
+        r.description = tr("JVM 异常崩溃，详见崩溃报告");
     }
 
     r.suspectedMods = extractSuspectedMods(lines);

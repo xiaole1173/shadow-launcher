@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(ShadowLauncher VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)  # Qt default
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -21,6 +21,9 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     QuickLayouts
     Network
     Widgets
+    WebEngineQuick
+    WebEngineWidgets
+    LinguistTools
 )
 
 # nlohmann/json (header-only — manually downloaded)
@@ -59,7 +62,6 @@ set(SOURCES
     src/core/mod_loader_installer.cpp
     src/core/download_coordinator.cpp
     src/core/crash_detector.cpp
-
     # Backend (Phase 3 — added progressively)
     src/backend/app_backend.cpp
     src/backend/settings_backend.cpp
@@ -150,6 +152,20 @@ qt6_add_resources(ShadowLauncher "qml_resources"
 )
 target_include_directories(ShadowLauncher PRIVATE src)
 
+# ── Multi-language translations ──
+file(GLOB_RECURSE I18N_QML_SOURCES "${CMAKE_SOURCE_DIR}/qml/*.qml")
+file(GLOB_RECURSE I18N_CPP_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h")
+qt_add_translations(ShadowLauncher
+    TS_FILES
+        i18n/shadow_zh_CN.ts
+        i18n/shadow_zh_HK.ts
+        i18n/shadow_zh_TW.ts
+    SOURCES
+        ${I18N_QML_SOURCES}
+        ${I18N_CPP_SOURCES}
+    RESOURCE_PREFIX /i18n
+)
+
 # ── libwebp (static, for webp→PNG icon decoding) ──
 set(WEBP_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/libwebp")
 target_include_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/include")
@@ -168,9 +184,12 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::QuickLayouts
     Qt6::Network
     Qt6::Widgets
+    Qt6::WebEngineQuick
+    Qt6::WebEngineWidgets
     nlohmann_json
     libwebp
 )
+
 # cpr::cpr — added when libcurl is installed
 
 # Windows: hide console window

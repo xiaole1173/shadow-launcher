@@ -1,4 +1,4 @@
-﻿#include "resource_backend.h"
+#include "resource_backend.h"
 #include "core/mod_manager.h"
 #include "core/http_client.h"
 
@@ -82,7 +82,7 @@ QVariantList ResourceBackend::getPopularMods(const QString& loader)
         entry[QStringLiteral("category")] = info[QStringLiteral("category")].toString();
         result.append(entry);
     }
-    emit logMessage(QStringLiteral("加载 %1 个 %2 推荐Mod")
+    emit logMessage(tr("加载 %1 个 %2 推荐Mod")
                         .arg(result.size())
                         .arg(loader.toUpper()));
     return result;
@@ -102,7 +102,7 @@ QVariantList ResourceBackend::getShaderList()
         entry[QStringLiteral("downloads")] = 0;
         result.append(entry);
     }
-    emit logMessage(QStringLiteral("加载 %1 个光影包").arg(result.size()));
+    emit logMessage(tr("加载 %1 个光影包").arg(result.size()));
     return result;
 }
 
@@ -116,7 +116,7 @@ void ResourceBackend::searchMods(const QString& query, const QString& loader)
     if (!loader.isEmpty())
         loaders << loader;
 
-    emit logMessage(QStringLiteral("🔍 正在搜索Mod: %1 (%2)...").arg(query, loader));
+    emit logMessage(tr("🔍 正在搜索Mod: %1 (%2)...").arg(query, loader));
     m_modMgr->searchModrinthProjects(query, {QStringLiteral("project_type:mod")}, {}, loaders, 0, 20,
                              QStringLiteral("relevance"));
 }
@@ -171,7 +171,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
         facetArr.append(licGroup);
     }
 
-    emit logMessage(QStringLiteral("🔍 搜索Mod(ex): q=%1 loader=%2 cat=%3 ver=%4 env=%5 lic=%6 offset=%7")
+    emit logMessage(tr("🔍 搜索Mod(ex): q=%1 loader=%2 cat=%3 ver=%4 env=%5 lic=%6 offset=%7")
                         .arg(query, loader, category, gameVersions.join(','),
                              environment, license).arg(offset));
 
@@ -195,7 +195,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     url.setQuery(params);
 
     m_modMgr->setBusy(true);
-    emit logMessage(QStringLiteral("请求URL: %1").arg(url.toString()));
+    emit logMessage(tr("请求URL: %1").arg(url.toString()));
 
     HttpClient::instance().get(url.toString(),
         [this](int status, const QByteArray& body) {
@@ -235,14 +235,14 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
                     list.append(entry);
                 }
                 emit searchResultsReady(list);
-                emit logMessage(QStringLiteral("搜索完成，共 %1 个结果").arg(totalHits));
+                emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
             } else {
-                emit logMessage(QStringLiteral("搜索失败: HTTP %1").arg(status));
+                emit logMessage(tr("搜索失败: HTTP %1").arg(status));
             }
             m_modMgr->setBusy(false);
         },
         [this](const QString& error) {
-            emit logMessage(QStringLiteral("网络错误: %1").arg(error));
+            emit logMessage(tr("网络错误: %1").arg(error));
             m_modMgr->setBusy(false);
         }
     );
@@ -251,25 +251,25 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
 QVariantMap ResourceBackend::getModCategories()
 {
     QVariantMap map;
-    map[QStringLiteral("adventure")] = QStringLiteral("冒险类");
-    map[QStringLiteral("cursed")] = QStringLiteral("猎奇诡异类");
-    map[QStringLiteral("decoration")] = QStringLiteral("装饰类");
-    map[QStringLiteral("economy")] = QStringLiteral("经济系统类");
-    map[QStringLiteral("equipment")] = QStringLiteral("装备武器类");
-    map[QStringLiteral("food")] = QStringLiteral("食物食材类");
-    map[QStringLiteral("game-mechanics")] = QStringLiteral("游戏机制类");
-    map[QStringLiteral("library")] = QStringLiteral("前置依赖库");
-    map[QStringLiteral("magic")] = QStringLiteral("魔法类");
-    map[QStringLiteral("management")] = QStringLiteral("管理辅助类");
-    map[QStringLiteral("minigame")] = QStringLiteral("迷你小游戏类");
-    map[QStringLiteral("mobs")] = QStringLiteral("生物怪物类");
-    map[QStringLiteral("optimization")] = QStringLiteral("性能优化类");
-    map[QStringLiteral("social")] = QStringLiteral("社交交互类");
-    map[QStringLiteral("storage")] = QStringLiteral("仓储存储类");
-    map[QStringLiteral("technology")] = QStringLiteral("科技工业类");
-    map[QStringLiteral("transportation")] = QStringLiteral("交通载具类");
-    map[QStringLiteral("utility")] = QStringLiteral("实用工具类");
-    map[QStringLiteral("world-generation")] = QStringLiteral("世界生成类");
+    map[QStringLiteral("adventure")] = tr("冒险类");
+    map[QStringLiteral("cursed")] = tr("猎奇诡异类");
+    map[QStringLiteral("decoration")] = tr("装饰类");
+    map[QStringLiteral("economy")] = tr("经济系统类");
+    map[QStringLiteral("equipment")] = tr("装备武器类");
+    map[QStringLiteral("food")] = tr("食物食材类");
+    map[QStringLiteral("game-mechanics")] = tr("游戏机制类");
+    map[QStringLiteral("library")] = tr("前置依赖库");
+    map[QStringLiteral("magic")] = tr("魔法类");
+    map[QStringLiteral("management")] = tr("管理辅助类");
+    map[QStringLiteral("minigame")] = tr("迷你小游戏类");
+    map[QStringLiteral("mobs")] = tr("生物怪物类");
+    map[QStringLiteral("optimization")] = tr("性能优化类");
+    map[QStringLiteral("social")] = tr("社交交互类");
+    map[QStringLiteral("storage")] = tr("仓储存储类");
+    map[QStringLiteral("technology")] = tr("科技工业类");
+    map[QStringLiteral("transportation")] = tr("交通载具类");
+    map[QStringLiteral("utility")] = tr("实用工具类");
+    map[QStringLiteral("world-generation")] = tr("世界生成类");
     return map;
 }
 
@@ -279,7 +279,7 @@ void ResourceBackend::searchShaders(const QString& query, const QString& gameVer
     if (!gameVersion.isEmpty())
         versions << gameVersion;
 
-    emit logMessage(QStringLiteral("🔍 正在搜索光影: %1...").arg(query));
+    emit logMessage(tr("🔍 正在搜索光影: %1...").arg(query));
     m_modMgr->searchModrinthProjects(query, {QStringLiteral("project_type:shader")}, versions, {}, 0, 20,
                              QStringLiteral("downloads"));
 }
@@ -291,7 +291,7 @@ void ResourceBackend::searchShaders(const QString& query, const QString& gameVer
 void ResourceBackend::downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir)
 {
     if (m_downloading) {
-        emit logMessage(QStringLiteral("已有下载任务进行中"));
+        emit logMessage(tr("已有下载任务进行中"));
         return;
     }
 
@@ -299,7 +299,7 @@ void ResourceBackend::downloadMod(const QString& slug, const QString& gameVersio
     emit downloadStateChanged();
 
     QString destDir = minecraftDir.isEmpty() ? m_minecraftDir : minecraftDir;
-    emit logMessage(QStringLiteral("正在查找 %1 MC%2 的最新版本...").arg(slug, gameVersion));
+    emit logMessage(tr("正在查找 %1 MC%2 的最新版本...").arg(slug, gameVersion));
     m_modMgr->downloadMod(slug, gameVersion, QStringLiteral("fabric"), destDir,
                           QStringLiteral("mods"));
 }
@@ -307,7 +307,7 @@ void ResourceBackend::downloadMod(const QString& slug, const QString& gameVersio
 void ResourceBackend::downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir)
 {
     if (m_downloading) {
-        emit logMessage(QStringLiteral("已有下载任务进行中"));
+        emit logMessage(tr("已有下载任务进行中"));
         return;
     }
 
@@ -315,13 +315,13 @@ void ResourceBackend::downloadShader(const QString& slug, const QString& gameVer
     emit downloadStateChanged();
 
     QString destDir = minecraftDir.isEmpty() ? m_minecraftDir : minecraftDir;
-    emit logMessage(QStringLiteral("正在查找 %1 MC%2 的最新版本...").arg(slug, gameVersion));
+    emit logMessage(tr("正在查找 %1 MC%2 的最新版本...").arg(slug, gameVersion));
     m_modMgr->downloadShader(slug, gameVersion, destDir);
 }
 
 void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories)
 {
-    emit logMessage(QStringLiteral("[MODRINTH] 搜索资源包: q=%1 gv=%2 offset=%3 cats=%4").arg(query, gameVersion).arg(offset).arg(categories.join(QChar(','))));
+    emit logMessage(tr("[MODRINTH] 搜索资源包: q=%1 gv=%2 offset=%3 cats=%4").arg(query, gameVersion).arg(offset).arg(categories.join(QChar(','))));
     m_modMgr->searchResourcepacks(query, gameVersion.isEmpty()
                                   ? QStringList{} : QStringList{gameVersion},
                                   categories, offset);
@@ -330,14 +330,14 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
 void ResourceBackend::downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir)
 {
     if (m_downloading) {
-        emit logMessage(QStringLiteral("⚠️ 已有下载任务进行中"));
+        emit logMessage(tr("⚠️ 已有下载任务进行中"));
         return;
     }
 
     m_downloading = true;
     emit downloadStateChanged();
 
-    emit logMessage(QStringLiteral("🔍 正在查找资源包 %1 ...").arg(slug));
+    emit logMessage(tr("🔍 正在查找资源包 %1 ...").arg(slug));
     QString destDir = minecraftDir.isEmpty() ? m_minecraftDir : minecraftDir;
     m_modMgr->downloadResourcepack(slug, gameVersion, destDir);
 }
@@ -400,7 +400,7 @@ void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHi
         list.append(entry);
     }
 
-    emit logMessage(QStringLiteral("找到 %1 个结果").arg(list.size()));
+    emit logMessage(tr("找到 %1 个结果").arg(list.size()));
     emit searchResultsReady(list);
 }
 
@@ -422,9 +422,9 @@ void ResourceBackend::onDownloadFinished(const QString& slug, bool success,
     emit downloadStateChanged();
 
     if (success) {
-        emit logMessage(QStringLiteral("✅ %1 下载完成").arg(slug));
+        emit logMessage(tr("✅ %1 下载完成").arg(slug));
     } else {
-        emit logMessage(QStringLiteral("❌ %1 下载失败，请检查版本兼容性").arg(slug));
+        emit logMessage(tr("❌ %1 下载失败，请检查版本兼容性").arg(slug));
     }
 
     emit downloadFinished(slug, success, filePath);
@@ -469,7 +469,7 @@ void ResourceBackend::onResourcepackSearchCompleted(const QJsonArray& results, i
         entry[QStringLiteral("resolutions")] = resList;
         list.append(entry);
     }
-    emit logMessage(QStringLiteral("找到 %1 个资源包").arg(list.size()));
+    emit logMessage(tr("找到 %1 个资源包").arg(list.size()));
     emit resourcepackSearchCompleted(list, totalHits);
 }
 

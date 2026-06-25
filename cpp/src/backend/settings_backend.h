@@ -21,6 +21,9 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(bool closeAfterLaunch READ closeAfterLaunch NOTIFY generalSettingsChanged)
     Q_PROPERTY(bool javaReady READ isJavaReady NOTIFY javaPathChanged)
     Q_PROPERTY(bool isolationEnabled READ isolationEnabled NOTIFY isolationChanged)
+    Q_PROPERTY(bool embeddedLoginEnabled READ embeddedLoginEnabled WRITE setEmbeddedLoginEnabled NOTIFY embeddedLoginChanged)
+    Q_PROPERTY(int languageIndex READ languageIndex WRITE setLanguageIndex NOTIFY languageChanged)
+    Q_PROPERTY(bool languageChanged READ isLanguageChanged NOTIFY languageChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -68,6 +71,12 @@ public:
     Q_INVOKABLE void deleteVersion(const QString& versionId);
     Q_INVOKABLE void openPath(const QString& path);
     Q_INVOKABLE void setCloseAfterLaunch(bool enabled);
+    bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
+    Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
+    int languageIndex() const { return m_languageIndex; }
+    Q_INVOKABLE void setLanguageIndex(int idx);
+    bool isLanguageChanged() const { return m_languageIndex != m_launchLanguageIndex; }
+    Q_INVOKABLE void restartApp();
     void setIsolationGameDir(const QString& dir);
     VersionIsolation* isolation() const { return m_isolation; }
 
@@ -77,6 +86,8 @@ signals:
     void memorySettingsChanged();
     void generalSettingsChanged();
     void isolationChanged();
+    void embeddedLoginChanged();
+    void languageChanged();
     void logMessage(const QString& msg);
 
 private:
@@ -109,6 +120,9 @@ private:
     QString m_lastSelectedVersion;
     bool m_javaReady = false;
     QString m_gameDir;
+    bool m_embeddedLoginEnabled = false;
+    int m_languageIndex = 0;
+    int m_launchLanguageIndex = 0;
     VersionIsolation* m_isolation = nullptr;
 
     // Cache for Java scan results (expensive operation)
