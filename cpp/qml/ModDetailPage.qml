@@ -34,9 +34,6 @@ Rectangle {
 
     signal goBack()
 
-    // Exit fade-out timer
-    Timer { id: fadeOutTimer; interval: 360; onTriggered: root.goBack() }
-
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
         if (modDetailSlug && backend) {
@@ -170,8 +167,7 @@ Rectangle {
                     onClicked: {
                         backBtnRect._eScale = 0.92
                         backRestoreTimer.restart()
-                        root.opacity = 0
-                        fadeOutTimer.start()
+                        root.goBack()
                     }
                 }
             }

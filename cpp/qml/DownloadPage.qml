@@ -3013,7 +3013,14 @@ Rectangle {
         color: "#0c0f16"
         z: 10
         opacity: page._showRpDetail ? 1 : 0
-        visible: opacity > 0
+        visible: page._showRpDetail
+
+        // Exit fade-out animation
+        SequentialAnimation {
+            id: rpExitAnim
+            NumberAnimation { target: rpDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            ScriptAction { script: { page._showRpDetail = false; rpDetailLoader._keepActive = false } }
+        }
 
         Loader {
             id: rpDetailLoader
@@ -3025,7 +3032,7 @@ Rectangle {
             onLoaded: {
                 _keepActive = true
                 if (item) {
-                    item.goBack.connect(function() { parent.opacity = 0; _showRpDetail = false; _keepActive = false })
+                    item.goBack.connect(function() { rpExitAnim.start() })
                     item.backend = backend
                     item.toastManager = toastManager
                     item.mainWindow = mainWindow
@@ -3072,7 +3079,14 @@ Rectangle {
         color: "#0c0f16"
         z: 10
         opacity: page._showModDetail ? 1 : 0
-        visible: opacity > 0
+        visible: page._showModDetail
+
+        // Exit fade-out animation
+        SequentialAnimation {
+            id: modExitAnim
+            NumberAnimation { target: modDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            ScriptAction { script: { page._showModDetail = false; modDetailLoader._keepActive = false } }
+        }
 
         Loader {
             id: modDetailLoader
@@ -3084,7 +3098,7 @@ Rectangle {
             onLoaded: {
                 _keepActive = true
                 if (item) {
-                    item.goBack.connect(function() { parent.opacity = 0; _showModDetail = false; _keepActive = false })
+                    item.goBack.connect(function() { modExitAnim.start() })
                     item.backend = backend
                     item.toastManager = toastManager
                     item.mainWindow = mainWindow
