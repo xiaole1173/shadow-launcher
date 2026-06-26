@@ -452,7 +452,8 @@ Rectangle {
 
                 Rectangle {
                     height: 30; radius: 15
-                    width: Math.min(pillRow.implicitWidth + 20, 140)
+                    Layout.preferredWidth: Math.max(60, Math.min(pillRow.implicitWidth + 20, 140))
+                    Layout.minimumWidth: 60
                     color: page.currentFilter === modelData.key ? "#3a4eb8" : "#11141c"
                     border.color: page.currentFilter === modelData.key ? "#3a4eb8" : "#1e2230"
                     border.width: 1
