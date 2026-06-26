@@ -863,7 +863,7 @@ Rectangle {
                     var r = results[j]
                     var iconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                     if (iconUrl && backend && backend.iconCache) {
-                        iconUrl = backend.iconCache.resolveUrl(iconUrl)
+                        iconUrl = backend.resolveIconUrl(iconUrl)
                         urlsToCache.push(iconUrl)
                     }
                     modResultsModel.append({
@@ -878,7 +878,7 @@ Rectangle {
                 }
                 page.modSearching = false
                 if (urlsToCache.length > 0 && backend && backend.iconCache) {
-                    backend.iconCache.cacheBatchAsync(urlsToCache)
+                    backend.cacheIconBatchAsync(urlsToCache)
                 }
             }
         }
@@ -2808,7 +2808,7 @@ Rectangle {
                 slugs.push(r.slug)
                 var rpIconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                 if (rpIconUrl && backend && backend.iconCache) {
-                    rpIconUrl = backend.iconCache.resolveUrl(rpIconUrl)
+                    rpIconUrl = backend.resolveIconUrl(rpIconUrl)
                 }
                 rpResultsModel.append({
                     slug: r.slug || "",

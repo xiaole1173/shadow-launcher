@@ -930,6 +930,21 @@ QObject* ShadowBackend::modManager() const
     return m_resource ? m_resource->modManager() : nullptr;
 }
 
+QString ShadowBackend::resolveIconUrl(const QString &url)
+{
+    return m_iconCache ? m_iconCache->resolveUrl(url) : url;
+}
+
+void ShadowBackend::cacheIconBatchAsync(const QStringList &urls)
+{
+    if (m_iconCache) m_iconCache->cacheBatchAsync(urls);
+}
+
+QString ShadowBackend::iconCachedPath(const QString &url) const
+{
+    return m_iconCache ? m_iconCache->cachedPath(url) : QString();
+}
+
 qint64 ShadowBackend::diskFree() const
 {
     QStorageInfo storage(m_app->gameDir());

@@ -449,7 +449,11 @@ public:
     LaunchBackend* launchBackend() const { return m_launch; }
     ResourceBackend* resource() const { return m_resource; }
     QObject* modManager() const;  // QML exposed (returns m_resource->modManager())
-    Q_INVOKABLE IconCache* iconCache() const { return m_iconCache; }
+
+    // ── Icon cache (QML-callable methods proxied to m_iconCache) ──
+    Q_INVOKABLE QString resolveIconUrl(const QString &url);
+    Q_INVOKABLE void cacheIconBatchAsync(const QStringList &urls);
+    Q_INVOKABLE QString iconCachedPath(const QString &url) const;
 
 private:
     int requiredJavaMajor(const QString& versionId);
