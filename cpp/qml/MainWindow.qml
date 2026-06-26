@@ -370,7 +370,7 @@ Window {
                 // ── Right-side header (matched to SHADOW height, sidebar color) ──
                 Rectangle {
                     Layout.fillWidth: true; height: 44
-                    color: "#0a0c12"
+                    color: hasCustomBg ? "transparent" : "#0a0c12"
                     MouseArea {
                         anchors.fill: parent
                         property point lastPos: Qt.point(0, 0)
