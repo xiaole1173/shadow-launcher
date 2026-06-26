@@ -942,7 +942,8 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
     if (m_fabricLibTasks.isEmpty()) {
         qDebug() << "[ModLoader] Fabric libraries are all cached, skipping download step";
         emit progressChanged(2, m_totalSteps, "Fabric 依赖库已缓存");
-        fabricStep3_writeVersion(profileData);
+        if (m_parallelMode) { m_fabricProfileData = profileData; emit waitingForMC(); }
+        else fabricStep3_writeVersion(profileData);
         return;
     }
 
@@ -962,7 +963,8 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
         }
         if (m_fabricLibIndex >= m_fabricLibTasks.size()) {
             emit progressChanged(2, m_totalSteps, "Fabric 依赖库下载完成");
-            fabricStep3_writeVersion(profileData);
+            if (m_parallelMode) { m_fabricProfileData = profileData; emit waitingForMC(); }
+            else fabricStep3_writeVersion(profileData);
             return;
         }
 
@@ -1006,6 +1008,16 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
     };
 
     (*dlNext)();
+}
+
+void ModLoaderInstaller::fabricFinalize() {
+    if (m_fabricProfileData.isEmpty()) {
+        emit finished(false, "Fabric 配置数据丢失");
+        m_running = false;
+        return;
+    }
+    qDebug() << "[ModLoader] Fabric finalize: writing version JSON (parallel mode)";
+    fabricStep3_writeVersion(m_fabricProfileData);
 }
 
 void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData) {

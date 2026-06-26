@@ -43,6 +43,9 @@ public:
 
     void cancel();
 
+    // Fabric parallel install: start downloading MC + Fabric at the same time
+    void setParallelMode(bool v) { m_parallelMode = v; }
+
 signals:
     // Step-level progress (for phase text)
     void progressChanged(int step, int totalSteps, const QString& description);
@@ -99,19 +102,7 @@ private:
     void fabricStep1_downloadProfile();
     void fabricStep2_downloadLibraries(const QByteArray& profileData);
     void fabricStep3_writeVersion(const QByteArray& profileData);
-
-    // Fabric library download helpers
-    struct FabricLibTask {
-        QString url;
-        QString savePath;
-        qint64 size = 0;
-        bool downloaded = false;
-        QString error;
-    };
-    QVector<FabricLibTask> m_fabricLibTasks;
-    qint64 m_fabricLibBytesDone = 0;
-    qint64 m_fabricLibBytesTotal = 0;
-    int m_fabricLibIndex = 0;
+    void fabricFinalize();  // Called after MC completes in parallel mode
 
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
@@ -130,6 +121,21 @@ private:
     bool m_usedFallback = false;
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
+    bool m_parallelMode = false;  // Fabric: don't auto-advance to write phase
+
+    // Fabric library download state
+    struct FabricLibTask {
+        QString url;
+        QString savePath;
+        qint64 size = 0;
+        bool downloaded = false;
+        QString error;
+    };
+    QVector<FabricLibTask> m_fabricLibTasks;
+    qint64 m_fabricLibBytesDone = 0;
+    qint64 m_fabricLibBytesTotal = 0;
+    int m_fabricLibIndex = 0;
+    QByteArray m_fabricProfileData;  // held between parallel download and finalize
 
     // byte progress tracking
     qint64 m_bytesReceived = 0;

@@ -1801,12 +1801,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             // ── 1. Start MC download with the mirror that passed connectivity ──
             installVersion(mcVersion, sourceIndex);
 
-            // ── 2. Fabric: tiny profile JSON, no parallel download needed ──
+            // ── 2. Fabric: download profile + libraries in parallel with MC ──
             if (loaderType == QStringLiteral("fabric")) {
-                ses.loaderDownloadReady = true;
-                if (ses.mcDownloadDone) {
-                    proceedToLoaderInstall(installName);
-                }
+                m_modLoaderInstallId = installName;
+                m_mlInstaller->setGameDir(m_gameDir);
+                m_mlInstaller->setParallelMode(true);
+                m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
+                // waitingForMC() will fire when profile+libs download completes
+                // → sets loaderDownloadReady = true → if MC done, proceedToLoaderInstall
                 return;
             }
 
