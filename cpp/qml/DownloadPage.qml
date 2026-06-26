@@ -966,11 +966,10 @@ Rectangle {
                         Rectangle {
                             id: modLdrPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            property bool hovered: false
                             property bool menuOpen: false
-                            color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
-                            border.color: (hovered || menuOpen || page.modLoader) ? "#5078e0" : "#2a3040"
-                            border.width: (hovered || menuOpen || page.modLoader) ? 1.5 : 1
+                            color: (ldrHov.containsMouse || menuOpen) ? "#1e3260" : "#0c0e14"
+                            border.color: (ldrHov.containsMouse || menuOpen || page.modLoader) ? "#5078e0" : "#2a3040"
+                            border.width: (ldrHov.containsMouse || menuOpen || page.modLoader) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -994,10 +993,7 @@ Rectangle {
                             MouseArea {
                                 id: ldrHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onEntered: modLdrPill.hovered = true
-                                onExited: modLdrPill.hovered = false
                                 onClicked: {
-                                    modLdrPill.hovered = false
                                     modLdrPill._eScale = 0.9
                                     ldrRestoreTimer.restart()
                                     if (ldrMenu.visible) ldrMenu.close(); else ldrMenu.open()
@@ -1010,7 +1006,7 @@ Rectangle {
                                 height: Math.min(ldrMenuFlick.contentHeight + 8, 220)
                                 padding: 0
                                 onOpened: modLdrPill.menuOpen = true
-                                onClosed: { modLdrPill.menuOpen = false; modLdrPill.hovered = false }
+                                onClosed: modLdrPill.menuOpen = false
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1059,11 +1055,10 @@ Rectangle {
                         Rectangle {
                             id: modVerPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            property bool hovered: false
                             property bool menuOpen: false
-                            color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
-                            border.color: (hovered || menuOpen || page.modGameVersion) ? "#5078e0" : "#2a3040"
-                            border.width: (hovered || menuOpen || page.modGameVersion) ? 1.5 : 1
+                            color: (verHov2.containsMouse || menuOpen) ? "#1e3260" : "#0c0e14"
+                            border.color: (verHov2.containsMouse || menuOpen || page.modGameVersion) ? "#5078e0" : "#2a3040"
+                            border.width: (verHov2.containsMouse || menuOpen || page.modGameVersion) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -1086,10 +1081,7 @@ Rectangle {
                             MouseArea {
                                 id: verHov2; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onEntered: modVerPill.hovered = true
-                                onExited: modVerPill.hovered = false
                                 onClicked: {
-                                    modVerPill.hovered = false
                                     modVerPill._eScale = 0.9
                                     verRestoreTimer.restart()
                                     if (verMenu.visible) verMenu.close(); else verMenu.open()
@@ -1102,7 +1094,7 @@ Rectangle {
                                 height: Math.min(verFlick.contentHeight + 8, 220)
                                 padding: 0
                                 onOpened: modVerPill.menuOpen = true
-                                onClosed: { modVerPill.menuOpen = false; modVerPill.hovered = false }
+                                onClosed: modVerPill.menuOpen = false
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1178,11 +1170,10 @@ Rectangle {
                         Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 95; height: 28; radius: 5
-                            property bool hovered: false
                             property bool menuOpen: false
-                            color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
-                            border.color: (hovered || menuOpen || page.modCategory) ? "#5078e0" : "#2a3040"
-                            border.width: (hovered || menuOpen || page.modCategory) ? 1.5 : 1
+                            color: (catHov.containsMouse || menuOpen) ? "#1e3260" : "#0c0e14"
+                            border.color: (catHov.containsMouse || menuOpen || page.modCategory) ? "#5078e0" : "#2a3040"
+                            border.width: (catHov.containsMouse || menuOpen || page.modCategory) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -1206,10 +1197,7 @@ Rectangle {
                             MouseArea {
                                 id: catHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onEntered: modCatPill.hovered = true
-                                onExited: modCatPill.hovered = false
                                 onClicked: {
-                                    modCatPill.hovered = false
                                     modCatPill._eScale = 0.9
                                     catRestoreTimer.restart()
                                     if (catMenu.visible) catMenu.close(); else catMenu.open()
@@ -1222,7 +1210,7 @@ Rectangle {
                                 height: Math.min(catFlick.contentHeight + 8, 300)
                                 padding: 0
                                 onOpened: modCatPill.menuOpen = true
-                                onClosed: { modCatPill.menuOpen = false; modCatPill.hovered = false }
+                                onClosed: modCatPill.menuOpen = false
 
                                 enter: Transition {
                                     ParallelAnimation {
