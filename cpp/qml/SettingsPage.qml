@@ -385,23 +385,60 @@ Rectangle {
                                 currentIndex: backend ? backend.languageIndex : 0
                                 onActivated: { if (backend) backend.setLanguageIndex(currentIndex) }
                                 Layout.preferredWidth: 220
+
+                                // ── Custom dark style ──
+                                background: Rectangle {
+                                    radius: 6; color: langCombo.hovered ? "#252a38" : "#161a24"
+                                    border.color: langCombo.hovered ? "#3a4eb8" : "#1e2230"
+                                    border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on border.color { ColorAnimation { duration: 200 } }
+                                }
+                                contentItem: Text {
+                                    leftPadding: 12; verticalAlignment: Text.AlignVCenter
+                                    text: langCombo.displayText; color: "#d0d4e0"; font.pixelSize: 13
+                                }
+                                indicator: Canvas {
+                                    width: 12; height: 12; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.strokeStyle = langCombo.hovered ? "#8088f0" : "#606478"
+                                        ctx.lineWidth = 1.5
+                                        ctx.beginPath(); ctx.moveTo(0, 3); ctx.lineTo(6, 9); ctx.lineTo(12, 3); ctx.stroke()
+                                    }
+                                }
+                                delegate: ItemDelegate {
+                                    width: langCombo.width
+                                    contentItem: Text {
+                                        text: modelData; color: "#d0d4e0"; font.pixelSize: 13
+                                        verticalAlignment: Text.AlignVCenter; leftPadding: 12
+                                    }
+                                    background: Rectangle {
+                                        color: highlighted ? "#252a38" : "transparent"
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    }
+                                    highlighted: langCombo.highlightedIndex === index
+                                }
+                                popup: Popup {
+                                    y: langCombo.height + 4
+                                    width: langCombo.width
+                                    implicitHeight: contentItem.implicitHeight + 8
+                                    padding: 4
+                                    contentItem: ListView {
+                                        clip: true; implicitHeight: contentHeight
+                                        model: langCombo.popup.visible ? langCombo.delegateModel : null
+                                        currentIndex: langCombo.highlightedIndex
+                                    }
+                                    background: Rectangle {
+                                        radius: 6; color: "#161a24"; border.color: "#1e2230"
+                                    }
+                                }
                             }
                         }
                         Text {
                             text: qsTr("更改语言后需要重启启动器才能生效。")
                             font.pixelSize: 11; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
                         }
-                    }
-                }
-
-                // ── Restart button (visible when language changed) ──
-                Rectangle {
-                    visible: backend ? backend.languageChanged : false
-                    Layout.fillWidth: true; Layout.preferredHeight: 48; radius: 8; color: "#1a2030"; border.color: "#2a3040"
-                    ShadowButton {
-                        anchors.centerIn: parent
-                        text: qsTr("重启启动器")
-                        onClicked: { if (backend) backend.restartApp() }
                     }
                 }
 
