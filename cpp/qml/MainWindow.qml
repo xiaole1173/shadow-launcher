@@ -24,6 +24,16 @@ Window {
     property bool pageLoading: false
     property var runningListModel: []
 
+    function navLabel(key) {
+        switch (key) {
+            case "home": return qsTr("启动")
+            case "download": return qsTr("下载")
+            case "settings": return qsTr("设置")
+            case "download_progress": return qsTr("下载进度")
+            default: return key
+        }
+    }
+
     // Mod download error dialog state
     property bool showModDlError: false
     property var modDlErrorInfo: ({})
@@ -246,16 +256,6 @@ Window {
                         ListElement { label: "设置"; pageKey: "settings"; icon: "settings" }
                     }
 
-                    function navLabel(key) {
-                        switch (key) {
-                            case "home": return qsTr("启动")
-                            case "download": return qsTr("下载")
-                            case "settings": return qsTr("设置")
-                            case "download_progress": return qsTr("下载进度")
-                            default: return key
-                        }
-                    }
-
                     Repeater {
                         id: navRepeater
                         model: navModel
@@ -275,7 +275,7 @@ Window {
                                     source: model.icon ? ("icons/lucide/" + model.icon + ".svg") : ""
                                     visible: model.icon !== undefined && model.icon !== ""
                                 }
-                                Text { text: navLabel(model.pageKey); font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
+                                Text { text: appWindow.navLabel(model.pageKey); font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
                             }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
                         }
