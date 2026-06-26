@@ -913,7 +913,7 @@ Rectangle {
                                 id: modInput
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
                                 color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: 12
-                                Keys.onReturnPressed: doModSearch()
+                                Keys.onReturnPressed: modTab.doModSearch()
 
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
@@ -933,7 +933,7 @@ Rectangle {
                             MouseArea {
                                 id: modSearchBtn; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: doModSearch()
+                                onClicked: modTab.doModSearch()
                             }
                         }
 
@@ -952,7 +952,7 @@ Rectangle {
                                     page.modLoader = ""; page.modGameVersion = ""
                                     page.modCategory = ""; page.modEnvironment = ""
                                     modInput.text = ""; modResultsModel.clear()
-                                    doModSearch()
+                                    modTab.doModSearch()
                                 }
                             }
                         }
@@ -1878,7 +1878,7 @@ Rectangle {
                             id: rpSourcePill
                             Layout.preferredWidth: 140; height: 28; radius: 5
                             color: (rpSrcHov.containsMouse || rpSourceMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (rpSrcHov.containsMouse || rpSourceMenu.visible || sourceActive) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (rpSrcHov.containsMouse || rpSourceMenu.visible) ? "#5078e0" : "#2a3040"; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
