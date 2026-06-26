@@ -970,7 +970,7 @@ Rectangle {
                             property bool menuOpen: false
                             color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
                             border.color: (hovered || menuOpen || page.modLoader) ? "#5078e0" : "#2a3040"
-                            border.width: (hovered || page.modLoader) ? 1.5 : 1
+                            border.width: (hovered || menuOpen || page.modLoader) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -979,7 +979,6 @@ Rectangle {
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
                             Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
                             Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
@@ -1064,7 +1063,7 @@ Rectangle {
                             property bool menuOpen: false
                             color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
                             border.color: (hovered || menuOpen || page.modGameVersion) ? "#5078e0" : "#2a3040"
-                            border.width: (hovered || page.modGameVersion) ? 1.5 : 1
+                            border.width: (hovered || menuOpen || page.modGameVersion) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -1183,7 +1182,7 @@ Rectangle {
                             property bool menuOpen: false
                             color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
                             border.color: (hovered || menuOpen || page.modCategory) ? "#5078e0" : "#2a3040"
-                            border.width: (hovered || page.modCategory) ? 1.5 : 1
+                            border.width: (hovered || menuOpen || page.modCategory) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
