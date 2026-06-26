@@ -50,15 +50,6 @@ Rectangle {
     property string modCategory: ""
     property string modEnvironment: ""
     property string modLicense: ""
-    property var modCatLabels: ({
-        "adventure": "冒险类", "cursed": "猎奇诡异类", "decoration": "装饰类",
-        "economy": "经济系统类", "equipment": "装备武器类", "food": "食物食材类",
-        "game-mechanics": "游戏机制类", "library": "前置依赖库", "magic": "魔法类",
-        "management": "管理辅助类", "minigame": "迷你小游戏类", "mobs": "生物怪物类",
-        "optimization": "性能优化类", "social": "社交互动类", "storage": "仓储存储类",
-        "technology": "科技工业类", "transportation": "交通运输类", "utility": "实用工具类",
-        "world-generation": "世界生成类"
-    })
     property bool modShowPreReleases: false
 
     // Install state
