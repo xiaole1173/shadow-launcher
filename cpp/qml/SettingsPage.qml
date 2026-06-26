@@ -347,9 +347,16 @@ Rectangle {
 
     Component {
         id: experimentalComponent
-        Item {
+        Flickable {
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: expCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
             ColumnLayout {
-                anchors.fill: parent; spacing: 12
+                id: expCol
+                width: parent.width
+                spacing: 12
                 Text { text: qsTr("实验性功能"); font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
                 Text { text: qsTr("以下功能处于实验阶段，可能存在不稳定的情况。"); font.pixelSize: 12; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
@@ -500,7 +507,7 @@ Rectangle {
                         Image {
                             Layout.fillWidth: true; Layout.preferredHeight: 100
                             visible: backend ? backend.customBgPath !== "" : false
-                            source: visible ? ("file:///" + backend.customBgPath) : ""
+                            source: backend ? backend.customBgPath : ""
                             fillMode: Image.PreserveAspectFit
                             cache: false; asynchronous: true
                         }

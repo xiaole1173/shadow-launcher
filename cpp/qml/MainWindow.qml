@@ -198,7 +198,7 @@ Window {
     Image {
         anchors.fill: parent; z: -1
         visible: backend ? backend.customBgPath !== "" : false
-        source: visible ? ("file:///" + backend.customBgPath) : ""
+        source: backend ? backend.customBgPath : ""
         fillMode: Image.PreserveAspectCrop
         cache: false
         asynchronous: true
@@ -207,7 +207,7 @@ Window {
     // ── Rounded window container ──
     Rectangle {
         anchors.fill: parent; radius: 16
-        color: "#0c0f16"
+        color: backend && backend.customBgPath !== "" ? Qt.rgba(0.047, 0.059, 0.086, 0.88) : "#0c0f16"
         clip: true
 
     ColumnLayout {

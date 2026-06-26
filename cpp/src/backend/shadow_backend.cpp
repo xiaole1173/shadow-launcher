@@ -521,8 +521,9 @@ QString ShadowBackend::pickBackgroundImage() {
         QString::fromUtf8("选择背景图片"), QString(),
         QString::fromUtf8("图片文件 (*.png *.jpg *.jpeg *.bmp *.webp);;所有文件 (*)"));
     if (!path.isEmpty()) {
-        m_settings->setCustomBgPath(QDir::toNativeSeparators(path));
-        return QDir::toNativeSeparators(path);
+        QString url = QUrl::fromLocalFile(path).toString();
+        m_settings->setCustomBgPath(url);
+        return url;
     }
     return QString();
 }
