@@ -225,6 +225,7 @@ Rectangle {
         }
 
         function onSearchResultsReady(results) {
+            if (page.currentTab !== 1) return  // mod-only
             console.log("[mod-ui] searchResultsReady results=" + (results ? results.length : 0))
             modResultsModel.clear()
             page.modSearching = false
@@ -1358,6 +1359,7 @@ Rectangle {
                     id: modListView
                     anchors.fill: parent; spacing: 6
                     model: modResultsModel
+                    cacheBuffer: 200
 
                     delegate: Rectangle {
                         id: modItem
@@ -1390,6 +1392,7 @@ Rectangle {
                                         if (model && model.icon) {
                                             var url = model.icon
                                             url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                            url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                                             source = url
                                         }
                                     }
