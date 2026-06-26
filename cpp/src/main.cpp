@@ -92,13 +92,15 @@ int main(int argc, char *argv[])
 
     // ── Load saved language ──
     QSettings settings;
-    QString lang = settings.value("language", "zh_CN").toString();
+    QString lang = settings.value("general/languageIndex", 0).toInt() == 1 ? "zh_HK"
+                 : settings.value("general/languageIndex", 0).toInt() == 2 ? "zh_TW"
+                 : "zh_CN";
     auto* translator = new QTranslator(&app);
-    if (translator->load(QStringLiteral(":/i18n/shadow_%1").arg(lang))) {
+    if (lang != QStringLiteral("zh_CN") && translator->load(QStringLiteral(":/i18n/shadow_%1").arg(lang))) {
         app.installTranslator(translator);
         qCInfo(logApp) << "Loaded translation:" << lang;
     } else {
-        qCInfo(logApp) << "No translation loaded (using source language):" << lang;
+        qCInfo(logApp) << "Using source language (zh_CN)";
     }
 
     // ── Initialise structured logging ──
@@ -134,6 +136,9 @@ int main(int argc, char *argv[])
     // Expose backend and data directory to QML
     engine.rootContext()->setContextProperty("backend", backend);
     engine.rootContext()->setContextProperty("dataDir", dataDir);
+
+    // Pass engine reference for language hot-switch
+    backend->setEngine(&engine);
 
     // ── Taskbar minimize: install native event filter ──
     TaskbarMinimizeFilter* taskbarFilter = new TaskbarMinimizeFilter();

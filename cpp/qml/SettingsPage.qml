@@ -383,7 +383,7 @@ Rectangle {
                                 id: langCombo
                                 model: ["简体中文", "繁體中文（香港/澳門）", "繁體中文（台灣）"]
                                 currentIndex: backend ? backend.languageIndex : 0
-                                onActivated: { if (backend) backend.setLanguageIndex(currentIndex) }
+                                onActivated: { if (backend) backend.switchLanguage(currentIndex) }
                                 Layout.preferredWidth: 220
 
                                 // ── Custom dark style ──
@@ -436,7 +436,7 @@ Rectangle {
                             }
                         }
                         Text {
-                            text: qsTr("更改语言后需要重启启动器才能生效。")
+                            text: qsTr("选择语言后即时生效，无需重启启动器。")
                             font.pixelSize: 11; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
                         }
                     }

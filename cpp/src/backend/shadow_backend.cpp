@@ -1,4 +1,4 @@
-#include "shadow_backend.h"
+﻿#include "shadow_backend.h"
 #include "../core/http_client.h"
 #include "../core/mod_manager.h"
 #include "../core/version_downloader.h"
@@ -23,15 +23,18 @@
 #include <QGuiApplication>
 #include <QDir>
 #include <QDirIterator>
+#include <QEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QQmlEngine>
 #include <QRegularExpression>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QTranslator>
 #include <QUrl>
 
 // libwebp: in-process webp→PNG decoding
@@ -1749,6 +1752,57 @@ void ShadowBackend::installModLoader(const QString& mcVersion, const QString& lo
                                       const QString& loaderVersion, const QString& installName) {
     qDebug() << "[install] ShadowBackend::installModLoader" << loaderType << mcVersion << loaderVersion << installName;
     if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName);
+}
+
+// ── Language hot-switch implementation ──
+void ShadowBackend::switchLanguage(int index)
+{
+    const QStringList codes = { QStringLiteral("zh_CN"), QStringLiteral("zh_HK"), QStringLiteral("zh_TW") };
+    if (index < 0 || index >= codes.size()) return;
+    QString lang = codes[index];
+    if (lang == m_currentLang) return;
+    m_currentLang = lang;
+
+    // 1. Save preference
+    m_settings->setLanguageIndex(index);
+
+    // 2. Remove old translator
+    if (m_translator) {
+        qApp->removeTranslator(m_translator);
+        delete m_translator;
+        m_translator = nullptr;
+    }
+
+    // 3. Install new translator (skip for zh_CN — source language)
+    if (lang != QStringLiteral("zh_CN")) {
+        m_translator = new QTranslator(this);
+        if (m_translator->load(QStringLiteral(":/i18n/shadow_%1").arg(lang))) {
+            qApp->installTranslator(m_translator);
+            qCInfo(logApp) << "Language switched to:" << lang;
+        } else {
+            qCWarning(logApp) << "Failed to load translation:" << lang;
+            delete m_translator;
+            m_translator = nullptr;
+        }
+    }
+
+    // 4. Re-evaluate QML bindings (Qt 6.2+ retranslate)
+    if (m_engine) {
+        m_engine->retranslate();
+    }
+
+    // 5. Notify C++ widgets (tr() strings will reload via changeEvent)
+    QEvent ev(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(qApp, &ev);
+}
+
+bool ShadowBackend::event(QEvent* ev)
+{
+    if (ev->type() == QEvent::LanguageChange) {
+        // Cached strings that need retranslation after LanguageChange
+        // (QML bindings are handled by engine->retranslate() above)
+    }
+    return QObject::event(ev);
 }
 
 } // namespace ShadowLauncher

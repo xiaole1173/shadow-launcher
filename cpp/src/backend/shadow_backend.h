@@ -5,6 +5,10 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QMap>
+#include <QTranslator>
+#include <QEvent>
+
+class QQmlEngine;
 
 namespace ShadowLauncher {
 
@@ -192,6 +196,11 @@ public:
     QString gameArgs() const { return {}; }
     QString jvmArgs() const;
     QString javaCompatibility() const { return QStringLiteral("OK"); }
+
+    // ── Language hot-switch ──
+    void setEngine(QQmlEngine* engine) { m_engine = engine; }
+    Q_INVOKABLE void switchLanguage(int index);
+    bool event(QEvent* event) override;
 
     // ── Verify stubs ──
     bool verifyRunning() const;
@@ -457,6 +466,11 @@ private:
     int m_lastLoginMode = 1;
     QString m_launchVersion;
     QString m_launchUsername;
+
+    // ── Translation hot-switch ──
+    QTranslator* m_translator = nullptr;
+    QQmlEngine* m_engine = nullptr;
+    QString m_currentLang = QStringLiteral("zh_CN");
     QVariantMap m_lastCrash;
     QString m_verifyReportPath;
     bool m_closeOnLaunch = false;
