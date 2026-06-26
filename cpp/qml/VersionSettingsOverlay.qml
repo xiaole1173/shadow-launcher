@@ -1005,7 +1005,7 @@ function _showToast(msg) {
         property var _confirmOnOk: null
         property bool _confirmVisible: false
         Rectangle {
-            anchors.fill: parent; z: 200
+            anchors.fill: parent; z: 200; color: "transparent"
             visible: _confirmVisible
             // Backdrop (semi-transparent)
             Rectangle {
@@ -1055,7 +1055,7 @@ function _showToast(msg) {
         property string _renameNewId: ""
         property bool _renameVisible: false
         Rectangle {
-            anchors.fill: parent; z: 201
+            anchors.fill: parent; z: 201; color: "transparent"
             visible: _renameVisible
             // Backdrop (semi-transparent)
             Rectangle {
