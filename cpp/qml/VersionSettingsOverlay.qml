@@ -153,7 +153,10 @@ Rectangle {
                 // Launch button
                 Rectangle {
                     width: 100; height: 32; radius: 6; color: "#3a4eb8"
-                    Row { anchors.centerIn: parent; spacing: 6`r`n                    Image { source: "icons/lucide/play.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16); anchors.verticalCenter: parent.verticalCenter }`r`n                    Text { text: qsTr("启动"); font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }`r`n                }
+                    Row { anchors.centerIn: parent; spacing: 6
+                    Image { source: "icons/lucide/play.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16); anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: qsTr("启动"); font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
+                }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (!backend) return
@@ -249,9 +252,9 @@ Rectangle {
                         scale: shMouse0.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/folder.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("版本文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/folder.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("版本文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover0 }
                         MouseArea { id: shMouse0; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -267,9 +270,9 @@ Rectangle {
                         scale: shMouse1.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/map.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("存档文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/map.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("存档文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover1 }
                         MouseArea { id: shMouse1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { toastManager.show("已打开存档文件夹") } else { toastManager.show("无存档文件夹") } } }
@@ -279,9 +282,9 @@ Rectangle {
                         scale: shMouse2.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/camera.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("截图文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/camera.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("截图文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover2 }
                         MouseArea { id: shMouse2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openScreenshotsFolder(currentSelectedVersion)) { toastManager.show("已打开截图文件夹") } else { toastManager.show("无截图文件夹") } } }
@@ -291,9 +294,9 @@ Rectangle {
                         scale: shMouse6.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/file-text.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("logs 日志"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/file-text.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("logs 日志"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover6 }
                         MouseArea { id: shMouse6; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("无日志文件夹") } } }
@@ -303,9 +306,9 @@ Rectangle {
                         scale: shMouse7.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/file.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("最新启动日志"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/file.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("最新启动日志"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover7 }
                         MouseArea { id: shMouse7; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) { if (backend.openLatestLog(currentSelectedVersion)) { toastManager.show("已打开最新日志") } else { toastManager.show("无日志文件") } } }
@@ -315,9 +318,9 @@ Rectangle {
                         scale: shMouse8.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/alert-octagon.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("崩溃日志"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/alert-octagon.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("崩溃日志"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover8 }
                         MouseArea { id: shMouse8; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) { if (backend.openCrashLog(currentSelectedVersion)) { toastManager.show("已打开崩溃日志") } else { toastManager.show("无崩溃报告") } } }
@@ -329,9 +332,9 @@ Rectangle {
                         scale: shMouseCp.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/clipboard-copy.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("复制版本路径"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/clipboard-copy.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("复制版本路径"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHoverCp }
                         MouseArea { id: shMouseCp; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -347,9 +350,9 @@ Rectangle {
                         scale: shMouse3.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/puzzle.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("Mod 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/puzzle.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("Mod 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover3 }
                         MouseArea { id: shMouse3; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } } }
@@ -360,9 +363,9 @@ Rectangle {
                         scale: shMouse4.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/settings.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("config 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/settings.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("config 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover4 }
                         MouseArea { id: shMouse4; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openConfigFolder(); toastManager.show("已打开 config 文件夹") } }
@@ -373,9 +376,9 @@ Rectangle {
                         scale: shMouse5.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/sparkles.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("光影包"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                            Image { source: "icons/lucide/sparkles.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: qsTr("光影包"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         HoverHandler { id: shortcutHover5 }
                         MouseArea { id: shMouse5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openShaderPacksFolder(currentSelectedVersion)) { toastManager.show("已打开光影包文件夹") } else { toastManager.show("无光影包文件夹") } } }
@@ -589,10 +592,10 @@ Rectangle {
                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
                         scale: modRefreshMa.pressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/refresh-cw.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                        Row { anchors.centerIn: parent; spacing: 4`n                            Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }`n                            Row { anchors.centerIn: parent; spacing: 4
+                        Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
                         Text { text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                    }`n                        }
                         MouseArea { id: modRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { modListModel.clear(); if (backend) { var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i]); toastManager.show("Mod 列表已刷新") } }
                         }
@@ -636,7 +639,19 @@ Rectangle {
                             Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
-                                Row { anchors.centerIn: parent; spacing: 3`r`n                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }`r`n                                Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }`r`n                            }
+                                Row { anchors.centerIn: parent; spacing: 3
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Row { anchors.centerIn: parent; spacing: 3
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Row { anchors.centerIn: parent; spacing: 3
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Row { anchors.centerIn: parent; spacing: 3
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
+                            }
+                            }
+                            }
+                            }
                                 MouseArea { id: delBtnHover; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                     onClicked: { if (backend) { backend.deleteMod(name); modListModel.remove(index); toastManager.show("已删除 Mod: " + name) } }
                                 }
@@ -664,7 +679,10 @@ Rectangle {
                     Rectangle { height: 28; radius: 4; color: "#3a4eb8"; implicitWidth: rpRefreshText.implicitWidth + 20
                         scale: rpRefreshMa.pressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { id: rpRefreshText; anchors.centerIn: parent; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
+                        Row { anchors.centerIn: parent; spacing: 4
+                            Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                            Text { id: rpRefreshText; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
+                        }
                         MouseArea { id: rpRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { rpListModel.clear(); if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]); toastManager.show("资源包列表已刷新") } }
                         }
@@ -690,7 +708,10 @@ Rectangle {
                             Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                Row { anchors.centerIn: parent; spacing: 3`r`n                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }`r`n                                Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }`r`n                            }
+                                Row { anchors.centerIn: parent; spacing: 3
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
+                            }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (backend) { backend.deleteResourcePack(name); rpListModel.remove(index); toastManager.show("已删除资源包: " + name) } }
                                 }
@@ -717,10 +738,7 @@ Rectangle {
                     width: 80; height: 28; radius: 4; color: "#3a4eb8"
                     scale: saveRefreshMa.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Row { anchors.centerIn: parent; spacing: 5
-                        Image { source: "icons/lucide/refresh-cw.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
-                    }
+                    Text { anchors.centerIn: parent; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
                     MouseArea { id: saveRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { saveListModel.clear(); if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]); toastManager.show("存档列表已刷新") } }
                     }
@@ -738,7 +756,10 @@ Rectangle {
                             Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                Row { anchors.centerIn: parent; spacing: 3`r`n                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }`r`n                                Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }`r`n                            }
+                                Row { anchors.centerIn: parent; spacing: 3
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
+                            }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (backend) { backend.deleteSave(name); saveListModel.remove(index); toastManager.show("已删除存档: " + name) } }
                                 }
