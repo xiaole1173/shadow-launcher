@@ -45,6 +45,7 @@ public:
 
     // Fabric parallel install: start downloading MC + Fabric at the same time
     void setParallelMode(bool v) { m_parallelMode = v; }
+    void fabricFinalize();  // Called after MC completes in parallel mode
 
 signals:
     // Step-level progress (for phase text)
@@ -102,7 +103,6 @@ private:
     void fabricStep1_downloadProfile();
     void fabricStep2_downloadLibraries(const QByteArray& profileData);
     void fabricStep3_writeVersion(const QByteArray& profileData);
-    void fabricFinalize();  // Called after MC completes in parallel mode
 
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);

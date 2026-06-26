@@ -952,8 +952,8 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
     m_fabricLibBytesDone = 0;
     m_fabricLibBytesTotal = 0;
 
-    // Download sequentially (each Fabric lib is <2MB, sequential avoids concurrency complexity)
-    // Use std::function + shared_ptr to allow recursive self-reference in C++ lambdas
+    // Download sequentially (each Fabric lib is <2MB)
+    // Capture task data by VALUE — async HTTP callback must not hold &task (dangling ref)
     auto dlNext = std::make_shared<std::function<void()>>();
     *dlNext = [this, profileData, mirrors, dlNext]() {
         if (m_cancelled) {
@@ -968,37 +968,45 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
             return;
         }
 
-        auto& task = m_fabricLibTasks[m_fabricLibIndex];
+        // Capture by VALUE — safe across async callback
+        int taskIdx = m_fabricLibIndex;
+        QString taskUrl = m_fabricLibTasks[taskIdx].url;
+        QString taskSavePath = m_fabricLibTasks[taskIdx].savePath;
 
         auto tryMirror = std::make_shared<std::function<void(int)>>();
-        *tryMirror = [this, &task, dlNext, tryMirror, profileData, mirrors](int idx) {
+        *tryMirror = [this, taskIdx, taskUrl, taskSavePath, dlNext, tryMirror, mirrors](int idx) {
             if (idx >= mirrors.size()) {
                 emit finished(false, QStringLiteral("Fabric 依赖库下载失败:\n%1\n\n已尝试 %2 个镜像源")
-                                   .arg(task.url, QString::number(mirrors.size())));
+                                   .arg(taskUrl, QString::number(mirrors.size())));
                 m_running = false;
                 return;
             }
 
-            QString url = task.url;
-            if (idx > 0) url.replace(mirrors[0], mirrors[idx]);
+            QString url = (idx == 0) ? taskUrl : taskUrl;
+            url.replace(mirrors[0], mirrors[idx > 0 ? qMin(idx, mirrors.size()-1) : 0]);
 
-            QDir().mkpath(QFileInfo(task.savePath).absolutePath());
-            downloadToFile(url, task.savePath, [this, &task, dlNext, tryMirror, idx](bool ok, const QString& err) {
+            qDebug() << "[ModLoader] Fabric lib" << taskIdx << "downloading" << url;
+            QDir().mkpath(QFileInfo(taskSavePath).absolutePath());
+            downloadToFile(url, taskSavePath, [this, taskIdx, taskSavePath, dlNext, tryMirror, idx](bool ok, const QString& err) {
                 if (ok) {
-                    m_fabricLibBytesDone += task.size ? task.size : QFileInfo(task.savePath).size();
-                    task.downloaded = true;
-                    
-                    // Progress by task count
-                    int pct = static_cast<int>(m_fabricLibBytesDone * 100 / qMax<qint64>(m_fabricLibTasks.size(), 1));
+                    qint64 fileSize = QFileInfo(taskSavePath).size();
+                    qDebug() << "[ModLoader] Fabric lib" << taskIdx << "OK:" << fileSize << "bytes";
+                    m_fabricLibBytesDone += fileSize;
+                    if (taskIdx < m_fabricLibTasks.size())
+                        m_fabricLibTasks[taskIdx].downloaded = true;
+
+                    int pct = (m_fabricLibTasks.size() > 0)
+                        ? static_cast<int>((m_fabricLibIndex + 1) * 100 / m_fabricLibTasks.size())
+                        : 100;
                     emit stepProgress(2, pct);
-                    emit byteProgress(QFileInfo(task.savePath).fileName(), 
+                    emit byteProgress(QFileInfo(taskSavePath).fileName(),
                                      static_cast<qint64>(m_fabricLibIndex + 1),
                                      static_cast<qint64>(m_fabricLibTasks.size()), 0);
 
                     m_fabricLibIndex++;
                     (*dlNext)();
                 } else {
-                    qDebug() << "[ModLoader] Fabric lib mirror" << idx << "failed:" << err;
+                    qDebug() << "[ModLoader] Fabric lib" << taskIdx << "mirror" << idx << "FAILED:" << err;
                     (*tryMirror)(idx + 1);
                 }
             });

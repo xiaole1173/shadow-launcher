@@ -986,7 +986,7 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
     } else if (ses.loaderType == QStringLiteral("neoforge")) {
         m_mlInstaller->neoForgeContinueInstall();
     } else if (ses.loaderType == QStringLiteral("fabric")) {
-        m_mlInstaller->installFabric(ses.mcVersion, ses.loaderVer, installId);
+        m_mlInstaller->fabricFinalize();
     }
 }
 
