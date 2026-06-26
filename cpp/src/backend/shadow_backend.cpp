@@ -1787,6 +1787,12 @@ void ShadowBackend::installModLoader(const QString& mcVersion, const QString& lo
                                                  fabricApiVersion, fabricApiUrl, fabricApiSavePath);
 }
 
+void ShadowBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
+                                     const QString& forgeVersion, const QString& installName) {
+    qDebug() << "[install] ShadowBackend::installOptifine" << mcVersion << optifineVersion << forgeVersion << installName;
+    if (m_version) m_version->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
+}
+
 // ── Language hot-switch implementation ──
 void ShadowBackend::switchLanguage(int index)
 {
