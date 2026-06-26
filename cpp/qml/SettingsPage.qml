@@ -36,7 +36,13 @@ Rectangle {
 
             ListView {
                 id: nav; anchors.fill: parent; anchors.margins: 8
-                model: ["通用设置", "Java 设置", "内存设置", "实验性功能", "关于"]
+                model: [
+                    { label: "通用设置", icon: "settings" },
+                    { label: "Java 设置", icon: "terminal" },
+                    { label: "内存设置", icon: "cpu" },
+                    { label: "实验性功能", icon: "flask-conical" },
+                    { label: "关于", icon: "info" }
+                ]
                 currentIndex: 0; spacing: 2
 
                 delegate: Rectangle {

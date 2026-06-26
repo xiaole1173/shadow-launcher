@@ -493,7 +493,7 @@ Rectangle {
                 visible: page.currentTab === 0
                 Text {
                     anchors.centerIn: parent
-                    text: "↻"
+                    text: ""; visible: false
                     color: refreshHover.hovered ? "#8aa8f0" : "#9094a8"
                     font.pixelSize: 16
                 }
