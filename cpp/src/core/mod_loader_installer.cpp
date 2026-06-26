@@ -16,6 +16,9 @@
 #include <QDebug>
 #include <QBuffer>
 #include <QSharedPointer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 
 // ── JAR manifest attribute injector (Java streaming, zero memory) ──
 namespace {
@@ -925,6 +928,55 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
     proc->start(QStringLiteral("java"), args);
 }
 
+void ModLoaderInstaller::setFabricApiInfo(const QString& apiVersion, const QString& apiUrl, const QString& apiSavePath) {
+    m_fabricApiVersion = apiVersion;
+    m_fabricApiUrl = apiUrl;
+    m_fabricApiSavePath = apiSavePath;
+}
+
+void ModLoaderInstaller::fabricApiStep4_downloadApi() {
+    m_currentStep = 4;
+    emit progressChanged(4, m_totalSteps, tr("正在下载 Fabric API..."));
+
+    QDir().mkpath(QFileInfo(m_fabricApiSavePath).absolutePath());
+
+    QUrl url(m_fabricApiUrl);
+    QNetworkRequest req(url);
+    auto* nam = new QNetworkAccessManager(this);
+    QNetworkReply* reply = nam->get(req);
+
+    connect(reply, &QNetworkReply::downloadProgress, this,
+            [this](qint64 recv, qint64 total) {
+        emit byteProgress(m_fabricApiVersion, recv, total, 0);
+        int pct = total > 0 ? (int)(recv * 100 / total) : 0;
+        emit stepProgress(4, pct);
+    });
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nam]() {
+        reply->deleteLater();
+        nam->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[ModLoader] Fabric API download failed:" << reply->errorString();
+            emit finished(false, tr("Fabric API 下载失败: %1").arg(reply->errorString()));
+            m_running = false;
+            return;
+        }
+        QByteArray data = reply->readAll();
+        QFile f(m_fabricApiSavePath);
+        if (!f.open(QIODevice::WriteOnly)) {
+            emit finished(false, tr("Fabric API 写入失败"));
+            m_running = false;
+            return;
+        }
+        f.write(data);
+        f.close();
+        qDebug() << "[ModLoader] Fabric API downloaded:" << m_fabricApiSavePath << "(" << data.size() << "bytes)";
+        emit progressChanged(4, m_totalSteps, tr("Fabric API 安装完成"));
+        emit finished(true, QString());
+        m_running = false;
+    });
+}
+
 void ModLoaderInstaller::fabricStep1_downloadProfile() {
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, "正在下载 Fabric 配置...");
@@ -1183,6 +1235,14 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     cleanupAfterInstall({ vanillaVersionDir });
 
     qDebug() << "[ModLoader] Fabric version JSON:" << jsonPath;
+
+    // If Fabric API is pending, start API download as step 4
+    if (!m_fabricApiUrl.isEmpty()) {
+        qDebug() << "[ModLoader] Fabric API requested, starting step 4 download";
+        fabricApiStep4_downloadApi();
+        return;
+    }
+
     emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
     emit finished(true, QString());
     m_running = false;

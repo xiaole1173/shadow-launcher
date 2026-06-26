@@ -190,7 +190,10 @@ public:
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
 
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
-                                       const QString& loaderVersion, const QString& installName);
+                                       const QString& loaderVersion, const QString& installName,
+                                       const QString& fabricApiVersion = QString(),
+                                       const QString& fabricApiUrl = QString(),
+                                       const QString& fabricApiSavePath = QString());
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName);
     Q_INVOKABLE void cancelModLoaderInstall();

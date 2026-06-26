@@ -301,7 +301,10 @@ public:
 
     // Mod loader installation
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
-                                       const QString& loaderVersion, const QString& installName);
+                                       const QString& loaderVersion, const QString& installName,
+                                       const QString& fabricApiVersion = QString(),
+                                       const QString& fabricApiUrl = QString(),
+                                       const QString& fabricApiSavePath = QString());
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);

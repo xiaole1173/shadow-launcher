@@ -274,11 +274,13 @@ Rectangle {
                                         } else if (selectedNeoForge !== "") {
                                             backend.installModLoader(mcVersion, "neoforge", selectedNeoForge, n)
                                         } else if (selectedFabric !== "") {
-                                            backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
+                                            var gameDir = backend.getVersionGameDir(n) || ""
                                             if (selectedFabricApi !== "" && selectedFabricApiUrl !== "") {
-                                                var gameDir = backend.getVersionGameDir(n) || ""
                                                 var apiPath = gameDir + "/mods/" + selectedFabricApiFile
-                                                backend.installFabricApi(selectedFabricApi, selectedFabricApiUrl, apiPath)
+                                                backend.installModLoader(mcVersion, "fabric", selectedFabric, n,
+                                                    selectedFabricApi, selectedFabricApiUrl, apiPath)
+                                            } else {
+                                                backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
                                             }
                                         } else if (selectedOptifine !== "") {
                                             backend.installOptifine(mcVersion, selectedOptifine, selectedForge, n)

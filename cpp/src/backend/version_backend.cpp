@@ -1721,7 +1721,10 @@ QString VersionBackend::copyVersionPath(const QString& versionId)
 // ============================================================
 
 void VersionBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
-                                       const QString& loaderVersion, const QString& installName) {
+                                       const QString& loaderVersion, const QString& installName,
+                                       const QString& fabricApiVersion,
+                                       const QString& fabricApiUrl,
+                                       const QString& fabricApiSavePath) {
     if (!m_mlInstaller) return;
 
     m_modLoaderInstallId = installName;
@@ -1755,8 +1758,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
 
         if (loaderType == QStringLiteral("fabric")) {
-            // Fabric: 7 steps (3 MC download + 1 MC verify + 1 Fabric profile + 1 Fabric libs + 1 install)
-            rebuildSteps(installName, {
+            // Fabric: 7+1 steps (3 MC download + 1 MC verify + 1 profile + 1 libs + 1 install + 1 API)
+            QStringList stepNames = {
                 tr("下载原版 JSON 文件"),
                 tr("下载原版支持库文件"),
                 tr("下载原版资源文件"),
@@ -1764,8 +1767,15 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 tr("下载 Fabric 配置"),
                 tr("下载 Fabric 依赖库"),
                 tr("安装 Fabric")
-            }, {3.0, 8.0, 5.0, 0.5, 0.1, 2.0, 0.5},
-             {true, true, true, false, true, true, true});
+            };
+            QVector<qreal> weights = {3.0, 8.0, 5.0, 0.5, 0.1, 2.0, 0.5};
+            QVector<bool> shows = {true, true, true, false, true, true, true};
+            if (!fabricApiUrl.isEmpty()) {
+                stepNames.append(tr("下载 Fabric API"));
+                weights.append(0.05);
+                shows.append(false);  // hidden until step 3 finishes
+            }
+            rebuildSteps(installName, stepNames, weights, shows);
         } else {
             // Forge/NeoForge: 7 steps (3 MC + 1 MC verify + 1 download + 1 verify + 1 install)
             rebuildSteps(installName, {
@@ -1800,7 +1810,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         coord->addSource(QStringLiteral("bmclapi"), mcTestUrl);  // One HEAD covers all BMCLAPI sub-services
         coord->addSource(QStringLiteral("mojang"), MirrorSource::mojang().manifestUrl);
 
-        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName](int sourceIndex, qint64) {
+        connect(coord, &DownloadCoordinator::ready, this, [this, mcVersion, loaderType, loaderVersion, coord, installName, fabricApiVersion, fabricApiUrl, fabricApiSavePath](int sourceIndex, qint64) {
             auto& ses = session(installName);
             qDebug() << "[Coordinator] Preflight OK, starting MC +" << loaderType << "download in PARALLEL (mirror" << sourceIndex << ")";
             emit logMessage(tr("✓ 连通性测试通过，同时下载 MC 和 ") + loaderType);
@@ -1813,6 +1823,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 m_modLoaderInstallId = installName;
                 m_mlInstaller->setGameDir(m_gameDir);
                 m_mlInstaller->setParallelMode(true);
+                if (!fabricApiUrl.isEmpty()) {
+                    m_mlInstaller->setFabricApiInfo(fabricApiVersion, fabricApiUrl, fabricApiSavePath);
+                }
                 m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
                 // waitingForMC() will fire when profile+libs download completes
                 // → sets loaderDownloadReady = true → if MC done, proceedToLoaderInstall

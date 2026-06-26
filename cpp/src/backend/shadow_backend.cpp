@@ -1778,9 +1778,13 @@ bool ShadowBackend::installFabricApi(const QString& version, const QString& url,
 }
 
 void ShadowBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
-                                      const QString& loaderVersion, const QString& installName) {
+                                      const QString& loaderVersion, const QString& installName,
+                                      const QString& fabricApiVersion,
+                                      const QString& fabricApiUrl,
+                                      const QString& fabricApiSavePath) {
     qDebug() << "[install] ShadowBackend::installModLoader" << loaderType << mcVersion << loaderVersion << installName;
-    if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName);
+    if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName,
+                                                 fabricApiVersion, fabricApiUrl, fabricApiSavePath);
 }
 
 // ── Language hot-switch implementation ──
