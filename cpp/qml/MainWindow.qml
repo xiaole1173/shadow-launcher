@@ -700,6 +700,9 @@ Window {
 
         // Proxy for backward compatibility — external files use confirmDialog.xxx
         function open(title, message, onAccept) {
+            _pendingTitle = title
+            _pendingMessage = message
+            _pendingOnAccept = onAccept
             active = true
             if (item) {
                 item.title = title

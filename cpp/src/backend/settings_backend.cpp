@@ -13,6 +13,7 @@
 #include <QSettings>
 #include <QUrl>
 #include <QCoreApplication>
+#include <QThread>
 #include <future>
 #include <algorithm>
 #include <climits>
@@ -485,22 +486,32 @@ void SettingsBackend::deleteVersion(const QString& versionId)
 
     // Helper: remove a directory completely with fallback
     auto forceRemoveDir = [](const QString& dirPath) -> bool {
-        QDir d(dirPath);
-        if (!d.exists()) return true;
-        bool ok = d.removeRecursively();
-        if (ok && !QDir(dirPath).exists()) return true;
+        for (int retry = 0; retry < 3; retry++) {
+            if (retry > 0) QThread::msleep(500);
+            QDir d(dirPath);
+            if (!d.exists()) return true;
+            bool ok = d.removeRecursively();
+            if (ok && !QDir(dirPath).exists()) return true;
 
-        // Fallback: manually clean all files/subdirs, then remove the now-empty dir
-        qWarning() << "[deleteVersion] removeRecursively failed for" << dirPath << ", trying manual cleanup";
-        for (const QFileInfo& fi : QDir(dirPath).entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)) {
-            if (fi.isDir()) {
-                QDir(fi.absoluteFilePath()).removeRecursively();
-            } else {
-                QFile::setPermissions(fi.absoluteFilePath(),
-                    QFile::ReadOwner | QFile::WriteOwner);
-                QFile::remove(fi.absoluteFilePath());
+            // Manual cleanup: strip all permissions, then remove each file
+            qWarning() << "[deleteVersion] retry" << (retry+1) << "manual cleanup for" << dirPath;
+            for (const QFileInfo& fi : QDir(dirPath).entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)) {
+                if (fi.isDir()) {
+                    QDir(fi.absoluteFilePath()).removeRecursively();
+                } else {
+                    QFile f(fi.absoluteFilePath());
+                    // Aggressively strip all restrictions before removal (Windows locked files)
+                    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner
+                                   | QFileDevice::ReadGroup | QFileDevice::WriteGroup
+                                   | QFileDevice::ReadOther | QFileDevice::WriteOther);
+                    if (!f.remove()) {
+                        qWarning() << "[deleteVersion] cannot remove file:" << fi.absoluteFilePath();
+                    }
+                }
             }
+            if (!QDir(dirPath).exists()) return true;
         }
+        qWarning() << "[deleteVersion] Failed to fully remove" << dirPath << "after 3 retries";
         return QDir().rmdir(dirPath);
     };
 
