@@ -886,11 +886,11 @@ Rectangle {
 
             // ── Filter Card ──
             Rectangle {
-                Layout.fillWidth: true; height: 86; radius: 10
+                Layout.fillWidth: true; height: 88; radius: 10
                 color: "#11141c"; border.color: "#1e2230"
 
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 8; spacing: 4
+                    anchors.fill: parent; anchors.margins: 12; spacing: 8
 
                     // Row 1: search + buttons
                     RowLayout {
@@ -898,10 +898,11 @@ Rectangle {
 
                         Rectangle {
                             id: modSearchBox
-                            Layout.fillWidth: true; height: 26; radius: 4
-                            color: "#0c0e14"
+                            Layout.fillWidth: true; height: 28; radius: 5
+                            color: (modInput.activeFocus || modSearchBoxHov.hovered) ? "#0f131c" : "#0c0e14"
                             border.color: (modInput.activeFocus || modSearchBoxHov.hovered) ? "#5068c8" : "#2a3040"
                             border.width: (modInput.activeFocus || modSearchBoxHov.hovered) ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
 
@@ -922,7 +923,7 @@ Rectangle {
                         }
 
                         Rectangle {
-                            width: 44; height: 26; radius: 4
+                            width: 46; height: 28; radius: 5
                             color: modSearchBtn.hovered ? "#5a78e0" : "#5068c8"
                             scale: modSearchBtn.pressed ? 0.92 : (modSearchBtn.hovered ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -936,7 +937,7 @@ Rectangle {
                         }
 
                         Rectangle {
-                            width: 44; height: 26; radius: 4
+                            width: 46; height: 28; radius: 5
                             color: modResetBtn.hovered ? "#2a2030" : "#1a1420"
                             border.color: "#3a2840"; border.width: 1
                             scale: modResetBtn.pressed ? 0.92 : (modResetBtn.hovered ? 1.06 : 1.0)
@@ -961,13 +962,14 @@ Rectangle {
                         Layout.fillWidth: true; spacing: 3
 
                         // ── 加载器 ──
-                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 38 }
+                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 40 }
                         Rectangle {
                             id: modLdrPill
-                            Layout.preferredWidth: 78; height: 24; radius: 4
+                            Layout.preferredWidth: 95; height: 28; radius: 5
                             property bool hovered: false
-                            color: hovered ? "#1e3260" : "#0c0e14"
-                            border.color: (hovered || page.modLoader) ? "#5078e0" : "#2a3040"
+                            property bool menuOpen: false
+                            color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
+                            border.color: (hovered || menuOpen || page.modLoader) ? "#5078e0" : "#2a3040"
                             border.width: (hovered || page.modLoader) ? 1.5 : 1
 
                             property real _eScale: 1.0
@@ -985,10 +987,10 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modLoaderLabels[page.modLoader] || "全部"
-                                    color: page.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    color: page.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
+                                Text { text: "▾"; color: "#505468"; font.pixelSize: 8 }
                             }
                             MouseArea {
                                 id: ldrHov; anchors.fill: parent
@@ -1008,7 +1010,8 @@ Rectangle {
                                 y: parent.height + 4; width: 110
                                 height: Math.min(ldrMenuFlick.contentHeight + 8, 220)
                                 padding: 0
-                                onClosed: modLdrPill.hovered = false  // ← 关键：Popup关闭时强制清除hover状态
+                                onOpened: modLdrPill.menuOpen = true
+                                onClosed: { modLdrPill.menuOpen = false; modLdrPill.hovered = false }
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1053,13 +1056,14 @@ Rectangle {
                         }
 
                         // ── 版本 ──
-                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
+                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 28 }
                         Rectangle {
                             id: modVerPill
-                            Layout.preferredWidth: 78; height: 24; radius: 4
+                            Layout.preferredWidth: 95; height: 28; radius: 5
                             property bool hovered: false
-                            color: hovered ? "#1e3260" : "#0c0e14"
-                            border.color: (hovered || page.modGameVersion) ? "#5078e0" : "#2a3040"
+                            property bool menuOpen: false
+                            color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
+                            border.color: (hovered || menuOpen || page.modGameVersion) ? "#5078e0" : "#2a3040"
                             border.width: (hovered || page.modGameVersion) ? 1.5 : 1
 
                             property real _eScale: 1.0
@@ -1075,10 +1079,10 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modGameVersion || "全部"
-                                    color: page.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    color: page.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
+                                Text { text: "▾"; color: "#505468"; font.pixelSize: 8 }
                             }
                             MouseArea {
                                 id: verHov2; anchors.fill: parent
@@ -1098,7 +1102,8 @@ Rectangle {
                                 y: parent.height + 4; width: 130
                                 height: Math.min(verFlick.contentHeight + 8, 220)
                                 padding: 0
-                                onClosed: modVerPill.hovered = false
+                                onOpened: modVerPill.menuOpen = true
+                                onClosed: { modVerPill.menuOpen = false; modVerPill.hovered = false }
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1170,13 +1175,14 @@ Rectangle {
                         }
 
                         // ── 类型 ──
-                        Text { text: qsTr("类型"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
+                        Text { text: qsTr("类型"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 28 }
                         Rectangle {
                             id: modCatPill
-                            Layout.fillWidth: true; Layout.maximumWidth: 90; height: 24; radius: 4
+                            Layout.fillWidth: true; Layout.maximumWidth: 95; height: 28; radius: 5
                             property bool hovered: false
-                            color: hovered ? "#1e3260" : "#0c0e14"
-                            border.color: (hovered || page.modCategory) ? "#5078e0" : "#2a3040"
+                            property bool menuOpen: false
+                            color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
+                            border.color: (hovered || menuOpen || page.modCategory) ? "#5078e0" : "#2a3040"
                             border.width: (hovered || page.modCategory) ? 1.5 : 1
 
                             property real _eScale: 1.0
@@ -1187,17 +1193,16 @@ Rectangle {
                             Behavior on border.width { NumberAnimation { duration: 150 } }
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
-                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modCatLabels[page.modCategory] || "全部"
-                                    color: page.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: 10
+                                    color: page.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: 7 }
+                                Text { text: "▾"; color: "#505468"; font.pixelSize: 8 }
                             }
                             MouseArea {
                                 id: catHov; anchors.fill: parent
@@ -1217,7 +1222,8 @@ Rectangle {
                                 y: parent.height + 4; width: 140
                                 height: Math.min(catFlick.contentHeight + 8, 300)
                                 padding: 0
-                                onClosed: modCatPill.hovered = false
+                                onOpened: modCatPill.menuOpen = true
+                                onClosed: { modCatPill.menuOpen = false; modCatPill.hovered = false }
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1920,9 +1926,11 @@ Rectangle {
 
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: 5
-                            color: "#0c0e14"
+                            color: rpSearchInput.activeFocus ? "#0f131c" : "#0c0e14"
                             border.color: rpSearchInput.activeFocus ? "#5068c8" : "#2a3040"
                             border.width: 1
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
 
                             TextInput {
                                 id: rpSearchInput
@@ -1943,8 +1951,8 @@ Rectangle {
                         Rectangle {
                             id: rpSourcePill
                             Layout.preferredWidth: 140; height: 28; radius: 5
-                            color: rpSrcHov.hovered ? "#1e3260" : "#0c0e14"
-                            border.color: (rpSrcHov.hovered || sourceActive) ? "#5078e0" : "#2a3040"; border.width: 1
+                            color: (rpSrcHov.containsMouse || rpSourceMenu.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (rpSrcHov.containsMouse || rpSourceMenu.visible || sourceActive) ? "#5078e0" : "#2a3040"; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2008,8 +2016,8 @@ Rectangle {
                         Rectangle {
                             id: rpVerPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            color: rpVerHov.hovered ? "#1e3260" : "#0c0e14"
-                            border.color: (rpVerHov.hovered || page.rpGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
+                            color: (rpVerHov.containsMouse || rpVerMenu.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (rpVerHov.containsMouse || rpVerMenu.visible || page.rpGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2110,8 +2118,8 @@ Rectangle {
                             Rectangle {
                                 id: rpCatPill
                                 Layout.preferredWidth: 95; height: 28; radius: 5
-                                color: rpCatHov.hovered ? "#1e3260" : "#0c0e14"
-                                border.color: (rpCatHov.hovered || page.rpCategoryFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+                                color: (rpCatHov.containsMouse || rpCatMenu.visible) ? "#1e3260" : "#0c0e14"
+                                border.color: (rpCatHov.containsMouse || rpCatMenu.visible || page.rpCategoryFilter) ? "#5078e0" : "#2a3040"; border.width: 1
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2206,8 +2214,8 @@ Rectangle {
                             Rectangle {
                                 id: rpFeatPill
                                 Layout.preferredWidth: 95; height: 28; radius: 5
-                                color: rpFeatHov.hovered ? "#1e3260" : "#0c0e14"
-                                border.color: (rpFeatHov.hovered || page.rpFeatureFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+                                color: (rpFeatHov.containsMouse || rpFeatMenu.visible) ? "#1e3260" : "#0c0e14"
+                                border.color: (rpFeatHov.containsMouse || rpFeatMenu.visible || page.rpFeatureFilter) ? "#5078e0" : "#2a3040"; border.width: 1
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2285,8 +2293,8 @@ Rectangle {
                             Rectangle {
                                 id: rpResPill
                                 Layout.preferredWidth: 95; height: 28; radius: 5
-                                color: rpResHov.hovered ? "#1e3260" : "#0c0e14"
-                                border.color: (rpResHov.hovered || page.rpResolutionFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+                                color: (rpResHov.containsMouse || rpResMenu.visible) ? "#1e3260" : "#0c0e14"
+                                border.color: (rpResHov.containsMouse || rpResMenu.visible || page.rpResolutionFilter) ? "#5078e0" : "#2a3040"; border.width: 1
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -3008,6 +3016,8 @@ Rectangle {
         opacity: page._showRpDetail ? 1 : 0
         visible: opacity > 0
 
+        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
         Loader {
             id: rpDetailLoader
             anchors.fill: parent
@@ -3066,6 +3076,8 @@ Rectangle {
         z: 10
         opacity: page._showModDetail ? 1 : 0
         visible: opacity > 0
+
+        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
         Loader {
             id: modDetailLoader

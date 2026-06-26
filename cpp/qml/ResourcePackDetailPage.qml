@@ -366,6 +366,14 @@ Rectangle {
                     // Sub-versions
                     Repeater {
                         model: isGroupExpanded(modelData.major) ? modelData.versions : []
+
+                        add: Transition {
+                            SequentialAnimation {
+                                PauseAnimation { duration: index * 40 }
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
+                            }
+                        }
+
                         delegate: DetailVersionCard {
                             width: parent.width - 24
                             x: 24
