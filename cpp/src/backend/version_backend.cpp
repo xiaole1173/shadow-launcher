@@ -607,8 +607,11 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                     break;
                                 }
                             }
-                            // Sync primary
+                            // Sync primary + ensure cards rebuild for standalone downloads
+                            // (merged install path already triggers rebuild via showStep/updateStep above,
+                            // but standalone downloads have no session entry, so they never hit that path)
                             syncPrimaryProgress();
+                            rebuildInstallCards();
                         });
 
                 connect(downloader,
