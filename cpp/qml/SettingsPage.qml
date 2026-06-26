@@ -548,7 +548,7 @@ Rectangle {
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4
-                                Text { text: qsTr("主页面透明度"); font.pixelSize: 11; color: "#b0b8c8" }
+                                Text { text: qsTr("背景可见度"); font.pixelSize: 11; color: "#b0b8c8" }
                                 RowLayout { Layout.fillWidth: true; spacing: 8
                                     Slider {
                                         id: contentSPSlider
@@ -577,7 +577,7 @@ Rectangle {
                         }
 
                         Text {
-                            text: qsTr("选择一张图片作为启动器背景。菜单栏和主页面可分别调节透明度。")
+                            text: qsTr("选择一张图片作为启动器背景。菜单栏和背景可见度可分别调节。")
                             font.pixelSize: 11; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
                         }
                     }

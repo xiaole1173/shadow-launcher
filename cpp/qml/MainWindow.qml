@@ -202,7 +202,7 @@ Window {
 
     // ── Custom background image (behind everything) ──
     Image {
-        anchors.fill: parent; z: -1
+        anchors.fill: parent; z: -2
         visible: hasCustomBg
         source: hasCustomBg ? backend.customBgPath : ""
         fillMode: Image.PreserveAspectCrop
@@ -210,10 +210,20 @@ Window {
         asynchronous: true
     }
 
+    // ── Dark mask overlay (between bg image and UI) ──
+    // Higher contentOpacity → thicker mask → less background visible
+    Rectangle {
+        anchors.fill: parent; z: -1
+        color: "#000000"
+        opacity: hasCustomBg ? (1.0 - backend.contentOpacity) : 0
+        visible: hasCustomBg
+        Behavior on opacity { NumberAnimation { duration: 300 } }
+    }
+
     // ── Rounded window container ──
     Rectangle {
         anchors.fill: parent; radius: 16
-        color: hasCustomBg ? Qt.rgba(0.047, 0.059, 0.086, 0.88) : "#0c0f16"
+        color: hasCustomBg ? "transparent" : "#0c0f16"
         clip: true
 
     ColumnLayout {
@@ -356,8 +366,6 @@ Window {
 
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
-                opacity: hasCustomBg ? backend.contentOpacity : 1.0
-                Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                 // ── Right-side header (matched to SHADOW height, sidebar color) ──
                 Rectangle {
@@ -431,7 +439,7 @@ Window {
                     }
 
                     // ========== DOWNLOAD & SETTINGS ==========
-                    Rectangle { anchors.fill: parent; visible: navListIndex === 1; color: "#0c0f16"
+                    Rectangle { anchors.fill: parent; visible: navListIndex === 1; color: hasCustomBg ? "transparent" : "#0c0f16"
                         Loader { id: downloadPageLoader; asynchronous: true; anchors.fill: parent; active: navListIndex === 1; source: active ? "DownloadPage.qml" : ""
                             onLoaded: {
                                 item.mainWindow = appWindow
@@ -448,12 +456,12 @@ Window {
                                 }
                             }
                         } }
-                    Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: "#0c0f16"
+                    Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: hasCustomBg ? "transparent" : "#0c0f16"
                         Loader { asynchronous: true; anchors.fill: parent; active: navListIndex === 2; source: active ? "SettingsPage.qml" : "" } }
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle {
-                        anchors.fill: parent; color: "#0c0f16"
+                        anchors.fill: parent; color: hasCustomBg ? "transparent" : "#0c0f16"
                         opacity: navListIndex >= 3 && navModel.get(navListIndex).pageKey === "download_progress" ? 1 : 0
                         visible: opacity > 0
                         Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.InOutCubic } }
@@ -522,7 +530,7 @@ Window {
     // ════════════════════════════════════════════
     Rectangle {
         id: installPageOverlay
-        anchors.fill: parent; color: "#0c0f16"; z: 21
+        anchors.fill: parent; color: hasCustomBg ? "transparent" : "#0c0f16"; z: 21
         opacity: showInstallPage ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
