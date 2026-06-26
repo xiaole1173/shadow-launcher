@@ -194,11 +194,17 @@ Window {
         }
     }
 
+    property bool hasCustomBg: {
+        if (!backend) return false
+        var p = backend.customBgPath
+        return typeof p === "string" && p.length > 0
+    }
+
     // ── Custom background image (behind everything) ──
     Image {
         anchors.fill: parent; z: -1
-        visible: backend ? backend.customBgPath !== "" : false
-        source: backend ? backend.customBgPath : ""
+        visible: hasCustomBg
+        source: hasCustomBg ? backend.customBgPath : ""
         fillMode: Image.PreserveAspectCrop
         cache: false
         asynchronous: true
@@ -207,7 +213,7 @@ Window {
     // ── Rounded window container ──
     Rectangle {
         anchors.fill: parent; radius: 16
-        color: backend && backend.customBgPath !== "" ? Qt.rgba(0.047, 0.059, 0.086, 0.88) : "#0c0f16"
+        color: hasCustomBg ? Qt.rgba(0.047, 0.059, 0.086, 0.88) : "#0c0f16"
         clip: true
 
     ColumnLayout {
@@ -254,7 +260,7 @@ Window {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
                 layer.enabled: true
                 color: "#0a0c12"; radius: 6
-                opacity: backend && backend.customBgPath !== "" ? backend.sidebarOpacity : 1.0
+                opacity: hasCustomBg ? backend.sidebarOpacity : 1.0
                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
@@ -350,7 +356,7 @@ Window {
 
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
-                opacity: backend && backend.customBgPath !== "" ? backend.contentOpacity : 1.0
+                opacity: hasCustomBg ? backend.contentOpacity : 1.0
                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                 // ── Right-side header (matched to SHADOW height, sidebar color) ──

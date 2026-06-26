@@ -353,6 +353,7 @@ Rectangle {
             contentHeight: expCol.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            property bool hasBg: backend ? (typeof backend.customBgPath === "string" && backend.customBgPath.length > 0) : false
             ColumnLayout {
                 id: expCol
                 width: parent.width
@@ -484,7 +485,7 @@ Rectangle {
                                 Text { id: bgTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: 10; color: "#a098e0" }
                             }
                             Item { Layout.fillWidth: true }
-                            Text { text: backend && backend.customBgPath !== "" ? qsTr("已设置") : qsTr("未设置"); font.pixelSize: 11; color: "#8088a0" }
+                            Text { text: hasBg ? qsTr("已设置") : qsTr("未设置"); font.pixelSize: 11; color: "#8088a0" }
                             Rectangle { width: 60; height: 28; radius: 5; color: bgBrowseHov.hovered ? "#252a38" : "#161a24"; border.color: "#2a2e3c"
                                 scale: bgBrowseHov.containsMouse ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -493,7 +494,7 @@ Rectangle {
                                     onClicked: { if (backend) backend.pickBackgroundImage() }
                                 }
                             }
-                            Rectangle { visible: backend ? backend.customBgPath !== "" : false; width: 60; height: 28; radius: 5; color: bgClearHov.hovered ? "#302020" : "#161a24"; border.color: "#2a2e3c"
+                            Rectangle { visible: hasBg; width: 60; height: 28; radius: 5; color: bgClearHov.hovered ? "#302020" : "#161a24"; border.color: "#2a2e3c"
                                 scale: bgClearHov.containsMouse ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                 Text { anchors.centerIn: parent; text: qsTr("清除"); font.pixelSize: 11; color: "#d08080" }
@@ -506,16 +507,16 @@ Rectangle {
                         // Preview thumbnail
                         Image {
                             Layout.fillWidth: true; Layout.preferredHeight: 100
-                            visible: backend ? backend.customBgPath !== "" : false
-                            source: backend ? backend.customBgPath : ""
+                            visible: hasBg
+                            source: hasBg ? backend.customBgPath : ""
                             fillMode: Image.PreserveAspectFit
                             cache: false; asynchronous: true
                         }
-                        Rectangle { visible: backend ? backend.customBgPath !== "" : false; Layout.fillWidth: true; height: 1; color: "#1a1f2a" }
+                        Rectangle { visible: hasBg; Layout.fillWidth: true; height: 1; color: "#1a1f2a" }
 
                         // Sliders
                         RowLayout {
-                            visible: backend ? backend.customBgPath !== "" : false
+                            visible: hasBg
                             Layout.fillWidth: true; spacing: 16
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 4

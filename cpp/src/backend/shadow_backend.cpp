@@ -126,6 +126,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::isolationChanged);
     connect(m_settings, &SettingsBackend::embeddedLoginChanged,
             this, &ShadowBackend::embeddedLoginChanged);
+    connect(m_settings, &SettingsBackend::customBgChanged,
+            this, &ShadowBackend::customBgChanged);
     connect(m_settings, &SettingsBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
@@ -510,7 +512,16 @@ void ShadowBackend::setEmbeddedLoginEnabled(bool v) {
 
 // ── Custom background ──
 QString ShadowBackend::customBgPath() const { return m_settings->customBgPath(); }
-void ShadowBackend::setCustomBgPath(const QString& path) { m_settings->setCustomBgPath(path); }
+void ShadowBackend::setCustomBgPath(const QString& url) {
+    // On clear, delete the cached copy
+    if (url.isEmpty() && !m_settings->customBgPath().isEmpty()) {
+        QString oldPath = QUrl(m_settings->customBgPath()).toLocalFile();
+        if (!oldPath.isEmpty() && QFile::exists(oldPath)) {
+            QFile::remove(oldPath);
+        }
+    }
+    m_settings->setCustomBgPath(url);
+}
 qreal ShadowBackend::sidebarOpacity() const { return m_settings->sidebarOpacity(); }
 void ShadowBackend::setSidebarOpacity(qreal v) { m_settings->setSidebarOpacity(v); }
 qreal ShadowBackend::contentOpacity() const { return m_settings->contentOpacity(); }
@@ -520,12 +531,28 @@ QString ShadowBackend::pickBackgroundImage() {
     QString path = QFileDialog::getOpenFileName(nullptr,
         QString::fromUtf8("选择背景图片"), QString(),
         QString::fromUtf8("图片文件 (*.png *.jpg *.jpeg *.bmp *.webp);;所有文件 (*)"));
-    if (!path.isEmpty()) {
+    if (path.isEmpty()) return QString();
+
+    // Copy to app data directory so the file doesn't go missing
+    QDir bgDir(m_app->dataDir() + "/custom_bg");
+    if (!bgDir.exists()) bgDir.mkpath(".");
+    // Remove old backgrounds
+    for (const QString& old : bgDir.entryList(QDir::Files)) {
+        QFile::remove(bgDir.filePath(old));
+    }
+    QFileInfo fi(path);
+    QString ext = fi.suffix().isEmpty() ? QStringLiteral("png") : fi.suffix();
+    QString destPath = bgDir.filePath(QStringLiteral("bg.") + ext);
+    if (!QFile::copy(path, destPath)) {
+        // Fallback: use original path
+        qWarning() << "[pickBackgroundImage] failed to copy" << path << "to" << destPath;
         QString url = QUrl::fromLocalFile(path).toString();
         m_settings->setCustomBgPath(url);
         return url;
     }
-    return QString();
+    QString url = QUrl::fromLocalFile(destPath).toString();
+    m_settings->setCustomBgPath(url);
+    return url;
 }
 
 QVariantList ShadowBackend::availableJavaList() const {
