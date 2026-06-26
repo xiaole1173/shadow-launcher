@@ -1440,7 +1440,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
+                                    text: modTab.formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
                                 }
                             }
                         }
