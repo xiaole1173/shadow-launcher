@@ -381,7 +381,7 @@ Rectangle {
                             Item { Layout.fillWidth: true }
                             ComboBox {
                                 id: langCombo
-                                model: ["简体中文", "繁體中文（香港/澳門）", "繁體中文（台灣）"]
+                                model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
                                 currentIndex: backend ? backend.languageIndex : 0
                                 onActivated: { if (backend) backend.switchLanguage(currentIndex) }
                                 Layout.preferredWidth: 220
