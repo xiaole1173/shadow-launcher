@@ -1477,6 +1477,8 @@ Rectangle {
         enabled: page.currentTab === 2
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
+        id: shaderTab
+
         function doShaderSearch() {
             if (!backend) return
             page.shaderSearching = true
@@ -1799,7 +1801,7 @@ Rectangle {
                                             font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
                                         }
                                         Text {
-                                            text: "📥 " + formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
+                                            text: "📥 " + shaderTab.formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
                                         }
                                     }
                                 }
