@@ -6,7 +6,7 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
     property var backend: null
     property var toastManager: null
 

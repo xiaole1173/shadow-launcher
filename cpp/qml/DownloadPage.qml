@@ -2946,7 +2946,7 @@ Rectangle {
     Rectangle {
         id: rpDetailOverlay
         anchors.fill: parent
-        color: hasBg ? "transparent" : "#0c0f16"
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
         z: 10
         opacity: page._showRpDetail ? 1 : 0
         visible: page._showRpDetail
@@ -3012,7 +3012,7 @@ Rectangle {
     Rectangle {
         id: modDetailOverlay
         anchors.fill: parent
-        color: hasBg ? "transparent" : "#0c0f16"
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
         z: 10
         opacity: page._showModDetail ? 1 : 0
         visible: page._showModDetail

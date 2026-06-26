@@ -6,7 +6,7 @@ import QtQuick.Layouts
 // ========== VERSION SETTINGS OVERLAY ==========
 Rectangle {
     id: versionSettingsOverlay
-    anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"; z: 5
+    anchors.fill: parent; color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"; z: 5
     property var backend: null
     property var toastManager: null
     property var confirmDialog: null
