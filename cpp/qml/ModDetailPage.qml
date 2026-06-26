@@ -35,7 +35,7 @@ Rectangle {
     signal goBack()
 
     // Exit fade-out timer
-    Timer { id: fadeOutTimer; interval: 250; onTriggered: root.goBack() }
+    Timer { id: fadeOutTimer; interval: 360; onTriggered: root.goBack() }
 
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
