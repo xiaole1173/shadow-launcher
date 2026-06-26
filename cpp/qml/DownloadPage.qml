@@ -959,7 +959,7 @@ Rectangle {
 
                     // Row 2: 加载器 | 版本 | 类型 | 环境 | 预发布
                     RowLayout {
-                        Layout.fillWidth: true; spacing: 3
+                        Layout.fillWidth: true; spacing: 10
 
                         // ── 加载器 ──
                         Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
