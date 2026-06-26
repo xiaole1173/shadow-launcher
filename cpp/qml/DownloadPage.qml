@@ -1338,158 +1338,132 @@ Rectangle {
             }
 
             // ── Results ──
-            Item {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+            Text {
+                visible: page.modSearching
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("搜索中…"); color: "#606478"; font.pixelSize: 12
+            }
+            Text {
+                visible: !page.modSearching && modResultsModel.count === 0
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("输入关键词搜索 Mod"); color: "#606478"; font.pixelSize: 12
+            }
 
-                Text {
-                    visible: page.modSearching
-                    anchors.centerIn: parent
-                    text: qsTr("搜索中…"); color: "#606478"; font.pixelSize: 12
-                }
-                Text {
-                    visible: !page.modSearching && modResultsModel.count === 0
-                    anchors.centerIn: parent
-                    text: qsTr("输入关键词搜索 Mod"); color: "#606478"; font.pixelSize: 12
-                }
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                visible: modResultsModel.count > 0
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                Flickable {
-                    anchors.fill: parent
-                    contentHeight: modGrid.implicitHeight
-                    clip: true
-                    visible: modResultsModel.count > 0
-                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                ListView {
+                    id: modListView
+                    anchors.fill: parent; spacing: 6
+                    model: modResultsModel
 
-                    ColumnLayout {
-                        id: modGrid; width: parent.width; spacing: 6
+                    delegate: Rectangle {
+                        id: modItem
+                        width: modListView.width - 8; height: 64; radius: 8
+                        color: modItemMA.containsMouse ? "#161a26" : "#161922"
+                        border.color: modItemMA.containsMouse ? "#4068c8" : "#1e2230"
+                        border.width: modItemMA.containsMouse ? 1.5 : 1
 
-                        Repeater {
-                            model: modResultsModel
+                        opacity: 0
+                        Component.onCompleted: { opacity = 1 }
 
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        Behavior on border.width { NumberAnimation { duration: 150 } }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.margins: 8; spacing: 8
+
+                            // Icon
                             Rectangle {
-                                id: modItem
-                                Layout.fillWidth: true
-                                height: 64; radius: 8
-                                color: modItemMA.containsMouse ? "#161a26" : "#161922"
-                                border.color: modItemMA.containsMouse ? "#4068c8" : "#1e2230"
-                                border.width: modItemMA.containsMouse ? 1.5 : 1
+                                Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 6
+                                color: "#0c0e14"; clip: true
 
-                                // Entrance animation
-                                opacity: 0
-                                Component.onCompleted: { opacity = 1 }
-
-                                // Elastic shake on click
-                                property bool _shaking: false
-                                x: _shaking ? shakeAnim.running ? 0 : 0 : 0
-                                SequentialAnimation {
-                                    id: shakeAnim
-                                    running: modItem._shaking
-                                    PropertyAnimation { target: modItem; property: "x"; from: 0; to: 4; duration: 50; easing.type: Easing.OutQuad }
-                                    PropertyAnimation { target: modItem; property: "x"; to: -4; duration: 50; easing.type: Easing.OutQuad }
-                                    PropertyAnimation { target: modItem; property: "x"; to: 2; duration: 50; easing.type: Easing.OutQuad }
-                                    PropertyAnimation { target: modItem; property: "x"; to: 0; duration: 50; easing.type: Easing.OutQuad }
-                                    onStopped: { modItem._shaking = false }
+                                Image {
+                                    anchors.fill: parent; anchors.margins: 2
+                                    fillMode: Image.PreserveAspectFit
+                                    asynchronous: true; cache: true
+                                    Component.onCompleted: {
+                                        if (model && model.icon) {
+                                            var url = model.icon
+                                            url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                            source = url
+                                        }
+                                    }
+                                    onStatusChanged: {
+                                        if (status === Image.Error) iconFallback.visible = true
+                                        else if (status === Image.Ready) iconFallback.visible = false
+                                    }
                                 }
+                                Text {
+                                    id: iconFallback
+                                    anchors.centerIn: parent
+                                    text: model ? (model.title ? model.title[0] : "M") : "M"
+                                    color: "#5068c8"; font.pixelSize: 16; font.bold: true
+                                    visible: !model || !model.icon
+                                }
+                            }
 
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
-                                Behavior on border.width { NumberAnimation { duration: 150 } }
-                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                            // Info + downloads
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 1
+                                Layout.alignment: Qt.AlignVCenter
 
                                 RowLayout {
-                                    anchors.fill: parent; anchors.margins: 8; spacing: 8
-
-                                    // Icon
+                                    Layout.fillWidth: true; spacing: 4
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: model.title || ""; color: "#d0d4e0"
+                                        font.pixelSize: 12; font.bold: true; elide: Text.ElideRight
+                                    }
                                     Rectangle {
-                                        Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 6
-                                        color: "#0c0e14"; clip: true
-
-                                        Image {
-                                            anchors.fill: parent; anchors.margins: 2
-                                            fillMode: Image.PreserveAspectFit
-                                            asynchronous: true; cache: true
-                                            sourceSize.width: 72; sourceSize.height: 72
-                                            Component.onCompleted: {
-                                                if (model && model.icon) {
-                                                    var url = model.icon
-                                                    url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                                    source = url
-                                                }
-                                            }
-                                            onStatusChanged: {
-                                                if (status === Image.Error) iconFallback.visible = true
-                                                else if (status === Image.Ready) iconFallback.visible = false
-                                            }
-                                        }
+                                        visible: model.loader
+                                        width: ldrBadge.implicitWidth + 8; height: 15; radius: 3
+                                        color: "#1a2848"
                                         Text {
-                                            id: iconFallback
-                                            anchors.centerIn: parent
-                                            text: model ? (model.title ? model.title[0] : "M") : "M"
-                                            color: "#5068c8"; font.pixelSize: 16; font.bold: true
-                                            visible: !model || !model.icon
+                                            id: ldrBadge; anchors.centerIn: parent
+                                            text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 8
                                         }
                                     }
-
-                                    // Info + downloads
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; spacing: 1
-                                        Layout.alignment: Qt.AlignVCenter
-
-                                        RowLayout {
-                                            Layout.fillWidth: true; spacing: 4
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: model.title || ""; color: "#d0d4e0"
-                                                font.pixelSize: 12; font.bold: true; elide: Text.ElideRight
-                                            }
-                                            Rectangle {
-                                                visible: model.loader
-                                                width: ldrBadge.implicitWidth + 8; height: 15; radius: 3
-                                                color: "#1a2848"
-                                                Text {
-                                                    id: ldrBadge; anchors.centerIn: parent
-                                                    text: model.loader || ""; color: "#8aaeff"; font.pixelSize: 8
-                                                }
-                                            }
-                                            Rectangle {
-                                                visible: model.clientSide
-                                                width: cliBadge.implicitWidth + 8; height: 15; radius: 3
-                                                color: "#282038"
-                                                Text {
-                                                    id: cliBadge; anchors.centerIn: parent
-                                                    text: page.modEnvLabels[model.clientSide] || model.clientSide || ""
-                                                    color: "#c0a0e0"; font.pixelSize: 8
-                                                }
-                                            }
-                                        }
-
+                                    Rectangle {
+                                        visible: model.clientSide
+                                        width: cliBadge.implicitWidth + 8; height: 15; radius: 3
+                                        color: "#282038"
                                         Text {
-                                            Layout.fillWidth: true
-                                            text: model.desc || ""; color: "#606478"
-                                            font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
-                                        }
-
-                                        Text {
-                                            text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
+                                            id: cliBadge; anchors.centerIn: parent
+                                            text: page.modEnvLabels[model.clientSide] || model.clientSide || ""
+                                            color: "#c0a0e0"; font.pixelSize: 8
                                         }
                                     }
                                 }
 
-                                // MouseArea on top of children for reliable hover
-                                MouseArea {
-                                    id: modItemMA
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        modItem._shaking = true
-                                        page._modDetailSlug = model.slug
-                                        page._modDetailTitle = model.title || ""
-                                        page._modDetailDesc = model.desc || ""
-                                        page._modDetailIcon = model.icon || ""
-                                        page._showModDetail = true
-                                    }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: model.desc || ""; color: "#606478"
+                                    font.pixelSize: 10; elide: Text.ElideRight; maximumLineCount: 1
                                 }
+
+                                Text {
+                                    text: formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: 10
+                                }
+                            }
+                        }
+
+                        // MouseArea on top of children for reliable hover
+                        MouseArea {
+                            id: modItemMA
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                page._modDetailSlug = model.slug
+                                page._modDetailTitle = model.title || ""
+                                page._modDetailDesc = model.desc || ""
+                                page._modDetailIcon = model.icon || ""
+                                page._showModDetail = true
                             }
                         }
                     }
