@@ -364,6 +364,7 @@ Rectangle {
         spacing: 4
 
         property var tabLabels: ["MC 版本", "Mod", "光影", "资源包"]
+        property var tabIcons: ["box", "puzzle", "sparkles", "palette"]
         property var tabIcons: ["", "", "", ""]
 
         Repeater {
@@ -378,12 +379,20 @@ Rectangle {
                 scale: tabMouse.containsMouse ? 1.04 : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
-                Text {
-                    anchors.centerIn: parent
-                    text: tabBar.tabLabels[index]
-                    color: page.currentTab === index ? "#d0d4e0" : "#606478"
-                    font.pixelSize: 13
-                    font.weight: page.currentTab === index ? Font.DemiBold : Font.Normal
+                Row {
+                    anchors.centerIn: parent; spacing: 6
+                    Image {
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: "icons/lucide/" + tabBar.tabIcons[index] + ".svg"
+                        width: 16; height: 16
+                        sourceSize: Qt.size(16, 16)
+                    }
+                    Text {
+                        text: tabBar.tabLabels[index]
+                        color: page.currentTab === index ? "#d0d4e0" : "#606478"
+                        font.pixelSize: 13
+                        font.weight: page.currentTab === index ? Font.DemiBold : Font.Normal
+                    }
                 }
 
                 MouseArea {
@@ -434,9 +443,9 @@ Rectangle {
 
             Repeater {
                 model: [
-                    { key: "release", label: "正式版", countFn: function() { return page.getReleaseCount() } },
-                    { key: "snapshot", label: "快照版", countFn: function() { return page.getSnapshotCount() } },
-                    { key: "old", label: "远古版", countFn: function() { return page.getOldCount() } }
+                    { key: "release", label: "正式版", icon: "check-circle", countFn: function() { return page.getReleaseCount() } },
+                    { key: "snapshot", label: "快照版", icon: "flask-conical", countFn: function() { return page.getSnapshotCount() } },
+                    { key: "old", label: "远古版", icon: "landmark", countFn: function() { return page.getOldCount() } }
                 ]
 
                 Rectangle {
@@ -453,6 +462,12 @@ Rectangle {
                         id: pillRow
                         anchors.centerIn: parent
                         spacing: 4
+                        Image {
+                            anchors.verticalCenter: parent.verticalCenter
+                            source: "icons/lucide/" + modelData.icon + ".svg"
+                            width: 14; height: 14
+                            sourceSize: Qt.size(14, 14)
+                        }
                         Text {
                             id: pillLabel
                             text: modelData.label
@@ -491,11 +506,11 @@ Rectangle {
                 scale: refreshHover.hovered ? 1.08 : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 visible: page.currentTab === 0
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: ""; visible: false
-                    color: refreshHover.hovered ? "#8aa8f0" : "#9094a8"
-                    font.pixelSize: 16
+                    source: "icons/lucide/refresh-cw.svg"
+                    width: 16; height: 16
+                    sourceSize: Qt.size(16, 16)
                 }
                 HoverHandler { id: refreshHover }
                 ToolTip { visible: refreshHover.hovered; text: qsTr("刷新版本列表"); delay: 500 }

@@ -50,10 +50,19 @@ Rectangle {
                     color: nav.currentIndex === index ? "#181c28" : (navMouse.containsMouse ? "#11141c" : "transparent")
                     scale: navMouse.containsMouse ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                    Text {
+                    Row {
                         anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter
-                        text: modelData; color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13
-                        font.weight: nav.currentIndex === index ? Font.DemiBold : Font.Normal
+                        spacing: 8
+                        Image {
+                            anchors.verticalCenter: parent.verticalCenter
+                            source: "icons/lucide/" + modelData.icon + ".svg"
+                            width: 16; height: 16
+                            sourceSize: Qt.size(16, 16)
+                        }
+                        Text {
+                            text: modelData.label; color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13
+                            font.weight: nav.currentIndex === index ? Font.DemiBold : Font.Normal
+                        }
                     }
                     MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { nav.currentIndex = index; page.switchSection(index) } }
                 }
