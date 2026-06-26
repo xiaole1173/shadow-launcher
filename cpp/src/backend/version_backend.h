@@ -57,6 +57,7 @@ struct InstallSession {
     QString pendingLoaderType;     // "optifine" / "forge" / etc for pending loader
     QString error;                 // Install error message on failure
     int loadedStep = 0;  // which step is currently active
+    bool fabricApiPending = false; // Fabric API download in progress (parallel)
     
     // Per-install MC download byte tracking (was global singletons)
     qint64 mcStepDone[3] = {};
@@ -230,6 +231,7 @@ private:
     void proceedToLoaderInstall(const QString& installId);
     void updateInstalledList();
     void setInstalling(bool v);
+    void finishInstall(const QString& installName);
     void setInstallPhase(const QString& phase);
 
     VersionManager* m_versionMgr = nullptr;

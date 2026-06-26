@@ -136,8 +136,11 @@ VersionBackend::VersionBackend(QObject* parent)
             return;
         if (success) {
             // Mark all steps completed
-            for (int i = 0; i < ses.steps.size(); i++)
+            for (int i = 0; i < ses.steps.size(); i++) {
+                // Skip step 7 (Fabric API) if still pending — let API callback mark it
+                if (i == 7 && ses.fabricApiPending) continue;
                 updateStep(mlId, i, QStringLiteral("completed"), 100);
+            }
             // Merged install complete — clean up session
             if (ses.isMerged) {
                 ses.isMerged = false;
@@ -148,6 +151,12 @@ VersionBackend::VersionBackend(QObject* parent)
             emit logMessage(tr("[ModLoader] 安装完成"));
             setInstallPhase(tr("完成"));
             updateInstalledList();
+
+            // If Fabric API is still downloading in parallel, don't finalize yet
+            if (ses.fabricApiPending) {
+                qDebug() << "[install] Fabric loader done, waiting for parallel API download";
+                return;
+            }
         } else {
             emit logMessage(tr("[ModLoader] 安装失败: ") + errMsg);
             // Mark last step as failed, keep card visible for diagnostics
@@ -997,6 +1006,22 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
     }
 }
 
+void VersionBackend::finishInstall(const QString& installName)
+{
+    qDebug() << "[install] finishInstall:" << installName;
+    if (installName.isEmpty()) {
+        setInstalling(false);
+        emit installFinished(true);
+        emit installComplete(QString());
+        return;
+    }
+    auto& ses = session(installName);
+    updateStep(installName, 7, QStringLiteral("completed"), 100);
+    setInstalling(false);
+    emit installFinished(true);
+    emit installComplete(installName);
+}
+
 void VersionBackend::setInstalling(bool v)
 {
     bool wasInstalling = m_installing || (m_activeCount > 0);
@@ -1823,12 +1848,53 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 m_modLoaderInstallId = installName;
                 m_mlInstaller->setGameDir(m_gameDir);
                 m_mlInstaller->setParallelMode(true);
-                if (!fabricApiUrl.isEmpty()) {
-                    m_mlInstaller->setFabricApiInfo(fabricApiVersion, fabricApiUrl, fabricApiSavePath);
-                }
                 m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
+
+                // ── 3. Fabric API: download in parallel with MC + Fabric ──
+                if (!fabricApiUrl.isEmpty()) {
+                    auto& ses = session(installName);
+                    ses.fabricApiPending = true;
+                    showStep(installName, 7);  // step 7 = 下载 Fabric API
+                    updateStep(installName, 7, QStringLiteral("active"), 0);
+
+                    QDir().mkpath(QFileInfo(fabricApiSavePath).absolutePath());
+                    auto* apiNam = new QNetworkAccessManager(this);
+                    QUrl apiUrlObj(fabricApiUrl);
+                    QNetworkRequest apiReq(apiUrlObj);
+                    QNetworkReply* apiReply = apiNam->get(apiReq);
+
+                    connect(apiReply, &QNetworkReply::downloadProgress, this,
+                            [this, installName](qint64 recv, qint64 total) {
+                        int pct = total > 0 ? (int)(recv * 100 / total) : 0;
+                        updateStep(installName, 7, QStringLiteral("active"), pct);
+                    });
+
+                    connect(apiReply, &QNetworkReply::finished, this, [this, apiReply, apiNam, installName, fabricApiSavePath]() {
+                        apiReply->deleteLater();
+                        apiNam->deleteLater();
+                        auto& ses = session(installName);
+                        ses.fabricApiPending = false;
+                        if (apiReply->error() != QNetworkReply::NoError) {
+                            qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
+                            updateStep(installName, 7, QStringLiteral("error"), 0);
+                            setInstallPhase(tr("Fabric API 下载失败"));
+                        } else {
+                            QByteArray data = apiReply->readAll();
+                            QFile f(fabricApiSavePath);
+                            if (f.open(QIODevice::WriteOnly)) {
+                                f.write(data);
+                                f.close();
+                            }
+                            qDebug() << "[install] Fabric API downloaded:" << fabricApiSavePath << data.size() << "bytes";
+                            updateStep(installName, 7, QStringLiteral("completed"), 100);
+                            // If loader install also finished, finalize
+                            if (!ses.hasPendingLoader) {
+                                finishInstall(installName);
+                            }
+                        }
+                    });
+                }
                 // waitingForMC() will fire when profile+libs download completes
-                // → sets loaderDownloadReady = true → if MC done, proceedToLoaderInstall
                 return;
             }
 

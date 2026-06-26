@@ -46,7 +46,6 @@ public:
     // Fabric parallel install: start downloading MC + Fabric at the same time
     void setParallelMode(bool v) { m_parallelMode = v; }
     void fabricFinalize();  // Called after MC completes in parallel mode
-    void setFabricApiInfo(const QString& apiVersion, const QString& apiUrl, const QString& apiSavePath);
 
 signals:
     // Step-level progress (for phase text)
@@ -101,7 +100,6 @@ private:
     void cleanupAfterInstall(const QStringList& dirsToClean);
 
     // Fabric
-    void fabricApiStep4_downloadApi();
     void fabricStep1_downloadProfile();
     void fabricStep2_downloadLibraries(const QByteArray& profileData);
     void fabricStep3_writeVersion(const QByteArray& profileData);
@@ -124,9 +122,6 @@ private:
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
     bool m_parallelMode = false;  // Fabric: don't auto-advance to write phase
-    QString m_fabricApiVersion;
-    QString m_fabricApiUrl;
-    QString m_fabricApiSavePath;
 
     // Fabric library download state
     struct FabricLibTask {
