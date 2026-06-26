@@ -532,7 +532,10 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
     // Remove from running list
     m_runningLaunchers.removeOne(launcher);
     qCDebug(logLaunch) << "[PROCESS] Game removed from running list (total:" << m_runningLaunchers.size() << ") success=" << success;
-    launcher->deleteLater();
+    // BUGFIX: defer deletion — QProcess may still have pending queued signals
+    // Deferred via singleShot to a clean event-loop iteration
+    launcher->disconnect();
+    QTimer::singleShot(0, launcher, &QObject::deleteLater);
     emit runningCountChanged();
     if (m_runningLaunchers.isEmpty()) emit isRunningChanged();
 
