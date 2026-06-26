@@ -2467,6 +2467,17 @@ Rectangle {
                         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
                         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
+                        // Hover glow overlay
+                        Rectangle {
+                            anchors.fill: parent; radius: parent.radius
+                            opacity: rpCardHov.hovered ? 0.06 : 0
+                            gradient: Gradient {
+                                GradientStop { position: 0; color: "#5070e0" }
+                                GradientStop { position: 1; color: "#6088f0" }
+                            }
+                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                        }
+
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
 
