@@ -2016,8 +2016,8 @@ Rectangle {
                         Rectangle {
                             id: rpVerPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            color: (rpVerHov.containsMouse || rpVerMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (rpVerHov.containsMouse || rpVerMenu.visible || page.rpGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
+                            color: (rpVerHov.containsMouse || rpVersionMenu.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (rpVerHov.containsMouse || rpVersionMenu.visible || page.rpGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -3016,8 +3016,6 @@ Rectangle {
         opacity: page._showRpDetail ? 1 : 0
         visible: opacity > 0
 
-        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-
         Loader {
             id: rpDetailLoader
             anchors.fill: parent
@@ -3076,8 +3074,6 @@ Rectangle {
         z: 10
         opacity: page._showModDetail ? 1 : 0
         visible: opacity > 0
-
-        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
         Loader {
             id: modDetailLoader
