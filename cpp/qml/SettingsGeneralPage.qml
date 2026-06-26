@@ -90,7 +90,7 @@ Rectangle {
                     Label {
                         id: backLabel
                         anchors.centerIn: parent
-                        text: "← 设置"
+                        text: qsTr("← 设置")
                         color: root.colorTertiary
                         font.pixelSize: 15
                     }
@@ -113,7 +113,7 @@ Rectangle {
 
                 Label {
                     anchors.centerIn: parent
-                    text: "启动设置"
+                    text: qsTr("启动设置")
                     color: root.colorPrimary
                     font.pixelSize: 20
                     font.bold: true
@@ -126,7 +126,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "版本隔离"
+                    text: qsTr("版本隔离")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -151,12 +151,12 @@ Rectangle {
                             spacing: 2
 
                             Label {
-                                text: "各版本独立路径存放资源"
+                                text: qsTr("各版本独立路径存放资源")
                                 color: root.colorSecondary
                                 font.pixelSize: 14
                             }
                             Label {
-                                text: "每个游戏版本使用独立的 libraries 和 assets 文件夹"
+                                text: qsTr("每个游戏版本使用独立的 libraries 和 assets 文件夹")
                                 color: root.colorTertiary
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap
@@ -202,7 +202,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "启动器可见性"
+                    text: qsTr("启动器可见性")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -235,7 +235,7 @@ Rectangle {
                             Label {
                                 id: visKeepLabel
                                 anchors.centerIn: parent
-                                text: "保持不变"
+                                text: qsTr("保持不变")
                                 color: d.launcherVisibility === "keep" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -263,7 +263,7 @@ Rectangle {
                             Label {
                                 id: visHideLabel
                                 anchors.centerIn: parent
-                                text: "启动后隐藏，游戏退出后显示"
+                                text: qsTr("启动后隐藏，游戏退出后显示")
                                 color: d.launcherVisibility === "hideOnLaunch" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -287,7 +287,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "进程优先级"
+                    text: qsTr("进程优先级")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -320,7 +320,7 @@ Rectangle {
                             Label {
                                 id: priNormalLabel
                                 anchors.centerIn: parent
-                                text: "正常"
+                                text: qsTr("正常")
                                 color: d.processPriority === "normal" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -348,7 +348,7 @@ Rectangle {
                             Label {
                                 id: priHighLabel
                                 anchors.centerIn: parent
-                                text: "高"
+                                text: qsTr("高")
                                 color: d.processPriority === "high" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -376,7 +376,7 @@ Rectangle {
                             Label {
                                 id: priRealtimeLabel
                                 anchors.centerIn: parent
-                                text: "实时"
+                                text: qsTr("实时")
                                 color: d.processPriority === "realtime" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -400,7 +400,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "游戏窗口大小"
+                    text: qsTr("游戏窗口大小")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -433,7 +433,7 @@ Rectangle {
                             Label {
                                 id: winDefaultLabel
                                 anchors.centerIn: parent
-                                text: "默认"
+                                text: qsTr("默认")
                                 color: d.windowSize === "default" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -461,7 +461,7 @@ Rectangle {
                             Label {
                                 id: winFullscreenLabel
                                 anchors.centerIn: parent
-                                text: "全屏"
+                                text: qsTr("全屏")
                                 color: d.windowSize === "fullscreen" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -489,7 +489,7 @@ Rectangle {
                             Label {
                                 id: winCustomLabel
                                 anchors.centerIn: parent
-                                text: "指定分辨率"
+                                text: qsTr("指定分辨率")
                                 color: d.windowSize === "custom" ? "#FFFFFF" : root.colorSecondary
                                 font.pixelSize: 13
                             }
@@ -532,7 +532,7 @@ Rectangle {
                         ColumnLayout {
                             spacing: 4
                             Label {
-                                text: "宽度"
+                                text: qsTr("宽度")
                                 color: root.colorTertiary
                                 font.pixelSize: 11
                             }
@@ -639,7 +639,7 @@ Rectangle {
                         ColumnLayout {
                             spacing: 4
                             Label {
-                                text: "高度"
+                                text: qsTr("高度")
                                 color: root.colorTertiary
                                 font.pixelSize: 11
                             }

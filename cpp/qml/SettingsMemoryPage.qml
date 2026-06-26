@@ -75,7 +75,7 @@ Rectangle {
                 border.width: 1
                 Text {
                     anchors.centerIn: parent
-                    text: "← 设置"
+                    text: qsTr("← 设置")
                     color: backMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
                     font.pixelSize: 13
                 }
@@ -89,7 +89,7 @@ Rectangle {
             }
 
             Text {
-                text: "游戏内存"
+                text: qsTr("游戏内存")
                 font.pixelSize: 22
                 font.bold: true
                 color: "#F1F3F6"
@@ -100,7 +100,7 @@ Rectangle {
 
         // ═══ 实时内存状态 ═══
         Text {
-            text: "实时内存状态"
+            text: qsTr("实时内存状态")
             font.pixelSize: 12; font.bold: true
             color: "#7E8596"
         }
@@ -120,7 +120,7 @@ Rectangle {
 
                 RowLayout {
                     spacing: 8
-                    Text { text: "系统总内存:"; font.pixelSize: 14; color: "#B4BAC6" }
+                    Text { text: qsTr("系统总内存:"); font.pixelSize: 14; color: "#B4BAC6" }
                     Text {
                         text: sysTotalGB.toFixed(1) + " GB"
                         font.pixelSize: 14; font.bold: true; color: "#F1F3F6"
@@ -130,7 +130,7 @@ Rectangle {
 
                 RowLayout {
                     spacing: 8
-                    Text { text: "当前可用:"; font.pixelSize: 14; color: "#B4BAC6" }
+                    Text { text: qsTr("当前可用:"); font.pixelSize: 14; color: "#B4BAC6" }
                     Text {
                         text: sysAvailGB.toFixed(1) + " GB"
                         font.pixelSize: 14; font.bold: true
@@ -141,7 +141,7 @@ Rectangle {
 
                 RowLayout {
                     spacing: 8
-                    Text { text: "使用率:"; font.pixelSize: 14; color: "#B4BAC6" }
+                    Text { text: qsTr("使用率:"); font.pixelSize: 14; color: "#B4BAC6" }
                     Text {
                         text: sysUsedPercent.toFixed(0) + "%"
                         font.pixelSize: 14; font.bold: true; color: "#F1F3F6"
@@ -165,7 +165,7 @@ Rectangle {
 
                 RowLayout {
                     spacing: 8
-                    Text { text: "预估分配:"; font.pixelSize: 14; color: "#B4BAC6" }
+                    Text { text: qsTr("预估分配:"); font.pixelSize: 14; color: "#B4BAC6" }
                     Text {
                         text: autoRecommendedMB + " MB"
                         font.pixelSize: 14; font.bold: true; color: "#3B82F6"
@@ -177,7 +177,7 @@ Rectangle {
 
         // ═══ 手动内存分配 ═══
         Text {
-            text: "手动内存分配"
+            text: qsTr("手动内存分配")
             font.pixelSize: 12; font.bold: true
             color: "#7E8596"
         }
@@ -197,7 +197,7 @@ Rectangle {
 
                 RowLayout {
                     spacing: 6
-                    Text { text: "分配大小:"; font.pixelSize: 14; color: "#B4BAC6" }
+                    Text { text: qsTr("分配大小:"); font.pixelSize: 14; color: "#B4BAC6" }
                     Text {
                         text: manualMemoryMB + " MB"
                         font.pixelSize: 18; font.bold: true; color: "#F1F3F6"
@@ -297,7 +297,7 @@ Rectangle {
                 spacing: 8
                 Text { text: "ℹ️"; font.pixelSize: 14; color: "#7E8596" }
                 Text {
-                    text: "游戏启动时将自动根据系统当前可用内存动态分配"
+                    text: qsTr("游戏启动时将自动根据系统当前可用内存动态分配")
                     font.pixelSize: 12; color: "#7E8596"
                 }
                 Item { Layout.fillWidth: true }

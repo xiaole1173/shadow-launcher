@@ -1,4 +1,4 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -498,7 +498,7 @@ Rectangle {
                     font.pixelSize: 16
                 }
                 HoverHandler { id: refreshHover }
-                ToolTip { visible: refreshHover.hovered; text: "刷新版本列表"; delay: 500 }
+                ToolTip { visible: refreshHover.hovered; text: qsTr("刷新版本列表"); delay: 500 }
                 MouseArea {
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                     onClicked: {
@@ -527,7 +527,7 @@ Rectangle {
                     border.color: page.currentSource === -1 ? "#5068d8" : "#1e2230"
                     scale: multiSrcMouse.containsMouse ? 1.04 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                    Text { id: multiLabel; anchors.centerIn: parent; text: "自动"; color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
+                    Text { id: multiLabel; anchors.centerIn: parent; text: qsTr("自动"); color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
                     MouseArea { id: multiSrcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = -1 }
                 }
                 // Divider
@@ -666,7 +666,7 @@ Rectangle {
                             Text {
                                 id: installedTag
                                 anchors.centerIn: parent
-                                text: "已安装"
+                                text: qsTr("已安装")
                                 color: "#4bc870"; font.pixelSize: 9
                                 font.family: "Consolas, monospace"
                             }
@@ -697,7 +697,7 @@ Rectangle {
                         Text {
                             visible: backend && backend.installing && backend.installVersionId === model.versionId
                                      && backend.installPhase !== "done"
-                            text: "正在下载"
+                            text: qsTr("正在下载")
                             font.pixelSize: 9; color: "#5d6fe0"
                         }
 
@@ -896,7 +896,7 @@ Rectangle {
 
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: "搜索 Mod…"; color: "#505468"; font.pixelSize: 11
+                                    text: qsTr("搜索 Mod…"); color: "#505468"; font.pixelSize: 11
                                     visible: !modInput.text
                                 }
                             }
@@ -908,7 +908,7 @@ Rectangle {
                             scale: modSearchBtn.pressed ? 0.92 : (modSearchBtn.hovered ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: "搜索"; color: "#fff"; font.pixelSize: 10; font.bold: true }
+                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: "#fff"; font.pixelSize: 10; font.bold: true }
                             MouseArea {
                                 id: modSearchBtn; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -923,7 +923,7 @@ Rectangle {
                             scale: modResetBtn.pressed ? 0.92 : (modResetBtn.hovered ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: "重置"; color: "#b090c8"; font.pixelSize: 10 }
+                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#b090c8"; font.pixelSize: 10 }
                             MouseArea {
                                 id: modResetBtn; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -942,7 +942,7 @@ Rectangle {
                         Layout.fillWidth: true; spacing: 3
 
                         // ── 加载器 ──
-                        Text { text: "加载器"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 38 }
+                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 38 }
                         Rectangle {
                             id: modLdrPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
@@ -1028,7 +1028,7 @@ Rectangle {
                         }
 
                         // ── 版本 ──
-                        Text { text: "版本"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
+                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
                         Rectangle {
                             id: modVerPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
@@ -1094,7 +1094,7 @@ Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: 4
                                             color: !page.modGameVersion ? "#1a2848" : "transparent"
                                             Text {
-                                                anchors.centerIn: parent; text: "全部"
+                                                anchors.centerIn: parent; text: qsTr("全部")
                                                 color: !page.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
                                                 font.weight: !page.modGameVersion ? Font.Bold : Font.Normal
                                             }
@@ -1140,7 +1140,7 @@ Rectangle {
                         }
 
                         // ── 类型 ──
-                        Text { text: "类型"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
+                        Text { text: qsTr("类型"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
                         Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 90; height: 24; radius: 4
@@ -1206,7 +1206,7 @@ Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: 4
                                             color: !page.modCategory ? "#1a2848" : "transparent"
                                             Text {
-                                                anchors.centerIn: parent; text: "全部"
+                                                anchors.centerIn: parent; text: qsTr("全部")
                                                 color: !page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
                                                 font.weight: !page.modCategory ? Font.Bold : Font.Normal
                                             }
@@ -1238,7 +1238,7 @@ Rectangle {
                         }
 
                         // ── 环境 ──
-                        Text { text: "环境"; color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
+                        Text { text: qsTr("环境"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
                         Rectangle {
                             id: modEnvPill
                             Layout.preferredWidth: 72; height: 24; radius: 4
@@ -1353,12 +1353,12 @@ Rectangle {
                 Text {
                     visible: page.modSearching
                     anchors.centerIn: parent
-                    text: "搜索中…"; color: "#606478"; font.pixelSize: 12
+                    text: qsTr("搜索中…"); color: "#606478"; font.pixelSize: 12
                 }
                 Text {
                     visible: !page.modSearching && modResultsModel.count === 0
                     anchors.centerIn: parent
-                    text: "输入关键词搜索 Mod"; color: "#606478"; font.pixelSize: 12
+                    text: qsTr("输入关键词搜索 Mod"); color: "#606478"; font.pixelSize: 12
                 }
 
                 Flickable {
@@ -1584,7 +1584,7 @@ Rectangle {
 
                             Text {
                                 anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                text: "搜索光影…"; color: "#505468"; font.pixelSize: 11
+                                text: qsTr("搜索光影…"); color: "#505468"; font.pixelSize: 11
                                 visible: !shaderInput.text
                             }
                         }
@@ -1597,7 +1597,7 @@ Rectangle {
                         scale: sSbtn.pressed ? 0.92 : (sSbtn.hovered ? 1.06 : 1.0)
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                        Text { anchors.centerIn: parent; text: "搜索"; color: "#fff"; font.pixelSize: 10; font.bold: true }
+                        Text { anchors.centerIn: parent; text: qsTr("搜索"); color: "#fff"; font.pixelSize: 10; font.bold: true }
                         MouseArea {
                             id: sSbtn; anchors.fill: parent
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1606,7 +1606,7 @@ Rectangle {
                     }
 
                     // Version dropdown
-                    Text { text: "版本"; color: "#9094a8"; font.pixelSize: 10 }
+                    Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 10 }
                     Rectangle {
                         Layout.preferredWidth: 80; height: 26; radius: 4
                         color: sVerHov.hovered ? "#1a2848" : "#0c0e14"
@@ -1647,7 +1647,7 @@ Rectangle {
                                         Layout.fillWidth: true; height: 26; radius: 4
                                         color: !page.shaderGameVersion ? "#1a2848" : "transparent"
                                         Text {
-                                            anchors.centerIn: parent; text: "全部"
+                                            anchors.centerIn: parent; text: qsTr("全部")
                                             color: !page.shaderGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
                                             font.weight: !page.shaderGameVersion ? Font.Bold : Font.Normal
                                         }
@@ -1715,7 +1715,7 @@ Rectangle {
                         scale: sRbtn.pressed ? 0.92 : (sRbtn.hovered ? 1.06 : 1.0)
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                        Text { anchors.centerIn: parent; text: "重置"; color: "#b090c8"; font.pixelSize: 10 }
+                        Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#b090c8"; font.pixelSize: 10 }
                         MouseArea {
                             id: sRbtn; anchors.fill: parent
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1737,12 +1737,12 @@ Rectangle {
                 Text {
                     visible: page.shaderSearching
                     anchors.centerIn: parent
-                    text: "搜索中…"; color: "#606478"; font.pixelSize: 12
+                    text: qsTr("搜索中…"); color: "#606478"; font.pixelSize: 12
                 }
                 Text {
                     visible: !page.shaderSearching && shaderResultsModel.count === 0
                     anchors.centerIn: parent
-                    text: "输入关键词搜索光影"; color: "#606478"; font.pixelSize: 12
+                    text: qsTr("输入关键词搜索光影"); color: "#606478"; font.pixelSize: 12
                 }
 
                 Flickable {
@@ -1877,7 +1877,7 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
 
-                        Text { text: "名称"; color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
+                        Text { text: qsTr("名称"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
 
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: 5
@@ -1893,13 +1893,13 @@ Rectangle {
 
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: "输入资源包名称..."; color: "#505468"; font.pixelSize: 11
+                                    text: qsTr("输入资源包名称..."); color: "#505468"; font.pixelSize: 11
                                     visible: !rpSearchInput.text
                                 }
                             }
                         }
 
-                        Text { text: "来源"; color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
+                        Text { text: qsTr("来源"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
 
                         Rectangle {
                             id: rpSourcePill
@@ -1961,7 +1961,7 @@ Rectangle {
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
 
-                        Text { text: "版本"; color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
+                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
 
                         Rectangle {
                             id: rpVerPill
@@ -2006,7 +2006,7 @@ Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: 4
                                             color: !page.rpGameVersion ? "#1a2848" : "transparent"
                                             Text {
-                                                anchors.centerIn: parent; text: "全部"
+                                                anchors.centerIn: parent; text: qsTr("全部")
                                                 color: !page.rpGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: 11
                                                 font.weight: !page.rpGameVersion ? Font.Bold : Font.Normal
                                             }
@@ -2055,7 +2055,7 @@ Rectangle {
                             }
                         }
 
-                        Text { text: "筛选"; color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
+                        Text { text: qsTr("筛选"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
 
                         // Three filter dropdowns: Category | Feature | Resolution
                         RowLayout {
@@ -2319,7 +2319,7 @@ Rectangle {
                         Rectangle {
                             width: 72; height: 28; radius: 5
                             color: "#5068c8"
-                            Text { anchors.centerIn: parent; text: "搜索"; color: "#e8ecf8"; font.pixelSize: 12 }
+                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: "#e8ecf8"; font.pixelSize: 12 }
                             MouseArea {
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 // FIX 1: Search button — the ONLY trigger for loadRpFirstPage() from filter changes
@@ -2332,7 +2332,7 @@ Rectangle {
                             color: rpResetHov.hovered ? "#252a38" : "#151922"
                             border.color: "#2a3040"; border.width: 1
                             visible: page.rpCategoryFilter || page.rpFeatureFilter || page.rpResolutionFilter || page.rpGameVersion || rpSearchInput.text
-                            Text { anchors.centerIn: parent; text: "重置"; color: "#9094a8"; font.pixelSize: 12 }
+                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#9094a8"; font.pixelSize: 12 }
                             MouseArea {
                                 id: rpResetHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -2352,7 +2352,7 @@ Rectangle {
             }
 
             Text {
-                text: "资源包 | 来源: MCIM (mcimirror.top) | " + (rpTotalHits || rpResultsModel.count || 0) + " 个结果"
+                text: qsTr("资源包 | 来源: MCIM (mcimirror.top) | ") + (rpTotalHits || rpResultsModel.count || 0) + " 个结果"
                 color: "#505468"; font.pixelSize: 11
             }
             // ── Results: vertical full-width cards ──
@@ -2683,7 +2683,7 @@ Rectangle {
                                             Rectangle {
                                                 id: rpChipPlaceholder; height: 16; width: 48; radius: 4
                                                 color: "#151922"; border.color: "#404860"; border.width: 1
-                                                Text { anchors.centerIn: parent; text: "加载中"; color: "#404860"; font.pixelSize: 8 }
+                                                Text { anchors.centerIn: parent; text: qsTr("加载中"); color: "#404860"; font.pixelSize: 8 }
                                             }
                                             Binding {
                                                 target: rpChipRow; property: "chipsJson"

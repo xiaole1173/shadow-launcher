@@ -152,6 +152,86 @@ qt6_add_resources(ShadowLauncher "qml_resources"
 )
 target_include_directories(ShadowLauncher PRIVATE src)
 
+# ── Lucide icon resources ──
+qt6_add_resources(ShadowLauncher "icon_resources"
+    PREFIX "/icons"
+    FILES
+        icons/lucide/home.svg
+        icons/lucide/download.svg
+        icons/lucide/settings.svg
+        icons/lucide/package.svg
+        icons/lucide/x-circle.svg
+        icons/lucide/minus.svg
+        icons/lucide/x.svg
+        icons/lucide/shield-check.svg
+        icons/lucide/key.svg
+        icons/lucide/user.svg
+        icons/lucide/chevron-down.svg
+        icons/lucide/log-out.svg
+        icons/lucide/play.svg
+        icons/lucide/list.svg
+        icons/lucide/wrench.svg
+        icons/lucide/box.svg
+        icons/lucide/puzzle.svg
+        icons/lucide/sparkles.svg
+        icons/lucide/palette.svg
+        icons/lucide/check-circle.svg
+        icons/lucide/flask-conical.svg
+        icons/lucide/landmark.svg
+        icons/lucide/refresh-cw.svg
+        icons/lucide/globe.svg
+        icons/lucide/search.svg
+        icons/lucide/plug-zap.svg
+        icons/lucide/gamepad-2.svg
+        icons/lucide/folder-tree.svg
+        icons/lucide/monitor.svg
+        icons/lucide/scroll-text.svg
+        icons/lucide/info.svg
+        icons/lucide/tag.svg
+        icons/lucide/zap.svg
+        icons/lucide/ruler.svg
+        icons/lucide/arrow-left.svg
+        icons/lucide/hammer.svg
+        icons/lucide/eye.svg
+        icons/lucide/package-plus.svg
+        icons/lucide/star.svg
+        icons/lucide/pen.svg
+        icons/lucide/alert-triangle.svg
+        icons/lucide/terminal.svg
+        icons/lucide/cpu.svg
+        icons/lucide/door-open.svg
+        icons/lucide/folder-open.svg
+        icons/lucide/bot.svg
+        icons/lucide/bar-chart-3.svg
+        icons/lucide/layout-panel-top.svg
+        icons/lucide/languages.svg
+        icons/lucide/rotate-ccw.svg
+        icons/lucide/folder.svg
+        icons/lucide/folder-plus.svg
+        icons/lucide/clipboard-list.svg
+        icons/lucide/rocket.svg
+        icons/lucide/map.svg
+        icons/lucide/camera.svg
+        icons/lucide/file-text.svg
+        icons/lucide/file.svg
+        icons/lucide/alert-octagon.svg
+        icons/lucide/clipboard-copy.svg
+        icons/lucide/folder-search.svg
+        icons/lucide/trash-2.svg
+        icons/lucide/broom.svg
+        icons/lucide/file-search.svg
+        icons/lucide/copy.svg
+        icons/lucide/folder-sync.svg
+        icons/lucide/skip-forward.svg
+        icons/lucide/log-in.svg
+        icons/lucide/check.svg
+        icons/lucide/construction.svg
+        icons/lucide/target.svg
+        icons/lucide/sliders-horizontal.svg
+        icons/lucide/image.svg
+        icons/lucide/sun.svg
+)
+
 # ── Multi-language translations ──
 file(GLOB_RECURSE I18N_QML_SOURCES "${CMAKE_SOURCE_DIR}/qml/*.qml")
 file(GLOB_RECURSE I18N_CPP_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h")
@@ -211,6 +291,13 @@ if(WIN32)
             "${CMAKE_SOURCE_DIR}/qml"
             "$<TARGET_FILE_DIR:ShadowLauncher>/qml"
         COMMENT "Copying QML sources for dev-mode..."
+    )
+    # Copy icon SVGs for dev-mode (referenced by filesystem path when SHADOW_DEV=1)
+    add_custom_command(TARGET ShadowLauncher POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/icons"
+            "$<TARGET_FILE_DIR:ShadowLauncher>/icons"
+        COMMENT "Copying icon SVGs for dev-mode..."
     )
 endif()
 

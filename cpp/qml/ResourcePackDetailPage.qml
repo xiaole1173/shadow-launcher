@@ -176,15 +176,15 @@ Rectangle {
                 RowLayout {
                     Layout.fillWidth: true; spacing: 24
                     Text {
-                        text: "作者: " + (rpDetailAuthor || "未知")
+                        text: qsTr("作者: ") + (rpDetailAuthor || "未知")
                         color: "#7888a8"; font.pixelSize: 11
                     }
                     Text {
-                        text: "下载量: " + formatDownloads(rpDetailDownloads) + " 次"
+                        text: qsTr("下载量: ") + formatDownloads(rpDetailDownloads) + " 次"
                         color: "#7888a8"; font.pixelSize: 11
                     }
                     Text {
-                        text: "更新于: " + formatDate(rpDetailUpdated)
+                        text: qsTr("更新于: ") + formatDate(rpDetailUpdated)
                         color: "#7888a8"; font.pixelSize: 11
                     }
                 }
@@ -207,7 +207,7 @@ Rectangle {
 
                         Text {
                             id: rpModBtn; anchors.centerIn: parent
-                            text: "转到 Modrinth"; color: "#6080e8"; font.pixelSize: 12
+                            text: qsTr("转到 Modrinth"); color: "#6080e8"; font.pixelSize: 12
                         }
                         MouseArea {
                             id: rpModBtnHov; anchors.fill: parent
@@ -234,7 +234,7 @@ Rectangle {
 
                         Text {
                             id: rpCopyBtn; anchors.centerIn: parent
-                            text: "复制名称"; color: "#c89860"; font.pixelSize: 12
+                            text: qsTr("复制名称"); color: "#c89860"; font.pixelSize: 12
                         }
                         MouseArea {
                             id: rpCopyBtnHov; anchors.fill: parent
@@ -251,7 +251,7 @@ Rectangle {
             // ── Section: Version List ──
             Text {
                 visible: !rpDetailLoading && rpDetailGrouped.length > 0
-                text: "版本列表"
+                text: qsTr("版本列表")
                 font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
@@ -452,7 +452,7 @@ Rectangle {
                                             var d = getVerDetail(modelData)
                                             return d && d.dependencies && d.dependencies.length > 0
                                         }
-                                        text: "依赖: " + (function(){
+                                        text: qsTr("依赖: ") + (function(){
                                             var d = getVerDetail(modelData)
                                             return d && d.dependencies ? d.dependencies.join(", ") : ""
                                         })()

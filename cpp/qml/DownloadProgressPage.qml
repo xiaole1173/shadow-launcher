@@ -1,4 +1,4 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -39,8 +39,8 @@ Rectangle {
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
             Text { Layout.alignment: Qt.AlignHCenter; text: "\u2501\u2501"; font.pixelSize: 32; color: "#1e2230" }
-            Text { Layout.alignment: Qt.AlignHCenter; text: "当前没有进行中的任务"; font.pixelSize: 14; color: "#505870" }
-            Text { Layout.alignment: Qt.AlignHCenter; text: "从下载页或安装页启动安装后，进度将在此显示"; font.pixelSize: 11; color: "#3a4058" }
+            Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("当前没有进行中的任务"); font.pixelSize: 14; color: "#505870" }
+            Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("从下载页或安装页启动安装后，进度将在此显示"); font.pixelSize: 11; color: "#3a4058" }
         }
     }
 
@@ -251,8 +251,8 @@ Rectangle {
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
             Text { Layout.alignment: Qt.AlignHCenter; text: "\u2714"; font.pixelSize: 48; color: "#4bc870" }
-            Text { Layout.alignment: Qt.AlignHCenter; text: "安装完成"; font.pixelSize: 15; font.weight: Font.Bold; color: "#4bc870" }
-            Text { Layout.alignment: Qt.AlignHCenter; text: "可在下载页面启动"; font.pixelSize: 12; color: "#608868" }
+            Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("安装完成"); font.pixelSize: 15; font.weight: Font.Bold; color: "#4bc870" }
+            Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("可在下载页面启动"); font.pixelSize: 12; color: "#608868" }
         }
     }
 }

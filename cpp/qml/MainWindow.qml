@@ -1,4 +1,4 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -71,7 +71,7 @@ Window {
         // Always show nav AND auto-switch (silent may pre-add the nav item)
         if (!downloadNavVisible) {
             downloadNavVisible = true
-            navModel.append({ label: "下载进度", pageKey: "download_progress" })
+            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
             console.log("[main] showDownloadNav: appended nav, new count=" + navModel.count)
         }
         // Always auto-switch — critical: must not be blocked by silent pre-add
@@ -83,7 +83,7 @@ Window {
         // Add nav item without auto-switching (for ball animation flow)
         if (!downloadNavVisible) {
             downloadNavVisible = true
-            navModel.append({ label: "下载进度", pageKey: "download_progress" })
+            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
         }
     }
 
@@ -108,7 +108,7 @@ Window {
         // Show download nav item for mod downloads too
         if (!downloadNavVisible) {
             downloadNavVisible = true
-            navModel.append({ label: "下载进度", pageKey: "download_progress" })
+            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
         }
         switchPage(navModel.count - 1)
     }
@@ -241,9 +241,9 @@ Window {
                     // Navigation model
                     ListModel {
                         id: navModel
-                        ListElement { label: "启动"; pageKey: "home" }
-                        ListElement { label: "下载"; pageKey: "download" }
-                        ListElement { label: "设置"; pageKey: "settings" }
+                        ListElement { label: "启动"; pageKey: "home"; icon: "home" }
+                        ListElement { label: "下载"; pageKey: "download"; icon: "download" }
+                        ListElement { label: "设置"; pageKey: "settings"; icon: "settings" }
                     }
 
                     Repeater {
@@ -257,7 +257,25 @@ Window {
                             scale: navMouse.containsMouse ? 1.03 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent" }
-                            Text { anchors.left: parent.left; anchors.leftMargin: 24; anchors.verticalCenter: parent.verticalCenter; text: model.label || modelData; font.pixelSize: 13; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
+                            Row {
+                                anchors.left: parent.left; anchors.leftMargin: 20
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 8
+                                Image {
+                                    id: navIcon
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 18; height: 18
+                                    sourceSize: Qt.size(18, 18)
+                                    source: model.icon ? ("qrc:/icons/lucide/" + model.icon + ".svg") : ""
+                                    visible: model.icon !== undefined && model.icon !== ""
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: model.label || modelData
+                                    font.pixelSize: 13
+                                    color: navListIndex === index ? "#e4e8f2" : "#9498a8"
+                                }
+                            }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
                         }
                     }
@@ -267,7 +285,7 @@ Window {
                     Text {
                         visible: backend ? backend.runningCount > 0 : false
                         Layout.leftMargin: 16; Layout.topMargin: 4
-                        text: "运行中 (" + (backend ? backend.runningCount : 0) + ")"
+                        text: qsTr("运行中 (") + (backend ? backend.runningCount : 0) + ")"
                         font.pixelSize: 10; color: "#6080e8"
                     }
                     Repeater {
@@ -506,7 +524,7 @@ Window {
                         showInstallPage = false
                         if (!downloadNavVisible) {
                             downloadNavVisible = true
-                            navModel.append({ label: "下载进度", pageKey: "download_progress" })
+                            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
                         }
                         switchPage(navModel.count - 1)
                     })
@@ -743,7 +761,7 @@ Window {
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 12
-            Text { text: "⚠ 下载失败"; font.pixelSize: 15; font.bold: true; color: "#e06060" }
+            Text { text: qsTr("⚠ 下载失败"); font.pixelSize: 15; font.bold: true; color: "#e06060" }
             Text { text: modDlErrorInfo.displayName || ""; font.pixelSize: 13; color: "#c0c8e0" }
             Text {
                 Layout.fillWidth: true
@@ -756,7 +774,7 @@ Window {
                     width: 80; height: 30; radius: 6
                     color: skipHov.hovered ? "#3a1818" : "#2a1010"
                     border.color: skipHov.hovered ? "#803838" : "#502020"
-                    Text { anchors.centerIn: parent; text: "跳过"; color: "#c06060"; font.pixelSize: 12 }
+                    Text { anchors.centerIn: parent; text: qsTr("跳过"); color: "#c06060"; font.pixelSize: 12 }
                     MouseArea { id: skipHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: { backend.cancelModFileDownload(modDlErrorInfo.dlId || 0); showModDlError = false }
                     }
@@ -765,7 +783,7 @@ Window {
                     width: 80; height: 30; radius: 6
                     color: retryHov.hovered ? "#3a3020" : "#2a2010"
                     border.color: retryHov.hovered ? "#907030" : "#604820"
-                    Text { anchors.centerIn: parent; text: "重试"; color: "#e0a040"; font.pixelSize: 12 }
+                    Text { anchors.centerIn: parent; text: qsTr("重试"); color: "#e0a040"; font.pixelSize: 12 }
                     MouseArea { id: retryHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: { backend.retryModFileDownload(modDlErrorInfo.dlId || 0); showModDlError = false }
                     }

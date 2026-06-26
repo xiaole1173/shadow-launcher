@@ -39,7 +39,7 @@ Rectangle {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "正在启动..."
+                text: qsTr("正在启动...")
                 font.pixelSize: 11
                 color: "#5a647a"
             }

@@ -43,7 +43,7 @@ Item {
                     width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
                     scale: cancelDlgMa.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
+                    Text { anchors.centerIn: parent; text: qsTr("取消"); font.pixelSize: 12; color: "#b0b8c8" }
                     MouseArea {
                         id: cancelDlgMa
                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -54,7 +54,7 @@ Item {
                     width: 80; height: 32; radius: 5; color: "#c05050"
                     scale: confirmDlgMa.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
+                    Text { anchors.centerIn: parent; text: qsTr("确认"); font.pixelSize: 12; color: "#e8ecf8" }
                     MouseArea {
                         id: confirmDlgMa
                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor

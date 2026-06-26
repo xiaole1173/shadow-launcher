@@ -83,7 +83,7 @@ Popup {
                 visible: !!crashData && crashData.suspectedMods && crashData.suspectedMods.length > 0
                 spacing: 4; Layout.fillWidth: true
                 Text {
-                    text: "⚠ 可疑模组:"
+                    text: qsTr("⚠ 可疑模组:")
                     font.pixelSize: 11; color: "#a08080"; font.bold: true
                 }
                 Repeater {
@@ -109,7 +109,7 @@ Popup {
                 color: openHov.hovered ? "#202840" : "#151828"
                 border.color: "#405068"
                 Text {
-                    anchors.centerIn: parent; text: "📄 打开崩溃报告"
+                    anchors.centerIn: parent; text: qsTr("📄 打开崩溃报告")
                     font.pixelSize: 12; color: "#a0b0d0"
                 }
                 MouseArea {
@@ -128,7 +128,7 @@ Popup {
                 color: closeHov.hovered ? "#382020" : "#201818"
                 border.color: "#503030"
                 Text {
-                    anchors.centerIn: parent; text: "关闭"
+                    anchors.centerIn: parent; text: qsTr("关闭")
                     font.pixelSize: 12; color: "#c0a0a0"
                 }
                 MouseArea {

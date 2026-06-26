@@ -227,7 +227,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: "建议: 请重新下载该版本以恢复缺失文件"
+                    text: qsTr("建议: 请重新下载该版本以恢复缺失文件")
                     color: "#807880"
                     font.pixelSize: 11
                     Layout.fillWidth: true
@@ -331,7 +331,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "查看日志"
+                    text: qsTr("查看日志")
                     font.pixelSize: 12
                     color: logMouse ? (logMouse.containsMouse ? "#80a0ff" : "#6090d0") : "#6090d0"
                 }
@@ -365,7 +365,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "重新登录"
+                    text: qsTr("重新登录")
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                     color: reloginMouse ? (reloginMouse.containsMouse ? "#a0c8ff" : "#80a0e0") : "#80a0e0"

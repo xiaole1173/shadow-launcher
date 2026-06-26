@@ -132,7 +132,7 @@ Rectangle {
                     Rectangle {
                         visible: modelData.isLatestRelease !== undefined && modelData.isLatestRelease
                         height: 18; implicitWidth: latestTag.implicitWidth + 10; radius: 3; color: "#3a50b0"
-                        Text { id: latestTag; anchors.centerIn: parent; text: "最新"; font.pixelSize: 9; color: "#e8ecf8"; font.weight: Font.Bold }
+                        Text { id: latestTag; anchors.centerIn: parent; text: qsTr("最新"); font.pixelSize: 9; color: "#e8ecf8"; font.weight: Font.Bold }
                     }
                     Rectangle {
                         visible: modelData.type !== undefined && modelData.type !== ""

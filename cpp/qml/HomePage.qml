@@ -1,4 +1,4 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
@@ -56,7 +56,15 @@ Rectangle {
                     Behavior on radius { NumberAnimation { duration: 200 } }
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 }
-                Text { anchors.centerIn: parent; text: "正版登录"; font.pixelSize: 13; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
+                Row {
+                    anchors.centerIn: parent; spacing: 6
+                    Image {
+                        source: "qrc:/icons/lucide/key.svg"; width: 14; height: 14
+                        sourceSize: Qt.size(14, 14)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text { text: qsTr("正版登录"); font.pixelSize: 13; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
+                }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
             }
             Rectangle {
@@ -71,7 +79,15 @@ Rectangle {
                     Behavior on radius { NumberAnimation { duration: 200 } }
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 }
-                Text { anchors.centerIn: parent; text: "离线模式"; font.pixelSize: 13; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
+                Row {
+                    anchors.centerIn: parent; spacing: 6
+                    Image {
+                        source: "qrc:/icons/lucide/user.svg"; width: 14; height: 14
+                        sourceSize: Qt.size(14, 14)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text { text: qsTr("离线模式"); font.pixelSize: 13; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
+                }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
             }
         }
@@ -103,11 +119,18 @@ Rectangle {
                 Layout.alignment: Qt.AlignHCenter; width: 200; height: 40; radius: 8
                 color: msLoginForm.msInProgress ? "#1a1f2e" : (startMsBtn.containsMouse ? "#3a4aa0" : "#2a3878")
                 Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                Text {
-                    anchors.centerIn: parent
-                    text: msLoginForm.msInProgress ? "登录中..." : "Microsoft 登录"
-                    color: msLoginForm.msInProgress ? "#9498a8" : "#e4e8f2"
-                    font.pixelSize: 14; font.weight: Font.DemiBold
+                Row {
+                    anchors.centerIn: parent; spacing: 8
+                    Image {
+                        source: "qrc:/icons/lucide/key.svg"; width: 16; height: 16
+                        sourceSize: Qt.size(16, 16)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: msLoginForm.msInProgress ? "登录中..." : "Microsoft 登录"
+                        color: msLoginForm.msInProgress ? "#9498a8" : "#e4e8f2"
+                        font.pixelSize: 14; font.weight: Font.DemiBold
+                    }
                 }
                 MouseArea {
                     id: startMsBtn
@@ -163,7 +186,7 @@ Rectangle {
                     // Cancel button link
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "取消"; color: cancelMsBtn2.containsMouse ? "#e06060" : "#604040"
+                        text: qsTr("取消"); color: cancelMsBtn2.containsMouse ? "#e06060" : "#604040"
                         font.pixelSize: 12; font.underline: true
                         MouseArea {
                             id: cancelMsBtn2
@@ -267,7 +290,7 @@ Rectangle {
                     Text {
                         anchors.left: parent.left; anchors.leftMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "输入用户名"; color: "#a8b0c0"
+                        text: qsTr("输入用户名"); color: "#a8b0c0"
                         font.pixelSize: 13
                         visible: !offlineNameInput.text
                     }
@@ -370,7 +393,11 @@ Rectangle {
                 Rectangle {
                     width: 60; height: 24; radius: 4
                     color: "transparent"; border.color: "#2a1f24"
-                    Text { anchors.centerIn: parent; text: "登出"; font.pixelSize: 11; color: "#c05050" }
+                    Row {
+                        anchors.centerIn: parent; spacing: 4
+                        Image { source: "qrc:/icons/lucide/log-out.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: qsTr("登出"); font.pixelSize: 11; color: "#c05050" }
+                    }
                     MouseArea {
                         anchors.fill: parent
                         onClicked: { if (backend) { backend.logout(); toastManager.show("已登出") } }
@@ -404,7 +431,15 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true; height: 44; radius: 8
                 color: "#3a4eb8"
-                Text { anchors.centerIn: parent; text: "启动游戏"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
+                Row {
+                    anchors.centerIn: parent; spacing: 8
+                    Image {
+                        source: "qrc:/icons/lucide/play.svg"; width: 18; height: 18
+                        sourceSize: Qt.size(18, 18)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text { text: qsTr("启动游戏"); font.pixelSize: 15; font.weight: Font.Bold; color: "#e8ecf8" }
+                }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (!backend) return
@@ -435,8 +470,8 @@ Rectangle {
                     MouseArea { anchors.fill: parent; onClicked: { homePage.versionSelectRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Rectangle { width: 8; height: 2; radius: 4; color: "#5068c8" }
-                        Text { text: "版本选择"; font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
+                        Image { source: "qrc:/icons/lucide/list.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16) }
+                        Text { text: qsTr("版本选择"); font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
                     }
                 }
                 Rectangle {
@@ -444,8 +479,8 @@ Rectangle {
                     MouseArea { anchors.fill: parent; onClicked: { homePage.versionSettingsRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Rectangle { width: 8; height: 8; radius: 4; color: "transparent"; border.color: "#9498a8"; border.width: 1.5 }
-                        Text { text: "版本设置"; font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
+                        Image { source: "qrc:/icons/lucide/wrench.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16) }
+                        Text { text: qsTr("版本设置"); font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
                     }
                 }
             }

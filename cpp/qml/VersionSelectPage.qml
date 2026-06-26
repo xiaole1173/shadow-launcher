@@ -42,7 +42,7 @@ Rectangle {
             Text {
                 id: backText
                 anchors.centerIn: parent
-                text: "← 启动"
+                text: qsTr("← 启动")
                 color: backArea.containsMouse ? "#3B82F6" : "#B4BAC6"
                 font.pixelSize: 13
                 Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -69,12 +69,12 @@ Rectangle {
             Text {
                 id: refreshLabel
                 anchors.centerIn: parent
-                text: "⟳ 刷新"
+                text: qsTr("⟳ 刷新")
                 color: "#e0e4f0"
                 font.pixelSize: 12; font.weight: Font.Medium
             }
             HoverHandler { id: refreshHover }
-            ToolTip { visible: refreshHover.hovered; text: "刷新版本列表"; delay: 500 }
+            ToolTip { visible: refreshHover.hovered; text: qsTr("刷新版本列表"); delay: 500 }
             MouseArea {
                 id: refreshMa
                 anchors.fill: parent
@@ -94,7 +94,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            text: "版本选择"
+            text: qsTr("版本选择")
             color: "#F1F3F6"
             font.pixelSize: 18
             font.bold: true
@@ -123,7 +123,7 @@ Rectangle {
                 spacing: 6
 
                 Text {
-                    text: "游戏文件夹"
+                    text: qsTr("游戏文件夹")
                     color: "#7E8596"
                     font.pixelSize: 11
                     font.bold: true
@@ -180,7 +180,7 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Text {
                         anchors.centerIn: parent
-                        text: "➕ 添加文件夹"
+                        text: qsTr("➕ 添加文件夹")
                         color: addArea.containsMouse ? "#3B82F6" : "#B4BAC6"
                         font.pixelSize: 13
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -208,7 +208,7 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     Text {
                         anchors.centerIn: parent
-                        text: "📦 导入整合包"
+                        text: qsTr("📦 导入整合包")
                         color: importArea.containsMouse ? "#3B82F6" : "#B4BAC6"
                         font.pixelSize: 13
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -425,7 +425,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "选择此版本"
+                    text: qsTr("选择此版本")
                     color: "#FFFFFF"
                     font.pixelSize: 14
                     font.bold: true

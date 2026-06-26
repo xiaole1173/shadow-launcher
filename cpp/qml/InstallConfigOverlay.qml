@@ -56,7 +56,7 @@ Rectangle {
             // Header
             RowLayout {
                 Layout.fillWidth: true
-                Text { text: "安装配置"; font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
+                Text { text: qsTr("安装配置"); font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
                 Item { Layout.fillWidth: true }
                 Rectangle { width: 28; height: 28; radius: 14; color: closeMouse.containsMouse ? "#2a1a1a" : "transparent"
                     Text { anchors.centerIn: parent; text: "✕"; color: "#8890a0"; font.pixelSize: 13 }
@@ -76,7 +76,7 @@ Rectangle {
 
             // ── Download source ──
             ColumnLayout { spacing: 8
-                Text { text: "下载源"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#b8c0d0" }
+                Text { text: qsTr("下载源"); font.pixelSize: 13; font.weight: Font.DemiBold; color: "#b8c0d0" }
                 RowLayout { spacing: 6
                     Repeater {
                         model: [
@@ -101,8 +101,8 @@ Rectangle {
 
             // ── Optional addons ──
             ColumnLayout { spacing: 8
-                Text { text: "附加组件"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#b8c0d0" }
-                Text { text: "Fabric / OptiFine / Forge 自动安装功能即将支持"; font.pixelSize: 11; color: "#505468" }
+                Text { text: qsTr("附加组件"); font.pixelSize: 13; font.weight: Font.DemiBold; color: "#b8c0d0" }
+                Text { text: qsTr("Fabric / OptiFine / Forge 自动安装功能即将支持"); font.pixelSize: 11; color: "#505468" }
                 RowLayout { spacing: 8; opacity: 0.4
                     Rectangle { width: 100; height: 34; radius: 6; color: "#1a1f2e"; border.color: "#252835"
                         Text { anchors.centerIn: parent; text: "Fabric"; color: "#505468"; font.pixelSize: 12 }
@@ -125,13 +125,13 @@ Rectangle {
                     scale: cancelMouse.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     border.color: cancelMouse.containsMouse ? "#5d6fe0" : "#3a4050"; border.width: 1
-                    Text { anchors.centerIn: parent; text: "取消"; color: cancelMouse.containsMouse ? "#ffffff" : "#8890a0"; font.pixelSize: 13 }
+                    Text { anchors.centerIn: parent; text: qsTr("取消"); color: cancelMouse.containsMouse ? "#ffffff" : "#8890a0"; font.pixelSize: 13 }
                     MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.hide() }
                 }
                 Rectangle { width: 120; height: 36; radius: 7; color: installMouse.containsMouse ? "#6d7de8" : "#5068d8"
                     scale: installMouse.pressed ? 0.92 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                    Text { anchors.centerIn: parent; text: "开始安装"; font.pixelSize: 13; font.weight: Font.DemiBold; color: "#ffffff" }
+                    Text { anchors.centerIn: parent; text: qsTr("开始安装"); font.pixelSize: 13; font.weight: Font.DemiBold; color: "#ffffff" }
                     MouseArea { id: installMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (!root.versionId) {

@@ -99,7 +99,7 @@ Rectangle {
                     Label {
                         id: backLabel
                         anchors.centerIn: parent
-                        text: "← 设置"
+                        text: qsTr("← 设置")
                         color: root.colorTertiary
                         font.pixelSize: 15
                     }
@@ -122,7 +122,7 @@ Rectangle {
 
                 Label {
                     anchors.centerIn: parent
-                    text: "Java配置"
+                    text: qsTr("Java配置")
                     color: root.colorPrimary
                     font.pixelSize: 20
                     font.bold: true
@@ -135,7 +135,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "Java选择"
+                    text: qsTr("Java选择")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -190,7 +190,7 @@ Rectangle {
 
                         Label {
                             anchors.centerIn: parent
-                            text: "自动搜索"
+                            text: qsTr("自动搜索")
                             color: root.colorAccent
                             font.pixelSize: 14
                         }
@@ -234,7 +234,7 @@ Rectangle {
 
                         Label {
                             anchors.centerIn: parent
-                            text: "手动选择"
+                            text: qsTr("手动选择")
                             color: root.colorAccent
                             font.pixelSize: 14
                         }
@@ -276,7 +276,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "启动选项"
+                    text: qsTr("启动选项")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -301,12 +301,12 @@ Rectangle {
                             spacing: 4
 
                             Label {
-                                text: "要求Java使用高性能显卡"
+                                text: qsTr("要求Java使用高性能显卡")
                                 color: root.colorSecondary
                                 font.pixelSize: 14
                             }
                             Label {
-                                text: "在双显卡笔记本上，强制Java使用独立显卡运行Minecraft"
+                                text: qsTr("在双显卡笔记本上，强制Java使用独立显卡运行Minecraft")
                                 color: root.colorTertiary
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap
@@ -352,7 +352,7 @@ Rectangle {
                 spacing: 8
 
                 Label {
-                    text: "Java虚拟机参数"
+                    text: qsTr("Java虚拟机参数")
                     color: root.colorTertiary
                     font.pixelSize: 12
                     font.bold: true
@@ -412,19 +412,19 @@ Rectangle {
                     Menu {
                         id: contextMenu
                         MenuItem {
-                            text: "剪切"
+                            text: qsTr("剪切")
                             onTriggered: jvmArgsArea.cut()
                         }
                         MenuItem {
-                            text: "复制"
+                            text: qsTr("复制")
                             onTriggered: jvmArgsArea.copy()
                         }
                         MenuItem {
-                            text: "粘贴"
+                            text: qsTr("粘贴")
                             onTriggered: jvmArgsArea.paste()
                         }
                         MenuItem {
-                            text: "全选"
+                            text: qsTr("全选")
                             onTriggered: jvmArgsArea.selectAll()
                         }
                     }
@@ -444,7 +444,7 @@ Rectangle {
                     Label {
                         id: restoreDefaultsLabel
                         anchors.centerIn: parent
-                        text: "恢复默认"
+                        text: qsTr("恢复默认")
                         color: root.colorSecondary
                         font.pixelSize: 13
                     }

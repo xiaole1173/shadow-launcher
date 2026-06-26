@@ -124,7 +124,7 @@ Rectangle {
                     }
                     Text {
                         id: backLabel
-                        text: "启动"
+                        text: qsTr("启动")
                         font.pixelSize: 14
                         font.weight: Font.Medium
                         color: backMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
@@ -144,7 +144,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Text {
-                text: "版本设置"
+                text: qsTr("版本设置")
                 font.pixelSize: 18
                 font.weight: Font.Bold
                 color: "#F1F3F6"
@@ -247,7 +247,7 @@ Rectangle {
 
                         // ── 快捷方式 ──
                         Text {
-                            text: "快捷方式"
+                            text: qsTr("快捷方式")
                             font.pixelSize: 13
                             font.weight: Font.SemiBold
                             color: "#7E8596"
@@ -305,7 +305,7 @@ Rectangle {
 
                         // ── 高级管理 ──
                         Text {
-                            text: "高级管理"
+                            text: qsTr("高级管理")
                             font.pixelSize: 13
                             font.weight: Font.SemiBold
                             color: "#7E8596"
@@ -335,7 +335,7 @@ Rectangle {
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                                 Text {
-                                    text: "删除此版本"
+                                    text: qsTr("删除此版本")
                                     font.pixelSize: 13
                                     color: deleteBtnMouse.containsMouse ? "#EF4444" : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -353,7 +353,7 @@ Rectangle {
 
                         // ── 特殊登录选项 ──
                         Text {
-                            text: "特殊登录选项"
+                            text: qsTr("特殊登录选项")
                             font.pixelSize: 13
                             font.weight: Font.SemiBold
                             color: "#7E8596"
@@ -366,14 +366,14 @@ Rectangle {
                             spacing: 8
 
                             Text {
-                                text: "第三方登录"
+                                text: qsTr("第三方登录")
                                 font.pixelSize: 12
                                 font.weight: Font.SemiBold
                                 color: "#7E8596"
                             }
 
                             Text {
-                                text: "第三方登录允许您使用自定义认证服务器进行游戏。\n注意：第三方登录将优先于普通登录方式。"
+                                text: qsTr("第三方登录允许您使用自定义认证服务器进行游戏。\n注意：第三方登录将优先于普通登录方式。")
                                 font.pixelSize: 12
                                 color: "#7E8596"
                                 Layout.fillWidth: true
@@ -388,7 +388,7 @@ Rectangle {
                             spacing: 12
 
                             Text {
-                                text: "认证方式"
+                                text: qsTr("认证方式")
                                 font.pixelSize: 13
                                 color: "#B4BAC6"
                                 Layout.preferredWidth: 70
@@ -547,7 +547,7 @@ Rectangle {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: "应用"
+                                text: qsTr("应用")
                                 font.pixelSize: 13
                                 font.weight: Font.SemiBold
                                 color: "#FFFFFF"
@@ -588,14 +588,14 @@ Rectangle {
                         Item { Layout.preferredHeight: 8 }
 
                         Text {
-                            text: "游戏完整性校验"
+                            text: qsTr("游戏完整性校验")
                             font.pixelSize: 16
                             font.weight: Font.SemiBold
                             color: "#F1F3F6"
                         }
 
                         Text {
-                            text: "校验游戏文件，确保所有必要的文件都存在且未被修改。"
+                            text: qsTr("校验游戏文件，确保所有必要的文件都存在且未被修改。")
                             font.pixelSize: 13
                             color: "#7E8596"
                             Layout.fillWidth: true
@@ -616,7 +616,7 @@ Rectangle {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: "开始校验"
+                                text: qsTr("开始校验")
                                 font.pixelSize: 14
                                 font.weight: Font.SemiBold
                                 color: "#FFFFFF"
@@ -674,7 +674,7 @@ Rectangle {
                             spacing: 4
 
                             Text {
-                                text: "校验结果"
+                                text: qsTr("校验结果")
                                 font.pixelSize: 13
                                 font.weight: Font.SemiBold
                                 color: "#B4BAC6"
@@ -737,7 +737,7 @@ Rectangle {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "🧹 清理损坏文件"
+                                    text: qsTr("🧹 清理损坏文件")
                                     font.pixelSize: 12
                                     color: "#ff8080"
                                 }
@@ -770,7 +770,7 @@ Rectangle {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "🔧 一键修复缺失文件"
+                                    text: qsTr("🔧 一键修复缺失文件")
                                     font.pixelSize: 12
                                     color: "#80c0ff"
                                 }
@@ -792,7 +792,7 @@ Rectangle {
 
                             // Hint below buttons
                             Text {
-                                text: "💡 修复仅重新下载损坏/缺失的文件，已通过校验的文件不会重复下载"
+                                text: qsTr("💡 修复仅重新下载损坏/缺失的文件，已通过校验的文件不会重复下载")
                                 color: "#807880"
                                 font.pixelSize: 11
                                 wrapMode: Text.WordWrap
@@ -823,14 +823,14 @@ Rectangle {
                         Item { Layout.preferredHeight: 8 }
 
                         Text {
-                            text: "资源包管理"
+                            text: qsTr("资源包管理")
                             font.pixelSize: 16
                             font.weight: Font.SemiBold
                             color: "#F1F3F6"
                         }
 
                         Text {
-                            text: "管理版本安装的资源包，启用或禁用以自定义游戏体验。"
+                            text: qsTr("管理版本安装的资源包，启用或禁用以自定义游戏体验。")
                             font.pixelSize: 13
                             color: "#7E8596"
                             Layout.fillWidth: true
@@ -856,7 +856,7 @@ Rectangle {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "📂 打开文件夹"
+                                    text: qsTr("📂 打开文件夹")
                                     font.pixelSize: 12
                                     color: openFolderMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -885,7 +885,7 @@ Rectangle {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "➕ 添加资源包"
+                                    text: qsTr("➕ 添加资源包")
                                     font.pixelSize: 12
                                     color: addPackMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -907,7 +907,7 @@ Rectangle {
                             spacing: 4
 
                             Text {
-                                text: "已安装的资源包"
+                                text: qsTr("已安装的资源包")
                                 font.pixelSize: 13
                                 font.weight: Font.SemiBold
                                 color: "#B4BAC6"
@@ -923,7 +923,7 @@ Rectangle {
                                     anchors.left: parent.left
                                     anchors.leftMargin: 12
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: "暂无资源包"
+                                    text: qsTr("暂无资源包")
                                     font.pixelSize: 13
                                     color: "#7E8596"
                                 }
@@ -961,7 +961,7 @@ Rectangle {
                             }
 
                             Text {
-                                text: "功能开发中..."
+                                text: qsTr("功能开发中...")
                                 font.pixelSize: 16
                                 font.weight: Font.Medium
                                 color: "#7E8596"
@@ -969,7 +969,7 @@ Rectangle {
                             }
 
                             Text {
-                                text: "此功能将在后续版本中推出，敬请期待。"
+                                text: qsTr("此功能将在后续版本中推出，敬请期待。")
                                 font.pixelSize: 13
                                 color: "#5A6173"
                                 Layout.alignment: Qt.AlignHCenter
@@ -1014,7 +1014,7 @@ Rectangle {
             spacing: 20
 
             Text {
-                text: "确认删除？"
+                text: qsTr("确认删除？")
                 font.pixelSize: 16
                 font.weight: Font.SemiBold
                 color: "#F1F3F6"
@@ -1022,7 +1022,7 @@ Rectangle {
             }
 
             Text {
-                text: "此操作将永久删除该版本及其所有文件，无法恢复。"
+                text: qsTr("此操作将永久删除该版本及其所有文件，无法恢复。")
                 font.pixelSize: 13
                 color: "#B4BAC6"
                 Layout.fillWidth: true
@@ -1049,7 +1049,7 @@ Rectangle {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "取消"
+                        text: qsTr("取消")
                         font.pixelSize: 13
                         color: cancelDelMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -1079,7 +1079,7 @@ Rectangle {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "确认删除"
+                        text: qsTr("确认删除")
                         font.pixelSize: 13
                         font.weight: Font.SemiBold
                         color: confirmDelMouse.containsMouse ? "#FCA5A5" : "#EF4444"

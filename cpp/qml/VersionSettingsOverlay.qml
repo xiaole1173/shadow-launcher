@@ -98,7 +98,7 @@ Rectangle {
                     width: 60; height: 28; radius: 6; color: "transparent"; border.color: "#1a1f2e"
                     scale: backHover.containsMouse ? 1.06 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "← 返回"; font.pixelSize: 11; color: "#989cb0" }
+                    Text { anchors.centerIn: parent; text: qsTr("← 返回"); font.pixelSize: 11; color: "#989cb0" }
                     MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSettings = false } }
                 }
 
@@ -153,7 +153,7 @@ Rectangle {
                 // Launch button
                 Rectangle {
                     width: 100; height: 32; radius: 6; color: "#3a4eb8"
-                    Text { anchors.centerIn: parent; text: "启动"; font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
+                    Text { anchors.centerIn: parent; text: qsTr("启动"); font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (!backend) return
@@ -173,12 +173,12 @@ Rectangle {
         Rectangle {
             Layout.preferredWidth: 170; Layout.fillHeight: true; color: "transparent"
             property var sectionModel: [
-                { text: "概览", icon: "" },
-                { text: "启动配置", icon: "" },
-                { text: "Mod 管理", icon: "" },
-                { text: "资源包管理", icon: "" },
-                { text: "存档管理", icon: "" },
-                { text: "工具与维护", icon: "" }
+                { text: qsTr("概览"), icon: "" },
+                { text: qsTr("启动配置"), icon: "" },
+                { text: qsTr("Mod 管理"), icon: "" },
+                { text: qsTr("资源包管理"), icon: "" },
+                { text: qsTr("存档管理"), icon: "" },
+                { text: qsTr("工具与维护"), icon: "" }
             ]
             ListView {
                 id: settingsNav
@@ -222,25 +222,25 @@ Rectangle {
                     RowLayout {
                         anchors.fill: parent; anchors.margins: 14; spacing: 12
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: "占用空间"; font.pixelSize: 10; color: "#a8b0c0" }
+                            Text { text: qsTr("占用空间"); font.pixelSize: 10; color: "#a8b0c0" }
                             Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: 14; font.weight: Font.Medium; color: "#d4dcf0" }
                         }
                         Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: "已装 Mod"; font.pixelSize: 10; color: "#a8b0c0" }
+                            Text { text: qsTr("已装 Mod"); font.pixelSize: 10; color: "#a8b0c0" }
                             Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: 14; font.weight: Font.Medium; color: "#d4dcf0" }
 
                         }
                         Rectangle { width: 1; height: 32; color: "#1a1f2e" }
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: "版本隔离"; font.pixelSize: 10; color: "#a8b0c0" }
+                            Text { text: qsTr("版本隔离"); font.pixelSize: 10; color: "#a8b0c0" }
                             Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: 14; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
                         }
                     }
                 }
 
                 // Shortcuts
-                Text { text: "快捷入口"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("快捷入口"); font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
@@ -248,7 +248,7 @@ Rectangle {
                     Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover0.hovered ? "#3a5ed0" : "#2a4590"
                         scale: shMouse0.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "版本文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("版本文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover0 }
                         MouseArea { id: shMouse0; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -263,7 +263,7 @@ Rectangle {
                     Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover1.hovered ? "#3a5ed0" : "#2a4590"
                         scale: shMouse1.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "存档文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("存档文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover1 }
                         MouseArea { id: shMouse1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { toastManager.show("已打开存档文件夹") } else { toastManager.show("无存档文件夹") } } }
@@ -272,7 +272,7 @@ Rectangle {
                     Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover2.hovered ? "#3a5ed0" : "#2a4590"
                         scale: shMouse2.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "截图文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("截图文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover2 }
                         MouseArea { id: shMouse2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openScreenshotsFolder(currentSelectedVersion)) { toastManager.show("已打开截图文件夹") } else { toastManager.show("无截图文件夹") } } }
@@ -281,7 +281,7 @@ Rectangle {
                     Rectangle { width: 120; height: 32; radius: 6; color: shortcutHover6.hovered ? "#3a5ed0" : "#2a4590"
                         scale: shMouse6.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "logs 日志"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("logs 日志"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover6 }
                         MouseArea { id: shMouse6; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("无日志文件夹") } } }
@@ -290,7 +290,7 @@ Rectangle {
                     Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover7.hovered ? "#3a5ed0" : "#2a4590"
                         scale: shMouse7.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "最新启动日志"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("最新启动日志"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover7 }
                         MouseArea { id: shMouse7; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) { if (backend.openLatestLog(currentSelectedVersion)) { toastManager.show("已打开最新日志") } else { toastManager.show("无日志文件") } } }
@@ -299,7 +299,7 @@ Rectangle {
                     Rectangle { width: 130; height: 32; radius: 6; color: shortcutHover8.hovered ? "#c85050" : "#9a3838"
                         scale: shMouse8.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "崩溃日志"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("崩溃日志"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover8 }
                         MouseArea { id: shMouse8; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) { if (backend.openCrashLog(currentSelectedVersion)) { toastManager.show("已打开崩溃日志") } else { toastManager.show("无崩溃报告") } } }
@@ -310,7 +310,7 @@ Rectangle {
                     Rectangle { width: 130; height: 32; radius: 6; color: shortcutHoverCp.hovered ? "#3a5ed0" : "#2a4590"
                         scale: shMouseCp.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "复制版本路径"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("复制版本路径"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHoverCp }
                         MouseArea { id: shMouseCp; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -325,7 +325,7 @@ Rectangle {
                         visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                         scale: shMouse3.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "Mod 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("Mod 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover3 }
                         MouseArea { id: shMouse3; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } } }
@@ -335,7 +335,7 @@ Rectangle {
                         visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                         scale: shMouse4.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "config 文件夹"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("config 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover4 }
                         MouseArea { id: shMouse4; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openConfigFolder(); toastManager.show("已打开 config 文件夹") } }
@@ -345,7 +345,7 @@ Rectangle {
                         visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
                         scale: shMouse5.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "光影包"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("光影包"); font.pixelSize: 11; color: "#e8ecf8" }
                         HoverHandler { id: shortcutHover5 }
                         MouseArea { id: shMouse5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openShaderPacksFolder(currentSelectedVersion)) { toastManager.show("已打开光影包文件夹") } else { toastManager.show("无光影包文件夹") } } }
@@ -370,7 +370,7 @@ Rectangle {
                         width: parent.width; spacing: 14
 
                         // Java 环境
-                        Text { text: "Java 环境"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
+                        Text { text: qsTr("Java 环境"); font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2" }
                         // Recommended Java hint
                         Text {
                             text: {
@@ -398,14 +398,14 @@ Rectangle {
                                 width: 90; height: 26; radius: 4; color: "#3a4eb8"
                                 scale: autoDetectMa.pressed ? 0.9 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                                Text { anchors.centerIn: parent; text: "自动检测"; font.pixelSize: 11; color: "#e8ecf8" }
+                                Text { anchors.centerIn: parent; text: qsTr("自动检测"); font.pixelSize: 11; color: "#e8ecf8" }
                                 MouseArea { id: autoDetectMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { backend.detectJava(); toastManager.show("正在检测 Java 环境...") } } }
                             }
                             Rectangle { anchors.right: parent.right; anchors.rightMargin: 102; anchors.verticalCenter: parent.verticalCenter
                                 width: 50; height: 26; radius: 4; color: "transparent"; border.color: "#1a1f2e"
                                 scale: browseJavaMa.pressed ? 0.9 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                                Text { anchors.centerIn: parent; text: "浏览"; font.pixelSize: 11; color: "#b0b8c8" }
+                                Text { anchors.centerIn: parent; text: qsTr("浏览"); font.pixelSize: 11; color: "#b0b8c8" }
                                 MouseArea { id: browseJavaMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { var ok = backend.pickJava(); if (ok) toastManager.show("已选择 Java 路径") } } }
                             }
                         }
@@ -431,11 +431,11 @@ Rectangle {
                         }
 
                         // 鍐呭瓨设置
-                        Text { text: "内存分配"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                        Text { text: qsTr("内存分配"); font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                         RowLayout {
                             Layout.fillWidth: true; spacing: 12
                             ColumnLayout { Layout.fillWidth: true; spacing: 4
-                                Text { text: "最大内存 " + (backend ? backend.maxMemoryMb + " MB" : "-"); font.pixelSize: 12; color: "#d4dcf0" }
+                                Text { text: qsTr("最大内存 ") + (backend ? backend.maxMemoryMb + " MB" : "-"); font.pixelSize: 12; color: "#d4dcf0" }
                                 Slider {
                                     id: maxMemSlider; Layout.fillWidth: true
                                     from: 512; to: 16384; stepSize: 512
@@ -444,7 +444,7 @@ Rectangle {
                                     onMoved: { if (backend) backend.setMaxMemory(value) }
                                 }
                             }
-                            Text { text: "最小" + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#989cb0" }
+                            Text { text: qsTr("最小") + (backend ? backend.minMemoryMb + " MB" : "-"); font.pixelSize: 11; color: "#989cb0" }
                         }
                         Text {
                             font.pixelSize: 9; color: "#a8b0c0"
@@ -460,7 +460,7 @@ Rectangle {
 
                         // 自动内存
                         RowLayout {
-                            Text { text: "自动内存"; font.pixelSize: 12; color: "#d4dcf0" }
+                            Text { text: qsTr("自动内存"); font.pixelSize: 12; color: "#d4dcf0" }
                             Item { Layout.fillWidth: true }
                             Switch {
                                 checked: backend ? backend.autoMemoryEnabled : true
@@ -469,7 +469,7 @@ Rectangle {
                         }
 
                         // JVM 参数
-                        Text { text: "JVM 参数"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                        Text { text: qsTr("JVM 参数"); font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                         Rectangle { Layout.fillWidth: true; height: 60; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                             TextInput {
                                 id: jvmArgsInput; anchors.fill: parent; anchors.margins: 8
@@ -480,7 +480,7 @@ Rectangle {
                         }
 
                         // GC 预设
-                        Text { text: "GC 预设"; font.pixelSize: 10; color: "#a8b0c0" }
+                        Text { text: qsTr("GC 预设"); font.pixelSize: 10; color: "#a8b0c0" }
                         Flow {
                             Layout.fillWidth: true; spacing: 8
                             Repeater {
@@ -509,9 +509,9 @@ Rectangle {
                         }
 
                         // 版本隔离
-                        Text { text: "版本隔离"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
+                        Text { text: qsTr("版本隔离"); font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 8 }
                         RowLayout {
-                            Text { text: "版本隔离（模组配置/存档独立）"; font.pixelSize: 12; color: "#d4dcf0" }
+                            Text { text: qsTr("版本隔离（模组配置/存档独立）"); font.pixelSize: 12; color: "#d4dcf0" }
                             Item { Layout.fillWidth: true }
                             Switch {
                                 checked: backend ? backend.isolationEnabled : false
@@ -521,7 +521,7 @@ Rectangle {
 
                         // 启动后关闭启动器
                         RowLayout {
-                            Text { text: "启动后关闭启动器"; font.pixelSize: 12; color: "#d4dcf0" }
+                            Text { text: qsTr("启动后关闭启动器"); font.pixelSize: 12; color: "#d4dcf0" }
                             Item { Layout.fillWidth: true }
                             Switch {
                                 checked: backend ? backend.closeOnLaunch : false
@@ -530,8 +530,8 @@ Rectangle {
                         }
 
                         // 游戏附加参数
-                        Text { text: "游戏附加参数"; font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
-                        Text { text: "（示例 --width 1920 --height 1080 --fullscreen）"; font.pixelSize: 9; color: "#a8b0c0" }
+                        Text { text: qsTr("游戏附加参数"); font.pixelSize: 12; font.weight: Font.DemiBold; color: "#e4e8f2"; Layout.topMargin: 10 }
+                        Text { text: qsTr("（示例 --width 1920 --height 1080 --fullscreen）"); font.pixelSize: 9; color: "#a8b0c0" }
                         Rectangle { Layout.fillWidth: true; height: 44; radius: 6; color: "#0d1018"; border.color: "#1a1f2e"
                             TextInput {
                                 id: gameArgsInput; anchors.fill: parent; anchors.margins: 8
@@ -549,8 +549,8 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 24; spacing: 8
                 visible: settingsNav.currentIndex === 2
 
-                Text { text: "Mod 管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                Text { text: "管理已安装的 Mod，查看版本和兼容性。"; font.pixelSize: 11; color: "#9498a8" }
+                Text { text: qsTr("Mod 管理"); font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
+                Text { text: qsTr("管理已安装的 Mod，查看版本和兼容性。"); font.pixelSize: 11; color: "#9498a8" }
 
                 // Refresh + search
                 RowLayout {
@@ -559,7 +559,7 @@ Rectangle {
                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
                         scale: modRefreshMa.pressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { anchors.centerIn: parent; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
                         MouseArea { id: modRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { modListModel.clear(); if (backend) { var m = backend.listMods(); for (var i = 0; i < m.length; i++) modListModel.append(m[i]); toastManager.show("Mod 列表已刷新") } }
                         }
@@ -583,7 +583,7 @@ Rectangle {
                             Text {
                                 anchors.left: parent.left; anchors.leftMargin: 10
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "搜索 Mod..."; color: "#9ca0b4"; font.pixelSize: 12
+                                text: qsTr("搜索 Mod..."); color: "#9ca0b4"; font.pixelSize: 12
                                 visible: !modSearchField.text
                             }
                         }
@@ -603,7 +603,7 @@ Rectangle {
                             Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
-                                Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
+                                Text { anchors.centerIn: parent; text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
                                 MouseArea { id: delBtnHover; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                     onClicked: { if (backend) { backend.deleteMod(name); modListModel.remove(index); toastManager.show("已删除 Mod: " + name) } }
                                 }
@@ -623,21 +623,21 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 24; spacing: 8
                 visible: settingsNav.currentIndex === 3
 
-                Text { text: "资源包管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                Text { text: "管理已安装的资源包和材质包"; font.pixelSize: 11; color: "#9498a8" }
+                Text { text: qsTr("资源包管理"); font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
+                Text { text: qsTr("管理已安装的资源包和材质包"); font.pixelSize: 11; color: "#9498a8" }
 
                 RowLayout {
                     spacing: 8
                     Rectangle { height: 28; radius: 4; color: "#3a4eb8"; implicitWidth: rpRefreshText.implicitWidth + 20
                         scale: rpRefreshMa.pressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { id: rpRefreshText; anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
+                        Text { id: rpRefreshText; anchors.centerIn: parent; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
                         MouseArea { id: rpRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: { rpListModel.clear(); if (backend) { var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i]); toastManager.show("资源包列表已刷新") } }
                         }
                     }
                     Rectangle { height: 28; radius: 4; color: "transparent"; border.color: "#1a1f2e"; implicitWidth: rpOpenText.implicitWidth + 20
-                        Text { id: rpOpenText; anchors.centerIn: parent; text: "打开文件夹"; font.pixelSize: 11; color: "#b0b8c8" }
+                        Text { id: rpOpenText; anchors.centerIn: parent; text: qsTr("打开文件夹"); font.pixelSize: 11; color: "#b0b8c8" }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (backend) { if (backend.openResourcePacksFolder(currentSelectedVersion)) { toastManager.show("已打开资源包文件夹") } else { toastManager.show("无资源包文件夹") } } } }
                     }
                 }
@@ -657,7 +657,7 @@ Rectangle {
                             Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
+                                Text { anchors.centerIn: parent; text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (backend) { backend.deleteResourcePack(name); rpListModel.remove(index); toastManager.show("已删除资源包: " + name) } }
                                 }
@@ -677,14 +677,14 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 24; spacing: 8
                 visible: settingsNav.currentIndex === 4
 
-                Text { text: "存档管理"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                Text { text: "管理已保存的世界存档，可备份或迁移存档文件。"; font.pixelSize: 11; color: "#9498a8" }
+                Text { text: qsTr("存档管理"); font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
+                Text { text: qsTr("管理已保存的世界存档，可备份或迁移存档文件。"); font.pixelSize: 11; color: "#9498a8" }
 
                 Rectangle {
                     width: 80; height: 28; radius: 4; color: "#3a4eb8"
                     scale: saveRefreshMa.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "刷新列表"; font.pixelSize: 11; color: "#e8ecf8" }
+                    Text { anchors.centerIn: parent; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
                     MouseArea { id: saveRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: { saveListModel.clear(); if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]); toastManager.show("存档列表已刷新") } }
                     }
@@ -702,7 +702,7 @@ Rectangle {
                             Text { text: name; font.pixelSize: 12; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
-                                Text { anchors.centerIn: parent; text: "删除"; font.pixelSize: 10; color: "#c05050" }
+                                Text { anchors.centerIn: parent; text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (backend) { backend.deleteSave(name); saveListModel.remove(index); toastManager.show("已删除存档: " + name) } }
                                 }
@@ -722,8 +722,8 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 24; spacing: 12
                 visible: settingsNav.currentIndex === 5
 
-                Text { text: "游戏完整性校验"; font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
-                Text { text: "扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。"; font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                Text { text: qsTr("游戏完整性校验"); font.pixelSize: 14; font.bold: true; color: "#e4e8f2" }
+                Text { text: qsTr("扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。"); font.pixelSize: 11; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                 // Start button
                 Rectangle {
@@ -780,7 +780,7 @@ Rectangle {
                         anchors.centerIn: parent
                         spacing: 8
                         Text {
-                            text: "❌ 检测到 " + versionSettingsOverlay._verifyFailedFiles.length + " 个文件异常"
+                            text: qsTr("❌ 检测到 ") + versionSettingsOverlay._verifyFailedFiles.length + " 个文件异常"
                             font.pixelSize: 12; color: "#ff8080"
                         }
                     }
@@ -797,7 +797,7 @@ Rectangle {
                         color: "transparent"
                         border.color: repairBtnHover.hovered ? "#ff8c42" : "#c06420"
                         border.width: 1.5
-                        Text { anchors.centerIn: parent; text: "🔧 一键修复"; font.pixelSize: 12; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
+                        Text { anchors.centerIn: parent; text: qsTr("🔧 一键修复"); font.pixelSize: 12; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
                         HoverHandler { id: repairBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -817,7 +817,7 @@ Rectangle {
                         color: "transparent"
                         border.color: reportBtnHover.hovered ? "#ff8080" : "#804040"
                         border.width: 1.5
-                        Text { anchors.centerIn: parent; text: "📋 查看异常详情"; font.pixelSize: 12; color: reportBtnHover.hovered ? "#ff8080" : "#e07070" }
+                        Text { anchors.centerIn: parent; text: qsTr("📋 查看异常详情"); font.pixelSize: 12; color: reportBtnHover.hovered ? "#ff8080" : "#e07070" }
                         HoverHandler { id: reportBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -830,13 +830,13 @@ Rectangle {
                 Item { height: 12; width: 1 }
 
                 // Version tools
-                Text { text: "版本工具"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("版本工具"); font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
                     // Clone
                     Rectangle { width: 110; height: 32; radius: 5; color: cloneHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                        Text { anchors.centerIn: parent; text: "克隆版本"; font.pixelSize: 11; color: "#d4dcf0" }
+                        Text { anchors.centerIn: parent; text: qsTr("克隆版本"); font.pixelSize: 11; color: "#d4dcf0" }
                         HoverHandler { id: cloneHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -852,7 +852,7 @@ Rectangle {
 
                     // Rename
                     Rectangle { width: 110; height: 32; radius: 5; color: renameHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                        Text { anchors.centerIn: parent; text: "重命名版本"; font.pixelSize: 11; color: "#d4dcf0" }
+                        Text { anchors.centerIn: parent; text: qsTr("重命名版本"); font.pixelSize: 11; color: "#d4dcf0" }
                         HoverHandler { id: renameHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -866,7 +866,7 @@ Rectangle {
 
                     // Migrate
                     Rectangle { width: 110; height: 32; radius: 5; color: migrateHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                        Text { anchors.centerIn: parent; text: "迁移目录"; font.pixelSize: 11; color: "#d4dcf0" }
+                        Text { anchors.centerIn: parent; text: qsTr("迁移目录"); font.pixelSize: 11; color: "#d4dcf0" }
                         HoverHandler { id: migrateHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -880,12 +880,12 @@ Rectangle {
                 Item { height: 12; width: 1 }
 
                 // Delete version
-                Text { text: "危险操作"; font.pixelSize: 10; color: "#c05050"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("危险操作"); font.pixelSize: 10; color: "#c05050"; font.letterSpacing: 1.5 }
                 Rectangle {
                     Layout.fillWidth: true; height: 36; radius: 6; color: "transparent"; border.color: "#2a1f24"
                     scale: delVerHover.containsMouse ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "删除此版本"; font.pixelSize: 13; color: delVerHover.containsMouse ? "#f05050" : "#c05050" }
+                    Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: qsTr("删除此版本"); font.pixelSize: 13; color: delVerHover.containsMouse ? "#f05050" : "#c05050" }
                     MouseArea {
                         id: delVerHover
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor

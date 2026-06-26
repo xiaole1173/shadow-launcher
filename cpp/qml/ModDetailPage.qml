@@ -215,7 +215,7 @@ Rectangle {
                     Text {
                         id: verCountText
                         property int _displayCount: 0
-                        text: "版本数量: " + _displayCount
+                        text: qsTr("版本数量: ") + _displayCount
                         color: "#7888a8"; font.pixelSize: 11
                         Behavior on _displayCount {
                             NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
@@ -227,7 +227,7 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 24
                     Text {
-                        text: "来源: Modrinth (MCIM 镜像)"
+                        text: qsTr("来源: Modrinth (MCIM 镜像)")
                         color: "#7888a8"; font.pixelSize: 11
                     }
                     Rectangle {
@@ -317,7 +317,7 @@ Rectangle {
             // ── Section: Version List ──
             Text {
                 visible: !modDetailLoading && grouped.length > 0
-                text: "版本列表"
+                text: qsTr("版本列表")
                 font.pixelSize: 14; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }

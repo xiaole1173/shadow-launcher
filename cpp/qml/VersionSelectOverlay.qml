@@ -33,7 +33,7 @@ Rectangle {
     Rectangle { x: 16; y: 16; height: 28; width: 80; radius: 5; color: "transparent"
         scale: vsBackHover.containsMouse ? 1.06 : 1.0
         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        Text { anchors.centerIn: parent; text: "\u2190 返回启动"; color: "#a8b0c0"; font.pixelSize: 12 }
+        Text { anchors.centerIn: parent; text: qsTr("\u2190 返回启动"); color: "#a8b0c0"; font.pixelSize: 12 }
         MouseArea { id: vsBackHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSelect = false } }
     }
     RowLayout {
@@ -43,7 +43,7 @@ Rectangle {
             color: "#11141c"; radius: 8; border.color: "#1a1e28"
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 14; spacing: 6
-                Text { text: "游戏文件夹"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("游戏文件夹"); font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                 ListModel { id: gameDirModel }
                 Component.onCompleted: {
                     var dirs = backend ? backend.gameDirectories : []
@@ -129,15 +129,15 @@ Rectangle {
                         anchors.top: parent.top; anchors.topMargin: 8
                         spacing: 4
                         RowLayout {
-                            Text { text: "版本"; font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                            Text { text: qsTr("版本"); font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
                             Text { text: backend ? (backend.gameDirInfo.versionCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#8aa8f0" }
                         }
                         RowLayout {
-                            Text { text: "模组"; font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                            Text { text: qsTr("模组"); font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
                             Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: 12; font.weight: Font.Medium; color: "#d4dcf0" }
                         }
                         RowLayout {
-                            Text { text: "占用"; font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                            Text { text: qsTr("占用"); font.pixelSize: 10; color: "#a8b0c0"; Layout.preferredWidth: 40 }
                             Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: 12; font.weight: Font.Medium; color: "#d4dcf0" }
                         }
                     }
@@ -147,7 +147,7 @@ Rectangle {
                 Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
                     scale: addDirHover.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "+ 添加文件夹"; font.pixelSize: 11; color: addDirHover.containsMouse ? "#b0b8e0" : "#9498a8" }
+                    Text { anchors.centerIn: parent; text: qsTr("+ 添加文件夹"); font.pixelSize: 11; color: addDirHover.containsMouse ? "#b0b8e0" : "#9498a8" }
                     MouseArea {
                         id: addDirHover
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -157,7 +157,7 @@ Rectangle {
                 Rectangle { Layout.fillWidth: true; height: 30; radius: 6; color: "transparent"; border.color: "#1e2230"; border.width: 1
                     scale: importHover.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: "导入整合包"; font.pixelSize: 11; color: importHover.containsMouse ? "#b0b8e0" : "#9498a8" }
+                    Text { anchors.centerIn: parent; text: qsTr("导入整合包"); font.pixelSize: 11; color: importHover.containsMouse ? "#b0b8e0" : "#9498a8" }
                     MouseArea {
                         id: importHover
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -198,7 +198,7 @@ Rectangle {
                 property bool installBtnPressed: false
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
-                    Text { text: "已安装版本"; font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                    Text { text: qsTr("已安装版本"); font.pixelSize: 10; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                     // Refresh installed versions button
                     Rectangle {
                         id: verRefreshBtn
@@ -213,11 +213,11 @@ Rectangle {
                         Text {
                             id: verRefreshText
                             anchors.centerIn: parent
-                            text: "⟳ 刷新"; font.pixelSize: 11
+                            text: qsTr("⟳ 刷新"); font.pixelSize: 11
                             color: verRefreshHover.hovered ? "#8aa8f0" : "#7e8596"
                         }
                         HoverHandler { id: verRefreshHover }
-                        ToolTip { visible: verRefreshHover.hovered; text: "重新扫描已安装版本"; delay: 500 }
+                        ToolTip { visible: verRefreshHover.hovered; text: qsTr("重新扫描已安装版本"); delay: 500 }
                         MouseArea {
                             anchors.fill: parent; hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -241,7 +241,7 @@ Rectangle {
                             Text {
                                 anchors.left: parent.left; anchors.leftMargin: 10
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "搜索版本..."; color: "#9ca0b4"; font.pixelSize: 12
+                                text: qsTr("搜索版本..."); color: "#9ca0b4"; font.pixelSize: 12
                                 visible: !searchField.text
                             }
                         }
@@ -253,7 +253,7 @@ Rectangle {
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 18; font.weight: Font.Bold; color: "#e8ecf8" }
                         HoverHandler { id: installBtnHover }
-                        ToolTip { visible: installBtnHover.hovered; text: "安装新版本"; delay: 500 }
+                        ToolTip { visible: installBtnHover.hovered; text: qsTr("安装新版本"); delay: 500 }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onPressed: versionRightPanel.installBtnPressed = true
                             onReleased: versionRightPanel.installBtnPressed = false
