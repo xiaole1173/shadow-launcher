@@ -361,7 +361,7 @@ Rectangle {
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         anchors.topMargin: 8
-        height: 34
+        height: 28
         spacing: 4
 
         property var tabLabels: ["MC 版本", "Mod", "光影", "资源包"]
@@ -374,9 +374,9 @@ Rectangle {
                 { label: "资源包", icon: "palette" }
             ]
             Rectangle {
-                Layout.preferredWidth: 90
+                Layout.preferredWidth: 84
                 Layout.fillHeight: true
-                radius: 8
+                radius: 7
                 color: page.currentTab === index ? "#1a1f2e" : "transparent"
                 border.color: page.currentTab === index ? "#3a4eb8" : "transparent"
                 border.width: page.currentTab === index ? 1 : 0
@@ -388,12 +388,12 @@ Rectangle {
                     Image {
                         anchors.verticalCenter: parent.verticalCenter
                         source: "icons/lucide/" + modelData.icon + ".svg"
-                        width: 16; height: 16
+                        width: 14; height: 14
                     }
                     Text {
                         text: modelData.label
                     color: page.currentTab === index ? "#d0d4e0" : "#606478"
-                    font.pixelSize: 13
+                    font.pixelSize: 12
                     font.weight: page.currentTab === index ? Font.DemiBold : Font.Normal
                     }
                 }
