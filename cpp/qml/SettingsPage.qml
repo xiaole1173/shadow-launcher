@@ -395,7 +395,9 @@ Rectangle {
                                 id: langCombo
                                 model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
                                 currentIndex: backend ? backend.languageIndex : 0
-                                onActivated: { if (backend) backend.switchLanguage(currentIndex) }
+                                property bool _ready: false
+                                Component.onCompleted: { _ready = true }
+                                onActivated: { if (_ready && backend) backend.switchLanguage(currentIndex) }
                                 Layout.preferredWidth: 280
 
                                 // ── Custom dark style ──
