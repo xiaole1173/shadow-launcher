@@ -554,6 +554,10 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                     sit.value().mcStepTotal[2] = downloader->categoryTotalBytes(2);
                                     if (firstPulse) {
                                         updateStep(sit.key(), 0, QStringLiteral("completed"), 100);
+                                        // Activate steps 1-2 immediately so they show as downloading
+                                        // (even at 0% — avoids gray/pending while waiting for first file of each category)
+                                        updateStep(sit.key(), 1, QStringLiteral("active"), 0, 0, 0);
+                                        updateStep(sit.key(), 2, QStringLiteral("active"), 0, 0, 0);
                                     }
                                     break;
                                 }
