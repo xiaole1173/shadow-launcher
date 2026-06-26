@@ -1006,9 +1006,15 @@ function _showToast(msg) {
         property bool _confirmVisible: false
         Rectangle {
             anchors.fill: parent; z: 200
-            visible: _confirmVisible; color: "#000000"; opacity: _confirmVisible ? 0.55 : 0
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-            MouseArea { anchors.fill: parent; onClicked: _confirmVisible = false }
+            visible: _confirmVisible
+            // Backdrop (semi-transparent)
+            Rectangle {
+                anchors.fill: parent
+                color: "#000000"; opacity: _confirmVisible ? 0.55 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                MouseArea { anchors.fill: parent; onClicked: _confirmVisible = false }
+            }
+            // Panel (fully opaque sibling)
             Rectangle {
                 anchors.centerIn: parent; width: 360; height: 170; radius: 10
                 color: "#141820"; border.color: "#2a1f24"; border.width: 1
@@ -1050,9 +1056,15 @@ function _showToast(msg) {
         property bool _renameVisible: false
         Rectangle {
             anchors.fill: parent; z: 201
-            visible: _renameVisible; color: "#000000"; opacity: _renameVisible ? 0.55 : 0
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-            MouseArea { anchors.fill: parent; onClicked: _renameVisible = false }
+            visible: _renameVisible
+            // Backdrop (semi-transparent)
+            Rectangle {
+                anchors.fill: parent
+                color: "#000000"; opacity: _renameVisible ? 0.55 : 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                MouseArea { anchors.fill: parent; onClicked: _renameVisible = false }
+            }
+            // Panel (fully opaque sibling)
             Rectangle {
                 anchors.centerIn: parent; width: 380; height: 170; radius: 10
                 color: "#141820"; border.color: "#2a3040"; border.width: 1
