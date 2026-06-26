@@ -731,7 +731,9 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
 
         // Check main artifact
         QJsonObject artifact = downloads.value(QStringLiteral("artifact")).toObject();
+        bool hasArtifactCheck = false;
         if (!artifact.isEmpty()) {
+            hasArtifactCheck = true;
             QString path = artifact.value(QStringLiteral("path")).toString();
             QString fullPath = libsDir + QStringLiteral("/") + path;
             if (!QFileInfo::exists(fullPath)) {
@@ -745,6 +747,7 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
             QString key = it.key().toLower();
             if (key.contains(QStringLiteral("natives-windows")) ||
                 key.contains(QStringLiteral("natives-windows"))) {
+                hasArtifactCheck = true;
                 QJsonObject clsArt = it.value().toObject();
                 QString path = clsArt.value(QStringLiteral("path")).toString();
                 if (!path.isEmpty()) {
@@ -752,6 +755,21 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
                     if (!QFileInfo::exists(fullPath)) {
                         missing.append(path);
                     }
+                }
+            }
+        }
+
+        // Fallback: derive path from Maven name (Fabric-style: "net.fabricmc:fabric-loader:0.19.3")
+        if (!hasArtifactCheck) {
+            QString mavenName = lib.value(QStringLiteral("name")).toString();
+            QStringList parts = mavenName.split(QLatin1Char(':'));
+            if (parts.size() >= 3) {
+                QString groupPath = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+                QString relPath = groupPath + QLatin1Char('/') + parts[1] + QLatin1Char('/')
+                                 + parts[2] + QLatin1Char('/') + parts[1] + QLatin1Char('-') + parts[2] + QStringLiteral(".jar");
+                QString fullPath = libsDir + QStringLiteral("/") + relPath;
+                if (!QFileInfo::exists(fullPath)) {
+                    missing.append(relPath);
                 }
             }
         }

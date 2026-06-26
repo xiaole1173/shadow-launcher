@@ -334,6 +334,37 @@ static bool shouldIncludeLibrary(const QJsonObject& lib)
     return false;
 }
 
+// Derive relative library path from Maven coordinate ("group:artifact:version")
+// e.g. "net.fabricmc:fabric-loader:0.19.3" → "net/fabricmc/fabric-loader/0.19.3/fabric-loader-0.19.3.jar"
+static QString mavenNameToPath(const QString& mavenName)
+{
+    const QStringList parts = mavenName.split(QLatin1Char(':'));
+    if (parts.size() < 3) return {};
+    QString group = parts[0];
+    QString artifact = parts[1];
+    QString version = parts[2];
+    QString groupPath = group.replace(QLatin1Char('.'), QLatin1Char('/'));
+    return groupPath + QLatin1Char('/') + artifact + QLatin1Char('/')
+           + version + QLatin1Char('/') + artifact + QLatin1Char('-') + version + QStringLiteral(".jar");
+}
+
+// Construct download URL from library entry (used by Fabric library downloader)
+//   url field  → "https://maven.fabricmc.net/"
+//   name field → "net.fabricmc:fabric-loader:0.19.3"
+//  Output     → "https://maven.fabricmc.net/net/fabricmc/fabric-loader/0.19.3/fabric-loader-0.19.3.jar"
+static QString mavenDownloadUrl(const QJsonObject& lib, const QString& bmclapiPrefix = QStringLiteral("https://bmclapi2.bangbang93.com/maven/"))
+{
+    QString mavenName = lib[QStringLiteral("name")].toString();
+    QString relPath = mavenNameToPath(mavenName);
+    if (relPath.isEmpty()) return {};
+    QString baseUrl = lib[QStringLiteral("url")].toString(QStringLiteral("https://maven.fabricmc.net/"));
+    // Replace official Maven with BMCLAPI mirror for faster download in China
+    baseUrl.replace(QStringLiteral("https://maven.fabricmc.net/"), bmclapiPrefix);
+    baseUrl.replace(QStringLiteral("https://maven.neoforged.net/"), bmclapiPrefix);
+    if (!baseUrl.endsWith(QLatin1Char('/'))) baseUrl += QLatin1Char('/');
+    return baseUrl + relPath;
+}
+
 static QString resolveLibraryPath(const QJsonObject& lib, const QString& librariesDir)
 {
     // Try artifact path first
@@ -364,6 +395,11 @@ static QString resolveLibraryPath(const QJsonObject& lib, const QString& librari
             }
         }
     }
+
+    // Fallback: derive path from Maven name (e.g. net.fabricmc:fabric-loader:0.19.3)
+    QString mavenPath = mavenNameToPath(lib[QStringLiteral("name")].toString());
+    if (!mavenPath.isEmpty())
+        return librariesDir + QStringLiteral("/") + mavenPath;
 
     return {};
 }

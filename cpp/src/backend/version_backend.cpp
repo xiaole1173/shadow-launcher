@@ -1742,22 +1742,23 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         for (int i = 0; i < 3; i++) { ses.mcStepDone[i] = 0; ses.mcStepTotal[i] = 0; }
         ses.mcFileAdded.clear();
 
-        // Build step list — Forge/NeoForge: 7 steps, Fabric: 6 (no loader verify)
+        // Build step list — Forge/NeoForge: 7 steps, Fabric: 7 (profile + libs + install)
         QString loaderLabel = QStringLiteral("Forge");
         if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
         else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
 
         if (loaderType == QStringLiteral("fabric")) {
-            // Fabric: 6 steps (3 MC download + 1 MC verify + 1 Fabric download + 1 install)
+            // Fabric: 7 steps (3 MC download + 1 MC verify + 1 Fabric profile + 1 Fabric libs + 1 install)
             rebuildSteps(installName, {
                 tr("下载原版 JSON 文件"),
                 tr("下载原版支持库文件"),
                 tr("下载原版资源文件"),
                 tr("校验游戏资源完整性"),
                 tr("下载 Fabric 配置"),
+                tr("下载 Fabric 依赖库"),
                 tr("安装 Fabric")
-            }, {3.0, 8.0, 5.0, 0.5, 2.0, 1.0},
-             {true, true, true, false, true, true});
+            }, {3.0, 8.0, 5.0, 0.5, 0.1, 2.0, 0.5},
+             {true, true, true, false, true, true, true});
         } else {
             // Forge/NeoForge: 7 steps (3 MC + 1 MC verify + 1 download + 1 verify + 1 install)
             rebuildSteps(installName, {
@@ -1977,11 +1978,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                      {3.0, 0.5, 10.0},  // installer 重量级10
                      {true, false, true});  // verify hidden until download completes
     } else if (loaderType == QStringLiteral("fabric")) {
-        // Fabric: 2 steps (download + install, no SHA1 verify)
+        // Fabric: 3 steps (download profile + download libraries + install)
         rebuildSteps(installName, {tr("下载 Fabric 配置"),
+                      tr("下载 Fabric 依赖库"),
                       tr("安装 Fabric")},
-                     {2.0, 1.0},
-                     {true, true});
+                     {0.1, 2.0, 0.5},
+                     {true, true, true});
     } else {
         rebuildSteps(installName, {tr("安装 %1").arg(installName)});
     }

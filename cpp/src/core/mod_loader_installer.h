@@ -97,7 +97,21 @@ private:
 
     // Fabric
     void fabricStep1_downloadProfile();
+    void fabricStep2_downloadLibraries(const QByteArray& profileData);
     void fabricStep3_writeVersion(const QByteArray& profileData);
+
+    // Fabric library download helpers
+    struct FabricLibTask {
+        QString url;
+        QString savePath;
+        qint64 size = 0;
+        bool downloaded = false;
+        QString error;
+    };
+    QVector<FabricLibTask> m_fabricLibTasks;
+    qint64 m_fabricLibBytesDone = 0;
+    qint64 m_fabricLibBytesTotal = 0;
+    int m_fabricLibIndex = 0;
 
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);

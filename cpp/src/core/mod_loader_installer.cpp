@@ -1,5 +1,6 @@
 #include "mod_loader_installer.h"
 #include "http_client.h"
+#include <memory>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -871,7 +872,7 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
     downloadToMemory(url, [this](bool ok, const QByteArray& data) {
         if (ok) {
             m_usedFallback = false;
-            fabricStep3_writeVersion(data);  // Skip SHA1 — profile JSON is ~2KB, no verification needed
+            fabricStep2_downloadLibraries(data);  // Step 2: download Fabric libraries
             return;
         }
         // Fallback to official Fabric meta
@@ -881,14 +882,135 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
             if (!ok2) { emit finished(false, "Fabric 配置下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
             m_usedFallback = true;
-            fabricStep3_writeVersion(data2);
+            fabricStep2_downloadLibraries(data2);
         }, "fabric-profile.json");
     }, "fabric-profile.json");
 }
 
-void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData) {
+void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profileData) {
     m_currentStep = 2;
-    emit progressChanged(2, m_totalSteps, "正在创建版本配置...");
+    emit progressChanged(2, m_totalSteps, "正在下载 Fabric 依赖库...");
+
+    // Parse profile JSON to extract library list
+    QJsonDocument doc = QJsonDocument::fromJson(profileData);
+    if (doc.isNull()) {
+        emit finished(false, "Fabric 配置 JSON 格式无效");
+        m_running = false;
+        return;
+    }
+
+    QJsonArray libs = doc.object()[QStringLiteral("libraries")].toArray();
+
+    // Build task list: derive download URL & save path for each library
+    m_fabricLibTasks.clear();
+    m_fabricLibBytesDone = 0;
+    m_fabricLibBytesTotal = 0;
+
+    // Helper: Maven "group:artifact:version" → relative path
+    auto mvnPath = [](const QString& name) -> QString {
+        QStringList p = name.split(QLatin1Char(':'));
+        if (p.size() < 3) return {};
+        return p[0].replace(QLatin1Char('.'), QLatin1Char('/')) + QLatin1Char('/')
+             + p[1] + QLatin1Char('/') + p[2] + QLatin1Char('/')
+             + p[1] + QLatin1Char('-') + p[2] + QStringLiteral(".jar");
+    };
+
+    // Mirror list: BMCLAPI first, official Fabric Maven as fallback
+    const QStringList mirrors = {
+        QStringLiteral("https://bmclapi2.bangbang93.com/maven/"),
+        QStringLiteral("https://maven.fabricmc.net/")
+    };
+
+    QString libsDir = m_gameDir + QStringLiteral("/libraries");
+
+    for (const QJsonValue& v : libs) {
+        QJsonObject lib = v.toObject();
+        QString name = lib[QStringLiteral("name")].toString();
+        QString relPath = mvnPath(name);
+        if (relPath.isEmpty()) continue;
+
+        QString savePath = libsDir + QLatin1Char('/') + relPath;
+        if (QFileInfo::exists(savePath)) continue;  // already cached
+
+        FabricLibTask task;
+        task.savePath = savePath;
+        // Use BMCLAPI URL by default; fallback handled at download time
+        task.url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/") + relPath;
+        m_fabricLibTasks.append(task);
+    }
+
+    if (m_fabricLibTasks.isEmpty()) {
+        qDebug() << "[ModLoader] Fabric libraries are all cached, skipping download step";
+        emit progressChanged(2, m_totalSteps, "Fabric 依赖库已缓存");
+        fabricStep3_writeVersion(profileData);
+        return;
+    }
+
+    qDebug() << "[ModLoader] Fabric library download:" << m_fabricLibTasks.size() << "files needed";
+    m_fabricLibIndex = 0;
+    m_fabricLibBytesDone = 0;
+    m_fabricLibBytesTotal = 0;
+
+    // Download sequentially (each Fabric lib is <2MB, sequential avoids concurrency complexity)
+    // Use std::function + shared_ptr to allow recursive self-reference in C++ lambdas
+    auto dlNext = std::make_shared<std::function<void()>>();
+    *dlNext = [this, profileData, mirrors, dlNext]() {
+        if (m_cancelled) {
+            emit finished(false, "用户取消");
+            m_running = false;
+            return;
+        }
+        if (m_fabricLibIndex >= m_fabricLibTasks.size()) {
+            emit progressChanged(2, m_totalSteps, "Fabric 依赖库下载完成");
+            fabricStep3_writeVersion(profileData);
+            return;
+        }
+
+        auto& task = m_fabricLibTasks[m_fabricLibIndex];
+
+        auto tryMirror = std::make_shared<std::function<void(int)>>();
+        *tryMirror = [this, &task, dlNext, tryMirror, profileData, mirrors](int idx) {
+            if (idx >= mirrors.size()) {
+                emit finished(false, QStringLiteral("Fabric 依赖库下载失败:\n%1\n\n已尝试 %2 个镜像源")
+                                   .arg(task.url, QString::number(mirrors.size())));
+                m_running = false;
+                return;
+            }
+
+            QString url = task.url;
+            if (idx > 0) url.replace(mirrors[0], mirrors[idx]);
+
+            QDir().mkpath(QFileInfo(task.savePath).absolutePath());
+            downloadToFile(url, task.savePath, [this, &task, dlNext, tryMirror, idx](bool ok, const QString& err) {
+                if (ok) {
+                    m_fabricLibBytesDone += task.size ? task.size : QFileInfo(task.savePath).size();
+                    task.downloaded = true;
+                    
+                    // Progress by task count
+                    int pct = static_cast<int>(m_fabricLibBytesDone * 100 / qMax<qint64>(m_fabricLibTasks.size(), 1));
+                    emit stepProgress(2, pct);
+                    emit byteProgress(QFileInfo(task.savePath).fileName(), 
+                                     static_cast<qint64>(m_fabricLibIndex + 1),
+                                     static_cast<qint64>(m_fabricLibTasks.size()), 0);
+
+                    m_fabricLibIndex++;
+                    (*dlNext)();
+                } else {
+                    qDebug() << "[ModLoader] Fabric lib mirror" << idx << "failed:" << err;
+                    (*tryMirror)(idx + 1);
+                }
+            });
+        };
+
+        (*tryMirror)(0);
+    };
+
+    (*dlNext)();
+}
+
+void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData) {
+    m_currentStep = 3;
+    emit progressChanged(3, m_totalSteps, "正在创建版本配置...");
 
     QJsonDocument doc = QJsonDocument::fromJson(profileData);
     if (doc.isNull()) { emit finished(false, "Fabric 配置 JSON 格式无效"); m_running = false; return; }
@@ -915,7 +1037,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     }
 
     qDebug() << "[ModLoader] Fabric version JSON:" << jsonPath;
-    emit progressChanged(2, m_totalSteps, "Fabric 安装完成");
+    emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
     emit finished(true, QString());
     m_running = false;
 }
