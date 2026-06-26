@@ -416,6 +416,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::logMessage);
 
     bp("Constructor done");
+
+    // Ensure language.txt is initialized (used by QML to recover ComboBox state)
+    writeLanguageFile(m_settings->languageIndex());
 }
 
 // ============================================================
@@ -1814,6 +1817,9 @@ void ShadowBackend::switchLanguage(int index)
     // 5. Notify C++ widgets (tr() strings will reload via changeEvent)
     QEvent ev(QEvent::LanguageChange);
     QCoreApplication::sendEvent(qApp, &ev);
+
+    // 6. Persist to language.txt for QML recovery
+    writeLanguageFile(index);
 }
 
 bool ShadowBackend::event(QEvent* ev)
@@ -1823,6 +1829,30 @@ bool ShadowBackend::event(QEvent* ev)
         // (QML bindings are handled by engine->retranslate() above)
     }
     return QObject::event(ev);
+}
+
+int ShadowBackend::readLanguageFile() const
+{
+    QString path = m_app->dataDir() + "/language.txt";
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        bool ok = false;
+        int idx = f.readAll().trimmed().toInt(&ok);
+        f.close();
+        if (ok && idx >= 0 && idx <= 2) return idx;
+    }
+    return 0;  // default: zh_CN
+}
+
+void ShadowBackend::writeLanguageFile(int index) const
+{
+    QString path = m_app->dataDir() + "/language.txt";
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(QByteArray::number(index));
+        f.close();
+        qDebug() << "[Language] written" << index << "to" << path;
+    }
 }
 
 } // namespace ShadowLauncher

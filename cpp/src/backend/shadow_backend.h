@@ -201,6 +201,8 @@ public:
     // ── Language hot-switch ──
     void setEngine(QQmlEngine* engine) { m_engine = engine; }
     Q_INVOKABLE void switchLanguage(int index);
+    Q_INVOKABLE int readLanguageFile() const;
+    void writeLanguageFile(int index) const;
     bool event(QEvent* event) override;
 
     // ── Verify stubs ──

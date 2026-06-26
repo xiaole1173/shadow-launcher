@@ -394,18 +394,14 @@ Rectangle {
                             ComboBox {
                                 id: langCombo
                                 model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
-                                property bool _ready: false
-                                property bool _syncBack: false  // guard: block onActivated during programmatic set
+                                property bool _syncBack: false
                                 Component.onCompleted: {
-                                    if (backend && backend.languageIndex >= 0) {
-                                        _syncBack = true
-                                        currentIndex = backend.languageIndex
-                                        _syncBack = false
-                                    }
-                                    _ready = true
+                                    _syncBack = true
+                                    currentIndex = (backend && backend.readLanguageFile) ? backend.readLanguageFile() : 0
+                                    _syncBack = false
                                 }
                                 onActivated: {
-                                    if (!_ready || _syncBack) return
+                                    if (_syncBack) return
                                     if (backend) backend.switchLanguage(currentIndex)
                                 }
                                 Layout.preferredWidth: 280
