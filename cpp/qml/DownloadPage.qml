@@ -360,7 +360,7 @@ Rectangle {
         anchors.leftMargin: 16
         anchors.rightMargin: 16
         anchors.topMargin: 8
-        height: 38
+        height: 34
         spacing: 4
 
         property var tabLabels: ["MC 版本", "Mod", "光影", "资源包"]
@@ -373,7 +373,7 @@ Rectangle {
                 { label: "资源包", icon: "palette" }
             ]
             Rectangle {
-                Layout.preferredWidth: 100
+                Layout.preferredWidth: 90
                 Layout.fillHeight: true
                 radius: 8
                 color: page.currentTab === index ? "#1a1f2e" : "transparent"
@@ -432,6 +432,8 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.topMargin: 8
         visible: page.currentTab === 0
+
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         // ── Filter pills ──
         RowLayout {
@@ -830,8 +832,7 @@ Rectangle {
         anchors.topMargin: 8
         opacity: page.currentTab === 1 ? 1 : 0
         enabled: page.currentTab === 1
-
-        function doModSearch() {
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             if (!backend) return
             page.modSearching = true
             modResultsModel.clear()
@@ -962,17 +963,19 @@ Rectangle {
                         Rectangle {
                             id: modLdrPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
-                            color: ldrHov.containsMouse ? "#1a2848" : "#0c0e14"
-                            border.color: (ldrHov.containsMouse || page.modLoader) ? "#4068c8" : "#2a3040"
-                            border.width: (ldrHov.containsMouse || page.modLoader) ? 1.5 : 1
+                            property bool hovered: false
+                            color: hovered ? "#1e3260" : "#0c0e14"
+                            border.color: (hovered || page.modLoader) ? "#5078e0" : "#2a3040"
+                            border.width: (hovered || page.modLoader) ? 1.5 : 1
 
-                            // Elastic click
                             property real _eScale: 1.0
                             scale: _eScale
                             Timer { id: ldrRestoreTimer; interval: 100; onTriggered: { modLdrPill._eScale = 1.0 } }
 
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
                             Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
@@ -988,7 +991,10 @@ Rectangle {
                             MouseArea {
                                 id: ldrHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onEntered: modLdrPill.hovered = true
+                                onExited: modLdrPill.hovered = false
                                 onClicked: {
+                                    modLdrPill.hovered = false
                                     modLdrPill._eScale = 0.9
                                     ldrRestoreTimer.restart()
                                     if (ldrMenu.visible) ldrMenu.close(); else ldrMenu.open()
@@ -1000,6 +1006,7 @@ Rectangle {
                                 y: parent.height + 4; width: 110
                                 height: Math.min(ldrMenuFlick.contentHeight + 8, 220)
                                 padding: 0
+                                onClosed: modLdrPill.hovered = false  // ← 关键：Popup关闭时强制清除hover状态
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1048,9 +1055,10 @@ Rectangle {
                         Rectangle {
                             id: modVerPill
                             Layout.preferredWidth: 78; height: 24; radius: 4
-                            color: verHov2.containsMouse ? "#1a2848" : "#0c0e14"
-                            border.color: (verHov2.containsMouse || page.modGameVersion) ? "#4068c8" : "#2a3040"
-                            border.width: (verHov2.containsMouse || page.modGameVersion) ? 1.5 : 1
+                            property bool hovered: false
+                            color: hovered ? "#1e3260" : "#0c0e14"
+                            border.color: (hovered || page.modGameVersion) ? "#5078e0" : "#2a3040"
+                            border.width: (hovered || page.modGameVersion) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -1073,7 +1081,10 @@ Rectangle {
                             MouseArea {
                                 id: verHov2; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onEntered: modVerPill.hovered = true
+                                onExited: modVerPill.hovered = false
                                 onClicked: {
+                                    modVerPill.hovered = false
                                     modVerPill._eScale = 0.9
                                     verRestoreTimer.restart()
                                     if (verMenu.visible) verMenu.close(); else verMenu.open()
@@ -1085,6 +1096,7 @@ Rectangle {
                                 y: parent.height + 4; width: 130
                                 height: Math.min(verFlick.contentHeight + 8, 220)
                                 padding: 0
+                                onClosed: modVerPill.hovered = false
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1160,9 +1172,10 @@ Rectangle {
                         Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 90; height: 24; radius: 4
-                            color: catHov.containsMouse ? "#1a2848" : "#0c0e14"
-                            border.color: (catHov.containsMouse || page.modCategory) ? "#4068c8" : "#2a3040"
-                            border.width: (catHov.containsMouse || page.modCategory) ? 1.5 : 1
+                            property bool hovered: false
+                            color: hovered ? "#1e3260" : "#0c0e14"
+                            border.color: (hovered || page.modCategory) ? "#5078e0" : "#2a3040"
+                            border.width: (hovered || page.modCategory) ? 1.5 : 1
 
                             property real _eScale: 1.0
                             scale: _eScale
@@ -1170,6 +1183,8 @@ Rectangle {
 
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             Behavior on border.width { NumberAnimation { duration: 150 } }
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
                             Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
@@ -1185,7 +1200,10 @@ Rectangle {
                             MouseArea {
                                 id: catHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onEntered: modCatPill.hovered = true
+                                onExited: modCatPill.hovered = false
                                 onClicked: {
+                                    modCatPill.hovered = false
                                     modCatPill._eScale = 0.9
                                     catRestoreTimer.restart()
                                     if (catMenu.visible) catMenu.close(); else catMenu.open()
@@ -1197,6 +1215,7 @@ Rectangle {
                                 y: parent.height + 4; width: 140
                                 height: Math.min(catFlick.contentHeight + 8, 300)
                                 padding: 0
+                                onClosed: modCatPill.hovered = false
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1531,8 +1550,7 @@ Rectangle {
         anchors.topMargin: 8
         opacity: page.currentTab === 2 ? 1 : 0
         enabled: page.currentTab === 2
-
-        function doShaderSearch() {
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             if (!backend) return
             page.shaderSearching = true
             shaderResultsModel.clear()
@@ -1875,8 +1893,7 @@ Rectangle {
         anchors.topMargin: 8
         opacity: page.currentTab === 3 ? 1 : 0
         enabled: page.currentTab === 3
-
-        ColumnLayout {
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
@@ -1920,8 +1937,11 @@ Rectangle {
                         Rectangle {
                             id: rpSourcePill
                             Layout.preferredWidth: 140; height: 28; radius: 5
-                            color: rpSrcHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: "#2a3040"; border.width: 1
+                            color: rpSrcHov.hovered ? "#1e3260" : "#0c0e14"
+                            border.color: (rpSrcHov.hovered || sourceActive) ? "#5078e0" : "#2a3040"; border.width: 1
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
@@ -1982,8 +2002,11 @@ Rectangle {
                         Rectangle {
                             id: rpVerPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            color: rpVerHov.hovered ? "#1a2848" : "#0c0e14"
-                            border.color: page.rpGameVersion ? "#5068c8" : "#2a3040"; border.width: 1
+                            color: rpVerHov.hovered ? "#1e3260" : "#0c0e14"
+                            border.color: (rpVerHov.hovered || page.rpGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
@@ -2081,8 +2104,11 @@ Rectangle {
                             Rectangle {
                                 id: rpCatPill
                                 Layout.preferredWidth: 95; height: 28; radius: 5
-                                color: rpCatHov.hovered ? "#1a2848" : "#0c0e14"
-                                border.color: page.rpCategoryFilter ? "#5068c8" : "#2a3040"; border.width: 1
+                                color: rpCatHov.hovered ? "#1e3260" : "#0c0e14"
+                                border.color: (rpCatHov.hovered || page.rpCategoryFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 3; spacing: 2
                                     Text {
@@ -2174,8 +2200,11 @@ Rectangle {
                             Rectangle {
                                 id: rpFeatPill
                                 Layout.preferredWidth: 95; height: 28; radius: 5
-                                color: rpFeatHov.hovered ? "#1a2848" : "#0c0e14"
-                                border.color: page.rpFeatureFilter ? "#5068c8" : "#2a3040"; border.width: 1
+                                color: rpFeatHov.hovered ? "#1e3260" : "#0c0e14"
+                                border.color: (rpFeatHov.hovered || page.rpFeatureFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 3; spacing: 2
                                     Text {
@@ -2250,8 +2279,11 @@ Rectangle {
                             Rectangle {
                                 id: rpResPill
                                 Layout.preferredWidth: 95; height: 28; radius: 5
-                                color: rpResHov.hovered ? "#1a2848" : "#0c0e14"
-                                border.color: page.rpResolutionFilter ? "#5068c8" : "#2a3040"; border.width: 1
+                                color: rpResHov.hovered ? "#1e3260" : "#0c0e14"
+                                border.color: (rpResHov.hovered || page.rpResolutionFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 3; spacing: 2
                                     Text {
