@@ -17,7 +17,7 @@ Rectangle {
     // Entrance fade-in (self-contained, no interference with parent overlay)
     opacity: 0
     Component.onCompleted: opacity = 1
-    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
 
     // ── Injected properties ──
     property var backend: null
