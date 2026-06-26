@@ -966,22 +966,15 @@ Rectangle {
                         Rectangle {
                             id: modLdrPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            property bool menuOpen: false
-                            color: (ldrHov.containsMouse || menuOpen) ? "#1e3260" : "#0c0e14"
-                            border.color: (ldrHov.containsMouse || menuOpen || page.modLoader) ? "#5078e0" : "#2a3040"
-                            border.width: (ldrHov.containsMouse || menuOpen || page.modLoader) ? 1.5 : 1
+                            color: (ldrHov.containsMouse || ldrMenu.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (ldrHov.containsMouse || ldrMenu.visible || page.modLoader) ? "#5078e0" : "#2a3040"
+                            border.width: 1
 
-                            property real _eScale: 1.0
-                            scale: _eScale
-                            Timer { id: ldrRestoreTimer; interval: 100; onTriggered: { modLdrPill._eScale = 1.0 } }
-
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
                             Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modLoaderLabels[page.modLoader] || "全部"
@@ -993,11 +986,7 @@ Rectangle {
                             MouseArea {
                                 id: ldrHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    modLdrPill._eScale = 0.9
-                                    ldrRestoreTimer.restart()
-                                    if (ldrMenu.visible) ldrMenu.close(); else ldrMenu.open()
-                                }
+                                onClicked: { if (ldrMenu.visible) ldrMenu.close(); else ldrMenu.open() }
                             }
 
                             Popup {
@@ -1005,8 +994,6 @@ Rectangle {
                                 y: parent.height + 4; width: 110
                                 height: Math.min(ldrMenuFlick.contentHeight + 8, 220)
                                 padding: 0
-                                onOpened: modLdrPill.menuOpen = true
-                                onClosed: modLdrPill.menuOpen = false
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1055,21 +1042,15 @@ Rectangle {
                         Rectangle {
                             id: modVerPill
                             Layout.preferredWidth: 120; height: 28; radius: 5
-                            property bool menuOpen: false
-                            color: (verHov2.containsMouse || menuOpen) ? "#1e3260" : "#0c0e14"
-                            border.color: (verHov2.containsMouse || menuOpen || page.modGameVersion) ? "#5078e0" : "#2a3040"
-                            border.width: (verHov2.containsMouse || menuOpen || page.modGameVersion) ? 1.5 : 1
+                            color: (verHov2.containsMouse || verMenu.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (verHov2.containsMouse || verMenu.visible || page.modGameVersion) ? "#5078e0" : "#2a3040"
+                            border.width: 1
 
-                            property real _eScale: 1.0
-                            scale: _eScale
-                            Timer { id: verRestoreTimer; interval: 100; onTriggered: { modVerPill._eScale = 1.0 } }
-
+                            Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
-                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
 
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modGameVersion || "全部"
@@ -1081,11 +1062,7 @@ Rectangle {
                             MouseArea {
                                 id: verHov2; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    modVerPill._eScale = 0.9
-                                    verRestoreTimer.restart()
-                                    if (verMenu.visible) verMenu.close(); else verMenu.open()
-                                }
+                                onClicked: { if (verMenu.visible) verMenu.close(); else verMenu.open() }
                             }
 
                             Popup {
@@ -1093,8 +1070,6 @@ Rectangle {
                                 y: parent.height + 4; width: 130
                                 height: Math.min(verFlick.contentHeight + 8, 220)
                                 padding: 0
-                                onOpened: modVerPill.menuOpen = true
-                                onClosed: modVerPill.menuOpen = false
 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1170,22 +1145,15 @@ Rectangle {
                         Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 95; height: 28; radius: 5
-                            property bool menuOpen: false
-                            color: (catHov.containsMouse || menuOpen) ? "#1e3260" : "#0c0e14"
-                            border.color: (catHov.containsMouse || menuOpen || page.modCategory) ? "#5078e0" : "#2a3040"
-                            border.width: (catHov.containsMouse || menuOpen || page.modCategory) ? 1.5 : 1
+                            color: (catHov.containsMouse || catMenu.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (catHov.containsMouse || catMenu.visible || page.modCategory) ? "#5078e0" : "#2a3040"
+                            border.width: 1
 
-                            property real _eScale: 1.0
-                            scale: _eScale
-                            Timer { id: catRestoreTimer; interval: 100; onTriggered: { modCatPill._eScale = 1.0 } }
-
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
                             Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 5; anchors.rightMargin: 2; spacing: 1
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modCatLabels[page.modCategory] || "全部"
@@ -1197,11 +1165,7 @@ Rectangle {
                             MouseArea {
                                 id: catHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    modCatPill._eScale = 0.9
-                                    catRestoreTimer.restart()
-                                    if (catMenu.visible) catMenu.close(); else catMenu.open()
-                                }
+                                onClicked: { if (catMenu.visible) catMenu.close(); else catMenu.open() }
                             }
 
                             Popup {
@@ -1209,8 +1173,6 @@ Rectangle {
                                 y: parent.height + 4; width: 140
                                 height: Math.min(catFlick.contentHeight + 8, 300)
                                 padding: 0
-                                onOpened: modCatPill.menuOpen = true
-                                onClosed: modCatPill.menuOpen = false
 
                                 enter: Transition {
                                     ParallelAnimation {
