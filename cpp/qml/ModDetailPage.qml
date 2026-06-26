@@ -13,6 +13,11 @@ Rectangle {
     anchors.fill: parent
     color: "#0c0f16"
 
+    // Entrance fade-in (self-contained, no interference with parent overlay)
+    opacity: 0
+    Component.onCompleted: opacity = 1
+    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
     // ── Injected properties (set by Loader onLoaded) ──
     property var backend: null
     property var toastManager: null
