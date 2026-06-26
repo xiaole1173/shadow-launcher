@@ -364,13 +364,16 @@ Rectangle {
         spacing: 4
 
         property var tabLabels: ["MC 版本", "Mod", "光影", "资源包"]
-        property var tabIcons: ["box", "puzzle", "sparkles", "palette"]
-        property var tabIcons: ["", "", "", ""]
 
         Repeater {
-            model: 4
+            model: [
+                { label: "MC 版本", icon: "box" },
+                { label: "Mod", icon: "puzzle" },
+                { label: "光影", icon: "sparkles" },
+                { label: "资源包", icon: "palette" }
+            ]
             Rectangle {
-                Layout.preferredWidth: 90
+                Layout.preferredWidth: 100
                 Layout.fillHeight: true
                 radius: 8
                 color: page.currentTab === index ? "#1a1f2e" : "transparent"
@@ -383,14 +386,14 @@ Rectangle {
                     anchors.centerIn: parent; spacing: 6
                     Image {
                         anchors.verticalCenter: parent.verticalCenter
-                        source: "icons/lucide/" + tabBar.tabIcons[index] + ".svg"
+                        source: "icons/lucide/" + modelData.icon + ".svg"
                         width: 16; height: 16
                     }
                     Text {
-                        text: tabBar.tabLabels[index]
-                        color: page.currentTab === index ? "#d0d4e0" : "#606478"
-                        font.pixelSize: 13
-                        font.weight: page.currentTab === index ? Font.DemiBold : Font.Normal
+                        text: modelData.label
+                    color: page.currentTab === index ? "#d0d4e0" : "#606478"
+                    font.pixelSize: 13
+                    font.weight: page.currentTab === index ? Font.DemiBold : Font.Normal
                     }
                 }
 
