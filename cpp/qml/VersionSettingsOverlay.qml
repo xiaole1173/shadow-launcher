@@ -1016,7 +1016,7 @@ function _showToast(msg) {
             }
             // Panel (fully opaque sibling)
             Rectangle {
-                anchors.centerIn: parent; width: 360; height: 170; radius: 10
+                anchors.centerIn: parent; width: 360; height: 190; radius: 10
                 color: "#141820"; border.color: "#2a1f24"; border.width: 1
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 20; spacing: 12
@@ -1066,7 +1066,7 @@ function _showToast(msg) {
             }
             // Panel (fully opaque sibling)
             Rectangle {
-                anchors.centerIn: parent; width: 380; height: 170; radius: 10
+                anchors.centerIn: parent; width: 380; height: 190; radius: 10
                 color: "#141820"; border.color: "#2a3040"; border.width: 1
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 20; spacing: 12
