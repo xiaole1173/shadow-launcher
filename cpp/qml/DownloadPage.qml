@@ -50,6 +50,15 @@ Rectangle {
     property string modCategory: ""
     property string modEnvironment: ""
     property string modLicense: ""
+    property var modCatLabels: ({
+        "adventure": "冒险类", "cursed": "猎奇诡异类", "decoration": "装饰类",
+        "economy": "经济系统类", "equipment": "装备武器类", "food": "食物食材类",
+        "game-mechanics": "游戏机制类", "library": "前置依赖库", "magic": "魔法类",
+        "management": "管理辅助类", "minigame": "迷你小游戏类", "mobs": "生物怪物类",
+        "optimization": "性能优化类", "social": "社交互动类", "storage": "仓储存储类",
+        "technology": "科技工业类", "transportation": "交通运输类", "utility": "实用工具类",
+        "world-generation": "世界生成类"
+    })
     property bool modShowPreReleases: false
 
     // Install state
@@ -1134,6 +1143,93 @@ Rectangle {
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: { page.modGameVersion = modelData; modVerMenu2.close() }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Text { text: qsTr("类别"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
+
+                        Rectangle {
+                            id: modCatPill2
+                            Layout.preferredWidth: 115; height: 28; radius: 5
+                            color: (modCatHov2.containsMouse || modCatMenu2.visible) ? "#1e3260" : "#0c0e14"
+                            border.color: (modCatHov2.containsMouse || modCatMenu2.visible || page.modCategory) ? "#5078e0" : "#2a3040"; border.width: 1
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: page.modCatLabels[page.modCategory] || "全部"
+                                    color: page.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                }
+                                Text { text: "▾"; color: "#505468"; font.pixelSize: 8 }
+                            }
+                            MouseArea {
+                                id: modCatHov2; anchors.fill: parent
+                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { if (modCatMenu2.visible) modCatMenu2.close(); else modCatMenu2.open() }
+                            }
+
+                            Popup {
+                                id: modCatMenu2; closePolicy: Popup.NoAutoClose
+                                y: parent.height + 4; width: 140
+                                height: Math.min(modCatFlick.contentHeight + 8, 300)
+                                padding: 0
+                                background: Rectangle { color: "#151922"; radius: 8; border.color: "#1e2230" }
+
+                                enter: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                        NumberAnimation { property: "y"; from: modCatMenu2.y - 4; to: modCatMenu2.y; duration: 180; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                                exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+
+                                Flickable {
+                                    id: modCatFlick
+                                    anchors.fill: parent; anchors.margins: 4
+                                    contentHeight: modCatInner.implicitHeight; clip: true
+                                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                                    ColumnLayout {
+                                        id: modCatInner; width: parent.width; spacing: 2
+
+                                        Rectangle {
+                                            Layout.fillWidth: true; height: 26; radius: 4
+                                            color: !page.modCategory ? "#1a2848" : "transparent"
+                                            Text {
+                                                anchors.centerIn: parent; text: qsTr("全部")
+                                                color: !page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                font.weight: !page.modCategory ? Font.Bold : Font.Normal
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                onClicked: { page.modCategory = ""; modCatMenu2.close() }
+                                            }
+                                        }
+
+                                        Repeater {
+                                            model: Object.keys(page.modCatLabels)
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: modelData === page.modCategory ? "#1a2848" : "transparent"
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: page.modCatLabels[modelData] || modelData
+                                                    color: modelData === page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: 11
+                                                    font.weight: modelData === page.modCategory ? Font.Bold : Font.Normal
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { page.modCategory = modelData; modCatMenu2.close() }
                                                 }
                                             }
                                         }
