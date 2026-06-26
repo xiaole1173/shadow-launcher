@@ -9,8 +9,9 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: "#0c0f16"
+    color: hasBg ? "transparent" : "#0c0f16"
 
     property var backend: null
     property string mcVersion: ""
@@ -169,7 +170,7 @@ Rectangle {
     Rectangle {
         id: topBar
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-        height: 44; color: "#0c0f16"; z: 10
+        height: 44; color: hasBg ? "transparent" : "#0c0f16"; z: 10
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10

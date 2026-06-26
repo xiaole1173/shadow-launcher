@@ -5,7 +5,8 @@ import QtQuick.Layouts
 
 Rectangle {
     id: versionSelectOverlay
-    anchors.fill: parent; color: "#0c0f16"; z: 5
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
+    anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"; z: 5
     property int activeGameDirIndex: 0
     property var backend: null
     property var toastManager: null

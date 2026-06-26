@@ -6,8 +6,9 @@ import QtQuick.Layouts
 // DownloadProgressPage — multi-card install progress view
 Rectangle {
     id: root
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: "#0c0f16"
+    color: hasBg ? "transparent" : "#0c0f16"
     property var backend: null
     onBackendChanged: {
         if (backend && backend.installCardsModel)
@@ -34,7 +35,7 @@ Rectangle {
 
     // ── empty state ──
     Rectangle {
-        anchors.fill: parent; color: "#0c0f16"
+        anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"
         visible: backend.installCardsModel.count === 0
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
@@ -246,7 +247,7 @@ Rectangle {
 
     // ── done state (all cards gone, install finished) ──
     Rectangle {
-        anchors.fill: parent; color: "#0c0f16"
+        anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"
         visible: backend && backend.installPhase === "done" && !cardsView.count
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12

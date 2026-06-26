@@ -12,6 +12,7 @@ Rectangle {
     property var appWindow
     property string currentSelectedVersion: ""
     property int loginMode: 0
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
 
     // Signals
     signal versionSelectRequested()
@@ -19,9 +20,9 @@ Rectangle {
     // loginModeChanged is auto-generated from property int loginMode
 
     gradient: Gradient {
-        GradientStop { position: 0.0; color: "#0c0f16" }
-        GradientStop { position: 0.5; color: "#111520" }
-        GradientStop { position: 1.0; color: "#0e111a" }
+        GradientStop { position: 0.0; color: hasBg ? "transparent" : "#0c0f16" }
+        GradientStop { position: 0.5; color: hasBg ? "transparent" : "#111520" }
+        GradientStop { position: 1.0; color: hasBg ? "transparent" : "#0e111a" }
     }
 
     property string displayName: backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""

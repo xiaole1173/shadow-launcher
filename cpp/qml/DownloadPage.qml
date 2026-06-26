@@ -6,7 +6,8 @@ import QtQuick.Dialogs
 
 Rectangle {
     id: page
-    color: "#0c0f16"
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
+    color: hasBg ? "transparent" : "#0c0f16"
 
     // Reference back to the main window (set by Loader onLoaded)
     property var mainWindow: null
@@ -2945,7 +2946,7 @@ Rectangle {
     Rectangle {
         id: rpDetailOverlay
         anchors.fill: parent
-        color: "#0c0f16"
+        color: hasBg ? "transparent" : "#0c0f16"
         z: 10
         opacity: page._showRpDetail ? 1 : 0
         visible: page._showRpDetail
@@ -3011,7 +3012,7 @@ Rectangle {
     Rectangle {
         id: modDetailOverlay
         anchors.fill: parent
-        color: "#0c0f16"
+        color: hasBg ? "transparent" : "#0c0f16"
         z: 10
         opacity: page._showModDetail ? 1 : 0
         visible: page._showModDetail

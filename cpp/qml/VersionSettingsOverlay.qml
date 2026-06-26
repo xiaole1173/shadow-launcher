@@ -6,10 +6,11 @@ import QtQuick.Layouts
 // ========== VERSION SETTINGS OVERLAY ==========
 Rectangle {
     id: versionSettingsOverlay
-    anchors.fill: parent; color: "#0c0f16"; z: 5
+    anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"; z: 5
     property var backend: null
     property var toastManager: null
     property var confirmDialog: null
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     onVisibleChanged: {
         if (visible && backend) {
             // 版本切换时刷新所有数据列表（跟随版本隔离）
