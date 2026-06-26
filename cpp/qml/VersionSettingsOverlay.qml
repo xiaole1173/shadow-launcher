@@ -917,22 +917,9 @@ Rectangle {
                         }
                     }
 
-                    // Migrate
-                    Rectangle { width: 110; height: 32; radius: 5; color: migrateHover.hovered ? "#1a2848" : "#0d1018"; border.color: "#1a1f2e"
-                        Text { anchors.centerIn: parent; text: qsTr("迁移目录"); font.pixelSize: 11; color: "#d4dcf0" }
-                        HoverHandler { id: migrateHover }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (!currentSelectedVersion) return
-                                _showConfirm("迁移目录", "将版本 " + currentSelectedVersion + " 迁移到版本隔离目录？\n迁移后存档/资源包/光影将独立管理。", function() {
-                                    if (backend) {
-                                        backend.migrateVersion(currentSelectedVersion)
-                                        backend.refreshVersionDetails()
-                                        _showToast("已迁移版本: " + currentSelectedVersion)
-                                    }
-                                })
-                            }
-                        }
+                    // Migrate (disabled until implemented properly)
+                    Rectangle { width: 110; height: 32; radius: 5; color: "#0d1018"; border.color: "#151a24"
+                        Text { anchors.centerIn: parent; text: qsTr("迁移目录"); font.pixelSize: 11; color: "#555860" }
                     }
                 }
 
