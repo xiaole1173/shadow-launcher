@@ -328,14 +328,16 @@ public:
     Q_INVOKABLE void deleteMod(const QString&) {}
     Q_INVOKABLE void deleteResourcePack(const QString&) {}
     Q_INVOKABLE void deleteSave(const QString&) {}
-    Q_INVOKABLE void migrateVersion(const QString&) {}
+    Q_INVOKABLE void migrateVersion(const QString& versionId);
     Q_INVOKABLE void openConfigFolder() { openGameDir({}); }
     Q_INVOKABLE void removeGameDir(int) {}
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
     Q_INVOKABLE bool renameVersion(const QString& oldId, const QString& newId);
+    Q_INVOKABLE bool renameVersion(const QString& oldId);  // single-param stub (dialog handled in QML)
     Q_INVOKABLE bool cloneVersion(const QString& sourceId, const QString& newId);
+    Q_INVOKABLE bool cloneVersion(const QString& sourceId);  // auto-generates "{name} (副本)"
     Q_INVOKABLE QString copyVersionPath(const QString& versionId);
     Q_INVOKABLE void repairVersion(const QString& versionId);
     Q_INVOKABLE void openVerifyReport();

@@ -1527,6 +1527,23 @@ bool ShadowBackend::cloneVersion(const QString& sourceId, const QString& newId) 
     return m_version->cloneVersion(sourceId, newId);
 }
 
+bool ShadowBackend::cloneVersion(const QString& sourceId) {
+    // Auto-generate name: "1.21.6-fabric-0.19.3 (\u526f\u672c)"
+    QString newId = sourceId + QString::fromUtf8(" (\u526f\u672c)");
+    return m_version->cloneVersion(sourceId, newId);
+}
+
+bool ShadowBackend::renameVersion(const QString& oldId) {
+    // Single-param: called from QML with just oldId — QML shows rename dialog
+    qDebug() << "[renameVersion] single-param stub called for" << oldId << "– QML should show dialog";
+    return false;
+}
+
+void ShadowBackend::migrateVersion(const QString& versionId) {
+    qDebug() << "[migrateVersion]" << versionId;
+    m_settings->migrateVersionToIsolated(versionId);
+}
+
 QString ShadowBackend::copyVersionPath(const QString& versionId) {
     return m_version->copyVersionPath(versionId);
 }

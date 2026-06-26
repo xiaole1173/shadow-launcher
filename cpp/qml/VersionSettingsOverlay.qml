@@ -892,13 +892,16 @@ Rectangle {
                         HoverHandler { id: cloneHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-
-                                if (backend) backend.cloneVersion(currentSelectedVersion)
-
-                                toastManager.show("已克隆版本:  " + currentSelectedVersion) }
-
-
+                                if (!currentSelectedVersion) { _showToast("请先选择一个版本"); return }
+                                if (backend) {
+                                    if (backend.cloneVersion(currentSelectedVersion)) {
+                                        backend.refreshVersionDetails()
+                                        _showToast("已克隆版本: " + currentSelectedVersion)
+                                    } else {
+                                        _showToast("克隆失败")
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -908,10 +911,8 @@ Rectangle {
                         HoverHandler { id: renameHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-
-                                if (backend) backend.renameVersion(currentSelectedVersion)
-
+                                if (!currentSelectedVersion) { _showToast("请先选择一个版本"); return }
+                                _showRenameDialog(currentSelectedVersion)
                             }
                         }
                     }
@@ -923,7 +924,13 @@ Rectangle {
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (!currentSelectedVersion) return
-                                if (backend) backend.migrateVersion(currentSelectedVersion)
+                                _showConfirm("迁移目录", "将版本 " + currentSelectedVersion + " 迁移到版本隔离目录？\n迁移后存档/资源包/光影将独立管理。", function() {
+                                    if (backend) {
+                                        backend.migrateVersion(currentSelectedVersion)
+                                        backend.refreshVersionDetails()
+                                        _showToast("已迁移版本: " + currentSelectedVersion)
+                                    }
+                                })
                             }
                         }
                     }
@@ -942,16 +949,146 @@ Rectangle {
                         id: delVerHover
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            confirmDialog.title = "删除版本"
-                            confirmDialog.message = "确认要删除版本 " + currentSelectedVersion + " 吗？\n此操作不可撤销，版本的所有文件将被删除。"
-
-                            confirmDialog.onAccept = () => {
-                                backend.deleteVersion(currentSelectedVersion)
-                                backend.refreshVersionDetails()
+                            if (!currentSelectedVersion) { _showToast("请先选择一个版本"); return }
+                            _showConfirm("删除版本", "确认要删除版本 " + currentSelectedVersion + " 吗？\n此操作不可撤销，版本的所有文件将被删除。", function() {
+                                if (backend) {
+                                    backend.deleteVersion(currentSelectedVersion)
+                                    backend.refreshVersionDetails()
+                                }
                                 showVersionSettings = false
+                            })
+                        }
+                    }
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  LOCAL TOAST (replaces external toastManager dependency)
+        // ═══════════════════════════════════════════════════════════
+        function _showToast(msg) {
+            _toastText = msg
+            _toastVisible = true
+            _toastTimer.restart()
+        }
+        property string _toastText: ""
+        property bool _toastVisible: false
+        Timer { id: _toastTimer; interval: 2500; onTriggered: _toastVisible = false }
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom; anchors.bottomMargin: 24
+            width: _toastLabel.implicitWidth + 32; height: 36; radius: 8
+            color: "#222840"; border.color: "#3a4eb8"; border.width: 1
+            opacity: _toastVisible ? 1 : 0; z: 100
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+            Text {
+                id: _toastLabel
+                anchors.centerIn: parent
+                text: _toastText; font.pixelSize: 12; color: "#d4dcf0"
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  LOCAL CONFIRM DIALOG (replaces external confirmDialog)
+        // ═══════════════════════════════════════════════════════════
+        function _showConfirm(title, msg, onOk) {
+            _confirmTitle = title
+            _confirmMessage = msg
+            _confirmOnOk = onOk
+            _confirmVisible = true
+        }
+        property string _confirmTitle: ""
+        property string _confirmMessage: ""
+        property var _confirmOnOk: null
+        property bool _confirmVisible: false
+        Rectangle {
+            anchors.fill: parent; z: 200
+            visible: _confirmVisible; color: "#000000"; opacity: _confirmVisible ? 0.55 : 0
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+            MouseArea { anchors.fill: parent; onClicked: _confirmVisible = false }
+            Rectangle {
+                anchors.centerIn: parent; width: 360; height: 170; radius: 10
+                color: "#141820"; border.color: "#2a1f24"; border.width: 1
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 20; spacing: 12
+                    Text { text: _confirmTitle; font.pixelSize: 15; font.weight: Font.Bold; color: "#e4e8f2" }
+                    Text { text: _confirmMessage; font.pixelSize: 12; color: "#b0b8c8"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    Item { Layout.fillHeight: true }
+                    RowLayout {
+                        Layout.alignment: Qt.AlignRight; spacing: 10
+                        Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
+                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _confirmVisible = false }
+                        }
+                        Rectangle { width: 80; height: 32; radius: 5; color: "#c05050"
+                            Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    _confirmVisible = false
+                                    if (_confirmOnOk) _confirmOnOk()
+                                }
                             }
-                            confirmDialog.visible = true
+                        }
+                    }
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  LOCAL RENAME DIALOG
+        // ═══════════════════════════════════════════════════════════
+        function _showRenameDialog(oldId) {
+            _renameOldId = oldId
+            _renameNewId = oldId
+            _renameVisible = true
+        }
+        property string _renameOldId: ""
+        property string _renameNewId: ""
+        property bool _renameVisible: false
+        Rectangle {
+            anchors.fill: parent; z: 201
+            visible: _renameVisible; color: "#000000"; opacity: _renameVisible ? 0.55 : 0
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+            MouseArea { anchors.fill: parent; onClicked: _renameVisible = false }
+            Rectangle {
+                anchors.centerIn: parent; width: 380; height: 170; radius: 10
+                color: "#141820"; border.color: "#2a3040"; border.width: 1
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 20; spacing: 12
+                    Text { text: "重命名版本"; font.pixelSize: 15; font.weight: Font.Bold; color: "#e4e8f2" }
+                    Text { text: "请输入新的版本名称"; font.pixelSize: 12; color: "#b0b8c8" }
+                    Rectangle {
+                        Layout.fillWidth: true; height: 36; radius: 6; color: "#1a1d28"; border.color: "#2a3040"
+                        TextInput {
+                            anchors.fill: parent; anchors.margins: 10
+                            text: _renameNewId; font.pixelSize: 13; color: "#d4dcf0"
+                            selectByMouse: true; clip: true; verticalAlignment: TextInput.AlignVCenter
+                            onTextChanged: _renameNewId = text
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                    RowLayout {
+                        Layout.alignment: Qt.AlignRight; spacing: 10
+                        Rectangle { width: 80; height: 32; radius: 5; color: "transparent"; border.color: "#2a2e3c"
+                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 12; color: "#b0b8c8" }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _renameVisible = false }
+                        }
+                        Rectangle { width: 80; height: 32; radius: 5; color: "#3a4eb8"
+                            Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: 12; color: "#e8ecf8" }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    _renameVisible = false
+                                    if (_renameNewId !== "" && _renameOldId !== _renameNewId) {
+                                        if (backend && backend.renameVersion(_renameOldId, _renameNewId)) {
+                                            backend.refreshVersionDetails()
+                                            _showToast("已重命名: " + _renameOldId + " → " + _renameNewId)
+                                        } else {
+                                            _showToast("重命名失败")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
