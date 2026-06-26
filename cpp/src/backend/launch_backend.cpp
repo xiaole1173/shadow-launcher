@@ -102,6 +102,7 @@ void LaunchBackend::cancelLaunch()
     qCDebug(logLaunch) << "[PROCESS] cancelLaunch() called";
     m_cancelled = true;
     if (m_checkTimer) m_checkTimer->stop();
+    if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
 
     // If a game process was already started, kill it
     if (m_activeLauncher) {
@@ -232,6 +233,9 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
     if (m_checkTimer) {
         m_checkTimer->stop();
     }
+    if (m_refreshTimeoutTimer) {
+        m_refreshTimeoutTimer->stop();
+    }
     emit launchProgressChanged(0, reason);
     emit launchCheckFailed(phase, reason);
     emit launchStateChanged();
@@ -287,6 +291,8 @@ void LaunchBackend::runNextCheck()
                     [this, conn](bool ok) {
                         disconnect(*conn);
                         delete conn;
+                        // Stop the timeout timer — token refresh completed
+                        if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
                         if (ok) {
                             qCInfo(logLaunch) << "Pre-launch check passed: token refreshed";
                             m_authToken = m_account->mcToken();
