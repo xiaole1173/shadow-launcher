@@ -394,10 +394,20 @@ Rectangle {
                             ComboBox {
                                 id: langCombo
                                 model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
-                                currentIndex: backend ? backend.languageIndex : 0
                                 property bool _ready: false
-                                Component.onCompleted: { _ready = true }
-                                onActivated: { if (_ready && backend) backend.switchLanguage(currentIndex) }
+                                property bool _syncBack: false  // guard: block onActivated during programmatic set
+                                Component.onCompleted: {
+                                    if (backend && backend.languageIndex >= 0) {
+                                        _syncBack = true
+                                        currentIndex = backend.languageIndex
+                                        _syncBack = false
+                                    }
+                                    _ready = true
+                                }
+                                onActivated: {
+                                    if (!_ready || _syncBack) return
+                                    if (backend) backend.switchLanguage(currentIndex)
+                                }
                                 Layout.preferredWidth: 280
 
                                 // ── Custom dark style ──
