@@ -96,6 +96,11 @@ void SettingsBackend::loadSettings()
     m_launchLanguageIndex = m_languageIndex;  // snapshot for restart detection
     m_lastLaunchedVersion = s.value(QStringLiteral("general/lastVersion"), QString()).toString();
     m_lastSelectedVersion = s.value(QStringLiteral("general/lastSelectedVersion"), QString()).toString();
+
+    // Custom background
+    m_customBgPath = s.value(QStringLiteral("customBg/path"), QString()).toString();
+    m_sidebarOpacity = s.value(QStringLiteral("customBg/sidebarOpacity"), 0.90).toDouble();
+    m_contentOpacity = s.value(QStringLiteral("customBg/contentOpacity"), 0.70).toDouble();
 }
 
 void SettingsBackend::saveSettings()
@@ -114,6 +119,11 @@ void SettingsBackend::saveSettings()
     s.setValue(QStringLiteral("general/languageIndex"), m_languageIndex);
     s.setValue(QStringLiteral("general/lastVersion"), m_lastLaunchedVersion);
     s.setValue(QStringLiteral("general/lastSelectedVersion"), m_lastSelectedVersion);
+
+    // Custom background
+    s.setValue(QStringLiteral("customBg/path"), m_customBgPath);
+    s.setValue(QStringLiteral("customBg/sidebarOpacity"), m_sidebarOpacity);
+    s.setValue(QStringLiteral("customBg/contentOpacity"), m_contentOpacity);
 }
 
 // ============================================================

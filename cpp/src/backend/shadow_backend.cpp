@@ -26,6 +26,7 @@
 #include <QDirIterator>
 #include <QEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
 #include <QNetworkAccessManager>
@@ -505,6 +506,25 @@ bool ShadowBackend::embeddedLoginEnabled() const {
 
 void ShadowBackend::setEmbeddedLoginEnabled(bool v) {
     m_settings->setEmbeddedLoginEnabled(v);
+}
+
+// ── Custom background ──
+QString ShadowBackend::customBgPath() const { return m_settings->customBgPath(); }
+void ShadowBackend::setCustomBgPath(const QString& path) { m_settings->setCustomBgPath(path); }
+qreal ShadowBackend::sidebarOpacity() const { return m_settings->sidebarOpacity(); }
+void ShadowBackend::setSidebarOpacity(qreal v) { m_settings->setSidebarOpacity(v); }
+qreal ShadowBackend::contentOpacity() const { return m_settings->contentOpacity(); }
+void ShadowBackend::setContentOpacity(qreal v) { m_settings->setContentOpacity(v); }
+
+QString ShadowBackend::pickBackgroundImage() {
+    QString path = QFileDialog::getOpenFileName(nullptr,
+        QString::fromUtf8("选择背景图片"), QString(),
+        QString::fromUtf8("图片文件 (*.png *.jpg *.jpeg *.bmp *.webp);;所有文件 (*)"));
+    if (!path.isEmpty()) {
+        m_settings->setCustomBgPath(QDir::toNativeSeparators(path));
+        return QDir::toNativeSeparators(path);
+    }
+    return QString();
 }
 
 QVariantList ShadowBackend::availableJavaList() const {

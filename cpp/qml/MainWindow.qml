@@ -194,6 +194,16 @@ Window {
         }
     }
 
+    // ── Custom background image (behind everything) ──
+    Image {
+        anchors.fill: parent; z: -1
+        visible: backend ? backend.customBgPath !== "" : false
+        source: visible ? ("file:///" + backend.customBgPath) : ""
+        fillMode: Image.PreserveAspectCrop
+        cache: false
+        asynchronous: true
+    }
+
     // ── Rounded window container ──
     Rectangle {
         anchors.fill: parent; radius: 16
@@ -244,6 +254,8 @@ Window {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
                 layer.enabled: true
                 color: "#0a0c12"; radius: 6
+                opacity: backend && backend.customBgPath !== "" ? backend.sidebarOpacity : 1.0
+                Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
                     Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: 16; font.bold: true; color: "#e4e8f2" }
@@ -338,6 +350,8 @@ Window {
 
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
+                opacity: backend && backend.customBgPath !== "" ? backend.contentOpacity : 1.0
+                Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                 // ── Right-side header (matched to SHADOW height, sidebar color) ──
                 Rectangle {

@@ -84,6 +84,11 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(bool devMode READ devMode CONSTANT)
 
+    // ── Custom background ──
+    Q_PROPERTY(QString customBgPath READ customBgPath NOTIFY customBgChanged)
+    Q_PROPERTY(qreal sidebarOpacity READ sidebarOpacity NOTIFY customBgChanged)
+    Q_PROPERTY(qreal contentOpacity READ contentOpacity NOTIFY customBgChanged)
+
     // ── Version details/summary ──
     Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionDetailsReady)
     Q_PROPERTY(QVariantMap currentVersionSummary READ currentVersionSummary NOTIFY currentVersionSummaryChanged)
@@ -139,6 +144,16 @@ public:
     bool isolationEnabled() const;
     bool embeddedLoginEnabled() const;
     Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
+
+    // ── Custom background ──
+    QString customBgPath() const;
+    Q_INVOKABLE void setCustomBgPath(const QString& path);
+    qreal sidebarOpacity() const;
+    Q_INVOKABLE void setSidebarOpacity(qreal v);
+    qreal contentOpacity() const;
+    Q_INVOKABLE void setContentOpacity(qreal v);
+    Q_INVOKABLE QString pickBackgroundImage();
+
     QVariantList availableJavaList() const;
 
     // ── Version getters ──
@@ -410,6 +425,7 @@ signals:
     void gameDirChanged();
     void themeChanged();
     void loginModeChanged();
+    void customBgChanged();
     void logMessage(const QString& msg);
 
     // ── Mod loader version signals ──

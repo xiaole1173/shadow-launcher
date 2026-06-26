@@ -463,6 +463,118 @@ Rectangle {
                     }
                 }
 
+                // ── Custom background ──
+                Rectangle {
+                    Layout.fillWidth: true; Layout.preferredHeight: bgCardContent.implicitHeight + 28
+                    radius: 8; color: "#11141c"; border.color: "#1a1f2a"
+                    ColumnLayout {
+                        id: bgCardContent
+                        anchors.fill: parent; anchors.margins: 14; spacing: 8
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 6
+                            Text { text: qsTr("自定义背景"); font.pixelSize: 14; font.weight: Font.DemiBold; color: "#e8ecf8" }
+                            Rectangle { radius: 4; height: 18; width: bgTag.implicitWidth + 10; color: "#2a2040"
+                                Text { id: bgTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: 10; color: "#a098e0" }
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text { text: backend && backend.customBgPath !== "" ? qsTr("已设置") : qsTr("未设置"); font.pixelSize: 11; color: "#8088a0" }
+                            Rectangle { width: 60; height: 28; radius: 5; color: bgBrowseHov.hovered ? "#252a38" : "#161a24"; border.color: "#2a2e3c"
+                                scale: bgBrowseHov.containsMouse ? 1.05 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                Text { anchors.centerIn: parent; text: qsTr("浏览"); font.pixelSize: 11; color: "#d0d4e0" }
+                                MouseArea { id: bgBrowseHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { if (backend) backend.pickBackgroundImage() }
+                                }
+                            }
+                            Rectangle { visible: backend ? backend.customBgPath !== "" : false; width: 60; height: 28; radius: 5; color: bgClearHov.hovered ? "#302020" : "#161a24"; border.color: "#2a2e3c"
+                                scale: bgClearHov.containsMouse ? 1.05 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                Text { anchors.centerIn: parent; text: qsTr("清除"); font.pixelSize: 11; color: "#d08080" }
+                                MouseArea { id: bgClearHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { if (backend) backend.setCustomBgPath("") }
+                                }
+                            }
+                        }
+
+                        // Preview thumbnail
+                        Image {
+                            Layout.fillWidth: true; Layout.preferredHeight: 100
+                            visible: backend ? backend.customBgPath !== "" : false
+                            source: visible ? ("file:///" + backend.customBgPath) : ""
+                            fillMode: Image.PreserveAspectFit
+                            cache: false; asynchronous: true
+                        }
+                        Rectangle { visible: backend ? backend.customBgPath !== "" : false; Layout.fillWidth: true; height: 1; color: "#1a1f2a" }
+
+                        // Sliders
+                        RowLayout {
+                            visible: backend ? backend.customBgPath !== "" : false
+                            Layout.fillWidth: true; spacing: 16
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 4
+                                Text { text: qsTr("菜单栏透明度"); font.pixelSize: 11; color: "#b0b8c8" }
+                                RowLayout { Layout.fillWidth: true; spacing: 8
+                                    Slider {
+                                        id: sidebarSPSlider
+                                        Layout.fillWidth: true; from: 0.40; to: 1.0; stepSize: 0.05
+                                        value: backend ? backend.sidebarOpacity : 0.90
+                                        onMoved: { if (backend) backend.setSidebarOpacity(value) }
+                                        background: Rectangle {
+                                            implicitHeight: 4
+                                            x: sidebarSPSlider.leftPadding
+                                            y: sidebarSPSlider.topPadding + sidebarSPSlider.availableHeight / 2 - height / 2
+                                            width: sidebarSPSlider.availableWidth; height: 4; radius: 2; color: "#252a38"
+                                            Rectangle {
+                                                width: sidebarSPSlider.visualPosition * parent.width; height: 4; radius: 2; color: "#3a4eb8"
+                                            }
+                                        }
+                                        handle: Rectangle {
+                                            implicitWidth: 12; implicitHeight: 12
+                                            x: sidebarSPSlider.leftPadding + sidebarSPSlider.visualPosition * (sidebarSPSlider.availableWidth - width)
+                                            y: sidebarSPSlider.topPadding + sidebarSPSlider.availableHeight / 2 - height / 2
+                                            radius: 6; color: "#6080e8"
+                                        }
+                                    }
+                                    Text { text: (backend ? backend.sidebarOpacity : 0.90).toFixed(2); font.pixelSize: 11; color: "#a0a8c0"; Layout.preferredWidth: 32 }
+                                }
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 4
+                                Text { text: qsTr("主页面透明度"); font.pixelSize: 11; color: "#b0b8c8" }
+                                RowLayout { Layout.fillWidth: true; spacing: 8
+                                    Slider {
+                                        id: contentSPSlider
+                                        Layout.fillWidth: true; from: 0.40; to: 1.0; stepSize: 0.05
+                                        value: backend ? backend.contentOpacity : 0.70
+                                        onMoved: { if (backend) backend.setContentOpacity(value) }
+                                        background: Rectangle {
+                                            implicitHeight: 4
+                                            x: contentSPSlider.leftPadding
+                                            y: contentSPSlider.topPadding + contentSPSlider.availableHeight / 2 - height / 2
+                                            width: contentSPSlider.availableWidth; height: 4; radius: 2; color: "#252a38"
+                                            Rectangle {
+                                                width: contentSPSlider.visualPosition * parent.width; height: 4; radius: 2; color: "#3a4eb8"
+                                            }
+                                        }
+                                        handle: Rectangle {
+                                            implicitWidth: 12; implicitHeight: 12
+                                            x: contentSPSlider.leftPadding + contentSPSlider.visualPosition * (contentSPSlider.availableWidth - width)
+                                            y: contentSPSlider.topPadding + contentSPSlider.availableHeight / 2 - height / 2
+                                            radius: 6; color: "#6080e8"
+                                        }
+                                    }
+                                    Text { text: (backend ? backend.contentOpacity : 0.70).toFixed(2); font.pixelSize: 11; color: "#a0a8c0"; Layout.preferredWidth: 32 }
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("选择一张图片作为启动器背景。菜单栏和主页面可分别调节透明度。")
+                            font.pixelSize: 11; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        }
+                    }
+                }
+
                 Item { Layout.fillHeight: true }
             }
         }

@@ -24,6 +24,9 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(bool embeddedLoginEnabled READ embeddedLoginEnabled WRITE setEmbeddedLoginEnabled NOTIFY embeddedLoginChanged)
     Q_PROPERTY(int languageIndex READ languageIndex WRITE setLanguageIndex NOTIFY languageChanged)
     Q_PROPERTY(bool languageChanged READ isLanguageChanged NOTIFY languageChanged)
+    Q_PROPERTY(QString customBgPath READ customBgPath WRITE setCustomBgPath NOTIFY customBgChanged)
+    Q_PROPERTY(qreal sidebarOpacity READ sidebarOpacity WRITE setSidebarOpacity NOTIFY customBgChanged)
+    Q_PROPERTY(qreal contentOpacity READ contentOpacity WRITE setContentOpacity NOTIFY customBgChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -77,6 +80,14 @@ public:
     Q_INVOKABLE void setLanguageIndex(int idx);
     bool isLanguageChanged() const { return m_languageIndex != m_launchLanguageIndex; }
     Q_INVOKABLE void restartApp();
+
+    // Custom background
+    QString customBgPath() const { return m_customBgPath; }
+    void setCustomBgPath(const QString& path) { m_customBgPath = path; saveSettings(); emit customBgChanged(); }
+    qreal sidebarOpacity() const { return m_sidebarOpacity; }
+    void setSidebarOpacity(qreal v) { m_sidebarOpacity = v; saveSettings(); emit customBgChanged(); }
+    qreal contentOpacity() const { return m_contentOpacity; }
+    void setContentOpacity(qreal v) { m_contentOpacity = v; saveSettings(); emit customBgChanged(); }
     void setIsolationGameDir(const QString& dir);
     VersionIsolation* isolation() const { return m_isolation; }
 
@@ -88,6 +99,7 @@ signals:
     void isolationChanged();
     void embeddedLoginChanged();
     void languageChanged();
+    void customBgChanged();
     void logMessage(const QString& msg);
 
 private:
@@ -124,6 +136,11 @@ private:
     int m_languageIndex = 0;
     int m_launchLanguageIndex = 0;
     VersionIsolation* m_isolation = nullptr;
+
+    // Custom background
+    QString m_customBgPath;
+    qreal m_sidebarOpacity = 0.90;
+    qreal m_contentOpacity = 0.70;
 
     // Cache for Java scan results (expensive operation)
     QVector<JavaInfo> m_cachedJavaList;
