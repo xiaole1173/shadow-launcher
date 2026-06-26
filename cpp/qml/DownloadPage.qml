@@ -962,10 +962,10 @@ Rectangle {
                         Layout.fillWidth: true; spacing: 3
 
                         // ── 加载器 ──
-                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 40 }
+                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
                         Rectangle {
                             id: modLdrPill
-                            Layout.preferredWidth: 95; height: 28; radius: 5
+                            Layout.preferredWidth: 120; height: 28; radius: 5
                             property bool hovered: false
                             property bool menuOpen: false
                             color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
@@ -1055,10 +1055,10 @@ Rectangle {
                         }
 
                         // ── 版本 ──
-                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 28 }
+                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
                         Rectangle {
                             id: modVerPill
-                            Layout.preferredWidth: 95; height: 28; radius: 5
+                            Layout.preferredWidth: 120; height: 28; radius: 5
                             property bool hovered: false
                             property bool menuOpen: false
                             color: (hovered || menuOpen) ? "#1e3260" : "#0c0e14"
@@ -1174,7 +1174,7 @@ Rectangle {
                         }
 
                         // ── 类型 ──
-                        Text { text: qsTr("类型"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 28 }
+                        Text { text: qsTr("类型"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
                         Rectangle {
                             id: modCatPill
                             Layout.fillWidth: true; Layout.maximumWidth: 95; height: 28; radius: 5
@@ -1280,7 +1280,7 @@ Rectangle {
                         }
 
                         // ── 环境 ──
-                        Text { text: qsTr("环境"); color: "#9094a8"; font.pixelSize: 10; Layout.preferredWidth: 26 }
+                        Text { text: qsTr("环境"); color: "#9094a8"; font.pixelSize: 11; Layout.preferredWidth: 32 }
                         Rectangle {
                             id: modEnvPill
                             Layout.preferredWidth: 72; height: 24; radius: 4
