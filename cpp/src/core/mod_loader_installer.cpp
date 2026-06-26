@@ -851,7 +851,65 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                 renameVersionFolder(defaultName, m_installName);
             }
 
-            // Cleanup vanilla MC version folder (Forge version is standalone — jar already copied)
+            // Merge vanilla MC JSON into Forge JSON before deleting vanilla folder
+            // Forge installer may create JSON with inheritsFrom referencing vanilla MC
+            const QString forgeJsonPath = m_gameDir + QStringLiteral("/versions/") + m_installName
+                + QStringLiteral("/") + m_installName + QStringLiteral(".json");
+            const QString mcJsonPath = m_gameDir + QStringLiteral("/versions/%1/%1.json").arg(m_mcVersion);
+            if (QFile::exists(forgeJsonPath) && QFile::exists(mcJsonPath)) {
+                QFile fjf(forgeJsonPath);
+                if (fjf.open(QIODevice::ReadOnly)) {
+                    QJsonObject forgeObj = QJsonDocument::fromJson(fjf.readAll()).object();
+                    fjf.close();
+                    if (forgeObj.contains(QStringLiteral("inheritsFrom"))) {
+                        QFile mcf(mcJsonPath);
+                        if (mcf.open(QIODevice::ReadOnly)) {
+                            QJsonObject mcObj = QJsonDocument::fromJson(mcf.readAll()).object();
+                            mcf.close();
+                            // Merge libraries: MC libs first, Forge libs after
+                            QJsonArray mcLibs = mcObj[QStringLiteral("libraries")].toArray();
+                            QJsonArray forgeLibs = forgeObj[QStringLiteral("libraries")].toArray();
+                            QJsonArray merged;
+                            for (const auto& v : mcLibs) merged.append(v);
+                            for (const auto& v : forgeLibs) merged.append(v);
+                            forgeObj[QStringLiteral("libraries")] = merged;
+                            // Merge game arguments
+                            QJsonObject mcArgs = mcObj[QStringLiteral("arguments")].toObject();
+                            QJsonObject forgeArgs = forgeObj[QStringLiteral("arguments")].toObject();
+                            QJsonArray mcGameArgs = mcArgs[QStringLiteral("game")].toArray();
+                            QJsonArray forgeGameArgs = forgeArgs[QStringLiteral("game")].toArray();
+                            for (const auto& v : mcGameArgs) forgeGameArgs.append(v);
+                            forgeArgs[QStringLiteral("game")] = forgeGameArgs;
+                            forgeObj[QStringLiteral("arguments")] = forgeArgs;
+                            // Remove inheritsFrom
+                            forgeObj.remove(QStringLiteral("inheritsFrom"));
+                            // Copy inherited fields
+                            auto cpIfNeeded = [&](const QString& key) {
+                                QJsonValue v = forgeObj[key];
+                                if (v.isUndefined() || v.isNull()) forgeObj[key] = mcObj[key];
+                            };
+                            cpIfNeeded(QStringLiteral("assetIndex"));
+                            cpIfNeeded(QStringLiteral("assets"));
+                            cpIfNeeded(QStringLiteral("minimumLauncherVersion"));
+                            cpIfNeeded(QStringLiteral("type"));
+                            cpIfNeeded(QStringLiteral("releaseTime"));
+                            cpIfNeeded(QStringLiteral("time"));
+                            cpIfNeeded(QStringLiteral("javaVersion"));
+                            cpIfNeeded(QStringLiteral("logging"));
+                            cpIfNeeded(QStringLiteral("complianceLevel"));
+                            cpIfNeeded(QStringLiteral("downloads"));
+                            QFile out(forgeJsonPath);
+                            if (out.open(QIODevice::WriteOnly)) {
+                                out.write(QJsonDocument(forgeObj).toJson(QJsonDocument::Indented));
+                                out.close();
+                            }
+                            qDebug() << "[ModLoader] Forge JSON merged with vanilla MC libraries";
+                        }
+                    }
+                }
+            }
+
+            // Cleanup vanilla MC version folder (standalone JSON + jar already copied)
             qDebug() << "[ModLoader] Cleaning up vanilla MC folder:" << m_mcVersion;
             QString vanillaVersionDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
             cleanupAfterInstall({ vanillaVersionDir });
@@ -1061,7 +1119,65 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
         QFile::copy(vanillaJar, targetJar);
     }
 
-    // Cleanup vanilla MC version folder (Fabric version is standalone — jar already copied)
+    // Merge vanilla MC JSON content into Fabric JSON (same pattern as NeoForge)
+    // Fabric profile from meta.fabricmc.net uses inheritsFrom — vanilla libs/natives
+    // must be merged before deleting the vanilla version folder
+    if (json.contains(QStringLiteral("inheritsFrom"))) {
+        const QString mcJsonPath = m_gameDir + QStringLiteral("/versions/%1/%1.json").arg(m_mcVersion);
+        QFile mcf(mcJsonPath);
+        if (mcf.open(QIODevice::ReadOnly)) {
+            QJsonDocument mcDoc = QJsonDocument::fromJson(mcf.readAll());
+            mcf.close();
+            QJsonObject mcObj = mcDoc.object();
+            // Re-read our JSON (fresh after write)
+            QFile own(jsonPath);
+            if (own.open(QIODevice::ReadOnly)) {
+                QJsonObject ownObj = QJsonDocument::fromJson(own.readAll()).object();
+                own.close();
+                // Merge libraries: MC libs first, then Fabric libs
+                QJsonArray mcLibs = mcObj[QStringLiteral("libraries")].toArray();
+                QJsonArray fabLibs = ownObj[QStringLiteral("libraries")].toArray();
+                QJsonArray merged;
+                for (const auto& v : mcLibs) merged.append(v);
+                for (const auto& v : fabLibs) merged.append(v);
+                ownObj[QStringLiteral("libraries")] = merged;
+                // Merge game arguments
+                QJsonObject mcArgs = mcObj[QStringLiteral("arguments")].toObject();
+                QJsonObject ownArgs = ownObj[QStringLiteral("arguments")].toObject();
+                QJsonArray mcGameArgs = mcArgs[QStringLiteral("game")].toArray();
+                QJsonArray ownGameArgs = ownArgs[QStringLiteral("game")].toArray();
+                for (const auto& v : mcGameArgs) ownGameArgs.append(v);
+                ownArgs[QStringLiteral("game")] = ownGameArgs;
+                ownObj[QStringLiteral("arguments")] = ownArgs;
+                // Remove inheritsFrom — standalone JSON now
+                ownObj.remove(QStringLiteral("inheritsFrom"));
+                // Copy fields inherited from MC parent
+                auto cpIfNeeded = [&](const QString& key) {
+                    QJsonValue v = ownObj[key];
+                    if (v.isUndefined() || v.isNull()) ownObj[key] = mcObj[key];
+                };
+                cpIfNeeded(QStringLiteral("assetIndex"));
+                cpIfNeeded(QStringLiteral("assets"));
+                cpIfNeeded(QStringLiteral("minimumLauncherVersion"));
+                cpIfNeeded(QStringLiteral("type"));
+                cpIfNeeded(QStringLiteral("releaseTime"));
+                cpIfNeeded(QStringLiteral("time"));
+                cpIfNeeded(QStringLiteral("javaVersion"));
+                cpIfNeeded(QStringLiteral("logging"));
+                cpIfNeeded(QStringLiteral("complianceLevel"));
+                cpIfNeeded(QStringLiteral("downloads"));
+                // Write back merged JSON
+                QFile out(jsonPath);
+                if (out.open(QIODevice::WriteOnly)) {
+                    out.write(QJsonDocument(ownObj).toJson(QJsonDocument::Indented));
+                    out.close();
+                }
+                qDebug() << "[ModLoader] Fabric JSON merged with vanilla MC libraries";
+            }
+        }
+    }
+
+    // Cleanup vanilla MC version folder (standalone JSON + jar already copied)
     qDebug() << "[ModLoader] Cleaning up vanilla MC folder:" << m_mcVersion;
     QString vanillaVersionDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
     cleanupAfterInstall({ vanillaVersionDir });
