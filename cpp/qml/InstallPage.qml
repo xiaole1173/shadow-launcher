@@ -181,7 +181,6 @@ Rectangle {
                     anchors.centerIn: parent
                     source: "icons/lucide/arrow-left.svg"
                     width: 16; height: 16
-                    sourceSize: Qt.size(16, 16)
                 }
                 Text {
                     id: backLabel; anchors.centerIn: parent
@@ -256,7 +255,7 @@ Rectangle {
                             Behavior on opacity { NumberAnimation { duration: 200 } }
                             Row {
                                 anchors.centerIn: parent; spacing: 6
-                                Image { source: "icons/lucide/download.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/download.svg"; width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter }
                                 Text { id: dlLabel; text: "\u5f00\u59cb\u4e0b\u8f7d"
                                 color: root.versionConflict ? "#706878" : "#e8ecf8"
                                 font.pixelSize: 13; font.weight: Font.DemiBold

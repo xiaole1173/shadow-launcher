@@ -385,7 +385,6 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         source: "icons/lucide/" + tabBar.tabIcons[index] + ".svg"
                         width: 16; height: 16
-                        sourceSize: Qt.size(16, 16)
                     }
                     Text {
                         text: tabBar.tabLabels[index]
@@ -466,7 +465,6 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             source: "icons/lucide/" + modelData.icon + ".svg"
                             width: 14; height: 14
-                            sourceSize: Qt.size(14, 14)
                         }
                         Text {
                             id: pillLabel
@@ -510,7 +508,6 @@ Rectangle {
                     anchors.centerIn: parent
                     source: "icons/lucide/refresh-cw.svg"
                     width: 16; height: 16
-                    sourceSize: Qt.size(16, 16)
                 }
                 HoverHandler { id: refreshHover }
                 ToolTip { visible: refreshHover.hovered; text: qsTr("刷新版本列表"); delay: 500 }

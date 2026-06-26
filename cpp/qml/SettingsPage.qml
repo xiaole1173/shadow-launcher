@@ -57,7 +57,6 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             source: "icons/lucide/" + modelData.icon + ".svg"
                             width: 16; height: 16
-                            sourceSize: Qt.size(16, 16)
                         }
                         Text {
                             text: modelData.label; color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13

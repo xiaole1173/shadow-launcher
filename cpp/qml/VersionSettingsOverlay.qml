@@ -154,7 +154,7 @@ Rectangle {
                 Rectangle {
                     width: 100; height: 32; radius: 6; color: "#3a4eb8"
                     Row { anchors.centerIn: parent; spacing: 6
-                    Image { source: "icons/lucide/play.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16); anchors.verticalCenter: parent.verticalCenter }
+                    Image { source: "icons/lucide/play.svg"; width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter }
                     Text { text: qsTr("启动"); font.pixelSize: 13; font.weight: Font.Bold; color: "#e8ecf8" }
                 }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -252,7 +252,7 @@ Rectangle {
                         scale: shMouse0.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/folder.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/folder.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("版本文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover0 }
@@ -270,7 +270,7 @@ Rectangle {
                         scale: shMouse1.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/map.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/map.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("存档文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover1 }
@@ -282,7 +282,7 @@ Rectangle {
                         scale: shMouse2.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/camera.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/camera.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("截图文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover2 }
@@ -294,7 +294,7 @@ Rectangle {
                         scale: shMouse6.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/file-text.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/file-text.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("logs 日志"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover6 }
@@ -306,7 +306,7 @@ Rectangle {
                         scale: shMouse7.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/file.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/file.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("最新启动日志"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover7 }
@@ -318,7 +318,7 @@ Rectangle {
                         scale: shMouse8.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/alert-octagon.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/alert-octagon.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("崩溃日志"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover8 }
@@ -332,7 +332,7 @@ Rectangle {
                         scale: shMouseCp.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/clipboard-copy.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/clipboard-copy.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("复制版本路径"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHoverCp }
@@ -350,7 +350,7 @@ Rectangle {
                         scale: shMouse3.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/puzzle.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/puzzle.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("Mod 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover3 }
@@ -363,7 +363,7 @@ Rectangle {
                         scale: shMouse4.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/settings.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/settings.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("config 文件夹"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover4 }
@@ -376,7 +376,7 @@ Rectangle {
                         scale: shMouse5.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/sparkles.svg"; width: 14; height: 14; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/sparkles.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: qsTr("光影包"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         HoverHandler { id: shortcutHover5 }
@@ -592,8 +592,8 @@ Rectangle {
                         width: 80; height: 28; radius: 4; color: "#3a4eb8"
                         scale: modRefreshMa.pressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 4`n                            Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }`n                            Row { anchors.centerIn: parent; spacing: 4
-                        Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                        Row { anchors.centerIn: parent; spacing: 4`n                            Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }`n                            Row { anchors.centerIn: parent; spacing: 4
+                        Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                         Text { text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
                     }`n                        }
                         MouseArea { id: modRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -640,13 +640,13 @@ Rectangle {
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: delBtnHover.hovered ? "#6b2020" : "transparent"; border.color: "#4a2828"
                                 Row { anchors.centerIn: parent; spacing: 3
-                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Row { anchors.centerIn: parent; spacing: 3
-                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Row { anchors.centerIn: parent; spacing: 3
-                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Row { anchors.centerIn: parent; spacing: 3
-                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
                             }
                             }
@@ -680,7 +680,7 @@ Rectangle {
                         scale: rpRefreshMa.pressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Row { anchors.centerIn: parent; spacing: 4
-                            Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                            Image { source: "icons/lucide/refresh-cw.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                             Text { id: rpRefreshText; text: qsTr("刷新列表"); font.pixelSize: 11; color: "#e8ecf8" }
                         }
                         MouseArea { id: rpRefreshMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -709,7 +709,7 @@ Rectangle {
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
                                 Row { anchors.centerIn: parent; spacing: 3
-                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
                             }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -757,7 +757,7 @@ Rectangle {
                             Text { text: sizeDisplay; font.pixelSize: 10; color: "#9498a8" }
                             Rectangle { width: 60; height: 24; radius: 3; color: "transparent"; border.color: "#4a2828"
                                 Row { anchors.centerIn: parent; spacing: 3
-                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                                Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Text { text: qsTr("删除"); font.pixelSize: 10; color: "#c05050" }
                             }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
