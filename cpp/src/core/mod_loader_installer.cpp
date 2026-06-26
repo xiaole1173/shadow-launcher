@@ -851,6 +851,11 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                 renameVersionFolder(defaultName, m_installName);
             }
 
+            // Cleanup vanilla MC version folder (Forge version is standalone — jar already copied)
+            qDebug() << "[ModLoader] Cleaning up vanilla MC folder:" << m_mcVersion;
+            QString vanillaVersionDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
+            cleanupAfterInstall({ vanillaVersionDir });
+
             emit finished(true, QString());
         } else {
             QString detail = (stdoutStr + QStringLiteral(" ") + stderrStr).trimmed();
@@ -1055,6 +1060,11 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
         if (QFile::exists(targetJar)) QFile::remove(targetJar);
         QFile::copy(vanillaJar, targetJar);
     }
+
+    // Cleanup vanilla MC version folder (Fabric version is standalone — jar already copied)
+    qDebug() << "[ModLoader] Cleaning up vanilla MC folder:" << m_mcVersion;
+    QString vanillaVersionDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
+    cleanupAfterInstall({ vanillaVersionDir });
 
     qDebug() << "[ModLoader] Fabric version JSON:" << jsonPath;
     emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
