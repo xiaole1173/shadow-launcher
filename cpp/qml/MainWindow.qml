@@ -200,31 +200,30 @@ Window {
         return typeof p === "string" && p.length > 0
     }
 
-    // ── Custom background image (behind everything) ──
-    Image {
-        anchors.fill: parent; z: -2
-        visible: hasCustomBg
-        source: hasCustomBg ? backend.customBgPath : ""
-        fillMode: Image.PreserveAspectCrop
-        cache: false
-        asynchronous: true
-    }
-
-    // ── Dark mask overlay (between bg image and UI) ──
-    // Higher contentOpacity → thicker mask → less background visible
-    Rectangle {
-        anchors.fill: parent; z: -1
-        color: "#000000"
-        opacity: hasCustomBg ? (1.0 - backend.contentOpacity) : 0
-        visible: hasCustomBg
-        Behavior on opacity { NumberAnimation { duration: 300 } }
-    }
-
     // ── Rounded window container ──
     Rectangle {
         anchors.fill: parent; radius: 16
         color: hasCustomBg ? "transparent" : "#0c0f16"
         clip: true
+
+        // ── Custom background image (clipped by container radius) ──
+        Image {
+            anchors.fill: parent; z: -2
+            visible: hasCustomBg
+            source: hasCustomBg ? backend.customBgPath : ""
+            fillMode: Image.PreserveAspectCrop
+            cache: false
+            asynchronous: true
+        }
+
+        // ── Dark mask overlay ──
+        Rectangle {
+            anchors.fill: parent; z: -1
+            color: "#000000"
+            opacity: hasCustomBg ? (1.0 - backend.contentOpacity) : 0
+            visible: hasCustomBg
+            Behavior on opacity { NumberAnimation { duration: 300 } }
+        }
 
     ColumnLayout {
         anchors.fill: parent; spacing: 0
