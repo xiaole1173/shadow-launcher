@@ -34,68 +34,79 @@
 <context>
     <name>DownloadPage</name>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="501" />
+        <location filename="../qml/DownloadPage.qml" line="520" />
         <source>刷新版本列表</source>
         <translation>重新整理版本列表</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="530" />
+        <location filename="../qml/DownloadPage.qml" line="549" />
         <source>自动</source>
         <translation>自動</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="669" />
+        <location filename="../qml/DownloadPage.qml" line="688" />
         <source>已安装</source>
         <translation>已安裝</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="700" />
+        <location filename="../qml/DownloadPage.qml" line="719" />
         <source>正在下载</source>
         <translation>正在下載</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="899" />
         <source>搜索 Mod…</source>
-        <translation>搜尋 Mod…</translation>
+        <translation type="vanished">搜尋 Mod…</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="911" />
-        <location filename="../qml/DownloadPage.qml" line="1600" />
-        <location filename="../qml/DownloadPage.qml" line="2322" />
+        <location filename="../qml/DownloadPage.qml" line="903" />
+        <location filename="../qml/DownloadPage.qml" line="933" />
+        <location filename="../qml/DownloadPage.qml" line="1563" />
+        <location filename="../qml/DownloadPage.qml" line="2303" />
         <source>搜索</source>
         <translation>搜尋</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="926" />
-        <location filename="../qml/DownloadPage.qml" line="1718" />
-        <location filename="../qml/DownloadPage.qml" line="2335" />
+        <location filename="../qml/DownloadPage.qml" line="921" />
+        <source>输入 Mod 名称...</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../qml/DownloadPage.qml" line="948" />
+        <location filename="../qml/DownloadPage.qml" line="1681" />
+        <location filename="../qml/DownloadPage.qml" line="2316" />
         <source>重置</source>
         <translation>重置</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="945" />
+        <location filename="../qml/DownloadPage.qml" line="966" />
         <source>加载器</source>
         <translation>載入器</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1031" />
-        <location filename="../qml/DownloadPage.qml" line="1609" />
-        <location filename="../qml/DownloadPage.qml" line="1964" />
+        <location filename="../qml/DownloadPage.qml" line="1053" />
+        <location filename="../qml/DownloadPage.qml" line="1572" />
+        <location filename="../qml/DownloadPage.qml" line="1933" />
         <source>版本</source>
         <translation>版本</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1097" />
+        <location filename="../qml/DownloadPage.qml" line="1021" />
+        <location filename="../qml/DownloadPage.qml" line="1108" />
         <location filename="../qml/DownloadPage.qml" line="1209" />
-        <location filename="../qml/DownloadPage.qml" line="1650" />
-        <location filename="../qml/DownloadPage.qml" line="2009" />
+        <location filename="../qml/DownloadPage.qml" line="1296" />
+        <location filename="../qml/DownloadPage.qml" line="1613" />
+        <location filename="../qml/DownloadPage.qml" line="1981" />
         <source>全部</source>
         <translation>全部</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1143" />
         <source>类型</source>
-        <translation>型別</translation>
+        <translation type="vanished">型別</translation>
+    </message>
+    <message>
+        <location filename="../qml/DownloadPage.qml" line="1154" />
+        <source>类别</source>
+        <translation type="unfinished" />
     </message>
     <message>
         <location filename="../qml/DownloadPage.qml" line="1241" />
@@ -103,53 +114,53 @@
         <translation>環境</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1356" />
-        <location filename="../qml/DownloadPage.qml" line="1740" />
+        <location filename="../qml/DownloadPage.qml" line="1348" />
+        <location filename="../qml/DownloadPage.qml" line="1703" />
         <source>搜索中…</source>
         <translation>搜尋中…</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1361" />
+        <location filename="../qml/DownloadPage.qml" line="1348" />
         <source>输入关键词搜索 Mod</source>
         <translation>輸入關鍵詞搜尋 Mod</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1587" />
+        <location filename="../qml/DownloadPage.qml" line="1550" />
         <source>搜索光影…</source>
         <translation>搜尋光影…</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1745" />
+        <location filename="../qml/DownloadPage.qml" line="1708" />
         <source>输入关键词搜索光影</source>
         <translation>輸入關鍵詞搜尋光影</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1880" />
+        <location filename="../qml/DownloadPage.qml" line="1844" />
         <source>名称</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1896" />
+        <location filename="../qml/DownloadPage.qml" line="1862" />
         <source>输入资源包名称...</source>
         <translation>輸入資源包名稱...</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="1902" />
+        <location filename="../qml/DownloadPage.qml" line="1868" />
         <source>来源</source>
         <translation>來源</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="2058" />
+        <location filename="../qml/DownloadPage.qml" line="2030" />
         <source>筛选</source>
         <translation>篩選</translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="2355" />
+        <location filename="../qml/DownloadPage.qml" line="2336" />
         <source>资源包 | 来源: MCIM (mcimirror.top) | </source>
         <translation>資源包 | 來源: MCIM (mcimirror.top) | </translation>
     </message>
     <message>
-        <location filename="../qml/DownloadPage.qml" line="2686" />
+        <location filename="../qml/DownloadPage.qml" line="2678" />
         <source>加载中</source>
         <translation>載入中</translation>
     </message>
@@ -180,42 +191,42 @@
 <context>
     <name>HomePage</name>
     <message>
-        <location filename="../qml/HomePage.qml" line="59" />
+        <location filename="../qml/HomePage.qml" line="65" />
         <source>正版登录</source>
         <translation>正版登入</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="74" />
+        <location filename="../qml/HomePage.qml" line="87" />
         <source>离线模式</source>
         <translation>離線模式</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="166" />
+        <location filename="../qml/HomePage.qml" line="186" />
         <source>取消</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="270" />
+        <location filename="../qml/HomePage.qml" line="290" />
         <source>输入用户名</source>
         <translation>輸入使用者名稱</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="373" />
+        <location filename="../qml/HomePage.qml" line="396" />
         <source>登出</source>
         <translation>登出</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="407" />
+        <location filename="../qml/HomePage.qml" line="437" />
         <source>启动游戏</source>
         <translation>啟動遊戲</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="439" />
+        <location filename="../qml/HomePage.qml" line="470" />
         <source>版本选择</source>
         <translation>版本選擇</translation>
     </message>
     <message>
-        <location filename="../qml/HomePage.qml" line="448" />
+        <location filename="../qml/HomePage.qml" line="479" />
         <source>版本设置</source>
         <translation>版本設定</translation>
     </message>
@@ -274,40 +285,56 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../qml/MainWindow.qml" line="270" />
         <source>运行中 (</source>
-        <translation>執行中 (</translation>
+        <translation type="vanished">執行中 (</translation>
     </message>
     <message>
-        <location filename="../qml/MainWindow.qml" line="746" />
         <source>⚠ 下载失败</source>
-        <translation>⚠ 下載失敗</translation>
+        <translation type="vanished">⚠ 下載失敗</translation>
     </message>
     <message>
-        <location filename="../qml/MainWindow.qml" line="759" />
         <source>跳过</source>
-        <translation>跳過</translation>
+        <translation type="vanished">跳過</translation>
     </message>
     <message>
-        <location filename="../qml/MainWindow.qml" line="768" />
         <source>重试</source>
-        <translation>重試</translation>
+        <translation type="vanished">重試</translation>
+    </message>
+    <message>
+        <location filename="../qml/MainWindow.qml" line="29" />
+        <source>启动</source>
+        <translation type="unfinished">啟動</translation>
+    </message>
+    <message>
+        <location filename="../qml/MainWindow.qml" line="30" />
+        <source>下载</source>
+        <translation type="unfinished">下載</translation>
+    </message>
+    <message>
+        <location filename="../qml/MainWindow.qml" line="31" />
+        <source>设置</source>
+        <translation type="unfinished">設定</translation>
+    </message>
+    <message>
+        <location filename="../qml/MainWindow.qml" line="32" />
+        <source>下载进度</source>
+        <translation type="unfinished">下載進度</translation>
     </message>
 </context>
 <context>
     <name>ModDetailPage</name>
     <message>
-        <location filename="../qml/ModDetailPage.qml" line="218" />
+        <location filename="../qml/ModDetailPage.qml" line="223" />
         <source>版本数量: </source>
         <translation>版本數量: </translation>
     </message>
     <message>
-        <location filename="../qml/ModDetailPage.qml" line="230" />
+        <location filename="../qml/ModDetailPage.qml" line="235" />
         <source>来源: Modrinth (MCIM 镜像)</source>
         <translation>來源: Modrinth (MCIM 映象)</translation>
     </message>
     <message>
-        <location filename="../qml/ModDetailPage.qml" line="320" />
+        <location filename="../qml/ModDetailPage.qml" line="325" />
         <source>版本列表</source>
         <translation>版本列表</translation>
     </message>
@@ -323,37 +350,37 @@
 <context>
     <name>ResourcePackDetailPage</name>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="179" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="184" />
         <source>作者: </source>
         <translation>作者: </translation>
     </message>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="183" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="188" />
         <source>下载量: </source>
         <translation>下載量: </translation>
     </message>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="187" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="192" />
         <source>更新于: </source>
         <translation>更新於: </translation>
     </message>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="210" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="215" />
         <source>转到 Modrinth</source>
         <translation>轉到 Modrinth</translation>
     </message>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="237" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="242" />
         <source>复制名称</source>
         <translation>複製名稱</translation>
     </message>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="254" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="259" />
         <source>版本列表</source>
         <translation>版本列表</translation>
     </message>
     <message>
-        <location filename="../qml/ResourcePackDetailPage.qml" line="455" />
+        <location filename="../qml/ResourcePackDetailPage.qml" line="460" />
         <source>依赖: </source>
         <translation>依賴: </translation>
     </message>
@@ -580,140 +607,148 @@
 <context>
     <name>SettingsPage</name>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="131" />
+        <location filename="../qml/SettingsPage.qml" line="42" />
+        <location filename="../qml/SettingsPage.qml" line="157" />
         <source>通用设置</source>
         <translation>通用設定</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="139" />
+        <location filename="../qml/SettingsPage.qml" line="165" />
         <source>版本隔离</source>
         <translation>版本隔離</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="153" />
+        <location filename="../qml/SettingsPage.qml" line="179" />
         <source>启动后关闭启动器</source>
         <translation>啟動後關閉啟動器</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="171" />
+        <location filename="../qml/SettingsPage.qml" line="43" />
+        <location filename="../qml/SettingsPage.qml" line="197" />
         <source>Java 设置</source>
         <translation>Java 設定</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="176" />
+        <location filename="../qml/SettingsPage.qml" line="202" />
         <source>当前 Java</source>
         <translation>當前 Java</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="187" />
+        <location filename="../qml/SettingsPage.qml" line="213" />
         <source>可用 Java</source>
         <translation>可用 Java</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="219" />
+        <location filename="../qml/SettingsPage.qml" line="245" />
         <source>重新检测</source>
         <translation>重新檢測</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="226" />
+        <location filename="../qml/SettingsPage.qml" line="252" />
         <source>手动选择</source>
         <translation>手動選擇</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="241" />
+        <location filename="../qml/SettingsPage.qml" line="44" />
+        <location filename="../qml/SettingsPage.qml" line="267" />
         <source>内存设置</source>
         <translation>記憶體設定</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="249" />
+        <location filename="../qml/SettingsPage.qml" line="275" />
         <source>系统内存</source>
         <translation>系統記憶體</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="271" />
+        <location filename="../qml/SettingsPage.qml" line="297" />
         <source>自动调整</source>
         <translation>自動調整</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="286" />
+        <location filename="../qml/SettingsPage.qml" line="312" />
         <source>最大内存: </source>
         <translation>最大記憶體: </translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="294" />
+        <location filename="../qml/SettingsPage.qml" line="320" />
         <source>最小内存: </source>
         <translation>最小記憶體: </translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="327" />
+        <location filename="../qml/SettingsPage.qml" line="45" />
+        <location filename="../qml/SettingsPage.qml" line="353" />
         <source>实验性功能</source>
         <translation>實驗性功能</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="328" />
+        <location filename="../qml/SettingsPage.qml" line="354" />
         <source>以下功能处于实验阶段，可能存在不稳定的情况。</source>
         <translation>以下功能處於實驗階段，可能存在不穩定的情況。</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="336" />
+        <location filename="../qml/SettingsPage.qml" line="362" />
         <source>嵌入式窗口登录</source>
         <translation>嵌入式視窗登入</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="338" />
-        <location filename="../qml/SettingsPage.qml" line="365" />
+        <location filename="../qml/SettingsPage.qml" line="364" />
+        <location filename="../qml/SettingsPage.qml" line="391" />
         <source>实验性</source>
         <translation>實驗性</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="341" />
+        <location filename="../qml/SettingsPage.qml" line="367" />
         <source>已开启</source>
         <translation>已開啟</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="341" />
+        <location filename="../qml/SettingsPage.qml" line="367" />
         <source>已关闭</source>
         <translation>已關閉</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="350" />
+        <location filename="../qml/SettingsPage.qml" line="376" />
         <source>在启动器内嵌窗口中完成 Microsoft 登录，无需跳转外部浏览器。
 输入 Windows 已登录的 Microsoft 账户后，会自动唤起系统 PIN/指纹验证窗口，可快捷登录。</source>
         <translation>在啟動器內嵌視窗中完成 Microsoft 登入，無需跳轉外部瀏覽器。
 輸入 Windows 已登入的 Microsoft 賬戶後，會自動喚起系統 PIN/指紋驗證視窗，可快捷登入。</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="363" />
+        <location filename="../qml/SettingsPage.qml" line="389" />
         <source>界面语言</source>
         <translation>介面語言</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="377" />
         <source>更改语言后需要重启启动器才能生效。</source>
-        <translation>更改語言後需要重啟啟動器才能生效。</translation>
+        <translation type="vanished">更改語言後需要重啟啟動器才能生效。</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="389" />
         <source>重启启动器</source>
-        <translation>重啟啟動器</translation>
+        <translation type="vanished">重啟啟動器</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="404" />
+        <location filename="../qml/SettingsPage.qml" line="46" />
+        <location filename="../qml/SettingsPage.qml" line="468" />
         <source>关于</source>
         <translation>關於</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="408" />
+        <location filename="../qml/SettingsPage.qml" line="452" />
+        <source>选择语言后即时生效，无需重启启动器。</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../qml/SettingsPage.qml" line="472" />
         <source>版本 v0.3.0</source>
         <translation>版本 v0.3.0</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="409" />
+        <location filename="../qml/SettingsPage.qml" line="473" />
         <source>基于 PySide6 + QML</source>
         <translation>基於 PySide6 + QML</translation>
     </message>
     <message>
-        <location filename="../qml/SettingsPage.qml" line="410" />
+        <location filename="../qml/SettingsPage.qml" line="474" />
         <source>Minecraft 第三方启动器</source>
         <translation>Minecraft 第三方啟動器</translation>
     </message>
@@ -2240,116 +2275,116 @@
 <context>
     <name>ShadowLauncher::ShadowBackend</name>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="239" />
+        <location filename="../src/backend/shadow_backend.cpp" line="247" />
         <source>Shadow Launcher — 版本完整性校验报告
 </source>
         <translation>Shadow Launcher — 版本完整性校驗報告
 </translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="241" />
+        <location filename="../src/backend/shadow_backend.cpp" line="249" />
         <source>时间: </source>
         <translation>時間: </translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="242" />
+        <location filename="../src/backend/shadow_backend.cpp" line="250" />
         <source>版本: </source>
         <translation>版本: </translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="243" />
+        <location filename="../src/backend/shadow_backend.cpp" line="251" />
         <source>异常文件数: </source>
         <translation>異常檔案數: </translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="249" />
+        <location filename="../src/backend/shadow_backend.cpp" line="257" />
         <source>请使用「一键修复」重新下载损坏/缺失的文件。
 </source>
         <translation>請使用「一鍵修復」重新下載損壞/缺失的檔案。
 </translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="316" />
+        <location filename="../src/backend/shadow_backend.cpp" line="324" />
         <source>资源包下载</source>
         <translation>資源包下載</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="545" />
+        <location filename="../src/backend/shadow_backend.cpp" line="553" />
         <source>校验中...</source>
         <translation>校驗中...</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="670" />
+        <location filename="../src/backend/shadow_backend.cpp" line="678" />
         <source>原版</source>
         <translation>原版</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="715" />
+        <location filename="../src/backend/shadow_backend.cpp" line="723" />
         <source>已扫描 %1 个已安装版本</source>
         <translation>已掃描 %1 個已安裝版本</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="883" />
+        <location filename="../src/backend/shadow_backend.cpp" line="891" />
         <source>[JVM] GC参数已更新: %1</source>
         <translation>[JVM] GC參數已更新: %1</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="959" />
+        <location filename="../src/backend/shadow_backend.cpp" line="982" />
         <source>已打开游戏目录</source>
         <translation>已開啟遊戲目錄</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="968" />
+        <location filename="../src/backend/shadow_backend.cpp" line="991" />
         <source>已打开最新日志</source>
         <translation>已開啟最新日誌</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="978" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1001" />
         <source>已打开日志目录</source>
         <translation>已開啟日誌目錄</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="991" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1014" />
         <source>已打开崩溃日志</source>
         <translation>已開啟崩潰日誌</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1003" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1026" />
         <source>已打开崩溃日志 (隔离目录)</source>
         <translation>已開啟崩潰日誌 (隔離目錄)</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1014" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1037" />
         <source>已打开存档文件夹</source>
         <translation>已開啟存檔資料夾</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1022" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1045" />
         <source>已打开截图文件夹</source>
         <translation>已開啟截圖資料夾</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1030" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1053" />
         <source>已打开 Mod 文件夹</source>
         <translation>已開啟 Mod 資料夾</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1038" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1061" />
         <source>已打开资源包文件夹</source>
         <translation>已開啟資源包資料夾</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1046" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1069" />
         <source>已打开光影包文件夹</source>
         <translation>已開啟光影包資料夾</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1142" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1165" />
         <source>❌ 此版本需要 Java %1，但系统中未找到匹配的 Java 安装</source>
         <translation>❌ 此版本需要 Java %1，但系統中未找到匹配的 Java 安裝</translation>
     </message>
     <message>
-        <location filename="../src/backend/shadow_backend.cpp" line="1144" />
+        <location filename="../src/backend/shadow_backend.cpp" line="1167" />
         <source>👉 请安装 Java %1 后在设置中手动选择</source>
         <translation>👉 請安裝 Java %1 後在設定中手動選擇</translation>
     </message>
@@ -3030,270 +3065,270 @@
         <translation>← 返回</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="156" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="158" />
         <source>启动</source>
         <translation>啟動</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="176" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="179" />
         <source>概览</source>
         <translation>概覽</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="177" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="180" />
         <source>启动配置</source>
         <translation>啟動配置</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="178" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="552" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="181" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="585" />
         <source>Mod 管理</source>
         <translation>Mod 管理</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="179" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="626" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="182" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="665" />
         <source>资源包管理</source>
         <translation>資源包管理</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="180" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="680" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="183" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="725" />
         <source>存档管理</source>
         <translation>存檔管理</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="181" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="184" />
         <source>工具与维护</source>
         <translation>工具與維護</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="225" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="228" />
         <source>占用空间</source>
         <translation>佔用空間</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="230" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="233" />
         <source>已装 Mod</source>
         <translation>已裝 Mod</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="236" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="512" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="239" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="545" />
         <source>版本隔离</source>
         <translation>版本隔離</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="243" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="246" />
         <source>快捷入口</source>
         <translation>快捷入口</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="251" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="256" />
         <source>版本文件夹</source>
         <translation>版本資料夾</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="266" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="274" />
         <source>存档文件夹</source>
         <translation>存檔資料夾</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="275" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="286" />
         <source>截图文件夹</source>
         <translation>截圖資料夾</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="284" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="298" />
         <source>logs 日志</source>
         <translation>logs 日誌</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="293" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="310" />
         <source>最新启动日志</source>
         <translation>最新啟動日誌</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="302" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="322" />
         <source>崩溃日志</source>
         <translation>崩潰日誌</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="313" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="336" />
         <source>复制版本路径</source>
         <translation>複製版本路徑</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="328" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="354" />
         <source>Mod 文件夹</source>
         <translation>Mod 資料夾</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="338" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="367" />
         <source>config 文件夹</source>
         <translation>config 資料夾</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="348" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="380" />
         <source>光影包</source>
         <translation>光影包</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="373" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="406" />
         <source>Java 环境</source>
         <translation>Java 環境</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="401" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="434" />
         <source>自动检测</source>
         <translation>自動檢測</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="408" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="441" />
         <source>浏览</source>
         <translation>瀏覽</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="434" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="467" />
         <source>内存分配</source>
         <translation>記憶體分配</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="438" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="471" />
         <source>最大内存 </source>
         <translation>最大記憶體 </translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="447" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="480" />
         <source>最小</source>
         <translation>最小</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="463" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="496" />
         <source>自动内存</source>
         <translation>自動記憶體</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="472" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="505" />
         <source>JVM 参数</source>
         <translation>JVM 參數</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="483" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="516" />
         <source>GC 预设</source>
         <translation>GC 預設</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="514" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="547" />
         <source>版本隔离（模组配置/存档独立）</source>
         <translation>版本隔離（模組配置/存檔獨立）</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="524" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="557" />
         <source>启动后关闭启动器</source>
         <translation>啟動後關閉啟動器</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="533" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="566" />
         <source>游戏附加参数</source>
         <translation>遊戲附加參數</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="534" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="567" />
         <source>（示例 --width 1920 --height 1080 --fullscreen）</source>
         <translation>（示例 --width 1920 --height 1080 --fullscreen）</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="553" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="586" />
         <source>管理已安装的 Mod，查看版本和兼容性。</source>
         <translation>管理已安裝的 Mod，檢視版本和相容性。</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="562" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="634" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="687" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="597" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="675" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="734" />
         <source>刷新列表</source>
         <translation>重新整理列表</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="586" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="622" />
         <source>搜索 Mod...</source>
         <translation>搜尋 Mod...</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="606" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="660" />
-        <location filename="../qml/VersionSettingsOverlay.qml" line="705" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="644" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="704" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="755" />
         <source>删除</source>
         <translation>刪除</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="627" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="666" />
         <source>管理已安装的资源包和材质包</source>
         <translation>管理已安裝的資源包和材質包</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="640" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="682" />
         <source>打开文件夹</source>
         <translation>開啟資料夾</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="681" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="726" />
         <source>管理已保存的世界存档，可备份或迁移存档文件。</source>
         <translation>管理已儲存的世界存檔，可備份或遷移存檔檔案。</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="725" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="776" />
         <source>游戏完整性校验</source>
         <translation>遊戲完整性校驗</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="726" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="777" />
         <source>扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。</source>
         <translation>掃描選定版本的遊戲檔案完整性，檢查損壞或缺失的檔案。</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="783" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="834" />
         <source>❌ 检测到 </source>
         <translation>❌ 檢測到 </translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="800" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="851" />
         <source>🔧 一键修复</source>
         <translation>🔧 一鍵修復</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="820" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="871" />
         <source>📋 查看异常详情</source>
         <translation>📋 檢視異常詳情</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="833" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="884" />
         <source>版本工具</source>
         <translation>版本工具</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="839" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="890" />
         <source>克隆版本</source>
         <translation>克隆版本</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="855" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="906" />
         <source>重命名版本</source>
         <translation>重新命名版本</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="869" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="920" />
         <source>迁移目录</source>
         <translation>遷移目錄</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="883" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="934" />
         <source>危险操作</source>
         <translation>危險操作</translation>
     </message>
     <message>
-        <location filename="../qml/VersionSettingsOverlay.qml" line="888" />
+        <location filename="../qml/VersionSettingsOverlay.qml" line="939" />
         <source>删除此版本</source>
         <translation>刪除此版本</translation>
     </message>

@@ -36,12 +36,24 @@ Rectangle {
 
             ListView {
                 id: nav; anchors.fill: parent; anchors.margins: 8
+
+                function navLabel(key) {
+                    switch (key) {
+                        case "general": return qsTr("通用设置")
+                        case "java": return qsTr("Java 设置")
+                        case "memory": return qsTr("内存设置")
+                        case "experimental": return qsTr("实验性功能")
+                        case "about": return qsTr("关于")
+                        default: return key
+                    }
+                }
+
                 model: [
-                    { label: "通用设置", icon: "settings" },
-                    { label: "Java 设置", icon: "terminal" },
-                    { label: "内存设置", icon: "cpu" },
-                    { label: "实验性功能", icon: "flask-conical" },
-                    { label: "关于", icon: "info" }
+                    { label: "通用设置", icon: "settings", key: "general" },
+                    { label: "Java 设置", icon: "terminal", key: "java" },
+                    { label: "内存设置", icon: "cpu", key: "memory" },
+                    { label: "实验性功能", icon: "flask-conical", key: "experimental" },
+                    { label: "关于", icon: "info", key: "about" }
                 ]
                 currentIndex: 0; spacing: 2
 
@@ -59,7 +71,7 @@ Rectangle {
                             width: 16; height: 16
                         }
                         Text {
-                            text: modelData.label; color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13
+                            text: nav.navLabel(modelData.key); color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: 13
                             font.weight: nav.currentIndex === index ? Font.DemiBold : Font.Normal
                         }
                     }
@@ -384,7 +396,7 @@ Rectangle {
                                 model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
                                 currentIndex: backend ? backend.languageIndex : 0
                                 onActivated: { if (backend) backend.switchLanguage(currentIndex) }
-                                Layout.preferredWidth: 220
+                                Layout.preferredWidth: 280
 
                                 // ── Custom dark style ──
                                 background: Rectangle {
@@ -396,7 +408,8 @@ Rectangle {
                                 }
                                 contentItem: Text {
                                     leftPadding: 12; verticalAlignment: Text.AlignVCenter
-                                    text: langCombo.displayText; color: "#d0d4e0"; font.pixelSize: 13
+                                    text: langCombo.displayText; color: "#d0d4e0"; font.pixelSize: 12
+                                    elide: Text.ElideRight
                                 }
                                 indicator: Canvas {
                                     width: 12; height: 12; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
@@ -408,9 +421,9 @@ Rectangle {
                                     }
                                 }
                                 delegate: ItemDelegate {
-                                    width: langCombo.width
+                                    width: langCombo.popup.width  // use popup width
                                     contentItem: Text {
-                                        text: modelData; color: "#d0d4e0"; font.pixelSize: 13
+                                        text: modelData; color: "#d0d4e0"; font.pixelSize: 12
                                         verticalAlignment: Text.AlignVCenter; leftPadding: 12
                                     }
                                     background: Rectangle {
@@ -421,7 +434,7 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langCombo.height + 4
-                                    width: langCombo.width
+                                    width: 380
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
