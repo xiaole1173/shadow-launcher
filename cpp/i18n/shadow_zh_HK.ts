@@ -735,7 +735,7 @@
     <message>
         <location filename="../qml/SettingsPage.qml" line="452" />
         <source>选择语言后即时生效，无需重启启动器。</source>
-        <translation type="unfinished" />
+        <translation type="unfinished">選擇語言後即時生效，無需重啟啟動器。</translation>
     </message>
     <message>
         <location filename="../qml/SettingsPage.qml" line="472" />
