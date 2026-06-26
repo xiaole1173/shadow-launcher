@@ -9,6 +9,7 @@ Rectangle {
     anchors.fill: parent; color: "#0c0f16"; z: 5
     property var backend: null
     property var toastManager: null
+    property var confirmDialog: null
     onVisibleChanged: {
         if (visible && backend) {
             // 版本切换时刷新所有数据列表（跟随版本隔离）
