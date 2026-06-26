@@ -1339,20 +1339,8 @@ Rectangle {
             }
 
             // ── Results ──
-            Text {
-                visible: page.modSearching
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr("搜索中…"); color: "#606478"; font.pixelSize: 12
-            }
-            Text {
-                visible: !page.modSearching && modResultsModel.count === 0
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr("输入关键词搜索 Mod"); color: "#606478"; font.pixelSize: 12
-            }
-
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-                visible: modResultsModel.count > 0
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 ListView {
@@ -1360,6 +1348,18 @@ Rectangle {
                     anchors.fill: parent; spacing: 6
                     model: modResultsModel
                     cacheBuffer: 200
+
+                    // Header: loading / empty state
+                    header: Item {
+                        width: modListView.width
+                        height: modResultsModel.count > 0 ? 0 : (modListView.height > 0 ? modListView.height : 200)
+                        visible: modResultsModel.count === 0
+                        Text {
+                            anchors.centerIn: parent
+                            text: page.modSearching ? qsTr("搜索中…") : qsTr("输入关键词搜索 Mod")
+                            color: "#606478"; font.pixelSize: 12
+                        }
+                    }
 
                     delegate: Rectangle {
                         id: modItem
