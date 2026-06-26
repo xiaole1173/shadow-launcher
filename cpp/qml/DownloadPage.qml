@@ -833,6 +833,8 @@ Rectangle {
         opacity: page.currentTab === 1 ? 1 : 0
         enabled: page.currentTab === 1
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        function doModSearch() {
             if (!backend) return
             page.modSearching = true
             modResultsModel.clear()
@@ -1551,6 +1553,8 @@ Rectangle {
         opacity: page.currentTab === 2 ? 1 : 0
         enabled: page.currentTab === 2
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        function doShaderSearch() {
             if (!backend) return
             page.shaderSearching = true
             shaderResultsModel.clear()
@@ -1894,6 +1898,8 @@ Rectangle {
         opacity: page.currentTab === 3 ? 1 : 0
         enabled: page.currentTab === 3
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        ColumnLayout {
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
