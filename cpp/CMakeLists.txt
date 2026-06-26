@@ -152,9 +152,9 @@ qt6_add_resources(ShadowLauncher "qml_resources"
 )
 target_include_directories(ShadowLauncher PRIVATE src)
 
-# ── Lucide icon resources ──
+# ── Lucide icon resources (shared prefix with QML for cross-mode path compatibility) ──
 qt6_add_resources(ShadowLauncher "icon_resources"
-    PREFIX "/icons"
+    PREFIX "/qt/qml/ShadowLauncher/icons"
     FILES
         icons/lucide/home.svg
         icons/lucide/download.svg
@@ -292,11 +292,11 @@ if(WIN32)
             "$<TARGET_FILE_DIR:ShadowLauncher>/qml"
         COMMENT "Copying QML sources for dev-mode..."
     )
-    # Copy icon SVGs for dev-mode (referenced by filesystem path when SHADOW_DEV=1)
+    # Copy icon SVGs into qml dir for dev-mode (same relative path works in both modes)
     add_custom_command(TARGET ShadowLauncher POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/icons"
-            "$<TARGET_FILE_DIR:ShadowLauncher>/icons"
+            "$<TARGET_FILE_DIR:ShadowLauncher>/qml/icons"
         COMMENT "Copying icon SVGs for dev-mode..."
     )
 endif()

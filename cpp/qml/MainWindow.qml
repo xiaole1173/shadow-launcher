@@ -52,7 +52,7 @@ Window {
         onTriggered: pageLoading = false
     }
 
-    // 自动检测游戏文件变化（每30秒）
+    // 自动检测游戏文件变化（�?0秒）
     Timer {
         id: fileChangeTimer
         interval: 30000
@@ -74,7 +74,7 @@ Window {
             navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
             console.log("[main] showDownloadNav: appended nav, new count=" + navModel.count)
         }
-        // Always auto-switch — critical: must not be blocked by silent pre-add
+        // Always auto-switch �?critical: must not be blocked by silent pre-add
         console.log("[main] showDownloadNav: switching to page " + (navModel.count - 1))
         switchPage(navModel.count - 1)
     }
@@ -120,7 +120,7 @@ Window {
             if (backend.installing) showDownloadNav()
         }
         function onSelectedVersionClearedAfterDelete() {
-            // Binding auto-updates — no explicit assignment needed
+            // Binding auto-updates �?no explicit assignment needed
         }
         function onInstallFinished(success) {
             // Keep nav visible for a moment, will be hidden when user switches away
@@ -193,11 +193,11 @@ Window {
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
-        // Spacer — buttons moved to floating right edge (same height as sidebar SHADOW)
+        // Spacer �?buttons moved to floating right edge (same height as sidebar SHADOW)
         Item { Layout.fillWidth: true; height: 2 }
 
         // ── Loading bar (Android-style indeterminate) ──
-        // FIX: fixed height 2px + opacity control → zero layout jitter
+        // FIX: fixed height 2px + opacity control �?zero layout jitter
         // FIX: inset from rounded window corners (radius: 16)
         Rectangle {
             id: loadingBar
@@ -266,7 +266,7 @@ Window {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 18; height: 18
                                     sourceSize: Qt.size(18, 18)
-                                    source: model.icon ? ("qrc:/icons/lucide/" + model.icon + ".svg") : ""
+                                    source: model.icon ? ("icons/lucide/" + model.icon + ".svg") : ""
                                     visible: model.icon !== undefined && model.icon !== ""
                                 }
                                 Text {
@@ -281,11 +281,11 @@ Window {
                     }
                     Item { Layout.fillHeight: true }
 
-                    // ═══ Running Games ═══
+                    // ══�?Running Games ══�?
                     Text {
                         visible: backend ? backend.runningCount > 0 : false
                         Layout.leftMargin: 16; Layout.topMargin: 4
-                        text: qsTr("运行中 (") + (backend ? backend.runningCount : 0) + ")"
+                        text: qsTr("运行�?(") + (backend ? backend.runningCount : 0) + ")"
                         font.pixelSize: 10; color: "#6080e8"
                     }
                     Repeater {
@@ -575,7 +575,7 @@ Window {
     }
 
     // ════════════════════════════════════════════
-    //  Download animation — flying ball ═══
+    //  Download animation �?flying ball ══�?
     // ════════════════════════════════════════════
     Rectangle {
         id: flyBall
@@ -651,7 +651,7 @@ Window {
         }
 
         // Diagnostic: write trace to file
-        if (backend) backend.logMessage("[flyBall] (" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → (" + targetX.toFixed(0) + "," + targetY.toFixed(0) + ")")
+        if (backend) backend.logMessage("[flyBall] (" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") �?(" + targetX.toFixed(0) + "," + targetY.toFixed(0) + ")")
 
         // Position and show ball
         flyBall.x = sourceX
@@ -681,7 +681,7 @@ Window {
         function onLogMessage(msg) { console.log("[backend]", msg) }
         function onRunningCountChanged() {
             appWindow.runningListModel = backend ? backend.runningGames() : []
-            console.log("[main] runningCountChanged → list refreshed: " + appWindow.runningListModel.length + " games")
+            console.log("[main] runningCountChanged �?list refreshed: " + appWindow.runningListModel.length + " games")
         }
         function onCrashDetected(report) {
             console.log("[crash] crashDetected signal received:", JSON.stringify(report))
@@ -690,14 +690,14 @@ Window {
         }
     }
 
-    // Confirm Dialog (lazy-loaded — only builds SceneGraph when shown)
+    // Confirm Dialog (lazy-loaded �?only builds SceneGraph when shown)
     Loader {
         id: confirmDialogLoader
         active: false; asynchronous: true
         anchors.fill: parent; z: 399
         source: "ConfirmDialog.qml"
 
-        // Proxy for backward compatibility — external files use confirmDialog.xxx
+        // Proxy for backward compatibility �?external files use confirmDialog.xxx
         function open(title, message, onAccept) {
             active = true
             if (item) {
@@ -726,7 +726,7 @@ Window {
         }
     }
 
-    // Compatibility object — other files still access confirmDialog.xxx
+    // Compatibility object �?other files still access confirmDialog.xxx
     property QtObject confirmDialog: QtObject {
         property string title: ""
         property string message: ""
@@ -761,7 +761,7 @@ Window {
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 12
-            Text { text: qsTr("⚠ 下载失败"); font.pixelSize: 15; font.bold: true; color: "#e06060" }
+            Text { text: qsTr("�?下载失败"); font.pixelSize: 15; font.bold: true; color: "#e06060" }
             Text { text: modDlErrorInfo.displayName || ""; font.pixelSize: 13; color: "#c0c8e0" }
             Text {
                 Layout.fillWidth: true
@@ -806,7 +806,7 @@ Window {
         source: "CrashDialog.qml"
     }
 
-    // ═══ Toast notification system ═══
+    // ══�?Toast notification system ══�?
     ToastManager {
         id: toastManager
         anchors.fill: parent

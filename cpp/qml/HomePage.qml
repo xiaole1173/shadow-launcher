@@ -59,7 +59,7 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 6
                     Image {
-                        source: "qrc:/icons/lucide/key.svg"; width: 14; height: 14
+                        source: "icons/lucide/key.svg"; width: 14; height: 14
                         sourceSize: Qt.size(14, 14)
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -82,7 +82,7 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 6
                     Image {
-                        source: "qrc:/icons/lucide/user.svg"; width: 14; height: 14
+                        source: "icons/lucide/user.svg"; width: 14; height: 14
                         sourceSize: Qt.size(14, 14)
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -122,7 +122,7 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 8
                     Image {
-                        source: "qrc:/icons/lucide/key.svg"; width: 16; height: 16
+                        source: "icons/lucide/key.svg"; width: 16; height: 16
                         sourceSize: Qt.size(16, 16)
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -395,7 +395,7 @@ Rectangle {
                     color: "transparent"; border.color: "#2a1f24"
                     Row {
                         anchors.centerIn: parent; spacing: 4
-                        Image { source: "qrc:/icons/lucide/log-out.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
+                        Image { source: "icons/lucide/log-out.svg"; width: 12; height: 12; sourceSize: Qt.size(12, 12); anchors.verticalCenter: parent.verticalCenter }
                         Text { text: qsTr("登出"); font.pixelSize: 11; color: "#c05050" }
                     }
                     MouseArea {
@@ -434,7 +434,7 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 8
                     Image {
-                        source: "qrc:/icons/lucide/play.svg"; width: 18; height: 18
+                        source: "icons/lucide/play.svg"; width: 18; height: 18
                         sourceSize: Qt.size(18, 18)
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -470,7 +470,7 @@ Rectangle {
                     MouseArea { anchors.fill: parent; onClicked: { homePage.versionSelectRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Image { source: "qrc:/icons/lucide/list.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16) }
+                        Image { source: "icons/lucide/list.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16) }
                         Text { text: qsTr("版本选择"); font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
                     }
                 }
@@ -479,7 +479,7 @@ Rectangle {
                     MouseArea { anchors.fill: parent; onClicked: { homePage.versionSettingsRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Image { source: "qrc:/icons/lucide/wrench.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16) }
+                        Image { source: "icons/lucide/wrench.svg"; width: 16; height: 16; sourceSize: Qt.size(16, 16) }
                         Text { text: qsTr("版本设置"); font.pixelSize: 13; font.weight: Font.Medium; color: "#b0b8c8" }
                     }
                 }
