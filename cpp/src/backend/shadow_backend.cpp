@@ -1,6 +1,7 @@
 ﻿#include "shadow_backend.h"
 #include "../core/http_client.h"
 #include "../core/mod_manager.h"
+#include "../core/icon_cache.h"
 #include "../core/version_downloader.h"
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
@@ -72,6 +73,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
     bp("LaunchBackend");
     m_resource = new ResourceBackend(this);
     bp("ResourceBackend");
+
+    // ── Icon cache (shared disk cache for mod/rp icons) ──
+    m_iconCache = new IconCache(m_app->dataDir() + "/icons", this);
+    bp("IconCache");
 
     // ── Sync game directories: ALL backends use the same path ──
     m_version->setGameDir(m_app->gameDir());

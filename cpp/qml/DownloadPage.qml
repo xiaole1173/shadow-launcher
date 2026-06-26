@@ -858,19 +858,28 @@ Rectangle {
             function onSearchResultsReady(results) {
                 if (page.currentTab !== 1) return
                 modResultsModel.clear()
+                var urlsToCache = []
                 for (var j = 0; j < results.length; j++) {
                     var r = results[j]
+                    var iconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                    if (iconUrl && backend && backend.iconCache) {
+                        iconUrl = backend.iconCache.resolveUrl(iconUrl)
+                        urlsToCache.push(iconUrl)
+                    }
                     modResultsModel.append({
                         slug: r.slug || "",
                         title: r.title || r.slug || "Unknown",
                         desc: r.desc || "",
-                        icon: r.icon || "",
+                        icon: iconUrl,
                         downloads: r.downloads || 0,
                         loader: r.loader || "",
                         clientSide: r.clientSide || ""
                     })
                 }
                 page.modSearching = false
+                if (urlsToCache.length > 0 && backend && backend.iconCache) {
+                    backend.iconCache.cacheBatchAsync(urlsToCache)
+                }
             }
         }
 
@@ -1377,14 +1386,7 @@ Rectangle {
                                     anchors.fill: parent; anchors.margins: 2
                                     fillMode: Image.PreserveAspectFit
                                     asynchronous: true; cache: true
-                                    Component.onCompleted: {
-                                        if (model && model.icon) {
-                                            var url = model.icon
-                                            url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                            url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                            source = url
-                                        }
-                                    }
+                                    source: model.icon || ""
                                     onStatusChanged: {
                                         if (status === Image.Error) modIconFallback2.visible = true
                                         else if (status === Image.Ready) modIconFallback2.visible = false
@@ -2804,11 +2806,15 @@ Rectangle {
                     if (!hasRes) continue
                 }
                 slugs.push(r.slug)
+                var rpIconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                if (rpIconUrl && backend && backend.iconCache) {
+                    rpIconUrl = backend.iconCache.resolveUrl(rpIconUrl)
+                }
                 rpResultsModel.append({
                     slug: r.slug || "",
                     title: r.title || "",
                     desc: r.desc || r.description || "",
-                    icon: r.icon || "",
+                    icon: rpIconUrl,
                     downloads: r.downloads || 0,
                     categories: JSON.stringify(r.categories || []),
                     features: JSON.stringify(r.features || []),

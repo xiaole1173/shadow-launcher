@@ -20,6 +20,7 @@ class VersionBackend;
 class LaunchBackend;
 class ResourceBackend;
 class ModManager;
+class IconCache;
 
 class ShadowBackend : public QObject {
     Q_OBJECT
@@ -448,6 +449,7 @@ public:
     LaunchBackend* launchBackend() const { return m_launch; }
     ResourceBackend* resource() const { return m_resource; }
     QObject* modManager() const;  // QML exposed (returns m_resource->modManager())
+    Q_INVOKABLE IconCache* iconCache() const { return m_iconCache; }
 
 private:
     int requiredJavaMajor(const QString& versionId);
@@ -461,6 +463,7 @@ private:
     VersionBackend* m_version = nullptr;
     LaunchBackend* m_launch = nullptr;
     ResourceBackend* m_resource = nullptr;
+    IconCache* m_iconCache = nullptr;
 
     bool m_isolationEnabled = true;
     int m_lastLoginMode = 1;
