@@ -962,11 +962,13 @@ Rectangle {
                 }
             }
         }
+    }
+    }
 
-        // ═══════════════════════════════════════════════════════════
-        //  LOCAL TOAST (replaces external toastManager dependency)
-        // ═══════════════════════════════════════════════════════════
-        function _showToast(msg) {
+// ═══════════════════════════════════════════════════════════
+//  LOCAL TOAST (replaces external toastManager dependency)
+// ═══════════════════════════════════════════════════════════
+function _showToast(msg) {
             _toastText = msg
             _toastVisible = true
             _toastTimer.restart()
@@ -1094,6 +1096,4 @@ Rectangle {
                 }
             }
         }
-    }
-}
 }
