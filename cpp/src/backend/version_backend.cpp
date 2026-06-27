@@ -1345,28 +1345,10 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
         }
     }
 
-    // For pure MC (non-merged): once all download categories finish,
-    // set a flag and immediately rebuild cards — same logic as merged's
-    // showStep+updateStep, but pure MC steps are built inline from DlState.
-    if (cat >= 0 && cat <= 2 && mergedSessionId.isEmpty()) {
-        auto& st2 = m_dlStates[versionId];
-        bool allDone = true;
-        for (int ci = 0; ci < 3 && allDone; ci++) {
-            if (st2.catBytesTotal[ci] <= 0 || st2.catBytesDl[ci] < st2.catBytesTotal[ci])
-                allDone = false;
-        }
-        if (allDone) {
-            st2.catsFullyDone = true;
-            doRebuildInstallCards();  // immediate — skip QTimer::singleShot batching
-        }
-    }
-
     if (!mergedSessionId.isEmpty()) {
         if (cat >= 0 && cat <= 2) {
-            // Accumulate bytes per-category (display pushed by progressChanged -> updateDownloadProgress)
             if (received >= total && total > 0) {
                 auto& ses = session(mergedSessionId);
-                qint64 before = ses.mcStepDone[cat];
                 ses.mcStepDone[cat] += total;
                 qint64 after = ses.mcStepDone[cat];
                 qint64 ct = ses.mcStepTotal[cat];
@@ -1377,29 +1359,12 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
                            .arg(after/1024).arg(ct/1024)
                            .arg(after * 100 / ct);
                 }
-                // When all 3 MC download categories finish, proactively show verify step
-                // Only consider allDone when EVERY category has a known total AND done >= total
-                bool allDone = true;
-                for (int ci = 0; ci < 3; ci++) {
-                    if (ses.mcStepTotal[ci] <= 0 || ses.mcStepDone[ci] < ses.mcStepTotal[ci]) {
-                        allDone = false;
-                        break;
-                    }
-                }
-                if (allDone) {
-                    int verifyIdx = 3;
-                    if (verifyIdx < ses.steps.size()) {
-                        QVariantMap vstep = ses.steps[verifyIdx].toMap();
-                        if (!vstep.value("show").toBool()) {
-                            showStep(mergedSessionId, verifyIdx);
-                            updateStep(mergedSessionId, verifyIdx, QStringLiteral("active"), 0);
-                            qCInfo(logVersion) << "MC download categories complete, showing verify step for" << mergedSessionId;
-                        }
-                    }
-                }
             }
         }
     }
+
+    // Unified: check whether all 3 download categories are done
+    activateVerifyOnDownloadsDone(versionId);
 }
 
 void VersionBackend::startNextFromQueue()
@@ -2845,6 +2810,49 @@ void VersionBackend::rebuildInstallCards() {
             m_cardsRebuildPending = false;
             doRebuildInstallCards();
         });
+    }
+}
+
+void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
+{
+    // Check merged install sessions
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        if (it.value().isMerged && it.value().mcVersion == versionId) {
+            bool allDone = true;
+            for (int ci = 0; ci < 3 && allDone; ci++) {
+                if (it.value().mcStepTotal[ci] <= 0
+                    || it.value().mcStepDone[ci] < it.value().mcStepTotal[ci])
+                    allDone = false;
+            }
+            if (allDone) {
+                int verifyIdx = 3;
+                if (verifyIdx < it.value().steps.size()) {
+                    QVariantMap vstep = it.value().steps[verifyIdx].toMap();
+                    if (!vstep.value("show").toBool()) {
+                        showStep(it.key(), verifyIdx);
+                        updateStep(it.key(), verifyIdx, QStringLiteral("active"), 0);
+                        qCInfo(logVersion)
+                            << "MC downloads done, verify step active for" << it.key();
+                    }
+                }
+            }
+            return;
+        }
+    }
+    // Pure MC (non-merged): set flag + immediate card rebuild
+    if (m_dlStates.contains(versionId)) {
+        auto& st = m_dlStates[versionId];
+        bool allDone = true;
+        for (int ci = 0; ci < 3 && allDone; ci++) {
+            if (st.catBytesTotal[ci] <= 0 || st.catBytesDl[ci] < st.catBytesTotal[ci])
+                allDone = false;
+        }
+        if (allDone && !st.catsFullyDone) {
+            st.catsFullyDone = true;
+            doRebuildInstallCards();
+            qCInfo(logVersion)
+                << "MC downloads done, verify step active for pure MC" << versionId;
+        }
     }
 }
 

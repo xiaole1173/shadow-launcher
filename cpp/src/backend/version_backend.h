@@ -311,6 +311,7 @@ private:
     void showStep(const QString& installId, int index);  // Make a hidden step visible and active
     void rebuildInstallCards();
     void doRebuildInstallCards();
+    void activateVerifyOnDownloadsDone(const QString& versionId);
 
     int m_verifyChecked = 0;
     int m_verifyTotal = 0;
