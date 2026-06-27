@@ -336,6 +336,15 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     jarFile.write(jarData);
     jarFile.close();
 
+    // Validate: JAR must start with PK (ZIP magic bytes)
+    if (jarData.size() < 4 || jarData[0] != 'P' || jarData[1] != 'K') {
+        QString preview = QString::fromUtf8(jarData.left(qMin(500, jarData.size())));
+        qWarning() << "[ModLoader] OptiFine JAR invalid, preview:" << preview;
+        emit finished(false, QString("OptiFine JAR 文件无效（可能下载失败），前500字节: %1").arg(preview.left(200)));
+        m_running = false;
+        return;
+    }
+
     // PCL-style temp .minecraft isolation
     QDir tempMcDir = setupTempMc();
     QString tempMcRoot;

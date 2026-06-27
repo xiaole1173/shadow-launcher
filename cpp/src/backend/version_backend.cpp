@@ -182,6 +182,13 @@ VersionBackend::VersionBackend(QObject* parent)
                 }
             }
             if (ses.isMerged) {
+                // Clean up residual vanilla MC version folder on failure too
+                QString vanillaVerDir = m_gameDir + "/versions/" + ses.mcVersion;
+                QDir vd(vanillaVerDir);
+                if (vd.exists()) {
+                    vd.removeRecursively();
+                    emit logMessage(tr("清理残留原版文件夹: %1").arg(vanillaVerDir));
+                }
                 ses.isMerged = false;
                 ses.mcVersion.clear();
                 ses.loaderType.clear();
