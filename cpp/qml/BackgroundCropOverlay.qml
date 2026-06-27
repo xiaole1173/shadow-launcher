@@ -30,13 +30,24 @@ Rectangle {
     property real _cropX: 0.5
     property real _cropY: 0.5
 
-    NumberAnimation {
-        id: snapAnimX; target: root; property: "_cropX"
-        duration: 500; easing.type: Easing.OutCubic
+    // Behavior: animate snap-back on release (disabled during drag)
+    Behavior on _cropX {
+        id: cropXBeh
+        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
     }
-    NumberAnimation {
-        id: snapAnimY; target: root; property: "_cropY"
-        duration: 500; easing.type: Easing.OutCubic
+    Behavior on _cropY {
+        id: cropYBeh
+        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
+    }
+
+    // Timer: applies clamped values one tick after release (so Behavior can fire)
+    Timer {
+        id: snapTimer
+        interval: 1
+        onTriggered: {
+            root._cropX = Math.max(0, Math.min(1, root._cropX))
+            root._cropY = Math.max(0, Math.min(1, root._cropY))
+        }
     }
 
     // ── Drag state ──
@@ -138,6 +149,8 @@ Rectangle {
                 mouse.accepted = false
                 return
             }
+            snapTimer.stop()  // cancel any pending snap-back
+            cropXBeh.enabled = false; cropYBeh.enabled = false  // instant tracking
             root._dragStartX = mouse.x
             root._dragStartY = mouse.y
             root._dragCropX = root._cropX
@@ -151,16 +164,8 @@ Rectangle {
             root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
         }
         onReleased: {
-            var tx = Math.max(0, Math.min(1, root._cropX))
-            var ty = Math.max(0, Math.min(1, root._cropY))
-            if (Math.abs(root._cropX - tx) > 0.001) {
-                snapAnimX.stop(); snapAnimX.from = root._cropX
-                snapAnimX.to = tx; snapAnimX.start()
-            }
-            if (Math.abs(root._cropY - ty) > 0.001) {
-                snapAnimY.stop(); snapAnimY.from = root._cropY
-                snapAnimY.to = ty; snapAnimY.start()
-            }
+            cropXBeh.enabled = true; cropYBeh.enabled = true
+            snapTimer.start()  // next tick: clamp values → Behavior fires
         }
     }
 
@@ -194,8 +199,8 @@ Rectangle {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        snapAnimX.stop(); snapAnimX.from = root._cropX; snapAnimX.to = 0.5; snapAnimX.start()
-                        snapAnimY.stop(); snapAnimY.from = root._cropY; snapAnimY.to = 0.5; snapAnimY.start()
+                        cropXBeh.enabled = true; cropYBeh.enabled = true
+                        root._cropX = 0.5; root._cropY = 0.5
                     }
                 }
             }
