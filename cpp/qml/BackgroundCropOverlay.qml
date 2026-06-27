@@ -26,30 +26,18 @@ Rectangle {
         _started = true
     }
 
-    // ── Local crop state (single property with Behavior always on) ──
+    // ── Local crop state ──
     property real _cropX: 0.5
     property real _cropY: 0.5
 
-    // Behavior always enabled — drag overwrites each frame (visual=instant);
-    // release lets the final assignment animate fully
-    Behavior on _cropX {
-        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
+    // Snap-back animations (explicit from/to, no Behavior ambiguity)
+    NumberAnimation {
+        id: snapX; target: root; property: "_cropX"
+        duration: 500; easing.type: Easing.OutCubic
     }
-    Behavior on _cropY {
-        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
-    }
-
-    // Snap-back on release: clamp to [0,1]; if no delta, push to center 0.5
-    Timer {
-        id: snapTimer
-        interval: 1
-        onTriggered: {
-            var tx = Math.max(0, Math.min(1, root._cropX))
-            var ty = Math.max(0, Math.min(1, root._cropY))
-            // If clamp didn't change value (already in bounds), force to center
-            root._cropX = (Math.abs(root._cropX - tx) < 0.0001) ? 0.5 : tx
-            root._cropY = (Math.abs(root._cropY - ty) < 0.0001) ? 0.5 : ty
-        }
+    NumberAnimation {
+        id: snapY; target: root; property: "_cropY"
+        duration: 500; easing.type: Easing.OutCubic
     }
 
     // ── Drag state ──
@@ -151,7 +139,7 @@ Rectangle {
                 mouse.accepted = false
                 return
             }
-            snapTimer.stop()
+            snapX.stop(); snapY.stop()
             root._dragStartX = mouse.x
             root._dragStartY = mouse.y
             root._dragCropX = root._cropX
@@ -165,7 +153,15 @@ Rectangle {
             root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
         }
         onReleased: {
-            snapTimer.start()
+            // With overflow: clamp to [0,1]; without: snap to center 0.5
+            var tx = (_overX > 0) ? Math.max(0, Math.min(1, root._cropX)) : 0.5
+            var ty = (_overY > 0) ? Math.max(0, Math.min(1, root._cropY)) : 0.5
+            if (Math.abs(root._cropX - tx) > 0.001) {
+                snapX.from = root._cropX; snapX.to = tx; snapX.restart()
+            }
+            if (Math.abs(root._cropY - ty) > 0.001) {
+                snapY.from = root._cropY; snapY.to = ty; snapY.restart()
+            }
         }
     }
 
@@ -199,7 +195,8 @@ Rectangle {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        root._cropX = 0.5; root._cropY = 0.5
+                        snapX.from = root._cropX; snapX.to = 0.5; snapX.restart()
+                        snapY.from = root._cropY; snapY.to = 0.5; snapY.restart()
                     }
                 }
             }
