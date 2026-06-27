@@ -478,7 +478,7 @@ Rectangle {
             // Forge
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Forge"; loaderKey: "forge"
-                versions: root.forgeLoading ? [{version: "Loading...", type: "", date: ""}] :
+                versions: root.forgeLoading ? [{version: "加载中...", type: "", date: ""}] :
                           root.forgeVersionsSorted
                 versionEnabled: root.forgeItemEnabled
                 badgeText: (root.selectedOptifine && root.optifineCompatibleForgeCount > 0) ? "存在兼容的Forge" : ""
@@ -496,7 +496,7 @@ Rectangle {
             // NeoForge
             ModLoaderCard {
                 Layout.fillWidth: true; title: "NeoForge"; loaderKey: "neoforge"
-                versions: root.neoforgeLoading ? [{version: "Loading...", type: "", date: ""}] : root.neoforgeVersions
+                versions: root.neoforgeLoading ? [{version: "加载中...", type: "", date: ""}] : root.neoforgeVersions
                 disabled: root.hasModLoader && root.activeLoader !== "neoforge"
                 disabledReason: root.activeLoader === "forge" ? "Forge \u5df2\u9009\u4e2d" : root.activeLoader === "fabric" ? "Fabric \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0d\u517c\u5bb9 NeoForge" : ""
                 selectedVersion: root.selectedNeoForge
@@ -507,7 +507,7 @@ Rectangle {
             // Fabric
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Fabric"; loaderKey: "fabric"
-                versions: root.fabricLoading ? [{version: "Loading...", type: "", date: ""}] : root.fabricVersions
+                versions: root.fabricLoading ? [{version: "加载中...", type: "", date: ""}] : root.fabricVersions
                 disabled: root.hasModLoader && root.activeLoader !== "fabric"
                 disabledReason: root.activeLoader === "forge" ? "Forge \u5df2\u9009\u4e2d" : root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0d\u517c\u5bb9 Fabric" : ""
                 selectedVersion: root.selectedFabric
@@ -521,7 +521,7 @@ Rectangle {
                 visible: root.activeLoader === "fabric"
                 badgeText: root.activeLoader === "fabric" && !root.selectedFabricApi ? "\u5efa\u8bae\u5b89\u88c5" : ""
                 disabled: false
-                versions: root.fabricApiLoading ? [{version: "Loading...", type: "", date: ""}] : root.fabricApiVersions
+                versions: root.fabricApiLoading ? [{version: "加载中...", type: "", date: ""}] : root.fabricApiVersions
                 selectedVersion: root.selectedFabricApi
                 onVersionSelected: function(ver) {
                     root.selectedFabricApi = ver
@@ -546,7 +546,7 @@ Rectangle {
             // Optifine
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Optifine"; loaderKey: "optifine"
-                versions: root.optifineLoading ? [{version: "Loading...", type: "", date: ""}] : root.optifineVersionsSorted
+                versions: root.optifineLoading ? [{version: "加载中...", type: "", date: ""}] : root.optifineVersionsSorted
                 badgeText: (root.selectedForge && root.forgeCompatibleOptifineCount > 0) ? "存在兼容的Optifine" : ""
                 versionEnabled: root.optifineItemEnabled
                 disabled: root.activeLoader === "fabric" || root.activeLoader === "neoforge"
