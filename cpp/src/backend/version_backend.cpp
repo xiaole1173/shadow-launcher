@@ -1930,7 +1930,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 tr("校验 %1 完整性").arg(loaderLabel),
                 tr("安装 %1").arg(loaderLabel)
             }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
-             {true, true, true, false, true, false, true});
+             {true, true, true, false, true, false, false});
         }
         updateStep(installName, 0, QStringLiteral("active"), 0);
         ses.loadedStep = 1;

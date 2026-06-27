@@ -198,6 +198,7 @@ void ModLoaderInstaller::neoForgeContinueInstall()
     qDebug() << "[ModLoader] Continuing NeoForge install (build from installer)";
     m_verifyOnly = false;
     m_running = true;
+    m_totalSteps = 3;  // buildVersion (step 3)
     neoForgeStep3_buildVersion(m_cachedJar);
 }
 
