@@ -331,78 +331,13 @@ Rectangle {
             // ── Version groups ──
             Repeater {
                 model: !modDetailLoading ? grouped : []
-                delegate: Rectangle {
-                    id: groupCard
+                delegate: ExpandableGroupCard {
                     Layout.fillWidth: true
-                    height: isExpanded(modelData.major) ? (40 + subColumn.implicitHeight) : 40
-                    clip: true; color: "transparent"
-                    Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                    property bool _hovered: false
+                    title: "MC " + modelData.major
+                    subtitle: modelData.versions.length + " 个版本"
+                    expanded: isExpanded(modelData.major)
+                    onToggled: toggleGroup(modelData.major)
 
-                    Column {
-                        id: subColumn
-                        width: parent.width; spacing: 6
-
-                    // Group header card (same style as version cards)
-                    Rectangle {
-                        id: grpHeader
-                        width: parent.width; height: 40; radius: 8
-                        color: groupCard._hovered ? "#161a26" : "#11141c"
-                        border.color: groupCard._hovered ? "#3a5ed0" : "#1e2230"
-                        border.width: groupCard._hovered ? 1.5 : 1
-
-                        property real _eScale: 1.0
-                        transform: Scale {
-                            origin.x: grpHeader.width / 2
-                            origin.y: grpHeader.height / 2
-                            xScale: grpHeader._eScale; yScale: grpHeader._eScale
-                        }
-                        Timer { id: grpRestoreTimer; interval: 100
-                            onTriggered: { grpHeader._eScale = 1.0 }
-                        }
-                        Behavior on _eScale {
-                            SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
-                        }
-                        Behavior on color { ColorAnimation { duration: 200 } }
-                        Behavior on border.color { ColorAnimation { duration: 200 } }
-                        Behavior on border.width { NumberAnimation { duration: 150 } }
-
-                        Rectangle {
-                            anchors.fill: parent; radius: parent.radius
-                            opacity: groupCard._hovered ? 0.12 : 0
-                            gradient: Gradient {
-                                GradientStop { position: 0; color: "#5068c8" }
-                                GradientStop { position: 1; color: "#6080d8" }
-                            }
-                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent; anchors.margins: 10; spacing: 10
-                            Text {
-                                text: (isExpanded(modelData.major) ? "\u25bc" : "\u25b8") + "  MC " + modelData.major
-                                color: "#6080d8"; font.pixelSize: 14; font.weight: Font.Bold
-                            }
-                            Item { Layout.fillWidth: true }
-                            Text {
-                                text: modelData.versions.length + " 个版本"
-                                color: "#505468"; font.pixelSize: 10
-                            }
-                        }
-                        HoverHandler {
-                            onHoveredChanged: groupCard._hovered = hovered
-                        }
-                        TapHandler {
-                            cursorShape: Qt.PointingHandCursor
-                            onTapped: {
-                                grpHeader._eScale = 0.94
-                                grpRestoreTimer.restart()
-                                toggleGroup(modelData.major)
-                            }
-                        }
-                    }
-
-                    // Sub-versions
                     Repeater {
                         model: modelData.versions
                         delegate: DetailVersionCard {
@@ -459,7 +394,6 @@ Rectangle {
                                     modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                     modFileDialog.open()
                                 }
-                            }
                     }
                 }
             }

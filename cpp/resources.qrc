@@ -12,6 +12,7 @@
         <file alias="qml/SettingsMemoryPage.qml">qml/SettingsMemoryPage.qml</file>
         <file alias="qml/InstallPage.qml">qml/InstallPage.qml</file>
         <file alias="qml/ModLoaderCard.qml">qml/ModLoaderCard.qml</file>
+        <file alias="qml/ExpandableGroupCard.qml">qml/ExpandableGroupCard.qml</file>
         <file alias="qml/ModDetailPage.qml">qml/ModDetailPage.qml</file>
         <file alias="qml/ResourcePackDetailPage.qml">qml/ResourcePackDetailPage.qml</file>
         <file alias="qml/InstallConfigOverlay.qml">qml/InstallConfigOverlay.qml</file>
