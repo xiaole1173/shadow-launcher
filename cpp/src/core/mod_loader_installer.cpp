@@ -326,7 +326,9 @@ void ModLoaderInstaller::installOptifineFromJar(const QByteArray& jarData, const
     m_running = true; m_cancelled = false;
     m_mcVersion = mcVersion;
     m_installName = installName;
-    m_loaderVersion = mcVersion;
+    // Extract OptiFine version from installName: "1.21.11-OptiFine_HD_U_J9" → "HD_U_J9"
+    int ofIdx = installName.indexOf(QStringLiteral("OptiFine_"));
+    m_loaderVersion = (ofIdx >= 0) ? installName.mid(ofIdx + 8) : mcVersion;
     m_loaderType = "optifine";
     m_optifineBmclType = bmclType;
     m_optifineBmclPatch = bmclPatch;
@@ -394,8 +396,10 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     QString libSuffix;
     if (!m_optifineBmclType.isEmpty() && !m_optifineBmclPatch.isEmpty()) {
         libSuffix = m_mcVersion + "_" + m_optifineBmclType + "_" + m_optifineBmclPatch;
+        qDebug() << "[ModLoader] OptiFine synthetic: using bmclType/bmclPatch" << m_optifineBmclType << m_optifineBmclPatch;
     } else {
-        // Fallback: use optifineVer with McVersion prefix removed if present
+        // Fallback: bmclType/bmclPatch not provided → derive from optifineVer
+        qDebug() << "[ModLoader] OptiFine synthetic: bmclType/bmclPatch EMPTY, deriving from loaderVersion=" << m_loaderVersion;
         QString ver = m_loaderVersion;
         QString prefix = "OptiFine_" + m_mcVersion + "_";
         if (ver.startsWith(prefix)) ver = ver.mid(prefix.length());
@@ -420,13 +424,27 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     libFile.write(jarData);
     libFile.close();
 
-    // 2. Create version JSON
+    // 2. Create version JSON — inherits from base MC, adds OptiFine library
     QString versionId = m_installName;
     QJsonObject versionJson;
     versionJson["id"] = versionId;
     versionJson["inheritsFrom"] = m_mcVersion;
     versionJson["type"] = "release";
     versionJson["jar"] = m_mcVersion;
+
+    // Copy mainClass from base MC JSON (OptiFine 1.21+ uses the default)
+    QString baseJsonPath = m_gameDir + "/versions/" + m_mcVersion + "/" + m_mcVersion + ".json";
+    QFile baseJsonFile(baseJsonPath);
+    if (baseJsonFile.open(QIODevice::ReadOnly)) {
+        QJsonDocument baseDoc = QJsonDocument::fromJson(baseJsonFile.readAll());
+        baseJsonFile.close();
+        QJsonObject baseJson = baseDoc.object();
+        if (baseJson.contains(QStringLiteral("mainClass")))
+            versionJson["mainClass"] = baseJson["mainClass"];
+        // Copy JVM arguments (needed for module access in Java 17+)
+        if (baseJson.contains(QStringLiteral("arguments")))
+            versionJson["arguments"] = baseJson["arguments"];
+    }
 
     QJsonObject libObj;
     libObj["name"] = libName;
