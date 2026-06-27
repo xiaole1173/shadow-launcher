@@ -279,6 +279,7 @@ private:
         qint64 catBytesDl[3] = {};
         qint64 catBytesTotal[3] = {};
         qint64 catBytesDoneBase[3] = {};
+        bool catsFullyDone = false;  // set by fileProgress when all categories complete
     };
     QMap<QString, DlState> m_dlStates;
     QMap<QString, VersionDownloader*> m_downloaders;

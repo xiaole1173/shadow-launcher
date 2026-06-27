@@ -1334,10 +1334,6 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
             catDone = st.catBytesDoneBase[cat];
         }
         st.catBytesDl[cat] = catDone;
-
-        // Rebuild cards so pure MC verify step flips from pending→active
-        // when the last download category finishes (progressChanged may fire first).
-        rebuildInstallCards();
     }
 
     // ── Merged install: route MC download phase to steps 0-2 ──
@@ -1348,6 +1344,23 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
             break;
         }
     }
+
+    // For pure MC (non-merged): once all download categories finish,
+    // set a flag so the verify step flips to active immediately — no
+    // waiting for verifyProgressChanged which arrives after a gap.
+    if (cat >= 0 && cat <= 2 && mergedSessionId.isEmpty()) {
+        auto& st2 = m_dlStates[versionId];
+        bool allDone = true;
+        for (int ci = 0; ci < 3 && allDone; ci++) {
+            if (st2.catBytesTotal[ci] <= 0 || st2.catBytesDl[ci] < st2.catBytesTotal[ci])
+                allDone = false;
+        }
+        if (allDone) {
+            st2.catsFullyDone = true;
+            rebuildInstallCards();
+        }
+    }
+
     if (!mergedSessionId.isEmpty()) {
         if (cat >= 0 && cat <= 2) {
             // Accumulate bytes per-category (display pushed by progressChanged -> updateDownloadProgress)
@@ -2953,10 +2966,10 @@ void VersionBackend::doRebuildInstallCards() {
             addVStep(tr("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
                      (st.catBytesTotal[2] > 0) ? (int)(st.catBytesDl[2] * 100 / st.catBytesTotal[2]) : 0, catDl(2), catTot(2));
             addVStep(tr("校验游戏资源完整性"),
-                     (verifying || catsDone) ? QStringLiteral("active") : QStringLiteral("pending"),
-                     verifying ? (st.total > 0 ? (int)(st.progress * 100 / st.total) : 0) : 0,
-                     verifying ? st.progress : qint64(0),
-                     verifying ? st.total : qint64(0));
+                     (verifying || catsDone || st.catsFullyDone) ? QStringLiteral("active") : QStringLiteral("pending"),
+                     (verifying || st.catsFullyDone) ? (st.total > 0 ? (int)(st.progress * 100 / st.total) : 0) : 0,
+                     (verifying || st.catsFullyDone) ? st.progress : qint64(0),
+                     (verifying || st.catsFullyDone) ? st.total : qint64(0));
             c.remaining = verifying ? 1 : 0;
             c.steps = vSteps;
         } else {
