@@ -1,4 +1,4 @@
-// Shadow Launcher — VersionBackend
+﻿// Shadow Launcher — VersionBackend
 // QML-facing backend for version list, installation, and lifecycle management.
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 
@@ -46,6 +46,16 @@ VersionBackend::VersionBackend(QObject* parent)
     qCInfo(logVersion) << "VersionBackend constructed";
 
     m_installCardsModel = new InstallCardModel(this);
+
+    // ProgressTracker — unified speed/progress engine (200ms tick)
+    m_progressTracker = new ProgressTracker(this);
+    // Speed changes trigger card rebuild (throttled)
+    connect(m_progressTracker, &ProgressTracker::speedChanged, this, [this](qint64) {
+        rebuildInstallCards();
+    });
+    connect(m_progressTracker, &ProgressTracker::progressChanged, this, [this](qreal) {
+        rebuildInstallCards();
+    });
 
     // Throttle activeInstallsChanged to 300ms intervals (avoid flicker)
     m_cardsRebuildThrottle.setSingleShot(true);
@@ -167,7 +177,7 @@ VersionBackend::VersionBackend(QObject* parent)
                 }
             }
             if (allDone) {
-                m_installSpeed = 0;
+                if (m_progressTracker) m_progressTracker->reset();
                 emit logMessage(tr("🎉 所有版本安装完成！"));
             }
 
@@ -237,19 +247,14 @@ VersionBackend::VersionBackend(QObject* parent)
     // Byte-level download progress → update current active step
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
-                // ── EWMA speed smoothing (same algorithm as updateDownloadProgress) ──
-        qint64 now = QDateTime::currentMSecsSinceEpoch();
+                // Speed: feed bytes to ProgressTracker (200ms timer handles EWMA)
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
-        if (ses.mlSpeedLastBytes > 0 && received > ses.mlSpeedLastBytes) {
-            qint64 dt = qMax(now - ses.mlSpeedLastTimeMs, qint64(100));
-            qint64 instant = (received - ses.mlSpeedLastBytes) * 1000 / dt;
-            m_installSpeed = (m_installSpeed > 0) ? (m_installSpeed * 7 / 10 + instant * 3 / 10) : 0;
-        } else {
-            m_installSpeed = 0;
+        if (m_progressTracker && received > ses.mlSpeedLastBytes) {
+            m_progressTracker->addBytes(received - ses.mlSpeedLastBytes);
         }
         ses.mlSpeedLastBytes = received;
-        ses.mlSpeedLastTimeMs = now;
+        ses.mlSpeedLastTimeMs = 0;
                 // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
         if (ses.isMerged) {
             // Detect file transition: total changes → previous file completed
@@ -911,7 +916,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (!anyMergedLaunched) {
             setInstalling(false);
             setInstallPhase(tr("完成"));
-            m_installSpeed = 0;
+            if (m_progressTracker) m_progressTracker->reset();
             emit logMessage(tr("🎉 所有版本安装完成！"));
         }
         // When anyMergedLaunched is true, the OptiFine installer is still running
@@ -1122,7 +1127,7 @@ void VersionBackend::syncPrimaryProgress()
         // No active download
         m_installBytesDl = 0;
         m_installBytesTotal = 0;
-        m_installSpeed = 0;
+        if (m_progressTracker) m_progressTracker->reset();
         setInstallPhase(tr("空闲"));
                                 emit installStateChanged();
         return;
@@ -1131,7 +1136,7 @@ void VersionBackend::syncPrimaryProgress()
     const auto& st = m_dlStates[pid];
     m_installBytesDl = st.bytesDl;
     m_installBytesTotal = st.bytesTotal;
-    m_installSpeed = st.speed;
+    // m_installSpeed removed — using ProgressTracker;
 
     // Two-segment progress: download 0-90%, verify 90-100%
     bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
@@ -1152,20 +1157,13 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     auto& st = m_dlStates[versionId];
     st.progress = cf;
     st.total = tf;
+
+    // Feed delta to unified ProgressTracker (200ms timer handles speed)
+    qint64 delta = db - st.bytesDl;
+    if (delta > 0 && m_progressTracker) m_progressTracker->addBytes(delta);
+
     st.bytesDl = db;
     st.bytesTotal = tb;
-
-    // ── Speed: EWMA (α=0.3) ──
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-    if (st.speedLastBytes > 0 && st.speedLastTimeMs > 0 && db > st.speedLastBytes) {
-        qint64 dt = qMax(now - st.speedLastTimeMs, qint64(100));  // min 100ms to cap burst spikes
-        qint64 delta = db - st.speedLastBytes;
-        qint64 instant = delta * 1000 / dt;
-        // Always use EWMA — no raw first-sample passthrough
-        st.speed = (st.speed > 0) ? (st.speed * 7 / 10 + instant * 3 / 10) : (instant * 3 / 10);
-    }
-    st.speedLastBytes = db;
-    st.speedLastTimeMs = now;
 
     if (st.phase != tr("校验中...")) {
         st.phase = tr("下载中...");
@@ -1218,7 +1216,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     if (versionId == primaryVersionId()) {
         m_installBytesDl = db;
         m_installBytesTotal = tb;
-        m_installSpeed = st.speed;
+        // m_installSpeed removed — using ProgressTracker;
 
         // Byte-weighted total progress ── raw ──
         // Find merged session for grand-total calculation
@@ -1227,8 +1225,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             qint64 grandTotal = session(mergedSessionId).mcBytesAll + session(mergedSessionId).mlBytesAll;
             qint64 grandDone = session(mergedSessionId).mcBytesDl + session(mergedSessionId).mlBytesDl;
             rawTotalProgress = (grandTotal > 0)
-                ? (qreal)grandDone / grandTotal
-                : (tb > 0 ? (qreal)db / tb : 0.0);
+                ? qBound(0.0, (qreal)grandDone / grandTotal, 1.0)
+                : (tb > 0 ? qBound(0.0, (qreal)db / tb, 1.0) : 0.0);
         } else {
             rawTotalProgress = (tb > 0) ? (qreal)db / tb : 0.0;
         }
@@ -2772,8 +2770,8 @@ void VersionBackend::doRebuildInstallCards() {
         c.iid = cardId;
         c.type = QStringLiteral("mod_loader");
         c.name = cardId;
-        c.progress = mlPending ? 0.0 : ses.smoothProgress;
-        c.speed = mlPending ? 0 : m_installSpeed;
+        c.progress = mlPending ? 0.0 : qBound(0.0, ses.smoothProgress, 1.0);
+        c.speed = mlPending ? 0 : (m_progressTracker ? m_progressTracker->smoothSpeed() : 0);
         c.phase = mlFailed ? QStringLiteral("\u5931\u8d25") : m_installPhase;
         c.remaining = mlPending ? 0 : installRemainingSteps();
         c.steps = mlPending ? QVariantList{} : ses.steps;

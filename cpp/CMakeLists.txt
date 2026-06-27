@@ -55,6 +55,7 @@ set(SOURCES
     src/core/downloader.cpp
     src/core/parallel_downloader.cpp
     src/core/version_downloader.cpp
+    src/core/progress_tracker.cpp
     src/core/launcher.cpp
     src/core/mod_manager.cpp
     src/core/icon_cache.cpp
@@ -86,6 +87,7 @@ set(HEADERS
     src/core/parallel_downloader.h
     src/core/download_coordinator.h
     src/core/version_downloader.h
+    src/core/progress_tracker.h
     src/core/launcher.h
     src/core/mod_manager.h
     src/core/version_isolation.h
