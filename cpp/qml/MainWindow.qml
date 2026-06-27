@@ -223,8 +223,6 @@ Window {
 
                 readonly property real _s: Math.max(bgFrame.width / Math.max(implicitWidth, 1),
                                                      bgFrame.height / Math.max(implicitHeight, 1))
-                readonly property real _s: Math.max(bgFrame.width / Math.max(implicitWidth, 1),
-                                                     bgFrame.height / Math.max(implicitHeight, 1))
                 readonly property real _dispW: implicitWidth * _s
                 readonly property real _dispH: implicitHeight * _s
                 readonly property real _overX: Math.max(0, _dispW - bgFrame.width)
