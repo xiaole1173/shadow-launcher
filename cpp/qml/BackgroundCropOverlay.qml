@@ -26,27 +26,29 @@ Rectangle {
         _started = true
     }
 
-    // ── Local crop state ──
+    // ── Local crop state (single property with Behavior always on) ──
     property real _cropX: 0.5
     property real _cropY: 0.5
 
-    // Behavior: animate snap-back on release (disabled during drag)
+    // Behavior always enabled — drag overwrites each frame (visual=instant);
+    // release lets the final assignment animate fully
     Behavior on _cropX {
-        id: cropXBeh
         NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
     }
     Behavior on _cropY {
-        id: cropYBeh
         NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
     }
 
-    // Timer: applies clamped values one tick after release (so Behavior can fire)
+    // Snap-back on release: clamp to [0,1]; if no delta, push to center 0.5
     Timer {
         id: snapTimer
         interval: 1
         onTriggered: {
-            root._cropX = Math.max(0, Math.min(1, root._cropX))
-            root._cropY = Math.max(0, Math.min(1, root._cropY))
+            var tx = Math.max(0, Math.min(1, root._cropX))
+            var ty = Math.max(0, Math.min(1, root._cropY))
+            // If clamp didn't change value (already in bounds), force to center
+            root._cropX = (Math.abs(root._cropX - tx) < 0.0001) ? 0.5 : tx
+            root._cropY = (Math.abs(root._cropY - ty) < 0.0001) ? 0.5 : ty
         }
     }
 
@@ -149,8 +151,7 @@ Rectangle {
                 mouse.accepted = false
                 return
             }
-            snapTimer.stop()  // cancel any pending snap-back
-            cropXBeh.enabled = false; cropYBeh.enabled = false  // instant tracking
+            snapTimer.stop()
             root._dragStartX = mouse.x
             root._dragStartY = mouse.y
             root._dragCropX = root._cropX
@@ -164,8 +165,7 @@ Rectangle {
             root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
         }
         onReleased: {
-            cropXBeh.enabled = true; cropYBeh.enabled = true
-            snapTimer.start()  // next tick: clamp values → Behavior fires
+            snapTimer.start()
         }
     }
 
@@ -199,7 +199,6 @@ Rectangle {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        cropXBeh.enabled = true; cropYBeh.enabled = true
                         root._cropX = 0.5; root._cropY = 0.5
                     }
                 }
