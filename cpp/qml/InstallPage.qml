@@ -116,7 +116,6 @@ Rectangle {
     property string selectedFabricApiUrl: ""
     property string selectedFabricApiFile: ""
     property string activeLoader: ""
-    property string customName: ""
 
     // ── OptiFine-Forge compatibility ──
     function getOptifineForge(optiVer) {
