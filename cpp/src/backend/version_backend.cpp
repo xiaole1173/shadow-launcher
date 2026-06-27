@@ -276,6 +276,10 @@ VersionBackend::VersionBackend(QObject* parent)
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
         if (m_progressTracker && received > ses.mlSpeedLastBytes) {
+            // Restart tracker if MC download reset it (e.g. merged installs)
+            if (m_progressTracker->phase() != ProgressTracker::Download) {
+                m_progressTracker->setPhase(ProgressTracker::Download);
+            }
             m_progressTracker->addBytes(received - ses.mlSpeedLastBytes);
         }
         ses.mlSpeedLastBytes = received;
