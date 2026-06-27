@@ -481,8 +481,7 @@ Rectangle {
                 versions: root.forgeLoading ? [{version: "Loading...", type: "", date: ""}] :
                           root.forgeVersionsSorted
                 versionEnabled: root.forgeItemEnabled
-                badgeText: root.selectedOptifine ?
-                    (root.optifineCompatibleForgeCount > 0 ? "存在兼容的Forge" : "无兼容的Forge可用") : ""
+                badgeText: (root.selectedOptifine && root.optifineCompatibleForgeCount > 0) ? "存在兼容的Forge" : ""
                 disabled: root.hasModLoader && root.activeLoader !== "forge"
                     || (root.selectedOptifine && root.optifineCompatibleForgeCount <= 0)
                 disabledReason: root.activeLoader === "neoforge" ? "NeoForge 已选中"
@@ -548,8 +547,7 @@ Rectangle {
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Optifine"; loaderKey: "optifine"
                 versions: root.optifineLoading ? [{version: "Loading...", type: "", date: ""}] : root.optifineVersionsSorted
-                badgeText: root.selectedForge ?
-                    (root.forgeCompatibleOptifineCount > 0 ? "存在兼容的Optifine" : "无兼容的Optifine可用") : ""
+                badgeText: (root.selectedForge && root.forgeCompatibleOptifineCount > 0) ? "存在兼容的Optifine" : ""
                 versionEnabled: root.optifineItemEnabled
                 disabled: root.activeLoader === "fabric" || root.activeLoader === "neoforge"
                     || (root.selectedForge && root.forgeCompatibleOptifineCount <= 0)
