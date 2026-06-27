@@ -27,7 +27,8 @@ public:
     void installFabric(const QString& mcVersion, const QString& fabricVersion, const QString& installName);
     void installNeoForge(const QString& mcVersion, const QString& neoVersion, const QString& installName);
     void installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                         const QString& forgeVersion, const QString& installName);
+                         const QString& forgeVersion, const QString& installName,
+                         const QString& bmclType = QString(), const QString& bmclPatch = QString());
     void installOptifineFromJar(const QByteArray& jarData, const QString& mcVersion, const QString& installName);
 
     bool isRunning() const { return m_running; }

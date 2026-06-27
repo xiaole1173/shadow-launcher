@@ -236,7 +236,8 @@ void ModLoaderInstaller::installNeoForge(const QString& mcVersion, const QString
 }
 
 void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                                          const QString& forgeVersion, const QString& installName) {
+                                          const QString& forgeVersion, const QString& installName,
+                                          const QString& bmclType, const QString& bmclPatch) {
     if (m_running) return;
     m_running = true; m_cancelled = false;
     m_mcVersion = mcVersion; m_loaderVersion = optifineVersion;
@@ -247,10 +248,17 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
     qDebug() << "[ModLoader] Optifine: MC" << mcVersion << "Opti" << optifineVersion
              << (standalone ? "standalone" : "with Forge" + forgeVersion);
 
-    QString filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-        ? optifineVersion + ".jar"
-        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+    QString filename;
+    QString url;
+    if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
+    } else {
+        filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
+            ? optifineVersion + ".jar"
+            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+    }
 
     if (standalone) {
         // Standalone: run installer to create version JSON

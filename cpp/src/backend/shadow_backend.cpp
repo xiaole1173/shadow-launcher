@@ -1771,6 +1771,9 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
                 m["version"] = ver;
                 m["type"] = QStringLiteral("release");
                 m["date"] = QString();
+                // Preserve BMCLAPI type/patch for correct download URL construction
+                m["bmclType"] = obj.value("type").toString();
+                m["bmclPatch"] = obj.value("patch").toString();
                 list.append(m);
             }
             return list;

@@ -36,6 +36,7 @@ Rectangle {
         forgeVersions = []; fabricVersions = []; neoforgeVersions = []; optifineVersions = []
         forgeLoading = true; fabricLoading = true; neoforgeLoading = true; optifineLoading = true
         selectedForge = ""; selectedNeoForge = ""; selectedFabric = ""; selectedOptifine = ""
+        selectedOptifineType = ""; selectedOptifinePatch = ""
         activeLoader = ""; customName = ""
         console.log("[install] selections reset: selectedForge='" + selectedForge + "' selectedFabric='" + selectedFabric + "'")
         backend.queryForgeVersions(mcVersion)
@@ -109,6 +110,8 @@ Rectangle {
     property string selectedNeoForge: ""
     property string selectedFabric: ""
     property string selectedOptifine: ""
+    property string selectedOptifineType: ""
+    property string selectedOptifinePatch: ""
     property string selectedFabricApi: ""
     property string selectedFabricApiUrl: ""
     property string selectedFabricApiFile: ""
@@ -309,9 +312,9 @@ Rectangle {
                                         }
                                         if (selectedOptifine !== "") {
                                             if (hasLoaderInstalled) {
-                                                backend.installOptifineJar(mcVersion, selectedOptifine)
+                                                backend.installOptifineJar(mcVersion, selectedOptifine, selectedOptifineType, selectedOptifinePatch)
                                             } else {
-                                                backend.installOptifine(mcVersion, selectedOptifine, "", n)
+                                                backend.installOptifine(mcVersion, selectedOptifine, "", n, selectedOptifineType, selectedOptifinePatch)
                                             }
                                         }
                                         if (!hasLoaderInstalled && selectedOptifine === "") {
@@ -431,8 +434,10 @@ Rectangle {
                 disabled: root.activeLoader === "fabric" || root.activeLoader === "neoforge"
                 disabledReason: root.activeLoader === "fabric" ? "Fabric 不兼容 Optifine" : root.activeLoader === "neoforge" ? "Optifine 不支持 NeoForge" : ""
                 selectedVersion: root.selectedOptifine
-                onVersionSelected: function(ver) { root.selectedOptifine = ver; root.customName = ""; if (!root.hasModLoader) root.activeLoader = "optifine" }
-                onVersionCleared: { root.selectedOptifine = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
+                onVersionSelected: function(ver) { root.selectedOptifine = ver; root.customName = ""; if (!root.hasModLoader) root.activeLoader = "optifine";
+                    var found = root.optifineVersions.find(function(v) { return v.version === ver })
+                    if (found) { root.selectedOptifineType = found.bmclType || ""; root.selectedOptifinePatch = found.bmclPatch || "" } }
+                onVersionCleared: { root.selectedOptifine = ""; root.selectedOptifineType = ""; root.selectedOptifinePatch = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
             }
 
             Item { Layout.fillWidth: true; height: 40 }

@@ -2136,7 +2136,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 }
 
 void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
-        const QString& forgeVersion, const QString& installName) {
+        const QString& forgeVersion, const QString& installName,
+        const QString& bmclType, const QString& bmclPatch) {
     if (!m_mlInstaller) return;
 
     // FIX: Set m_modLoaderInstallId so progress signals are not dropped
@@ -2152,6 +2153,8 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         ses.mcVersion = mcVersion;
         ses.loaderType = QStringLiteral("optifine");
         ses.loaderVer = optifineVersion;
+        ses.bmclType = bmclType;
+        ses.bmclPatch = bmclPatch;
         ses.hasPendingLoader = true;
         ses.pendingLoaderMc = mcVersion;
         ses.pendingLoaderType = QStringLiteral("optifine");
@@ -2180,7 +2183,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         // Start MC and OptiFine JAR downloads in parallel
         ses.optifineJarParallel = true;
         installVersion(mcVersion, 0);
-        startOptifineJarParallel(installName, mcVersion, optifineVersion);
+        startOptifineJarParallel(installName, mcVersion, optifineVersion, bmclType, bmclPatch);
         return;
     }
 
@@ -2207,10 +2210,10 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     setInstalling(true);
 
     connect(coord, &DownloadCoordinator::ready, this,
-            [this, mcVersion, optifineVersion, forgeVersion, installName, coord](int /*sourceIndex*/, qint64) {
+            [this, mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch, coord](int /*sourceIndex*/, qint64) {
         coord->deleteLater();
         emit logMessage(tr("✓ OptiFine 连通性测试通过"));
-        m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
+        m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
     });
     connect(coord, &DownloadCoordinator::connectivityFailed, this,
             [this, coord, installName](const QString& taskId, const QString& reason) {
@@ -2229,12 +2232,19 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QString& installName) {
     // MC steps 0-2 done. Download OptiFine JAR (step 3), then delegate to ModLoaderInstaller (step 4).
     auto& ses = session(installName);
-    QString optifineVer = ses.loaderVer;
-    // Handle both formats: "HD_U_I6" (old) and "preview_OptiFine_1.20.6_HD_U_J1_pre18" (new)
-    QString filename = optifineVer.startsWith("OptiFine_") || optifineVer.startsWith("preview_OptiFine_")
-        ? optifineVer + ".jar"
-        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVer);
-    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+
+    QString url;
+    QString filename;
+    if (!ses.bmclType.isEmpty() && !ses.bmclPatch.isEmpty()) {
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, ses.bmclType, ses.bmclPatch);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, ses.bmclType, ses.bmclPatch);
+    } else {
+        QString optifineVer = ses.loaderVer;
+        filename = optifineVer.startsWith("OptiFine_") || optifineVer.startsWith("preview_OptiFine_")
+            ? optifineVer + ".jar"
+            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVer);
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+    }
 
     showStep(installName, 3);
     updateStep(installName, 3, QStringLiteral("active"), 0, 0, 0);
@@ -2329,13 +2339,24 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 }
 
 void VersionBackend::startOptifineJarParallel(const QString& installName, const QString& mcVersion,
-                                                const QString& optifineVersion) {
+                                                const QString& optifineVersion,
+                                                const QString& bmclType, const QString& bmclPatch) {
     // Download OptiFine JAR in parallel with MC download
     auto& ses = session(installName);
-    QString filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-        ? optifineVersion + ".jar"
-        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+
+    // Use BMCLAPI type/patch format when available (recommended API)
+    QString url;
+    QString filename;
+    if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
+    } else {
+        // Fallback: use Maven path (only works for standard OptiFine_ naming)
+        filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
+            ? optifineVersion + ".jar"
+            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+        url = QString("https://bmclapi2.bangbang93.com/maven/com/optifine/%1/%2").arg(mcVersion, filename);
+    }
 
     emit logMessage(tr("并行下载 OptiFine: %1").arg(filename));
 
@@ -2415,12 +2436,20 @@ void VersionBackend::onParallelOptifineDone(const QString& installName, const QB
     delegateOptifineInstall(ses.mcVersion, installName, data);
 }
 
-void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion) {
+void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion,
+                                          const QString& bmclType, const QString& bmclPatch) {
     // Lightweight: download OptiFine JAR to version's mods/ — no blocking, no installer process
-    QString filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-        ? optifineVersion + ".jar"
-        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+    QString url;
+    QString filename;
+    if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
+    } else {
+        filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
+            ? optifineVersion + ".jar"
+            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+    }
 
     QString targetDir = m_gameDir + "/mods";
     if (m_isolation && m_isolation->isVersionIsolated(m_modLoaderInstallId)) {

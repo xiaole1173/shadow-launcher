@@ -61,6 +61,8 @@ struct InstallSession {
     bool optifineJarParallel = false; // OptiFine JAR downloading in parallel with MC
     bool optifineJarDone = false;     // OptiFine JAR download complete
     QByteArray optifineJarData;       // Cached OptiFine JAR from parallel download
+    QString bmclType;                  // BMCLAPI type field for URL construction
+    QString bmclPatch;                 // BMCLAPI patch field for URL construction
     
     // Per-install MC download byte tracking (was global singletons)
     qint64 mcStepDone[3] = {};
@@ -199,13 +201,15 @@ public:
                                        const QString& fabricApiUrl = QString(),
                                        const QString& fabricApiSavePath = QString());
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                                       const QString& forgeVersion, const QString& installName);
-    Q_INVOKABLE void installOptifineJar(const QString& mcVersion, const QString& optifineVersion);
+                                       const QString& forgeVersion, const QString& installName,
+                                       const QString& bmclType = QString(), const QString& bmclPatch = QString());
+    Q_INVOKABLE void installOptifineJar(const QString& mcVersion, const QString& optifineVersion,
+                                         const QString& bmclType = QString(), const QString& bmclPatch = QString());
     void finishOptifineMerged(const QString& mcVersion, const QString& installName);
     void delegateOptifineInstall(const QString& mcVersion, const QString& installName,
                                   const QByteArray& jarData);
     void startOptifineJarParallel(const QString& installName, const QString& mcVersion,
-                                   const QString& optifineVersion);
+                                   const QString& optifineVersion, const QString& bmclType, const QString& bmclPatch);
     void onParallelOptifineDone(const QString& installName, const QByteArray& jarData);
     Q_INVOKABLE void cancelModLoaderInstall();
     Q_INVOKABLE bool isModLoaderInstalling() const;
