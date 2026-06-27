@@ -20,37 +20,35 @@ Rectangle {
 
     Component.onCompleted: {
         // Copy crop to local state
-        var cx = (backend && typeof backend.cropX === "number") ? backend.cropX : 0.5
-        var cy = (backend && typeof backend.cropY === "number") ? backend.cropY : 0.5
-        _cropDragX = cx; _cropDragY = cy
-        _cropX = cx; _cropY = cy
+        _cropX = (backend && typeof backend.cropX === "number") ? backend.cropX : 0.5
+        _cropY = (backend && typeof backend.cropY === "number") ? backend.cropY : 0.5
         opacity = 1
         _started = true
     }
 
     // ── Local crop state ──
-    // _cropDragX/Y: instant value during drag (no animation)
-    // _cropX/Y: animated target (Behavior drives smooth changes)
-    property real _cropDragX: 0.5
-    property real _cropDragY: 0.5
-    property real _cropX: _cropDragX
-    property real _cropY: _cropDragY
+    property real _cropX: 0.5
+    property real _cropY: 0.5
 
+    // Behavior: animate snap-back on release (disabled during drag)
     Behavior on _cropX {
+        id: cropXBeh
         NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
     }
     Behavior on _cropY {
+        id: cropYBeh
         NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
     }
 
+    // Timer: applies clamped values one tick after release (so Behavior can fire)
     Timer {
         id: snapTimer
-        interval: 50  // small delay lets Behavior re-arm after drag
+        interval: 1
         onTriggered: {
-            var tx = (_overX > 0) ? Math.max(0, Math.min(1, root._cropDragX)) : 0.5
-            var ty = (_overY > 0) ? Math.max(0, Math.min(1, root._cropDragY)) : 0.5
-            root._cropX = tx  // imperative → Behavior animates
-            root._cropY = ty
+            // With overflow: clamp to [0,1] (pan within image bounds)
+            // Without overflow: snap to center 0.5 (any offset shows black)
+            root._cropX = (_overX > 0) ? Math.max(0, Math.min(1, root._cropX)) : 0.5
+            root._cropY = (_overY > 0) ? Math.max(0, Math.min(1, root._cropY)) : 0.5
         }
     }
 
@@ -153,22 +151,22 @@ Rectangle {
                 mouse.accepted = false
                 return
             }
-            snapTimer.stop()
+            snapTimer.stop()  // cancel any pending snap-back
+            cropXBeh.enabled = false; cropYBeh.enabled = false  // instant tracking
             root._dragStartX = mouse.x
             root._dragStartY = mouse.y
-            root._dragCropX = root._cropDragX
-            root._dragCropY = root._cropDragY
+            root._dragCropX = root._cropX
+            root._dragCropY = root._cropY
         }
         onPositionChanged: function(mouse) {
             if (!pressed) return
             var dx = mouse.x - root._dragStartX
             var dy = mouse.y - root._dragStartY
-            root._cropDragX = root._dragCropX - dx / Math.max(_displayW, _vpW)
-            root._cropDragY = root._dragCropY - dy / Math.max(_displayH, _vpH)
-            root._cropX = root._cropDragX
-            root._cropY = root._cropDragY
+            root._cropX = root._dragCropX - dx / Math.max(_displayW, _vpW)
+            root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
         }
         onReleased: {
+            cropXBeh.enabled = true; cropYBeh.enabled = true
             snapTimer.start()  // next tick: clamp values → Behavior fires
         }
     }
