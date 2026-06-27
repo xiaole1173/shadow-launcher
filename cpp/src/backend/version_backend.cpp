@@ -1290,15 +1290,10 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     }
     if (!mergedSessionId.isEmpty()) {
         if (cat >= 0 && cat <= 2) {
-            // Denominator (mcStepTotal) comes from progressChanged->categoryTotalBytes()
-            qint64 accDone = session(mergedSessionId).mcStepDone[cat] + received;
-            qint64 accTotal = session(mergedSessionId).mcStepTotal[cat];
+            // Accumulate bytes per-category (display pushed by progressChanged -> updateDownloadProgress)
             if (received >= total && total > 0) {
                 session(mergedSessionId).mcStepDone[cat] += total;
-                accDone = session(mergedSessionId).mcStepDone[cat];
             }
-            updateStep(mergedSessionId, cat, QStringLiteral("active"), 0, accDone, accTotal);
-            m_sessions[mergedSessionId].loadedStep = cat + 1;
         }
     }
 }
