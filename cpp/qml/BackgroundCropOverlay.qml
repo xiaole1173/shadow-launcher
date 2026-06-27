@@ -32,11 +32,11 @@ Rectangle {
 
     NumberAnimation {
         id: snapAnimX; target: root; property: "_cropX"
-        duration: 600; easing.type: Easing.OutBack
+        duration: 500; easing.type: Easing.OutCubic
     }
     NumberAnimation {
         id: snapAnimY; target: root; property: "_cropY"
-        duration: 600; easing.type: Easing.OutBack
+        duration: 500; easing.type: Easing.OutCubic
     }
 
     // ── Drag state ──
@@ -153,8 +153,14 @@ Rectangle {
         onReleased: {
             var tx = Math.max(0, Math.min(1, root._cropX))
             var ty = Math.max(0, Math.min(1, root._cropY))
-            snapAnimX.from = root._cropX; snapAnimX.to = tx; snapAnimX.start()
-            snapAnimY.from = root._cropY; snapAnimY.to = ty; snapAnimY.start()
+            if (Math.abs(root._cropX - tx) > 0.001) {
+                snapAnimX.stop(); snapAnimX.from = root._cropX
+                snapAnimX.to = tx; snapAnimX.start()
+            }
+            if (Math.abs(root._cropY - ty) > 0.001) {
+                snapAnimY.stop(); snapAnimY.from = root._cropY
+                snapAnimY.to = ty; snapAnimY.start()
+            }
         }
     }
 
@@ -188,8 +194,8 @@ Rectangle {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        snapAnimX.from = root._cropX; snapAnimX.to = 0.5; snapAnimX.start()
-                        snapAnimY.from = root._cropY; snapAnimY.to = 0.5; snapAnimY.start()
+                        snapAnimX.stop(); snapAnimX.from = root._cropX; snapAnimX.to = 0.5; snapAnimX.start()
+                        snapAnimY.stop(); snapAnimY.from = root._cropY; snapAnimY.to = 0.5; snapAnimY.start()
                     }
                 }
             }
