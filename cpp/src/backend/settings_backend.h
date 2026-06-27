@@ -27,6 +27,8 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(QString customBgPath READ customBgPath WRITE setCustomBgPath NOTIFY customBgChanged)
     Q_PROPERTY(qreal sidebarOpacity READ sidebarOpacity WRITE setSidebarOpacity NOTIFY customBgChanged)
     Q_PROPERTY(qreal contentOpacity READ contentOpacity WRITE setContentOpacity NOTIFY customBgChanged)
+    Q_PROPERTY(qreal cropX READ cropX WRITE setCropX NOTIFY customBgChanged)
+    Q_PROPERTY(qreal cropY READ cropY WRITE setCropY NOTIFY customBgChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -88,6 +90,10 @@ public:
     void setSidebarOpacity(qreal v) { m_sidebarOpacity = v; saveSettings(); emit customBgChanged(); }
     qreal contentOpacity() const { return m_contentOpacity; }
     void setContentOpacity(qreal v) { m_contentOpacity = v; saveSettings(); emit customBgChanged(); }
+    qreal cropX() const { return m_cropX; }
+    void setCropX(qreal v) { m_cropX = qBound(0.0, v, 1.0); saveSettings(); emit customBgChanged(); }
+    qreal cropY() const { return m_cropY; }
+    void setCropY(qreal v) { m_cropY = qBound(0.0, v, 1.0); saveSettings(); emit customBgChanged(); }
     void setIsolationGameDir(const QString& dir);
     VersionIsolation* isolation() const { return m_isolation; }
 
@@ -141,6 +147,8 @@ private:
     QString m_customBgPath;
     qreal m_sidebarOpacity = 0.90;
     qreal m_contentOpacity = 0.70;
+    qreal m_cropX = 0.5;
+    qreal m_cropY = 0.5;
 
     // Cache for Java scan results (expensive operation)
     QVector<JavaInfo> m_cachedJavaList;

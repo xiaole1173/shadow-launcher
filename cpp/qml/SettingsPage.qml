@@ -504,13 +504,24 @@ Rectangle {
                             }
                         }
 
-                        // Preview thumbnail
+                        // Preview thumbnail (click to adjust crop)
                         Image {
+                            id: bgPreview
                             Layout.fillWidth: true; Layout.preferredHeight: 100
                             visible: hasBg
                             source: hasBg ? backend.customBgPath : ""
                             fillMode: Image.PreserveAspectFit
                             cache: false; asynchronous: true
+                        }
+                        MouseArea {
+                            anchors.fill: bgPreview; visible: hasBg
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (bgCropOverlay.active) bgCropOverlay.item.open() }
+                        }
+                        Rectangle {
+                            opacity: hasBg ? 0 : 0
+                            anchors.fill: bgPreview
+                            color: "transparent"; border.color: "#3a5ed0"; border.width: 1.5; radius: 4
                         }
                         Rectangle { visible: hasBg; Layout.fillWidth: true; height: 1; color: "#1a1f2a" }
 
@@ -604,6 +615,21 @@ Rectangle {
                 }
                 Item { Layout.fillHeight: true }
             }
+        }
+    }
+
+    // ── Background crop overlay ──
+    Loader {
+        id: bgCropOverlay
+        active: false
+        sourceComponent: bgCropComp
+        anchors.fill: parent; z: 10
+    }
+    Component {
+        id: bgCropComp
+        BackgroundCropOverlay {
+            anchors.fill: parent
+            onClosed: bgCropOverlay.active = false
         }
     }
 }

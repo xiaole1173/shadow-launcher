@@ -207,13 +207,29 @@ Window {
         clip: true
 
         // ── Custom background image (clipped by container radius) ──
-        Image {
+        Item {
+            id: bgFrame
             anchors.fill: parent; z: -2
             visible: hasCustomBg
-            source: hasCustomBg ? backend.customBgPath : ""
-            fillMode: Image.PreserveAspectCrop
-            cache: false
-            asynchronous: true
+            readonly property real cropX: hasCustomBg && backend && typeof backend.cropX === "number" ? backend.cropX : 0.5
+            readonly property real cropY: hasCustomBg && backend && typeof backend.cropY === "number" ? backend.cropY : 0.5
+
+            Image {
+                id: bgImage
+                source: hasCustomBg ? backend.customBgPath : ""
+                fillMode: Image.PreserveAspectFit
+                transformOrigin: Item.TopLeft
+                cache: false; asynchronous: true
+
+                readonly property real _s: Math.max(bgFrame.width / Math.max(implicitWidth, 1),
+                                                     bgFrame.height / Math.max(implicitHeight, 1))
+                readonly property real _overX: Math.max(0, implicitWidth * _s - bgFrame.width)
+                readonly property real _overY: Math.max(0, implicitHeight * _s - bgFrame.height)
+
+                scale: _s
+                x: (bgFrame.width - implicitWidth * _s) / 2 + _overX * (0.5 - bgFrame.cropX)
+                y: (bgFrame.height - implicitHeight * _s) / 2 + _overY * (0.5 - bgFrame.cropY)
+            }
         }
 
         // ── Dark mask overlay ──
