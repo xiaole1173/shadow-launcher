@@ -151,14 +151,28 @@ VersionBackend::VersionBackend(QObject* parent)
                 if (i == 7 && ses.fabricApiPending) continue;
                 updateStep(mlId, i, QStringLiteral("completed"), 100);
             }
+            // Force progress to 1.0 (EMA may lag on instant/cached completion)
+            ses.totalProgress = 1.0;
+            ses.smoothProgress = 1.0;
             // Merged install complete — delete residual vanilla MC version folder
             if (ses.isMerged) {
-                // Synthetic install is self-contained — safe to delete base MC folder
-                QString vanillaVerDir = m_gameDir + "/versions/" + ses.mcVersion;
-                QDir vd(vanillaVerDir);
-                if (vd.exists()) {
-                    vd.removeRecursively();
-                    emit logMessage(tr("✓ 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                // Only cleanup if no other active merged session shares this MC version
+                bool otherUsingSameMC = false;
+                for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+                    if (it.key() != mlId && it.value().isMerged && it.value().mcVersion == ses.mcVersion) {
+                        otherUsingSameMC = true;
+                        break;
+                    }
+                }
+                if (!otherUsingSameMC) {
+                    QString vanillaVerDir = m_gameDir + "/versions/" + ses.mcVersion;
+                    QDir vd(vanillaVerDir);
+                    if (vd.exists()) {
+                        vd.removeRecursively();
+                        emit logMessage(tr("✓ 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                    }
+                } else {
+                    qCDebug(logVersion) << "Skipping MC cleanup:" << ses.mcVersion << "still in use by other install";
                 }
                 ses.isMerged = false;
                 ses.mcVersion.clear();
@@ -201,12 +215,22 @@ VersionBackend::VersionBackend(QObject* parent)
                 }
             }
             if (ses.isMerged) {
-                // Clean up residual vanilla MC version folder on failure too
-                QString vanillaVerDir = m_gameDir + "/versions/" + ses.mcVersion;
-                QDir vd(vanillaVerDir);
-                if (vd.exists()) {
-                    vd.removeRecursively();
-                    emit logMessage(tr("清理残留原版文件夹: %1").arg(vanillaVerDir));
+                // Clean up residual vanilla MC version folder on failure — only if no
+                // other active merged install still uses this MC version
+                bool otherUsingSameMC = false;
+                for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+                    if (it.key() != mlId && it.value().isMerged && it.value().mcVersion == ses.mcVersion) {
+                        otherUsingSameMC = true;
+                        break;
+                    }
+                }
+                if (!otherUsingSameMC) {
+                    QString vanillaVerDir = m_gameDir + "/versions/" + ses.mcVersion;
+                    QDir vd(vanillaVerDir);
+                    if (vd.exists()) {
+                        vd.removeRecursively();
+                        emit logMessage(tr("清理残留原版文件夹: %1").arg(vanillaVerDir));
+                    }
                 }
                 ses.isMerged = false;
                 ses.mcVersion.clear();
@@ -1203,7 +1227,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
             for (int ci = 0; ci < 3; ci++) {
                 if (mSes.mcStepTotal[ci] > 0) {
                     int pct = (int)(mSes.mcStepDone[ci] * 100 / mSes.mcStepTotal[ci]);
-                    updateStep(mergedSessionId, ci, QStringLiteral("active"), pct,
+                    QString st = (pct >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
+                    updateStep(mergedSessionId, ci, st, pct,
                                mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
                 }
             }

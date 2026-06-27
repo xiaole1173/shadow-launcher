@@ -136,11 +136,16 @@ Window {
             // Keep nav visible for a moment, will be hidden when user switches away
         }
         function onInstallComplete(installName) {
-            console.log("[main] installComplete:", installName)
+            console.log("[main] installComplete:", installName, "installing=", backend.installing)
             if (toastManager) {
                 toastManager.show(installName + " 下载完成")
             }
-            hideDownloadNav()
+            // Only hide download nav when NO installs are still active
+            if (!backend.installing) {
+                hideDownloadNav()
+            } else {
+                console.log("[main] installComplete: keeping download nav visible (other installs still active)")
+            }
         }
         function onResourceDownloadStateChanged() {
             console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)

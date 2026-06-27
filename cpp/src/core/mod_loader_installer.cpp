@@ -1181,11 +1181,7 @@ void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {
                 }
             }
 
-            // Cleanup vanilla MC version folder (standalone JSON + jar already copied)
-            qDebug() << "[ModLoader] Cleaning up vanilla MC folder:" << m_mcVersion;
-            QString vanillaVersionDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
-            cleanupAfterInstall({ vanillaVersionDir });
-
+            // Vanilla MC cleanup deferred to VersionBackend (avoids race with other installs)
             emit finished(true, QString());
         } else {
             QString detail = (stdoutStr + QStringLiteral(" ") + stderrStr).trimmed();
@@ -1449,11 +1445,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
         }
     }
 
-    // Cleanup vanilla MC version folder (standalone JSON + jar already copied)
-    qDebug() << "[ModLoader] Cleaning up vanilla MC folder:" << m_mcVersion;
-    QString vanillaVersionDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
-    cleanupAfterInstall({ vanillaVersionDir });
-
+    // Vanilla MC cleanup deferred to VersionBackend (avoids race with other installs)
     qDebug() << "[ModLoader] Fabric version JSON:" << jsonPath;
     emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
     emit finished(true, QString());
