@@ -132,9 +132,9 @@ VersionBackend::VersionBackend(QObject* parent)
             qreal raw = percentage / 100.0;
             ses.totalProgress = raw;
             if (ses.smoothProgress <= 0.0)
-                ses.smoothProgress = raw * 0.3;
+                ses.smoothProgress = raw * 0.7;
             else
-                ses.smoothProgress = ses.smoothProgress * 0.7 + raw * 0.3;
+                ses.smoothProgress = ses.smoothProgress * 0.3 + raw * 0.7;
                                     rebuildInstallCards();
         }
     });
