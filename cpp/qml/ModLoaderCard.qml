@@ -72,7 +72,7 @@ Rectangle {
             Text { text: card.title; font.pixelSize: 14; font.weight: Font.DemiBold; color: cardDisabled ? "#687080" : "#e4e8f2" }
             // Optional badge (e.g. "建议安装")
             Rectangle {
-                visible: card.badgeText !== ""
+                visible: card.badgeText !== "" && !cardDisabled
                 implicitWidth: badgeLabel.implicitWidth + 12; implicitHeight: 20; radius: 4
                 color: "#1a2e1a"; border.color: "#3a6830"; border.width: 1
                 Text { id: badgeLabel; anchors.centerIn: parent; text: card.badgeText; font.pixelSize: 10; color: "#60b050" }
