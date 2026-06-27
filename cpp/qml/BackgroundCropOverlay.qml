@@ -100,7 +100,7 @@ Rectangle {
                 MouseArea {
                     id: closeHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: { root.opacity = 0; root.closed() }
+                    onClicked: { root.opacity = 0; closeTimer.start() }
                 }
             }
         }
@@ -272,7 +272,7 @@ Rectangle {
                 MouseArea {
                     id: cancelHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: { root.opacity = 0; root.closed() }
+                    onClicked: { root.opacity = 0; closeTimer.start() }
                 }
             }
 
@@ -289,14 +289,20 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (backend) {
-                            backend.setCropX(root._cropX)
-                            backend.setCropY(root._cropY)
+                            backend.cropX = root._cropX
+                            backend.cropY = root._cropY
                         }
                         root.opacity = 0
-                        root.closed()
+                        closeTimer.start()
                     }
                 }
             }
         }
+    }
+
+    Timer {
+        id: closeTimer
+        interval: 250
+        onTriggered: root.closed()
     }
 }
