@@ -592,7 +592,7 @@ Window {
 
     Timer {
         id: pageFadeInTimer
-        interval: 300  // Overlay almost gone
+        interval: 150  // start brightening while overlay still fading
         onTriggered: { pageFadeInAnim.start() }
     }
 
