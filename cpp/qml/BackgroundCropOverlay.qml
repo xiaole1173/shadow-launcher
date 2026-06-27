@@ -30,6 +30,15 @@ Rectangle {
     property real _cropX: 0.5
     property real _cropY: 0.5
 
+    Behavior on _cropX {
+        enabled: !dragArea.pressed
+        SpringAnimation { spring: 1.5; damping: 0.25; epsilon: 0.01 }
+    }
+    Behavior on _cropY {
+        enabled: !dragArea.pressed
+        SpringAnimation { spring: 1.5; damping: 0.25; epsilon: 0.01 }
+    }
+
     // ── Drag state ──
     property real _dragStartX: 0
     property real _dragStartY: 0
