@@ -331,16 +331,25 @@ Rectangle {
             // ── Version groups ──
             Repeater {
                 model: !modDetailLoading ? grouped : []
-                delegate: Column {
-                    Layout.fillWidth: true; spacing: 6
+                delegate: Rectangle {
+                    id: groupCard
+                    Layout.fillWidth: true
+                    height: isExpanded(modelData.major) ? (40 + subColumn.implicitHeight) : 40
+                    clip: true; color: "transparent"
+                    Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                    property bool _hovered: false
+
+                    Column {
+                        id: subColumn
+                        width: parent.width; spacing: 6
 
                     // Group header card (same style as version cards)
                     Rectangle {
                         id: grpHeader
                         width: parent.width; height: 40; radius: 8
-                        color: grpHover.containsMouse ? "#161a26" : "#11141c"
-                        border.color: grpHover.containsMouse ? "#3a5ed0" : "#1e2230"
-                        border.width: grpHover.containsMouse ? 1.5 : 1
+                        color: groupCard._hovered ? "#161a26" : "#11141c"
+                        border.color: groupCard._hovered ? "#3a5ed0" : "#1e2230"
+                        border.width: groupCard._hovered ? 1.5 : 1
 
                         property real _eScale: 1.0
                         transform: Scale {
@@ -360,7 +369,7 @@ Rectangle {
 
                         Rectangle {
                             anchors.fill: parent; radius: parent.radius
-                            opacity: grpHover.containsMouse ? 0.12 : 0
+                            opacity: groupCard._hovered ? 0.12 : 0
                             gradient: Gradient {
                                 GradientStop { position: 0; color: "#5068c8" }
                                 GradientStop { position: 1; color: "#6080d8" }
@@ -380,10 +389,12 @@ Rectangle {
                                 color: "#505468"; font.pixelSize: 10
                             }
                         }
-                        MouseArea {
-                            id: grpHover; anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
+                        HoverHandler {
+                            onHoveredChanged: groupCard._hovered = hovered
+                        }
+                        TapHandler {
+                            cursorShape: Qt.PointingHandCursor
+                            onTapped: {
                                 grpHeader._eScale = 0.94
                                 grpRestoreTimer.restart()
                                 toggleGroup(modelData.major)
@@ -393,7 +404,7 @@ Rectangle {
 
                     // Sub-versions
                     Repeater {
-                        model: isExpanded(modelData.major) ? modelData.versions : []
+                        model: modelData.versions
                         delegate: DetailVersionCard {
                             width: parent.width - 24
                             x: 24
@@ -451,6 +462,7 @@ Rectangle {
                             }
                     }
                 }
+            }
             }
 
             Item { Layout.fillWidth: true; height: 40 }

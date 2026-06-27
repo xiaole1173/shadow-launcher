@@ -13,9 +13,9 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: Math.max(52, contentLayout.implicitHeight + 20)
     radius: 8
-    color: cardHov.containsMouse ? "#161a26" : "#11141c"
-    border.color: cardHov.containsMouse ? "#4068c8" : "#1e2230"
-    border.width: cardHov.containsMouse ? 1.5 : 1
+    color: card.cardHovered ? "#161a26" : "#11141c"
+    border.color: card.cardHovered ? "#4068c8" : "#1e2230"
+    border.width: card.cardHovered ? 1.5 : 1
 
     // ── Opacity fade-in entrance ──
     opacity: 0
@@ -52,10 +52,13 @@ Rectangle {
         SpringAnimation { spring: 1.8; damping: 0.25; epsilon: 0.01 }
     }
 
+    // ── Hover state (replaces MouseArea.containsMouse) ──
+    property bool cardHovered: false
+
     // ── Hover gradient overlay ──
     Rectangle {
         anchors.fill: parent; radius: parent.radius
-        opacity: cardHov.containsMouse ? 0.12 : 0
+        opacity: card.cardHovered ? 0.12 : 0
         gradient: Gradient {
             GradientStop { position: 0; color: "#5068c8" }
             GradientStop { position: 1; color: "#6080d8" }
@@ -63,12 +66,14 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
     }
 
-    MouseArea {
+    HoverHandler {
         id: cardHov
-        anchors.fill: parent
-        hoverEnabled: true
+        onHoveredChanged: card.cardHovered = hovered
+    }
+
+    TapHandler {
         cursorShape: hasDownload ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: {
+        onTapped: {
             if (hasDownload) {
                 card._clickScale = 0.92
                 clickRestoreTimer.restart()
