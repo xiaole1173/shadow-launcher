@@ -32,7 +32,7 @@ Rectangle {
     readonly property int headerH: 40
 
     // ── Animations ──
-    Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
     Behavior on color { ColorAnimation { duration: 200 } }
     Behavior on border.color { ColorAnimation { duration: 200 } }
     Behavior on border.width { NumberAnimation { duration: 150 } }
@@ -75,6 +75,6 @@ Rectangle {
     // ── Content area (always laid out, clipped by card height) ──
     Column {
         id: contentColumn
-        anchors { top: headerBar.bottom; left: parent.left; right: parent.right }
+        anchors { top: headerBar.bottom; left: parent.left; right: parent.right; rightMargin: 8 }
     }
 }
