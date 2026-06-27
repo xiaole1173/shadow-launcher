@@ -2929,6 +2929,14 @@ void VersionBackend::doRebuildInstallCards() {
             auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
             auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
 
+            // When all 3 download categories are done but verify hasn't started yet,
+            // proactively show the verify step as active (bridges the gap).
+            bool catsDone = !verifying && st.bytesDl > 0;
+            for (int ci = 0; ci < 3 && catsDone; ci++) {
+                if (st.catBytesTotal[ci] <= 0 || st.catBytesDl[ci] < st.catBytesTotal[ci])
+                    catsDone = false;
+            }
+
             // JSON downloaded separately before parallel start: completed once download begins
             addVStep(tr("下载版本JSON"),
                      verifying ? QStringLiteral("completed")
@@ -2941,7 +2949,7 @@ void VersionBackend::doRebuildInstallCards() {
             addVStep(tr("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
                      (st.catBytesTotal[2] > 0) ? (int)(st.catBytesDl[2] * 100 / st.catBytesTotal[2]) : 0, catDl(2), catTot(2));
             addVStep(tr("校验游戏资源完整性"),
-                     verifying ? QStringLiteral("active") : QStringLiteral("pending"),
+                     (verifying || catsDone) ? QStringLiteral("active") : QStringLiteral("pending"),
                      verifying ? (st.total > 0 ? (int)(st.progress * 100 / st.total) : 0) : 0,
                      verifying ? st.progress : qint64(0),
                      verifying ? st.total : qint64(0));
