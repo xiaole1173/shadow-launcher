@@ -198,6 +198,9 @@ public:
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName);
     Q_INVOKABLE void installOptifineJar(const QString& mcVersion, const QString& optifineVersion);
+    void finishOptifineMerged(const QString& mcVersion, const QString& installName);
+    void delegateOptifineInstall(const QString& mcVersion, const QString& installName,
+                                  const QByteArray& jarData);
     Q_INVOKABLE void cancelModLoaderInstall();
     Q_INVOKABLE bool isModLoaderInstalling() const;
 

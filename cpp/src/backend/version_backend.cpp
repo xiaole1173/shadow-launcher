@@ -892,8 +892,14 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (ses.hasPendingLoader && success && ses.pendingLoaderMc == finishedId) {
             qDebug() << "[install] MC" << finishedId << "installed, starting pending loader:" << ses.pendingLoaderName;
             ses.hasPendingLoader = false;
+            m_modLoaderInstallId = ses.pendingLoaderName;
             if (ses.pendingLoaderType == QStringLiteral("optifine")) {
-                installOptifine(ses.pendingLoaderMc, ses.pendingLoaderVer, QString(), ses.pendingLoaderName);
+                if (ses.isMerged) {
+                    // Merged MC+OptiFine: MC steps 0-2 done, now download OptiFine JAR (step 3)
+                    finishOptifineMerged(ses.pendingLoaderMc, ses.pendingLoaderName);
+                } else {
+                    installOptifine(ses.pendingLoaderMc, ses.pendingLoaderVer, QString(), ses.pendingLoaderName);
+                }
             } else {
                 installModLoader(ses.pendingLoaderMc, ses.pendingLoaderType, ses.pendingLoaderVer, ses.pendingLoaderName);
             }
@@ -2094,20 +2100,53 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         const QString& forgeVersion, const QString& installName) {
     if (!m_mlInstaller) return;
 
+    // FIX: Set m_modLoaderInstallId so progress signals are not dropped
+    m_modLoaderInstallId = installName;
     auto& ses = session(installName);
+    ses.failed = false;
+    ses.error.clear();
 
     // Ensure vanilla MC is installed first
     if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
         qDebug() << "[install] Vanilla MC" << mcVersion << "not installed for Optifine, downloading first...";
+        ses.isMerged = true;
+        ses.mcVersion = mcVersion;
+        ses.loaderType = QStringLiteral("optifine");
+        ses.loaderVer = optifineVersion;
+        ses.hasPendingLoader = true;
         ses.pendingLoaderMc = mcVersion;
         ses.pendingLoaderType = QStringLiteral("optifine");
         ses.pendingLoaderVer = optifineVersion;
         ses.pendingLoaderName = installName;
-        ses.hasPendingLoader = true;
-        // Also store forge version so the callback knows
+        // Reset byte accumulators for merged install
+        for (int i = 0; i < 3; i++) { ses.mcStepDone[i] = 0; ses.mcStepTotal[i] = 0; }
+        ses.mcFileAdded.clear();
+
+        // Build 5-step card: MC JSON + MC libs + MC assets + OptiFine JAR + Install
+        rebuildSteps(installName, {
+            tr("下载原版 JSON 文件"),
+            tr("下载原版支持库文件"),
+            tr("下载原版资源文件"),
+            tr("下载 OptiFine 主文件"),
+            tr("安装 OptiFine")
+        }, {1.0, 8.0, 5.0, 3.0, 1.0},
+         {true, true, true, true, false});  // step 4 (install) hidden until downloads done
+
+        updateStep(installName, 0, QStringLiteral("active"), 0);
+        ses.loadedStep = 1;
+
+        setInstalling(true);
+        setInstallPhase(tr("下载原版 MC..."));
         installVersion(mcVersion, 0);
         return;
     }
+
+    // MC already installed — 2-step OptiFine only
+    rebuildSteps(installName, {
+        tr("下载 OptiFine 主文件"),
+        tr("安装 OptiFine")
+    }, {3.0, 1.0}, {true, true});
+    updateStep(installName, 0, QStringLiteral("active"), 0);
 
     m_mlInstaller->setGameDir(m_gameDir);
     // Respect version isolation for mods/ output
@@ -2142,6 +2181,101 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     });
     coord->start();
     return;
+}
+
+void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QString& installName) {
+    // MC steps 0-2 done. Download OptiFine JAR (step 3), then delegate to ModLoaderInstaller (step 4).
+    auto& ses = session(installName);
+    QString optifineVersion = ses.loaderVer;
+    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+
+    showStep(installName, 3);
+    updateStep(installName, 3, QStringLiteral("active"), 0, 0, 0);
+    setInstallPhase(tr("下载 OptiFine 主文件..."));
+
+    auto* nam = new QNetworkAccessManager(this);
+    auto* reply = nam->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::downloadProgress, this,
+        [this, installName](qint64 received, qint64 total) {
+            int pct = total > 0 ? (int)(received * 100 / total) : 0;
+            updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+        });
+    connect(reply, &QNetworkReply::finished, this,
+        [this, reply, nam, installName, mcVersion, filename]() {
+            reply->deleteLater();
+            if (reply->error() != QNetworkReply::NoError) {
+                // Fallback to official
+                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+                auto* r2 = nam->get(QNetworkRequest(offUrl));
+                connect(r2, &QNetworkReply::downloadProgress, this,
+                    [this, installName](qint64 received, qint64 total) {
+                        int pct = total > 0 ? (int)(received * 100 / total) : 0;
+                        updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+                    });
+                connect(r2, &QNetworkReply::finished, this,
+                    [this, r2, nam, installName, mcVersion]() {
+                        r2->deleteLater();
+                        nam->deleteLater();
+                        if (r2->error() != QNetworkReply::NoError) {
+                            emit logMessage(tr("✗ OptiFine 下载失败（所有源）"));
+                            updateStep(installName, 3, QStringLiteral("failed"), 0);
+                            auto& ses = session(installName);
+                            ses.failed = true;
+                            ses.error = tr("OptiFine 下载失败");
+                            rebuildInstallCards();
+                            setInstalling(false);
+                            return;
+                        }
+                        QByteArray jarData = r2->readAll();
+                        updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
+                        delegateOptifineInstall(mcVersion, installName, jarData);
+                    });
+                return;
+            }
+            QByteArray jarData = reply->readAll();
+            updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
+            nam->deleteLater();
+            delegateOptifineInstall(mcVersion, installName, jarData);
+        });
+}
+
+void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QString& installName,
+                                              const QByteArray& jarData) {
+    showStep(installName, 4);
+    updateStep(installName, 4, QStringLiteral("active"), 0);
+    setInstallPhase(tr("安装 OptiFine..."));
+
+    m_mlInstaller->setGameDir(m_gameDir);
+    if (m_isolation && m_isolation->isVersionIsolated(installName)) {
+        m_mlInstaller->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
+    } else {
+        m_mlInstaller->setModsDir(QString());
+    }
+
+    // Connect BEFORE calling installOptifineFromJar so our callback fires first
+    // and updates m_modLoaderInstallId before the main handler emits installComplete
+    QMetaObject::Connection* conn = new QMetaObject::Connection;
+    *conn = connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
+        [this, conn, mcVersion](bool success, const QString&) {
+            disconnect(*conn);
+            delete conn;
+            if (!success) return;
+            // Scan versions dir for the actual OptiFine folder name (Problem 3 fix)
+            QDir verDir(m_gameDir + "/versions");
+            QStringList filters; filters << ("*OptiFine*");
+            QStringList found = verDir.entryList(filters, QDir::Dirs | QDir::NoDotAndDotDot);
+            QString actualId;
+            for (const QString& f : found) {
+                if (f != mcVersion) { actualId = f; break; }
+            }
+            if (!actualId.isEmpty() && actualId != m_modLoaderInstallId) {
+                m_modLoaderInstallId = actualId;
+                emit logMessage(tr("✓ OptiFine 版本 ID: %1").arg(actualId));
+            }
+        }, Qt::DirectConnection);  // DirectConnection ensures we fire before queued handlers
+
+    m_mlInstaller->installOptifineFromJar(jarData, mcVersion);
 }
 
 void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion) {

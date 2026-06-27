@@ -305,6 +305,20 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
     }
 }
 
+void ModLoaderInstaller::installOptifineFromJar(const QByteArray& jarData, const QString& mcVersion) {
+    // Called after JAR is already downloaded (by version_backend for merged install)
+    if (m_running) return;
+    m_running = true; m_cancelled = false;
+    m_mcVersion = mcVersion;
+    m_loaderVersion = mcVersion;  // not used for progress
+    m_loaderType = "optifine";
+    m_totalSteps = 1;
+    m_currentStep = 1;
+    emit progressChanged(1, m_totalSteps, tr("正在安装 OptiFine..."));
+    QString filename = QString("OptiFine_%1_installer.jar").arg(mcVersion);
+    optifineStep2_install(jarData, filename);
+}
+
 void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const QString& filename) {
     m_currentStep = 2;
     emit progressChanged(2, m_totalSteps, "正在运行 OptiFine 安装程序...");
