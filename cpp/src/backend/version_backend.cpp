@@ -2919,11 +2919,11 @@ void VersionBackend::doRebuildInstallCards() {
 
             // Always build 4 steps (3 download + 1 verify) — verify stays pending until phase transitions
             auto catStatus = [&](int ci) {
-                if (verifying) return QStringLiteral("active");
-                if (st.catBytesTotal[ci] <= 0) {
-                    // Not yet populated by first file, but overall download is active
+                if (verifying) return QStringLiteral("completed");  // download steps done during verify
+                if (st.catBytesTotal[ci] > 0 && st.catBytesDl[ci] >= st.catBytesTotal[ci])
+                    return QStringLiteral("completed");
+                if (st.catBytesTotal[ci] <= 0)
                     return (st.bytesDl > 0) ? QStringLiteral("active") : QStringLiteral("pending");
-                }
                 return QStringLiteral("active");
             };
             auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
