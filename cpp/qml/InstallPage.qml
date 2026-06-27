@@ -503,9 +503,6 @@ Rectangle {
                 onVersionCleared: { root.selectedOptifine = ""; root.selectedOptifineType = ""; root.selectedOptifinePatch = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
             }
 
-            // Fabric API card follows...
-            }
-
             Item { Layout.fillWidth: true; height: 40 }
         }
     }
