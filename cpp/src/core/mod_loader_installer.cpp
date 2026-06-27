@@ -244,6 +244,8 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
     m_mcVersion = mcVersion; m_loaderVersion = optifineVersion;
     m_installName = installName; m_loaderType = "optifine";
     m_optifineForgeVersion = forgeVersion;
+    m_optifineBmclType = bmclType;
+    m_optifineBmclPatch = bmclPatch;
 
     bool standalone = forgeVersion.isEmpty();
     qDebug() << "[ModLoader] Optifine: MC" << mcVersion << "Opti" << optifineVersion
@@ -317,7 +319,8 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
 }
 
 void ModLoaderInstaller::installOptifineFromJar(const QByteArray& jarData, const QString& mcVersion,
-                                                 const QString& installName) {
+                                                 const QString& installName,
+                                                 const QString& bmclType, const QString& bmclPatch) {
     // Called after JAR is already downloaded (by version_backend for merged install)
     if (m_running) return;
     m_running = true; m_cancelled = false;
@@ -325,6 +328,8 @@ void ModLoaderInstaller::installOptifineFromJar(const QByteArray& jarData, const
     m_installName = installName;
     m_loaderVersion = mcVersion;
     m_loaderType = "optifine";
+    m_optifineBmclType = bmclType;
+    m_optifineBmclPatch = bmclPatch;
     m_totalSteps = 1;
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, tr("正在安装 OptiFine..."));
@@ -347,7 +352,7 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
         return;
     }
 
-    // ── PCL-style: extract versionInfo + bundled JARs without running Java ──
+    // ── Step A: Try PCL extraction (install_profile.json) ──
     QBuffer buffer;
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
@@ -356,29 +361,103 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
         return;
     }
     QZipReader reader(&buffer);
-
-    // 1. Read install_profile.json → get versionInfo
     QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
     QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
 
-    if (profileData.isEmpty() || !profileDoc.isObject()) {
-        // Fallback to legacy javaw installer
-        reader.close();
-        buffer.close();
-        runOptifineInstaller(jarData);
+    // Diagnostic: log JAR contents
+    {
+        const auto& fileList = reader.fileInfoList();
+        QStringList paths;
+        int maxLog = qMin(50, (int)fileList.size());
+        for (int i = 0; i < maxLog; i++) paths << fileList[i].filePath;
+        qDebug() << "[ModLoader] OptiFine JAR entries (" << fileList.size() << "total, first" << maxLog << "):" << paths;
+    }
+
+    if (!profileData.isEmpty() && profileDoc.isObject()) {
+        // Found install_profile.json — use it (reader stays open for extracting JARs)
+        installOptifineFromProfile(profileDoc.object(), reader, jarData);
+        // Reader and buffer cleaned up inside installOptifineFromProfile
         return;
     }
 
-    QJsonObject profile = profileDoc.object();
+    reader.close();
+    buffer.close();
+
+    // ── Step B: Synthetic version JSON (PCL-style without JAR metadata) ──
+    if (!m_optifineBmclType.isEmpty() && !m_optifineBmclPatch.isEmpty()) {
+        installOptifineSynthetic(jarData);
+        return;
+    }
+
+    // ── Step C: Fallback to javaw installer ──
+    runOptifineInstaller(jarData);
+}
+
+// ── Synthetic version JSON construction (no JAR metadata needed) ──
+void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
+    QString libSuffix = m_mcVersion + "_" + m_optifineBmclType + "_" + m_optifineBmclPatch;
+    QString libName = "optifine:OptiFine:" + libSuffix;
+    QString libPath = "optifine/OptiFine/" + libSuffix;
+    QString libJar = "OptiFine-" + libSuffix + ".jar";
+
+    qDebug() << "[ModLoader] OptiFine synthetic install: library =" << libName << libSuffix;
+
+    // 1. Copy JAR to libraries/
+    QString libDir = m_gameDir + "/libraries/" + libPath;
+    QDir().mkpath(libDir);
+    QString libTarget = libDir + "/" + libJar;
+    QFile libFile(libTarget);
+    if (!libFile.open(QIODevice::WriteOnly)) {
+        emit finished(false, "无法写入 OptiFine 库文件");
+        m_running = false;
+        return;
+    }
+    libFile.write(jarData);
+    libFile.close();
+
+    // 2. Create version JSON
+    QString versionId = m_installName;
+    QJsonObject versionJson;
+    versionJson["id"] = versionId;
+    versionJson["inheritsFrom"] = m_mcVersion;
+    versionJson["type"] = "release";
+    versionJson["jar"] = m_mcVersion;
+
+    QJsonObject libObj;
+    libObj["name"] = libName;
+    QJsonArray libraries;
+    libraries.append(libObj);
+    versionJson["libraries"] = libraries;
+
+    // 3. Write to versions/
+    QString verDir = m_gameDir + "/versions/" + versionId;
+    QDir().mkpath(verDir);
+    QFile jsonFile(verDir + "/" + versionId + ".json");
+    if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        emit finished(false, "无法写入版本配置文件");
+        m_running = false;
+        return;
+    }
+    QJsonDocument doc(versionJson);
+    jsonFile.write(doc.toJson(QJsonDocument::Indented));
+    jsonFile.close();
+
+    qDebug() << "[ModLoader] OptiFine synthetic install complete →" << versionId;
+    emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
+    emit finished(true, QString());
+    m_running = false;
+}
+
+// ── Extract from install_profile.json ──
+void ModLoaderInstaller::installOptifineFromProfile(const QJsonObject& profile,
+                                                      const QZipReader& reader,
+                                                      const QByteArray& jarData) {
     QJsonObject versionInfo = profile.value(QStringLiteral("versionInfo")).toObject();
     if (versionInfo.isEmpty()) {
-        reader.close();
-        buffer.close();
         runOptifineInstaller(jarData);
         return;
     }
 
-    // 2. Determine version ID from profile
     QString versionId = versionInfo.value(QStringLiteral("id")).toString();
     if (versionId.isEmpty()) {
         versionId = profile.value(QStringLiteral("install")).toObject()
@@ -388,12 +467,11 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     if (versionId.isEmpty()) versionId = m_installName;
 
     QString verDir = m_gameDir + "/versions/" + versionId;
-
-    // 3. Extract bundled JARs from installer to libraries/
-    //    Mapping: JAR name → library path from versionInfo.libraries[].downloads.artifact.path
     QString libBase = m_gameDir + "/libraries";
+
+    // Extract bundled JARs
     const auto& fileList = reader.fileInfoList();
-    QMap<QString, QByteArray> bundledJars;  // zipPath → bytes
+    QMap<QString, QByteArray> bundledJars;
     for (const auto& info : fileList) {
         QString fp = info.filePath;
         if (!fp.endsWith(QStringLiteral(".jar"))) continue;
@@ -402,7 +480,7 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
         if (!bytes.isEmpty()) bundledJars.insert(fp, bytes);
     }
 
-    // 4. Match bundled JARs to library paths
+    // Match to library paths
     QJsonArray libraries = versionInfo.value(QStringLiteral("libraries")).toArray();
     int copied = 0;
     for (const QJsonValue& lv : libraries) {
@@ -411,83 +489,58 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
                            .value(QStringLiteral("artifact")).toObject()
                            .value(QStringLiteral("path")).toString();
         if (path.isEmpty()) continue;
-
         QString targetPath = libBase + "/" + path;
         if (QFile::exists(targetPath)) continue;
-
-        // Try to find matching JAR: either by path suffix or by filename
         for (auto it = bundledJars.begin(); it != bundledJars.end(); ++it) {
-            QString zipPath = it.key();
-            if (targetPath.endsWith(zipPath) || zipPath.endsWith(QFileInfo(targetPath).fileName())) {
+            if (targetPath.endsWith(it.key()) || it.key().endsWith(QFileInfo(targetPath).fileName())) {
                 QDir().mkpath(QFileInfo(targetPath).absolutePath());
                 QFile out(targetPath);
-                if (out.open(QIODevice::WriteOnly)) {
-                    out.write(it.value());
-                    out.close();
-                    copied++;
-                }
+                if (out.open(QIODevice::WriteOnly)) { out.write(it.value()); out.close(); copied++; }
                 bundledJars.erase(it);
                 break;
             }
         }
     }
 
-    // 5. Place remaining unmatched JARs using filename heuristics
+    // Place unmatched
     for (auto it = bundledJars.begin(); it != bundledJars.end(); ++it) {
         QString fn = QFileInfo(it.key()).fileName();
         QString destDir;
         if (fn.startsWith(QStringLiteral("launchwrapper"))) {
-            QString ver = fn;
-            ver.remove(QStringLiteral("launchwrapper-of-")).remove(QStringLiteral(".jar"));
+            QString ver = fn; ver.remove(QStringLiteral("launchwrapper-of-")).remove(QStringLiteral(".jar"));
             destDir = libBase + "/optifine/launchwrapper-of/" + ver + "/";
         } else {
-            QString base = fn;
-            base.remove(QStringLiteral(".jar"));
-            destDir = libBase + "/optifine/" + base + "/";
+            destDir = libBase + "/optifine/" + fn.remove(QStringLiteral(".jar")) + "/";
         }
         QString targetPath = destDir + fn;
         QDir().mkpath(destDir);
         QFile out(targetPath);
-        if (out.open(QIODevice::WriteOnly)) {
-            out.write(it.value());
-            out.close();
-            copied++;
-        }
+        if (out.open(QIODevice::WriteOnly)) { out.write(it.value()); out.close(); copied++; }
     }
     qDebug() << "[ModLoader] OptiFine PCL extracted" << copied << "bundled JARs";
 
-    reader.close();
-    buffer.close();
-
-    // 6. Write version JSON
+    // Write version JSON
     QDir().mkpath(verDir);
     QFile jsonFile(verDir + "/" + versionId + ".json");
     if (jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QJsonDocument doc(versionInfo);
         jsonFile.write(doc.toJson(QJsonDocument::Indented));
         jsonFile.close();
-    } else {
-        emit finished(false, "无法写入版本配置文件");
-        m_running = false;
-        return;
     }
 
-    // 7. If inheritsFrom is set, copy vanilla JAR as base
+    // Handle inheritsFrom
     QString inherits = versionInfo.value(QStringLiteral("inheritsFrom")).toString();
     if (!inherits.isEmpty() && inherits != versionId) {
         QString srcJar = m_gameDir + "/versions/" + inherits + "/" + inherits + ".jar";
         QString dstJar = verDir + "/" + versionId + ".jar";
-        if (QFile::exists(srcJar) && !QFile::exists(dstJar)) {
-            QFile::copy(srcJar, dstJar);
-        }
+        if (QFile::exists(srcJar) && !QFile::exists(dstJar)) QFile::copy(srcJar, dstJar);
     }
 
-    qDebug() << "[ModLoader] OptiFine PCL install complete →" << versionId;
+    qDebug() << "[ModLoader] OptiFine PCL install (profile) complete →" << versionId;
     emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
     emit finished(true, QString());
     m_running = false;
 }
-
 // ── Fallback: run OptiFine installer via javaw (legacy / incompatible JAR) ──
 void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     qDebug() << "[ModLoader] OptiFine PCL extract failed, falling back to javaw installer";

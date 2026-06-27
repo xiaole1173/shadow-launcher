@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QString>
 #include <QDir>
+
+class QZipReader;
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QElapsedTimer>
@@ -29,7 +31,8 @@ public:
     void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                          const QString& forgeVersion, const QString& installName,
                          const QString& bmclType = QString(), const QString& bmclPatch = QString());
-    void installOptifineFromJar(const QByteArray& jarData, const QString& mcVersion, const QString& installName);
+    void installOptifineFromJar(const QByteArray& jarData, const QString& mcVersion, const QString& installName,
+                                const QString& bmclType = QString(), const QString& bmclPatch = QString());
 
     bool isRunning() const { return m_running; }
     QString loaderVersion() const { return m_loaderVersion; }
@@ -109,6 +112,9 @@ private:
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
     void runOptifineInstaller(const QByteArray& jarData);  // javaw fallback
+    void installOptifineSynthetic(const QByteArray& jarData);  // PCL: construct from type+patch
+    void installOptifineFromProfile(const QJsonObject& profile, const QZipReader& reader,
+                                      const QByteArray& jarData);  // PCL: extract from profile
 
     // ── state ──
     QString m_gameDir;
@@ -116,6 +122,8 @@ private:
     QString m_mcVersion;
     QString m_loaderVersion;
     QString m_installName;
+    QString m_optifineBmclType;   // BMCLAPI type for OptiFine library path
+    QString m_optifineBmclPatch;  // BMCLAPI patch for OptiFine library path
     QString m_loaderType;
     int m_currentStep = 0;
     int m_totalSteps = 0;

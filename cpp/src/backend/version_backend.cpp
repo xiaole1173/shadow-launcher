@@ -162,6 +162,18 @@ VersionBackend::VersionBackend(QObject* parent)
             setInstallPhase(tr("完成"));
             updateInstalledList();
 
+            // Only emit "all done" if all sessions are complete
+            bool allDone = true;
+            for (auto& s : m_sessions) {
+                if (s.hasPendingLoader || (s.optifineJarParallel && s.isMerged)) {
+                    allDone = false; break;
+                }
+            }
+            if (allDone) {
+                m_installSpeed = 0;
+                emit logMessage(tr("🎉 所有版本安装完成！"));
+            }
+
             // If Fabric API is still downloading in parallel, don't finalize yet
             if (ses.fabricApiPending) {
                 qDebug() << "[install] Fabric loader done, waiting for parallel API download";
@@ -901,10 +913,12 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         }
         if (!anyMergedLaunched) {
             setInstalling(false);
+            setInstallPhase(tr("完成"));
+            m_installSpeed = 0;
+            emit logMessage(tr("🎉 所有版本安装完成！"));
         }
-        setInstallPhase(tr("完成"));
-        m_installSpeed = 0;
-                emit logMessage(tr("🎉 所有版本安装完成！"));
+        // When anyMergedLaunched is true, the OptiFine installer is still running
+        // — completion announcement is deferred to onModLoaderFinished
     } else {
         // Still have active downloads — sync primary display AND notify QML to re-read
         syncPrimaryProgress();
@@ -2298,6 +2312,7 @@ void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QStrin
 
 void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QString& installName,
                                               const QByteArray& jarData) {
+    auto& ses = session(installName);
     showStep(installName, 4);
     updateStep(installName, 4, QStringLiteral("active"), 0);
     setInstallPhase(tr("安装 OptiFine..."));
@@ -2335,7 +2350,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
             }
         }, Qt::DirectConnection);  // DirectConnection ensures we fire before queued handlers
 
-    m_mlInstaller->installOptifineFromJar(jarData, mcVersion, installName);
+    m_mlInstaller->installOptifineFromJar(jarData, mcVersion, installName, ses.bmclType, ses.bmclPatch);
 }
 
 void VersionBackend::startOptifineJarParallel(const QString& installName, const QString& mcVersion,
