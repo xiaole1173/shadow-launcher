@@ -26,6 +26,7 @@ Rectangle {
     property string disabledReason: ""
     property string selectedVersion: ""
     property var versions: []
+    property var versionEnabled: function(ver) { return true }  // per-item enable/disable for OptiFine-Forge compat
     property bool expanded: false
     property bool cardHovered: false
     property bool cardDisabled: disabled
@@ -120,8 +121,11 @@ Rectangle {
             boundsBehavior: Flickable.StopAtBounds
 
             delegate: Rectangle {
+                // Read per-item enabled BEFORE binding (capture outside)
+                readonly property bool itemEnabled: card.versionEnabled(modelData.version)
                 width: versionListView.width; height: itemRowH; radius: 6
-                color: hoverDeleg.containsMouse ? "#1a2440" : "transparent"
+                opacity: itemEnabled ? 1.0 : 0.35
+                color: hoverDeleg.containsMouse ? (itemEnabled ? "#1a2440" : "#151520") : "transparent"
                 border.color: card.selectedVersion === modelData.version ? "#3a50b0" : "transparent"
                 border.width: card.selectedVersion === modelData.version ? 1 : 0
 
@@ -141,8 +145,8 @@ Rectangle {
                     }
                     Text { text: modelData.date || ""; font.pixelSize: 11; color: "#787c90" }
                 }
-                HoverHandler { id: hoverDeleg }
-                TapHandler { cursorShape: Qt.PointingHandCursor; onTapped: { card.versionSelected(modelData.version); card.expanded = false } }
+                HoverHandler { id: hoverDeleg; enabled: itemEnabled }
+                TapHandler { cursorShape: itemEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onTapped: { if (itemEnabled) { card.versionSelected(modelData.version); card.expanded = false } } }
             }
 
             Text {

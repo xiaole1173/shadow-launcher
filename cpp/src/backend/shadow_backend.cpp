@@ -1774,6 +1774,8 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
                 // Preserve BMCLAPI type/patch for correct download URL construction
                 m["bmclType"] = obj.value("type").toString();
                 m["bmclPatch"] = obj.value("patch").toString();
+                // Forge compatibility: "Forge 61.0.8", "Forge N/A", or empty
+                m["forge"] = obj.value("forge").toString();
                 list.append(m);
             }
             return list;

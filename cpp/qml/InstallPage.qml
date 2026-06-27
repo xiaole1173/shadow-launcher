@@ -116,6 +116,51 @@ Rectangle {
     property string selectedFabricApiUrl: ""
     property string selectedFabricApiFile: ""
     property string activeLoader: ""
+    property string customName: ""
+
+    // ── OptiFine-Forge compatibility ──
+    function getOptifineForge(optiVer) {
+        var found = optifineVersions.find(function(v) { return v.version === optiVer })
+        if (!found) return ""
+        var f = found.forge || ""
+        // "Forge 61.0.8" → "61.0.8"; "Forge N/A" → "N/A"
+        if (f === "Forge N/A" || f === "N/A" || f === "") return "N/A"
+        var m = f.match(/Forge\s+(.+)/)
+        return m ? m[1] : f
+    }
+
+    // True when NO OptiFine version has ANY valid Forge compatibility
+    readonly property bool allOptifineForgeNA: {
+        if (optifineVersions.length === 0) return false
+        return !optifineVersions.some(function(v) {
+            var f = v.forge || ""
+            return f !== "" && f !== "Forge N/A" && f !== "N/A"
+        })
+    }
+
+    // The Forge version required by the selected OptiFine (empty if none or N/A)
+    readonly property string optifineForgeCompat: {
+        if (!selectedOptifine) return ""
+        var fv = getOptifineForge(selectedOptifine)
+        return (fv === "N/A" || fv === "") ? "N/A" : fv
+    }
+
+    // Filtered Forge versions (only compatible with selected OptiFine)
+    readonly property var forgeVersionsFiltered: {
+        if (!selectedOptifine) return forgeVersions
+        if (optifineForgeCompat === "N/A" || optifineForgeCompat === "") return []
+        return forgeVersions.filter(function(v) {
+            return v.version === optifineForgeCompat
+        })
+    }
+
+    // Per-item enable check for OptiFine: when Forge is selected, only compatible OptiFine enabled
+    function optifineItemEnabled(optiVer) {
+        if (!selectedForge) return true
+        var fv = getOptifineForge(optiVer)
+        if (fv === "N/A" || fv === "") return false
+        return fv === selectedForge
+    }
 
     property var forgeVersions: []
     property var neoforgeVersions: []
@@ -369,9 +414,17 @@ Rectangle {
             // Forge
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Forge"; loaderKey: "forge"
-                versions: root.forgeLoading ? [{version: "Loading...", type: "", date: ""}] : root.forgeVersions
+                versions: root.forgeLoading ? [{version: "Loading...", type: "", date: ""}] :
+                          (root.selectedOptifine ? root.forgeVersionsFiltered : root.forgeVersions)
                 disabled: root.hasModLoader && root.activeLoader !== "forge"
-                disabledReason: root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d" : root.activeLoader === "fabric" ? "Fabric \u5df2\u9009\u4e2d" : root.selectedOptifine ? "\u4e0e Optifine \u4e0d\u517c\u5bb9" : ""
+                    || (root.optifineForgeCompat === "N/A")
+                    || (root.selectedOptifine && root.forgeVersionsFiltered.length === 0)
+                disabledReason: root.activeLoader === "neoforge" ? "NeoForge \u5df2\u9009\u4e2d"
+                    : root.activeLoader === "fabric" ? "Fabric \u5df2\u9009\u4e2d"
+                    : root.optifineForgeCompat === "N/A" ? "\u6240\u9009 OptiFine \u4e0d\u517c\u5bb9\u4efb\u4f55 Forge"
+                    : (root.selectedOptifine && root.forgeVersionsFiltered.length === 0) ? "\u65e0\u517c\u5bb9\u6b64 OptiFine \u7684 Forge \u7248\u672c"
+                    : root.allOptifineForgeNA ? "\u6b64 MC \u7248\u672c\u65e0 OptiFine \u517c\u5bb9 Forge"
+                    : ""
                 selectedVersion: root.selectedForge
                 onVersionSelected: function(ver) { root.selectedForge = ver; root.activeLoader = "forge"; root.customName = ""; if (backend) backend.logMessage("[install] Forge: " + ver) }
                 onVersionCleared: { root.selectedForge = ""; root.activeLoader = ""; root.customName = "" }
@@ -431,6 +484,7 @@ Rectangle {
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Optifine"; loaderKey: "optifine"
                 versions: root.optifineLoading ? [{version: "Loading...", type: "", date: ""}] : root.optifineVersions
+                versionEnabled: root.optifineItemEnabled
                 disabled: root.activeLoader === "fabric" || root.activeLoader === "neoforge"
                 disabledReason: root.activeLoader === "fabric" ? "Fabric 不兼容 Optifine" : root.activeLoader === "neoforge" ? "Optifine 不支持 NeoForge" : ""
                 selectedVersion: root.selectedOptifine
@@ -438,6 +492,16 @@ Rectangle {
                     var found = root.optifineVersions.find(function(v) { return v.version === ver })
                     if (found) { root.selectedOptifineType = found.bmclType || ""; root.selectedOptifinePatch = found.bmclPatch || "" } }
                 onVersionCleared: { root.selectedOptifine = ""; root.selectedOptifineType = ""; root.selectedOptifinePatch = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
+
+    // Auto-clear Forge selection when OptiFine changes to incompatible
+    onSelectedOptifineChanged: {
+        if (root.optifineForgeCompat === "N/A") {
+            if (root.activeLoader === "forge") root.activeLoader = ""
+            root.selectedForge = ""
+        } else if (root.optifineForgeCompat && root.selectedForge !== root.optifineForgeCompat) {
+            root.selectedForge = ""  // previously selected Forge no longer compatible
+        }
+    }
             }
 
             Item { Layout.fillWidth: true; height: 40 }
