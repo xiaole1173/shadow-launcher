@@ -516,7 +516,7 @@ Rectangle {
                         MouseArea {
                             anchors.fill: bgPreview; visible: hasBg
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (bgCropOverlay.active) bgCropOverlay.item.open() }
+                            onClicked: { bgCropOverlay.active = true }
                         }
                         Rectangle {
                             opacity: hasBg ? 0 : 0
