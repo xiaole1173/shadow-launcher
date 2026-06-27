@@ -534,7 +534,7 @@ Window {
     Rectangle {
         id: installPageOverlay
         anchors.fill: parent; color: hasCustomBg ? "transparent" : "#0c0f16"; z: 21
-        opacity: showInstallPage ? 1 : 0
+        opacity: 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
         onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
@@ -569,11 +569,13 @@ Window {
                 target: appWindow
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
+                        installPageOverlay.opacity = 1.0
                         pageContainer.opacity = 0.15
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
                     } else {
+                        installPageOverlay.opacity = 0
                         pageFadeInTimer.start()
                         installUnloadTimer.start()
                     }
