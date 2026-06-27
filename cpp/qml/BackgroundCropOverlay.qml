@@ -45,10 +45,8 @@ Rectangle {
         id: snapTimer
         interval: 1
         onTriggered: {
-            // With overflow: clamp to [0,1] (pan within image bounds)
-            // Without overflow: snap to center 0.5 (any offset shows black)
-            root._cropX = (_overX > 0) ? Math.max(0, Math.min(1, root._cropX)) : 0.5
-            root._cropY = (_overY > 0) ? Math.max(0, Math.min(1, root._cropY)) : 0.5
+            root._cropX = Math.max(0, Math.min(1, root._cropX))
+            root._cropY = Math.max(0, Math.min(1, root._cropY))
         }
     }
 
