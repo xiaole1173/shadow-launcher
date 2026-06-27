@@ -30,6 +30,7 @@ Rectangle {
     property bool expanded: false
     property bool cardHovered: false
     property bool cardDisabled: disabled
+    onCardDisabledChanged: { if (cardDisabled) expanded = false }
 
     property string badgeText: ""  // Optional badge after title, e.g. "建议安装"
 
