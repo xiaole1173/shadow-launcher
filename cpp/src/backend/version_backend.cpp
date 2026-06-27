@@ -904,17 +904,6 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     // ── Emit finished signal (per-download) ──
     emit installFinished(success);
-    if (success) {
-        // For merged installs, let onModLoaderFinished emit the full name
-        bool isMergedId = false;
-        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
-            if (it.value().isMerged && it.value().mcVersion == finishedId) {
-                isMergedId = true;
-                break;
-            }
-        }
-        if (!isMergedId) emit installComplete(finishedId);
-    }
 
     // ── Update overall state ──
     if (m_activeCount == 0) {
@@ -959,6 +948,19 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         // Still have active downloads — sync primary display AND notify QML to re-read
         syncPrimaryProgress();
         emit installStateChanged();
+    }
+
+    // Emit installComplete for non-merged installs AFTER setInstalling(false) above,
+    // so QML's onInstallComplete can properly check backend.installing.
+    if (success) {
+        bool isMergedId = false;
+        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+            if (it.value().isMerged && it.value().mcVersion == finishedId) {
+                isMergedId = true;
+                break;
+            }
+        }
+        if (!isMergedId) emit installComplete(finishedId);
     }
 
     // ── Try to start next from queue ──
