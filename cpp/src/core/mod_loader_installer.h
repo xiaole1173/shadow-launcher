@@ -96,9 +96,11 @@ private:
     void neoStep2_verify(const QByteArray& jarData);
     // PCL-style install (extract version.json → download libraries → write config)
     void forgeStep3_PCLinstall(const QByteArray& jarData);
+    void forgeStep3_manualFinalize(const QByteArray& jarData, const QJsonObject& versionJson);
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
     void neoForgeStep3_buildVersion(const QByteArray& jarData);
+    void neoManualFinalize(const QJsonObject& versionJson);
     void runInstallerProcess(const QByteArray& jarData);
     void writeNeoForgeVersion(const QJsonObject& versionInfo);
     void renameVersionFolder(const QString& oldName, const QString& newName);
