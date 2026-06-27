@@ -436,7 +436,30 @@ int main(int argc, char *argv[])
         }
     }
 
-    // ── Auto-download test mode (for testing download + fallback) ──
+    // ── Auto-install-loader test mode ──
+    int autoLoaderIdx = args.indexOf(QStringLiteral("--auto-install-loader"));
+    if (autoLoaderIdx >= 0 && autoLoaderIdx + 4 < args.size()) {
+        QString loaderMcVer = args[autoLoaderIdx + 1];
+        QString loaderType = args[autoLoaderIdx + 2];
+        QString loaderVer = args[autoLoaderIdx + 3];
+        QString loaderName = args[autoLoaderIdx + 4];
+        qCInfo(logApp) << "Auto-install-loader: MC" << loaderMcVer
+                       << loaderType << loaderVer << ">" << loaderName;
+        QTimer::singleShot(2000, backend, [backend, loaderMcVer, loaderType, loaderVer, loaderName]() {
+            qCInfo(logApp) << "Auto-install-loader: installing" << loaderMcVer << "first";
+            backend->installVersion(loaderMcVer);
+            // Chain loader install after MC finishes
+            QObject::connect(backend, &ShadowBackend::installComplete,
+                backend, [backend, loaderMcVer, loaderType, loaderVer, loaderName](const QString& completedName) {
+                    // Only chain if the completed install is the MC version we're waiting for
+                    if (completedName != loaderMcVer) return;
+                    qCInfo(logApp) << "Auto-install-loader: MC done, installing" << loaderType;
+                    QTimer::singleShot(1000, backend, [backend, loaderMcVer, loaderType, loaderVer, loaderName]() {
+                        backend->installModLoader(loaderMcVer, loaderType, loaderVer, loaderName);
+                    });
+                });
+        });
+    }
     int dlIdx = args.indexOf(QStringLiteral("--auto-download"));
     if (dlIdx >= 0 && dlIdx + 1 < args.size()) {
         QString dlVersion = args[dlIdx + 1];
