@@ -266,8 +266,10 @@ Window {
             Layout.margins: 8; spacing: 8
 
             Rectangle {
+                id: sidebarContainer
                 Layout.preferredWidth: 200; Layout.fillHeight: true
                 layer.enabled: true
+                visible: !appWindow.showInstallPage
                 color: "#0a0c12"; radius: 6
                 opacity: hasCustomBg ? backend.sidebarOpacity : 1.0
                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
@@ -368,7 +370,9 @@ Window {
 
                 // ── Right-side header (matched to SHADOW height, sidebar color) ──
                 Rectangle {
+                    id: headerBar
                     Layout.fillWidth: true; height: 44
+                    visible: !appWindow.showInstallPage
                     color: hasCustomBg ? "transparent" : "#0a0c12"
                     MouseArea {
                         anchors.fill: parent
