@@ -288,10 +288,7 @@ Rectangle {
                     id: confirmHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (backend) {
-                            backend.cropX = root._cropX
-                            backend.cropY = root._cropY
-                        }
+                        backend.updateCrop(root._cropX, root._cropY)
                         root.opacity = 0
                         closeTimer.start()
                     }

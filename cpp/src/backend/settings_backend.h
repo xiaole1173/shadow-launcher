@@ -92,6 +92,12 @@ public:
     void setContentOpacity(qreal v) { m_contentOpacity = v; saveSettings(); emit customBgChanged(); }
     qreal cropX() const { return m_cropX; }
     void setCropX(qreal v) { m_cropX = qBound(0.0, v, 1.0); saveSettings(); emit customBgChanged(); }
+    Q_INVOKABLE void updateCrop(qreal x, qreal y) {
+        m_cropX = qBound(0.0, x, 1.0);
+        m_cropY = qBound(0.0, y, 1.0);
+        saveSettings();
+        emit customBgChanged();
+    }
     qreal cropY() const { return m_cropY; }
     void setCropY(qreal v) { m_cropY = qBound(0.0, v, 1.0); saveSettings(); emit customBgChanged(); }
     void setIsolationGameDir(const QString& dir);
