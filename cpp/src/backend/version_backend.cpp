@@ -875,11 +875,16 @@ void VersionBackend::onVersionDownloadFinished(bool success,
                     updateStep(it.key(), i, QStringLiteral("completed"), 100);
                 }
                 int verifyIdx = 3;
-                if (verifyIdx < ses.steps.size()) {
+                // Don't mark step 3 as done for OptiFine parallel mode (JAR still downloading)
+                if (verifyIdx < ses.steps.size() && !ses.optifineJarParallel) {
                     updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
                 }
                 ses.mcDownloadDone = true;
-                if (ses.loaderDownloadReady) {
+                // For parallel OptiFine: check if JAR is also done
+                if (ses.optifineJarParallel && ses.optifineJarDone) {
+                    emit logMessage(tr("✓ MC 和 OptiFine 均下载完成"));
+                    onParallelOptifineDone(it.key(), QByteArray());
+                } else if (ses.loaderDownloadReady) {
                     proceedToLoaderInstall(it.key());
                 } else {
                     qDebug() << "[install] MC done, waiting for loader download...";
@@ -912,8 +917,18 @@ void VersionBackend::onVersionDownloadFinished(bool success,
             m_modLoaderInstallId = ses.pendingLoaderName;
             if (ses.pendingLoaderType == QStringLiteral("optifine")) {
                 if (ses.isMerged) {
-                    // Merged MC+OptiFine: MC steps 0-2 done, now download OptiFine JAR (step 3)
-                    finishOptifineMerged(ses.pendingLoaderMc, ses.pendingLoaderName);
+                    if (ses.optifineJarParallel) {
+                        // Parallel mode: MC just finished, check if OptiFine JAR is also done
+                        if (!ses.mcDownloadDone) {
+                            ses.mcDownloadDone = true;
+                            if (ses.optifineJarDone) {
+                                onParallelOptifineDone(ses.pendingLoaderName, QByteArray());
+                            }
+                        }
+                    } else {
+                        // Sequential mode: MC done, now download OptiFine JAR
+                        finishOptifineMerged(ses.pendingLoaderMc, ses.pendingLoaderName);
+                    }
                 } else {
                     installOptifine(ses.pendingLoaderMc, ses.pendingLoaderVer, QString(), ses.pendingLoaderName);
                 }
@@ -2153,8 +2168,12 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         ses.loadedStep = 1;
 
         setInstalling(true);
-        setInstallPhase(tr("下载原版 MC..."));
+        setInstallPhase(tr("下载中..."));
+
+        // Start MC and OptiFine JAR downloads in parallel
+        ses.optifineJarParallel = true;
         installVersion(mcVersion, 0);
+        startOptifineJarParallel(installName, mcVersion, optifineVersion);
         return;
     }
 
@@ -2297,6 +2316,91 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
         }, Qt::DirectConnection);  // DirectConnection ensures we fire before queued handlers
 
     m_mlInstaller->installOptifineFromJar(jarData, mcVersion);
+}
+
+void VersionBackend::startOptifineJarParallel(const QString& installName, const QString& mcVersion,
+                                                const QString& optifineVersion) {
+    // Download OptiFine JAR in parallel with MC download
+    auto& ses = session(installName);
+    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+
+    emit logMessage(tr("并行下载 OptiFine: %1").arg(filename));
+
+    auto* nam = new QNetworkAccessManager(this);
+    auto* reply = nam->get(QNetworkRequest(url));
+
+    connect(reply, &QNetworkReply::downloadProgress, this,
+        [this, installName](qint64 received, qint64 total) {
+            int pct = total > 0 ? (int)(received * 100 / total) : 0;
+            updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+        });
+
+    connect(reply, &QNetworkReply::finished, this,
+        [this, reply, nam, installName, mcVersion, filename]() {
+            reply->deleteLater();
+            if (reply->error() != QNetworkReply::NoError) {
+                // Fallback to official
+                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+                auto* r2 = nam->get(QNetworkRequest(offUrl));
+                connect(r2, &QNetworkReply::downloadProgress, this,
+                    [this, installName](qint64 received, qint64 total) {
+                        int pct = total > 0 ? (int)(received * 100 / total) : 0;
+                        updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+                    });
+                connect(r2, &QNetworkReply::finished, this,
+                    [this, r2, nam, installName, mcVersion]() {
+                        r2->deleteLater();
+                        nam->deleteLater();
+                        if (r2->error() != QNetworkReply::NoError) {
+                            emit logMessage(tr("✗ OptiFine 下载失败（所有源）"));
+                            updateStep(installName, 3, QStringLiteral("failed"), 0);
+                            auto& ses = session(installName);
+                            ses.failed = true;
+                            ses.error = tr("OptiFine 下载失败");
+                            rebuildInstallCards();
+                            setInstalling(false);
+                            return;
+                        }
+                        QByteArray jarData = r2->readAll();
+                        updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
+                        onParallelOptifineDone(installName, jarData);
+                    });
+                return;
+            }
+            QByteArray jarData = reply->readAll();
+            updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
+            nam->deleteLater();
+            onParallelOptifineDone(installName, jarData);
+        });
+}
+
+void VersionBackend::onParallelOptifineDone(const QString& installName, const QByteArray& jarData) {
+    auto& ses = session(installName);
+
+    // Guard against double invocation (MC completion + pending loader both trigger)
+    if (ses.hasPendingLoader) ses.hasPendingLoader = false;
+    if (ses.optifineJarDone && ses.mcDownloadDone && !jarData.isEmpty()) {
+        // Already handled the first time, skip
+        return;
+    }
+
+    // Store JAR data (in case MC is still downloading)
+    if (!jarData.isEmpty()) {
+        ses.optifineJarData = jarData;
+    }
+    ses.optifineJarDone = true;
+
+    // Check if MC is also done
+    if (!ses.mcDownloadDone) {
+        emit logMessage(tr("OptiFine JAR 下载完成，等待 MC 下载..."));
+        return;
+    }
+
+    // Both MC and OptiFine JAR are done
+    emit logMessage(tr("✓ MC 和 OptiFine 均下载完成，开始安装..."));
+    QByteArray data = ses.optifineJarData.isEmpty() ? jarData : ses.optifineJarData;
+    delegateOptifineInstall(ses.mcVersion, installName, data);
 }
 
 void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion) {

@@ -58,6 +58,9 @@ struct InstallSession {
     QString error;                 // Install error message on failure
     int loadedStep = 0;  // which step is currently active
     bool fabricApiPending = false; // Fabric API download in progress (parallel)
+    bool optifineJarParallel = false; // OptiFine JAR downloading in parallel with MC
+    bool optifineJarDone = false;     // OptiFine JAR download complete
+    QByteArray optifineJarData;       // Cached OptiFine JAR from parallel download
     
     // Per-install MC download byte tracking (was global singletons)
     qint64 mcStepDone[3] = {};
@@ -201,6 +204,9 @@ public:
     void finishOptifineMerged(const QString& mcVersion, const QString& installName);
     void delegateOptifineInstall(const QString& mcVersion, const QString& installName,
                                   const QByteArray& jarData);
+    void startOptifineJarParallel(const QString& installName, const QString& mcVersion,
+                                   const QString& optifineVersion);
+    void onParallelOptifineDone(const QString& installName, const QByteArray& jarData);
     Q_INVOKABLE void cancelModLoaderInstall();
     Q_INVOKABLE bool isModLoaderInstalling() const;
 
