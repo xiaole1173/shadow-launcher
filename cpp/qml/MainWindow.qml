@@ -414,7 +414,9 @@ Window {
                     // Sequential: overlay fades first, then page fades in
                     // Note: Behavior only animates explicit assignments, not bindings
                     opacity: 1.0
-                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.InOutCubic } }
+
+                    PropertyAnimation { id: pageDimAnim; target: pageContainer; property: "opacity"; to: 0.15; duration: 150; easing.type: Easing.InOutCubic }
+                    PropertyAnimation { id: pageFadeInAnim; target: pageContainer; property: "opacity"; to: 1.0; duration: 500; easing.type: Easing.InOutCubic }
 
                     // ========== HOMEPAGE ==========
                     Loader {
@@ -570,7 +572,7 @@ Window {
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
                         installPageOverlay.opacity = 1.0
-                        pageContainer.opacity = 0.15
+                        pageDimAnim.start()
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
@@ -587,7 +589,7 @@ Window {
     Timer {
         id: pageFadeInTimer
         interval: 300  // Overlay almost gone
-        onTriggered: { pageContainer.opacity = 1.0 }
+        onTriggered: { pageFadeInAnim.start() }
     }
 
     Timer {
