@@ -10,7 +10,9 @@ import QtQuick.Layouts
 Rectangle {
     id: card
     Layout.fillWidth: true
-    height: headerH + (expanded ? contentColumn.implicitHeight + 8 : 0)
+    // height driven by ColumnLayout via preferredHeight; Behavior on height provides the animation
+    property int cardHeight: headerH + (expanded ? contentColumn.implicitHeight + 8 : 0)
+    Layout.preferredHeight: cardHeight
     clip: true; radius: 8
     color: _hovered ? "#161a26" : "#11141c"
     border.color: _hovered ? "#3a5ed0" : "#1e2230"
