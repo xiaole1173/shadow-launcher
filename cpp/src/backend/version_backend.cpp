@@ -1224,12 +1224,28 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         // Push real per-category byte progress to all 3 MC download steps
         // Only during download phase — during verify, steps are already marked completed
         if (st.phase != tr("校验中...")) {
+            bool allDone = true;
             for (int ci = 0; ci < 3; ci++) {
                 if (mSes.mcStepTotal[ci] > 0) {
                     int pct = (int)(mSes.mcStepDone[ci] * 100 / mSes.mcStepTotal[ci]);
                     QString st = (pct >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
                     updateStep(mergedSessionId, ci, st, pct,
                                mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
+                    if (pct < 100) allDone = false;
+                } else {
+                    allDone = false;
+                }
+            }
+            // When all 3 download steps reach 100%, proactively show verify step (index 3)
+            // to avoid a blank gap before the downloader enters the verify phase.
+            if (allDone) {
+                int verifyIdx = 3;
+                QVariantMap vstep = mSes.steps.value(verifyIdx).toMap();
+                if (verifyIdx < mSes.steps.size() && !vstep.value("show").toBool()) {
+                    showStep(mergedSessionId, verifyIdx);
+                    updateStep(mergedSessionId, verifyIdx, QStringLiteral("active"), 0,
+                               0, mSes.mcBytesAll);
+                    qCInfo(logVersion) << "Proactively showing MC verify step for" << mergedSessionId;
                 }
             }
         }
@@ -1337,6 +1353,25 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
                            .arg(cat).arg(fileName).arg(total/1024)
                            .arg(after/1024).arg(ct/1024)
                            .arg(after * 100 / ct);
+                }
+                // When all 3 MC download categories finish, proactively show verify step
+                bool allDone = true;
+                for (int ci = 0; ci < 3; ci++) {
+                    if (ses.mcStepTotal[ci] > 0 && ses.mcStepDone[ci] < ses.mcStepTotal[ci]) {
+                        allDone = false;
+                        break;
+                    }
+                }
+                if (allDone) {
+                    int verifyIdx = 3;
+                    if (verifyIdx < ses.steps.size()) {
+                        QVariantMap vstep = ses.steps[verifyIdx].toMap();
+                        if (!vstep.value("show").toBool()) {
+                            showStep(mergedSessionId, verifyIdx);
+                            updateStep(mergedSessionId, verifyIdx, QStringLiteral("active"), 0);
+                            qCInfo(logVersion) << "MC download categories complete, showing verify step for" << mergedSessionId;
+                        }
+                    }
                 }
             }
         }
