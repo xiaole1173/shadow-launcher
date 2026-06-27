@@ -570,7 +570,7 @@ Window {
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
                         overlayFadeInTimer.start()
-                        pageContainer.opacity = 0.15
+                        pageContainer.opacity = 0
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
