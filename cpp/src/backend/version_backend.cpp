@@ -2613,6 +2613,14 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
     step["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
     s.steps[index] = step;
 
+    qCInfo(logVersion).noquote()
+        << QString("[step] id=%1 idx=%2 name=\"%3\" status=%4 pct=%5% bytes=%6/%7KB")
+           .arg(installId).arg(index)
+           .arg(step["name"].toString())
+           .arg(status)
+           .arg(percentage)
+           .arg(bytesRecv / 1024).arg(bytesTotal / 1024);
+
     }
 
 
