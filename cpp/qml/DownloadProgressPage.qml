@@ -61,6 +61,10 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 property var card: modelData || {}
                 property var _parsedSteps: model.steps || []  // QVariantList → already JS array, no JSON.parse needed
+                readonly property bool _isDownload: {
+                    var p = model.phase || "";
+                    return p.includes("下载") || p.includes("校验") || p.includes("Download") || p.includes("Verify");
+                }
                 // Shared spin angle — survives Repeater delegate recreation
                 property real _spinAngle: 0
                 Timer {
@@ -89,12 +93,16 @@ Rectangle {
                 // ── progress bar ──
                 Rectangle {
                     Layout.fillWidth: true; implicitHeight: 6; radius: 3; color: "#1e2230"
-                    visible: model.totalProgressVisible !== undefined ? model.totalProgressVisible : true
+                    // Always visible — color distinguishes download vs install phase
                     Rectangle {
                         height: parent.height; radius: 3
-                        color: model.failed ? "#802020" : "#3a5ecc"
+                        color: {
+                            if (model.failed) return "#802020"
+                            if (cardContent._isDownload) return "#3a5ecc"
+                            return "#2a3050"  // install phase: muted
+                        }
                         width: parent.width * Math.min(1, (model.progress || 0))
-                        Behavior on width { NumberAnimation { duration: 1200; easing.type: Easing.OutCubic } }
+                        Behavior on width { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
                     }
                 }
 
@@ -104,12 +112,12 @@ Rectangle {
                         Layout.fillWidth: true
                         text: model.failed ? ("\u2717 " + (model.error || "\u5b89\u88c5\u5931\u8d25")) : ((model.progress || 0) * 100).toFixed(1) + "%"
                         font.pixelSize: 13; font.weight: Font.Bold
-                        color: model.failed ? "#e06050" : "#5d6fe0"
+                        color: model.failed ? "#e06050" : (cardContent._isDownload ? "#5d6fe0" : "#1084b8")
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: model.phase || ""
-                        font.pixelSize: 11; color: "#606888"
+                        text: cardContent._isDownload ? (model.phase || "") : qsTr("\u5904\u7406\u672c\u5730\u6587\u4ef6")
+                        font.pixelSize: 11; color: "#5070a0"
                         elide: Text.ElideRight
                     }
 

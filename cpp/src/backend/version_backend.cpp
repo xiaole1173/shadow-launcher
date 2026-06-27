@@ -2772,20 +2772,19 @@ void VersionBackend::doRebuildInstallCards() {
         c.steps = mlPending ? QVariantList{} : ses.steps;
         c.failed = mlFailed;
         c.error = ses.error;
-        // Total progress bar: visible only when a download step is active
+        // Total progress bar: visible during download AND install (colors differ in QML)
         {
-            bool hasActiveDownload = false;
+            bool hasActiveStep = false;
             if (!mlPending && !mlFailed) {
                 for (const QVariant& vs : ses.steps) {
                     QVariantMap step = vs.toMap();
-                    if (step.value(QStringLiteral("status")).toString() == QStringLiteral("active")
-                        && step.value(QStringLiteral("name")).toString().contains(QStringLiteral("\u4e0b\u8f7d"))) {
-                        hasActiveDownload = true;
+                    if (step.value(QStringLiteral("status")).toString() == QStringLiteral("active")) {
+                        hasActiveStep = true;
                         break;
                     }
                 }
             }
-            c.totalProgressVisible = hasActiveDownload;
+            c.totalProgressVisible = hasActiveStep;
         }
         cards.append(c);
         seen.insert(cardId);
