@@ -223,12 +223,16 @@ Window {
 
                 readonly property real _s: Math.max(bgFrame.width / Math.max(implicitWidth, 1),
                                                      bgFrame.height / Math.max(implicitHeight, 1))
-                readonly property real _overX: Math.max(0, implicitWidth * _s - bgFrame.width)
-                readonly property real _overY: Math.max(0, implicitHeight * _s - bgFrame.height)
+                readonly property real _s: Math.max(bgFrame.width / Math.max(implicitWidth, 1),
+                                                     bgFrame.height / Math.max(implicitHeight, 1))
+                readonly property real _dispW: implicitWidth * _s
+                readonly property real _dispH: implicitHeight * _s
+                readonly property real _overX: Math.max(0, _dispW - bgFrame.width)
+                readonly property real _overY: Math.max(0, _dispH - bgFrame.height)
 
                 scale: _s
-                x: (bgFrame.width - implicitWidth * _s) / 2 - (bgFrame.cropX - 0.5) * (implicitWidth * _s)
-                y: (bgFrame.height - implicitHeight * _s) / 2 - (bgFrame.cropY - 0.5) * (implicitHeight * _s)
+                x: _overX > 0 ? -_overX * bgFrame.cropX : -_dispW * (bgFrame.cropX - 0.5)
+                y: _overY > 0 ? -_overY * bgFrame.cropY : -_dispH * (bgFrame.cropY - 0.5)
             }
         }
 
