@@ -383,19 +383,24 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     reader.close();
     buffer.close();
 
-    // ── Step B: Synthetic version JSON (PCL-style without JAR metadata) ──
-    if (!m_optifineBmclType.isEmpty() && !m_optifineBmclPatch.isEmpty()) {
-        installOptifineSynthetic(jarData);
-        return;
-    }
-
-    // ── Step C: Fallback to javaw installer ──
-    runOptifineInstaller(jarData);
+    // ── Step B: Synthetic version JSON (PCL-style, no Java needed) ──
+    // Derive library suffix: prefer bmclType+bmclPatch, fallback to optifine version string
+    installOptifineSynthetic(jarData);
 }
 
 // ── Synthetic version JSON construction (no JAR metadata needed) ──
 void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
-    QString libSuffix = m_mcVersion + "_" + m_optifineBmclType + "_" + m_optifineBmclPatch;
+    // Derive library suffix: prefer bmclType+bmclPatch, fallback to optifine version string
+    QString libSuffix;
+    if (!m_optifineBmclType.isEmpty() && !m_optifineBmclPatch.isEmpty()) {
+        libSuffix = m_mcVersion + "_" + m_optifineBmclType + "_" + m_optifineBmclPatch;
+    } else {
+        // Fallback: use optifineVer with McVersion prefix removed if present
+        QString ver = m_loaderVersion;
+        QString prefix = "OptiFine_" + m_mcVersion + "_";
+        if (ver.startsWith(prefix)) ver = ver.mid(prefix.length());
+        libSuffix = m_mcVersion + "_" + ver;
+    }
     QString libName = "optifine:OptiFine:" + libSuffix;
     QString libPath = "optifine/OptiFine/" + libSuffix;
     QString libJar = "OptiFine-" + libSuffix + ".jar";
@@ -454,7 +459,7 @@ void ModLoaderInstaller::installOptifineFromProfile(const QJsonObject& profile,
                                                       const QByteArray& jarData) {
     QJsonObject versionInfo = profile.value(QStringLiteral("versionInfo")).toObject();
     if (versionInfo.isEmpty()) {
-        runOptifineInstaller(jarData);
+        installOptifineSynthetic(jarData);
         return;
     }
 
