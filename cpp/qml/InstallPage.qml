@@ -172,6 +172,20 @@ Rectangle {
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
         height: 44; color: hasBg ? "transparent" : "#0c0f16"; z: 10
 
+        // Drag handler (behind RowLayout, only fires on empty areas)
+        MouseArea {
+            anchors.fill: parent; z: -1
+            property point lastPos: Qt.point(0, 0)
+            onPressed: function(mouse) { lastPos = Qt.point(mouse.x, mouse.y) }
+            onPositionChanged: function(mouse) {
+                var win = root.Window.window
+                if (win) {
+                    win.x += mouse.x - lastPos.x
+                    win.y += mouse.y - lastPos.y
+                }
+            }
+        }
+
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
             Rectangle {

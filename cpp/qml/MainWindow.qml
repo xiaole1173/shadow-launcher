@@ -536,7 +536,7 @@ Window {
         anchors.fill: parent; color: hasCustomBg ? "transparent" : "#0c0f16"; z: 21
         opacity: showInstallPage ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
         onVisibleChanged: { if (backend) backend.logMessage("[install] overlay visible=" + visible + " showInstallPage=" + showInstallPage) }
 
         Loader {
