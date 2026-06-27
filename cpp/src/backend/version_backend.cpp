@@ -1346,8 +1346,8 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     }
 
     // For pure MC (non-merged): once all download categories finish,
-    // set a flag so the verify step flips to active immediately — no
-    // waiting for verifyProgressChanged which arrives after a gap.
+    // set a flag and immediately rebuild cards — same logic as merged's
+    // showStep+updateStep, but pure MC steps are built inline from DlState.
     if (cat >= 0 && cat <= 2 && mergedSessionId.isEmpty()) {
         auto& st2 = m_dlStates[versionId];
         bool allDone = true;
@@ -1357,7 +1357,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
         }
         if (allDone) {
             st2.catsFullyDone = true;
-            rebuildInstallCards();
+            doRebuildInstallCards();  // immediate — skip QTimer::singleShot batching
         }
     }
 
