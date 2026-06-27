@@ -436,6 +436,12 @@ void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString
             copyRecursive(libSrc + "/" + d, m_gameDir + "/libraries/" + d);
         }
     }
+
+    // Copy assets from temp (OptiFine installer may generate virtual assets)
+    QString assetsSrc = tempMc + "/assets";
+    if (QDir(assetsSrc).exists()) {
+        copyRecursive(assetsSrc, m_gameDir + "/assets");
+    }
     Q_UNUSED(jarPath);
 }
 
@@ -445,8 +451,8 @@ void ModLoaderInstaller::copyRecursive(const QString& srcDir, const QString& dst
     QDir().mkpath(dstDir);
     for (const QFileInfo& info : dir.entryInfoList(QDir::Files)) {
         QString dst = dstDir + "/" + info.fileName();
-        if (!QFile::exists(dst))
-            QFile::copy(info.absoluteFilePath(), dst);
+        if (QFile::exists(dst)) QFile::remove(dst);
+        QFile::copy(info.absoluteFilePath(), dst);
     }
     for (const QFileInfo& info : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         copyRecursive(info.absoluteFilePath(), dstDir + "/" + info.fileName());

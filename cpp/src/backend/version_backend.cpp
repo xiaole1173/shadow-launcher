@@ -180,7 +180,14 @@ VersionBackend::VersionBackend(QObject* parent)
         }
         setInstalling(false);
         emit installFinished(success);
-        if (success) emit installComplete(mlId);
+        if (success) {
+            // Ensure version isolation for new OptiFine versions
+            auto& ses = session(mlId);
+            if (ses.loaderType == QStringLiteral("optifine") && m_isolation) {
+                m_isolation->migrateToIsolated(mlId);
+            }
+            emit installComplete(mlId);
+        }
     });
 
     // Pause between verify and install (merged install: wait for MC)
@@ -2272,6 +2279,10 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
             if (!actualId.isEmpty() && actualId != m_modLoaderInstallId) {
                 m_modLoaderInstallId = actualId;
                 emit logMessage(tr("✓ OptiFine 版本 ID: %1").arg(actualId));
+            }
+            // Ensure version isolation is properly set up for the new OptiFine version
+            if (m_isolation) {
+                m_isolation->migrateToIsolated(actualId.isEmpty() ? m_modLoaderInstallId : actualId);
             }
         }, Qt::DirectConnection);  // DirectConnection ensures we fire before queued handlers
 
