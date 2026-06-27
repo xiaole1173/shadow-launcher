@@ -2315,7 +2315,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
             }
         }, Qt::DirectConnection);  // DirectConnection ensures we fire before queued handlers
 
-    m_mlInstaller->installOptifineFromJar(jarData, mcVersion);
+    m_mlInstaller->installOptifineFromJar(jarData, mcVersion, installName);
 }
 
 void VersionBackend::startOptifineJarParallel(const QString& installName, const QString& mcVersion,
