@@ -2144,6 +2144,54 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     return;
 }
 
+void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion) {
+    // Lightweight: download OptiFine JAR to version's mods/ — no blocking, no installer process
+    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+
+    QString targetDir = m_gameDir + "/mods";
+    if (m_isolation && m_isolation->isVersionIsolated(m_modLoaderInstallId)) {
+        targetDir = m_isolation->getVersionGameDir(m_modLoaderInstallId) + "/mods";
+    }
+    QDir().mkpath(targetDir);
+    QString savePath = targetDir + "/" + filename;
+
+    emit logMessage(tr("下载 OptiFine (mods/): %1").arg(filename));
+
+    auto* nam = new QNetworkAccessManager(this);
+    auto* reply = nam->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::finished, this, [this, nam, reply, filename, savePath]() {
+        reply->deleteLater();
+        bool saved = false;
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray data = reply->readAll();
+            QFile f(savePath);
+            if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); saved = true; }
+        }
+        if (!saved) {
+            // Fallback to official
+            qDebug() << "[OptiFineJar] BMCLAPI failed, trying official...";
+            QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+            auto* r2 = nam->get(QNetworkRequest(offUrl));
+            connect(r2, &QNetworkReply::finished, this, [this, nam, r2, filename, savePath]() {
+                nam->deleteLater();
+                r2->deleteLater();
+                if (r2->error() == QNetworkReply::NoError) {
+                    QByteArray data = r2->readAll();
+                    QFile f(savePath);
+                    if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+                    emit logMessage(tr("✓ OptiFine 已保存到 mods/ (%1)").arg(filename));
+                } else {
+                    emit logMessage(tr("✗ OptiFine 下载失败 — 网络问题"));
+                }
+            });
+            return;
+        }
+        nam->deleteLater();
+        emit logMessage(tr("✓ OptiFine 已保存到 mods/ (%1)").arg(filename));
+    });
+}
+
 void VersionBackend::cancelModLoaderInstall() {
     // Cancel ModLoaderInstaller if running
     if (m_mlInstaller) m_mlInstaller->cancel();

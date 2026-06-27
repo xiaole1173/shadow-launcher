@@ -127,7 +127,7 @@ Rectangle {
         if (activeLoader === "neoforge" && selectedNeoForge) parts.push("neoforge-" + selectedNeoForge)
         if (activeLoader === "fabric" && selectedFabric) parts.push("fabric-" + selectedFabric)
         if (activeLoader === "fabric" && selectedFabricApi) parts.push("fabric-api-" + selectedFabricApi)
-        if (selectedOptifine) parts.push("optifine-" + selectedOptifine)
+        if (activeLoader === "optifine" && selectedOptifine) parts.push("OptiFine_" + selectedOptifine)
         return parts.join("-")
     }
 
@@ -287,11 +287,16 @@ Rectangle {
                                     console.log("[install] QML button clicked: name=" + n + " forge=" + selectedForge + " fabric=" + selectedFabric + " neo=" + selectedNeoForge + " opti=" + selectedOptifine)
                                     if (backend) {
                                         backend.logMessage("[install] download: " + n)
+                                        var hasLoaderInstalled = false
                                         if (selectedForge !== "") {
                                             backend.installModLoader(mcVersion, "forge", selectedForge, n)
-                                        } else if (selectedNeoForge !== "") {
+                                            hasLoaderInstalled = true
+                                        }
+                                        if (selectedNeoForge !== "") {
                                             backend.installModLoader(mcVersion, "neoforge", selectedNeoForge, n)
-                                        } else if (selectedFabric !== "") {
+                                            hasLoaderInstalled = true
+                                        }
+                                        if (selectedFabric !== "") {
                                             var gameDir = backend.getVersionGameDir(n) || ""
                                             if (selectedFabricApi !== "" && selectedFabricApiUrl !== "") {
                                                 var apiPath = gameDir + "/mods/" + selectedFabricApiFile
@@ -300,11 +305,19 @@ Rectangle {
                                             } else {
                                                 backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
                                             }
-                                        } else if (selectedOptifine !== "") {
-                                            backend.installOptifine(mcVersion, selectedOptifine, selectedForge, n)
-                                        } else {
+                                            hasLoaderInstalled = true
+                                        }
+                                        if (selectedOptifine !== "") {
+                                            if (hasLoaderInstalled) {
+                                                backend.installOptifineJar(mcVersion, selectedOptifine)
+                                            } else {
+                                                backend.installOptifine(mcVersion, selectedOptifine, "", n)
+                                            }
+                                        }
+                                        if (!hasLoaderInstalled && selectedOptifine === "") {
                                             backend.installVersion(n)
                                         }
+
                                         root.navigateToProgress()
                                     }
                                 }
@@ -415,11 +428,11 @@ Rectangle {
             ModLoaderCard {
                 Layout.fillWidth: true; title: "Optifine"; loaderKey: "optifine"
                 versions: root.optifineLoading ? [{version: "Loading...", type: "", date: ""}] : root.optifineVersions
-                disabled: (root.hasModLoader && root.selectedOptifine === "") || root.activeLoader === "fabric" || root.activeLoader === "neoforge"
-                disabledReason: root.activeLoader === "fabric" ? "Fabric \u4e0d\u517c\u5bb9 Optifine" : root.activeLoader === "neoforge" ? "Optifine \u4e0d\u652f\u6301 NeoForge" : root.hasModLoader ? "\u8bf7\u5148\u9009\u62e9\u52a0\u8f7d\u5668" : ""
+                disabled: root.activeLoader === "fabric" || root.activeLoader === "neoforge"
+                disabledReason: root.activeLoader === "fabric" ? "Fabric 不兼容 Optifine" : root.activeLoader === "neoforge" ? "Optifine 不支持 NeoForge" : ""
                 selectedVersion: root.selectedOptifine
-                onVersionSelected: function(ver) { root.selectedOptifine = ver }
-                onVersionCleared: { root.selectedOptifine = "" }
+                onVersionSelected: function(ver) { root.selectedOptifine = ver; root.customName = ""; if (!root.hasModLoader) root.activeLoader = "optifine" }
+                onVersionCleared: { root.selectedOptifine = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
             }
 
             Item { Layout.fillWidth: true; height: 40 }

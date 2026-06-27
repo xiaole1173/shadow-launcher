@@ -197,6 +197,7 @@ public:
                                        const QString& fabricApiSavePath = QString());
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName);
+    Q_INVOKABLE void installOptifineJar(const QString& mcVersion, const QString& optifineVersion);
     Q_INVOKABLE void cancelModLoaderInstall();
     Q_INVOKABLE bool isModLoaderInstalling() const;
 
