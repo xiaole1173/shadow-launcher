@@ -161,6 +161,16 @@ Rectangle {
         return fv === selectedForge
     }
 
+    // Auto-clear Forge selection when OptiFine changes to incompatible
+    onSelectedOptifineChanged: {
+        if (optifineForgeCompat === "N/A") {
+            if (activeLoader === "forge") activeLoader = ""
+            selectedForge = ""
+        } else if (optifineForgeCompat && selectedForge !== optifineForgeCompat) {
+            selectedForge = ""
+        }
+    }
+
     property var forgeVersions: []
     property var neoforgeVersions: []
     property var fabricVersions: []
@@ -491,16 +501,9 @@ Rectangle {
                     var found = root.optifineVersions.find(function(v) { return v.version === ver })
                     if (found) { root.selectedOptifineType = found.bmclType || ""; root.selectedOptifinePatch = found.bmclPatch || "" } }
                 onVersionCleared: { root.selectedOptifine = ""; root.selectedOptifineType = ""; root.selectedOptifinePatch = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
+            }
 
-    // Auto-clear Forge selection when OptiFine changes to incompatible
-    onSelectedOptifineChanged: {
-        if (root.optifineForgeCompat === "N/A") {
-            if (root.activeLoader === "forge") root.activeLoader = ""
-            root.selectedForge = ""
-        } else if (root.optifineForgeCompat && root.selectedForge !== root.optifineForgeCompat) {
-            root.selectedForge = ""  // previously selected Forge no longer compatible
-        }
-    }
+            // Fabric API card follows...
             }
 
             Item { Layout.fillWidth: true; height: 40 }
