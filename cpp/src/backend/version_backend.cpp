@@ -648,6 +648,8 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                     for (int i = 0; i < 3 && i < sit.value().steps.size(); i++) {
                                         updateStep(sit.key(), i, QStringLiteral("completed"), 100);
                                     }
+                                    qCDebug(logVersion).noquote()
+                                        << QString("[verify] MC download done, verify started. steps 0-2 → completed");
                                     // Show MC verify step (index 3, initially hidden)
                                     int verifyIdx = 3;
                                     if (verifyIdx < sit.value().steps.size()) {
@@ -1299,7 +1301,18 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
         if (cat >= 0 && cat <= 2) {
             // Accumulate bytes per-category (display pushed by progressChanged -> updateDownloadProgress)
             if (received >= total && total > 0) {
-                session(mergedSessionId).mcStepDone[cat] += total;
+                auto& ses = session(mergedSessionId);
+                qint64 before = ses.mcStepDone[cat];
+                ses.mcStepDone[cat] += total;
+                qint64 after = ses.mcStepDone[cat];
+                qint64 ct = ses.mcStepTotal[cat];
+                if (ct > 0) {
+                    qCDebug(logVersion).noquote()
+                        << QString("[step] cat=%1 file=%2 +%3KB → %4/%5KB (%6%)")
+                           .arg(cat).arg(fileName).arg(total/1024)
+                           .arg(after/1024).arg(ct/1024)
+                           .arg(after * 100 / ct);
+                }
             }
         }
     }
