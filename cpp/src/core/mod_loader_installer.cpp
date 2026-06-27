@@ -247,7 +247,9 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
     qDebug() << "[ModLoader] Optifine: MC" << mcVersion << "Opti" << optifineVersion
              << (standalone ? "standalone" : "with Forge" + forgeVersion);
 
-    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
+        ? optifineVersion + ".jar"
+        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
     QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
 
     if (standalone) {

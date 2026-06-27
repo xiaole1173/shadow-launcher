@@ -2229,8 +2229,11 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QString& installName) {
     // MC steps 0-2 done. Download OptiFine JAR (step 3), then delegate to ModLoaderInstaller (step 4).
     auto& ses = session(installName);
-    QString optifineVersion = ses.loaderVer;
-    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString optifineVer = ses.loaderVer;
+    // Handle both formats: "HD_U_I6" (old) and "preview_OptiFine_1.20.6_HD_U_J1_pre18" (new)
+    QString filename = optifineVer.startsWith("OptiFine_") || optifineVer.startsWith("preview_OptiFine_")
+        ? optifineVer + ".jar"
+        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVer);
     QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
 
     showStep(installName, 3);
@@ -2329,7 +2332,9 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                                                 const QString& optifineVersion) {
     // Download OptiFine JAR in parallel with MC download
     auto& ses = session(installName);
-    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
+        ? optifineVersion + ".jar"
+        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
     QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
 
     emit logMessage(tr("并行下载 OptiFine: %1").arg(filename));
@@ -2412,7 +2417,9 @@ void VersionBackend::onParallelOptifineDone(const QString& installName, const QB
 
 void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion) {
     // Lightweight: download OptiFine JAR to version's mods/ — no blocking, no installer process
-    QString filename = QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+    QString filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
+        ? optifineVersion + ".jar"
+        : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
     QString url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
 
     QString targetDir = m_gameDir + "/mods";
