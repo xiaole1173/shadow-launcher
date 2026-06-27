@@ -108,6 +108,7 @@ private:
 
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
+    void runOptifineInstaller(const QByteArray& jarData);  // javaw fallback
 
     // ── state ──
     QString m_gameDir;

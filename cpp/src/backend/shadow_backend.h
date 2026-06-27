@@ -321,7 +321,8 @@ public:
                                        const QString& fabricApiUrl = QString(),
                                        const QString& fabricApiSavePath = QString());
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                                       const QString& forgeVersion, const QString& installName);
+                                       const QString& forgeVersion, const QString& installName,
+                                       const QString& bmclType = QString(), const QString& bmclPatch = QString());
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);

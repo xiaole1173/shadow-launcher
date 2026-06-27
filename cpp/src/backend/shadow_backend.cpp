@@ -1856,9 +1856,10 @@ void ShadowBackend::installModLoader(const QString& mcVersion, const QString& lo
 }
 
 void ShadowBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
-                                     const QString& forgeVersion, const QString& installName) {
+                                     const QString& forgeVersion, const QString& installName,
+                                     const QString& bmclType, const QString& bmclPatch) {
     qDebug() << "[install] ShadowBackend::installOptifine" << mcVersion << optifineVersion << forgeVersion << installName;
-    if (m_version) m_version->installOptifine(mcVersion, optifineVersion, forgeVersion, installName);
+    if (m_version) m_version->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
 }
 
 // ── Language hot-switch implementation ──
