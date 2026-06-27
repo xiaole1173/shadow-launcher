@@ -1359,9 +1359,10 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
                            .arg(after * 100 / ct);
                 }
                 // When all 3 MC download categories finish, proactively show verify step
+                // Only consider allDone when EVERY category has a known total AND done >= total
                 bool allDone = true;
                 for (int ci = 0; ci < 3; ci++) {
-                    if (ses.mcStepTotal[ci] > 0 && ses.mcStepDone[ci] < ses.mcStepTotal[ci]) {
+                    if (ses.mcStepTotal[ci] <= 0 || ses.mcStepDone[ci] < ses.mcStepTotal[ci]) {
                         allDone = false;
                         break;
                     }
