@@ -109,28 +109,33 @@ Rectangle {
 
             x: (_vpW - _displayW) / 2 + _overX * (0.5 - root._cropX)
             y: (_vpH - _displayH) / 2 + _overY * (0.5 - root._cropY)
+        }
 
-            // Drag handler
-            TapHandler {
-                id: dragHandler
-                acceptedButtons: Qt.LeftButton
-                onPressedChanged: {
-                    if (pressed) {
-                        root._dragStartX = point.position.x
-                        root._dragStartY = point.position.y
-                        root._dragCropX = root._cropX
-                        root._dragCropY = root._cropY
-                    }
-                }
-                onPointChanged: {
-                    if (!pressed) return
-                    var dx = point.position.x - root._dragStartX
-                    var dy = point.position.y - root._dragStartY
-                    if (_overX > 0)
-                        root._cropX = Math.max(0, Math.min(1, root._dragCropX - dx / _overX))
-                    if (_overY > 0)
-                        root._cropY = Math.max(0, Math.min(1, root._dragCropY - dy / _overY))
-                }
+        // Drag handler (MouseArea for smooth mouse tracking)
+        MouseArea {
+            id: dragArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+            onPressed: function(mouse) {
+                root._dragStartX = mouse.x
+                root._dragStartY = mouse.y
+                root._dragCropX = root._cropX
+                root._dragCropY = root._cropY
+            }
+            onPositionChanged: function(mouse) {
+                if (!pressed) return
+                var dx = mouse.x - root._dragStartX
+                var dy = mouse.y - root._dragStartY
+                // Unclamped during drag — shows black area at edges
+                root._cropX = root._dragCropX - dx / Math.max(_overX, 1)
+                root._cropY = root._dragCropY - dy / Math.max(_overY, 1)
+            }
+            onReleased: {
+                // Snap back to valid range
+                root._cropX = Math.max(0, Math.min(1, root._cropX))
+                root._cropY = Math.max(0, Math.min(1, root._cropY))
             }
         }
     }
