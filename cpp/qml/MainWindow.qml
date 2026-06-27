@@ -227,8 +227,8 @@ Window {
                 readonly property real _overY: Math.max(0, implicitHeight * _s - bgFrame.height)
 
                 scale: _s
-                x: (bgFrame.width - implicitWidth * _s) / 2 + _overX * (0.5 - bgFrame.cropX)
-                y: (bgFrame.height - implicitHeight * _s) / 2 + _overY * (0.5 - bgFrame.cropY)
+                x: (bgFrame.width - implicitWidth * _s) / 2 - (bgFrame.cropX - 0.5) * (implicitWidth * _s)
+                y: (bgFrame.height - implicitHeight * _s) / 2 - (bgFrame.cropY - 0.5) * (implicitHeight * _s)
             }
         }
 

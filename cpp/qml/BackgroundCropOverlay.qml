@@ -116,8 +116,8 @@ Rectangle {
             scale: root._scale
             asynchronous: true; cache: false
 
-            x: (_vpW - _displayW) / 2 + _overX * (0.5 - root._cropX)
-            y: (_vpH - _displayH) / 2 + _overY * (0.5 - root._cropY)
+            x: (_vpW - _displayW) / 2 - (root._cropX - 0.5) * _displayW
+            y: (_vpH - _displayH) / 2 - (root._cropY - 0.5) * _displayH
         }
     }  // viewport
 
