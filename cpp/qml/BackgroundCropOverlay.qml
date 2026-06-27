@@ -30,13 +30,13 @@ Rectangle {
     property real _cropX: 0.5
     property real _cropY: 0.5
 
-    Behavior on _cropX {
-        enabled: !dragArea.pressed
-        SpringAnimation { spring: 1.5; damping: 0.25; epsilon: 0.01 }
+    NumberAnimation {
+        id: snapAnimX; target: root; property: "_cropX"
+        duration: 600; easing.type: Easing.OutBack
     }
-    Behavior on _cropY {
-        enabled: !dragArea.pressed
-        SpringAnimation { spring: 1.5; damping: 0.25; epsilon: 0.01 }
+    NumberAnimation {
+        id: snapAnimY; target: root; property: "_cropY"
+        duration: 600; easing.type: Easing.OutBack
     }
 
     // ── Drag state ──
@@ -137,14 +137,20 @@ Rectangle {
                 if (!pressed) return
                 var dx = mouse.x - root._dragStartX
                 var dy = mouse.y - root._dragStartY
-                // Unclamped during drag — shows black area at edges
-                root._cropX = root._dragCropX - dx / Math.max(_overX, 1)
-                root._cropY = root._dragCropY - dy / Math.max(_overY, 1)
+                // Use display size (always > viewport) so all 4 sides can show black
+                root._cropX = root._dragCropX - dx / Math.max(_displayW, _vpW)
+                root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
             }
             onReleased: {
-                // Snap back to valid range
-                root._cropX = Math.max(0, Math.min(1, root._cropX))
-                root._cropY = Math.max(0, Math.min(1, root._cropY))
+                // Animated snap-back to valid range
+                var tx = Math.max(0, Math.min(1, root._cropX))
+                var ty = Math.max(0, Math.min(1, root._cropY))
+                snapAnimX.from = root._cropX
+                snapAnimX.to = tx
+                snapAnimX.start()
+                snapAnimY.from = root._cropY
+                snapAnimY.to = ty
+                snapAnimY.start()
             }
         }
     }
@@ -169,7 +175,10 @@ Rectangle {
                 MouseArea {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: { root._cropX = 0.5; root._cropY = 0.5 }
+                    onClicked: {
+                        snapAnimX.from = root._cropX; snapAnimX.to = 0.5; snapAnimX.start()
+                        snapAnimY.from = root._cropY; snapAnimY.to = 0.5; snapAnimY.start()
+                    }
                 }
             }
 
