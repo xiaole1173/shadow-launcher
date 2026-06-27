@@ -1334,6 +1334,10 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
             catDone = st.catBytesDoneBase[cat];
         }
         st.catBytesDl[cat] = catDone;
+
+        // Rebuild cards so pure MC verify step flips from pending→active
+        // when the last download category finishes (progressChanged may fire first).
+        rebuildInstallCards();
     }
 
     // ── Merged install: route MC download phase to steps 0-2 ──
