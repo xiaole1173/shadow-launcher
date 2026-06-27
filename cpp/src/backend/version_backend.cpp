@@ -594,6 +594,9 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             st.catBytesTotal[1] = downloader->categoryTotalBytes(1);
                             st.catBytesTotal[2] = downloader->categoryTotalBytes(2);
                             bool firstPulse = (st.bytesDl == 0 && db > 0);
+                            if (firstPulse && m_progressTracker) {
+                                m_progressTracker->setPhase(ProgressTracker::Download);
+                            }
                             // Also inject into session for merged install mod_loader card
                             for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
                                 if (sit.value().isMerged && sit.value().mcVersion == versionId) {
@@ -601,7 +604,6 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                     sit.value().mcStepTotal[1] = downloader->categoryTotalBytes(1);
                                     sit.value().mcStepTotal[2] = downloader->categoryTotalBytes(2);
                                     if (firstPulse) {
-                                        if (m_progressTracker) m_progressTracker->setPhase(ProgressTracker::Download);
                                         updateStep(sit.key(), 0, QStringLiteral("completed"), 100);
                                         // Activate steps 1-2 immediately so they show as downloading
                                         // (even at 0% — avoids gray/pending while waiting for first file of each category)
@@ -642,9 +644,11 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             // Activate MC verify step for merged installs
                             for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
                                 if (sit.value().isMerged && sit.value().mcVersion == versionId) {
+                                    // MC download is done — mark steps 0-2 as completed
+                                    for (int i = 0; i < 3 && i < sit.value().steps.size(); i++) {
+                                        updateStep(sit.key(), i, QStringLiteral("completed"), 100);
+                                    }
                                     // Show MC verify step (index 3, initially hidden)
-                                    // MC download steps (0-2) stay at their real progress —
-                                    // they will be marked completed by onVersionDownloadFinished.
                                     int verifyIdx = 3;
                                     if (verifyIdx < sit.value().steps.size()) {
                                         showStep(sit.key(), verifyIdx);
@@ -1192,11 +1196,14 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 mSes.mcBytesAll = dynEst;
         }
         // Push real per-category byte progress to all 3 MC download steps
-        for (int ci = 0; ci < 3; ci++) {
-            if (mSes.mcStepTotal[ci] > 0) {
-                int pct = (int)(mSes.mcStepDone[ci] * 100 / mSes.mcStepTotal[ci]);
-                updateStep(mergedSessionId, ci, QStringLiteral("active"), pct,
-                           mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
+        // Only during download phase — during verify, steps are already marked completed
+        if (st.phase != tr("校验中...")) {
+            for (int ci = 0; ci < 3; ci++) {
+                if (mSes.mcStepTotal[ci] > 0) {
+                    int pct = (int)(mSes.mcStepDone[ci] * 100 / mSes.mcStepTotal[ci]);
+                    updateStep(mergedSessionId, ci, QStringLiteral("active"), pct,
+                               mSes.mcStepDone[ci], mSes.mcStepTotal[ci]);
+                }
             }
         }
         // Byte-weighted progress for merged install MC phase
