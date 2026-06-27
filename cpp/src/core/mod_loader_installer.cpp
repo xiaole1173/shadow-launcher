@@ -1964,10 +1964,22 @@ void ModLoaderInstaller::neoManualFinalize(const QJsonObject& versionJson)
         out.close();
     }
 
-    emit stepProgress(3, 100);
-    emit progressChanged(3, m_totalSteps, "NeoForge 安装完成");
-    emit finished(true, QString());
-    m_running = false;
+    // 4. Inject Minecraft-Dists:client into jar manifest (NeoForge FML requirement)
+    emit stepProgress(3, 90);
+    emit progressChanged(3, m_totalSteps, "正在注入清单属性...");
+    injectJarManifestAttributeAsync(jarDst,
+        QStringLiteral("Minecraft-Dists"), QStringLiteral("client"),
+        [this](bool ok) {
+            if (!ok)
+                qWarning() << "[ModLoader] WARNING: Failed to inject Minecraft-Dists:client";
+            else
+                qDebug() << "[ModLoader] Injected Minecraft-Dists:client into" << m_installName;
+
+            emit stepProgress(3, 100);
+            emit progressChanged(3, m_totalSteps, "NeoForge 安装完成");
+            emit finished(true, QString());
+            m_running = false;
+        });
 }
 
 void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QString& newName)
