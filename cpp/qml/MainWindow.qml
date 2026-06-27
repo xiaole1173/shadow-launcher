@@ -415,7 +415,6 @@ Window {
                     // Note: Behavior only animates explicit assignments, not bindings
                     opacity: 1.0
 
-                    PropertyAnimation { id: pageDimAnim; target: pageContainer; property: "opacity"; to: 0.15; duration: 150; easing.type: Easing.InOutCubic }
                     PropertyAnimation { id: pageFadeInAnim; target: pageContainer; property: "opacity"; to: 1.0; duration: 500; easing.type: Easing.InOutCubic }
 
                     // ========== HOMEPAGE ==========
@@ -571,7 +570,7 @@ Window {
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
                         overlayFadeInTimer.start()
-                        pageDimAnim.start()
+                        pageContainer.opacity = 0.15
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
