@@ -629,6 +629,7 @@ Rectangle {
         id: bgCropComp
         BackgroundCropOverlay {
             anchors.fill: parent
+            cropAR: appWindow ? (appWindow.width / appWindow.height) : 1.778
             onClosed: bgCropOverlay.active = false
         }
     }

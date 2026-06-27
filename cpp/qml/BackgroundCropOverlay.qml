@@ -15,6 +15,9 @@ Rectangle {
     property bool _started: false
     signal closed()
 
+    // ── Viewport aspect ratio (matches the actual window) ──
+    property real cropAR: 1.778
+
     Component.onCompleted: {
         // Copy crop to local state
         _cropX = (backend && typeof backend.cropX === "number") ? backend.cropX : 0.5
@@ -74,15 +77,19 @@ Rectangle {
         }
     }
 
-    // ── Viewport area (where the background will be shown) ──
+    // ── Viewport area (same aspect ratio as actual window) ──
     Item {
         id: viewport
-        anchors {
-            top: titleBar.bottom; bottom: btnBar.top
-            left: parent.left; right: parent.right
-            margins: 32
-        }
         clip: true
+        
+        // Calculate size: fill available space while maintaining cropAR
+        readonly property real _availW: root.width - 64
+        readonly property real _availH: root.height - titleBar.height - btnBar.height - 24
+        readonly property real _availAR: _availW / Math.max(_availH, 1)
+        
+        width: cropAR >= _availAR ? _availW : _availH * cropAR
+        height: cropAR >= _availAR ? _availW / cropAR : _availH
+        anchors.centerIn: parent
 
         // Checkerboard behind the image (to show transparent/cropped areas)
         Rectangle {
