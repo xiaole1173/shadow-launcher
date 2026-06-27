@@ -146,10 +146,15 @@ Rectangle {
         id: dragArea
         anchors.fill: parent
         hoverEnabled: true
-        z: 4
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
 
         onPressed: function(mouse) {
+            // Ignore clicks in title bar or button bar
+            var tbGlobal = titleBar.mapToItem(root, 0, 0)
+            var bbGlobal = btnBar.mapToItem(root, 0, 0)
+            if (mouse.y < tbGlobal.y + titleBar.height || mouse.y > bbGlobal.y) {
+                mouse.accepted = false; return
+            }
             var vpGlobal = mapToItem(root, mouse.x, mouse.y)
             var vpRect = viewport.mapToItem(root, 0, 0)
             if (vpGlobal.x < vpRect.x || vpGlobal.x > vpRect.x + viewport.width
