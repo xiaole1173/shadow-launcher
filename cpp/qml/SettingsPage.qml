@@ -525,6 +525,13 @@ Rectangle {
                         }
                         Rectangle { visible: hasBg; Layout.fillWidth: true; height: 1; color: "#1a1f2a" }
 
+                        // Hint text
+                        Text {
+                            visible: hasBg; Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            font.pixelSize: 10; color: "#606480"
+                            text: qsTr("当前预览的是所选中的整个图片，而非裁剪后的图片。点击图片，可手动更改选区范围。")
+                        }
+
                         // Sliders
                         RowLayout {
                             visible: hasBg
