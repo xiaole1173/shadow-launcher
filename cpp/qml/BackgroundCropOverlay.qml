@@ -119,40 +119,52 @@ Rectangle {
             x: (_vpW - _displayW) / 2 + _overX * (0.5 - root._cropX)
             y: (_vpH - _displayH) / 2 + _overY * (0.5 - root._cropY)
         }
+    }  // viewport
 
-        // Drag handler (MouseArea for smooth mouse tracking)
-        MouseArea {
-            id: dragArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+    // Drag handler — on full overlay so mouse can travel beyond viewport bounds
+    MouseArea {
+        id: dragArea
+        anchors.fill: parent
+        hoverEnabled: true
+        z: 6
+        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
 
-            onPressed: function(mouse) {
-                root._dragStartX = mouse.x
-                root._dragStartY = mouse.y
-                root._dragCropX = root._cropX
-                root._dragCropY = root._cropY
+        onPressed: function(mouse) {
+            // Only start drag if press is inside viewport
+            var vpGlobal = mapToItem(root, mouse.x, mouse.y)
+            var vpRect = viewport.mapToItem(root, 0, 0)
+            if (vpGlobal.x < vpRect.x || vpGlobal.x > vpRect.x + viewport.width
+             || vpGlobal.y < vpRect.y || vpGlobal.y > vpRect.y + viewport.height) {
+                mouse.accepted = false
+                return
             }
-            onPositionChanged: function(mouse) {
-                if (!pressed) return
-                var dx = mouse.x - root._dragStartX
-                var dy = mouse.y - root._dragStartY
-                // Use display size (always > viewport) so all 4 sides can show black
-                root._cropX = root._dragCropX - dx / Math.max(_displayW, _vpW)
-                root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
-            }
-            onReleased: {
-                // Animated snap-back to valid range
-                var tx = Math.max(0, Math.min(1, root._cropX))
-                var ty = Math.max(0, Math.min(1, root._cropY))
-                snapAnimX.from = root._cropX
-                snapAnimX.to = tx
-                snapAnimX.start()
-                snapAnimY.from = root._cropY
-                snapAnimY.to = ty
-                snapAnimY.start()
-            }
+            root._dragStartX = mouse.x
+            root._dragStartY = mouse.y
+            root._dragCropX = root._cropX
+            root._dragCropY = root._cropY
         }
+        onPositionChanged: function(mouse) {
+            if (!pressed) return
+            var dx = mouse.x - root._dragStartX
+            var dy = mouse.y - root._dragStartY
+            root._cropX = root._dragCropX - dx / Math.max(_displayW, _vpW)
+            root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
+        }
+        onReleased: {
+            var tx = Math.max(0, Math.min(1, root._cropX))
+            var ty = Math.max(0, Math.min(1, root._cropY))
+            snapAnimX.from = root._cropX; snapAnimX.to = tx; snapAnimX.start()
+            snapAnimY.from = root._cropY; snapAnimY.to = ty; snapAnimY.start()
+        }
+    }
+
+    // Cursor-only area over viewport — shows hand cursor without consuming events
+    MouseArea {
+        id: vpCursor
+        anchors.fill: viewport
+        hoverEnabled: true
+        cursorShape: Qt.OpenHandCursor
+        acceptedButtons: Qt.NoButton  // never consumes press, passes to dragArea below
     }
 
     // ── Bottom button bar ──
