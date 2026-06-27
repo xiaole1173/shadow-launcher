@@ -424,36 +424,45 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     libFile.write(jarData);
     libFile.close();
 
-    // 2. Create version JSON — inherits from base MC, adds OptiFine library
+    // 2. Create self-contained version JSON (no inheritsFrom → safe to delete base MC)
     QString versionId = m_installName;
     QJsonObject versionJson;
-    versionJson["id"] = versionId;
-    versionJson["inheritsFrom"] = m_mcVersion;
-    versionJson["type"] = "release";
-    versionJson["jar"] = m_mcVersion;
 
-    // Copy mainClass from base MC JSON (OptiFine 1.21+ uses the default)
     QString baseJsonPath = m_gameDir + "/versions/" + m_mcVersion + "/" + m_mcVersion + ".json";
     QFile baseJsonFile(baseJsonPath);
     if (baseJsonFile.open(QIODevice::ReadOnly)) {
+        // Start from base MC JSON, merge OptiFine on top
         QJsonDocument baseDoc = QJsonDocument::fromJson(baseJsonFile.readAll());
         baseJsonFile.close();
-        QJsonObject baseJson = baseDoc.object();
-        if (baseJson.contains(QStringLiteral("mainClass")))
-            versionJson["mainClass"] = baseJson["mainClass"];
-        // Copy JVM arguments (needed for module access in Java 17+)
-        if (baseJson.contains(QStringLiteral("arguments")))
-            versionJson["arguments"] = baseJson["arguments"];
+        versionJson = baseDoc.object();
     }
 
+    // Override/set id
+    versionJson["id"] = versionId;
+    // Remove inheritsFrom (self-contained, no parent dependency)
+    versionJson.remove(QStringLiteral("inheritsFrom"));
+    versionJson["type"] = QStringLiteral("release");
+
+    // Add OptiFine library to the existing libraries array
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
     QJsonObject libObj;
     libObj["name"] = libName;
-    QJsonArray libraries;
     libraries.append(libObj);
     versionJson["libraries"] = libraries;
 
-    // 3. Write to versions/
+    // 3. Copy base MC JAR to OptiFine version folder (self-contained, no inheritsFrom)
+    QString baseJarPath = m_gameDir + "/versions/" + m_mcVersion + "/" + m_mcVersion + ".jar";
     QString verDir = m_gameDir + "/versions/" + versionId;
+    QDir().mkpath(verDir);
+    QString optiJarPath = verDir + "/" + versionId + ".jar";
+    if (QFile::exists(baseJarPath) && !QFile::exists(optiJarPath)) {
+        QFile::copy(baseJarPath, optiJarPath);
+        versionJson["jar"] = versionId;  // use our own JAR, not base
+    } else if (QFile::exists(optiJarPath)) {
+        versionJson["jar"] = versionId;
+    }
+
+    // 4. Write to versions/
     QDir().mkpath(verDir);
     QFile jsonFile(verDir + "/" + versionId + ".json");
     if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {

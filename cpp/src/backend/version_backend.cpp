@@ -143,8 +143,13 @@ VersionBackend::VersionBackend(QObject* parent)
             }
             // Merged install complete — delete residual vanilla MC version folder
             if (ses.isMerged) {
-                // Synthetic install uses inheritsFrom — base MC must remain
-                emit logMessage(tr("✓ 合并安装完成（继承自 %1）").arg(ses.mcVersion));
+                // Synthetic install is self-contained — safe to delete base MC folder
+                QString vanillaVerDir = m_gameDir + "/versions/" + ses.mcVersion;
+                QDir vd(vanillaVerDir);
+                if (vd.exists()) {
+                    vd.removeRecursively();
+                    emit logMessage(tr("✓ 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                }
                 ses.isMerged = false;
                 ses.mcVersion.clear();
                 ses.loaderType.clear();
