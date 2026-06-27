@@ -1746,6 +1746,7 @@ void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
              << "libs (skipped" << (libraries.size() - downloads.size()) << ")";
 
     if (downloads.isEmpty()) {
+        m_cachedJar = jarData;
         writeNeoForgeVersion(versionJson);
         return;
     }
@@ -1761,6 +1762,7 @@ void ModLoaderInstaller::neoForgeStep3_buildVersion(const QByteArray& jarData)
         if (*completed >= downloads.size()) {
             if (*doneCalled) return;
             *doneCalled = true;
+            m_cachedJar = jarData;
             writeNeoForgeVersion(versionJson);
             return;
         }
@@ -1819,31 +1821,25 @@ void ModLoaderInstaller::writeNeoForgeVersion(const QJsonObject& versionInfo)
 
     qDebug() << "[ModLoader] NeoForge version JSON written:" << jsonPath;
 
-    // Step 4: Manual install — extract pre-merged client jar (bypasses JVM)
+    // Step 4: Manual install — use cached jar data (from download-to-memory)
     neoManualFinalize(versionInfo);
 }
 
 void ModLoaderInstaller::neoManualFinalize(const QJsonObject& versionJson)
 {
-    m_currentStep = 4;
-    emit progressChanged(4, m_totalSteps, "正在提取 NeoForge 客户端文件...");
-    emit stepProgress(4, 25);
+    // Step 3 (same step as "安装 NeoForge" in rebuildSteps)
+    emit progressChanged(3, m_totalSteps, "正在提取 NeoForge 客户端文件...");
+    emit stepProgress(3, 25);
 
-    // 1. Read the saved installer JAR to extract pre-merged client jar
-    QString installerPath = m_gameDir + QStringLiteral("/libraries/net/neoforged/neoforge/%1/neoforge-%1-installer.jar")
-        .arg(m_loaderVersion);
-    QFile installerFile(installerPath);
-    if (!installerFile.open(QIODevice::ReadOnly)) {
-        qWarning() << "[ModLoader] NeoForge installer not found at" << installerPath;
+    // 1. Use cached jar data (saved by neoForgeStep3_buildVersion)
+    if (m_cachedJar.isEmpty()) {
+        qWarning() << "[ModLoader] No cached NeoForge installer jar, cannot extract client";
         finished(true, QString());
         m_running = false;
         return;
     }
-    QByteArray jarBytes = installerFile.readAll();
-    installerFile.close();
-
     QBuffer buf;
-    buf.setData(jarBytes);
+    buf.setData(m_cachedJar);
     if (!buf.open(QIODevice::ReadOnly)) {
         qWarning() << "[ModLoader] Cannot read installer buffer";
         finished(true, QString());
@@ -1863,8 +1859,8 @@ void ModLoaderInstaller::neoManualFinalize(const QJsonObject& versionJson)
     }
     reader.close();
 
-    emit stepProgress(4, 50);
-    emit progressChanged(4, m_totalSteps, "正在写入 NeoForge 客户端文件...");
+    emit stepProgress(3, 50);
+    emit progressChanged(3, m_totalSteps, "正在写入 NeoForge 客户端文件...");
 
     // 2. Copy client jar to version folder
     const QString verDir = m_gameDir + QStringLiteral("/versions/") + m_installName;
@@ -1907,8 +1903,8 @@ void ModLoaderInstaller::neoManualFinalize(const QJsonObject& versionJson)
         }
     }
 
-    emit stepProgress(4, 75);
-    emit progressChanged(4, m_totalSteps, "正在生成 NeoForge 版本配置...");
+    emit stepProgress(3, 75);
+    emit progressChanged(3, m_totalSteps, "正在生成 NeoForge 版本配置...");
 
     // 3. Write final version JSON (merged with vanilla MC)
     const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
@@ -1968,8 +1964,8 @@ void ModLoaderInstaller::neoManualFinalize(const QJsonObject& versionJson)
         out.close();
     }
 
-    emit stepProgress(4, 100);
-    emit progressChanged(m_currentStep, m_totalSteps, "NeoForge 安装完成");
+    emit stepProgress(3, 100);
+    emit progressChanged(3, m_totalSteps, "NeoForge 安装完成");
     emit finished(true, QString());
     m_running = false;
 }
