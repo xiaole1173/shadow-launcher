@@ -30,14 +30,32 @@ Rectangle {
     property real _cropX: 0.5
     property real _cropY: 0.5
 
-    // Snap-back animations (explicit from/to, no Behavior ambiguity)
-    NumberAnimation {
-        id: snapX; target: root; property: "_cropX"
-        duration: 500; easing.type: Easing.OutCubic
-    }
-    NumberAnimation {
-        id: snapY; target: root; property: "_cropY"
-        duration: 500; easing.type: Easing.OutCubic
+    // JS-driven snap-back (bypasses Qt animation unreliability)
+    property real _snapFromX: 0; property real _snapToX: 0; property real _snapT0X: 0
+    property real _snapFromY: 0; property real _snapToY: 0; property real _snapT0Y: 0
+    property bool _snappingX: false; property bool _snappingY: false
+    readonly property real _snapDuration: 500
+
+    Timer {
+        id: snapDriver
+        interval: 16; repeat: false
+        onTriggered: {
+            var now = Date.now()
+            var active = false
+            if (_snappingX) {
+                var t = Math.min(1, (now - _snapT0X) / _snapDuration)
+                root._cropX = _snapFromX + (_snapToX - _snapFromX) * (1 - (1 - t) * (1 - t) * (1 - t))
+                if (t >= 1) { root._cropX = _snapToX; _snappingX = false }
+                else active = true
+            }
+            if (_snappingY) {
+                var tY = Math.min(1, (now - _snapT0Y) / _snapDuration)
+                root._cropY = _snapFromY + (_snapToY - _snapFromY) * (1 - (1 - tY) * (1 - tY) * (1 - tY))
+                if (tY >= 1) { root._cropY = _snapToY; _snappingY = false }
+                else active = true
+            }
+            if (active) snapDriver.restart()
+        }
     }
 
     // ── Drag state ──
@@ -131,7 +149,6 @@ Rectangle {
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
 
         onPressed: function(mouse) {
-            // Only start drag if press is inside viewport
             var vpGlobal = mapToItem(root, mouse.x, mouse.y)
             var vpRect = viewport.mapToItem(root, 0, 0)
             if (vpGlobal.x < vpRect.x || vpGlobal.x > vpRect.x + viewport.width
@@ -139,7 +156,7 @@ Rectangle {
                 mouse.accepted = false
                 return
             }
-            snapX.stop(); snapY.stop()
+            _snappingX = false; _snappingY = false; snapDriver.stop()
             root._dragStartX = mouse.x
             root._dragStartY = mouse.y
             root._dragCropX = root._cropX
@@ -153,15 +170,16 @@ Rectangle {
             root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
         }
         onReleased: {
-            // With overflow: clamp to [0,1]; without: snap to center 0.5
             var tx = (_overX > 0) ? Math.max(0, Math.min(1, root._cropX)) : 0.5
             var ty = (_overY > 0) ? Math.max(0, Math.min(1, root._cropY)) : 0.5
+            var now = Date.now()
             if (Math.abs(root._cropX - tx) > 0.001) {
-                snapX.from = root._cropX; snapX.to = tx; snapX.restart()
+                _snapFromX = root._cropX; _snapToX = tx; _snapT0X = now; _snappingX = true
             }
             if (Math.abs(root._cropY - ty) > 0.001) {
-                snapY.from = root._cropY; snapY.to = ty; snapY.restart()
+                _snapFromY = root._cropY; _snapToY = ty; _snapT0Y = now; _snappingY = true
             }
+            if (_snappingX || _snappingY) snapDriver.restart()
         }
     }
 
@@ -195,8 +213,14 @@ Rectangle {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        snapX.from = root._cropX; snapX.to = 0.5; snapX.restart()
-                        snapY.from = root._cropY; snapY.to = 0.5; snapY.restart()
+                        var now = Date.now()
+                        if (Math.abs(root._cropX - 0.5) > 0.001) {
+                            _snapFromX = root._cropX; _snapToX = 0.5; _snapT0X = now; _snappingX = true
+                        }
+                        if (Math.abs(root._cropY - 0.5) > 0.001) {
+                            _snapFromY = root._cropY; _snapToY = 0.5; _snapT0Y = now; _snappingY = true
+                        }
+                        if (_snappingX || _snappingY) snapDriver.restart()
                     }
                 }
             }
