@@ -527,6 +527,15 @@ void ShadowBackend::setSidebarOpacity(qreal v) { m_settings->setSidebarOpacity(v
 qreal ShadowBackend::contentOpacity() const { return m_settings->contentOpacity(); }
 void ShadowBackend::setContentOpacity(qreal v) { m_settings->setContentOpacity(v); }
 
+qreal ShadowBackend::cropX() const { return m_settings->cropX(); }
+void ShadowBackend::setCropX(qreal v) { m_settings->setCropX(v); }
+qreal ShadowBackend::cropY() const { return m_settings->cropY(); }
+void ShadowBackend::setCropY(qreal v) { m_settings->setCropY(v); }
+void ShadowBackend::updateCrop(qreal x, qreal y) {
+    m_settings->setCropX(x);
+    m_settings->setCropY(y);
+}
+
 QString ShadowBackend::pickBackgroundImage() {
     QString path = QFileDialog::getOpenFileName(nullptr,
         QString::fromUtf8("选择背景图片"), QString(),

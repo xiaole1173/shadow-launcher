@@ -88,6 +88,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString customBgPath READ customBgPath NOTIFY customBgChanged)
     Q_PROPERTY(qreal sidebarOpacity READ sidebarOpacity NOTIFY customBgChanged)
     Q_PROPERTY(qreal contentOpacity READ contentOpacity NOTIFY customBgChanged)
+    Q_PROPERTY(qreal cropX READ cropX WRITE setCropX NOTIFY customBgChanged)
+    Q_PROPERTY(qreal cropY READ cropY WRITE setCropY NOTIFY customBgChanged)
 
     // ── Version details/summary ──
     Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionDetailsReady)
@@ -152,6 +154,11 @@ public:
     Q_INVOKABLE void setSidebarOpacity(qreal v);
     qreal contentOpacity() const;
     Q_INVOKABLE void setContentOpacity(qreal v);
+    qreal cropX() const;
+    Q_INVOKABLE void setCropX(qreal v);
+    qreal cropY() const;
+    Q_INVOKABLE void setCropY(qreal v);
+    Q_INVOKABLE void updateCrop(qreal x, qreal y);
     Q_INVOKABLE QString pickBackgroundImage();
 
     QVariantList availableJavaList() const;
