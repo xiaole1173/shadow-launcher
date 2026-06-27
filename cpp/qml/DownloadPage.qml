@@ -642,7 +642,7 @@ Rectangle {
                     id: versionRow
                     width: versionList.width
                     height: 42
-                    color: itemHover.containsMouse ? "#11141c" : "transparent"
+                    color: "transparent"
                     radius: 6
                     border.color: page.selectedVersionId === model.versionId ? "#3a4eb8" : "transparent"
                     border.width: page.selectedVersionId === model.versionId ? 1 : 0
@@ -794,7 +794,6 @@ Rectangle {
                         id: itemHover
                         anchors.fill: parent
                         z: -1  // below Button
-                        hoverEnabled: true
                         onClicked: {
                             if (model.versionId) {
                                 page.selectedVersionId = model.versionId
