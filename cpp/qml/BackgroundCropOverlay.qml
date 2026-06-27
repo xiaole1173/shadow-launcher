@@ -166,8 +166,8 @@ Rectangle {
             if (!pressed) return
             var dx = mouse.x - root._dragStartX
             var dy = mouse.y - root._dragStartY
-            root._cropX = root._dragCropX - dx / Math.max(_displayW, _vpW)
-            root._cropY = root._dragCropY - dy / Math.max(_displayH, _vpH)
+            root._cropX = root._dragCropX - dx / Math.max(_vpW, 1)
+            root._cropY = root._dragCropY - dy / Math.max(_vpH, 1)
         }
         onReleased: {
             var tx = (_overX > 0) ? Math.max(0, Math.min(1, root._cropX)) : 0.5
