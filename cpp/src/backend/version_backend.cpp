@@ -229,17 +229,18 @@ VersionBackend::VersionBackend(QObject* parent)
     // Pause between verify and install (merged install: wait for MC)
     connect(m_mlInstaller, &ModLoaderInstaller::waitingForMC, this, [this]() {
         setInstallPhase(tr("等待MC下载完成..."));
-        // Mark verify step completed
-        const QString mlId = m_modLoaderInstallId;
-        if (!mlId.isEmpty() && m_sessions.contains(mlId)) {
-            auto& ses = session(mlId);
+        // Traverse all sessions so we don't rely on m_modLoaderInstallId
+        // being stable across async boundaries.
+        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+            auto& ses = it.value();
+            if (!ses.isMerged) continue;
             int verifyStep = ses.loaderVerifyStep;
             if (verifyStep >= 0 && verifyStep < ses.steps.size()) {
-                updateStep(mlId, verifyStep, QStringLiteral("completed"), 100);
+                updateStep(it.key(), verifyStep, QStringLiteral("completed"), 100);
             }
             ses.loaderDownloadReady = true;
             if (ses.mcDownloadDone) {
-                proceedToLoaderInstall(mlId);
+                proceedToLoaderInstall(it.key());
             }
         }
     });
@@ -600,6 +601,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                                     sit.value().mcStepTotal[1] = downloader->categoryTotalBytes(1);
                                     sit.value().mcStepTotal[2] = downloader->categoryTotalBytes(2);
                                     if (firstPulse) {
+                                        if (m_progressTracker) m_progressTracker->setPhase(ProgressTracker::Download);
                                         updateStep(sit.key(), 0, QStringLiteral("completed"), 100);
                                         // Activate steps 1-2 immediately so they show as downloading
                                         // (even at 0% — avoids gray/pending while waiting for first file of each category)
@@ -640,11 +642,9 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             // Activate MC verify step for merged installs
                             for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
                                 if (sit.value().isMerged && sit.value().mcVersion == versionId) {
-                                    // Mark MC download steps (0-2) as completed
-                                    for (int i = 0; i < 3 && i < sit.value().steps.size(); i++) {
-                                        updateStep(sit.key(), i, QStringLiteral("completed"), 100);
-                                    }
                                     // Show MC verify step (index 3, initially hidden)
+                                    // MC download steps (0-2) stay at their real progress —
+                                    // they will be marked completed by onVersionDownloadFinished.
                                     int verifyIdx = 3;
                                     if (verifyIdx < sit.value().steps.size()) {
                                         showStep(sit.key(), verifyIdx);
