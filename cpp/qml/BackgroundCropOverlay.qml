@@ -29,6 +29,7 @@ Rectangle {
     // ── Local crop state ──
     property real _cropX: 0.5
     property real _cropY: 0.5
+    property real _zoom: 1.0  // viewport zoom factor
 
     // JS-driven snap-back (bypasses Qt animation unreliability)
     property real _snapFromX: 0; property real _snapToX: 0; property real _snapT0X: 0
@@ -132,7 +133,7 @@ Rectangle {
             source: backend ? (backend.customBgPath || "") : ""
             fillMode: Image.PreserveAspectFit
             transformOrigin: Item.TopLeft
-            scale: root._scale
+            scale: root._scale * root._zoom
             asynchronous: true; cache: false
 
             x: _overX > 0 ? -_overX * root._cropX : -_displayW * (root._cropX - 0.5)
@@ -145,7 +146,7 @@ Rectangle {
         id: dragArea
         anchors.fill: parent
         hoverEnabled: true
-        z: 6
+        z: 4
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
 
         onPressed: function(mouse) {
@@ -189,7 +190,10 @@ Rectangle {
         anchors.fill: viewport
         hoverEnabled: true
         cursorShape: Qt.OpenHandCursor
-        acceptedButtons: Qt.NoButton  // never consumes press, passes to dragArea below
+        acceptedButtons: Qt.NoButton
+        onWheel: function(wheel) {
+            root._zoom = Math.max(0.5, Math.min(3.0, root._zoom - wheel.angleDelta.y / 600))
+        }  // never consumes press, passes to dragArea below
     }
 
     // ── Bottom button bar ──
@@ -222,6 +226,33 @@ Rectangle {
                         }
                         if (_snappingX || _snappingY) snapDriver.restart()
                     }
+                }
+            }
+
+            // Zoom controls
+            Rectangle {
+                width: 28; height: 28; radius: 6
+                color: zoomOutHov.hovered ? "#252a38" : "#161a24"; border.color: "#2a2e3c"
+                Text { anchors.centerIn: parent; text: "−"; font.pixelSize: 14; color: "#b0b8c8" }
+                MouseArea {
+                    id: zoomOutHov; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._zoom = Math.max(0.5, root._zoom - 0.25)
+                }
+            }
+            Text {
+                text: Math.round(root._zoom * 100) + "%"
+                font.pixelSize: 11; color: "#707890"
+                Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
+            }
+            Rectangle {
+                width: 28; height: 28; radius: 6
+                color: zoomInHov.hovered ? "#252a38" : "#161a24"; border.color: "#2a2e3c"
+                Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 14; color: "#b0b8c8" }
+                MouseArea {
+                    id: zoomInHov; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._zoom = Math.min(3.0, root._zoom + 0.25)
                 }
             }
 
