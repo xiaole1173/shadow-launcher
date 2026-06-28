@@ -81,6 +81,7 @@ class ShadowBackend : public QObject {
     // ── App ──
     Q_PROPERTY(QString gameDir READ gameDir NOTIFY gameDirChanged)
     Q_PROPERTY(QString dataDir READ appDataDir CONSTANT)
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(bool devMode READ devMode CONSTANT)
 
@@ -205,6 +206,7 @@ public:
     // ── App getters ──
     QString gameDir() const;
     QString appDataDir() const;
+    QString appVersion() const;
     QString theme() const;
     bool devMode() const;
 

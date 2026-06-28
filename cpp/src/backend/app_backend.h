@@ -18,7 +18,7 @@ class AppBackend : public QObject {
 public:
     explicit AppBackend(QObject *parent = nullptr);
 
-    QString appVersion() const { return QStringLiteral("1.0.0"); }
+    QString appVersion() const { return QStringLiteral(SHADOW_DISPLAY_VERSION); }
     QString appName() const { return QStringLiteral("Shadow Launcher"); }
     QString dataDir() const { return m_dataDir; }
     QString gameDir() const { return m_gameDir; }

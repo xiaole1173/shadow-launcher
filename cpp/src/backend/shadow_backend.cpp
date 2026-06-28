@@ -904,6 +904,10 @@ QString ShadowBackend::theme() const {
     return m_app->theme();
 }
 
+QString ShadowBackend::appVersion() const {
+    return m_app->appVersion();
+}
+
 bool ShadowBackend::devMode() const {
     return m_app->devMode();
 }

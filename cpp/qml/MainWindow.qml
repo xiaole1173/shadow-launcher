@@ -375,7 +375,7 @@ Window {
                         }
                     }
 
-                    Text { Layout.alignment: Qt.AlignHCenter; text: "v0.3.0"; font.pixelSize: 10; color: "#303440" }
+                    Text { Layout.alignment: Qt.AlignHCenter; text: backend ? "v" + backend.appVersion : ""; font.pixelSize: 10; color: "#303440" }
                 }
 
                 // Animated selection indicator overlay
