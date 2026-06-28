@@ -467,14 +467,10 @@ int main(int argc, char *argv[])
     int dlIdx = args.indexOf(QStringLiteral("--auto-download"));
     if (dlIdx >= 0 && dlIdx + 1 < args.size()) {
         QString dlVersion = args[dlIdx + 1];
-        int sourceIdx = (dlIdx + 2 < args.size())
-            ? args[dlIdx + 2].toInt()
-            : 0;  // default: BMCLAPI
-        qCInfo(logApp) << "Auto-download test mode: version" << dlVersion
-                       << "sourceIndex" << sourceIdx;
-        QTimer::singleShot(5000, backend, [backend, dlVersion, sourceIdx]() {
+        qCInfo(logApp) << "Auto-download test mode: version" << dlVersion;
+        QTimer::singleShot(5000, backend, [backend, dlVersion]() {
             qCInfo(logApp) << "Auto-download: triggering installVersion for" << dlVersion;
-            backend->installVersion(dlVersion, sourceIdx);
+            backend->installVersion(dlVersion);
         });
     }
 

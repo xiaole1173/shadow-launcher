@@ -26,8 +26,6 @@ Rectangle {
     // MC Version state
     property string currentFilter: "release"  // release, snapshot, old
     property string selectedVersionId: ""
-    property int currentSource: -1  // -1=自动(最优), 0..N=具体镜像索引
-    property var mirrorSources: []  // 从 backend.getMirrorSources() 加载
     property string clickedVersionId: ""  // Immediately-set on click, cleared on installPhase done
 
     // Watch for install completion/reset to clear clickedVersionId
@@ -40,7 +38,7 @@ Rectangle {
             }
         }
     }
-    property string complianceNotice: ""  // BMCLAPI 协议合规文案
+
 
     // Mod state
     property string modSearchQuery: ""
@@ -199,11 +197,6 @@ Rectangle {
     Component.onCompleted: {
         console.log("[dlpage] loaded, t=" + Date.now())
         opacity = 1; y = 0
-        // Load mirror sources for download source selector
-        if (backend) {
-            page.mirrorSources = backend.getMirrorSources()
-            page.complianceNotice = backend.bmclapiComplianceNotice()
-        }
         // Initial load of version list if already available
         refreshVersionModel()
         console.log("[dlpage] init done, t=" + Date.now())
@@ -534,39 +527,6 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
 
-            // ── Download source selector ──
-            RowLayout {
-                spacing: 4
-                visible: page.currentTab === 0
-
-                // Auto (default)
-                Rectangle {
-                    height: 26; radius: 5
-                    width: multiLabel.implicitWidth + 14
-                    color: page.currentSource === -1 ? "#5068d8" : "#11141c"
-                    border.color: page.currentSource === -1 ? "#5068d8" : "#1e2230"
-                    scale: multiSrcMouse.containsMouse ? 1.04 : 1.0
-                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                    Text { id: multiLabel; anchors.centerIn: parent; text: qsTr("自动"); color: page.currentSource === -1 ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
-                    MouseArea { id: multiSrcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = -1 }
-                }
-                // Divider
-                Rectangle { width: 1; height: 16; color: "#1e2230" }
-                // Dynamic mirror sources from backend
-                Repeater {
-                    model: page.mirrorSources
-                    Rectangle {
-                        height: 26; radius: 5
-                        width: srcLabel.implicitWidth + 14
-                        color: page.currentSource === modelData.index ? "#5068d8" : "#11141c"
-                        border.color: page.currentSource === modelData.index ? "#5068d8" : "#1e2230"
-                        scale: srcMouse.containsMouse ? 1.04 : 1.0
-                        Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                        Text { id: srcLabel; anchors.centerIn: parent; text: modelData.name; color: page.currentSource === modelData.index ? "#ffffff" : "#9094a8"; font.pixelSize: 11 }
-                        MouseArea { id: srcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.currentSource = modelData.index }
-                    }
-                }
-            }
         }
 
         // ── Latest version highlight ──
@@ -770,13 +730,13 @@ Rectangle {
                                 border.width: 1
                             }
                             onClicked: {
-                                console.log("[DownloadPage] Install clicked for " + model.versionId + " source=" + page.currentSource)
+                                console.log("[DownloadPage] Install clicked for " + model.versionId)
                                 if (backend) {
                                     // Log pre-install state
                                     console.log("[download-ui] pre-install: version=" + model.versionId + " installing=" + backend.installing + " versionId=" + backend.installVersionId + " phase=" + backend.installPhase)
                                     // Immediately mark this version as clicked so UI updates before page destruction
                                     page.clickedVersionId = model.versionId
-                                    backend.installVersion(model.versionId, page.currentSource)
+                                    backend.installVersion(model.versionId)
                                     // Row bounce animation
                                     rowBounceAnim.start()
                                     // Show download nav + trigger flying ball via signal (qrc-safe)

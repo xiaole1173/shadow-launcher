@@ -620,12 +620,19 @@ Rectangle {
                     ColumnLayout {
                         id: aboutCardContent
                         anchors.left: parent.left; anchors.right: parent.right
-                        anchors.top: parent.top; anchors.margins: 17; spacing: 6
+                        anchors.top: parent.top; anchors.margins: 17; spacing: 8
                         RowLayout {
                             Layout.fillWidth: true
                             Text { text: "Shadow Launcher"; font.pixelSize: 16; font.bold: true; color: "#e8ecf8" }
                             Item { Layout.fillWidth: true }
                             Text { text: "v" + (backend ? backend.appVersion : ""); font.pixelSize: 11; color: "#505568" }
+                        }
+                        ShadowButton {
+                            accentColor: "#2d3748"
+                            text: qsTr("GitHub")
+                            Layout.preferredWidth: 74; Layout.preferredHeight: 26
+                            font.pixelSize: 11
+                            onClicked: Qt.openUrlExternally("https://github.com/xiaole1173/shadow-launcher")
                         }
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
@@ -633,19 +640,6 @@ Rectangle {
                             font.pixelSize: 12; color: "#707888"; lineHeight: 1.4
                         }
                     }
-                }
-
-                // GitHub link button
-                RowLayout {
-                    Layout.fillWidth: true
-                    Item { Layout.fillWidth: true }
-                    ShadowButton {
-                        accentColor: "#2d3748"
-                        text: qsTr("GitHub")
-                        Layout.preferredWidth: 90; Layout.preferredHeight: 30
-                        onClicked: Qt.openUrlExternally("https://github.com/xiaole1173/shadow-launcher")
-                    }
-                    Item { Layout.fillWidth: true }
                 }
 
                 // Acknowledgments card

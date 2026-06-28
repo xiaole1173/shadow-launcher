@@ -470,7 +470,7 @@ void VersionBackend::refreshInstalled()
 // Slots — install lifecycle
 // ============================================================
 
-void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
+void VersionBackend::installVersion(const QString& versionId)
 {
     // ── Check if already active ──
     if (m_activeIds.contains(versionId)) {
@@ -480,7 +480,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
     // ── Check queue for duplicates ──
     for (const auto& entry : m_installQueue) {
-        if (entry.first == versionId) {
+        if (entry == versionId) {
             emit logMessage(tr("⏳ %1 已在下载队列中").arg(versionId));
             return;
         }
@@ -488,7 +488,7 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
 
     // ── Queue: if at max concurrency, enqueue ──
     if (m_activeCount >= MAX_CONCURRENT) {
-        m_installQueue.enqueue({versionId, sourceIndex});
+        m_installQueue.enqueue(versionId);
         qCDebug(logLaunch) << "[DOWNLOAD] enqueued=" << versionId << "pos=" << m_installQueue.size() << "active=" << m_activeCount;
         emit logMessage(tr("⏳ %1 已加入下载队列 (位置 %2)")
                             .arg(versionId)
@@ -520,11 +520,8 @@ void VersionBackend::installVersion(const QString& versionId, int sourceIndex)
                             .arg(checkpointFiles.size()));
     }
 
-    // ── Resolve mirror source ──
-    QVector<MirrorSource> mirrors = MirrorSource::allMirrors();
-    MirrorSource mirror = (sourceIndex >= 0 && sourceIndex < mirrors.size())
-                              ? mirrors[sourceIndex]
-                              : mirrors[0]; // default: BMCLAPI
+    // ── Resolve mirror source (hardcoded: BMCLAPI is the primary mirror) ──
+    MirrorSource mirror = MirrorSource::bmclapi();
 
     // ── Find version metadata in cached list ──
     QVector<McVersion> versions = m_versionMgr->cachedVersions();
@@ -779,7 +776,7 @@ void VersionBackend::cancelInstall(const QString& versionId)
     if (!m_downloaders.contains(versionId)) {
         // Check queue
         for (int i = 0; i < m_installQueue.size(); ++i) {
-            if (m_installQueue[i].first == versionId) {
+            if (m_installQueue[i] == versionId) {
                 m_installQueue.removeAt(i);
                 emit logMessage(tr("已取消队列中的 %1").arg(versionId));
                 emit installStateChanged();
@@ -1003,7 +1000,7 @@ void VersionBackend::cancelQueuedDownload(const QString& versionId)
 {
     // Remove from queue
     for (int i = 0; i < m_installQueue.size(); ++i) {
-        if (m_installQueue[i].first == versionId) {
+        if (m_installQueue[i] == versionId) {
             m_installQueue.removeAt(i);
             emit logMessage(tr("已取消队列中的 %1").arg(versionId));
             emit installStateChanged();
@@ -1022,7 +1019,7 @@ QVariantList VersionBackend::downloadQueue() const
     QVariantList list;
     for (int i = 0; i < m_installQueue.size(); ++i) {
         QVariantMap entry;
-        entry[QStringLiteral("versionId")] = m_installQueue[i].first;
+        entry[QStringLiteral("versionId")] = m_installQueue[i];
         entry[QStringLiteral("position")] = i + 1;
         list.append(entry);
     }
@@ -1370,15 +1367,13 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 void VersionBackend::startNextFromQueue()
 {
     while (m_activeCount < MAX_CONCURRENT && !m_installQueue.isEmpty()) {
-        auto next = m_installQueue.dequeue();
-        QString nextId = next.first;
-        int nextSource = next.second;
+        QString nextId = m_installQueue.dequeue();
         qCDebug(logLaunch) << "[DOWNLOAD] dequeue=" << nextId << " remaining=" << m_installQueue.size();
         emit downloadQueueChanged();
         emit logMessage(tr("▶ 开始队列中下一个版本: %1").arg(nextId));
         // Direct recursive call — installVersion will enqueue again if still full
-        QTimer::singleShot(200, this, [this, nextId, nextSource]() {
-            installVersion(nextId, nextSource);
+        QTimer::singleShot(200, this, [this, nextId]() {
+            installVersion(nextId);
         });
     }
 }
@@ -1959,7 +1954,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             emit logMessage(tr("✓ 连通性测试通过，同时下载 MC 和 ") + loaderType);
 
             // ── 1. Start MC download with the mirror that passed connectivity ──
-            installVersion(mcVersion, sourceIndex);
+            installVersion(mcVersion);
 
             // ── 2. Fabric: download profile + libraries in parallel with MC ──
             if (loaderType == QStringLiteral("fabric")) {
@@ -2255,7 +2250,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
         // Start MC and OptiFine JAR downloads in parallel
         ses.optifineJarParallel = true;
-        installVersion(mcVersion, 0);
+        installVersion(mcVersion);
         startOptifineJarParallel(installName, mcVersion, optifineVersion, bmclType, bmclPatch);
         return;
     }

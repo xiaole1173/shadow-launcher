@@ -7,7 +7,6 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QQueue>
-#include <QPair>
 #include <QThread>
 #include <QAtomicInt>
 #include <QMap>
@@ -179,7 +178,7 @@ public:
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
-    Q_INVOKABLE void installVersion(const QString& versionId, int sourceIndex = 0);
+    Q_INVOKABLE void installVersion(const QString& versionId);
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void cancelInstall(const QString& versionId);
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
@@ -315,7 +314,7 @@ private:
 
     int m_verifyChecked = 0;
     int m_verifyTotal = 0;
-    QQueue<QPair<QString, int>> m_installQueue;
+    QQueue<QString> m_installQueue;
 
     VersionDownloader* primaryDownloader() const;
     QString primaryVersionId() const;
