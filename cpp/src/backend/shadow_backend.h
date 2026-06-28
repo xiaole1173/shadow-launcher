@@ -87,6 +87,9 @@ class ShadowBackend : public QObject {
 
     // ── Agreements ──
     Q_PROPERTY(bool agreementAccepted READ agreementAccepted NOTIFY agreementAcceptedChanged)
+    Q_PROPERTY(QString betaAgreementHtml READ betaAgreementHtml CONSTANT)
+    Q_PROPERTY(QString privacyAgreementHtml READ privacyAgreementHtml CONSTANT)
+    Q_PROPERTY(QString termsAgreementHtml READ termsAgreementHtml CONSTANT)
     Q_INVOKABLE void acceptAgreements();
 
     // ── Custom background ──
@@ -214,6 +217,9 @@ public:
     QString theme() const;
     bool devMode() const;
     bool agreementAccepted() const;
+    QString betaAgreementHtml() const;
+    QString privacyAgreementHtml() const;
+    QString termsAgreementHtml() const;
 
     // ── Game info stubs ──
     QVariantMap gameDirInfo() const { return m_gameDirInfo; }

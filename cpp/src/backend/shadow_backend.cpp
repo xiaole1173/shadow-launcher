@@ -4,6 +4,7 @@
 #include "../core/icon_cache.h"
 #include "../core/version_downloader.h"
 #include <QCoreApplication>
+#include <QFile>
 #include <QSettings>
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
@@ -933,6 +934,29 @@ void ShadowBackend::acceptAgreements() {
     s.setValue(QStringLiteral("agreement/terms"), true);
     s.sync();
     emit agreementAcceptedChanged();
+}
+
+static QString readQrcFile(const QString& path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QStringLiteral("<p>无法加载协议文件</p>");
+    return QString::fromUtf8(f.readAll());
+}
+
+QString ShadowBackend::betaAgreementHtml() const
+{
+    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/beta_agreement.html"));
+}
+
+QString ShadowBackend::privacyAgreementHtml() const
+{
+    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/privacy_policy.html"));
+}
+
+QString ShadowBackend::termsAgreementHtml() const
+{
+    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/terms_of_service.html"));
 }
 
 // ============================================================
