@@ -85,6 +85,10 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(bool devMode READ devMode CONSTANT)
 
+    // ── Agreements ──
+    Q_PROPERTY(bool agreementAccepted READ agreementAccepted NOTIFY agreementAcceptedChanged)
+    Q_INVOKABLE void acceptAgreements();
+
     // ── Custom background ──
     Q_PROPERTY(QString customBgPath READ customBgPath NOTIFY customBgChanged)
     Q_PROPERTY(qreal sidebarOpacity READ sidebarOpacity NOTIFY customBgChanged)
@@ -209,6 +213,7 @@ public:
     QString appVersion() const;
     QString theme() const;
     bool devMode() const;
+    bool agreementAccepted() const;
 
     // ── Game info stubs ──
     QVariantMap gameDirInfo() const { return m_gameDirInfo; }
@@ -434,6 +439,7 @@ signals:
     void searchResultsReady(const QVariantList& results);
     void gameDirChanged();
     void themeChanged();
+    void agreementAcceptedChanged();
     void loginModeChanged();
     void customBgChanged();
     void logMessage(const QString& msg);

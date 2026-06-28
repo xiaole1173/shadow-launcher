@@ -879,5 +879,15 @@ Window {
         anchors.fill: parent
         z: 9999
     }
+
+    // ═══ Agreement overlay (shown on first launch / when agreements updated) ═══
+    Loader {
+        id: agreementLoader
+        anchors.fill: parent
+        z: 10000
+        active: backend ? !backend.agreementAccepted : false
+        source: "AgreementOverlay.qml"
+        asynchronous: false
+    }
     } // ── end rounded Rectangle
 }

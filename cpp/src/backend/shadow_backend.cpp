@@ -3,6 +3,8 @@
 #include "../core/mod_manager.h"
 #include "../core/icon_cache.h"
 #include "../core/version_downloader.h"
+#include <QCoreApplication>
+#include <QSettings>
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
 #include <QElapsedTimer>
@@ -910,6 +912,27 @@ QString ShadowBackend::appVersion() const {
 
 bool ShadowBackend::devMode() const {
     return m_app->devMode();
+}
+
+bool ShadowBackend::agreementAccepted() const {
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    if (s.value(QStringLiteral("agreement/version")).toString() != AppBackend::AGREEMENT_VERSION)
+        return false;
+    return s.value(QStringLiteral("agreement/beta"), false).toBool()
+        && s.value(QStringLiteral("agreement/privacy"), false).toBool()
+        && s.value(QStringLiteral("agreement/terms"), false).toBool();
+}
+
+void ShadowBackend::acceptAgreements() {
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("agreement/version"), AppBackend::AGREEMENT_VERSION);
+    s.setValue(QStringLiteral("agreement/beta"), true);
+    s.setValue(QStringLiteral("agreement/privacy"), true);
+    s.setValue(QStringLiteral("agreement/terms"), true);
+    s.sync();
+    emit agreementAcceptedChanged();
 }
 
 // ============================================================

@@ -20,6 +20,7 @@ public:
 
     QString appVersion() const { return QStringLiteral(SHADOW_DISPLAY_VERSION); }
     QString appName() const { return QStringLiteral("Shadow Launcher"); }
+    static constexpr const char* AGREEMENT_VERSION = "1.0";
     QString dataDir() const { return m_dataDir; }
     QString gameDir() const { return m_gameDir; }
     QString theme() const { return m_theme; }

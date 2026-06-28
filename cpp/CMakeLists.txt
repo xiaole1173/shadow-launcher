@@ -123,6 +123,7 @@ qt_add_executable(ShadowLauncher ${SOURCES} ${HEADERS} resources/app.rc)
 qt6_add_resources(ShadowLauncher "qml_resources"
     PREFIX "/qt/qml/ShadowLauncher"
     FILES
+        qml/AgreementOverlay.qml
         qml/AnimationTokens.qml
         qml/BackgroundCropOverlay.qml
         qml/ConfirmDialog.qml
