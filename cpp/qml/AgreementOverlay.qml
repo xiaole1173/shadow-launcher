@@ -14,27 +14,24 @@ Rectangle {
     z: 999
 
     // ── Precompute HTML properties at overlay scope ──
-    // (component AgreementRow has its own scope and can't see `backend` directly)
-    readonly property string betaHtml: typeof backend !== "undefined" && backend ? backend.betaAgreementHtml : ""
-    readonly property string privacyHtml: typeof backend !== "undefined" && backend ? backend.privacyAgreementHtml : ""
-    readonly property string termsHtml: typeof backend !== "undefined" && backend ? backend.termsAgreementHtml : ""
+    readonly property string betaHtml: typeof backend !== "undefined" && backend ? (backend.betaAgreementHtml || "") : ""
+    readonly property string privacyHtml: typeof backend !== "undefined" && backend ? (backend.privacyAgreementHtml || "") : ""
+    readonly property string termsHtml: typeof backend !== "undefined" && backend ? (backend.termsAgreementHtml || "") : ""
 
-    // Block clicks from passing through, but allow drag on title area
+    // Pass-through MouseArea — blocks click-through but allows title drag
     MouseArea {
-        id: clickBlocker
         anchors.fill: parent
-        // Don't accept all buttons — let the title area handle drag
     }
 
-    // ── Inline component: AgreementRow ──
+    // ── AgreementRow — inline component (scope: overlay) ──
     component AgreementRow: RowLayout {
         id: row
         spacing: 2
         property bool checked: false
         property string labelText: ""
         property string linkText: "[查看]"
+        property var onView: null  // callback to open agreement
         signal toggled()
-        signal linkClicked()
         Layout.preferredHeight: 28
 
         Rectangle {
@@ -72,7 +69,9 @@ Rectangle {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: row.linkClicked()
+                onClicked: {
+                    if (row.onView) row.onView()
+                }
             }
         }
     }
@@ -99,37 +98,39 @@ Rectangle {
             acceptedButtons: Qt.LeftButton
             cursorShape: Qt.OpenHandCursor
             property point lastPos: Qt.point(0, 0)
-            onPressed: function(mouse) {
-                lastPos = Qt.point(mouse.x, mouse.y)
-            }
+            onPressed: function(mouse) { lastPos = Qt.point(mouse.x, mouse.y) }
             onPositionChanged: function(mouse) {
                 if (overlay.Window && overlay.Window.window) {
                     overlay.Window.window.x += mouse.x - lastPos.x
                     overlay.Window.window.y += mouse.y - lastPos.y
                 }
             }
-            onReleased: cursorShape = Qt.OpenHandCursor
         }
     }
 
-    // ── Close button ──
+    // ── Close button (matches main launcher style) ──
     Rectangle {
+        id: closeBtn
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 12
-        width: 32
-        height: 32
-        radius: 6
-        color: "#1a1e32"
-        z: 10
+        width: 28; height: 28
+        radius: 8
+        color: closeMA.containsMouse ? (closeMA.pressed ? "#e06060" : "#c05050") : "transparent"
+        scale: closeMA.pressed ? 0.85 : (closeMA.containsMouse ? 1.12 : 1.0)
+        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         Text {
             anchors.centerIn: parent
             text: "\u2715"
-            font.pixelSize: 14
-            color: "#7880a0"
+            color: closeMA.containsMouse ? "#fff" : "#505568"
+            font.pixelSize: 12
+            font.weight: Font.Bold
         }
         MouseArea {
+            id: closeMA
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: Qt.quit()
         }
@@ -143,11 +144,9 @@ Rectangle {
         spacing: 0
         visible: !showingAgreement
 
-        // Logo / Title area
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
             spacing: 4
-
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: "SHADOW LAUNCHER"
@@ -156,7 +155,6 @@ Rectangle {
                 font.letterSpacing: 4
                 color: "#ffffff"
             }
-
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: typeof backend !== "undefined" && backend ? "v" + backend.appVersion : ""
@@ -202,21 +200,21 @@ Rectangle {
                     labelText: "我已阅读并同意《Shadow Launcher 内测人员协议》"
                     checked: overlay.betaChecked
                     onToggled: overlay.betaChecked = checked
-                    onLinkClicked: overlay.showAgreement("内测人员协议", overlay.betaHtml)
+                    onView: function() { overlay.showAgreement("内测人员协议", overlay.betaHtml) }
                 }
                 AgreementRow {
                     id: privacyRow; Layout.fillWidth: true
                     labelText: "我已阅读并同意《Shadow Launcher 隐私协议》"
                     checked: overlay.privacyChecked
                     onToggled: overlay.privacyChecked = checked
-                    onLinkClicked: overlay.showAgreement("隐私协议", overlay.privacyHtml)
+                    onView: function() { overlay.showAgreement("隐私协议", overlay.privacyHtml) }
                 }
                 AgreementRow {
                     id: termsRow; Layout.fillWidth: true
                     labelText: "我已阅读并同意《Shadow Launcher 用户协议》"
                     checked: overlay.termsChecked
                     onToggled: overlay.termsChecked = checked
-                    onLinkClicked: overlay.showAgreement("用户协议", overlay.termsHtml)
+                    onView: function() { overlay.showAgreement("用户协议", overlay.termsHtml) }
                 }
             }
         }
@@ -281,12 +279,10 @@ Rectangle {
             anchors.fill: parent
             spacing: 0
 
-            // Header
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
                 color: "#0e1120"
-                radius: 12
 
                 RowLayout {
                     anchors.fill: parent
@@ -319,7 +315,6 @@ Rectangle {
                 }
             }
 
-            // Scrollable content
             ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -335,7 +330,7 @@ Rectangle {
                     color: "#b0b8d0"
                     wrapMode: Text.WordWrap
                     onLinkActivated: function(url) {
-                        if (typeof Qt !== "undefined") Qt.openUrlExternally(url)
+                        Qt.openUrlExternally(url)
                     }
                 }
             }

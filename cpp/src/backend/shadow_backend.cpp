@@ -946,17 +946,17 @@ static QString readQrcFile(const QString& path)
 
 QString ShadowBackend::betaAgreementHtml() const
 {
-    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/beta_agreement.html"));
+    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/qml/agreements/beta_agreement.html"));
 }
 
 QString ShadowBackend::privacyAgreementHtml() const
 {
-    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/privacy_policy.html"));
+    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/qml/agreements/privacy_policy.html"));
 }
 
 QString ShadowBackend::termsAgreementHtml() const
 {
-    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/terms_of_service.html"));
+    return readQrcFile(QStringLiteral(":/qt/qml/ShadowLauncher/agreements/qml/agreements/terms_of_service.html"));
 }
 
 // ============================================================
