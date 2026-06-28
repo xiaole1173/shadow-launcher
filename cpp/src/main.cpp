@@ -126,6 +126,10 @@ int main(int argc, char *argv[])
 
     // QML engine
     QQmlApplicationEngine engine;
+
+    // Clear QML disk cache to avoid stale compiled QML from older builds
+    engine.clearComponentCache();
+
     // Add exe dir to import path so module can find qmldir
     engine.addImportPath(QCoreApplication::applicationDirPath());
     if (!qEnvironmentVariableIsSet("SHADOW_DEV")) {
