@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — VersionDownloader
 // Minecraft version installation pipeline: client.jar + libraries + assets.
 // Uses ParallelDownloader for concurrent multi-file downloads and

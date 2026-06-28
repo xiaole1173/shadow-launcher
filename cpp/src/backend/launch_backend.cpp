@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 #include "launch_backend.h"
 #include "account_backend.h"
 #include "../core/launcher.h"

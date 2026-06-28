@@ -1,4 +1,6 @@
-﻿// Shadow Launcher — VersionBackend
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
+// Shadow Launcher — VersionBackend
 // QML-facing backend for version list, installation, and lifecycle management.
 // Bridges VersionManager (fetch/cache) and VersionDownloader (install pipeline).
 

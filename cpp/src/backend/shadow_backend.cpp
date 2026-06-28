@@ -1,4 +1,6 @@
-﻿#include "shadow_backend.h"
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
+#include "shadow_backend.h"
 #include "../core/http_client.h"
 #include "../core/mod_manager.h"
 #include "../core/icon_cache.h"

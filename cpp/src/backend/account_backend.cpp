@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 #include "account_backend.h"
 #include "../utils/logger.h"
 #include "../utils/token_crypto.h"

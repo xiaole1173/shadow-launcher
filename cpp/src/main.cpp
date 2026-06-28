@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — C++ Entry Point
 // Phase 4: Unified backend + QML UI port
 

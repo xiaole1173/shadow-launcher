@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — Single-file Downloader with SHA1, resume, retry
 // Phase 2.3: QNetworkAccessManager-based download with progress signals
 #pragma once

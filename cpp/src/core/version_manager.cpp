@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — Version Manager
 // Phase 2: Core — Fetches Minecraft version manifest from Mojang API
 

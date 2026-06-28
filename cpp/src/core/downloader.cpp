@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — Single-file Downloader implementation
 // Phase 2.3
 

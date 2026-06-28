@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — Parallel download engine v3
 // Chunked multi-source segmented download with:
 //  - HTTP Range requests across mirrors for large files (>1MB)

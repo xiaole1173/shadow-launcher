@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
 // Shadow Launcher — HTTP client wrapper
 // Ensures cpr and Qt Network share proxy / UA / thread safety
 

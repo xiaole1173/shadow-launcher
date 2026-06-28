@@ -1,4 +1,6 @@
-﻿// Shadow Launcher — HTTP client implementation (Qt6::Network backend)
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow
+// Shadow Launcher — HTTP client implementation (Qt6::Network backend)
 // cpr/libcurl backend will be added later via #ifdef
 //
 // Design rules:
