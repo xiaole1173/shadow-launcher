@@ -915,24 +915,36 @@ bool ShadowBackend::devMode() const {
     return m_app->devMode();
 }
 
-bool ShadowBackend::agreementAccepted() const {
-    QSettings s(QCoreApplication::organizationName(),
-                QCoreApplication::applicationName());
-    if (s.value(QStringLiteral("agreement/version")).toString() != AppBackend::AGREEMENT_VERSION)
-        return false;
-    return s.value(QStringLiteral("agreement/beta"), false).toBool()
-        && s.value(QStringLiteral("agreement/privacy"), false).toBool()
-        && s.value(QStringLiteral("agreement/terms"), false).toBool();
+static QString agreementConsentPath()
+{
+    return QDir(QCoreApplication::applicationDirPath())
+        .filePath(QStringLiteral("agreement_consent.txt"));
 }
 
-void ShadowBackend::acceptAgreements() {
-    QSettings s(QCoreApplication::organizationName(),
-                QCoreApplication::applicationName());
-    s.setValue(QStringLiteral("agreement/version"), AppBackend::AGREEMENT_VERSION);
-    s.setValue(QStringLiteral("agreement/beta"), true);
-    s.setValue(QStringLiteral("agreement/privacy"), true);
-    s.setValue(QStringLiteral("agreement/terms"), true);
-    s.sync();
+bool ShadowBackend::agreementAccepted() const
+{
+    // Read consent from file next to the executable
+    QFile f(agreementConsentPath());
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return false;
+    QString content = QString::fromUtf8(f.readAll()).trimmed();
+    QStringList parts = content.split('|');
+    if (parts.size() < 2)
+        return false;
+    return parts[0] == AppBackend::AGREEMENT_VERSION && parts[1] == QStringLiteral("true");
+}
+
+void ShadowBackend::setMarkAgreed(bool v)
+{
+    if (!v) return;
+    // Write consent file: VERSION|true
+    QFile f(agreementConsentPath());
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        QString line = QString::fromLatin1(AppBackend::AGREEMENT_VERSION)
+                       + QStringLiteral("|true\n");
+        f.write(line.toUtf8());
+        f.close();
+    }
     emit agreementAcceptedChanged();
 }
 

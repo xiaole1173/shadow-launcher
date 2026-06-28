@@ -243,7 +243,7 @@ Rectangle {
                     cursorShape: agreeBtn.btnEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     enabled: agreeBtn.btnEnabled
                     onClicked: {
-                        if (typeof backend !== "undefined" && backend) backend.acceptAgreements()
+                        if (typeof backend !== "undefined" && backend) backend.markAgreed = true
                     }
                 }
             }

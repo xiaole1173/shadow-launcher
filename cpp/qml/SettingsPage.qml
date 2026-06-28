@@ -612,12 +612,68 @@ Rectangle {
             ColumnLayout {
                 anchors.fill: parent; spacing: 14
                 Text { text: qsTr("关于"); font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
-                Rectangle { Layout.fillWidth: true; radius: 8; color: "#11141c"; border.color: "#1a1f2a"; Layout.preferredHeight: 120
-                    ColumnLayout { anchors.fill: parent; anchors.margins: 18; spacing: 8
-                        Text { text: "Shadow Launcher"; font.pixelSize: 16; font.bold: true; color: "#e8ecf8" }
-                        Text { text: qsTr("版本 v0.3.0"); font.pixelSize: 12; color: "#b8c0d0" }
-                        Text { text: qsTr("基于 PySide6 + QML"); font.pixelSize: 12; color: "#8890a0" }
-                        Text { text: qsTr("Minecraft 第三方启动器"); font.pixelSize: 12; color: "#707888" }
+
+                // About card
+                Rectangle {
+                    Layout.fillWidth: true; radius: 8; color: "#11141c"; border.color: "#1a1f2a"
+                    Layout.preferredHeight: aboutCardContent.height + 34
+                    ColumnLayout {
+                        id: aboutCardContent
+                        anchors.left: parent.left; anchors.right: parent.right
+                        anchors.top: parent.top; anchors.margins: 17; spacing: 6
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text { text: "Shadow Launcher"; font.pixelSize: 16; font.bold: true; color: "#e8ecf8" }
+                            Item { Layout.fillWidth: true }
+                            Text { text: "v" + (backend ? backend.appVersion : ""); font.pixelSize: 11; color: "#505568" }
+                        }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: qsTr("非 Minecraft 官方产品。未经 Mojang 或 Microsoft 批准，也不与 Mojang 或 Microsoft 关联。")
+                            font.pixelSize: 12; color: "#707888"; lineHeight: 1.4
+                        }
+                    }
+                }
+
+                // GitHub link button
+                RowLayout {
+                    Layout.fillWidth: true
+                    Item { Layout.fillWidth: true }
+                    ShadowButton {
+                        accentColor: "#2d3748"
+                        text: qsTr("GitHub")
+                        Layout.preferredWidth: 90; Layout.preferredHeight: 30
+                        onClicked: Qt.openUrlExternally("https://github.com/xiaole1173/shadow-launcher")
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Acknowledgments card
+                Rectangle {
+                    Layout.fillWidth: true; radius: 8; color: "#11141c"; border.color: "#1a1f2a"
+                    Layout.preferredHeight: ackContent.height + 34
+                    ColumnLayout {
+                        id: ackContent
+                        anchors.left: parent.left; anchors.right: parent.right
+                        anchors.top: parent.top; anchors.margins: 17; spacing: 12
+                        Text { text: qsTr("鸣谢"); font.pixelSize: 18; font.bold: true; color: "#e8ecf8" }
+                        Column { Layout.fillWidth: true; spacing: 14
+                            Item {
+                                width: parent.width; height: ack1Desc.y + ack1Desc.height
+                                Text { id: ack1Name; text: "bangbang93"; font.pixelSize: 14; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack1Desc; text: qsTr("提供的 BMCLAPI 极大程度上解决了各类官方源的逆天下载速度问题！包括 Minecraft、Forge、Neoforge、Optifine 等等。"); font.pixelSize: 12; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack1Name.bottom; anchors.topMargin: 3 }
+                            }
+                            Item {
+                                width: parent.width; height: ack2Desc.y + ack2Desc.height
+                                Text { id: ack2Name; text: "z0z0r4"; font.pixelSize: 14; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack2Desc; text: qsTr("提供的 MCIM 解决了直连 Modrinth 的逆天下载速度问题。"); font.pixelSize: 12; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack2Name.bottom; anchors.topMargin: 3 }
+                            }
+                            Item {
+                                width: parent.width; height: ack3Desc.y + ack3Desc.height
+                                Text { id: ack3Name; text: "Lucide"; font.pixelSize: 14; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack3Desc; text: qsTr("提供了启动器目前可见的所有图标！"); font.pixelSize: 12; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack3Name.bottom; anchors.topMargin: 3 }
+                            }
+                        }
                     }
                 }
                 Item { Layout.fillHeight: true }

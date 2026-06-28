@@ -90,7 +90,9 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString betaAgreementHtml READ betaAgreementHtml CONSTANT)
     Q_PROPERTY(QString privacyAgreementHtml READ privacyAgreementHtml CONSTANT)
     Q_PROPERTY(QString termsAgreementHtml READ termsAgreementHtml CONSTANT)
-    Q_INVOKABLE void acceptAgreements();
+    Q_PROPERTY(bool markAgreed READ isMarkAgreed WRITE setMarkAgreed)
+    bool isMarkAgreed() const { return false; }
+    void setMarkAgreed(bool v);
 
     // ── Custom background ──
     Q_PROPERTY(QString customBgPath READ customBgPath NOTIFY customBgChanged)
