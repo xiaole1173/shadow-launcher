@@ -124,12 +124,14 @@ qt6_add_resources(ShadowLauncher "qml_resources"
     PREFIX "/qt/qml/ShadowLauncher"
     FILES
         qml/AnimationTokens.qml
+        qml/BackgroundCropOverlay.qml
         qml/ConfirmDialog.qml
         qml/CrashDialog.qml
         qml/DetailInfoCard.qml
         qml/DetailVersionCard.qml
         qml/DownloadPage.qml
         qml/DownloadProgressPage.qml
+        qml/ExpandableGroupCard.qml
         qml/HomePage.qml
         qml/InstallConfigOverlay.qml
         qml/InstallPage.qml
@@ -156,9 +158,9 @@ qt6_add_resources(ShadowLauncher "qml_resources"
 )
 target_include_directories(ShadowLauncher PRIVATE src)
 
-# ── Lucide icon resources (shared prefix with QML for cross-mode path compatibility) ──
+# ── Lucide icon resources (must mirror dev-mode copy: icons copied into qml/icons/) ──
 qt6_add_resources(ShadowLauncher "icon_resources"
-    PREFIX "/qt/qml/ShadowLauncher/icons"
+    PREFIX "/qt/qml/ShadowLauncher/qml/icons"
     FILES
         icons/lucide/home.svg
         icons/lucide/download.svg

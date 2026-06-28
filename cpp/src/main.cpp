@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     checkpoint(QStringLiteral("QApplication constructed"));
 
     app.setApplicationName("Shadow Launcher");
-    app.setApplicationVersion("1.0.0");
+    app.setApplicationVersion(SHADOW_DISPLAY_VERSION);
     app.setOrganizationName("ShadowTeam");
     app.setOrganizationDomain("shadowteam.dev");
 
