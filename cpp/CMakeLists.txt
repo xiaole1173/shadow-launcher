@@ -238,6 +238,15 @@ qt6_add_resources(ShadowLauncher "icon_resources"
         icons/lucide/sun.svg
 )
 
+# ── Agreement HTML resources (embedded for offline access) ──
+qt6_add_resources(ShadowLauncher "agreement_resources"
+    PREFIX "/qt/qml/ShadowLauncher/agreements"
+    FILES
+        qml/agreements/beta_agreement.html
+        qml/agreements/terms_of_service.html
+        qml/agreements/privacy_policy.html
+)
+
 # ── Multi-language translations ──
 file(GLOB_RECURSE I18N_QML_SOURCES "${CMAKE_SOURCE_DIR}/qml/*.qml")
 file(GLOB_RECURSE I18N_CPP_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/src/*.h")
@@ -306,6 +315,12 @@ if(WIN32)
             "${CMAKE_SOURCE_DIR}/icons"
             "$<TARGET_FILE_DIR:ShadowLauncher>/qml/icons"
         COMMENT "Copying icon SVGs for dev-mode..."
+    )
+    add_custom_command(TARGET ShadowLauncher POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/qml/agreements"
+            "$<TARGET_FILE_DIR:ShadowLauncher>/qml/agreements"
+        COMMENT "Copying agreement HTMLs for dev-mode..."
     )
 endif()
 
