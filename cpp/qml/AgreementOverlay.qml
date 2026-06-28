@@ -4,22 +4,26 @@ import QtQuick.Layouts
 
 // ============================================================
 // AgreementOverlay.qml — 协议同意弹窗
-// 首次运行时强制覆盖一切，用户须勾选三份协议后才能使用。
-// 协议状态持久化到 QSettings，版本号关联。
 // ============================================================
 
 Rectangle {
     id: overlay
     anchors.fill: parent
     color: "#0c0f16"
+    radius: 12
     z: 999
 
-    Component.onCompleted: console.log("[AgreementOverlay] loaded, backend=", typeof backend !== "undefined" ? backend : "UNDEFINED", "agreementAccepted=", typeof backend !== "undefined" && backend ? backend.agreementAccepted : "N/A")
+    // ── Precompute HTML properties at overlay scope ──
+    // (component AgreementRow has its own scope and can't see `backend` directly)
+    readonly property string betaHtml: typeof backend !== "undefined" && backend ? backend.betaAgreementHtml : ""
+    readonly property string privacyHtml: typeof backend !== "undefined" && backend ? backend.privacyAgreementHtml : ""
+    readonly property string termsHtml: typeof backend !== "undefined" && backend ? backend.termsAgreementHtml : ""
 
+    // Block clicks from passing through, but allow drag on title area
     MouseArea {
+        id: clickBlocker
         anchors.fill: parent
-        acceptedButtons: Qt.AllButtons
-        hoverEnabled: true
+        // Don't accept all buttons — let the title area handle drag
     }
 
     // ── Inline component: AgreementRow ──
@@ -82,6 +86,55 @@ Rectangle {
     property string currentAgreementTitle: ""
     property string currentAgreementHtml: ""
 
+    // ── Title bar (draggable) ──
+    Item {
+        id: titleBar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 64
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            cursorShape: Qt.OpenHandCursor
+            property point lastPos: Qt.point(0, 0)
+            onPressed: function(mouse) {
+                lastPos = Qt.point(mouse.x, mouse.y)
+            }
+            onPositionChanged: function(mouse) {
+                if (overlay.Window && overlay.Window.window) {
+                    overlay.Window.window.x += mouse.x - lastPos.x
+                    overlay.Window.window.y += mouse.y - lastPos.y
+                }
+            }
+            onReleased: cursorShape = Qt.OpenHandCursor
+        }
+    }
+
+    // ── Close button ──
+    Rectangle {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 12
+        width: 32
+        height: 32
+        radius: 6
+        color: "#1a1e32"
+        z: 10
+        Text {
+            anchors.centerIn: parent
+            text: "\u2715"
+            font.pixelSize: 14
+            color: "#7880a0"
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: Qt.quit()
+        }
+    }
+
     // ── Main content ──
     ColumnLayout {
         id: mainContent
@@ -90,21 +143,24 @@ Rectangle {
         spacing: 0
         visible: !showingAgreement
 
+        // Logo / Title area
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
-            spacing: 6
+            spacing: 4
+
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: "SHADOW"
+                text: "SHADOW LAUNCHER"
                 font.pixelSize: 28
                 font.weight: Font.Bold
-                font.letterSpacing: 6
+                font.letterSpacing: 4
                 color: "#ffffff"
             }
+
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: "Launcher  v" + (backend ? backend.appVersion : "")
-                font.pixelSize: 12
+                text: typeof backend !== "undefined" && backend ? "v" + backend.appVersion : ""
+                font.pixelSize: 11
                 color: "#505878"
             }
         }
@@ -146,24 +202,21 @@ Rectangle {
                     labelText: "我已阅读并同意《Shadow Launcher 内测人员协议》"
                     checked: overlay.betaChecked
                     onToggled: overlay.betaChecked = checked
-                    onLinkClicked: overlay.showAgreement("内测人员协议",
-                        backend ? backend.betaAgreementHtml : "")
+                    onLinkClicked: overlay.showAgreement("内测人员协议", overlay.betaHtml)
                 }
                 AgreementRow {
                     id: privacyRow; Layout.fillWidth: true
                     labelText: "我已阅读并同意《Shadow Launcher 隐私协议》"
                     checked: overlay.privacyChecked
                     onToggled: overlay.privacyChecked = checked
-                    onLinkClicked: overlay.showAgreement("隐私协议",
-                        backend ? backend.privacyAgreementHtml : "")
+                    onLinkClicked: overlay.showAgreement("隐私协议", overlay.privacyHtml)
                 }
                 AgreementRow {
                     id: termsRow; Layout.fillWidth: true
                     labelText: "我已阅读并同意《Shadow Launcher 用户协议》"
                     checked: overlay.termsChecked
                     onToggled: overlay.termsChecked = checked
-                    onLinkClicked: overlay.showAgreement("用户协议",
-                        backend ? backend.termsAgreementHtml : "")
+                    onLinkClicked: overlay.showAgreement("用户协议", overlay.termsHtml)
                 }
             }
         }
@@ -192,7 +245,7 @@ Rectangle {
                     cursorShape: agreeBtn.btnEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     enabled: agreeBtn.btnEnabled
                     onClicked: {
-                        if (backend) backend.acceptAgreements()
+                        if (typeof backend !== "undefined" && backend) backend.acceptAgreements()
                     }
                 }
             }
@@ -233,8 +286,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
                 color: "#0e1120"
-                border.color: "#1e2240"
-                border.width: 1
+                radius: 12
 
                 RowLayout {
                     anchors.fill: parent
@@ -277,7 +329,7 @@ Rectangle {
                 Text {
                     id: agreementText
                     width: overlay.width - 40
-                    text: currentAgreementHtml
+                    text: currentAgreementHtml || "<p style='color:#7880a0'>无法加载协议文件</p>"
                     textFormat: Text.RichText
                     font.pixelSize: 13
                     color: "#b0b8d0"
