@@ -771,6 +771,10 @@ void AccountBackend::loadMicrosoftSession()
 void AccountBackend::refreshMicrosoftToken()
 {
     if (m_msRefreshToken.isEmpty()) return;
+    if (m_refreshingToken) {
+        qCInfo(logAccount) << "Token refresh already in progress, skipping duplicate request";
+        return;
+    }
     qCInfo(logAccount) << "Attempting Microsoft token refresh...";
     m_refreshingToken = true;
 

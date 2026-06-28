@@ -317,6 +317,11 @@ void MicrosoftAuth::fetchMcProfile(const QString& mcAccessToken) {
 }
 
 void MicrosoftAuth::refreshMcChain(const QString& msAccessToken) {
+    if (m_busy) {
+        qCInfo(logApp) << "[MSA] refreshMcChain skipped — auth flow already in progress";
+        return;
+    }
+    m_busy = true;
     authenticateXbl(msAccessToken);
 }
 
