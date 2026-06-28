@@ -1,5 +1,6 @@
 #include "account_backend.h"
 #include "../utils/logger.h"
+#include "../utils/token_crypto.h"
 #include <cmath>
 #include <vector>
 #include <algorithm>
@@ -660,11 +661,12 @@ void AccountBackend::saveMicrosoftSession()
 {
     QJsonObject obj;
     obj[QStringLiteral("username")] = m_username;
-    obj[QStringLiteral("uuid")] = m_uuid;
-    obj[QStringLiteral("mcToken")] = m_msMcToken;
-    obj[QStringLiteral("refreshToken")] = m_msRefreshToken;
-    obj[QStringLiteral("tokenObtainedAt")] = m_msTokenObtainedAt;
-    obj[QStringLiteral("tokenExpiresIn")] = m_msTokenExpiresIn;
+    obj[QStringLiteral("uuid")] = TokenCrypto::encrypt(m_uuid);
+    obj[QStringLiteral("mcToken")] = TokenCrypto::encrypt(m_msMcToken);
+    obj[QStringLiteral("refreshToken")] = TokenCrypto::encrypt(m_msRefreshToken);
+    obj[QStringLiteral("tokenObtainedAt")] = TokenCrypto::encrypt(QString::number(m_msTokenObtainedAt));
+    obj[QStringLiteral("tokenExpiresIn")] = TokenCrypto::encrypt(QString::number(m_msTokenExpiresIn));
+    obj[QStringLiteral("encrypted")] = true;  // mark for migration detection
 
     QString path = m_dataDir + QStringLiteral("/microsoft_session.json");
     QFileInfo fi(path);
@@ -674,8 +676,22 @@ void AccountBackend::saveMicrosoftSession()
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
         file.close();
-        qCInfo(logAccount) << "Microsoft session saved:" << path;
+        qCInfo(logAccount) << "Microsoft session saved (encrypted):" << path;
     }
+}
+
+// Helper: read a field from JSON, auto-decrypt if encrypted
+static QString readSecureField(const QJsonObject &obj, const QString &key, bool isEncrypted)
+{
+    QString val = obj[key].toString();
+    if (val.isEmpty()) return {};
+    if (isEncrypted || TokenCrypto::looksEncrypted(val)) {
+        QString dec = TokenCrypto::decrypt(val);
+        if (!dec.isEmpty()) return dec;
+        // Decrypt failed — fall through to plaintext for migration
+        qCInfo(logAccount) << "Field decrypt failed, trying plaintext:" << key;
+    }
+    return val;
 }
 
 void AccountBackend::loadMicrosoftSession()
@@ -688,12 +704,20 @@ void AccountBackend::loadMicrosoftSession()
     file.close();
 
     QJsonObject obj = doc.object();
+    bool isEncrypted = obj[QStringLiteral("encrypted")].toBool(false);
+
     m_username = obj[QStringLiteral("username")].toString();
-    m_uuid = obj[QStringLiteral("uuid")].toString();
-    m_msMcToken = obj[QStringLiteral("mcToken")].toString();
-    m_msRefreshToken = obj[QStringLiteral("refreshToken")].toString();
-    m_msTokenObtainedAt = static_cast<qint64>(obj[QStringLiteral("tokenObtainedAt")].toDouble());
-    m_msTokenExpiresIn = static_cast<qint64>(obj[QStringLiteral("tokenExpiresIn")].toDouble());
+    m_uuid = readSecureField(obj, QStringLiteral("uuid"), isEncrypted);
+    m_msMcToken = readSecureField(obj, QStringLiteral("mcToken"), isEncrypted);
+    m_msRefreshToken = readSecureField(obj, QStringLiteral("refreshToken"), isEncrypted);
+    m_msTokenObtainedAt = readSecureField(obj, QStringLiteral("tokenObtainedAt"), isEncrypted).toLongLong();
+    m_msTokenExpiresIn = readSecureField(obj, QStringLiteral("tokenExpiresIn"), isEncrypted).toLongLong();
+
+    // Migration: if old plaintext file was loaded, re-save as encrypted
+    if (!isEncrypted && !m_msRefreshToken.isEmpty()) {
+        qCInfo(logAccount) << "Migrating plaintext session to encrypted";
+        saveMicrosoftSession();
+    }
 
     qint64 now = QDateTime::currentSecsSinceEpoch();
     bool knownExpired = (m_msTokenExpiresIn > 0) && (m_msTokenObtainedAt > 0)

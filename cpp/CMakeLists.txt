@@ -47,6 +47,7 @@ set(SOURCES
 
     # Utilities (Phase 4 — structured logging)
     src/utils/logger.cpp
+    src/utils/token_crypto.cpp
 
     # Core services (Phase 2 — added progressively)
     src/core/http_client.cpp
@@ -271,6 +272,8 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::WebEngineWidgets
     nlohmann_json
     libwebp
+    bcrypt
+    crypt32
 )
 
 # cpr::cpr — added when libcurl is installed
