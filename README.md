@@ -172,7 +172,6 @@ c) 贡献者协议 — 所有 Pull Request 默认以 AGPL v3 入库，
 | [**bangbang93 / BMCLAPI**](https://bmclapidoc.bangbang93.com/) | Minecraft / Forge / NeoForge / OptiFine 国内镜像加速 |
 | [**z0z0r4 / MCIM**](https://github.com/z0z0r4/mcim) | Modrinth API 国内镜像加速 |
 | [**Lucide**](https://lucide.dev) | 启动器全部图标库 |
-| **Mojang / Microsoft** | Minecraft 与正版认证体系 |
 
 ---
 
