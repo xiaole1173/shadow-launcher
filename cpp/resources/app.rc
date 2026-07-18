@@ -1,0 +1,32 @@
+#include <windows.h>
+
+// Application icon — replaces default Qt console icon in taskbar/alt-tab/explorer
+// Uses multiple sizes from a single .ico file (16/32/48/256px)
+IDI_ICON1   ICON    "app.ico"
+
+// Version info block
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName", "ShadowTeam"
+            VALUE "FileDescription", "Shadow Launcher"
+            VALUE "FileVersion", "1.0.0"
+            VALUE "InternalName", "ShadowLauncher"
+            VALUE "LegalCopyright", "ShadowTeam"
+            VALUE "OriginalFilename", "ShadowLauncher.exe"
+            VALUE "ProductName", "Shadow Launcher"
+            VALUE "ProductVersion", "1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1252
+    END
+END

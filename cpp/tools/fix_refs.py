@@ -1,0 +1,10 @@
+p = 'D:/latest-code/cpp/qml/SettingsPage.qml'
+with open(p, 'r', encoding='utf-8') as f: c = f.read()
+c = c.replace(': " + _threads;', ': " + genItem._threads;')
+c = c.replace(': " + (_speed >= 0', ': " + (genItem._speed >= 0')
+c = c.replace('value: _threads', 'value: genItem._threads')
+c = c.replace('_threads = v', 'genItem._threads = v')
+c = c.replace('value: _idx(_speed)', 'value: _idx(genItem._speed)')
+c = c.replace('_speed = _spd(v)', 'genItem._speed = _spd(v)')
+with open(p, 'w', encoding='utf-8', newline='\n') as f: f.write(c)
+print('done')

@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Minecraft data (user's personal files)
+.shadow/
+
+# Temp/config
+*.log
+*.tmp
+shadow_launcher/config/install_log.txt
+shadow_launcher/config/install_state.json
+shadow_launcher/config/session.json
+
+# C++ build artifacts
+cpp/build/
+cpp/build2/
+cpp/build_test/
+cpp/package/
+run_qml.dist/
+*.obj
+*.pdb
+*.exe
+*.dll
+*.lib
+*.exp
+*.recipe
+*.tlog/
+*.lastbuildstate
+*.pch
+*.ilk
+
+# CEF (no longer used)
+cpp/thirdparty/cef/
+
+# Release packages
+*.zip
+
+# Environment / secrets
+.env
+
+# AI assistant internal docs
+.openclaw-knowledge/
+
+# OS
+Thumbs.db
+.DS_Store
+
+cpp/tools/encrypt_addr.py
+cpp/src/multiplayer/encrypted_addr_local.h
+
+cpp/ShadowLauncher_v*/

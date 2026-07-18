@@ -1,0 +1,52 @@
+# ── Sensitive local copies ──
+# Original source files that contain sensitive information (beta keys, server URLs, etc.)
+# These are kept locally for development; sanitized versions are tracked by git.
+*.local
+
+# Local encrypted configuration (contains real relay endpoint, beta server URL, etc.)
+# Not tracked by design — use encrypted_addr.h (all-zero placeholder) as reference.
+encrypted_addr_local.h
+
+# ── Build artifacts ──
+build/
+cmake-build-*/
+out/
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+
+# ── IDE / OS ──
+.vs/
+.idea/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.vcxproj.*.user
+Thumbs.db
+.DS_Store
+
+# ── Qt Creator / VS Code ──
+*.autosave
+*.pro.user
+cmake-build-*
+
+# ── Runtime data ──
+_update/
+*.log
+logs/
+skins/
+assets/
+
+# ── Python/scripts ──
+__pycache__/
+*.pyc
+*.pyo
