@@ -3024,9 +3024,21 @@ QString ShadowBackend::loadBetaKey()
 
 bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
 {
-        static const QString kWorkerUrl = QStringLiteral("https://VALIDATION_SERVER_PLACEHOLDER");
-    // ⚠️ Replace with your own beta validation server URL
-    // Use encrypted_addr_local.h for local development instead of hardcoding here.
+    // Use encrypted_addr_local.h (AES-256-GCM, .gitignored) for the real URL.
+    // Without it, validation is disabled.
+#if __has_include("encrypted_addr_local.h")
+    static const QString kWorkerUrl = []() -> QString {
+        static const QString cached = Worker::workerEndpoint();
+        return cached;
+    }();
+#else
+    static const QString kWorkerUrl = QString();
+#endif
+
+    if (kWorkerUrl.isEmpty()) {
+        if (outError) *outError = QStringLiteral("内测验证未配置");
+        return false;
+    }
 
     QNetworkAccessManager mgr;
     QNetworkRequest req{QUrl(kWorkerUrl)};
