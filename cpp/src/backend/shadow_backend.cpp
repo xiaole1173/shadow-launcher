@@ -9,6 +9,11 @@
 #include "../core/local_mod_manager.h"
 #include "../multiplayer/multiplayer_manager.h"
 #include "../multiplayer/relay_crypto.h"
+#if __has_include("encrypted_addr_local.h")
+#include "encrypted_addr_local.h"
+#else
+#include "../multiplayer/encrypted_addr.h"
+#endif
 #include "../core/version_downloader.h"
 #include "../core/geoip_service.h"
 #include <QApplication>
@@ -2900,16 +2905,17 @@ void ShadowBackend::submitBetaKey(const QString& key)
     m_betaStatus = QStringLiteral("checking");
     emit betaStatusChanged();
 
-    // Beta key verification endpoint — decrypted from local config
-    // (encrypted_addr_local.h, .gitignored). Fork: deploy your own Worker.
-#if __has_include("encrypted_addr_local.h")
+    // Beta key verification endpoint — decrypted from opaque flat blob.
+    // Without local encrypted_addr_local.h, all kBlob entries are zero → disabled.
     static const QString kWorkerUrl = []() -> QString {
-        static const QString cached = Worker::workerEndpoint();
-        return cached;
+        QByteArray plain = aesGcmDecrypt(
+            kBlob + kWorkerNonceOff, kWorkerNonceLen,
+            kBlob + kWorkerCTOff,   kWorkerCTLen,
+            kBlob + kWorkerTagOff,  kWorkerTagLen,
+            kBlob + kWorkerKeyOff,  kBlob + kWorkerSaltOff);
+        if (plain.isEmpty()) return {};
+        return QString::fromUtf8(plain);
     }();
-#else
-    static const QString kWorkerUrl = QString();
-#endif
 
     if (kWorkerUrl.isEmpty()) {
         qCInfo(logApp) << QStringLiteral("[BetaKey] 验证跳过 未配置Worker URL");
@@ -3024,16 +3030,17 @@ QString ShadowBackend::loadBetaKey()
 
 bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
 {
-    // Use encrypted_addr_local.h (AES-256-GCM, .gitignored) for the real URL.
-    // Without it, validation is disabled.
-#if __has_include("encrypted_addr_local.h")
+    // Decrypt Worker endpoint from opaque flat blob (AES-256-GCM).
+    // With public all-zero placeholder → decrypt fails → validation disabled.
     static const QString kWorkerUrl = []() -> QString {
-        static const QString cached = Worker::workerEndpoint();
-        return cached;
+        QByteArray plain = aesGcmDecrypt(
+            kBlob + kWorkerNonceOff, kWorkerNonceLen,
+            kBlob + kWorkerCTOff,   kWorkerCTLen,
+            kBlob + kWorkerTagOff,  kWorkerTagLen,
+            kBlob + kWorkerKeyOff,  kBlob + kWorkerSaltOff);
+        if (plain.isEmpty()) return {};
+        return QString::fromUtf8(plain);
     }();
-#else
-    static const QString kWorkerUrl = QString();
-#endif
 
     if (kWorkerUrl.isEmpty()) {
         if (outError) *outError = QStringLiteral("内测验证未配置");

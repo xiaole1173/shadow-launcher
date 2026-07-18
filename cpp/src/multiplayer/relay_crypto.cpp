@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
-// AES-256-GCM decryption for relay server addresses & beta auth URL
+// AES-256-GCM decryption for flat opaque blob (relay server & Worker URL)
 // Uses Windows CNG (bcrypt.dll) — zero extra deps
 #if __has_include("encrypted_addr_local.h")
 #include "encrypted_addr_local.h"
@@ -17,14 +17,18 @@
 
 namespace {
 
-static void buildKey(uint8_t out[32], const uint8_t* rawKey, const uint8_t* salt)
+static void xorKey(uint8_t out[32], const uint8_t* rawKey, const uint8_t* salt)
 {
     memcpy(out, rawKey, 32);
     for (int i = 0; i < 32; ++i)
         out[i] ^= salt[i % 8];
 }
 
-static QByteArray aesGcmDecrypt(
+} // anonymous namespace
+
+// ── Public AES-256-GCM helper (used by multiplayer & beta validation) ──
+
+QByteArray aesGcmDecrypt(
     const uint8_t* nonce, uint32_t nonceLen,
     const uint8_t* ct,    uint32_t ctLen,
     const uint8_t* tag,   uint32_t tagLen,
@@ -33,7 +37,7 @@ static QByteArray aesGcmDecrypt(
     if (ctLen == 0) return {};
 
     uint8_t key[32];
-    buildKey(key, rawKey, salt);
+    xorKey(key, rawKey, salt);
 
     BCRYPT_ALG_HANDLE hAlg = nullptr;
     if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0))
@@ -70,43 +74,30 @@ static QByteArray aesGcmDecrypt(
     return plain;
 }
 
-static QString decryptToString(
-    const uint8_t* nonce, uint32_t nonceLen,
-    const uint8_t* ct,    uint32_t ctLen,
-    const uint8_t* tag,   uint32_t tagLen,
-    const uint8_t* rawKey, const uint8_t* salt)
-{
-    QByteArray plain = aesGcmDecrypt(nonce, nonceLen, ct, ctLen, tag, tagLen, rawKey, salt);
-    if (plain.isEmpty()) return {};
-    QString result = QString::fromUtf8(plain);
-    SecureZeroMemory(plain.data(), plain.size());
-    return result;
-}
-
-} // anonymous namespace
+// ── Namespace helpers for relay (kept for compatibility) ──
 
 namespace Relay {
 
 QString relayEndpoint()
 {
-    return decryptToString(kRelayNonce, 12, kRelayCT, kRelayCTLen, kRelayTag, 16, kRawKey, kSalt);
+    QByteArray plain = aesGcmDecrypt(
+        kBlob + kRelayNonceOff, kRelayNonceLen,
+        kBlob + kRelayCTOff, kRelayCTLen,
+        kBlob + kRelayTagOff, kRelayTagLen,
+        kBlob + kRelayKeyOff, kBlob + kRelaySaltOff);
+    if (plain.isEmpty()) return {};
+    return QString::fromUtf8(plain);
 }
 
 QString relayPrefix()
 {
-    return decryptToString(kPrefixNonce, 12, kPrefixCT, kPrefixCTLen, kPrefixTag, 16, kRawKey, kSalt);
+    QByteArray plain = aesGcmDecrypt(
+        kBlob + kRelayPrefixNonceOff, kRelayPrefixNonceLen,
+        kBlob + kRelayPrefixCTOff, kRelayPrefixCTLen,
+        kBlob + kRelayPrefixTagOff, kRelayPrefixTagLen,
+        kBlob + kRelayKeyOff, kBlob + kRelaySaltOff);
+    if (plain.isEmpty()) return {};
+    return QString::fromUtf8(plain);
 }
 
 } // namespace Relay
-
-// Worker namespace — only available when local config is built in
-#if __has_include("encrypted_addr_local.h")
-namespace Worker {
-
-QString workerEndpoint()
-{
-    return decryptToString(kWorkerNonce, 12, kWorkerCT, kWorkerCTLen, kWorkerTag, 16, kRawKey, kSalt);
-}
-
-} // namespace Worker
-#endif

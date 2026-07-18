@@ -1,8 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
-// Public API for encrypted relay address decryption
+// AES-256-GCM decrypt — flat opaque blob interface
 #pragma once
 #include <QString>
+#include <QByteArray>
+
+// Low-level AES-256-GCM decrypt (used by relay + beta validation)
+// Returns empty QByteArray on failure/zero-length input.
+QByteArray aesGcmDecrypt(
+    const uint8_t* nonce, uint32_t nonceLen,
+    const uint8_t* ct,    uint32_t ctLen,
+    const uint8_t* tag,   uint32_t tagLen,
+    const uint8_t* rawKey, const uint8_t* salt);
 
 namespace Relay {
 
@@ -13,9 +22,3 @@ QString relayEndpoint();
 QString relayPrefix();
 
 } // namespace Relay
-
-#if __has_include("encrypted_addr_local.h")
-namespace Worker {
-QString workerEndpoint();
-} // namespace Worker
-#endif
