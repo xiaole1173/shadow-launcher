@@ -1,0 +1,74 @@
+# Minecraft Steve Head (8x8x8 units, centered)
+# UV coordinates mapped to 64x64 skin atlas
+# Face UV ranges (in 0-1 texture space):
+#   Front:  8/64=0.125 to 16/64=0.25 u, 8/64=0.125 to 16/64=0.25 v
+#   Back:  24/64=0.375 to 32/64=0.5 u, 8/64=0.125 to 16/64=0.25 v
+#   Top:    8/64=0.125 to 16/64=0.25 u, 0/64=0.0 to 8/64=0.125 v
+#   Bottom: 16/64=0.25 to 24/64=0.375 u, 0/64=0.0 to 8/64=0.125 v
+#   Right:   0/64=0.0 to 8/64=0.125 u, 8/64=0.125 to 16/64=0.25 v
+#   Left:   16/64=0.25 to 24/64=0.375 u, 8/64=0.125 to 16/64=0.25 v
+
+mtllib steve_head.mtl
+o Head
+
+# Vertices (8 corners of 8x8x8 cube, from -4 to 4)
+v -4 -4  4
+v  4 -4  4
+v  4  4  4
+v -4  4  4
+v -4 -4 -4
+v  4 -4 -4
+v  4  4 -4
+v -4  4 -4
+
+# Texture coordinates for each face
+vt 0.125 0.125  # front   bottom-left
+vt 0.250 0.125  # front   bottom-right
+vt 0.250 0.250  # front   top-right
+vt 0.125 0.250  # front   top-left
+
+vt 0.375 0.125  # back    bottom-left
+vt 0.500 0.125  # back    bottom-right
+vt 0.500 0.250  # back    top-right
+vt 0.375 0.250  # back    top-left
+
+vt 0.125 0.000  # top     bottom-left
+vt 0.250 0.000  # top     bottom-right
+vt 0.250 0.125  # top     top-right
+vt 0.125 0.125  # top     top-left
+
+vt 0.250 0.000  # bottom  bottom-left
+vt 0.375 0.000  # bottom  bottom-right
+vt 0.375 0.125  # bottom  top-right
+vt 0.250 0.125  # bottom  top-left
+
+vt 0.000 0.125  # right   bottom-left
+vt 0.125 0.125  # right   bottom-right
+vt 0.125 0.250  # right   top-right
+vt 0.000 0.250  # right   top-left
+
+vt 0.250 0.125  # left    bottom-left
+vt 0.375 0.125  # left    bottom-right
+vt 0.375 0.250  # left    top-right
+vt 0.250 0.250  # left    top-left
+
+# Normals
+vn 0 0 1
+vn 0 0 -1
+vn 0 1 0
+vn 0 -1 0
+vn 1 0 0
+vn -1 0 0
+
+# Front face (z=4)
+f 1/1/1 2/2/1 3/3/1 4/4/1
+# Back face (z=-4)
+f 6/5/2 5/6/2 8/7/2 7/8/2
+# Top face (y=4)
+f 4/9/3 3/10/3 7/11/3 8/12/3
+# Bottom face (y=-4)
+f 5/13/4 1/14/4 2/15/4 6/16/4
+# Right face (x=4)
+f 2/17/5 6/18/5 7/19/5 3/20/5
+# Left face (x=-4)
+f 5/21/6 1/22/6 4/23/6 8/24/6
