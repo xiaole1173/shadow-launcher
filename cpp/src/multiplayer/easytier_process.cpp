@@ -120,51 +120,13 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     if (ElevatedSession::isActive()) {
         startViaQProcess(exe, args, tomlElevated, relayEp);
         secureWipe(tomlElevated);
-        secureWipe(tomlFile);
         return;
     }
 
-    // ── Non-elevated: write config file + ShellExecuteEx with --peers ──
-    // (ShellExecuteEx doesn't support stdin piping)
-    QTemporaryFile tmpFile(QDir::tempPath() + QStringLiteral("/shadow_easytier_XXXXXX.toml"));
-    tmpFile.setAutoRemove(false);
-    tmpFile.open();
-    tmpFile.write(tomlFile);
-    tmpFile.close();
-    m_peerConfigPath = tmpFile.fileName();
-    secureWipe(tomlFile);
-
-    // CLI has --config-file <path>, --peers is NOT needed (peers in TOML),
-    // but for non-elevated (runas) we add --peers as fallback in case TOML
-    // peers don't work at runtime
-#ifdef Q_OS_WIN
-    QString argStr = (QStringLiteral("--config-file \"%1\"").arg(m_peerConfigPath)
-        + QStringLiteral(" --peers ") + relayEp);
-    if (!hostname.isEmpty())
-        argStr += QStringLiteral(" --hostname ") + hostname;
-
-    SHELLEXECUTEINFOW sei = {sizeof(sei)};
-    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
-    sei.lpVerb = L"runas";
-    sei.lpFile = reinterpret_cast<const wchar_t*>(exe.utf16());
-    sei.lpParameters = reinterpret_cast<const wchar_t*>(argStr.utf16());
-    sei.nShow = SW_HIDE;
-    if (ShellExecuteExW(&sei) && sei.hProcess) {
-        m_winProcess = sei.hProcess;
-        m_ready = false;
-        m_outputTimer->start();
-        m_timeoutTimer->start();
-        emit stateChanged(QStringLiteral("等待 UAC 确认..."));
-    } else {
-        DWORD err = GetLastError();
-        if (err == ERROR_CANCELLED)
-            emit errorOccurred(QStringLiteral("需要管理员权限"));
-        else
-            emit errorOccurred(QStringLiteral("启动 EasyTier 失败 (错误码: %1)").arg(err));
-    }
-#else
-    emit errorOccurred(QStringLiteral("EasyTier 需要管理员权限运行"));
-#endif
+    // ── Non-elevated: should never reach here (createRoom/joinRoom self-elevate) ──
+    // If we do, it means the self-elevation flow failed. Show error and bail.
+    emit errorOccurred(QStringLiteral("EasyTier 需要管理员权限"));
+    return;
 }
 
 void EasyTierProcess::stop()
