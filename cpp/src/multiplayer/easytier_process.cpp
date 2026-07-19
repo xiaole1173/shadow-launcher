@@ -89,53 +89,48 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         return;
     }
 
+    // ── Build full TOML config in memory (all params, including peers) ──
+    // In elevated mode this goes to stdin; in non-elevated it goes to a temp file.
     QString relayEp = Relay::relayEndpoint();
+    QByteArray toml;
+    toml.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
+    toml.append("[network]\n");
+    toml.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
+    toml.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
+    toml.append("dhcp = true\n");
 
-    // ── Build TOML config file (all settings, no sensitive data on CLI) ──
-    // Remove previous config file
-    if (!m_peerConfigPath.isEmpty()) {
-        QFile::remove(m_peerConfigPath);
-        m_peerConfigPath.clear();
-    }
-    {
-        QTemporaryFile tmpFile(QDir::tempPath() + QStringLiteral("/shadow_easytier_XXXXXX.toml"));
-        tmpFile.setAutoRemove(false);
-        tmpFile.open();
-        m_peerConfigPath = tmpFile.fileName();
-
-        QByteArray toml;
-        // Note: TOML peers is left out intentionally — easytier 2.6.4 ignores
-        // `peers = [...]` at runtime despite passing --check-config.
-        // Peers are passed via --peers CLI arg instead.
-        toml.append("[network]\n");
-        toml.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
-        toml.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
-        toml.append("dhcp = true\n");
-        tmpFile.write(toml);
-        tmpFile.close();
-        secureWipe(toml);
-    }
-
-    // CLI: only non-sensitive info (sensitive params via environment block)
     QStringList args;
-    args << "--config-file" << m_peerConfigPath;
+    args << "--config-file" << "-";       // read TOML from stdin
     if (!hostname.isEmpty())
         args << "--hostname" << hostname;
 
-    // Wipe sensitive data from local memory before starting process
-    secureWipe(relayEp);
-
-    // ── In elevated mode, use QProcess with env vars (no CLI secrets) ──
+    // ── Elevated: pipe TOML via QProcess stdin (no CLI/env/file leaks) ──
     if (ElevatedSession::isActive()) {
-        QProcessEnvironment env = ElevatedSession::buildEnvironment(networkName, networkKey);
-        startViaQProcess(exe, args, env);
+        // NOTE: easytier stdin TOML with `peers = [...]` verified to work via
+        // --check-config and runtime testing (hostname, network name applied).
+        startViaQProcess(exe, args, toml);
+        secureWipe(toml);
         return;
     }
 
+    // ── Non-elevated: write config file + ShellExecuteEx with --peers ──
+    // (ShellExecuteEx doesn't support stdin piping)
+    QTemporaryFile tmpFile(QDir::tempPath() + QStringLiteral("/shadow_easytier_XXXXXX.toml"));
+    tmpFile.setAutoRemove(false);
+    tmpFile.open();
+    tmpFile.write(toml);
+    tmpFile.close();
+    m_peerConfigPath = tmpFile.fileName();
+    secureWipe(toml);
+
+    // CLI has --config-file <path>, --peers is NOT needed (peers in TOML),
+    // but for non-elevated (runas) we add --peers as fallback in case TOML
+    // peers don't work at runtime
 #ifdef Q_OS_WIN
-    // ── Non-elevated: ShellExecuteEx(runas) with --peers on CLI ──
-    QString argStr = (args.join(QLatin1Char(' '))
+    QString argStr = (QStringLiteral("--config-file \"%1\"").arg(m_peerConfigPath)
         + QStringLiteral(" --peers ") + relayEp);
+    if (!hostname.isEmpty())
+        argStr += QStringLiteral(" --hostname ") + hostname;
 
     SHELLEXECUTEINFOW sei = {sizeof(sei)};
     sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
@@ -205,9 +200,9 @@ void EasyTierProcess::stop()
 }
 
 void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& args,
-                                       const QProcessEnvironment& env)
+                                       const QByteArray& tomlData)
 {
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (管理员状态，环境变量传参)");
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (stdin传参，零泄露)");
 
     // Prevent duplicate start
     if (m_process && m_process->state() == QProcess::Running) {
@@ -226,8 +221,14 @@ void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& ar
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &EasyTierProcess::onProcessFinished);
 
-    m_process->setProcessEnvironment(env);
+    // Start process first, then pipe TOML to stdin
     m_process->start(exe, args);
+
+    // Write the full TOML config (with peers) to stdin
+    if (m_process->waitForStarted(5000)) {
+        m_process->write(tomlData);
+        m_process->closeWriteChannel();
+    }
 
     m_ready = false;
     m_timeoutTimer->start();

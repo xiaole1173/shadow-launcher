@@ -25,9 +25,9 @@ public:
     void start(const QString& networkName, const QString& networkKey,
                const QString& hostname = QString());
 
-    // Elevated mode: start easytier via QProcess with custom environment
+    // Elevated mode: start easytier via QProcess with config piped to stdin
     void startViaQProcess(const QString& exe, const QStringList& args,
-                          const QProcessEnvironment& env);
+                          const QByteArray& tomlData);
 
     void stop();
     bool isRunning() const;
