@@ -104,11 +104,12 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     if (!hostname.isEmpty())
         args << "--hostname" << hostname;
 
-    // ── Elevated: pipe TOML via QProcess stdin (no CLI/env/file leaks) ──
+    // ── Elevated: pipe TOML via QProcess stdin + ET_PEERS env var ──
+    // NOTE: easytier 2.6.4 ignores `peers = [...]` in TOML at runtime
+    // despite passing --check-config. Peers are passed via ET_PEERS env var
+    // instead. The TOML (name/secret/dhcp) goes through stdin (no file leak).
     if (ElevatedSession::isActive()) {
-        // NOTE: easytier stdin TOML with `peers = [...]` verified to work via
-        // --check-config and runtime testing (hostname, network name applied).
-        startViaQProcess(exe, args, toml);
+        startViaQProcess(exe, args, toml, relayEp);
         secureWipe(toml);
         return;
     }
@@ -200,9 +201,10 @@ void EasyTierProcess::stop()
 }
 
 void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& args,
-                                       const QByteArray& tomlData)
+                                       const QByteArray& tomlData,
+                                       const QString& relayEp)
 {
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (stdin传参，零泄露)");
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (stdin+ET_PEERS)");
 
     // Prevent duplicate start
     if (m_process && m_process->state() == QProcess::Running) {
@@ -221,11 +223,20 @@ void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& ar
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &EasyTierProcess::onProcessFinished);
 
-    // Start process first, then pipe TOML to stdin
+    // ── Build process environment with ET_PEERS (easytier ignores peers in TOML) ──
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert(QStringLiteral("ET_PEERS"), relayEp);
+    env.insert(QStringLiteral("ET_NETWORK_NAME"), m_networkName);
+    env.insert(QStringLiteral("ET_NETWORK_SECRET"), m_networkKey);
+    env.insert(QStringLiteral("ET_DHCP"), QStringLiteral("true"));
+    m_process->setProcessEnvironment(env);
+
+    // Start process first, then pipe TOML to stdin for additional context
     m_process->start(exe, args);
 
-    // Write the full TOML config (with peers) to stdin
     if (m_process->waitForStarted(5000)) {
+        // Pipe full TOML (including peers) to stdin for reference.
+        // At runtime, easytier picks up peers from ET_PEERS env var.
         m_process->write(tomlData);
         m_process->closeWriteChannel();
     }
