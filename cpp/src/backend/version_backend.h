@@ -391,6 +391,7 @@ private:
     VerifyWorker* m_verifyWorker = nullptr;
     QStringList m_failedPathsCache;
     QString m_autoRepairVersionId;  // 安装失败后自动修复的版本ID
+    bool m_autoRepairVerifyDone = false; // 自动修复的verify阶段已完成的标记
     QAtomicInt m_verifyRunning = 0;
     QAtomicInt m_repairRunning = 0;
     QAtomicInt m_verifyCancelled = 0;
