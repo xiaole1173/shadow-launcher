@@ -9,6 +9,9 @@ Rectangle {
     id: page
     color: "transparent"
 
+    // Set by MainWindow loader onLoaded — carries the loaded autoLangMode combo index
+    property int _initLangModeIdx: 0
+
     property int currentSection: 0
 
     opacity: 0; y: 10
@@ -490,7 +493,7 @@ Rectangle {
                                 function _modeToIdx(mode) { return mode === 0 ? 2 : (mode === 2 ? 1 : 0) }
                                 Component.onCompleted: {
                                     _syncLang = true
-                                    currentIndex = _initLangModeIdx
+                                    currentIndex = page._initLangModeIdx
                                     _syncLang = false
                                 }
                                 onActivated: {
