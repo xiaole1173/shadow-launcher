@@ -480,6 +480,7 @@ Rectangle {
                             ComboBox {
                                 id: langModeCombo
                                 model: [qsTr("系统区域（启动时自动检测）"), qsTr("IP 属地（安装时自动调整）"), qsTr("关闭（手动设置）")]
+                                property int _initLangModeIdx: 0
                                 property bool _syncLang: false
                                 // model index ↔ C++ autoLangMode mapping:
                                 // idx 0 "系统区域"  → mode 1 (locale)
@@ -489,8 +490,7 @@ Rectangle {
                                 function _modeToIdx(mode) { return mode === 0 ? 2 : (mode === 2 ? 1 : 0) }
                                 Component.onCompleted: {
                                     _syncLang = true
-                                    if (backend && backend.settings)
-                                        currentIndex = backend.settings.autoLangModeComboIndex()
+                                    currentIndex = _initLangModeIdx
                                     _syncLang = false
                                 }
                                 onActivated: {
