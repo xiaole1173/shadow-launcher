@@ -32,15 +32,18 @@ QString saveElevationConfig(const QString& networkName,
                            const QString& relayEp,
                            const QString& hostname,
                            const QString& roomCode,
-                           quint16 mcPort)
+                           quint16 mcPort,
+                           const QString& role)
 {
     QJsonObject obj;
+    obj[QStringLiteral("role")] = role;
     obj[QStringLiteral("networkName")] = networkName;
     obj[QStringLiteral("networkKey")] = networkKey;
     obj[QStringLiteral("relayEndpoint")] = relayEp;
     obj[QStringLiteral("hostname")] = hostname;
     obj[QStringLiteral("roomCode")] = roomCode;
     obj[QStringLiteral("mcPort")] = mcPort;
+    obj[QStringLiteral("role")] = role;
     obj[QStringLiteral("exePath")] = QCoreApplication::applicationFilePath();
 
     QString path = QDir::tempPath()
@@ -72,6 +75,7 @@ SessionData loadAndDelete(const QString& path)
         return data;
 
     QJsonObject obj = doc.object();
+    data.role = obj.value(QStringLiteral("role")).toString(QStringLiteral("host"));
     data.networkName = obj.value(QStringLiteral("networkName")).toString();
     data.networkKey = obj.value(QStringLiteral("networkKey")).toString();
     data.relayEp = obj.value(QStringLiteral("relayEndpoint")).toString();

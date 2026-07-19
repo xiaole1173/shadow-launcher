@@ -67,6 +67,9 @@ public:
                            quint16 mcPort,
                            const QString& hostname);
     Q_INVOKABLE void joinRoom(const QString& code);
+    Q_INVOKABLE void restoreGuestSession(const QString& networkName,
+                                         const QString& networkKey,
+                                         const QString& roomCode);
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void copyRoomCode();
     Q_INVOKABLE void prepareServerProperties(const QString& gameDir, const QString& versionId);

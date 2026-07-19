@@ -200,6 +200,23 @@ void MultiplayerManager::restoreHostSession(const QString& networkName,
     startEasyTier(m_networkName, m_networkKey, hostname);
 }
 
+void MultiplayerManager::restoreGuestSession(const QString& networkName,
+                                              const QString& networkKey,
+                                              const QString& roomCode)
+{
+    setRole(Guest);
+    m_roomCode = roomCode;
+    m_networkName = networkName;
+    m_networkKey = networkKey;
+    emit roomCodeChanged();
+
+    qCInfo(logNet) << QStringLiteral("[联机] 恢复宾客会话 房间码=%1 (提权后)")
+        .arg(m_roomCode);
+
+    setState(JoiningNetwork, QStringLiteral("正在加入联机网络..."));
+    startEasyTier(m_networkName, m_networkKey);
+}
+
 void MultiplayerManager::joinRoom(const QString& code)
 {
     if (m_state != Idle) {
@@ -224,7 +241,53 @@ void MultiplayerManager::joinRoom(const QString& code)
     m_networkKey = parts->networkKey;
     emit roomCodeChanged();
 
-    qCInfo(logNet) << QStringLiteral("[联机] 加入房间 房间码=%1").arg(m_roomCode);
+    // If not elevated, trigger self-elevation
+    if (!ElevatedSession::isActive()) {
+        QString relayEp = Relay::relayEndpoint();
+        QString configPath = ElevatedSession::saveElevationConfig(
+            m_networkName, m_networkKey, relayEp,
+            QString(), m_roomCode, 0, QStringLiteral("guest"));
+
+        qCInfo(logNet) << QStringLiteral("[联机] 需提权(加入房间) 配置=%1").arg(configPath);
+
+        QString exePath = QCoreApplication::applicationFilePath();
+        QString elevateArgs = QStringLiteral("--elevated --elevate-config \"%1\" --navigate 2")
+            .arg(configPath);
+        if (QCoreApplication::arguments().contains(QStringLiteral("--dev")))
+            elevateArgs += QStringLiteral(" --dev");
+
+#ifdef Q_OS_WIN
+        SHELLEXECUTEINFOW sei = {sizeof(sei)};
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+        sei.lpVerb = L"runas";
+        sei.lpFile = reinterpret_cast<const wchar_t*>(exePath.utf16());
+        sei.lpParameters = reinterpret_cast<const wchar_t*>(elevateArgs.utf16());
+        sei.nShow = SW_SHOWNORMAL;
+
+        if (ShellExecuteExW(&sei) && sei.hProcess) {
+            CloseHandle(sei.hProcess);
+            setState(JoiningNetwork, QStringLiteral("正在提权，请等待..."));
+            QTimer::singleShot(1500, qApp, &QCoreApplication::quit);
+        } else {
+            DWORD err = GetLastError();
+            if (err == ERROR_CANCELLED)
+                emit errorOccurred(QStringLiteral("提权被取消"));
+            else
+                emit errorOccurred(QStringLiteral("提权失败 (错误码: %1)").arg(err));
+            setState(Idle, {});
+            m_roomCode.clear();
+            emit roomCodeChanged();
+        }
+#else
+        emit errorOccurred(QStringLiteral("提权仅在Windows上支持"));
+        setState(Idle, {});
+        m_roomCode.clear();
+        emit roomCodeChanged();
+#endif
+        return;
+    }
+
+    qCInfo(logNet) << QStringLiteral("[联机] 加入房间(已提权) 房间码=%1").arg(m_roomCode);
 
     setState(JoiningNetwork, QStringLiteral("正在加入联机网络..."));
     startEasyTier(m_networkName, m_networkKey);

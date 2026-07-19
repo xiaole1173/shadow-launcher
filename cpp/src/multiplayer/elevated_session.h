@@ -16,7 +16,9 @@ bool isActive();
 void setActive(bool active);
 
 // ── Stored session data (read by elevated instance) ──
+// Role: "host" or "guest"
 struct SessionData {
+    QString role;          // "host" or "guest"
     QString networkName;
     QString networkKey;
     QString relayEp;
@@ -40,7 +42,8 @@ QString saveElevationConfig(const QString& networkName,
                            const QString& relayEp,
                            const QString& hostname,
                            const QString& roomCode,
-                           quint16 mcPort);
+                           quint16 mcPort,
+                           const QString& role = QStringLiteral("host"));
 
 // ── Load config from file and delete it ──
 SessionData loadAndDelete(const QString& configPath);
