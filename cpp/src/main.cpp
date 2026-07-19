@@ -480,8 +480,15 @@ int main(int argc, char *argv[])
             if (!objs.isEmpty())
                 objs.first()->setProperty("navListIndex", 2);
 
-            // Restore host session on multiplayer manager
-            if (!session.networkName.isEmpty()) {
+            if (session.networkName.isEmpty())
+                return;
+
+            if (session.role == QStringLiteral("guest")) {
+                QMetaObject::invokeMethod(backend->multiplayer(), "restoreGuestSession",
+                    Q_ARG(QString, session.networkName),
+                    Q_ARG(QString, session.networkKey),
+                    Q_ARG(QString, session.roomCode));
+            } else {
                 QMetaObject::invokeMethod(backend->multiplayer(), "restoreHostSession",
                     Q_ARG(QString, session.networkName),
                     Q_ARG(QString, session.networkKey),
