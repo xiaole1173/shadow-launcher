@@ -59,6 +59,13 @@ public:
     // ── QML-callable ──
     Q_INVOKABLE static QString playerHeadPath(const QString& name, const QString& dataDir);
     Q_INVOKABLE void createRoom();
+    // Restore a previously-prepared host session (elevation handoff)
+    // Called from C++ when the elevated instance loads saved state.
+    Q_INVOKABLE void restoreHostSession(const QString& networkName,
+                           const QString& networkKey,
+                           const QString& roomCode,
+                           quint16 mcPort,
+                           const QString& hostname);
     Q_INVOKABLE void joinRoom(const QString& code);
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void copyRoomCode();
