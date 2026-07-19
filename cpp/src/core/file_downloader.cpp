@@ -265,10 +265,13 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
 
         QUrl qurl(url);
 
-        // 3-attempt per source: 10s → 30s → 4s
+        // Per-source retry:
+        //   - Connection failures (timeout, HTTP error): up to 3 retries
+        //   - SHA1 mismatch: up to 6 retries (load-balanced mirrors
+        //     like BMCLAPI may have inconsistent cache across nodes)
         bool sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
-        for (int attempt = 0; attempt < 3 && !sourceOk; ++attempt) {
+        for (int attempt = 0; attempt < 6 && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
 
             int timeoutMs;
@@ -277,7 +280,13 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 case 1: timeoutMs = 30000; break;
                 default: timeoutMs = 4000; break;
             }
-            if (attempt >= 2 && (getElapsedMs() - startTimeMs) < 5500) break;
+            // Fast retry guard: if <5.5s elapsed after 2 attempts, retrying the
+            // same dead source is pointless. But for SHA1-mismatch files (where
+            // load-balanced mirrors may serve inconsistent cache), allow more retries.
+            if (attempt >= 2 && file->expectedSha1.isEmpty()
+                && (getElapsedMs() - startTimeMs) < 5500) break;
+            // For SHA1 files, always try at least 5 attempts (cache inconsistency)
+            if (attempt >= 5 && (getElapsedMs() - startTimeMs) < 5500) break;
             if (attempt > 0) QThread::msleep(500);
 
             QNetworkRequest req{qurl};
@@ -324,6 +333,8 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     .arg(attempt + 1);
                 reply->abort();
                 reply->deleteLater();
+                // Connection failures: give up after 3 attempts
+                if (attempt >= 2) break;
                 continue;
             }
 
@@ -363,10 +374,12 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
                 QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
                 if (dlHash != file->expectedSha1) {
-                    qCWarning(logDownload) << QStringLiteral("下载数据SHA1不匹配 URL=%1 预期=%2 实际=%3")
-                        .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash));
+                    qCWarning(logDownload) << QStringLiteral("下载数据SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
+                        .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
+                        .arg(attempt + 1);
                     sourceOk = false;
                     reply->deleteLater();
+                    if (attempt >= 5) break; // SHA1 retries exhausted
                     continue;
                 }
             }
