@@ -274,30 +274,6 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
                         Rectangle {
-                            width: detectLabel.implicitWidth + 24; height: 34; radius: StyleTokens.radiusMd
-                            color: detectHover.hovered ? "#6d7de8" : "#5068d8"
-                            scale: detectMa.pressed ? 0.92 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: detectLabel
-                                anchors.centerIn: parent
-                                text: qsTr("重新检测")
-                                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textInverse
-                            }
-                            HoverHandler { id: detectHover }
-                            MouseArea {
-                                id: detectMa
-                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (backend) {
-                                        backend.detectJava()
-                                        if (toastManager) toastManager.show(qsTr("正在检测 Java 环境..."))
-                                    }
-                                }
-                            }
-                        }
-                        Rectangle {
                             width: browseLabel.implicitWidth + 24; height: 34; radius: StyleTokens.radiusMd
                             color: browseHover.hovered ? "#1a1f2e" : "transparent"
                             scale: browseMa.pressed ? 0.92 : 1.0

@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "easytier_process.h"
 #include "relay_crypto.h"    // Decrypted relay endpoint
+#include "../utils/secure_wipe.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
@@ -87,16 +88,23 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
 
     QString relayEp = Relay::relayEndpoint();
 
+    // CLI args: only non-sensitive display info (sensitive params passed via env vars)
     QStringList args;
-    args << "--network-name" << networkName
-         << "--network-secret" << networkKey
-         << "--dhcp"
-         << "--peers" << relayEp;
-
     if (!hostname.isEmpty())
         args << "--hostname" << hostname;
 
+    // Wipe sensitive data from local memory before starting process
+    secureWipe(relayEp);
+
 #ifdef Q_OS_WIN
+    // Pass sensitive parameters via environment variables instead of CLI args.
+    // This prevents relay IP, network secret, etc. from being visible in
+    // Task Manager / Process Explorer / WMI command line.
+    SetEnvironmentVariableW(L"ET_NETWORK_NAME", reinterpret_cast<const wchar_t*>(networkName.utf16()));
+    SetEnvironmentVariableW(L"ET_NETWORK_SECRET", reinterpret_cast<const wchar_t*>(networkKey.utf16()));
+    SetEnvironmentVariableW(L"ET_PEERS", reinterpret_cast<const wchar_t*>(relayEp.utf16()));
+    SetEnvironmentVariableW(L"ET_DHCP", L"true");
+
     // Build command line for easytier-core.exe
     QString argStr = args.join(QLatin1Char(' '));
 
@@ -109,9 +117,16 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     sei.lpParameters = reinterpret_cast<const wchar_t*>(argStr.utf16());
     sei.nShow = SW_HIDE;
 
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 启动 (管理员权限) exe=%1 args=%2").arg(exe, args.join(QStringLiteral(" ")));
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 启动 (管理员权限) exe=%1 hostname=%2")
+        .arg(exe, hostname.isEmpty() ? QStringLiteral("(默认)") : hostname);
 
     if (ShellExecuteExW(&sei) && sei.hProcess) {
+        // Child process created — immediately clear env vars from our process
+        SetEnvironmentVariableW(L"ET_NETWORK_NAME", nullptr);
+        SetEnvironmentVariableW(L"ET_NETWORK_SECRET", nullptr);
+        SetEnvironmentVariableW(L"ET_PEERS", nullptr);
+        SetEnvironmentVariableW(L"ET_DHCP", nullptr);
+
         m_winProcess = sei.hProcess;
         m_ready = false;
         // Start polling peer list for readiness
@@ -124,12 +139,25 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
             qCWarning(logNet) << QStringLiteral("[EasyTier] UAC被用户拒绝");
             emit errorOccurred(QStringLiteral("需要管理员权限才能创建虚拟网络，请在 UAC 弹窗中点击\"是\""));
         } else {
+            // Clean up env vars on failure too
+            SetEnvironmentVariableW(L"ET_NETWORK_NAME", nullptr);
+            SetEnvironmentVariableW(L"ET_NETWORK_SECRET", nullptr);
+            SetEnvironmentVariableW(L"ET_PEERS", nullptr);
+            SetEnvironmentVariableW(L"ET_DHCP", nullptr);
+
             emit errorOccurred(QStringLiteral("启动 EasyTier 失败 (错误码: %1)").arg(err));
         }
     }
 #else
-    // macOS / Linux: QProcess works fine
+    // macOS / Linux: QProcess works fine; use QProcessEnvironment for sensitive params
+    QProcessEnvironment procEnv = QProcessEnvironment::systemEnvironment();
+    procEnv.insert(QStringLiteral("ET_NETWORK_NAME"), networkName);
+    procEnv.insert(QStringLiteral("ET_NETWORK_SECRET"), networkKey);
+    procEnv.insert(QStringLiteral("ET_PEERS"), relayEp);
+    procEnv.insert(QStringLiteral("ET_DHCP"), QStringLiteral("true"));
+
     m_process = new QProcess(this);
+    m_process->setProcessEnvironment(procEnv);
     connect(m_process, &QProcess::started, this, &EasyTierProcess::onProcessStarted);
     connect(m_process, &QProcess::errorOccurred, this, &EasyTierProcess::onProcessError);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &EasyTierProcess::onReadyRead);
@@ -137,7 +165,8 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &EasyTierProcess::onProcessFinished);
 
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 启动 exe=%1 args=%2").arg(exe, args.join(QStringLiteral(" ")));
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 启动 exe=%1 hostname=%2")
+        .arg(exe, hostname.isEmpty() ? QStringLiteral("(默认)") : hostname);
     m_process->start(exe, args);
     m_timeoutTimer->start();
 #endif
