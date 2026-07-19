@@ -489,14 +489,19 @@ Rectangle {
                                 function _modeToIdx(mode) { return mode === 0 ? 2 : (mode === 2 ? 1 : 0) }
                                 Component.onCompleted: {
                                     _syncLangMode = true
-                                    currentIndex = backend && backend.settings
-                                        ? _modeToIdx(backend.settings.autoLangMode) : 0
-                                    _syncLangMode = false
+                                    Qt.callLater(function() {
+                                        var rawMode = backend && backend.settings ? backend.settings.autoLangMode : -1
+                                        console.log("[langMode] loaded autoLangMode=", rawMode, "→ idx=", _modeToIdx(rawMode))
+                                        currentIndex = rawMode >= 0 ? _modeToIdx(rawMode) : 0
+                                        _syncLangMode = false
+                                    })
                                 }
                                 onActivated: {
                                     if (_syncLangMode) return
+                                    var mode = _idxToMode(currentIndex)
+                                    console.log("[langMode] saving: idx=", currentIndex, "→ mode=", mode)
                                     if (backend && backend.settings)
-                                        backend.settings.autoLangMode = _idxToMode(currentIndex)
+                                        backend.settings.autoLangMode = mode
                                 }
                                 Layout.preferredWidth: 280
 

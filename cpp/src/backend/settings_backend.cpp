@@ -108,6 +108,7 @@ void SettingsBackend::loadSettings()
 
     // Auto-language mode
     m_autoLangMode = s.value(QStringLiteral("general/autoLangMode"), 1).toInt();
+    qCInfo(logApp) << QStringLiteral("[autoLang] loaded mode=%1 from QSettings").arg(m_autoLangMode);
 
     // Download settings
     m_fileDownloadSource = s.value(QStringLiteral("download/fileSource"), 1).toInt();
@@ -897,6 +898,7 @@ void SettingsBackend::setAutoLangMode(int mode)
 {
     if (mode < 0 || mode > 2) return;
     if (mode == m_autoLangMode) return;
+    qCInfo(logApp) << QStringLiteral("[autoLang] saving mode=%1 (was %2)").arg(mode).arg(m_autoLangMode);
     m_autoLangMode = mode;
     saveSettings();
     emit autoLangModeChanged();
