@@ -336,6 +336,7 @@ private:
         int catFilesTotal[3] = {};   // per-category total file count
         bool catsFullyDone = false;  // set by fileProgress when all categories complete
         bool downloadsDone = false;  // sticky: set once when downloads finish, stays true through verify
+        qreal lastCardProgress = -1.0;  // monotonic guard: card progress never goes backward
     };
     QMap<QString, DlState> m_dlStates;
     QMap<QString, VersionDownloader*> m_downloaders;
