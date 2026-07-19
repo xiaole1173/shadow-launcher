@@ -1142,7 +1142,23 @@ void AccountBackend::refreshMicrosoftToken()
             }
 
             if (reason.isEmpty()) reason = tr("令牌刷新失败");
-            qCWarning(logAccount) << QStringLiteral("Microsoft Token刷新失败 原因=%1 响应=%2").arg(reason, raw.left(200));
+            // Sanitize response body: mask token/secret fields before logging
+            QByteArray safeRaw = raw.left(200);
+            for (const auto& field : {QByteArrayLiteral("access_token"), QByteArrayLiteral("refresh_token"),
+                                      QByteArrayLiteral("token"), QByteArrayLiteral("secret")}) {
+                int idx = 0;
+                while ((idx = safeRaw.indexOf(field + ":\"", idx)) >= 0) {
+                    int valStart = idx + field.size() + 2;
+                    int valEnd = safeRaw.indexOf('"', valStart);
+                    if (valEnd > valStart) {
+                        safeRaw.replace(valStart, valEnd - valStart, QByteArrayLiteral("***"));
+                        idx = valStart + 3;  // skip past ***
+                    } else {
+                        break;
+                    }
+                }
+            }
+            qCWarning(logAccount) << QStringLiteral("Microsoft Token刷新失败 原因=%1 响应=%2").arg(reason, QString::fromUtf8(safeRaw));
 
             emit tokenRefreshed(false);
             emit tokenRefreshFailed(tokenExpired, reason);
