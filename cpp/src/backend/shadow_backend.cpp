@@ -3089,15 +3089,16 @@ void ShadowBackend::logUiMsg(const QString& msg)
 
 int ShadowBackend::diagAutoLangComboIdx() const
 {
-    qCInfo(logApp) << QStringLiteral("[DIAG] diagAutoLangComboIdx() called from QML");
-    if (!m_settings) {
-        qCWarning(logApp) << QStringLiteral("[DIAG] m_settings is NULL!");
-        return 0;
-    }
-    int mode = m_settings->autoLangMode();
-    int idx = m_settings->autoLangModeComboIndex();
-    qCInfo(logApp) << QStringLiteral("[DIAG] mode=%1 → comboIdx=%2").arg(mode).arg(idx);
-    return idx;
+    if (!m_settings) return 0;
+    return m_settings->autoLangModeComboIndex();
+}
+
+void ShadowBackend::setAutoLangModeFromCombo(int idx)
+{
+    if (!m_settings) return;
+    // idx → mode: 0→1(系统区域), 1→2(IP属地), 2→0(关闭)
+    int mode = idx == 0 ? 1 : (idx == 1 ? 2 : 0);
+    m_settings->setAutoLangMode(mode);
 }
 
 void ShadowBackend::refreshGameStats()
