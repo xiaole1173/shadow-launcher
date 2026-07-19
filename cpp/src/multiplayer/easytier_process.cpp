@@ -103,60 +103,156 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         m_peerConfigPath = tmpFile.fileName();
 
         QByteArray toml;
-        toml.append("[[peers]]\n");
-        toml.append(QStringLiteral("peer = \"%1\"\n").arg(relayEp).toUtf8());
-        toml.append("\n[network]\n");
+        // Note: TOML peers is left out intentionally — easytier 2.6.4 ignores
+        // `peers = [...]` at runtime despite passing --check-config.
+        // Peers are passed via --peers CLI arg instead.
+        toml.append("[network]\n");
         toml.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
         toml.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
         toml.append("dhcp = true\n");
-        if (!hostname.isEmpty()) {
-            toml.append("\n[host]\n");
-            toml.append(QStringLiteral("name = \"%1\"\n").arg(hostname).toUtf8());
-        }
         tmpFile.write(toml);
         tmpFile.close();
         secureWipe(toml);
     }
 
-    // CLI args: only the config file path
+    // CLI: only non-sensitive info (sensitive params via environment block)
     QStringList args;
     args << "--config-file" << m_peerConfigPath;
+    if (!hostname.isEmpty())
+        args << "--hostname" << hostname;
 
     // Wipe sensitive data from local memory before starting process
     secureWipe(relayEp);
 
 #ifdef Q_OS_WIN
-    // Build command line for easytier-core.exe
-    // NOTE: config file contains all sensitive params (peers, secret, etc.)
-    // CLI only shows --config-file <temp_path>
+    // ── Build command line (no sensitive data — passed via env block) ──
     QString argStr = args.join(QLatin1Char(' '));
 
-    // Use ShellExecuteEx(runas) to elevate easytier-core.exe directly.
-    // QProcess::start() does not inherit the elevated token reliably.
-    SHELLEXECUTEINFOW sei = {sizeof(sei)};
-    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
-    sei.lpVerb = L"runas";
-    sei.lpFile = reinterpret_cast<const wchar_t*>(exe.utf16());
-    sei.lpParameters = reinterpret_cast<const wchar_t*>(argStr.utf16());
-    sei.nShow = SW_HIDE;
+    // ── Create elevated process with custom environment block ──
+    // ShellExecuteEx(runas) doesn't propagate SetEnvironmentVariableW changes.
+    // Instead, get the linked (elevated) token via UAC and use
+    // CreateProcessAsUserW with a custom environment block containing ET_* vars.
 
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 启动 (管理员权限) exe=%1 hostname=%2")
-        .arg(exe, hostname.isEmpty() ? QStringLiteral("(默认)") : hostname);
+    // 1. Get current process token
+    HANDLE hToken = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(),
+            TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY, &hToken)) {
+        emit errorOccurred(QStringLiteral("获取进程令牌失败"));
+        return;
+    }
 
-    if (ShellExecuteExW(&sei) && sei.hProcess) {
-        m_winProcess = sei.hProcess;
+    // 2. Get the linked (elevated) token via UAC
+    TOKEN_LINKED_TOKEN linkedToken = {nullptr};
+    DWORD size = 0;
+    if (!GetTokenInformation(hToken, TokenLinkedToken,
+            &linkedToken, sizeof(linkedToken), &size) || !linkedToken.LinkedToken) {
+        CloseHandle(hToken);
+        // Fallback: try ShellExecuteEx(runas) with just config file
+        // (peers will be on CLI as last resort)
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 无法获取提升令牌，回退到ShellExecuteEx");
+        SHELLEXECUTEINFOW sei = {sizeof(sei)};
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
+        sei.lpVerb = L"runas";
+        sei.lpFile = reinterpret_cast<const wchar_t*>(exe.utf16());
+        sei.lpParameters = reinterpret_cast<const wchar_t*>(argStr.utf16());
+        sei.nShow = SW_HIDE;
+        if (ShellExecuteExW(&sei) && sei.hProcess) {
+            m_winProcess = sei.hProcess;
+            m_ready = false;
+            m_outputTimer->start();
+            m_timeoutTimer->start();
+            emit stateChanged(QStringLiteral("等待 UAC 确认..."));
+        } else {
+            DWORD err = GetLastError();
+            if (err == ERROR_CANCELLED)
+                emit errorOccurred(QStringLiteral("需要管理员权限"));
+            else
+                emit errorOccurred(QStringLiteral("启动 EasyTier 失败 (错误码: %1)").arg(err));
+        }
+        return;
+    }
+
+    // 3. Build custom UNICODE environment block with ET_* vars
+    // Format: list of UTF-16LE null-terminated strings, ending with double null.
+    QByteArray envBlockRaw;
+    {
+        // Helper to append a UTF-16LE null-terminated string
+        auto appendWide = [&](const QString& s) {
+            int cb = (s.length() + 1) * sizeof(QChar);
+            envBlockRaw.append(reinterpret_cast<const char*>(s.utf16()), cb);
+        };
+        // Inherit essential vars so the child can find DLLs
+        auto inheritVar = [&](const wchar_t* name) {
+            wchar_t buf[4096] = {0};
+            DWORD sz = GetEnvironmentVariableW(name, buf, 4096);
+            if (sz > 0 && sz < 4096)
+                appendWide(QString::fromWCharArray(name) + QStringLiteral("=") + QString::fromWCharArray(buf));
+        };
+        inheritVar(L"PATH");
+        inheritVar(L"SYSTEMROOT");
+        inheritVar(L"TMP");
+        inheritVar(L"USERPROFILE");
+        // Add our ET_* vars
+        appendWide(QStringLiteral("ET_NETWORK_NAME=") + networkName);
+        appendWide(QStringLiteral("ET_NETWORK_SECRET=") + networkKey);
+        appendWide(QStringLiteral("ET_PEERS=") + relayEp);
+        appendWide(QStringLiteral("ET_DHCP=true"));
+        // 4. Double null terminator (two UTF-16 null chars = 4 zero bytes)
+        envBlockRaw.append(QByteArray(4, '\0'));
+    }
+
+    // 4. Create the elevated process with custom environment
+    STARTUPINFOW si = {sizeof(si)};
+    PROCESS_INFORMATION pi = {nullptr};
+
+    // Convert args to a writable form (CreateProcessW modifies the buffer)
+    std::wstring cmdLine = (exe + QStringLiteral(" ") + argStr).toStdWString();
+    std::wstring exePath = exe.toStdWString();
+
+    BOOL created = CreateProcessAsUserW(
+        linkedToken.LinkedToken,    // elevated token
+        exePath.c_str(),            // application name
+        cmdLine.data(),             // command line
+        nullptr, nullptr, FALSE,
+        CREATE_UNICODE_ENVIRONMENT,  // use our UNICODE environment block
+        const_cast<char*>(envBlockRaw.constData()),    // custom environment
+        nullptr, &si, &pi);
+
+    // Cleanup tokens
+    CloseHandle(linkedToken.LinkedToken);
+    CloseHandle(hToken);
+
+    if (created) {
+        CloseHandle(pi.hThread);
+        m_winProcess = pi.hProcess;
         m_ready = false;
-        // Start polling peer list for readiness
         m_outputTimer->start();
         m_timeoutTimer->start();
-        emit stateChanged(QStringLiteral("等待 UAC 确认..."));
+        qCInfo(logNet) << QStringLiteral("[EasyTier] 已启动 (环境变量方式) PID=%1").arg(pi.dwProcessId);
+        emit stateChanged(QStringLiteral("正在创建虚拟网络..."));
     } else {
         DWORD err = GetLastError();
-        if (err == ERROR_CANCELLED) {
-            qCWarning(logNet) << QStringLiteral("[EasyTier] UAC被用户拒绝");
-            emit errorOccurred(QStringLiteral("需要管理员权限才能创建虚拟网络，请在 UAC 弹窗中点击\"是\""));
+        qCWarning(logNet) << QStringLiteral("[EasyTier] CreateProcessAsUser失败 错误码=%1 回退到ShellExecuteEx").arg(err);
+        // Fallback: ShellExecuteEx with --peers on CLI (env vars don't survive UAC)
+        QString fallbackArgs = argStr + QStringLiteral(" --peers ") + relayEp;
+        SHELLEXECUTEINFOW sei = {sizeof(sei)};
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
+        sei.lpVerb = L"runas";
+        sei.lpFile = reinterpret_cast<const wchar_t*>(exe.utf16());
+        sei.lpParameters = reinterpret_cast<const wchar_t*>(fallbackArgs.utf16());
+        sei.nShow = SW_HIDE;
+        if (ShellExecuteExW(&sei) && sei.hProcess) {
+            m_winProcess = sei.hProcess;
+            m_ready = false;
+            m_outputTimer->start();
+            m_timeoutTimer->start();
+            emit stateChanged(QStringLiteral("等待 UAC 确认..."));
         } else {
-            emit errorOccurred(QStringLiteral("启动 EasyTier 失败 (错误码: %1)").arg(err));
+            DWORD err2 = GetLastError();
+            if (err2 == ERROR_CANCELLED)
+                emit errorOccurred(QStringLiteral("需要管理员权限"));
+            else
+                emit errorOccurred(QStringLiteral("启动 EasyTier 失败 (错误码: %1)").arg(err2));
         }
     }
 #else
