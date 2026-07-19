@@ -1147,9 +1147,12 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         refreshInstalled();
     } else if (m_userCancelledIds.remove(finishedId)) {
-        // User cancelled — delete entire version folder
-        qCDebug(logVersion).noquote() << "onVersionDownloadFinished: user cancelled" << finishedId;
+        // User cancelled — delete entire version folder, skip installFinished to avoid "失败" toast
+        qCInfo(logVersion).noquote() << "onVersionDownloadFinished: user cancelled" << finishedId;
         cleanupCanceledVersion(finishedId, m_versionMgr->gameDir());
+        setInstallPhase(tr("取消"));
+        refreshInstalled();
+        return;
     } else if (!m_autoRepairVersionId.isEmpty()) {
         // ── Auto-repair 完成后的回调 ──
         // 此时 finishedId 来自 repairVersion 的后续操作，不是原始下载

@@ -388,6 +388,9 @@ Rectangle {
                 if (root._selectedIid) {
                     console.log("[cancel-btn] calling cancelVersionInstall(" + root._selectedIid + ")")
                     backend.cancelVersionInstall(root._selectedIid)
+                    if (root.toastManager) {
+                        root.toastManager.show("已取消下载", "", 3000)
+                    }
                 } else {
                     console.log("[cancel-btn] SKIP: _selectedIid is empty")
                 }
