@@ -9,6 +9,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QFile>
+#include <QTemporaryFile>
 #include <QDebug>
 #include "../utils/logger.h"
 
@@ -88,24 +90,45 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
 
     QString relayEp = Relay::relayEndpoint();
 
-    // CLI args: only non-sensitive display info (sensitive params passed via env vars)
+    // ── Build TOML config file (all settings, no sensitive data on CLI) ──
+    // Remove previous config file
+    if (!m_peerConfigPath.isEmpty()) {
+        QFile::remove(m_peerConfigPath);
+        m_peerConfigPath.clear();
+    }
+    {
+        QTemporaryFile tmpFile(QDir::tempPath() + QStringLiteral("/shadow_easytier_XXXXXX.toml"));
+        tmpFile.setAutoRemove(false);
+        tmpFile.open();
+        m_peerConfigPath = tmpFile.fileName();
+
+        QByteArray toml;
+        toml.append("[[peers]]\n");
+        toml.append(QStringLiteral("peer = \"%1\"\n").arg(relayEp).toUtf8());
+        toml.append("\n[network]\n");
+        toml.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
+        toml.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
+        toml.append("dhcp = true\n");
+        if (!hostname.isEmpty()) {
+            toml.append("\n[host]\n");
+            toml.append(QStringLiteral("name = \"%1\"\n").arg(hostname).toUtf8());
+        }
+        tmpFile.write(toml);
+        tmpFile.close();
+        secureWipe(toml);
+    }
+
+    // CLI args: only the config file path
     QStringList args;
-    if (!hostname.isEmpty())
-        args << "--hostname" << hostname;
+    args << "--config-file" << m_peerConfigPath;
 
     // Wipe sensitive data from local memory before starting process
     secureWipe(relayEp);
 
 #ifdef Q_OS_WIN
-    // Pass sensitive parameters via environment variables instead of CLI args.
-    // This prevents relay IP, network secret, etc. from being visible in
-    // Task Manager / Process Explorer / WMI command line.
-    SetEnvironmentVariableW(L"ET_NETWORK_NAME", reinterpret_cast<const wchar_t*>(networkName.utf16()));
-    SetEnvironmentVariableW(L"ET_NETWORK_SECRET", reinterpret_cast<const wchar_t*>(networkKey.utf16()));
-    SetEnvironmentVariableW(L"ET_PEERS", reinterpret_cast<const wchar_t*>(relayEp.utf16()));
-    SetEnvironmentVariableW(L"ET_DHCP", L"true");
-
     // Build command line for easytier-core.exe
+    // NOTE: config file contains all sensitive params (peers, secret, etc.)
+    // CLI only shows --config-file <temp_path>
     QString argStr = args.join(QLatin1Char(' '));
 
     // Use ShellExecuteEx(runas) to elevate easytier-core.exe directly.
@@ -121,12 +144,6 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         .arg(exe, hostname.isEmpty() ? QStringLiteral("(默认)") : hostname);
 
     if (ShellExecuteExW(&sei) && sei.hProcess) {
-        // Child process created — immediately clear env vars from our process
-        SetEnvironmentVariableW(L"ET_NETWORK_NAME", nullptr);
-        SetEnvironmentVariableW(L"ET_NETWORK_SECRET", nullptr);
-        SetEnvironmentVariableW(L"ET_PEERS", nullptr);
-        SetEnvironmentVariableW(L"ET_DHCP", nullptr);
-
         m_winProcess = sei.hProcess;
         m_ready = false;
         // Start polling peer list for readiness
@@ -139,25 +156,12 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
             qCWarning(logNet) << QStringLiteral("[EasyTier] UAC被用户拒绝");
             emit errorOccurred(QStringLiteral("需要管理员权限才能创建虚拟网络，请在 UAC 弹窗中点击\"是\""));
         } else {
-            // Clean up env vars on failure too
-            SetEnvironmentVariableW(L"ET_NETWORK_NAME", nullptr);
-            SetEnvironmentVariableW(L"ET_NETWORK_SECRET", nullptr);
-            SetEnvironmentVariableW(L"ET_PEERS", nullptr);
-            SetEnvironmentVariableW(L"ET_DHCP", nullptr);
-
             emit errorOccurred(QStringLiteral("启动 EasyTier 失败 (错误码: %1)").arg(err));
         }
     }
 #else
-    // macOS / Linux: QProcess works fine; use QProcessEnvironment for sensitive params
-    QProcessEnvironment procEnv = QProcessEnvironment::systemEnvironment();
-    procEnv.insert(QStringLiteral("ET_NETWORK_NAME"), networkName);
-    procEnv.insert(QStringLiteral("ET_NETWORK_SECRET"), networkKey);
-    procEnv.insert(QStringLiteral("ET_PEERS"), relayEp);
-    procEnv.insert(QStringLiteral("ET_DHCP"), QStringLiteral("true"));
-
+    // macOS / Linux: QProcess works fine; config file handles all sensitive params
     m_process = new QProcess(this);
-    m_process->setProcessEnvironment(procEnv);
     connect(m_process, &QProcess::started, this, &EasyTierProcess::onProcessStarted);
     connect(m_process, &QProcess::errorOccurred, this, &EasyTierProcess::onProcessError);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &EasyTierProcess::onReadyRead);
@@ -204,6 +208,12 @@ void EasyTierProcess::stop()
         m_process->deleteLater();
         m_process = nullptr;
     }
+    // Clean up temporary config file
+    if (!m_peerConfigPath.isEmpty()) {
+        QFile::remove(m_peerConfigPath);
+        m_peerConfigPath.clear();
+    }
+
     m_virtualIp.clear();
     m_centerPort = 0;
     m_ready = false;
