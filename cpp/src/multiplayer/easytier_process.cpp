@@ -22,7 +22,7 @@ EasyTierProcess::EasyTierProcess(QObject* parent)
     , m_outputTimer(new QTimer(this))
     , m_timeoutTimer(new QTimer(this))
 {
-    m_outputTimer->setInterval(500);
+    m_outputTimer->setInterval(2000);  // 初始2s轮询，就绪后5s
     connect(m_outputTimer, &QTimer::timeout, this, &EasyTierProcess::onTimerTick);
     m_timeoutTimer->setSingleShot(true);
     m_timeoutTimer->setInterval(60000); // 60s timeout
@@ -294,6 +294,8 @@ void EasyTierProcess::onProcessStarted()
     m_outputTimer->start();
 }
 
+static QString s_lastPeerTable; // cache: only log on change
+
 void EasyTierProcess::pollPeerList()
 {
     if (m_cliProcess && m_cliProcess->state() == QProcess::Running)
@@ -311,12 +313,16 @@ void EasyTierProcess::pollPeerList()
                 this, [this]() {
             QString output = QString::fromUtf8(m_cliProcess->readAllStandardOutput())
                            + QString::fromUtf8(m_cliProcess->readAllStandardError());
-            qCInfo(logNet) << QStringLiteral("[EasyTier] CLI输出: %1").arg(output);
+            // Only log peer table when content changes (avoids log spam)
+            if (output != s_lastPeerTable) {
+                qCInfo(logNet) << QStringLiteral("[EasyTier] Peer列表更新: %1").arg(output);
+                s_lastPeerTable = output;
+            }
             parsePeerList(output);
         });
     }
 
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 轮询peer列表");
+    // 轮询在后台进行，不输出日志避免刷屏
     m_cliProcess->start(cliExe, {QStringLiteral("peer")});
 }
 
@@ -353,13 +359,12 @@ void EasyTierProcess::parsePeerList(const QString& output)
     }
 
     // Check if peer list has entries → network is ready.
-    // easytier-cli peer outputs a table with IPs when connected.
     if (!m_ready && !m_virtualIp.isEmpty()) {
-        // We have a virtual IP from the peer list → network is up
         bool hasPeer = output.contains(QRegularExpression(QStringLiteral(R"(\|\s*\d+\.\d+\.\d+\.\d+)")));
         if (hasPeer) {
             m_ready = true;
             m_timeoutTimer->stop();
+            m_outputTimer->setInterval(5000);  // 就绪后降频到5秒
             qCInfo(logNet) << QStringLiteral("[EasyTier] 网络就绪 virtual_ip=%1").arg(m_virtualIp);
             emit networkReady(m_virtualIp);
         }
@@ -426,7 +431,7 @@ void EasyTierProcess::checkOutput()
 
 void EasyTierProcess::parseOutputLine(const QString& line)
 {
-    qCInfo(logNet) << QStringLiteral("[EasyTier] stdout: %1").arg(line);
+    // 不逐行记录stdout（已在轮询或ready日志中体现）
 
     // EasyTier virtual IP patterns: usually 10.x or 172.x or 192.168.x
     static QRegularExpression ipRx(
