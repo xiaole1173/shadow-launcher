@@ -42,12 +42,15 @@ static QString createState() {
 
 // ── Constructor / Destructor ──
 
-MicrosoftAuth::MicrosoftAuth(QObject* parent) : QObject(parent) {}
+MicrosoftAuth::MicrosoftAuth(QObject* parent) : QObject(parent) {
+    qCInfo(logAccount) << QStringLiteral("MSA认证模块初始化");
+}
 MicrosoftAuth::~MicrosoftAuth() { cancelLogin(); }
 
 // ── cancelLogin ──
 
 void MicrosoftAuth::cancelLogin() {
+    qCInfo(logAccount) << QStringLiteral("取消登录");
     if (m_localServer) { m_localServer->close(); m_localServer->deleteLater(); m_localServer = nullptr; }
     if (m_embeddedWindow) { m_embeddedWindow->close(); m_embeddedWindow->deleteLater(); }
     m_embeddedMode = false;
@@ -64,6 +67,7 @@ void MicrosoftAuth::startLogin(const QString& clientId) {
     m_busy = true;
     m_embeddedMode = false;
     m_clientId = clientId.isEmpty() ? kClientId : clientId;
+    qCInfo(logAccount) << QStringLiteral("开始本地回调登录 clientId=%1").arg(m_clientId);
 
     // Create local HTTP server
     m_localServer = new QTcpServer(this);
@@ -72,6 +76,7 @@ void MicrosoftAuth::startLogin(const QString& clientId) {
         if (m_localServer->listen(QHostAddress::LocalHost, p)) { port = p; break; }
     }
     if (port == 0) {
+        qCWarning(logAccount) << QStringLiteral("本地回调端口全部占用");
         emit loginFailed(tr("无法启动本地回调服务器"));
         m_busy = false;
         return;
@@ -125,6 +130,7 @@ void MicrosoftAuth::startEmbeddedLogin(const QString& clientId) {
     m_busy = true;
     m_embeddedMode = true;
     m_clientId = clientId.isEmpty() ? kClientId : clientId;
+    qCInfo(logAccount) << QStringLiteral("开始内嵌登录 clientId=%1").arg(m_clientId);
     QString redirect = u"https://login.microsoftonline.com/common/oauth2/nativeclient"_s;
 
     qCInfo(logApp) << QStringLiteral("[WebEngine] 创建内嵌登录窗口");
@@ -199,6 +205,7 @@ void MicrosoftAuth::startEmbeddedLogin(const QString& clientId) {
 // ═══════════════════════════════════════════════════
 
 void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri) {
+    qCInfo(logAccount) << QStringLiteral("换取Token 授权码=%1...").arg(code.left(15));
     emit loginProgress(tr("换取访问令牌"), QString());
 
     QUrlQuery params;
@@ -216,6 +223,7 @@ void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray data = reply->readAll();
         if (status != 200) {
+            qCWarning(logAccount) << QStringLiteral("Token换取失败 HTTP=%1").arg(status);
             emit loginFailed(QStringLiteral("Token exchange failed: %1").arg(status));
             m_busy = false; return;
         }
@@ -226,11 +234,13 @@ void MicrosoftAuth::exchangeCode(const QString& code, const QString& redirectUri
         }
         m_msAccessToken = resp["access_token"].toString();
         m_msRefreshToken = resp["refresh_token"].toString();
+        qCInfo(logAccount) << QStringLiteral("Token换取成功 类型=%1 过期=%2s").arg(resp["token_type"].toString(), QString::number(resp["expires_in"].toInt()));
         authenticateXbl(m_msAccessToken);
     });
 }
 
 void MicrosoftAuth::authenticateXbl(const QString& accessToken) {
+    qCInfo(logAccount) << QStringLiteral("XBL认证");
     emit loginProgress(tr("Xbox Live 认证"), QString());
     QJsonObject body;
     QJsonObject props;
@@ -249,12 +259,14 @@ void MicrosoftAuth::authenticateXbl(const QString& accessToken) {
         reply->deleteLater();
         QJsonObject resp = QJsonDocument::fromJson(reply->readAll()).object();
         QString token = resp["Token"].toString();
-        if (token.isEmpty()) { emit loginFailed(tr("XBL 令牌为空")); m_busy = false; return; }
+        if (token.isEmpty()) { qCWarning(logAccount) << QStringLiteral("XBL认证失败 错误=%1").arg(QStringLiteral("Token为空")); emit loginFailed(tr("XBL 令牌为空")); m_busy = false; return; }
+        qCInfo(logAccount) << QStringLiteral("XBL认证成功");
         authenticateXsts(token);
     });
 }
 
 void MicrosoftAuth::authenticateXsts(const QString& xblToken) {
+    qCInfo(logAccount) << QStringLiteral("XSTS认证");
     emit loginProgress(tr("XSTS 认证"), QString());
     QJsonObject body;
     QJsonObject props;
@@ -272,6 +284,7 @@ void MicrosoftAuth::authenticateXsts(const QString& xblToken) {
         reply->deleteLater();
         QJsonObject resp = QJsonDocument::fromJson(reply->readAll()).object();
         if (resp.contains("XErr")) {
+            qCWarning(logAccount) << QStringLiteral("XSTS认证失败 XErr=%1").arg(resp["XErr"].toInt());
             emit loginFailed(tr("XSTS 错误: %1").arg(resp["XErr"].toInt()));
             m_busy = false; return;
         }
@@ -283,6 +296,7 @@ void MicrosoftAuth::authenticateXsts(const QString& xblToken) {
 }
 
 void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs) {
+    qCInfo(logAccount) << QStringLiteral("Minecraft认证");
     emit loginProgress(tr("Minecraft 认证"), QString());
     QJsonObject body;
     body["identityToken"] = QStringLiteral("XBL3.0 x=%1;%2").arg(uhs, xstsToken);
@@ -297,11 +311,13 @@ void MicrosoftAuth::authenticateMc(const QString& xstsToken, const QString& uhs)
         m_msMcToken = resp["access_token"].toString();
         if (m_msMcToken.isEmpty()) { emit loginFailed(tr("MC 令牌为空")); m_busy = false; return; }
         m_msTokenExpiresIn = resp["expires_in"].toInt(86400);
+        qCInfo(logAccount) << QStringLiteral("MC认证成功 expiresIn=%1s").arg(m_msTokenExpiresIn);
         fetchMcProfile(m_msMcToken);
     });
 }
 
 void MicrosoftAuth::fetchMcProfile(const QString& mcAccessToken) {
+    qCInfo(logAccount) << QStringLiteral("获取MC档案");
     emit loginProgress(tr("获权个人信息"), QString());
 
     QNetworkRequest req(QUrl(QString::fromLatin1("https://api.minecraftservices.com/minecraft/profile")));
@@ -315,12 +331,13 @@ void MicrosoftAuth::fetchMcProfile(const QString& mcAccessToken) {
         QString name = resp["name"].toString();
         QString uuid = resp["id"].toString();
         if (name.isEmpty() || uuid.isEmpty()) { emit loginFailed(tr("未找到 Minecraft 档案")); return; }
-        qCInfo(logApp) << QStringLiteral("[MSA] 登录成功 玩家名=%1").arg(name);
+        qCInfo(logAccount) << QStringLiteral("MC档案获取成功 玩家=%1 UUID=%2").arg(name, uuid);
         emit loginSuccess(m_msMcToken, name, uuid, m_msRefreshToken, m_msTokenExpiresIn);
     });
 }
 
 void MicrosoftAuth::refreshMcChain(const QString& msAccessToken) {
+    qCInfo(logAccount) << QStringLiteral("刷新MC令牌链");
     if (m_busy) {
         // Don't silently skip — the caller (LaunchBackend step 0) is waiting for
         // a signal and will hang if we return without emitting anything.

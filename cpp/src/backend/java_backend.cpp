@@ -1,5 +1,6 @@
 #include "java_backend.h"
 #include "core/file_downloader.h"
+#include "utils/logger.h"
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QDir>
@@ -16,6 +17,7 @@ JavaBackend::JavaBackend(QObject *parent)
     , m_baseUrl("https://mirrors.tuna.tsinghua.edu.cn/Adoptium")
     , m_nam(new QNetworkAccessManager(this))
 {
+    qCInfo(logJava) << QStringLiteral("Java后端初始化");
     refreshVersions();
 }
 
@@ -63,6 +65,7 @@ void JavaBackend::setSelectedOS(const QString &o) {
 // ── Fetch methods ──
 
 void JavaBackend::refreshVersions() {
+    qCInfo(logJava) << QStringLiteral("刷新Java版本列表");
     fetchUrl(m_baseUrl + "/", [this](const QStringList &dirs) {
         m_versions.clear();
         for (const auto &d : dirs) {
@@ -74,38 +77,47 @@ void JavaBackend::refreshVersions() {
         std::sort(m_versions.begin(), m_versions.end(), [](const QString &a, const QString &b) {
             return a.toInt() > b.toInt();
         });
+        qCInfo(logJava) << QStringLiteral("版本列表刷新完成 共%1个").arg(m_versions.size());
         emit javaVersionsChanged();
     });
 }
 
 void JavaBackend::fetchTypes() {
     QString url = m_baseUrl + "/" + m_selVersion + "/";
+    qCInfo(logJava) << QStringLiteral("获取Java类型 version=%1").arg(m_selVersion);
     fetchUrl(url, [this](const QStringList &dirs) {
         m_types = dirs;
+        qCInfo(logJava) << QStringLiteral("Java类型获取完成 count=%1").arg(m_types.size());
         emit javaTypesChanged();
     });
 }
 
 void JavaBackend::fetchArchs() {
     QString url = m_baseUrl + "/" + m_selVersion + "/" + m_selType + "/";
+    qCInfo(logJava) << QStringLiteral("获取Java架构 version=%1 type=%2").arg(m_selVersion, m_selType);
     fetchUrl(url, [this](const QStringList &dirs) {
         m_archs = dirs;
+        qCInfo(logJava) << QStringLiteral("Java架构获取完成 count=%1").arg(m_archs.size());
         emit javaArchsChanged();
     });
 }
 
 void JavaBackend::fetchOSes() {
     QString url = m_baseUrl + "/" + m_selVersion + "/" + m_selType + "/" + m_selArch + "/";
+    qCInfo(logJava) << QStringLiteral("获取Java操作系统 version=%1").arg(m_selVersion);
     fetchUrl(url, [this](const QStringList &dirs) {
         m_oses = dirs;
+        qCInfo(logJava) << QStringLiteral("Java操作系统获取完成 count=%1").arg(m_oses.size());
         emit javaOSesChanged();
     });
 }
 
 void JavaBackend::fetchFiles() {
     QString url = m_baseUrl + "/" + m_selVersion + "/" + m_selType + "/" + m_selArch + "/" + m_selOS + "/";
+    qCInfo(logJava) << QStringLiteral("获取Java安装包 version=%1").arg(m_selVersion);
     fetchFileList(url, [this](const QVariantList &files) {
         m_files = files;
+        qCInfo(logJava) << QStringLiteral("Java安装包获取完成 count=%1").arg(m_files.size());
         emit javaFilesChanged();
     });
 }
@@ -119,17 +131,20 @@ void JavaBackend::fetchUrl(const QString &url,
     m_fetching = true;
     emit fetchingChanged();
 
+    qCInfo(logJava) << QStringLiteral("HTTP GET url=%1").arg(url);
+
     QUrl qurl(url);
     QNetworkRequest req(qurl);
     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
     QNetworkReply *reply = m_nam->get(req);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, callback, onError]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, callback, onError, url]() {
         reply->deleteLater();
         m_fetching = false;
         emit fetchingChanged();
 
         if (reply->error() != QNetworkReply::NoError) {
+            qCWarning(logJava) << QStringLiteral("GET失败 url=%1 错误=%2").arg(url, reply->errorString());
             emit logMessage(QString("获取列表失败: %1").arg(reply->errorString()));
             if (onError) onError(reply->error(), reply->errorString());
             return;
@@ -137,6 +152,7 @@ void JavaBackend::fetchUrl(const QString &url,
 
         QByteArray data = reply->readAll();
         QStringList items = parseDirListing(data, false);
+        qCInfo(logJava) << QStringLiteral("GET成功 url=%1").arg(url);
         callback(items);
     });
 }
@@ -278,6 +294,8 @@ QString JavaBackend::javaInstallDir() const
 void JavaBackend::downloadJavaFileTo(const QString &filename, const QString &outDir, qint64 expectedSize)
 {
     QString url = fileDownloadUrl(filename);
+    QString outPath = outDir + "/" + filename;
+    qCInfo(logJava) << QStringLiteral("开始下载Java url=%1 目标=%2").arg(url, outPath);
 
     // Recreate downloader each time so totalBytes resets to 0
     if (m_downloader) {
@@ -306,7 +324,6 @@ void JavaBackend::downloadJavaFileTo(const QString &filename, const QString &out
         });
 
     QDir().mkpath(outDir);
-    QString outPath = outDir + "/" + filename;
     QFile::remove(outPath);
 
     m_downloader->addFile(outPath, filename, {url}, expectedSize, QByteArray());
@@ -322,6 +339,7 @@ void JavaBackend::downloadJavaFile(const QString &filename)
 
 void JavaBackend::cancelDownload()
 {
+    qCInfo(logJava) << QStringLiteral("取消Java下载");
     if (m_downloader) {
         // FileDownloader doesn't have cancel, but we can delete it
         m_downloader->deleteLater();

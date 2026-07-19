@@ -718,8 +718,7 @@ void VersionBackend::installVersion(const QString& versionId)
                                 for (int i = 0; i < 3 && i < sit.value().steps.size(); i++) {
                                     updateStep(sit.key(), i, QStringLiteral("completed"), 100);
                                 }
-                                qCInfo(logVersion).noquote()
-                                    << QString("[verify] MC download done, verify started. steps 0-2 → completed");
+                                qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已启动 (步骤0-2已完成)");
                                 // Show MC verify step (index 3, initially hidden)
                                 int verifyIdx = 3;
                                 if (verifyIdx < sit.value().steps.size()) {
@@ -1579,9 +1578,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                     if (pct < 100) allDone = false;
                 } else {
                     // Empty category (0 bytes) → already done, force display as 100%
-                    qCInfo(logVersion) << "Empty cat" << ci << "total=" << mSes.mcStepTotal[ci]
-                                       << "done=" << mSes.mcStepDone[ci]
-                                       << "→ marking completed for" << mergedSessionId;
+                    qCInfo(logVersion) << QStringLiteral("空分类 idx=%1 总数=%2 已完成=%3 → 标记完成 session=%4")
+                        .arg(ci).arg(mSes.mcStepTotal[ci]).arg(mSes.mcStepDone[ci]).arg(mergedSessionId);
                     updateStep(mergedSessionId, ci, QStringLiteral("completed"), 100, 0, 0);
                 }
             }
@@ -1594,7 +1592,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                     showStep(mergedSessionId, verifyIdx);
                     updateStep(mergedSessionId, verifyIdx, QStringLiteral("active"), 0,
                                0, mSes.mcBytesAll);
-                    qCInfo(logVersion) << "Proactively showing MC verify step for" << mergedSessionId;
+                    qCInfo(logVersion) << QStringLiteral("提前显示MC验证步骤 session=%1").arg(mergedSessionId);
                 }
             }
         }
@@ -1714,8 +1712,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
             qint64 after = ses.mcStepDone[cat];
             qint64 ct = ses.mcStepTotal[cat];
             if (ct > 0) {
-                qCInfo(logVersion).noquote()
-                    << QString("[step] cat=%1 file=%2 total=%3KB → %4/%5KB (%6%)")
+                qCInfo(logVersion) << QStringLiteral("下载步骤 cat=%1 文件=%2 总计=%3KB 已下载=%4/%5KB (%6%)")
                        .arg(cat).arg(fileName).arg(total/1024)
                        .arg(after/1024).arg(ct/1024)
                        .arg(after * 100 / ct);
@@ -3493,7 +3490,7 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
     s.steps[index] = step;
 
     qCInfo(logVersion).noquote()
-        << QString("[step] id=%1 idx=%2 name=\"%3\" status=%4 pct=%5% bytes=%6/%7KB")
+        << QStringLiteral("步骤 id=%1 idx=%2 名称=%3 状态=%4 进度=%5% 字节=%6/%7KB")
            .arg(installId).arg(index)
            .arg(step["name"].toString())
            .arg(status)
@@ -3685,8 +3682,7 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
                     if (!vstep.value("show").toBool()) {
                         showStep(it.key(), verifyIdx);
                         updateStep(it.key(), verifyIdx, QStringLiteral("active"), 0);
-                        qCInfo(logVersion)
-                            << "MC downloads done, verify step active for" << it.key();
+                        qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已激活 session=%1").arg(it.key());
                     }
                 }
             }
@@ -3708,8 +3704,7 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
         if (allDone && anyCategory && !st.catsFullyDone) {
             st.catsFullyDone = true;
             doRebuildInstallCards();
-            qCInfo(logVersion)
-                << "MC downloads done, verify step active for pure MC" << versionId;
+            qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已激活(纯MC) 版本=%1").arg(versionId);
         }
     }
 }
@@ -3979,9 +3974,7 @@ void VersionBackend::prefetchVersionJson(const QString& versionId)
                     QByteArray data = reply->readAll();
                     if (!data.isEmpty()) {
                         m_prefetchedJson[versionId] = data;
-                        qCInfo(logVersion)
-                            << "Prefetched version JSON:" << versionId
-                            << "(" << (data.size() / 1024) << "KB)";
+                        qCInfo(logVersion) << QStringLiteral("预缓存版本JSON 版本=%1 大小=%2KB").arg(versionId).arg(data.size() / 1024);
                     }
                 } else {
                     qCDebug(logVersion)
