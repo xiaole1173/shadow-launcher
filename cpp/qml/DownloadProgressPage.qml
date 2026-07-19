@@ -194,21 +194,21 @@ Rectangle {
                                     }
                                     border.width: 1
 
-                                    // Completed: checkmark icon
+                                    // Completed: checkmark only (circle is the Rectangle bg)
                                     Image {
                                         visible: modelData && modelData.status === "completed"
                                         anchors.centerIn: parent
-                                        source: "icons/lucide/check-circle.svg"
-                                        width: 18; height: 18
-                                        sourceSize.width: 18; sourceSize.height: 18
+                                        source: "icons/lucide/check.svg"
+                                        width: 14; height: 14
+                                        sourceSize.width: 14; sourceSize.height: 14
                                     }
-                                    // Failed: x-circle icon
+                                    // Failed: cross only (circle is the Rectangle bg)
                                     Image {
                                         visible: modelData && modelData.status === "failed"
                                         anchors.centerIn: parent
-                                        source: "icons/lucide/x-circle.svg"
-                                        width: 18; height: 18
-                                        sourceSize.width: 18; sourceSize.height: 18
+                                        source: "icons/lucide/x.svg"
+                                        width: 14; height: 14
+                                        sourceSize.width: 14; sourceSize.height: 14
                                     }
                                     // Active: rotating arc (pure QML, shared Timer driven)
                                     Item {
