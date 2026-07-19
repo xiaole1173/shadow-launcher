@@ -390,6 +390,7 @@ private:
     QThread* m_verifyThread = nullptr;
     VerifyWorker* m_verifyWorker = nullptr;
     QStringList m_failedPathsCache;
+    QString m_autoRepairVersionId;  // 安装失败后自动修复的版本ID
     QAtomicInt m_verifyRunning = 0;
     QAtomicInt m_repairRunning = 0;
     QAtomicInt m_verifyCancelled = 0;

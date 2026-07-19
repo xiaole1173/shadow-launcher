@@ -430,6 +430,16 @@ VersionBackend::VersionBackend(QObject* parent)
     // Defer initial fetch until setGameDir() sets m_dataDir
     // (refreshVersionList needs data dir for cache, refreshInstalled needs game dir)
     m_initialFetchDone = false;
+
+    // ── Auto-repair: 下载失败后自动修复 → 完成后发射 installFinished ──
+    connect(this, &VersionBackend::verifyFinished, this, [this](bool allPassed) {
+        if (!m_autoRepairVersionId.isEmpty()) {
+            QString ver = m_autoRepairVersionId;
+            m_autoRepairVersionId.clear();
+            qCInfo(logVersion) << QStringLiteral("自动修复%1 版本=%2").arg(allPassed ? QStringLiteral("成功") : QStringLiteral("失败"), ver);
+            emit installFinished(allPassed);
+        }
+    });
 }
 
 VersionBackend::~VersionBackend() = default;
@@ -1118,6 +1128,10 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         // User cancelled — delete entire version folder
         qCDebug(logVersion).noquote() << "onVersionDownloadFinished: user cancelled" << finishedId;
         cleanupCanceledVersion(finishedId, m_versionMgr->gameDir());
+    } else if (!m_autoRepairVersionId.isEmpty()) {
+        // ── Auto-repair 完成后的回调 ──
+        // 此时 finishedId 来自 repairVersion 的后续操作，不是原始下载
+        qCInfo(logVersion) << QStringLiteral("自动修复完成 版本=%1").arg(finishedId);
     } else {
         const auto& st = m_dlStates.value(finishedId);
         bool wasVerifying = (st.phase == tr("校验中..."));
@@ -1133,10 +1147,14 @@ void VersionBackend::onVersionDownloadFinished(bool success,
             QString errDetail = error.isEmpty()
                                     ? tr("未知错误")
                                     : error;
-            qCCritical(logVersion) << QStringLiteral("安装失败 版本=%1 详情=%2").arg(finishedId, errDetail);
+            qCInfo(logVersion) << QStringLiteral("安装失败，启动自动修复 版本=%1 详情=%2").arg(finishedId, errDetail);
             emit logMessage(
-                tr("[失败] %1 安装失败: %2")
+                tr("[重试] %1 安装失败 (%2)，正在尝试自动修复损坏文件...")
                     .arg(finishedId, errDetail));
+            // 自动修复：重新下载失败的文件
+            m_autoRepairVersionId = finishedId;
+            repairVersion(finishedId);
+            return;  // repairVersion 完成后会通过 verifyFinished → installFinished 发射结果
         }
     }
 
