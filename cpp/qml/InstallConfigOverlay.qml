@@ -61,7 +61,7 @@ Rectangle {
                 Text { text: qsTr("安装配置"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
                 Item { Layout.fillWidth: true }
                 Rectangle { width: 28; height: 28; radius: StyleTokens.radiusXl; color: closeMouse.containsMouse ? "#2a1a1a" : "transparent"
-                    Text { anchors.centerIn: parent; text: "[失败]"; color: "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd }
+                    Image { anchors.centerIn: parent; source: "icons/lucide/x.svg"; width: 14; height: 14; sourceSize.width: 14; sourceSize.height: 14 }
                     MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.hide() }
                 }
             }

@@ -194,17 +194,21 @@ Rectangle {
                                     }
                                     border.width: 1
 
-                                    // Completed: checkmark
-                                    Text {
+                                    // Completed: checkmark icon
+                                    Image {
                                         visible: modelData && modelData.status === "completed"
-                                        anchors.centerIn: parent; font.pixelSize: StyleTokens.fontSizeSm
-                                        text: "[完成]"; color: StyleTokens.success
+                                        anchors.centerIn: parent
+                                        source: "icons/lucide/check-circle.svg"
+                                        width: 18; height: 18
+                                        sourceSize.width: 18; sourceSize.height: 18
                                     }
-                                    // Failed: cross
-                                    Text {
+                                    // Failed: x-circle icon
+                                    Image {
                                         visible: modelData && modelData.status === "failed"
-                                        anchors.centerIn: parent; font.pixelSize: StyleTokens.fontSizeSm
-                                        text: "[失败]"; color: StyleTokens.errorLight
+                                        anchors.centerIn: parent
+                                        source: "icons/lucide/x-circle.svg"
+                                        width: 18; height: 18
+                                        sourceSize.width: 18; sourceSize.height: 18
                                     }
                                     // Active: rotating arc (pure QML, shared Timer driven)
                                     Item {
@@ -359,10 +363,11 @@ Rectangle {
             Rectangle {
                 width: 20; height: 20; radius: StyleTokens.radiusLg; anchors.verticalCenter: parent.verticalCenter
                 color: "#cc4040"
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: "[失败]"
-                    font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Bold; color: StyleTokens.textInverse
+                    source: "icons/lucide/x.svg"
+                    width: 12; height: 12
+                    sourceSize.width: 12; sourceSize.height: 12
                 }
             }
             Text {

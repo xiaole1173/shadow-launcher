@@ -375,10 +375,12 @@ Rectangle {
                                 Behavior on color { ColorAnimation { duration: 120; easing.type: Easing.OutCubic } }
                                 Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
 
-                                Text {
+                                Image {
                                     anchors.centerIn: parent
-                                    text: "[失败]"; color: delMouse.containsMouse ? "#ff6666" : "#686c78"
-                                    font.pixelSize: StyleTokens.fontSizeSm
+                                    source: "icons/lucide/x.svg"
+                                    width: 12; height: 12
+                                    sourceSize.width: 12; sourceSize.height: 12
+                                    opacity: delMouse.containsMouse ? 1.0 : 0.6
                                 }
                                 MouseArea {
                                     id: delMouse
@@ -967,11 +969,20 @@ Rectangle {
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
-                                    text: qsTr("[完成] 当前")
+                                Row {
                                     visible: modelData.active
-                                    color: StyleTokens.success
-                                    font.pixelSize: StyleTokens.fontSizeXs
+                                    spacing: 4
+                                    Image {
+                                        source: "icons/lucide/check.svg"
+                                        width: 10; height: 10
+                                        sourceSize.width: 10; sourceSize.height: 10
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: qsTr("当前")
+                                        color: StyleTokens.success
+                                        font.pixelSize: StyleTokens.fontSizeXs
+                                    }
                                 }
                             }
 

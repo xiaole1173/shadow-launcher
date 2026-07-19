@@ -90,8 +90,8 @@ Rectangle {
             if (versionSettingsOverlay._verifyResultText === "") {
                 var total = versionSettingsOverlay._verifyProgressTotal
                 versionSettingsOverlay._verifyResultText = allPassed
-                    ? ("[完成] 校验完成: " + total + " 个文件全部通过")
-                    : ("[失败] 校验完成: " + total + " 个文件全部通过。")
+                    ? ("✓ 校验完成: " + total + " 个文件全部通过")
+                    : ("✗ 校验完成: " + total + " 个文件全部通过。")
             }
         }
 
@@ -1205,7 +1205,7 @@ Rectangle {
                         anchors.centerIn: parent
                         spacing: 8
                         Text {
-                            text: qsTr("[失败] 检测到 ") + versionSettingsOverlay._verifyFailedFiles.length + " 个文件异常"
+                            text: "✗ " + qsTr("检测到 ") + versionSettingsOverlay._verifyFailedFiles.length + " 个文件异常"
                             font.pixelSize: StyleTokens.fontSizeSm; color: "#ff8080"
                         }
                     }
@@ -1222,7 +1222,16 @@ Rectangle {
                         color: "transparent"
                         border.color: repairBtnHover.hovered ? "#ff8c42" : "#c06420"
                         border.width: 1.5
-                        Text { anchors.centerIn: parent; text: qsTr("[修复] 一键修复"); font.pixelSize: StyleTokens.fontSizeSm; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
+                        Row {
+                            anchors.centerIn: parent; spacing: 6
+                            Image {
+                                source: "icons/lucide/wrench.svg"
+                                width: 14; height: 14
+                                sourceSize.width: 14; sourceSize.height: 14
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text { text: qsTr("一键修复"); font.pixelSize: StyleTokens.fontSizeSm; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
+                        }
                         HoverHandler { id: repairBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
