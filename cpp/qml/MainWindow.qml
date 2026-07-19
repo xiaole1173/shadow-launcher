@@ -571,8 +571,10 @@ Window {
                         onOpacityChanged: { if (opacity === 0) _settingsFadeOut = false }
                         Loader { id: settingsPageLoader; anchors.fill: parent; active: navListIndex === 4 || _settingsFadeOut; source: "SettingsPage.qml"
                             onLoaded: {
-                                if (item && backend && backend.settings)
-                                    item._initLangModeIdx = backend.settings.autoLangModeComboIndex()
+                                if (item && backend) {
+                                    var idx = backend.diagAutoLangComboIdx()
+                                    item._initLangModeIdx = idx
+                                }
                             }
                         } }
 

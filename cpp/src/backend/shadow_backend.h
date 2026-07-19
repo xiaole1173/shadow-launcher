@@ -629,6 +629,8 @@ public:
     AppBackend* app() const { return m_app; }
     AccountBackend* account() const { return m_account; }
     Q_INVOKABLE SettingsBackend* settings() const { return m_settings; }
+    // Diagnostic: verify backend→settings access chain from QML
+    Q_INVOKABLE int diagAutoLangComboIdx() const;
     Q_INVOKABLE void logUiMsg(const QString& msg);
     CheckBackend* check() const { return m_check; }
     VersionBackend* version() const { return m_version; }
