@@ -15,7 +15,6 @@
 #include <QJsonDocument>
 
 // 3D geometry
-#include "3d/minecraft_box_geometry.h"
 #include <QJsonObject>
 #include <QProcess>
 #include <QWindow>
@@ -336,7 +335,6 @@ int main(int argc, char *argv[])
     checkpoint(QStringLiteral("QML engine created"));
 
     // 注册自定义 3D 几何体
-    qmlRegisterType<MinecraftBoxGeometry>("ShadowLauncher", 1, 0, "MinecraftBoxGeometry");
 
     // Expose backend and data directory to QML
     engine.rootContext()->setContextProperty("backend", backend);

@@ -19,7 +19,6 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Quick
     QuickControls2
     QuickLayouts
-    Quick3D
     Concurrent
     Network
     Widgets
@@ -90,9 +89,6 @@ set(SOURCES
 
     # Unified backend wrapper (Phase 4)
     src/backend/shadow_backend.cpp
-
-    # 3D geometry (UV-mapped boxes for skin preview)
-    src/3d/minecraft_box_geometry.cpp
 )
 
 set(HEADERS
@@ -130,9 +126,6 @@ set(HEADERS
 
     # Unified backend wrapper (Phase 4)
     src/backend/shadow_backend.h
-
-    # 3D geometry
-    src/3d/minecraft_box_geometry.h
 
     src/multiplayer/room_code.cpp
     src/multiplayer/room_code.h
@@ -187,7 +180,6 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/MainWindow.qml
         qml/BetaKeyDialog.qml
         qml/MinecraftHead2D.qml
-        qml/MinecraftHead3D.qml
         qml/ModLoaderCard.qml
         qml/ModDetailPage.qml
         qml/MultiplayerPage.qml
@@ -392,7 +384,6 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::QuickLayouts
-    Qt6::Quick3D
     Qt6::Concurrent
     Qt6::Network
     Qt6::Widgets
