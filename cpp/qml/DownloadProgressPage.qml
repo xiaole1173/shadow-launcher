@@ -309,6 +309,36 @@ Rectangle {
         opacity: 0.0
         y: -100
 
+        // Timer: auto-hide cancel button when selected task becomes uncancellable
+        // (e.g. download finishes → enters verification phase)
+        Timer {
+            id: cancelAutoHideTimer
+            interval: 500; repeat: true; running: root._showCancel
+            onTriggered: {
+                if (!root._showCancel || !root._selectedIid) return
+                var found = false
+                for (var i = 0; i < cardsView.count; i++) {
+                    var m = cardsView.model.data(cardsView.model.index(i, 0), 0)
+                    var iid = cardsView.model.data(cardsView.model.index(i, 0), 0x101) || ""
+                    if (iid === root._selectedIid) {
+                        found = true
+                        var p = m.progress || 0
+                        var cc = m.canCancel
+                        if (p >= 1 || cc === false) {
+                            cancelBounceOut.start()
+                            root._showCancel = false
+                        }
+                        break
+                    }
+                }
+                // Card was removed (task completed/finished)
+                if (!found) {
+                    cancelBounceOut.start()
+                    root._showCancel = false
+                }
+            }
+        }
+
         // Hover scale (1.03 on hover, 1.0 idle)
         property real _hoverScale: cancelHover.containsMouse ? 1.03 : 1.0
         // Press bounce (animated, reset to 1.0 after bounce)
@@ -395,9 +425,17 @@ Rectangle {
                     console.log("[cancel-btn] SKIP: _selectedIid is empty")
                 }
                 root._showCancel = false
-                // Immediately hide progress page and go back to home
-                var win = root.Window.window
-                if (win && win.hideDownloadNav) win.hideDownloadNav()
+                // Only hide progress page if no other active downloads remain
+                var hasActive = false
+                for (var i = 0; i < cardsView.count; i++) {
+                    var m = cardsView.model.data(cardsView.model.index(i, 0), 0)
+                    var p = m.progress || 0
+                    if (p > 0 && p < 1) { hasActive = true; break }
+                }
+                if (!hasActive) {
+                    var win = root.Window.window
+                    if (win && win.hideDownloadNav) win.hideDownloadNav()
+                }
             }
         }
     }
