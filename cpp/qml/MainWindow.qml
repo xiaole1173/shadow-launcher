@@ -572,7 +572,7 @@ Window {
                         Loader { id: settingsPageLoader; anchors.fill: parent; active: navListIndex === 4 || _settingsFadeOut; source: "SettingsPage.qml"
                             onLoaded: {
                                 if (item)
-                                    item._initLangModeIdx = backend.settings.autoLangModeComboIndex()
+                                    item._initLangModeIdx = backend.diagAutoLangComboIdx()
                             }
                         } }
 
