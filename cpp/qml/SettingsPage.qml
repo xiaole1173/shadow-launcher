@@ -480,28 +480,25 @@ Rectangle {
                             ComboBox {
                                 id: langModeCombo
                                 model: [qsTr("系统区域（启动时自动检测）"), qsTr("IP 属地（安装时自动调整）"), qsTr("关闭（手动设置）")]
-                                property bool _syncLangMode: false
+                                property bool _userEditing: false
                                 // model index ↔ C++ autoLangMode mapping:
                                 // idx 0 "系统区域"  → mode 1 (locale)
                                 // idx 1 "IP 属地"   → mode 2 (IP region)
                                 // idx 2 "关闭"      → mode 0 (disabled)
                                 function _idxToMode(idx) { return [1, 2, 0][idx] }
                                 function _modeToIdx(mode) { return mode === 0 ? 2 : (mode === 2 ? 1 : 0) }
-                                Component.onCompleted: {
-                                    _syncLangMode = true
-                                    Qt.callLater(function() {
-                                        var rawMode = backend && backend.settings ? backend.settings.autoLangMode : -1
-                                        console.log("[langMode] loaded autoLangMode=", rawMode, "→ idx=", _modeToIdx(rawMode))
-                                        currentIndex = rawMode >= 0 ? _modeToIdx(rawMode) : 0
-                                        _syncLangMode = false
-                                    })
+                                // Binding: reacts to C++ autoLangMode changes (including on startup)
+                                currentIndex: {
+                                    if (backend && backend.settings)
+                                        return _modeToIdx(backend.settings.autoLangMode)
+                                    return 0
                                 }
                                 onActivated: {
-                                    if (_syncLangMode) return
+                                    _userEditing = true
                                     var mode = _idxToMode(currentIndex)
-                                    console.log("[langMode] saving: idx=", currentIndex, "→ mode=", mode)
-                                    if (backend && backend.settings)
+                                    if (backend && backend.settings && backend.settings.autoLangMode !== mode)
                                         backend.settings.autoLangMode = mode
+                                    _userEditing = false
                                 }
                                 Layout.preferredWidth: 280
 
