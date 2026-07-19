@@ -480,25 +480,23 @@ Rectangle {
                             ComboBox {
                                 id: langModeCombo
                                 model: [qsTr("系统区域（启动时自动检测）"), qsTr("IP 属地（安装时自动调整）"), qsTr("关闭（手动设置）")]
-                                property bool _userEditing: false
+                                property bool _syncLang: false
                                 // model index ↔ C++ autoLangMode mapping:
                                 // idx 0 "系统区域"  → mode 1 (locale)
                                 // idx 1 "IP 属地"   → mode 2 (IP region)
                                 // idx 2 "关闭"      → mode 0 (disabled)
                                 function _idxToMode(idx) { return [1, 2, 0][idx] }
                                 function _modeToIdx(mode) { return mode === 0 ? 2 : (mode === 2 ? 1 : 0) }
-                                // Binding: reacts to C++ autoLangMode changes (including on startup)
-                                currentIndex: {
+                                Component.onCompleted: {
+                                    _syncLang = true
                                     if (backend && backend.settings)
-                                        return _modeToIdx(backend.settings.autoLangMode)
-                                    return 0
+                                        currentIndex = backend.settings.autoLangModeComboIndex()
+                                    _syncLang = false
                                 }
                                 onActivated: {
-                                    _userEditing = true
-                                    var mode = _idxToMode(currentIndex)
-                                    if (backend && backend.settings && backend.settings.autoLangMode !== mode)
-                                        backend.settings.autoLangMode = mode
-                                    _userEditing = false
+                                    if (_syncLang) return
+                                    if (backend && backend.settings)
+                                        backend.settings.autoLangMode = _idxToMode(currentIndex)
                                 }
                                 Layout.preferredWidth: 280
 

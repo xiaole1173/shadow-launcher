@@ -135,6 +135,8 @@ public:
 
     // ── Auto-language mode ──
     int autoLangMode() const { return m_autoLangMode; }
+    // Returns combo box index for QML (mode → idx mapping: 0→2, 1→0, 2→1)
+    int autoLangModeComboIndex() const;
     Q_INVOKABLE void setAutoLangMode(int mode);
 
     // Download settings

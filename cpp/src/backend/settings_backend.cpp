@@ -894,6 +894,13 @@ int SettingsBackend::parseMajorVersion(const QString& versionStr)
     bool ok; int v = parts[0].toInt(&ok); return ok ? v : 0;
 }
 
+int SettingsBackend::autoLangModeComboIndex() const
+{
+    int idx = m_autoLangMode == 0 ? 2 : (m_autoLangMode == 2 ? 1 : 0);
+    qCInfo(logApp) << QStringLiteral("[autoLang] QML reads mode=%1 → comboIdx=%2").arg(m_autoLangMode).arg(idx);
+    return idx;
+}
+
 void SettingsBackend::setAutoLangMode(int mode)
 {
     if (mode < 0 || mode > 2) return;
