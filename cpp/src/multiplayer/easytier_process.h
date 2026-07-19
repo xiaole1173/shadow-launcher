@@ -25,9 +25,11 @@ public:
     void start(const QString& networkName, const QString& networkKey,
                const QString& hostname = QString());
 
-    // Elevated mode: start easytier via QProcess with config piped to stdin
+    // Elevated mode: start easytier via QProcess
+    // Config sent via stdin + ET_PEERS env var (peers ignored in TOML at runtime)
     void startViaQProcess(const QString& exe, const QStringList& args,
-                          const QByteArray& tomlData);
+                          const QByteArray& tomlData,
+                          const QString& relayEp);
 
     void stop();
     bool isRunning() const;
