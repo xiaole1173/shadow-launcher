@@ -170,6 +170,14 @@ static QString mirrorUrl(const QString& url)
                   QStringLiteral("bmclapi2.bangbang93.com"));
         return m;
     }
+    // launcher.mojang.com → BMCLAPI (已关停的旧CDN)
+    // 注: launcher.mojang.com/version/<ver>/client.jar → BMCLAPI 镜像
+    if (url.contains(QStringLiteral("launcher.mojang.com"))) {
+        QString m = url;
+        m.replace(QStringLiteral("launcher.mojang.com"),
+                  QStringLiteral("bmclapi2.bangbang93.com"));
+        return m;
+    }
     // libraries.minecraft.net → BMCLAPI libraries
     if (url.contains(QStringLiteral("libraries.minecraft.net"))) {
         QString m = url;
