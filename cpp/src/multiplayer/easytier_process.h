@@ -62,6 +62,7 @@ private:
     QTimer* m_outputTimer = nullptr;
     QTimer* m_timeoutTimer = nullptr;
     QString m_outputBuffer;
+    QString m_peerConfigPath;
 
     // CLI polling for peer status
     QProcess* m_cliProcess = nullptr;
