@@ -1566,18 +1566,20 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     // ── Per-State speed (sliding window 3s) ──
     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    st.speedLastTimeMs = nowMs;
-    if (delta > 0) {
-        qint64 totalBytes = st.bytesDl + delta;
-        st.speedWindow.append({nowMs, totalBytes});
-        // Expire samples outside the 3s window
-        while (!st.speedWindow.isEmpty() && (nowMs - st.speedWindow.first().timeMs) > st.kSpeedWindowMs)
-            st.speedWindow.removeFirst();
-        // Calculate speed from oldest-to-newest in window
-        if (st.speedWindow.size() >= 2) {
-            qint64 winMs = st.speedWindow.back().timeMs - st.speedWindow.front().timeMs;
-            if (winMs > 0)
-                st.speed = (st.speedWindow.back().bytes - st.speedWindow.front().bytes) * 1000 / winMs;
+    // During verification, don't update speed window (keep speed at 0)
+    bool verifying = (st.phase == tr("校验中..."));
+    if (!verifying) {
+        st.speedLastTimeMs = nowMs;
+        if (delta > 0) {
+            qint64 totalBytes = st.bytesDl + delta;
+            st.speedWindow.append({nowMs, totalBytes});
+            while (!st.speedWindow.isEmpty() && (nowMs - st.speedWindow.first().timeMs) > st.kSpeedWindowMs)
+                st.speedWindow.removeFirst();
+            if (st.speedWindow.size() >= 2) {
+                qint64 winMs = st.speedWindow.back().timeMs - st.speedWindow.front().timeMs;
+                if (winMs > 0)
+                    st.speed = (st.speedWindow.back().bytes - st.speedWindow.front().bytes) * 1000 / winMs;
+            }
         }
     }
 
@@ -3859,8 +3861,10 @@ void VersionBackend::doRebuildInstallCards() {
         };
 
         if (m_dlStates.contains(vid)) {
-            const DlState& st = m_dlStates[vid];
+            // Non-const: we update lastProgress for monotonic guard below
+            DlState& st = m_dlStates[vid];
             bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
+            bool done = st.downloadsDone && verifying;  // all downloads complete, in verify
             if (verifying) {
                 c.progress = (st.verifyTotal > 0) ? (qreal)st.verifyChecked / st.verifyTotal : 0.0;
                 c.totalProgressVisible = false;
@@ -3871,7 +3875,16 @@ void VersionBackend::doRebuildInstallCards() {
                 qreal pct2 = st.catBytesTotal[2] > 0 ? (qreal)st.catBytesDl[2] / st.catBytesTotal[2] : 0.0;
                 c.progress = qMin(1.0, 0.5 * pct1 + 0.5 * pct2);
             }
-            c.speed = m_dlStates[vid].speed;  // per-state speed, isolated per install
+            // Monotonic guard: card progress never goes backward
+            if (c.progress < st.lastCardProgress)
+                c.progress = st.lastCardProgress;
+            st.lastCardProgress = c.progress;
+            // Speed: 0 during verify, 0 after 100%, else per-state speed
+            if (verifying || c.progress >= 1.0) {
+                c.speed = 0;
+            } else {
+                c.speed = st.speed;
+            }
             c.phase = st.phase;
 
             // DEBUG: when 3 sub-categories claim done but speed still flowing
