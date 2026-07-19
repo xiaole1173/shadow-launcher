@@ -277,9 +277,9 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
 
             int timeoutMs;
             switch (attempt) {
-                case 0: timeoutMs = 10000; break;
+                case 0: timeoutMs = 30000; break;  // Official sources need 15-30s
                 case 1: timeoutMs = 30000; break;
-                default: timeoutMs = 4000; break;
+                default: timeoutMs = 15000; break; // SHA1 retries, give 15s
             }
             // Fast retry guard: if <5.5s elapsed after 2 attempts, retrying the
             // same dead source is pointless. But for SHA1-mismatch files (where
