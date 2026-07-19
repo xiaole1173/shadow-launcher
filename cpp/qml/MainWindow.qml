@@ -569,7 +569,12 @@ Window {
                         opacity: navListIndex === 4 ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         onOpacityChanged: { if (opacity === 0) _settingsFadeOut = false }
-                        Loader { asynchronous: true; anchors.fill: parent; active: navListIndex === 4 || _settingsFadeOut; source: "SettingsPage.qml" } }
+                        Loader { id: settingsPageLoader; asynchronous: true; anchors.fill: parent; active: navListIndex === 4 || _settingsFadeOut; source: "SettingsPage.qml"
+                            onLoaded: {
+                                if (item && backend && backend.settings)
+                                    item._initLangModeIdx = backend.settings.autoLangModeComboIndex()
+                            }
+                        } }
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle {
