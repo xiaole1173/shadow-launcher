@@ -327,6 +327,14 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             sourceOk = true;
             QByteArray data = reply->readAll();
             qint64 contentLen = reply->rawHeader("Content-Length").toLongLong();
+            // Validate: if server advertised Content-Length but returned less, treat as incomplete
+            if (contentLen > 0 && data.size() < contentLen) {
+                qCWarning(logDownload) << QStringLiteral("下载数据不完整 URL=%1 预期=%2 实际=%3")
+                    .arg(url).arg(contentLen).arg(data.size());
+                sourceOk = false;
+                reply->deleteLater();
+                continue;
+            }
             reply->deleteLater();
 
             // Determine file size on first thread
