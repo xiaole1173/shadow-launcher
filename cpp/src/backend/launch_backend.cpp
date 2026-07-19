@@ -652,6 +652,7 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
         m_launchProgress = 0;
         m_launchStatus.clear();
         emit launchProgressChanged(0, errorMsg);
+        emit launchCheckFailed(tr("启动失败"), errorMsg);
         qCCritical(logLaunch) << QStringLiteral("Minecraft启动失败 原因=%1").arg(errorMsg);
         emit logMessage(tr("启动失败: %1").arg(errorMsg));
 
