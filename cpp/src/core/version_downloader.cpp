@@ -509,16 +509,27 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         const QString jarUrl = QStringLiteral("https://%1/version/%2/%3")
                                    .arg(m_mirror.jarHost, versionId, origFileName);
 
+        // ── Primary URL ──
+        // BMCLAPI etc: use /version/ endpoint (works via mirror jarHost)
+        // Mojang 官方: launcher.mojang.com is DEAD (2023 retired), use origUrl (piston-data) instead
+        const QString primaryUrl = (m_mirror.name == tr("Mojang 官方"))
+            ? origUrl
+            : jarUrl;
+
         DownloadTask jarTask;
         jarTask.name      = versionId + QStringLiteral(".jar");
-        jarTask.url       = jarUrl;
+        jarTask.url       = primaryUrl;
         jarTask.savePath  = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
         jarTask.sha1      = client.value(QStringLiteral("sha1")).toString();
         jarTask.totalBytes = static_cast<qint64>(client.value(QStringLiteral("size")).toDouble());
 
         // Build fallback mirrors: BMCLAPI /version/ first, Mojang direct as last resort
         QStringList jarMirrors;
-        jarMirrors << jarUrl;
+        // For non-Mojang mirrors: primary is BMCLAPI /version/, add dead launcher.mojang as 3rd+ resort only
+        // For Mojang mirror: primary is piston-data, skip jarUrl (launcher.mojang is dead)
+        if (m_mirror.name != tr("Mojang 官方")) {
+            jarMirrors << jarUrl;
+        }
         if (!jarMirrors.contains(origUrl))
             jarMirrors << origUrl;
         // Also add any alternate mirror /version/ endpoints
