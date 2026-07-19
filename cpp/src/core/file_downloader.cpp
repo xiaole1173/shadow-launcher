@@ -18,10 +18,13 @@
 #include <algorithm>
 
 namespace ShadowDownloader {
+using namespace ShadowLauncher;
 
 // ═══════════════════════════════════════
 FileDownloader::FileDownloader(QObject* parent) : QObject(parent)
 {
+    qCInfo(logDownload) << QStringLiteral("下载引擎初始化");
+
     m_speedTimer.start();
 
     m_managerTimer = new QTimer(this);
@@ -40,6 +43,8 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                               const QStringList& sources, qint64 expectedSize,
                               const QByteArray& sha1, bool jarStrip)
 {
+    qCInfo(logDownload) << QStringLiteral("添加下载任务 名称=%1 大小=%2").arg(localName, formatSize(expectedSize));
+
     // Pre-check SHA1 cache hit
     if (!sha1.isEmpty()) {
         QFileInfo fi(localPath);
@@ -77,6 +82,8 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     m_files.append(file);
     m_totalFiles.fetchAndAddRelaxed(1);
     if (file->fileSize > 0) m_totalBytes.fetchAndAddRelaxed(file->fileSize);
+
+    qCInfo(logDownload) << QStringLiteral("任务已排队 名称=%1 队列总数=%2").arg(localName).arg(m_files.size());
 }
 
 void FileDownloader::start()
@@ -219,6 +226,9 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     th->downloadEnd = maxPiece->downloadEnd;
     th->sourceUrl = file->orderedSources.first();
     maxPiece->downloadEnd = splitPoint;
+
+    qCInfo(logDownload) << QStringLiteral("启动下载线程 线程号=%1 文件=%2").arg(th->uuid).arg(file->localName);
+
     file->threads.append(th);
     m_activeThreads.fetchAndAddRelaxed(1);
 
@@ -234,6 +244,8 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
     th->state = 1;
     th->lastReceiveTime = getElapsedMs();
 
+    qCInfo(logDownload) << QStringLiteral("开始下载 URL=%1 文件=%2").arg(th->sourceUrl, file->localName);
+
     if (!ShadowLauncher::suppressUrlLog())
         emit logMessage(QString("↓ 开始下载: %1 (%2)").arg(file->localName).arg(th->sourceUrl));
 
@@ -244,6 +256,9 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
 
         QString url = file->orderedSources[sourceIdx];
         th->sourceUrl = url;
+
+        if (sourceIdx > 0)
+            qCInfo(logDownload) << QStringLiteral("切换到镜像%1 URL=%2").arg(sourceIdx + 1).arg(url);
 
         QUrl qurl(url);
 
@@ -301,6 +316,9 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             loop.exec();
 
             if (timedOut || reply->error() != QNetworkReply::NoError) {
+                qCWarning(logDownload) << QStringLiteral("请求失败 URL=%1 错误=%2 重试=%3")
+                    .arg(url, timedOut ? QStringLiteral("超时") : reply->errorString())
+                    .arg(attempt + 1);
                 reply->abort();
                 reply->deleteLater();
                 continue;
@@ -334,7 +352,12 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 QDir().mkpath(tmpDir);
                 th->tempPath = tmpDir + QString("dl_%1_%2.tmp").arg(file->localName).arg(th->uuid);
                 QFile f(th->tempPath);
-                if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+                if (f.open(QIODevice::WriteOnly)) {
+                    f.write(data);
+                    f.close();
+                    qCInfo(logDownload) << QStringLiteral("写入临时文件 路径=%1 大小=%2")
+                        .arg(th->tempPath).arg(data.size());
+                }
             }
 
             th->state = 3; // finished
@@ -347,6 +370,9 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
 
 cleanup:
     m_activeThreads.fetchAndAddRelaxed(-1);
+
+    qCInfo(logDownload) << QStringLiteral("下载线程完成 文件=%1 字节=%2")
+        .arg(file->localName).arg(th->downloadDone);
 
     // Check if file done
     bool allDone = true, anyFailed = false;
@@ -394,6 +420,9 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
         return true;
     }
 
+    qCInfo(logDownload) << QStringLiteral("开始合并文件 路径=%1 分段数=%2")
+        .arg(file->localPath).arg(file->threads.size());
+
     QDir().mkpath(QFileInfo(file->localPath).absolutePath());
     QFile out(file->localPath);
     if (!out.open(QIODevice::WriteOnly)) {
@@ -423,6 +452,8 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
             return false;
         }
     }
+
+    qCInfo(logDownload) << QStringLiteral("合并完成 文件=%1 SHA1校验=通过").arg(file->localName);
     return true;
 }
 

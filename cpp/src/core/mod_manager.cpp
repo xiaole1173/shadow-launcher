@@ -41,6 +41,8 @@ static const QString MCIM_CDN = QStringLiteral("https://mod.mcimirror.top");
 ModManager::ModManager(QObject* parent)
     : QObject(parent)
 {
+    qCInfo(logApp) << QStringLiteral("Mod管理器初始化");
+
     // Connect versionsFetched signal for download flow interception
     connect(this, &ModManager::versionsFetched,
             this, &ModManager::onVersionsForDownload);
@@ -78,6 +80,7 @@ void ModManager::searchModrinth(
 {
     setBusy(true);
     emit logMessage(tr("正在搜索 Modrinth..."));
+    qCInfo(logApp) << QStringLiteral("搜索Mod query=%1 loader=%2").arg(query, loaders.join(","));
 
     QString url = buildSearchUrl(query, categories, gameVersions, loaders,
                                  offset, limit, sort);
@@ -89,6 +92,7 @@ void ModManager::searchModrinth(
                 QJsonArray results = parseSearchResponse(body, totalHits);
                 m_lastTotalHits = totalHits;
                 emit searchCompleted(results, totalHits);
+                qCInfo(logApp) << QStringLiteral("搜索完成 结果数=%1").arg(totalHits);
                 emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
             } else {
                 emit searchFailed(tr("搜索失败: HTTP %1").arg(status));
@@ -96,6 +100,7 @@ void ModManager::searchModrinth(
             setBusy(false);
         },
         [this](const QString& error) {
+            qCWarning(logApp) << QStringLiteral("网络请求失败 函数=searchModrinth 错误=%1").arg(error);
             emit searchFailed(tr("网络错误: %1").arg(error));
             setBusy(false);
         }
@@ -113,6 +118,7 @@ void ModManager::searchModrinthProjects(
 {
     setBusy(true);
     emit logMessage(tr("正在搜索 Modrinth (facets=%1)...").arg(facets.join(",")));
+    qCInfo(logApp) << QStringLiteral("Facets搜索 query=%1").arg(query);
 
     QJsonArray facetArr;
     if (!facets.isEmpty()) {
@@ -153,6 +159,7 @@ void ModManager::searchModrinthProjects(
                 QJsonArray results = parseSearchResponse(body, totalHits);
                 m_lastTotalHits = totalHits;
                 emit searchCompleted(results, totalHits);
+                qCInfo(logApp) << QStringLiteral("搜索完成 结果数=%1").arg(totalHits);
                 emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
             } else {
                 emit searchFailed(tr("搜索失败: HTTP %1").arg(status));
@@ -160,6 +167,7 @@ void ModManager::searchModrinthProjects(
             setBusy(false);
         },
         [this](const QString& error) {
+            qCWarning(logApp) << QStringLiteral("网络请求失败 函数=searchModrinthProjects 错误=%1").arg(error);
             emit searchFailed(tr("网络错误: %1").arg(error));
             setBusy(false);
         }
@@ -177,6 +185,7 @@ void ModManager::getModVersions(
 {
     setBusy(true);
     emit logMessage(tr("正在获取 %1 的版本列表...").arg(slug));
+    qCInfo(logApp) << QStringLiteral("获取版本 slug=%1 MC=%2 loader=%3").arg(slug, gameVersions.join(","), loaders.join(","));
 
     QUrl url(MODRINTH_API + "/project/" + slug + "/version");
     QUrlQuery params;
@@ -200,6 +209,7 @@ void ModManager::getModVersions(
                 QJsonArray files = parseVersionsResponse(body);
                 emit logMessage(tr("获取到 %1 的 %2 个文件版本")
                                     .arg(slug).arg(files.size()));
+                qCInfo(logApp) << QStringLiteral("版本获取完成 slug=%1 文件数=%2").arg(slug).arg(files.size());
                 emit versionsFetched(slug, files);
             } else {
                 emit versionsFailed(slug,
@@ -208,6 +218,7 @@ void ModManager::getModVersions(
             setBusy(false);
         },
         [this, slug](const QString& error) {
+            qCWarning(logApp) << QStringLiteral("网络请求失败 slug=%1 错误=%2").arg(slug, error);
             emit versionsFailed(slug,
                 tr("网络错误: %1").arg(error));
             setBusy(false);
@@ -326,6 +337,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
     m_activeModDownloads[id] = dl;
 
     emit logMessage(tr("[下载] 开始下载 Mod: %1 → %2").arg(displayName, savePath));
+    qCInfo(logApp) << QStringLiteral("下载Mod文件 id=%1 URL=%2").arg(id).arg(url);
     if (resumeId < 0) {
         emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
     }
@@ -373,6 +385,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
                     }
                 }
                 it->finished = true;
+                qCInfo(logApp) << QStringLiteral("Mod文件下载完成 id=%1 大小=%2").arg(id).arg(QFileInfo(savePath).size());
                 emit logMessage(tr("[完成] Mod 下载完成: %1").arg(displayName));
                 emit modFileDownloadFinished(id, true, savePath, displayName);
             } else {
@@ -401,6 +414,7 @@ void ModManager::cancelModFileDownload(int downloadId)
 {
     auto it = m_activeModDownloads.find(downloadId);
     if (it == m_activeModDownloads.end()) return;
+    qCInfo(logApp) << QStringLiteral("取消Mod下载 id=%1").arg(downloadId);
     it->cancelled = true;
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
@@ -468,6 +482,7 @@ void ModManager::searchResourcepacks(
     int offset, int limit)
 {
     setBusy(true);
+    qCInfo(logApp) << QStringLiteral("搜索资源包 query=%1").arg(query);
 
     // Build facets: force project_type=resourcepack
     QJsonArray facets;
@@ -513,8 +528,8 @@ void ModManager::searchResourcepacks(
             emit logMessage(tr("[MODRINTH] 资源包搜索结果: %1/%2").arg(hits.size()).arg(total));
         },
         [this](const QString& err) {
+            qCWarning(logApp) << QStringLiteral("网络请求失败 函数=searchResourcepacks 错误=%1").arg(err);
             setBusy(false);
-            emit resourcepackSearchFailed(err);
             emit logMessage(tr("[MODRINTH] 资源包搜索失败: %1").arg(err));
         }
     );
@@ -1144,6 +1159,7 @@ void ModManager::fetchShaderVersions(const QStringList& slugs)
 
 void ModManager::cancel()
 {
+    qCInfo(logApp) << QStringLiteral("取消当前操作");
     m_pendingDownload.active = false;
     setBusy(false);
 }
@@ -1323,6 +1339,7 @@ void ModManager::getModDependencies(const QString& slug, const QString& gameVers
 {
     if (slug.isEmpty()) return;
 
+    qCInfo(logApp) << QStringLiteral("查询依赖 slug=%1").arg(slug);
     emit logMessage(tr("[MODRINTH] 正在查询 %1 的前置模组...").arg(slug));
 
     QUrl url(MODRINTH_API + "/project/" + slug + "/version");
@@ -1425,6 +1442,7 @@ void ModManager::getModDependencies(const QString& slug, const QString& gameVers
                     }
 
                     emit logMessage(tr("[MODRINTH] %1 的前置模组: %2 个").arg(slug).arg(result.size()));
+                    qCInfo(logApp) << QStringLiteral("依赖查询完成 个数=%1").arg(result.size());
                     emit dependenciesResolved(slug, result);
                 },
                 [this, slug](const QString& err) {

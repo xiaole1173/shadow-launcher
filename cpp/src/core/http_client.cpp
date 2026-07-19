@@ -339,8 +339,7 @@ void HttpClient::getWithFallback(const QString& url,
             get(targetUrl,
                 [hasWinner, targetUrl, cb](int status, const QByteArray& body) {
                     if (hasWinner->testAndSetRelaxed(0, 1)) {
-                        qCInfo(logDownload) << "[NET] GET race winner:" << targetUrl
-                                 << "(HTTP" << status << ")";
+                        qCInfo(logDownload) << QStringLiteral("[NET] 竞速胜出 url=%1 HTTP状态=%2").arg(targetUrl).arg(status);
                         if (*cb) (*cb)(status, body);
                     }
                 },
