@@ -4,6 +4,7 @@
 #pragma once
 #include <QObject>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QString>
 #include <QTimer>
 
@@ -23,6 +24,11 @@ public:
 
     void start(const QString& networkName, const QString& networkKey,
                const QString& hostname = QString());
+
+    // Elevated mode: start easytier via QProcess with custom environment
+    void startViaQProcess(const QString& exe, const QStringList& args,
+                          const QProcessEnvironment& env);
+
     void stop();
     bool isRunning() const;
 
