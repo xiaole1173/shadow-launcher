@@ -215,6 +215,12 @@ void EasyTierProcess::addRelayConnector(const QString& relayEp)
     if (relayEp.isEmpty())
         return;
 
+    // Verify easytier-core is still running before adding connector
+    if (!m_process || m_process->state() != QProcess::Running) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 核心进程未运行，跳过动态添加中继节点");
+        return;
+    }
+
     QString cliExe = findEasyTierCli();
     if (cliExe.isEmpty()) {
         qCWarning(logNet) << QStringLiteral("[EasyTier] 找不到 easytier-cli.exe，跳过动态添加中继节点");
