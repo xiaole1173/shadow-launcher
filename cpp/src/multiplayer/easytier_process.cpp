@@ -89,28 +89,38 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         return;
     }
 
-    // ── Build full TOML config in memory (all params, including peers) ──
-    // In elevated mode this goes to stdin; in non-elevated it goes to a temp file.
+    // ── Build TOML config in memory ──
     QString relayEp = Relay::relayEndpoint();
-    QByteArray toml;
-    toml.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
-    toml.append("[network]\n");
-    toml.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
-    toml.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
-    toml.append("dhcp = true\n");
+
+    // Elevated: TOML via stdin with name/secret/dhcp only (no peers)
+    // Peers are added dynamically via easytier-cli connector add after start.
+    QByteArray tomlElevated;
+    tomlElevated.append("[network]\n");
+    tomlElevated.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
+    tomlElevated.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
+    tomlElevated.append("dhcp = true\n");
+
+    // Non-elevated: TOML saved to file with peers included
+    // (ShellExecuteEx can't pipe stdin; --peers CLI added as fallback)
+    QByteArray tomlFile;
+    tomlFile.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
+    tomlFile.append("[network]\n");
+    tomlFile.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
+    tomlFile.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
+    tomlFile.append("dhcp = true\n");
 
     QStringList args;
     args << "--config-file" << "-";       // read TOML from stdin
     if (!hostname.isEmpty())
         args << "--hostname" << hostname;
 
-    // ── Elevated: pipe TOML via QProcess stdin + ET_PEERS env var ──
-    // NOTE: easytier 2.6.4 ignores `peers = [...]` in TOML at runtime
-    // despite passing --check-config. Peers are passed via ET_PEERS env var
-    // instead. The TOML (name/secret/dhcp) goes through stdin (no file leak).
+    // ── Elevated: pipe TOML via QProcess stdin + dynamic connector add ──
+    // Daemon has zero relay IP exposure (not on CLI, not in env, not in config).
+    // Relay connector added ~3s after start via separate easytier-cli call.
     if (ElevatedSession::isActive()) {
-        startViaQProcess(exe, args, toml, relayEp);
-        secureWipe(toml);
+        startViaQProcess(exe, args, tomlElevated, relayEp);
+        secureWipe(tomlElevated);
+        secureWipe(tomlFile);
         return;
     }
 
@@ -119,10 +129,10 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     QTemporaryFile tmpFile(QDir::tempPath() + QStringLiteral("/shadow_easytier_XXXXXX.toml"));
     tmpFile.setAutoRemove(false);
     tmpFile.open();
-    tmpFile.write(toml);
+    tmpFile.write(tomlFile);
     tmpFile.close();
     m_peerConfigPath = tmpFile.fileName();
-    secureWipe(toml);
+    secureWipe(tomlFile);
 
     // CLI has --config-file <path>, --peers is NOT needed (peers in TOML),
     // but for non-elevated (runas) we add --peers as fallback in case TOML
@@ -200,11 +210,42 @@ void EasyTierProcess::stop()
     m_ready = false;
 }
 
+void EasyTierProcess::addRelayConnector(const QString& relayEp)
+{
+    if (relayEp.isEmpty())
+        return;
+
+    QString cliExe = findEasyTierCli();
+    if (cliExe.isEmpty()) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 找不到 easytier-cli.exe，跳过动态添加中继节点");
+        return;
+    }
+
+    // Start a brief QProcess to call `easytier-cli connector add <url>`
+    // This process exits after ~100ms. The relay IP only appears on this
+    // short-lived child's CLI — the easytier-core daemon has zero relay exposure.
+    QStringList args;
+    args << QStringLiteral("connector") << QStringLiteral("add") << relayEp;
+
+    QProcess* cliProc = new QProcess(this);
+    connect(cliProc, &QProcess::finished, cliProc, &QObject::deleteLater);
+
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 动态添加中继节点 (short-lived CLI)");
+    cliProc->start(cliExe, args);
+
+    // Optional: wait briefly so we can log success/failure
+    if (cliProc->waitForFinished(5000)) {
+        QString errOutput = QString::fromUtf8(cliProc->readAllStandardError());
+        if (!errOutput.isEmpty())
+            qCInfo(logNet) << QStringLiteral("[EasyTier] connector add 输出: %1").arg(errOutput);
+    }
+}
+
 void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& args,
                                        const QByteArray& tomlData,
                                        const QString& relayEp)
 {
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (stdin+ET_PEERS)");
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (无泄露管道)");
 
     // Prevent duplicate start
     if (m_process && m_process->state() == QProcess::Running) {
@@ -223,22 +264,19 @@ void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& ar
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &EasyTierProcess::onProcessFinished);
 
-    // ── Build process environment with ET_PEERS (easytier ignores peers in TOML) ──
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.insert(QStringLiteral("ET_PEERS"), relayEp);
-    env.insert(QStringLiteral("ET_NETWORK_NAME"), m_networkName);
-    env.insert(QStringLiteral("ET_NETWORK_SECRET"), m_networkKey);
-    env.insert(QStringLiteral("ET_DHCP"), QStringLiteral("true"));
-    m_process->setProcessEnvironment(env);
-
-    // Start process first, then pipe TOML to stdin for additional context
+    // No ET_* env vars set — easytier starts with zero sensitive data.
+    // Relay connector is added dynamically after process starts.
     m_process->start(exe, args);
 
     if (m_process->waitForStarted(5000)) {
-        // Pipe full TOML (including peers) to stdin for reference.
-        // At runtime, easytier picks up peers from ET_PEERS env var.
+        // Pipe TOML (name/secret/dhcp, no peers) via stdin
         m_process->write(tomlData);
         m_process->closeWriteChannel();
+
+        // Schedule dynamic connector add after easytier RPC portal is ready
+        QTimer::singleShot(3000, this, [this, relayEp]() {
+            addRelayConnector(relayEp);
+        });
     }
 
     m_ready = false;

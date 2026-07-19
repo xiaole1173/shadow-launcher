@@ -26,12 +26,15 @@ public:
                const QString& hostname = QString());
 
     // Elevated mode: start easytier via QProcess
-    // Config sent via stdin + ET_PEERS env var (peers ignored in TOML at runtime)
+    // Config sent via stdin (no peers), connector added dynamically after start
     void startViaQProcess(const QString& exe, const QStringList& args,
                           const QByteArray& tomlData,
                           const QString& relayEp);
 
     void stop();
+
+    // Add relay connector dynamically (no --peers on CLI or env var needed)
+    void addRelayConnector(const QString& relayEp);
     bool isRunning() const;
 
     QString virtualIp() const { return m_virtualIp; }
