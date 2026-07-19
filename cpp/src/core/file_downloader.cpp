@@ -76,7 +76,10 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     file->needsJarStrip = jarStrip;
     file->fileSize = expectedSize;
     file->isUnknownSize = (expectedSize <= 0);
-    file->isNoSplit = (!file->isUnknownSize && file->fileSize < 1024 * 1024);
+    // Single-thread threshold: 50 MB. Larger files bypass SHA1 check during
+    // download (range threads only have partial data), so SHA1 is only verified
+    // in mergeFile() — which is too late to switch sources.
+    file->isNoSplit = (!file->isUnknownSize && file->fileSize < 50LL * 1024 * 1024);
 
     QMutexLocker lock(&m_filesMutex);
     m_files.append(file);
@@ -343,7 +346,8 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     if (contentLen > 0) {
                         file->fileSize = contentLen;
                         file->isUnknownSize = false;
-                        file->isNoSplit = (contentLen < 1024 * 1024);
+                        // Single-thread threshold (must match the one in addFile)
+                        file->isNoSplit = (contentLen < 50LL * 1024 * 1024);
                         th->downloadEnd = contentLen;
                         m_totalBytes.fetchAndAddRelaxed(contentLen);
                     }
