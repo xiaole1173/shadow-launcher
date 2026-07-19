@@ -350,6 +350,20 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 }
             }
 
+            // SHA1 verification: immediately check downloaded data
+            // Only check for non-split downloads (data is the complete file).
+            // Split downloads (range requests) are verified in mergeFile().
+            if (!file->expectedSha1.isEmpty()) {
+                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
+                if (dlHash != file->expectedSha1) {
+                    qCWarning(logDownload) << QStringLiteral("下载数据SHA1不匹配 URL=%1 预期=%2 实际=%3")
+                        .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash));
+                    sourceOk = false;
+                    reply->deleteLater();
+                    continue;
+                }
+            }
+
             // Write data
             if (file->isNoSplit) {
                 QFile f(file->localPath);

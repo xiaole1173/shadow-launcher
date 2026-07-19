@@ -431,9 +431,31 @@ VersionBackend::VersionBackend(QObject* parent)
     // (refreshVersionList needs data dir for cache, refreshInstalled needs game dir)
     m_initialFetchDone = false;
 
-    // ── Auto-repair: 下载失败后自动修复 → 完成后发射 installFinished ──
+    // ── Auto-repair: 下载失败后分两阶段修复 ──
+    // 阶段1：verifyVersion 找出损坏文件 → 阶段2：repairVersion 修复
     connect(this, &VersionBackend::verifyFinished, this, [this](bool allPassed) {
-        if (!m_autoRepairVersionId.isEmpty()) {
+        if (m_autoRepairVersionId.isEmpty())
+            return;
+        if (!m_autoRepairVerifyDone) {
+            // 阶段1：verify 完成
+            m_autoRepairVerifyDone = true;
+            if (allPassed) {
+                // 没坏文件，直接成功
+                qCInfo(logVersion) << QStringLiteral("自动修复无需修复 版本=%1").arg(m_autoRepairVersionId);
+                m_autoRepairVersionId.clear();
+                emit installFinished(true);
+            } else if (!m_failedPathsCache.isEmpty()) {
+                // 有损坏文件，进入阶段2：实际修复
+                qCInfo(logVersion) << QStringLiteral("自动修复开始下载修复 版本=%1").arg(m_autoRepairVersionId);
+                repairVersion(m_autoRepairVersionId);
+                // 等 repairVersion 完成后再发射 verifyFinished
+            } else {
+                qCInfo(logVersion) << QStringLiteral("自动修复verify失败但缓存为空 版本=%1").arg(m_autoRepairVersionId);
+                m_autoRepairVersionId.clear();
+                emit installFinished(false);
+            }
+        } else {
+            // 阶段2：repairVersion 完成
             QString ver = m_autoRepairVersionId;
             m_autoRepairVersionId.clear();
             qCInfo(logVersion) << QStringLiteral("自动修复%1 版本=%2").arg(allPassed ? QStringLiteral("成功") : QStringLiteral("失败"), ver);
