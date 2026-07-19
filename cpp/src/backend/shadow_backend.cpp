@@ -3087,6 +3087,19 @@ void ShadowBackend::logUiMsg(const QString& msg)
     qCInfo(logUI) << msg;
 }
 
+int ShadowBackend::diagAutoLangComboIdx() const
+{
+    qCInfo(logApp) << QStringLiteral("[DIAG] diagAutoLangComboIdx() called from QML");
+    if (!m_settings) {
+        qCWarning(logApp) << QStringLiteral("[DIAG] m_settings is NULL!");
+        return 0;
+    }
+    int mode = m_settings->autoLangMode();
+    int idx = m_settings->autoLangModeComboIndex();
+    qCInfo(logApp) << QStringLiteral("[DIAG] mode=%1 → comboIdx=%2").arg(mode).arg(idx);
+    return idx;
+}
+
 void ShadowBackend::refreshGameStats()
 {
     if (m_stats)
