@@ -172,7 +172,9 @@ Window {
             // Binding auto-updates — no explicit assignment needed
         }
         function onInstallFinished(success) {
-            // Keep nav visible for a moment, will be hidden when user switches away
+            if (!success && toastManager) {
+                toastManager.show("安装失败: 有文件下载失败或校验不通过", "", 5000)
+            }
         }
         function onInstallComplete(installName) {
             console.log("[main] installComplete:", installName, "installing=", backend.installing)

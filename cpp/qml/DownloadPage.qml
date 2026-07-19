@@ -217,6 +217,9 @@ Rectangle {
         function onInstallFinished(success) {
             page.installingVersion = false
             page.selectedVersionId = ""
+            if (!success && page.appToast) {
+                page.appToast.show("安装失败: 文件下载不完整", "", 5000)
+            }
         }
     }
 

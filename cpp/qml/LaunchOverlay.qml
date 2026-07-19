@@ -107,9 +107,6 @@ Rectangle {
             console.log("[overlay] progress: " + pct + "% - " + status)
             progressValue = pct
             statusText = status
-            if (pct === 0 && status && status.indexOf("失败") >= 0) {
-                checkFailed = true
-            }
             if (pct === 100 && !checkFailed) {
                 closeTimer.start()
             }
