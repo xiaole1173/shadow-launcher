@@ -417,7 +417,7 @@ Window {
                     // 版本号
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: backend ? "v" + backend.appVersion : ""
+                        text: backend ? backend.appVersion : ""
                         font.pixelSize: StyleTokens.fontSizeXs
                         color: StyleTokens.bgHover
                     }

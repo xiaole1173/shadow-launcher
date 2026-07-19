@@ -50,3 +50,10 @@ assets/
 __pycache__/
 *.pyc
 *.pyo
+
+# Encrypted blob fragments (auto-generated, keep local)
+src/multiplayer/encrypted_frag_*.cpp
+# Stub for CI/open-source builds — zero placeholder, safe to commit
+!src/multiplayer/encrypted_frag_stub.cpp
+src/multiplayer/encrypted_addr_local.h
+

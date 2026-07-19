@@ -5,6 +5,10 @@
 #include <QString>
 #include <QByteArray>
 
+// Returns pointer to the assembled 243-byte blob (fragments assembled + descrambled).
+// Falls back to all-zero placeholder when fragments are absent (open source build).
+const uint8_t* getAssembledBlob();
+
 // Low-level AES-256-GCM decrypt (used by relay + beta validation)
 // Returns empty QByteArray on failure/zero-length input.
 QByteArray aesGcmDecrypt(

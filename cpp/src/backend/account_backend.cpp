@@ -3,6 +3,7 @@
 #include "account_backend.h"
 #include "../utils/logger.h"
 #include "../utils/token_crypto.h"
+#include "../utils/secure_wipe.h"
 #include <cmath>
 #include <vector>
 #include <QCoreApplication>
@@ -405,8 +406,9 @@ void AccountBackend::logout()
     m_isOnline = false;
 
     // Clear MS token state and persisted session
-    m_msRefreshToken.clear();
-    m_msMcToken.clear();
+    secureWipe(m_msRefreshToken);
+    secureWipe(m_msMcToken);
+    secureWipe(m_uuid);
     m_msTokenObtainedAt = 0;
     m_msTokenExpiresIn = 0;
     deleteMicrosoftSession();
@@ -444,7 +446,7 @@ void AccountBackend::microsoftLogin()
         return;
     }
     emit microsoftLoginBusyChanged();
-        const QString clientId = QStringLiteral("YOUR_CLIENT_ID_HERE");
+    const QString clientId = QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f");
     if (m_embeddedLoginEnabled) {
         qCInfo(logAccount) << QStringLiteral("使用内嵌浏览器登录");
         m_msAuth->startEmbeddedLogin(clientId);
@@ -1090,7 +1092,7 @@ void AccountBackend::refreshMicrosoftToken()
     m_refreshingToken = true;
 
     QUrlQuery postData;
-        postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral("YOUR_CLIENT_ID_HERE"));
+    postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral("1167b841-0421-4bfa-9ca2-3ab67e136f9f"));
     postData.addQueryItem(QStringLiteral("refresh_token"), m_msRefreshToken);
     postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
     postData.addQueryItem(QStringLiteral("redirect_uri"), QStringLiteral("http://localhost"));

@@ -718,7 +718,7 @@ Rectangle {
                             Layout.fillWidth: true
                             Text { text: "Shadow Launcher"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textPrimary }
                             Item { Layout.fillWidth: true }
-                            Text { text: "v" + (backend ? backend.appVersion : ""); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted }
+                            Text { text: backend ? backend.appVersion : ""; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted }
                         }
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
@@ -786,6 +786,11 @@ Rectangle {
                                 width: parent.width; height: ack3Desc.y + ack3Desc.height
                                 Text { id: ack3Name; text: "Lucide"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: "#e8ecf8"; width: parent.width }
                                 Text { id: ack3Desc; text: qsTr("提供了启动器目前可见的所有图标！"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack3Name.bottom; anchors.topMargin: 3 }
+                            }
+                            Item {
+                                width: parent.width; height: ack4Desc.y + ack4Desc.height
+                                Text { id: ack4Name; text: "ChunMoMo"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack4Desc; text: qsTr("提供了测试联机功能的电脑，将我从想测试联机功能但找不到两台电脑的水深火热中救了出来......"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack4Name.bottom; anchors.topMargin: 3 }
                             }
                         }
                     }

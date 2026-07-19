@@ -10,7 +10,6 @@
 #include <QIcon>
 #include <QDir>
 #include <QStandardPaths>
-#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 
@@ -404,7 +403,7 @@ int main(int argc, char *argv[])
     // ── Beta key gate ──
     // Skipped in dev mode or with SHADOW_SKIP_BETA env var
     bool loadedBetaDialog = false;
-    if (!devMode && !qEnvironmentVariableIsSet("SHADOW_SKIP_BETA")) {
+    if (!qEnvironmentVariableIsSet("SHADOW_SKIP_BETA")) {
         checkpoint(QStringLiteral("Checking beta key..."));
         QString savedKey = ShadowBackend::loadBetaKey();
 

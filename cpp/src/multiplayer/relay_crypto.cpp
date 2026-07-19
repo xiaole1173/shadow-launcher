@@ -2,11 +2,23 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 // AES-256-GCM decryption for flat opaque blob (relay server & Worker URL)
 // Uses Windows CNG (bcrypt.dll) — zero extra deps
-#if __has_include("encrypted_addr_local.h")
-#include "encrypted_addr_local.h"
-#else
-#include "encrypted_addr.h"
+//
+// The encrypted blob is split across 5 compiled fragments (separate .obj files),
+// each with scrambled byte order. At runtime, they're assembled and descrambled
+// into a single 243-byte buffer. This frustrates static analysis by:
+//   1. Splitting the blob across multiple compilation units
+//   2. Using a per-fragment random byte permutation (scramble)
+
+#if __has_include("encrypted_frag_1.h")
+// Real fragments exist (local dev build with encrypted_addr.py)
+#include "encrypted_frag_1.h"
+#include "encrypted_frag_2.h"
+#include "encrypted_frag_3.h"
+#include "encrypted_frag_4.h"
+#include "encrypted_frag_5.h"
 #endif
+
+#include "encrypted_addr.h"  // Offset constants (used by both real and placeholder)
 
 #include <windows.h>
 #include <bcrypt.h>
@@ -24,7 +36,40 @@ static void xorKey(uint8_t out[32], const uint8_t* rawKey, const uint8_t* salt)
         out[i] ^= salt[i % 8];
 }
 
+// ── Blob assembly: reassemble + descramble the 243-byte blob from fragments ──
+#if __has_include("encrypted_frag_1.h")
+
+struct BlobAssembler {
+    uint8_t data[243] = {0};
+    BlobAssembler() {
+        size_t off = 0;
+        auto restore = [&](const uint8_t* d, const uint8_t* p, size_t cnt) {
+            for (size_t i = 0; i < cnt; ++i)
+                this->data[off + p[i]] = d[i];
+        };
+        restore(Frag1::data, Frag1::perm, 49); off += 49;
+        restore(Frag2::data, Frag2::perm, 49); off += 49;
+        restore(Frag3::data, Frag3::perm, 49); off += 49;
+        restore(Frag4::data, Frag4::perm, 48); off += 48;
+        restore(Frag5::data, Frag5::perm, 48);
+    }
+};
+
+static const uint8_t* getBlob()
+{
+    static const BlobAssembler blob;
+    return blob.data;
+}
+
+#else
+// Open source / CI build — all-zero placeholder blob
+static const uint8_t* getBlob() { return kBlob; }
+#endif
+
 } // anonymous namespace
+
+// ── Public: returns assembled blob pointer ──
+const uint8_t* getAssembledBlob() { return getBlob(); }
 
 // ── Public AES-256-GCM helper (used by multiplayer & beta validation) ──
 
@@ -74,17 +119,17 @@ QByteArray aesGcmDecrypt(
     return plain;
 }
 
-// ── Namespace helpers for relay (kept for compatibility) ──
+// ── Namespace helpers for relay ──
 
 namespace Relay {
 
 QString relayEndpoint()
 {
     QByteArray plain = aesGcmDecrypt(
-        kBlob + kRelayNonceOff, kRelayNonceLen,
-        kBlob + kRelayCTOff, kRelayCTLen,
-        kBlob + kRelayTagOff, kRelayTagLen,
-        kBlob + kRelayKeyOff, kBlob + kRelaySaltOff);
+        getBlob() + kRelayNonceOff, kRelayNonceLen,
+        getBlob() + kRelayCTOff, kRelayCTLen,
+        getBlob() + kRelayTagOff, kRelayTagLen,
+        getBlob() + kRelayKeyOff, getBlob() + kRelaySaltOff);
     if (plain.isEmpty()) return {};
     return QString::fromUtf8(plain);
 }
@@ -92,10 +137,10 @@ QString relayEndpoint()
 QString relayPrefix()
 {
     QByteArray plain = aesGcmDecrypt(
-        kBlob + kRelayPrefixNonceOff, kRelayPrefixNonceLen,
-        kBlob + kRelayPrefixCTOff, kRelayPrefixCTLen,
-        kBlob + kRelayPrefixTagOff, kRelayPrefixTagLen,
-        kBlob + kRelayKeyOff, kBlob + kRelaySaltOff);
+        getBlob() + kRelayPrefixNonceOff, kRelayPrefixNonceLen,
+        getBlob() + kRelayPrefixCTOff, kRelayPrefixCTLen,
+        getBlob() + kRelayPrefixTagOff, kRelayPrefixTagLen,
+        getBlob() + kRelayKeyOff, getBlob() + kRelaySaltOff);
     if (plain.isEmpty()) return {};
     return QString::fromUtf8(plain);
 }

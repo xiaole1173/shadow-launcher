@@ -159,7 +159,7 @@ Rectangle {
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: typeof backend !== "undefined" && backend ? "v" + backend.appVersion : ""
+                text: typeof backend !== "undefined" && backend ? backend.appVersion : ""
                 font.pixelSize: StyleTokens.fontSizeSm
                 color: StyleTokens.textMuted
             }

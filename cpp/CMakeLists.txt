@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ShadowLauncher VERSION 0.2.1 LANGUAGES CXX)
+project(ShadowLauncher VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)  # Qt default
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -141,6 +141,21 @@ set(HEADERS
     src/multiplayer/multiplayer_manager.cpp
     src/multiplayer/multiplayer_manager.h
 )
+
+# Encrypted blob fragments (scrambled, split across compilation units)
+# Real files exist only on the developer's machine (gitignored).
+# CI/third-party builds use the stub with zero placeholders.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/multiplayer/encrypted_frag_1.cpp")
+    list(APPEND SOURCES
+        src/multiplayer/encrypted_frag_1.cpp
+        src/multiplayer/encrypted_frag_2.cpp
+        src/multiplayer/encrypted_frag_3.cpp
+        src/multiplayer/encrypted_frag_4.cpp
+        src/multiplayer/encrypted_frag_5.cpp
+    )
+else()
+    list(APPEND SOURCES src/multiplayer/encrypted_frag_stub.cpp)
+endif()
 
 # ============================================================
 # Target
@@ -370,7 +385,7 @@ target_link_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/lib")
 # Define WEBP_STATIC_LINK for static lib (needed on Windows)
 target_compile_definitions(ShadowLauncher PRIVATE
     WEBP_STATIC_LINK
-    SHADOW_DISPLAY_VERSION="v0.2.2-beta"
+    SHADOW_DISPLAY_VERSION="v0.3.0-beta"
     SHADOW_QT_VERSION="${Qt6_VERSION}"
     SHADOW_RESOURCE_EPOCH=1
 )

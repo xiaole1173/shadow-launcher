@@ -9,11 +9,8 @@
 #include "../core/local_mod_manager.h"
 #include "../multiplayer/multiplayer_manager.h"
 #include "../multiplayer/relay_crypto.h"
-#if __has_include("encrypted_addr_local.h")
-#include "encrypted_addr_local.h"
-#else
-#include "../multiplayer/encrypted_addr.h"
-#endif
+#include "../utils/secure_wipe.h"
+#include "../multiplayer/encrypted_addr.h"  // kWorker offset constants
 #include "../core/version_downloader.h"
 #include "../core/geoip_service.h"
 #include <QApplication>
@@ -2905,17 +2902,18 @@ void ShadowBackend::submitBetaKey(const QString& key)
     m_betaStatus = QStringLiteral("checking");
     emit betaStatusChanged();
 
-    // Beta key verification endpoint — decrypted from opaque flat blob.
-    // Without local encrypted_addr_local.h, all kBlob entries are zero → disabled.
-    static const QString kWorkerUrl = []() -> QString {
-        QByteArray plain = aesGcmDecrypt(
-            kBlob + kWorkerNonceOff, kWorkerNonceLen,
-            kBlob + kWorkerCTOff,   kWorkerCTLen,
-            kBlob + kWorkerTagOff,  kWorkerTagLen,
-            kBlob + kWorkerKeyOff,  kBlob + kWorkerSaltOff);
-        if (plain.isEmpty()) return {};
-        return QString::fromUtf8(plain);
-    }();
+    // Beta key verification endpoint — decrypted from opaque flat blob on each call.
+    // Not cached: decrypted inline, zeroed after QNetworkRequest consumes it.
+    const uint8_t* blob = getAssembledBlob();
+    QByteArray plain = aesGcmDecrypt(
+        blob + kWorkerNonceOff, kWorkerNonceLen,
+        blob + kWorkerCTOff,   kWorkerCTLen,
+        blob + kWorkerTagOff,  kWorkerTagLen,
+        blob + kWorkerKeyOff,  blob + kWorkerSaltOff);
+    QString kWorkerUrl;
+    if (!plain.isEmpty())
+        kWorkerUrl = QString::fromUtf8(plain);
+    SecureZeroMemory(plain.data(), plain.size());
 
     if (kWorkerUrl.isEmpty()) {
         qCInfo(logApp) << QStringLiteral("[BetaKey] 验证跳过 未配置Worker URL");
@@ -2926,6 +2924,8 @@ void ShadowBackend::submitBetaKey(const QString& key)
 
     auto* mgr = new QNetworkAccessManager(this);
     QNetworkRequest req{QUrl(kWorkerUrl)};
+    // Worker URL consumed by QNetworkRequest — zero the local copy
+    secureWipe(kWorkerUrl);
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject body;
@@ -2972,7 +2972,7 @@ bool ShadowBackend::saveBetaKey(const QString& key)
     in.cbData = static_cast<DWORD>(utf8.size());
 
     if (!CryptProtectData(&in, L"Shadow Beta", nullptr, nullptr, nullptr,
-                          CRYPTPROTECT_LOCAL_MACHINE, &out)) {
+                          0, &out)) {
         qCWarning(logApp) << QStringLiteral("[BetaKey] CryptProtectData失败");
         return false;
     }
@@ -3032,15 +3032,17 @@ bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
 {
     // Decrypt Worker endpoint from opaque flat blob (AES-256-GCM).
     // With public all-zero placeholder → decrypt fails → validation disabled.
-    static const QString kWorkerUrl = []() -> QString {
-        QByteArray plain = aesGcmDecrypt(
-            kBlob + kWorkerNonceOff, kWorkerNonceLen,
-            kBlob + kWorkerCTOff,   kWorkerCTLen,
-            kBlob + kWorkerTagOff,  kWorkerTagLen,
-            kBlob + kWorkerKeyOff,  kBlob + kWorkerSaltOff);
-        if (plain.isEmpty()) return {};
-        return QString::fromUtf8(plain);
-    }();
+    // Not cached: decrypted inline, zeroed after QNetworkRequest consumes it.
+    const uint8_t* blob = getAssembledBlob();
+    QByteArray plain = aesGcmDecrypt(
+        blob + kWorkerNonceOff, kWorkerNonceLen,
+        blob + kWorkerCTOff,   kWorkerCTLen,
+        blob + kWorkerTagOff,  kWorkerTagLen,
+        blob + kWorkerKeyOff,  blob + kWorkerSaltOff);
+    QString kWorkerUrl;
+    if (!plain.isEmpty())
+        kWorkerUrl = QString::fromUtf8(plain);
+    SecureZeroMemory(plain.data(), plain.size());
 
     if (kWorkerUrl.isEmpty()) {
         if (outError) *outError = QStringLiteral("内测验证未配置");
@@ -3050,6 +3052,7 @@ bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
     QNetworkAccessManager mgr;
     QNetworkRequest req{QUrl(kWorkerUrl)};
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    secureWipe(kWorkerUrl);
 
     QJsonObject body;
     body["key"] = key;

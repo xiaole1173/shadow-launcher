@@ -19,6 +19,7 @@ Rectangle {
     property var backend: null
     property string mcVersion: ""
     property var toastManager: null
+    readonly property bool _devMode: Qt.application.arguments.indexOf("--dev") >= 0
     signal goBack()
     signal navigateToProgress()
     signal requestMinimize()
@@ -539,10 +540,11 @@ Rectangle {
                 onVersionCleared: { root.selectedOptifine = ""; root.selectedOptifineType = ""; root.selectedOptifinePatch = ""; if (root.activeLoader === "optifine") root.activeLoader = "" }
             }
 
-            // ── User data import section ──
+            // ── User data import section (dev mode only) ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 6
                 Layout.topMargin: 8
+                visible: root._devMode
 
                 // Import button row
                 RowLayout { spacing: 8; Layout.fillWidth: true
