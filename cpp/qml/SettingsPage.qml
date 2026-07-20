@@ -358,7 +358,7 @@ Rectangle {
                 Text { text: qsTr("以下功能处于实验阶段，可能存在不稳定的情况。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                 Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                    Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput; clip: true
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 14; spacing: 8
                         RowLayout {
@@ -385,7 +385,7 @@ Rectangle {
 
                 // ── Language selector ──
                 Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                    Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput; clip: true
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 14; spacing: 8
                         RowLayout {
@@ -408,7 +408,7 @@ Rectangle {
                                     if (_syncBack) return
                                     if (backend) backend.switchLanguage(currentIndex)
                                 }
-                                Layout.preferredWidth: 280
+                                Layout.preferredWidth: 220; Layout.minimumWidth: 160
 
                                 // ── Custom dark style ──
                                 background: Rectangle {
