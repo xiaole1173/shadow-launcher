@@ -289,6 +289,22 @@ Window {
             Behavior on opacity { NumberAnimation { duration: 300 } }
         }
 
+    // Window-wide top drag area — covers margins & gaps
+    MouseArea {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 52
+        property point clickPos: Qt.point(0, 0)
+        onPressed: (mouse) => { clickPos = Qt.point(mouse.x, mouse.y) }
+        onPositionChanged: (mouse) => {
+            if (mouse.buttons & Qt.LeftButton) {
+                appWindow.x += mouse.x - clickPos.x
+                appWindow.y += mouse.y - clickPos.y
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent; spacing: 0
 
@@ -337,6 +353,23 @@ Window {
                 color: hasCustomBg ? "transparent" : "#0a0c12"; radius: StyleTokens.radiusMd
                 opacity: hasCustomBg ? backend.sidebarOpacity : 1.0
                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+
+                // Sidebar top drag area
+                MouseArea {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 44
+                    property point clickPos: Qt.point(0, 0)
+                    onPressed: (mouse) => { clickPos = Qt.point(mouse.x, mouse.y) }
+                    onPositionChanged: (mouse) => {
+                        if (mouse.buttons & Qt.LeftButton) {
+                            appWindow.x += mouse.x - clickPos.x
+                            appWindow.y += mouse.y - clickPos.y
+                        }
+                    }
+                }
+
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
                     Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
@@ -445,13 +478,7 @@ Window {
                     id: headerBar
                     Layout.fillWidth: true; height: 44
                     visible: !appWindow.showInstallPage
-                    color: hasCustomBg ? "transparent" : "#0a0c12"
-                    MouseArea {
-                        anchors.fill: parent
-                        property point lastPos: Qt.point(0, 0)
-                        onPressed: (mouse) => { lastPos = Qt.point(mouse.x, mouse.y) }
-                        onPositionChanged: (mouse) => { appWindow.x += mouse.x - lastPos.x; appWindow.y += mouse.y - lastPos.y }
-                    }
+                    color: "transparent"
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
                         spacing: 0
