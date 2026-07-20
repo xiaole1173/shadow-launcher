@@ -1702,8 +1702,35 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     QString manualJava = m_settings->javaPath();
 
     if (!manualJava.isEmpty() && QFileInfo::exists(manualJava)) {
-        javaPath = manualJava;
-        emit logMessage(tr("[完成] 使用已配置的 Java: %1").arg(javaPath));
+        // Check manually configured Java version against version requirement
+        int manualMajor = m_settings->javaMajor();
+
+        // LWJGL 2 versions (pre-1.13, requiredMajor==8) need Java 8 specifically:
+        // Java 9+ has module system issues and LWJGL 2 compatibility problems.
+        // Even with --add-opens flags, old versions work best with Java 8.
+        bool needExactJava8 = (requiredMajor == 8 && manualMajor > 8);
+
+        if (needExactJava8) {
+            emit logMessage(tr("[提示] 此版本依赖 LWJGL 2，建议使用 Java 8，尝试自动匹配..."));
+            javaPath = m_settings->findJavaForVersion(requiredMajor);
+            if (!javaPath.isEmpty()) {
+                emit logMessage(tr("[完成] 已自动降级 Java 8: %1").arg(javaPath));
+            } else {
+                // Java 8 not found — fall back to manual Java as best-effort
+                emit logMessage(tr("[警告] 未找到 Java 8，降级使用手动配置的 Java %1").arg(manualMajor));
+                javaPath = manualJava;
+            }
+        } else if (manualMajor >= requiredMajor) {
+            javaPath = manualJava;
+            emit logMessage(tr("[完成] 使用设置的 Java %1: %2").arg(manualMajor).arg(javaPath));
+        } else {
+            emit logMessage(tr("[提示] 设置的 Java %1 (%2) 不满足版本要求 (需要 ≥%3)，尝试自动匹配...")
+                                .arg(manualMajor).arg(manualJava).arg(requiredMajor));
+            javaPath = m_settings->findJavaForVersion(requiredMajor);
+            if (!javaPath.isEmpty()) {
+                emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
+            }
+        }
     } else {
         javaPath = m_settings->findJavaForVersion(requiredMajor);
         if (!javaPath.isEmpty()) {

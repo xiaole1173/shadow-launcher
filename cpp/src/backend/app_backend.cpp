@@ -33,7 +33,7 @@ AppBackend::AppBackend(QObject *parent)
         QDir().mkpath(m_gameDir + QStringLiteral("/versions"));
         QDir().mkpath(m_gameDir + QStringLiteral("/libraries"));
         QDir().mkpath(m_gameDir + QStringLiteral("/assets"));
-        QDir().mkpath(m_gameDir + QStringLiteral("/mods"));
+        // mods directory is version-scoped — created by openModsFolder() / install flows
         qCInfo(logApp) << QStringLiteral("应用模块已初始化") << QStringLiteral(" 数据目录:") << m_dataDir
                        << QStringLiteral(" 游戏目录:") << m_gameDir;
         emit logMessage(tr("游戏目录: %1").arg(m_gameDir));

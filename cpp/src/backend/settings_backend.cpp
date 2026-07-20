@@ -882,6 +882,11 @@ SettingsBackend::JavaInfo SettingsBackend::getJavaInfo(const QString& exePath)
     return info;
 }
 
+int SettingsBackend::getJavaMajorVersion(const QString& path)
+{
+    return getJavaInfo(path).major;
+}
+
 int SettingsBackend::parseMajorVersion(const QString& versionStr)
 {
     QString n = versionStr;

@@ -87,6 +87,7 @@ private:
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
     QString m_detectedRegion;
     QString m_versionGameDir;
+    int m_javaMajorVersion = 0;  // Cache: Java major version of the JVM used for this launch
 };
 
 
