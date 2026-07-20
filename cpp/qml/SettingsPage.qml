@@ -25,6 +25,7 @@ Rectangle {
         currentSection = idx
         if (appWindow) appWindow.pageLoading = true
         sectionLoadTimer.restart()
+        console.info("[UI] 设置 切段 section=" + idx)
     }
     Timer {
         id: sectionLoadTimer

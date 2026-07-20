@@ -81,7 +81,9 @@ Window {
         showVersionSettings = false
         pageLoading = true
         loadTimer.restart()
-        if (backend) backend.logUiMsg(qsTr("进入页面 — ") + navLabel(navModel[index].pageKey))
+        var pageKey = (navModel && index < navModel.count) ? navModel.get(index).pageKey : "unknown"
+        console.info("[UI] 切换到 " + pageKey)
+        if (backend) backend.logUiMsg(qsTr("进入页面 — ") + navLabel(pageKey))
     }
 
     Timer {
@@ -851,12 +853,14 @@ Window {
                 target: appWindow
                 function onShowInstallPageChanged() {
                     if (appWindow.showInstallPage) {
+                        console.info("[UI] 打开 安装页 mcVersion=" + appWindow.installMcVersion)
                         overlayFadeInTimer.start()
                         pageContainer.opacity = 0
                         if (installPageLoader.item) {
                             installPageLoader.item.mcVersion = appWindow.installMcVersion
                         }
                     } else {
+                        console.info("[UI] 关闭 安装页")
                         installPageOverlay.opacity = 0
                         pageFadeInTimer.start()
                         installUnloadTimer.start()
