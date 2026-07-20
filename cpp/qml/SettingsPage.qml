@@ -433,7 +433,6 @@ Rectangle {
                                     }
                                 }
                                 delegate: ItemDelegate {
-                                    width: langCombo.popup.width  // use popup width
                                     contentItem: Text {
                                         text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
                                         verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
@@ -451,7 +450,7 @@ Rectangle {
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
-                                        clip: true; implicitHeight: contentHeight
+                                        clip: true; implicitHeight: contentHeight; implicitWidth: contentWidth
                                         model: langCombo.popup.visible ? langCombo.delegateModel : null
                                         currentIndex: langCombo.highlightedIndex
                                     }
@@ -520,7 +519,6 @@ Rectangle {
                                     }
                                 }
                                 delegate: ItemDelegate {
-                                    width: langModeCombo.popup.width
                                     contentItem: Text {
                                         text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
                                         verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
@@ -538,7 +536,7 @@ Rectangle {
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
-                                        clip: true; implicitHeight: contentHeight
+                                        clip: true; implicitHeight: contentHeight; implicitWidth: contentWidth
                                         model: langModeCombo.popup.visible ? langModeCombo.delegateModel : null
                                         currentIndex: langModeCombo.highlightedIndex
                                     }
