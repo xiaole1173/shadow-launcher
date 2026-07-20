@@ -35,6 +35,11 @@ Flickable {
                         onToggled: { if (backend) backend.setEmbeddedLoginEnabled(checked) }
                         palette { mid: "#3a4eb8"; dark: "#252835"; light: "#5d6fe0"; button: checked ? "#5d6fe0" : "#353845" }
                         Behavior on checked { NumberAnimation { duration: 200 } }
+                        background: Rectangle {
+                            implicitWidth: 44; implicitHeight: 28; radius: 14
+                            color: embeddedSwitch.hovered ? Qt.rgba(1,1,1,0.05) : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
                     }
                 }
                 Text {
@@ -70,6 +75,7 @@ Flickable {
                             if (backend) backend.switchLanguage(currentIndex)
                         }
                         Layout.preferredWidth: 280
+                        implicitHeight: 36
 
                         // ── Custom dark style ──
                         background: Rectangle {
@@ -165,6 +171,7 @@ Flickable {
                             backend.setAutoLangModeFromCombo(currentIndex)
                         }
                         Layout.preferredWidth: 280
+                        implicitHeight: 36
 
                         background: Rectangle {
                             radius: StyleTokens.radiusMd; color: langModeCombo.hovered ? "#252a38" : "#161a24"
