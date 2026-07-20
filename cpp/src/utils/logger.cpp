@@ -87,9 +87,13 @@ static void shadowMessageHandler(QtMsgType type,
                                   const QString& msg)
 {
     // ── Production: skip debug messages entirely ──
+    // QML console.log() is QtDebugMsg — not written by default.
+    // QML console.info() is QtInfoMsg — enabled via filter rules.
+    // Use console.info("[UI] ...") in QML for page navigation logs.
     if (type == QtDebugMsg) return;
 
     // ── Filter QML engine runtime noise (binding loops, non-existent properties) ──
+    // Keep only warning-level noise suppression; info/debug from QML can pass.
     if (type == QtWarningMsg) {
         QString cat = ctx.category ? QString::fromLatin1(ctx.category) : QString();
         if (cat == QStringLiteral("qml") || cat == QStringLiteral("default"))
@@ -188,8 +192,8 @@ void installFileLogger(const QString& exeDir)
         QStringLiteral(
             "Shadow.*.debug=false\n"
             "Shadow.*.info=true\n"
+            "qml.info=true\n"
             "qml.debug=false\n"
-            "qml.info=false\n"
             "default.debug=false\n"));
 
     qCInfo(logApp) << QStringLiteral("日志系统已就绪");

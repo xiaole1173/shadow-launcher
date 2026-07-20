@@ -387,6 +387,7 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         page.currentTab = index
+                        console.info("[UI] 切Tab " + (index < tabLabels.length ? tabLabels[index] : index))
                     }
                 }
             }
@@ -755,6 +756,7 @@ Rectangle {
                             if (model.versionId) {
                                 page.selectedVersionId = model.versionId
                                 if (backend) backend.logMessage("[download-ui] card clicked: " + model.versionId + " -> InstallPage")
+                                console.info("[UI] 安装版本 vid=" + model.versionId)
                                 if (page.mainWindow) {
                                     page.mainWindow.installMcVersion = model.versionId
                                     page.mainWindow.showInstallPage = true
@@ -1457,6 +1459,7 @@ Rectangle {
                                 page._modDetailDesc = model.desc || ""
                                 page._modDetailIcon = model.icon || ""
                                 page._showModDetail = true
+                                console.info("[UI] 打开 模组详情 slug=" + model.slug)
                             }
                         }
                     }
@@ -2066,6 +2069,7 @@ Rectangle {
                             page._shaderDetailDesc = model.desc || ""
                             page._shaderDetailIcon = model.icon || ""
                             page._showShaderDetail = true
+                            console.info("[UI] 打开 光影详情 slug=" + model.slug)
                         }
                     }
 
@@ -3006,6 +3010,7 @@ Rectangle {
                                 page._rpDetailTitle = model.title
                                 page._rpDetailDownloads = model.downloads || 0
                                 page._rpDetailUpdated = model.updated || ""
+                                console.info("[UI] 打开 资源包详情 slug=" + model.slug)
                                 page._showRpDetail = true
                             }
                         }

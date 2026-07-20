@@ -23,8 +23,9 @@ Item {
                 versionSelectLoader.item.backend = backend
                 versionSelectLoader.item.toastManager = toastManager
                 versionSelectLoader.item.mainWindow = appWindow
-                versionSelectLoader.item.goBack.connect(function() { showVersionSelect = false })
-                versionSelectLoader.item.versionSelected.connect(function(vid) {
+                console.info("[UI] 打开 版本选择")
+                versionSelectLoader.item.goBack.connect(function() { showVersionSelect = false; console.info("[UI] 返回 版本选择") })
+                versionSelectLoader.item.versionSelected.connect(function(vid) { console.info("[UI] 选择版本 " + vid)
                     showVersionSelect = false
                 })
             }
@@ -50,6 +51,7 @@ Item {
             onLoaded: {
                 versionSettingsLoader.item.backend = backend
                 versionSettingsLoader.item.currentVersionId = currentSelectedVersion
+                console.info("[UI] 打开 版本设置 version=" + currentSelectedVersion)
                 versionSettingsLoader.item.goBack.connect(function() { showVersionSettings = false })
             }
         }
@@ -73,6 +75,7 @@ Item {
             source: showGeneralSettings ? "SettingsGeneralPage.qml" : ""
             onLoaded: {
                 settingsGeneralLoader.item.backend = backend
+                console.info("[UI] 打开 通用设置")
                 settingsGeneralLoader.item.goBack.connect(function() { showGeneralSettings = false })
             }
         }
@@ -97,6 +100,7 @@ Item {
             onLoaded: {
                 settingsJavaLoader.item.backend = backend
                 settingsJavaLoader.item.toastManager = toastManager
+                console.info("[UI] 打开 Java设置")
                 settingsJavaLoader.item.goBack.connect(function() { showJavaSettings = false })
             }
         }
@@ -120,6 +124,7 @@ Item {
             source: showMemorySettings ? "SettingsMemoryPage.qml" : ""
             onLoaded: {
                 settingsMemoryLoader.item.backend = backend
+                console.info("[UI] 打开 内存设置")
                 if (settingsMemoryLoader.item.refreshAll) settingsMemoryLoader.item.refreshAll()
                 settingsMemoryLoader.item.goBack.connect(function() { showMemorySettings = false })
             }
