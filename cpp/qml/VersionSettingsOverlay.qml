@@ -218,6 +218,7 @@ Rectangle {
             Layout.preferredWidth: 170; Layout.fillHeight: true; color: "transparent"
             property var sectionModel: [
                 { text: qsTr("概览"), icon: "" },
+                { text: qsTr("登录"), icon: "" },
                 { text: qsTr("启动配置"), icon: "" },
                 { text: qsTr("内存设置"), icon: "" },
                 { text: qsTr("Mod 管理"), icon: "" },
@@ -468,10 +469,30 @@ Rectangle {
                 Item { Layout.fillHeight: true }
             }
 
-            // Section 1: 启动配置 ===
+            // Section 1: 登录 ===
             Item {
                 anchors.fill: parent
                 opacity: settingsNav.currentIndex === 1 ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                Loader {
+                    id: loginSettingsLoader
+                    anchors.fill: parent
+                    source: "VersionLoginSection.qml"
+                    asynchronous: false
+                    active: settingsNav.currentIndex === 1
+                    onLoaded: {
+                        item.backend = backend
+                        item.toastManager = toastManager
+                        item.currentSelectedVersion = Qt.binding(function() { return currentSelectedVersion })
+                    }
+                }
+            }
+
+            // Section 2: 启动配置 ===
+            Item {
+                anchors.fill: parent
+                opacity: settingsNav.currentIndex === 2 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                 Loader {
@@ -479,7 +500,7 @@ Rectangle {
                     anchors.fill: parent
                     source: "VersionLaunchSection.qml"
                     asynchronous: false
-                    active: settingsNav.currentIndex === 1
+                    active: settingsNav.currentIndex === 2
                     onLoaded: {
                         item.backend = backend
                         item.toastManager = toastManager
@@ -492,7 +513,7 @@ Rectangle {
             // Section 2: 内存设置 ===
             Item {
                 anchors.fill: parent
-                opacity: settingsNav.currentIndex === 2 ? 1 : 0
+                opacity: settingsNav.currentIndex === 3 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                 Loader {
@@ -500,7 +521,7 @@ Rectangle {
                     anchors.fill: parent
                     source: "VersionMemorySection.qml"
                     asynchronous: false
-                    active: settingsNav.currentIndex === 2
+                    active: settingsNav.currentIndex === 3
                     onLoaded: {
                         item.backend = backend
                         item.currentSelectedVersion = Qt.binding(function() { return currentSelectedVersion })
@@ -514,7 +535,7 @@ Rectangle {
             Item {
                 id: modSection
                 anchors.fill: parent; anchors.margins: 24
-                opacity: settingsNav.currentIndex === 3 ? 1 : 0
+                opacity: settingsNav.currentIndex === 4 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
@@ -791,7 +812,7 @@ Rectangle {
             Item {
                 id: rpSection
                 anchors.fill: parent; anchors.margins: 24
-                opacity: settingsNav.currentIndex === 4 ? 1 : 0
+                opacity: settingsNav.currentIndex === 5 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
@@ -1028,7 +1049,7 @@ Rectangle {
             ColumnLayout {
                 id: saveSection
                 anchors.fill: parent; anchors.margins: 24; spacing: 8
-                opacity: settingsNav.currentIndex === 5 ? 1 : 0
+                opacity: settingsNav.currentIndex === 6 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
@@ -1143,7 +1164,7 @@ Rectangle {
             // Section 6: 工具与维护
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 24; spacing: 12
-                opacity: settingsNav.currentIndex === 6 ? 1 : 0
+                opacity: settingsNav.currentIndex === 7 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
