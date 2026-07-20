@@ -23,7 +23,9 @@ public:
     // ---- API ----
     void start(const QString& versionId, const QString& javaPath,
                int maxMemoryMB, const QString& jvmArgs = {}, const QString& gameArgs = {},
-               bool highPerfGpu = false);
+               bool highPerfGpu = false,
+               const QString& resolvedJsonPath = QString(),
+               const QString& resolvedJarPath = QString());
     void cancel();
     void killProcess();
     qint64 pid() const { return m_pid; }
@@ -70,6 +72,8 @@ private:
     void ensureOptionsTxt();
     static bool evaluateRules(const QJsonArray& rules);
     static bool evaluateRule(const QJsonObject& rule);
+    /// 在版本目录中查找有效的版本 JSON（支持目录名≠文件名）
+    static QString findVersionJson(const QString& verDir, const QString& dirName);
     void ensureLegacyAssets(const QString& assetIndexId);
 
     QProcess* m_process = nullptr;

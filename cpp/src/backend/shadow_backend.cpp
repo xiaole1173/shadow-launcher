@@ -887,49 +887,12 @@ void ShadowBackend::refreshVersionDetails()
         if (v.releaseTime.isValid())
             releaseTimes[v.id] = v.releaseTime;
     }
-    // Helper: find a valid version json in a directory (flexible scanning)
-    auto findVersionJson = [](const QString& dirPath, const QString& dirName) -> QString {
-        // Fast path: {dirName}/{dirName}.json
-        QString path = dirPath + QStringLiteral("/") + dirName + QStringLiteral(".json");
-        QFile f(path);
-        if (f.open(QIODevice::ReadOnly)) {
-            QJsonParseError err;
-            QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-            f.close();
-            if (err.error == QJsonParseError::NoError && doc.isObject()
-                && doc.object().contains(QStringLiteral("mainClass")))
-                return path;
-        }
-        // Slow path: scan all .json files
-        QDir vdir(dirPath);
-        const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
-        for (const QString& jf : jsons) {
-            if (jf == dirName + QStringLiteral(".json")) continue;
-            if (jf == QStringLiteral("authlib-injector.json")) continue;
-            path = dirPath + QStringLiteral("/") + jf;
-            QFile jf2(path);
-            if (jf2.open(QIODevice::ReadOnly)) {
-                QJsonParseError err;
-                QJsonDocument doc = QJsonDocument::fromJson(jf2.readAll(), &err);
-                jf2.close();
-                if (err.error == QJsonParseError::NoError && doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    if (obj.contains(QStringLiteral("mainClass"))
-                        && obj.contains(QStringLiteral("type"))
-                        && obj.contains(QStringLiteral("id")))
-                        return path;
-                }
-            }
-        }
-        return QString();
-    };
-
     for (const QString& versionId : entries) {
         QString verPath = versionsDir.filePath(versionId);
 
-        // === Find version JSON (flexible) ===
-        QString jsonPath = findVersionJson(verPath, versionId);
-        if (jsonPath.isEmpty()) continue;  // no valid version json found
+        // === Find version JSON (flexible static helper) ===
+        QString jsonPath = VersionBackend::findVersionJson(verPath, versionId);
+        if (jsonPath.isEmpty()) continue;
 
         // Parse JSON to get the real version id
         QFile jf(jsonPath);
@@ -940,32 +903,8 @@ void ShadowBackend::refreshVersionDetails()
             if (doc.isObject()) verJson = doc.object();
         }
 
-        // === Find the main JAR (flexible) ===
-        // 1. Try {dir}/{dir}.jar
-        QString jarPath = verPath + QStringLiteral("/") + versionId + QStringLiteral(".jar");
-        // 2. Try JSON's "jar" field if set and different from dir name
-        if (!QFileInfo::exists(jarPath) && verJson.contains(QStringLiteral("jar"))) {
-            QString jarName = verJson.value(QStringLiteral("jar")).toString();
-            if (!jarName.isEmpty() && jarName != versionId)
-                jarPath = verPath + QStringLiteral("/") + jarName + QStringLiteral(".jar");
-        }
-        // 3. Scan any .jar files in the directory
-        if (!QFileInfo::exists(jarPath)) {
-            QDir vd(verPath);
-            const QStringList jars = vd.entryList(QStringList() << QStringLiteral("*.jar"), QDir::Files);
-            for (const QString& jfile : jars) {
-                // Skip authlib-injector and other non-version jars
-                if (jfile.contains(QStringLiteral("authlib-injector"))
-                    || jfile.contains(QStringLiteral("nide8auth")))
-                    continue;
-                QString candPath = verPath + QStringLiteral("/") + jfile;
-                // Skip version json, small files (< 1MB) that can't be MC
-                QFileInfo fi(candPath);
-                if (fi.size() < 1024 * 1024) continue;
-                jarPath = candPath;
-                break;
-            }
-        }
+        // === Find the main JAR (flexible static helper) ===
+        QString jarPath = VersionBackend::findVersionJar(verPath, versionId);
         // If no jar found, that's OK — loader versions inherit from vanilla
 
         QVariantMap detail;

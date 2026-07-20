@@ -118,6 +118,8 @@ private:
     QTimer* m_refreshTimeoutTimer = nullptr;  // Cancel on crash to avoid stale abort
     int m_checkStep = 0;
     QString m_pendingVersionId;
+    QString m_resolvedJsonPath;  // flexible json path (set during check step 2)
+    QString m_resolvedJarPath;   // flexible jar path
     QString m_pendingJavaPath;
     int m_pendingMaxMemory = 0;
     QString m_pendingJvmArgs;

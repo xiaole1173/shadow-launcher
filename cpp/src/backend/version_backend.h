@@ -199,6 +199,12 @@ public:
     }
     QString selectedVersion() const { return m_selectedVersion; }
 
+    // ── 版本文件查找工具（灵活扫描，目录名≠文件名时使用）──
+    /// 在版本目录中查找有效的版本 JSON，返回路径或空字符串
+    static QString findVersionJson(const QString& verDir, const QString& dirName);
+    /// 在版本目录中查找主 JAR，返回路径或空字符串
+    static QString findVersionJar(const QString& verDir, const QString& dirName);
+
     Q_INVOKABLE void setGameDir(const QString& dir);
     void setIsolation(class VersionIsolation* iso) { m_isolation = iso; }
 
