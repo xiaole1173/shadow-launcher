@@ -25,7 +25,8 @@ public:
                int maxMemoryMB, const QString& jvmArgs = {}, const QString& gameArgs = {},
                bool highPerfGpu = false,
                const QString& resolvedJsonPath = QString(),
-               const QString& resolvedJarPath = QString());
+               const QString& resolvedJarPath = QString(),
+               const QStringList& extraJvmArgs = {});
     void cancel();
     void killProcess();
     qint64 pid() const { return m_pid; }
