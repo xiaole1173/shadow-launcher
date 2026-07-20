@@ -87,8 +87,10 @@ bool writeOptionsTxt(const QString& versionGameDir, const QString& mcLangCode)
         while (!stream.atEnd()) {
             QString line = stream.readLine().trimmed();
             if (line.startsWith(QStringLiteral("lang:"))) {
-                lines.append(langLine);
-                foundLang = true;
+                // Already has a language setting — user may have changed it.
+                // Do NOT overwrite; respect existing preference.
+                file.close();
+                return true;
             } else if (!line.isEmpty()) {
                 lines.append(line);
             }
@@ -96,9 +98,8 @@ bool writeOptionsTxt(const QString& versionGameDir, const QString& mcLangCode)
         file.close();
     }
 
-    if (!foundLang) {
-        lines.append(langLine);
-    }
+    // No lang: line exists — first launch, write auto-detected language
+    lines.append(langLine);
 
     // Write back
     QDir().mkpath(versionGameDir);

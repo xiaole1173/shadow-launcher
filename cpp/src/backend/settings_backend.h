@@ -97,6 +97,7 @@ public:
     Q_INVOKABLE QVariantList availableJavaList();
     Q_INVOKABLE void selectJavaByIndex(int index);
     Q_INVOKABLE QString findJavaForVersion(int requiredMajor);
+    Q_INVOKABLE int getJavaMajorVersion(const QString& path);
     Q_INVOKABLE QString openJavaFileDialog();
     Q_INVOKABLE QString browseJava();          // QML alias
     void setMinecraftDir(const QString& dir);

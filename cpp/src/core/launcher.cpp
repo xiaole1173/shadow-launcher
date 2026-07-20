@@ -94,6 +94,28 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     m_currentVersionId = versionId;
     m_cancelling = false;
 
+    // Detect Java major version from the executable (used by buildArgs for --add-opens)
+    {
+        QProcess javap;
+        javap.start(javaPath, {QStringLiteral("-version")});
+        javap.waitForFinished(5000);
+        QString output = QString::fromLocal8Bit(javap.readAllStandardError());
+        if (output.isEmpty()) output = QString::fromLocal8Bit(javap.readAllStandardOutput());
+        QRegularExpression jre(QStringLiteral("version\\s+\"([^\"]+)\""));
+        auto m = jre.match(output);
+        if (m.hasMatch()) {
+            QString ver = m.captured(1);
+            ver.replace(QLatin1Char('_'), QLatin1Char('.'));
+            QStringList parts = ver.split(QLatin1Char('.'));
+            if (!parts.isEmpty()) {
+                // Java 8 reports as "1.8.0_xxx" → major=8; Java 9+ reports as "9", "17", "25"
+                int v = parts[0].toInt();
+                if (v == 1 && parts.size() >= 2) v = parts[1].toInt();
+                m_javaMajorVersion = v;
+            }
+        }
+    }
+
     // --- Load version JSON ---
     QString jsonPath = m_gameDir + QStringLiteral("/versions/") + versionId
                        + QStringLiteral("/") + versionId + QStringLiteral(".json");
@@ -128,7 +150,53 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
 
     emit launchProgress(tr("启动 Minecraft %1...").arg(versionId));
 
-    m_process->setWorkingDirectory(m_gameDir);
+    m_process->setWorkingDirectory(m_versionGameDir);
+
+    // Pre-1.6: override APPDATA env var so getAppDir("minecraft") returns our game dir.
+    // Old Minecraft (net.minecraft.client.Minecraft) never reads --gameDir;
+    // its getAppDir("minecraft") constructs the path as %APPDATA%\.minecraft.
+    // Shared mode:  m_versionGameDir ends in ".minecraft" → set APPDATA to its parent.
+    // Isolated mode: m_versionGameDir = versions/{id}/game →
+    //   create a junction .minecraft→game inside the version dir,
+    //   then set APPDATA to the version dir so getAppDir lands on the junction.
+    {
+        static const QRegularExpression pre16Rgx(QStringLiteral(R"(^1\.(\d+))"));
+        auto pre16M = pre16Rgx.match(m_currentVersionId);
+        bool isPre16 = pre16M.hasMatch() && pre16M.captured(1).toInt() < 6;
+        if (isPre16) {
+            auto env = m_process->processEnvironment();
+            QString versionGameDir = QDir::toNativeSeparators(
+                QDir(m_versionGameDir).absolutePath());
+
+            if (versionGameDir.endsWith(QStringLiteral("\.minecraft"))) {
+                // Shared mode: set APPDATA to parent so getAppDir → m_versionGameDir
+                QDir parentDir(m_versionGameDir);
+                parentDir.cdUp();
+                env.insert(QStringLiteral("APPDATA"),
+                           QDir::toNativeSeparators(parentDir.absolutePath()));
+            } else {
+                // Isolated mode: version game dir is versions/{id}/game
+                // getAppDir("minecraft") always appends ".minecraft" —
+                // create a junction at versions/{id}/.minecraft → game
+                // so %APPDATA%\.minecraft walks through the junction into game/.
+                QDir gameDir(m_versionGameDir);
+                gameDir.cdUp();  // now at versions/{id}/
+                QString versionDir = QDir::toNativeSeparators(gameDir.absolutePath());
+                QString junction = versionDir + QDir::separator() + QStringLiteral(".minecraft");
+                if (!QFileInfo::exists(junction)) {
+                    QProcess mklink;
+                    mklink.start(QStringLiteral("cmd"),
+                                 {QStringLiteral("/c"), QStringLiteral("mklink"),
+                                  QStringLiteral("/J"),
+                                  QDir::toNativeSeparators(junction),
+                                  QDir::toNativeSeparators(m_versionGameDir)});
+                    mklink.waitForFinished(5000);
+                }
+                env.insert(QStringLiteral("APPDATA"), versionDir);
+            }
+            m_process->setProcessEnvironment(env);
+        }
+    }
 
     // High-performance GPU: set env vars for NVIDIA Optimus / AMD Switchable Graphics
     if (m_highPerfGpu) {
@@ -573,6 +641,24 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << QString::fromLatin1(arg);
     }
 
+    // LWJGL 2 (pre-1.13) with Java 9+ needs --add-opens for reflection access
+    // Java 8 doesn't support --add-opens (unrecognized option → crash)
+    if (m_javaMajorVersion >= 9) {
+        static const QRegularExpression lwjgl2Ver(QStringLiteral(R"(^1\.(\d+))"));
+        QRegularExpressionMatch verMatch = lwjgl2Ver.match(versionId);
+        if (verMatch.hasMatch()) {
+            bool ok = false;
+            int minor = verMatch.captured(1).toInt(&ok);
+            if (ok && minor < 13) {
+                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.lang=ALL-UNNAMED");
+                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.util=ALL-UNNAMED");
+                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.lang.reflect=ALL-UNNAMED");
+                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.text=ALL-UNNAMED");
+                args << QStringLiteral("--add-opens") << QStringLiteral("java.desktop/java.awt=ALL-UNNAMED");
+            }
+        }
+    }
+
     // Append user-provided custom JVM args (space-separated, may override defaults)
     if (!m_jvmArgs.isEmpty()) {
         const QStringList customArgs = m_jvmArgs.split(QRegularExpression(QStringLiteral("\\s+")),
@@ -633,6 +719,14 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     QString mainClass = versionJson[QStringLiteral("mainClass")].toString();
     if (mainClass.isEmpty()) {
         mainClass = QStringLiteral("net.minecraft.client.main.Main");
+    }
+    // Pre-1.6 JSONs may have mainClass hijacked to launchwrapper.Launch by version APIs,
+    // but the actual JAR doesn't contain launchwrapper — use Minecraft's original main class
+    static const QRegularExpression pre16Ver(QStringLiteral(R"(^1\.(\d+))"));
+    QRegularExpressionMatch pre16Match = pre16Ver.match(versionId);
+    const bool isPre16 = pre16Match.hasMatch() && pre16Match.captured(1).toInt() < 6;
+    if (isPre16) {
+        mainClass = QStringLiteral("net.minecraft.client.Minecraft");
     }
     args << mainClass;
 
@@ -790,6 +884,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${auth_player_name}"), m_authName.isEmpty() ? QStringLiteral("{username}") : m_authName);
             arg.replace(QStringLiteral("${version_name}"), versionId);
             arg.replace(QStringLiteral("${game_directory}"),
+                        !m_versionGameDir.isEmpty() ? m_versionGameDir :
                         m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
             arg.replace(QStringLiteral("${assets_root}"),
                         m_gameDir + QStringLiteral("/assets"));
@@ -1010,12 +1105,24 @@ void Launcher::ensureOptionsTxt()
     } else {
         mcLang = mc_language::localeToMinecraftLang(QLocale::system());
     }
+
+    // Minecraft 1.10 及更早版本的语言代码末两位必须大写
+    // (如 zh_cn -> zh_CN, en_us -> en_US)，否则语言设置不生效
+    // 1.11+ 使用全小写, 1.0- 无语言选项
+    static const QRegularExpression reVer(QStringLiteral(R"(^1\.(\d+))"));
+    QRegularExpressionMatch match = reVer.match(m_currentVersionId);
+    if (match.hasMatch()) {
+        bool ok = false;
+        int minorVer = match.captured(1).toInt(&ok);
+        if (ok && minorVer <= 10 && mcLang.length() >= 2) {
+            // 末两位转大写: zh_cn -> zh_CN, en_us -> en_US, fr_fr -> fr_FR
+            mcLang = mcLang.left(mcLang.length() - 2)
+                   + mcLang.right(2).toUpper();
+        }
+    }
+
     mc_language::writeOptionsTxt(m_versionGameDir, mcLang);
 }
-
-// ============================================================
-// Helpers — Rules Evaluation (1.13+ arguments)
-// ============================================================
 
 bool Launcher::evaluateRule(const QJsonObject& rule)
 {
@@ -1037,7 +1144,7 @@ bool Launcher::evaluateRule(const QJsonObject& rule)
 
     // Check feature constraints — normal user has ZERO special features
     if (rule.contains(QStringLiteral("features")) && !rule[QStringLiteral("features")].toObject().isEmpty()) {
-        return false;  // any unknown feature → not a match for normal user
+        return false;  // any unknown feature — not a match for normal user
     }
 
     return (action == QStringLiteral("allow"));
