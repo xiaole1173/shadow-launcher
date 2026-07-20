@@ -91,6 +91,18 @@ public:
 
     Q_INVOKABLE int versionHighPerfGpuMode(const QString& versionId) const;
     Q_INVOKABLE void setVersionHighPerfGpuMode(const QString& versionId, int mode);
+
+    // ── Per-version third-party login settings ──
+    Q_INVOKABLE int versionLoginType(const QString& versionId) const;
+    Q_INVOKABLE void setVersionLoginType(const QString& versionId, int type);
+    Q_INVOKABLE QString versionAuthServer(const QString& versionId) const;
+    Q_INVOKABLE void setVersionAuthServer(const QString& versionId, const QString& url);
+    Q_INVOKABLE QString versionAuthRegisterUrl(const QString& versionId) const;
+    Q_INVOKABLE void setVersionAuthRegisterUrl(const QString& versionId, const QString& url);
+    Q_INVOKABLE QString versionLoginUsername(const QString& versionId) const;
+    Q_INVOKABLE void setVersionLoginUsername(const QString& versionId, const QString& username);
+    Q_INVOKABLE QString versionLoginPassword(const QString& versionId) const;
+    Q_INVOKABLE void setVersionLoginPassword(const QString& versionId, const QString& password);
     Q_INVOKABLE bool versionHighPerfGpu(const QString& versionId) const;
     Q_INVOKABLE void setVersionHighPerfGpu(const QString& versionId, bool v);
 

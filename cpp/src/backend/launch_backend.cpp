@@ -15,6 +15,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMap>
+#include "../core/http_client.h"
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -87,6 +88,10 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     m_pendingJvmArgs = jvmArgs;
     m_pendingGameArgs = gameArgs;
     m_pendingHighPerfGpu = highPerfGpu;
+    m_pendingLoginType = 0;
+    m_pendingAuthServer.clear();
+    m_pendingLoginUsername.clear();
+    m_extraJvmArgs.clear();
     m_checkStep = 0;
 
     if (!m_checkTimer) {
@@ -160,6 +165,151 @@ void LaunchBackend::setAuthInfo(const QString& username, const QString& uuid,
     m_authToken = accessToken;
     m_authIsOnline = isOnline;
 }
+
+// ============================================================
+// Third-party login
+// ============================================================
+
+void LaunchBackend::setLaunchThirdPartyLogin(int loginType, const QString& authServer,
+                                              const QString& loginUsername)
+{
+    m_pendingLoginType = loginType;
+    m_pendingAuthServer = authServer;
+    m_pendingLoginUsername = loginUsername;
+}
+
+// ============================================================
+// Async third-party login helpers (using HttpClient)
+// ============================================================
+
+void LaunchBackend::advanceToNextCheckStep()
+{
+    m_checkStep++;
+    // Restart timer to continue flow (small delay avoids tight loop)
+    QTimer::singleShot(0, this, [this]() {
+        runNextCheck();
+    });
+}
+
+void LaunchBackend::startAuthlibInjectorPrep()
+{
+    HttpClient* client = &HttpClient::instance();
+    client->get(QStringLiteral(
+        "https://authlib-injector.yushi.moe/artifact/latest.json"),
+        [this, client](int status, const QByteArray& body) {
+            Q_UNUSED(status);
+            QJsonDocument doc = QJsonDocument::fromJson(body);
+            if (doc.isObject()) {
+                QString downloadUrl = doc.object().value(QStringLiteral("download_url")).toString();
+                m_authlibDownloadUrl = downloadUrl;
+                m_authlibMirrorUrl = downloadUrl;
+                m_authlibMirrorUrl.replace(QStringLiteral("authlib-injector.yushi.moe"),
+                                           QStringLiteral("bmclapi2.bangbang93.com/mirrors/authlib-injector"));
+            }
+                        // Start download
+            emit launchCheckProgress(tr("下载 Authlib-Injector..."));
+            emit launchProgressChanged(76, tr("下载 Authlib-Injector..."));
+            HttpClient* dlClient = &HttpClient::instance();
+            dlClient->download(m_authlibDownloadUrl, m_authlibJarPath,
+                [](qint64, qint64) {},  // progress
+                [this, dlClient](bool ok, const QString& err) {
+                    Q_UNUSED(err);
+                    if (ok) {
+                        qCInfo(logLaunch) << "authlib-injector.jar 下载完成";
+                    } else if (!m_authlibMirrorUrl.isEmpty()) {
+                        // 尝试镜像
+                        emit launchCheckProgress(tr("从镜像下载 Authlib-Injector..."));
+                        HttpClient* mirrorClient = &HttpClient::instance();
+                        mirrorClient->download(m_authlibMirrorUrl, m_authlibJarPath,
+                            [](qint64, qint64) {},
+                            [this, mirrorClient](bool ok2, const QString&) {
+                                if (ok2)
+                                    qCInfo(logLaunch) << "authlib-injector.jar 从镜像下载完成";
+                                else
+                                    emit launchCheckWarning(tr("authlib-injector.jar 下载失败，可能无法启动"));
+                                                            });
+                    }
+                                        emit launchCheckProgress(tr("预取第三方登录服务器信息..."));
+                    startAuthlibPrefetch();
+                });
+        },
+        [this, client](const QString& error) {
+            qCWarning(logLaunch) << "Authlib-Injector 元信息获取失败:" << error;
+                        emit launchCheckWarning(tr("获取 Authlib-Injector 下载信息失败"));
+            advanceToNextCheckStep();
+        });
+}
+
+void LaunchBackend::startAuthlibPrefetch()
+{
+    if (m_pendingAuthServer.isEmpty()) {
+        qCWarning(logLaunch) << "Authlib Injector: 服务器地址为空，跳过预取";
+        advanceToNextCheckStep();
+        return;
+    }
+    HttpClient* client = &HttpClient::instance();
+    client->get(m_pendingAuthServer,
+        [this, client](int status, const QByteArray& body) {
+            Q_UNUSED(status);
+            if (!body.isEmpty()) {
+                QString prefetched = QString::fromLatin1(body.toBase64());
+                m_extraJvmArgs << QStringLiteral("-javaagent:\"") + m_authlibJarPath
+                                 + QStringLiteral("\"=\"") + m_pendingAuthServer + QStringLiteral("\"");
+                m_extraJvmArgs << QStringLiteral("-Dauthlibinjector.side=client");
+                m_extraJvmArgs << QStringLiteral("-Dauthlibinjector.yggdrasil.prefetched=") + prefetched;
+                qCInfo(logLaunch) << "Authlib Injector prefetch 完成，已构建 JVM 参数";
+            } else {
+                emit launchCheckWarning(tr("Authlib Injector 预取数据为空"));
+            }
+                        advanceToNextCheckStep();
+        },
+        [this, client](const QString& error) {
+            qCWarning(logLaunch) << "Authlib Injector prefetch 失败:" << error;
+            emit launchCheckWarning(tr("Authlib Injector 预取失败，服务器可能不可用"));
+                        advanceToNextCheckStep();
+        });
+}
+
+
+void LaunchBackend::startNide8Prep()
+{
+    if (m_pendingAuthServer.isEmpty()) {
+        qCWarning(logLaunch) << "Nide8Auth: 服务器地址为空";
+        advanceToNextCheckStep();
+        return;
+    }
+    HttpClient* client = &HttpClient::instance();
+    client->get(QStringLiteral("https://auth.mc-user.com:233/") + m_pendingAuthServer,
+        [this, client](int status, const QByteArray& body) {
+            Q_UNUSED(status);
+                        // 下载 nide8auth.jar
+            emit launchCheckProgress(tr("下载 Nide8Auth..."));
+            emit launchProgressChanged(76, tr("下载 Nide8Auth..."));
+            HttpClient* dlClient = &HttpClient::instance();
+            dlClient->download(QStringLiteral("https://login.mc-user.com:233/index/jar"),
+                m_nide8JarPath,
+                [](qint64, qint64) {},
+                [this, dlClient](bool ok, const QString&) {
+                    if (ok) {
+                        qCInfo(logLaunch) << "nide8auth.jar 下载完成";
+                        if (QFileInfo::exists(m_nide8JarPath) && !m_pendingAuthServer.isEmpty()) {
+                            m_extraJvmArgs << QStringLiteral("-javaagent:\"") + m_nide8JarPath
+                                             + QStringLiteral("\"=\"") + m_pendingAuthServer + QStringLiteral("\"");
+                        }
+                    } else {
+                        emit launchCheckWarning(tr("nide8auth.jar 下载失败，可能无法启动"));
+                    }
+                                        advanceToNextCheckStep();
+                });
+        },
+        [this, client](const QString& error) {
+            qCWarning(logLaunch) << "Nide8Auth 元信息获取失败:" << error;
+                        emit launchCheckWarning(tr("获取统一通行证信息失败"));
+            advanceToNextCheckStep();
+        });
+}
+
+
 
 // ============================================================
 // Slot: getAutoMemory
@@ -521,12 +671,57 @@ void LaunchBackend::runNextCheck()
         break;
     }
     case 5: {
-        // Step 5 (75%): Launch
+        // Step 5 (75%): Third-party login setup (async)
+        m_extraJvmArgs.clear();
+        if (m_pendingLoginType == 1) {  // AuthlibInjector
+            qCDebug(logLaunch) << "[PROGRESS] 75% - 准备第三方登录...";
+            QString versionDir = m_gameDir + QStringLiteral("/versions/") + m_pendingVersionId;
+            m_authlibJarPath = versionDir + QStringLiteral("/authlib-injector.jar");
+            m_authlibJarNeeded = !QFileInfo::exists(m_authlibJarPath);
+            if (m_authlibJarNeeded) {
+                m_checkTimer->stop();
+                emit launchCheckProgress(tr("获取 Authlib-Injector 下载信息..."));
+                emit launchProgressChanged(75, tr("获取 Authlib-Injector 下载信息..."));
+                startAuthlibInjectorPrep();
+                return;  // wait for callback
+            } else {
+                // jar 已有，直接 prefetch
+                m_checkTimer->stop();
+                emit launchCheckProgress(tr("预取第三方登录服务器信息..."));
+                emit launchProgressChanged(75, tr("预取第三方登录服务器信息..."));
+                startAuthlibPrefetch();
+                return;  // wait for callback
+            }
+        } else if (m_pendingLoginType == 2) {  // Nide8Auth
+            qCDebug(logLaunch) << "[PROGRESS] 75% - 准备统一通行证...";
+            QString versionDir = m_gameDir + QStringLiteral("/versions/") + m_pendingVersionId;
+            m_nide8JarPath = versionDir + QStringLiteral("/nide8auth.jar");
+            m_nide8JarNeeded = !QFileInfo::exists(m_nide8JarPath);
+            if (m_nide8JarNeeded) {
+                m_checkTimer->stop();
+                emit launchCheckProgress(tr("获取统一通行证下载信息..."));
+                emit launchProgressChanged(75, tr("获取统一通行证下载信息..."));
+                startNide8Prep();
+                return;  // wait for callback
+            } else {
+                // jar 已有，直接设置参数并继续
+                if (QFileInfo::exists(m_nide8JarPath) && !m_pendingAuthServer.isEmpty()) {
+                    m_extraJvmArgs << QStringLiteral("-javaagent:\"") + m_nide8JarPath
+                                     + QStringLiteral("\"=\"") + m_pendingAuthServer + QStringLiteral("\"");
+                }
+                qCInfo(logLaunch) << "Nide8Auth: jar 已存在，跳过下载";
+            }
+        }
+        qCInfo(logLaunch) << QStringLiteral("[启动前检查] 第三方登录配置完成");
+        break;
+    }
+    case 6: {
+        // Step 6 (80%): Launch
         m_checkTimer->stop();
         emit launchCheckProgress(tr("正在启动..."));
-        m_launchProgress = 75;
-        emit launchProgressChanged(75, tr("正在启动 Minecraft..."));
-        qCDebug(logLaunch) << "[PROGRESS] 75% - 正在启动 Minecraft...";
+        m_launchProgress = 80;
+        emit launchProgressChanged(80, tr("正在启动 Minecraft..."));
+        qCDebug(logLaunch) << "[PROGRESS] 80% - 正在启动 Minecraft...";
         Launcher* launcher = new Launcher(this);
         launcher->setGameDir(m_gameDir);
         launcher->setAuthInfo(m_authName, m_authUuid, m_authToken, m_authIsOnline);
@@ -535,13 +730,14 @@ void LaunchBackend::runNextCheck()
         launcher->setVersionGameDir(m_versionGameDir);
         launcher->setProperty("launchVersion", m_pendingVersionId);
         // Connect signals
-        m_activeLauncher = launcher;  // only this launcher's progress feeds the overlay
+        m_activeLauncher = launcher;
         connect(launcher, &Launcher::launchProgress, this, &LaunchBackend::onLaunchProgress);
         connect(launcher, &Launcher::launchStarted, this, [this, launcher]() { handleLaunchStarted(launcher); });
         connect(launcher, &Launcher::launchFinished, this, [this, launcher](bool ok, const QString& err) { handleLaunchFinished(launcher, ok, err); });
         launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory,
                         m_pendingJvmArgs, m_pendingGameArgs, m_pendingHighPerfGpu,
-                        m_resolvedJsonPath, m_resolvedJarPath);
+                        m_resolvedJsonPath, m_resolvedJarPath,
+                        m_extraJvmArgs);
         return;
     }
     default:
