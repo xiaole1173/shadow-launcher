@@ -2045,6 +2045,20 @@ bool ShadowBackend::resolvedHighPerfGpu(const QString& versionId) const {
 }
 
 // ============================================================
+// Per-version login settings (forwards to m_settings)
+// ============================================================
+int ShadowBackend::versionLoginType(const QString& versionId) const { return m_settings->versionLoginType(versionId); }
+void ShadowBackend::setVersionLoginType(const QString& versionId, int type) { m_settings->setVersionLoginType(versionId, type); }
+QString ShadowBackend::versionAuthServer(const QString& versionId) const { return m_settings->versionAuthServer(versionId); }
+void ShadowBackend::setVersionAuthServer(const QString& versionId, const QString& url) { m_settings->setVersionAuthServer(versionId, url); }
+QString ShadowBackend::versionAuthRegisterUrl(const QString& versionId) const { return m_settings->versionAuthRegisterUrl(versionId); }
+void ShadowBackend::setVersionAuthRegisterUrl(const QString& versionId, const QString& url) { m_settings->setVersionAuthRegisterUrl(versionId, url); }
+QString ShadowBackend::versionLoginUsername(const QString& versionId) const { return m_settings->versionLoginUsername(versionId); }
+void ShadowBackend::setVersionLoginUsername(const QString& versionId, const QString& username) { m_settings->setVersionLoginUsername(versionId, username); }
+QString ShadowBackend::versionLoginPassword(const QString& versionId) const { return m_settings->versionLoginPassword(versionId); }
+void ShadowBackend::setVersionLoginPassword(const QString& versionId, const QString& password) { m_settings->setVersionLoginPassword(versionId, password); }
+
+// ============================================================
 // Q_INVOKABLE methods — Resource
 // ============================================================
 

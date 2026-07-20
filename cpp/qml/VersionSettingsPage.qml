@@ -26,7 +26,7 @@ Rectangle {
 
     // ── Signals ─────────────────────────────────────────────────
     signal goBack()
-    signal authlibInjectorApplied(string url)
+    // signal authlibInjectorApplied(string url)  -- replaced by auto-save
 
     // ── Internal state ──────────────────────────────────────────
     property string _authlibMode: "none"      // "none" | "authlib" | "custom"
@@ -353,9 +353,9 @@ Rectangle {
                             }
                         }
 
-                        // ── 特殊登录选项 ──
+                        // ── 登录 ──
                         Text {
-                            text: qsTr("特殊登录选项")
+                            text: qsTr("登录")
                             font.pixelSize: StyleTokens.fontSizeMd
                             font.weight: Font.SemiBold
                             color: "#7E8596"
@@ -363,34 +363,13 @@ Rectangle {
                             Layout.topMargin: 8
                         }
 
-                        ColumnLayout {
-                            Layout.leftMargin: 4
-                            spacing: 8
-
-                            Text {
-                                text: qsTr("第三方登录")
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                font.weight: Font.SemiBold
-                                color: "#7E8596"
-                            }
-
-                            Text {
-                                text: qsTr("第三方登录允许您使用自定义认证服务器进行游戏。\n注意：第三方登录将优先于普通登录方式。")
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                color: "#7E8596"
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                lineHeight: 1.5
-                            }
-                        }
-
-                        // Authlib mode dropdown
+                        // Login mode dropdown
                         RowLayout {
                             Layout.leftMargin: 4
                             spacing: 12
 
                             Text {
-                                text: qsTr("认证方式")
+                                text: qsTr("登录方式")
                                 font.pixelSize: StyleTokens.fontSizeMd
                                 color: "#B4BAC6"
                                 Layout.preferredWidth: 70
@@ -401,23 +380,23 @@ Rectangle {
                                 height: 36
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: authComboHover.containsMouse ? "#3B82F6" : "#2A2F3A"
+                                border.color: loginComboHover.containsMouse ? "#3B82F6" : "#2A2F3A"
                                 border.width: 1
 
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
                                 ComboBox {
-                                    id: authModeCombo
+                                    id: loginModeCombo
                                     anchors.fill: parent
                                     anchors.margins: 1
-                                    model: ["无", "Authlib-Injector", "自定义"]
+                                    model: ["正版登录或离线登录", "Authlib-Injector", "统一通行证"]
                                     currentIndex: 0
                                     flat: true
 
                                     background: Item {}
                                     contentItem: Text {
                                         leftPadding: 10
-                                        text: authModeCombo.displayText
+                                        text: loginModeCombo.displayText
                                         font.pixelSize: StyleTokens.fontSizeMd
                                         color: "#B4BAC6"
                                         verticalAlignment: Text.AlignVCenter
@@ -432,7 +411,7 @@ Rectangle {
                                     }
 
                                     delegate: ItemDelegate {
-                                        width: authModeCombo.width
+                                        width: loginModeCombo.width
                                         height: 36
                                         contentItem: Text {
                                             text: modelData
@@ -448,8 +427,8 @@ Rectangle {
                                     }
 
                                     popup: Popup {
-                                        y: authModeCombo.height
-                                        width: authModeCombo.width
+                                        y: loginModeCombo.height
+                                        width: loginModeCombo.width
                                         height: implicitHeight
                                         padding: 4
                                         background: Rectangle {
@@ -460,20 +439,46 @@ Rectangle {
                                         contentItem: ListView {
                                             clip: true
                                             implicitHeight: contentHeight
-                                            model: authModeCombo.popup.visible ? authModeCombo.delegateModel : null
-                                            currentIndex: authModeCombo.highlightedIndex
+                                            model: loginModeCombo.popup.visible ? loginModeCombo.delegateModel : null
+                                            currentIndex: loginModeCombo.highlightedIndex
+                                        }
+                                    }
+
+                                    Component.onCompleted: {
+                                        if (backend) {
+                                            var savedType = backend.versionLoginType(page.currentVersionId)
+                                            loginModeCombo.currentIndex = savedType
+                                            _updateFields(savedType)
                                         }
                                     }
 
                                     onCurrentIndexChanged: {
-                                        if (currentIndex === 0) page._authlibMode = "none"
-                                        else if (currentIndex === 1) page._authlibMode = "authlib"
-                                        else page._authlibMode = "custom"
+                                        if (backend) {
+                                            backend.setVersionLoginType(page.currentVersionId, currentIndex)
+                                            _updateFields(currentIndex)
+                                        }
+                                    }
+
+                                    function _updateFields(type) {
+                                        authServerField.visible = type > 0
+                                        registerUrlField.visible = type === 1
+                                        if (type > 0 && backend) {
+                                            var saved = backend.versionAuthServer(page.currentVersionId)
+                                            if (saved)
+                                                authServerField.text = saved
+                                            else
+                                                authServerField.text = type === 1 ? "https://littleskin.cn/api/yggdrasil" : ""
+                                            var savedReg = backend.versionAuthRegisterUrl(page.currentVersionId)
+                                            if (savedReg)
+                                                registerUrlField.text = savedReg
+                                            else
+                                                registerUrlField.text = ""
+                                        }
                                     }
                                 }
 
                                 MouseArea {
-                                    id: authComboHover
+                                    id: loginComboHover
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     hoverEnabled: true
@@ -482,14 +487,14 @@ Rectangle {
                             }
                         }
 
-                        // Authlib-Injector URL field
+                        // Auth server URL field
                         TextField {
-                            id: authlibUrlField
+                            id: authServerField
                             Layout.fillWidth: true
                             Layout.leftMargin: 82
                             Layout.rightMargin: 40
-                            visible: page._authlibMode === "authlib"
-                            placeholderText: "Authlib-Injector 服务器地址..."
+                            visible: false
+                            placeholderText: qsTr("认证服务器地址")
                             placeholderTextColor: "#5A6173"
                             color: StyleTokens.textPrimary
                             font.pixelSize: StyleTokens.fontSizeMd
@@ -500,71 +505,44 @@ Rectangle {
                             background: Rectangle {
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: authlibUrlField.activeFocus ? "#3B82F6" : "#2A2F3A"
+                                border.color: authServerField.activeFocus ? "#3B82F6" : "#2A2F3A"
                                 border.width: 1
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                             }
 
-                            onTextChanged: page._authlibUrl = text
+                            onEditingFinished: {
+                                if (backend)
+                                    backend.setVersionAuthServer(page.currentVersionId, text)
+                            }
                         }
 
-                        // Custom URL field
+                        // Auth register URL field
                         TextField {
-                            id: customUrlField
+                            id: registerUrlField
                             Layout.fillWidth: true
                             Layout.leftMargin: 82
                             Layout.rightMargin: 40
-                            visible: page._authlibMode === "custom"
-                            placeholderText: "自定义认证服务器地址..."
-                            placeholderTextColor: "#5A6173"
-                            color: StyleTokens.textPrimary
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            leftPadding: 12
-                            topPadding: 10
-                            bottomPadding: 10
-
-                            background: Rectangle {
-                                radius: StyleTokens.radiusLg
-                                color: StyleTokens.surfaceLight
-                                border.color: customUrlField.activeFocus ? "#3B82F6" : "#2A2F3A"
-                                border.width: 1
-                                Behavior on border.color { ColorAnimation { duration: 200 } }
-                            }
-
-                            onTextChanged: page._customUrl = text
-                        }
-
-                        // Apply button
-                        Rectangle {
-                            Layout.leftMargin: 82
                             Layout.topMargin: 8
-                            width: 80
-                            height: 34
-                            radius: StyleTokens.radiusLg
-                            color: applyAuthMouse.containsMouse ? "#2563EB" : "#3B82F6"
-                            scale: applyAuthMouse.containsMouse ? 1.04 : 1.0
+                            visible: false
+                            placeholderText: qsTr("认证注册链接")
+                            placeholderTextColor: "#5A6173"
+                            color: StyleTokens.textPrimary
+                            font.pixelSize: StyleTokens.fontSizeMd
+                            leftPadding: 12
+                            topPadding: 10
+                            bottomPadding: 10
 
-                            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-                            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: qsTr("应用")
-                                font.pixelSize: StyleTokens.fontSizeMd
-                                font.weight: Font.SemiBold
-                                color: StyleTokens.textInverse
+                            background: Rectangle {
+                                radius: StyleTokens.radiusLg
+                                color: StyleTokens.surfaceLight
+                                border.color: registerUrlField.activeFocus ? "#3B82F6" : "#2A2F3A"
+                                border.width: 1
+                                Behavior on border.color { ColorAnimation { duration: 200 } }
                             }
 
-                            MouseArea {
-                                id: applyAuthMouse
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                hoverEnabled: true
-                                onClicked: {
-                                    let url = page._authlibMode === "authlib" ? page._authlibUrl :
-                                              page._authlibMode === "custom"  ? page._customUrl : ""
-                                    page.authlibInjectorApplied(url)
-                                }
+                            onEditingFinished: {
+                                if (backend)
+                                    backend.setVersionAuthRegisterUrl(page.currentVersionId, text)
                             }
                         }
                     }
