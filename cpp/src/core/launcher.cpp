@@ -1005,7 +1005,12 @@ void Launcher::ensureOptionsTxt(const QString& versionId)
 {
     QString gameDir = m_gameDir + QStringLiteral("/versions/") + versionId
                       + QStringLiteral("/game");
-    QString mcLang = mc_language::localeToMinecraftLang(QLocale::system());
+    QString mcLang;
+    if (m_autoLangMode == 2 && !m_detectedRegion.isEmpty()) {
+        mcLang = mc_language::regionToMinecraftLang(m_detectedRegion);
+    } else {
+        mcLang = mc_language::localeToMinecraftLang(QLocale::system());
+    }
     mc_language::writeOptionsTxt(gameDir, mcLang);
 }
 

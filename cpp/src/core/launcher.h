@@ -38,6 +38,8 @@ public:
     QString gameArgs() const { return m_gameArgs; }
     /// Set auto-language mode (0=off, 1=system locale, 2=IP region)
     void setAutoLangMode(int mode) { m_autoLangMode = mode; }
+    /// Set detected region (ISO 3166-1 alpha-2) for mode=2
+    void setDetectedRegion(const QString& region) { m_detectedRegion = region; }
 
     void setAuthInfo(const QString& username, const QString& uuid, const QString& accessToken, bool isOnline) {
         m_authName = username;
@@ -81,6 +83,7 @@ private:
     bool m_isOnline = false;
     bool m_cancelling = false;
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
+    QString m_detectedRegion;
 };
 
 
