@@ -444,6 +444,18 @@ public:
     Q_INVOKABLE void setVersionHighPerfGpu(const QString& versionId, bool v);
     Q_INVOKABLE bool resolvedHighPerfGpu(const QString& versionId) const;
 
+    // ── Per-version login settings ──
+    Q_INVOKABLE int versionLoginType(const QString& versionId) const;
+    Q_INVOKABLE void setVersionLoginType(const QString& versionId, int type);
+    Q_INVOKABLE QString versionAuthServer(const QString& versionId) const;
+    Q_INVOKABLE void setVersionAuthServer(const QString& versionId, const QString& url);
+    Q_INVOKABLE QString versionAuthRegisterUrl(const QString& versionId) const;
+    Q_INVOKABLE void setVersionAuthRegisterUrl(const QString& versionId, const QString& url);
+    Q_INVOKABLE QString versionLoginUsername(const QString& versionId) const;
+    Q_INVOKABLE void setVersionLoginUsername(const QString& versionId, const QString& username);
+    Q_INVOKABLE QString versionLoginPassword(const QString& versionId) const;
+    Q_INVOKABLE void setVersionLoginPassword(const QString& versionId, const QString& password);
+
     // Global setters
     Q_INVOKABLE void setJvmArgs(const QString& args);
     Q_INVOKABLE void setGameArgs(const QString& args);
