@@ -37,8 +37,10 @@ Flickable {
                         Behavior on checked { NumberAnimation { duration: 200 } }
                         background: Rectangle {
                             implicitWidth: 44; implicitHeight: 28; radius: 14
-                            color: embeddedSwitch.hovered ? Qt.rgba(1,1,1,0.05) : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            color: "transparent"
+                            border.color: embeddedSwitch.hovered ? Qt.rgba(1,1,1,0.12) : "transparent"
+                            border.width: 1
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
                     }
                 }
@@ -118,11 +120,11 @@ Flickable {
                             implicitHeight: contentItem.implicitHeight + 8
                             padding: 4
                             enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "y"; from: langCombo.height + 2; duration: 140; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "y"; from: langCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
                             }
                             exit: Transition {
-                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80; easing.type: Easing.InCubic }
+                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
                             }
                             contentItem: ListView {
                                 clip: true; implicitHeight: contentHeight
@@ -213,11 +215,11 @@ Flickable {
                             implicitHeight: contentItem.implicitHeight + 8
                             padding: 4
                             enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "y"; from: langModeCombo.height + 2; duration: 140; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "y"; from: langModeCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
                             }
                             exit: Transition {
-                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80; easing.type: Easing.InCubic }
+                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
                             }
                             contentItem: ListView {
                                 clip: true; implicitHeight: contentHeight
