@@ -863,12 +863,15 @@ QStringList ShadowBackend::aprilFoolVersions() const {
 
 void ShadowBackend::refreshVersionDetails()
 {
-    // 异步执行：让 QML 先渲染加载状态，再扫描版本文件
+    // 两阶段异步：① 设置扫描状态让 QML 显示加载指示器
+    //              ② 下一事件循环再执行实际扫描（给 QML 渲染时间）
     QTimer::singleShot(0, this, [this]() {
+        if (m_isScanningVersions) return;
         m_isScanningVersions = true;
         emit scanningChanged();
 
-        QDir gameDir(m_app->gameDir());
+        QTimer::singleShot(0, this, [this]() {
+            QDir gameDir(m_app->gameDir());
         QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
         QDir versionsDir(versionsPath);
 
@@ -994,12 +997,24 @@ void ShadowBackend::refreshVersionDetails()
         if (!rt.isValid()) rt = releaseTimes.value(versionId);
         detail[QStringLiteral("releaseTimeMs")] = rt.isValid() ? rt.toMSecsSinceEpoch() : 0;
 
-        // Compute total size
+        // 快速估算大小（避免递归遍历整个目录）
         qint64 totalSize = 0;
-        QDirIterator it(verPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            it.next();
-            totalSize += it.fileInfo().size();
+        QFileInfo jarFi(jarPath);
+        if (jarFi.exists()) totalSize += jarFi.size();
+        QFileInfo jsonFi(jsonPath);
+        if (jsonFi.exists()) totalSize += jsonFi.size();
+        // 只统计顶层子目录里的直接文件（不递归子子目录）
+        static const QStringList topDirs = {
+            QStringLiteral("mods"), QStringLiteral("resourcepacks"),
+            QStringLiteral("shaderpacks"), QStringLiteral("saves")
+        };
+        for (const QString& d : topDirs) {
+            QDir sub(verPath + QStringLiteral("/") + d);
+            if (sub.exists()) {
+                const auto files = sub.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+                for (const QFileInfo& fi : files)
+                    totalSize += fi.size();
+            }
         }
         detail[QStringLiteral("sizeBytes")] = totalSize;
 
@@ -1021,7 +1036,8 @@ void ShadowBackend::refreshVersionDetails()
 
     m_isScanningVersions = false;
     emit scanningChanged();
-    });  // end QTimer::singleShot lambda
+    });  // end inner QTimer::singleShot lambda
+    });  // end outer QTimer::singleShot lambda
 }
 
 void ShadowBackend::refreshGameDirInfo()
@@ -1670,11 +1686,14 @@ void ShadowBackend::refreshInstalled() {
 
 void ShadowBackend::refreshInstalledList() {
     QTimer::singleShot(0, this, [this]() {
+        if (m_isScanningVersions) return;
         m_isScanningVersions = true;
         emit scanningChanged();
-        m_version->refreshInstalled();
-        m_isScanningVersions = false;
-        emit scanningChanged();
+        QTimer::singleShot(0, this, [this]() {
+            m_version->refreshInstalled();
+            m_isScanningVersions = false;
+            emit scanningChanged();
+        });
     });
 }
 
