@@ -73,7 +73,8 @@ Launcher::~Launcher()
 // ============================================================
 
 void Launcher::start(const QString& versionId, const QString& javaPath, int maxMemoryMB,
-                     const QString& jvmArgs, const QString& gameArgs, bool highPerfGpu)
+                     const QString& jvmArgs, const QString& gameArgs, bool highPerfGpu,
+                     const QString& resolvedJsonPath, const QString& resolvedJarPath)
 {
     // --- Validate ---
     QString errorMsg;
@@ -116,9 +117,12 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         }
     }
 
-    // --- Load version JSON ---
-    QString jsonPath = m_gameDir + QStringLiteral("/versions/") + versionId
-                       + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    // --- Load version JSON (支持灵活路径) ---
+    QString jsonPath = resolvedJsonPath;
+    if (jsonPath.isEmpty()) {
+        jsonPath = m_gameDir + QStringLiteral("/versions/") + versionId
+                   + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    }
     QFile jsonFile(jsonPath);
     if (!jsonFile.open(QIODevice::ReadOnly)) {
         emit launchFinished(false, tr("无法读取版本配置: %1").arg(jsonPath));
@@ -604,9 +608,14 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             QString parentId = chainJson[QStringLiteral("inheritsFrom")].toString();
             if (parentId.isEmpty() || visited.contains(parentId)) break;
             visited.append(parentId);
-            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId
-                               + QStringLiteral("/") + parentId + QStringLiteral(".json");
-            QFile pf(parentPath);
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
+            QString parentJson = findVersionJson(parentPath, parentId);
+            if (parentJson.isEmpty()) {
+                parentJson = m_gameDir + QStringLiteral("/versions/") + parentId
+                           + QStringLiteral("/") + parentId + QStringLiteral(".json");
+                if (!QFileInfo::exists(parentJson)) break;
+            }
+            QFile pf(parentJson);
             if (!pf.open(QIODevice::ReadOnly)) break;
             QJsonParseError pe;
             QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
@@ -785,9 +794,14 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             QString parentId = chainJson[QStringLiteral("inheritsFrom")].toString();
             if (parentId.isEmpty() || visitedArgs.contains(parentId)) break;
             visitedArgs.append(parentId);
-            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId
-                               + QStringLiteral("/") + parentId + QStringLiteral(".json");
-            QFile pf(parentPath);
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
+            QString parentJson = findVersionJson(parentPath, parentId);
+            if (parentJson.isEmpty()) {
+                parentJson = m_gameDir + QStringLiteral("/versions/") + parentId
+                           + QStringLiteral("/") + parentId + QStringLiteral(".json");
+                if (!QFileInfo::exists(parentJson)) break;
+            }
+            QFile pf(parentJson);
             if (!pf.open(QIODevice::ReadOnly)) break;
             QJsonParseError pe;
             QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
@@ -825,9 +839,14 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             QString parentId = chainJson[QStringLiteral("inheritsFrom")].toString();
             if (parentId.isEmpty() || visited.contains(parentId)) break;
             visited.append(parentId);
-            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId
-                               + QStringLiteral("/") + parentId + QStringLiteral(".json");
-            QFile pf(parentPath);
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
+            QString parentJson = findVersionJson(parentPath, parentId);
+            if (parentJson.isEmpty()) {
+                parentJson = m_gameDir + QStringLiteral("/versions/") + parentId
+                           + QStringLiteral("/") + parentId + QStringLiteral(".json");
+                if (!QFileInfo::exists(parentJson)) break;
+            }
+            QFile pf(parentJson);
             if (!pf.open(QIODevice::ReadOnly)) break;
             QJsonParseError pe;
             QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
@@ -1095,6 +1114,44 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
 // ============================================================
 // Private Helpers — Language Detection & options.txt
 // ============================================================
+
+// ── 版本 JSON 灵活查找（目录名≠文件名时使用）──
+QString Launcher::findVersionJson(const QString& verDir, const QString& dirName)
+{
+    // Fast path
+    QString path = verDir + QStringLiteral("/") + dirName + QStringLiteral(".json");
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly)) {
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+        f.close();
+        if (err.error == QJsonParseError::NoError && doc.isObject()
+            && doc.object().contains(QStringLiteral("mainClass")))
+            return path;
+    }
+    // Scan all .json files
+    QDir vdir(verDir);
+    const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
+    for (const QString& jf : jsons) {
+        if (jf == dirName + QStringLiteral(".json")) continue;
+        if (jf == QStringLiteral("authlib-injector.json")) continue;
+        path = verDir + QStringLiteral("/") + jf;
+        QFile jf2(path);
+        if (jf2.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            QJsonDocument doc = QJsonDocument::fromJson(jf2.readAll(), &err);
+            jf2.close();
+            if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                QJsonObject obj = doc.object();
+                if (obj.contains(QStringLiteral("mainClass"))
+                    && obj.contains(QStringLiteral("type"))
+                    && obj.contains(QStringLiteral("id")))
+                    return path;
+            }
+        }
+    }
+    return QString();
+}
 
 void Launcher::ensureOptionsTxt()
 {

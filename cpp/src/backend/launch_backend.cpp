@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "launch_backend.h"
+#include "version_backend.h"
 #include "account_backend.h"
 #include "../core/launcher.h"
 #include "../core/crash_detector.h"
@@ -438,14 +439,16 @@ void LaunchBackend::runNextCheck()
         if (!QDir(versionDir).exists()) {
             abortCheck(tr("版本目录"), tr("目录不存在")); return;
         }
-        QString jarPath = versionDir + QStringLiteral("/") + m_pendingVersionId + QStringLiteral(".jar");
-        if (!QFileInfo::exists(jarPath)) {
-            abortCheck(tr("核心 Jar"), tr("文件不存在")); return;
+
+        // 灵活查找版本 JSON（目录名≠文件名时仍能定位）
+        QString jsonPath = VersionBackend::findVersionJson(versionDir, m_pendingVersionId);
+        m_resolvedJsonPath = jsonPath;
+        if (jsonPath.isEmpty()) {
+            abortCheck(tr("版本配置"), tr("未找到有效的版本配置文件")); return;
         }
-        QString jsonPath = versionDir + QStringLiteral("/") + m_pendingVersionId + QStringLiteral(".json");
         QFile jsonFile(jsonPath);
         if (!jsonFile.open(QIODevice::ReadOnly)) {
-            abortCheck(tr("版本配置"), tr("配置文件缺失")); return;
+            abortCheck(tr("版本配置"), tr("配置文件无法读取")); return;
         }
         QByteArray jsonBytes = jsonFile.readAll();
         jsonFile.close();
@@ -453,14 +456,31 @@ void LaunchBackend::runNextCheck()
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonBytes, &parseErr);
         if (parseErr.error != QJsonParseError::NoError)
             emit launchCheckWarning(tr("JSON 格式警告"));
-        // Verify JSON's id matches the version folder name (catches corrupted install from naming bugs)
+
+        // 灵活查找主 JAR（可选——加载器版本继承原版 jar）
+        QString jarPath = VersionBackend::findVersionJar(versionDir, m_pendingVersionId);
+        m_resolvedJarPath = jarPath;
+        if (jarPath.isEmpty()) {
+            // 无 jar 时检查 JSON 是否有 inheritsFrom（继承自原版）
+            bool hasInherit = false;
+            if (jsonDoc.isObject()) {
+                QJsonObject jo = jsonDoc.object();
+                hasInherit = jo.contains(QStringLiteral("inheritsFrom"))
+                    && !jo.value(QStringLiteral("inheritsFrom")).toString().isEmpty();
+            }
+            if (!hasInherit) {
+                abortCheck(tr("核心 Jar"), tr("未找到版本 jar 文件，且无继承来源")); return;
+            }
+            // 有 inheritsFrom 则放行
+            qCInfo(logLaunch) << QStringLiteral("[启动前检查] 无独立 jar 文件，将继承原版 jar");
+        }
+
+        // JSON id 与目录名不一致时仅警告（自定义版本可能不同名）
         if (jsonDoc.isObject()) {
             QString jsonId = jsonDoc.object().value(QStringLiteral("id")).toString();
             if (!jsonId.isEmpty() && jsonId != m_pendingVersionId) {
-                abortCheck(tr("版本 JSON ID 不匹配"),
-                    tr("版本名 \"%1\" 与配置内 id \"%2\" 不一致。建议重新安装此版本。")
-                        .arg(m_pendingVersionId, jsonId));
-                return;
+                qCInfo(logLaunch) << QStringLiteral("[启动前检查] 版本目录名和 JSON id 不一致：") + m_pendingVersionId + QStringLiteral(" vs ") + jsonId;
+                emit launchCheckWarning(tr("版本名 \"%1\" 与 JSON 内 id 不一致").arg(m_pendingVersionId));
             }
         }
         qCInfo(logLaunch) << QStringLiteral("[启动前检查] 版本目录和JAR文件通过");
@@ -520,7 +540,8 @@ void LaunchBackend::runNextCheck()
         connect(launcher, &Launcher::launchStarted, this, [this, launcher]() { handleLaunchStarted(launcher); });
         connect(launcher, &Launcher::launchFinished, this, [this, launcher](bool ok, const QString& err) { handleLaunchFinished(launcher, ok, err); });
         launcher->start(m_pendingVersionId, m_pendingJavaPath, m_pendingMaxMemory,
-                        m_pendingJvmArgs, m_pendingGameArgs, m_pendingHighPerfGpu);
+                        m_pendingJvmArgs, m_pendingGameArgs, m_pendingHighPerfGpu,
+                        m_resolvedJsonPath, m_resolvedJarPath);
         return;
     }
     default:
@@ -784,7 +805,11 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
 
     const QString gameDir = m_gameDir;
     const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
-    const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    const QString jsonPath = VersionBackend::findVersionJson(versionDir, versionId);
+    if (jsonPath.isEmpty()) {
+        emit logMessage(tr("[警告] 未找到版本 JSON，跳过库文件检查"));
+        return missing;
+    }
     const QString libsDir = gameDir + QStringLiteral("/libraries");
 
     // Read version JSON
@@ -906,7 +931,11 @@ QStringList LaunchBackend::checkVersionMissingNatives(const QString& versionId)
 
     const QString gameDir = m_gameDir;
     const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
-    const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    const QString jsonPath = VersionBackend::findVersionJson(versionDir, versionId);
+    if (jsonPath.isEmpty()) {
+        emit logMessage(tr("[警告] 未找到版本 JSON，跳过运行库检查"));
+        return missing;
+    }
 
     // First, check if extracted natives exist
     QString primaryNatives = versionDir + QStringLiteral("/") + versionId + QStringLiteral("-natives");

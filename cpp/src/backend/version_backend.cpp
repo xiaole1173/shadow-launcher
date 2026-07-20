@@ -1380,6 +1380,91 @@ QVariantList VersionBackend::activeDownloads() const
 // Private helpers
 // ============================================================
 
+// ── 静态工具：在版本目录中查找有效的版本 JSON ──
+QString VersionBackend::findVersionJson(const QString& verDir, const QString& dirName)
+{
+    // Fast path: {dirName}/{dirName}.json
+    QString path = verDir + QStringLiteral("/") + dirName + QStringLiteral(".json");
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly)) {
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+        f.close();
+        if (err.error == QJsonParseError::NoError && doc.isObject()
+            && doc.object().contains(QStringLiteral("mainClass")))
+            return path;
+    }
+    // Slow path: scan all .json files for valid version descriptors
+    QDir vdir(verDir);
+    const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
+    for (const QString& jf : jsons) {
+        if (jf == dirName + QStringLiteral(".json")) continue;
+        // Skip known auxiliary configs
+        if (jf == QStringLiteral("authlib-injector.json")
+            || jf == QStringLiteral("fabric-installer.json"))
+            continue;
+        path = verDir + QStringLiteral("/") + jf;
+        QFile jf2(path);
+        if (jf2.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            QJsonDocument doc = QJsonDocument::fromJson(jf2.readAll(), &err);
+            jf2.close();
+            if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                QJsonObject obj = doc.object();
+                if (obj.contains(QStringLiteral("mainClass"))
+                    && obj.contains(QStringLiteral("type"))
+                    && obj.contains(QStringLiteral("id")))
+                    return path;
+            }
+        }
+    }
+    return QString();
+}
+
+// ── 静态工具：在版本目录中查找主 JAR ──
+QString VersionBackend::findVersionJar(const QString& verDir, const QString& dirName)
+{
+    // 1. Try {dir}/{dir}.jar
+    QString jarPath = verDir + QStringLiteral("/") + dirName + QStringLiteral(".jar");
+    if (QFileInfo::exists(jarPath)) return jarPath;
+
+    // 2. Try JSON's "jar" field (requires parsing version.json)
+    const QString json = findVersionJson(verDir, dirName);
+    if (!json.isEmpty()) {
+        QFile jf(json);
+        if (jf.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(jf.readAll());
+            jf.close();
+            if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                if (obj.contains(QStringLiteral("jar"))) {
+                    QString jarName = obj.value(QStringLiteral("jar")).toString();
+                    if (!jarName.isEmpty() && jarName != dirName) {
+                        QString alt = verDir + QStringLiteral("/") + jarName + QStringLiteral(".jar");
+                        if (QFileInfo::exists(alt)) return alt;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Scan any .jar files in the directory (skip non-version jars)
+    QDir vd(verDir);
+    const QStringList jars = vd.entryList(QStringList() << QStringLiteral("*.jar"), QDir::Files);
+    for (const QString& jfile : jars) {
+        if (jfile.contains(QStringLiteral("authlib-injector"))
+            || jfile.contains(QStringLiteral("nide8auth")))
+            continue;
+        QString candPath = verDir + QStringLiteral("/") + jfile;
+        // Skip files < 1MB — too small to be MC main jar
+        QFileInfo fi(candPath);
+        if (fi.size() < 1024 * 1024) continue;
+        return candPath;
+    }
+
+    return QString();  // Not found—loader versions inherit from vanilla
+}
+
 void VersionBackend::updateInstalledList()
 {
     m_installedIds.clear();
@@ -1389,43 +1474,6 @@ void VersionBackend::updateInstalledList()
     QDir dir(versionsDir);
 
     if (!dir.exists()) return;
-
-    auto findValidJson = [](const QString& dirPath, const QString& dirName) -> QString {
-        // Fast path: try {dirName}/{dirName}.json
-        QString path = dirPath + QStringLiteral("/") + dirName + QStringLiteral(".json");
-        QFile f(path);
-        if (f.open(QIODevice::ReadOnly)) {
-            QJsonParseError err;
-            QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-            f.close();
-            if (err.error == QJsonParseError::NoError && doc.isObject()
-                && doc.object().contains(QStringLiteral("mainClass")))
-                return path;
-        }
-        // Slow path: scan all .json files for valid version descriptors
-        QDir vdir(dirPath);
-        const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
-        for (const QString& jf : jsons) {
-            if (jf == dirName + QStringLiteral(".json")) continue; // already tried
-            // Skip known auxiliary configs
-            if (jf == QStringLiteral("authlib-injector.json")) continue;
-            path = dirPath + QStringLiteral("/") + jf;
-            QFile jf2(path);
-            if (jf2.open(QIODevice::ReadOnly)) {
-                QJsonParseError err;
-                QJsonDocument doc = QJsonDocument::fromJson(jf2.readAll(), &err);
-                jf2.close();
-                if (err.error == QJsonParseError::NoError && doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    if (obj.contains(QStringLiteral("mainClass"))
-                        && obj.contains(QStringLiteral("type"))
-                        && obj.contains(QStringLiteral("id")))
-                        return path;
-                }
-            }
-        }
-        return QString();
-    };
 
     const QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
@@ -1440,8 +1488,8 @@ void VersionBackend::updateInstalledList()
             continue;
         }
 
-        // Flexible path: search for any valid version json
-        if (!findValidJson(verPath, subDir).isEmpty()) {
+        // Flexible path: use static helper
+        if (!findVersionJson(verPath, subDir).isEmpty()) {
             m_installedIds.append(subDir);
         }
     }
