@@ -1383,18 +1383,13 @@ QVariantList VersionBackend::activeDownloads() const
 // ── 静态工具：在版本目录中查找有效的版本 JSON ──
 QString VersionBackend::findVersionJson(const QString& verDir, const QString& dirName)
 {
-    // Fast path: {dirName}/{dirName}.json
+    // Fast path: {dirName}/{dirName}.json — 只做存在性检查，不做 parse
+    // 避免每次打开版本选择界面都解析所有 JSON（旧代码同样只检查 exists）
     QString path = verDir + QStringLiteral("/") + dirName + QStringLiteral(".json");
-    QFile f(path);
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonParseError err;
-        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        f.close();
-        if (err.error == QJsonParseError::NoError && doc.isObject()
-            && doc.object().contains(QStringLiteral("mainClass")))
-            return path;
-    }
+    if (QFileInfo::exists(path)) return path;
+
     // Slow path: scan all .json files for valid version descriptors
+    // 此处需要 parse 验证以区分版本 JSON 和辅助配置（如 authlib-injector）
     QDir vdir(verDir);
     const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
     for (const QString& jf : jsons) {
