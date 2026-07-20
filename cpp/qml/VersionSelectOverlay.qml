@@ -410,6 +410,22 @@ Rectangle {
                     function onTextChanged() { versionRightPanel.applyFilterSort() }
                 }
 
+                // 异步扫描加载指示器（覆盖在版本列表上方）
+                Rectangle {
+                    anchors.fill: parent; visible: backend && backend.isScanningVersions
+                    color: "#11141c"
+                    z: 10
+                    ColumnLayout {
+                        anchors.centerIn: parent; spacing: 12
+                        Text {
+                            text: "⏳"; font.pixelSize: 28
+                            Layout.alignment: Qt.AlignHCenter
+                            NumberAnimation on rotation { from: 0; to: 360; duration: 2000; loops: Animation.Infinite }
+                        }
+                        Text { text: qsTr("正在扫描版本..."); font.pixelSize: StyleTokens.fontSizeSm; color: "#7e8596"; Layout.alignment: Qt.AlignHCenter }
+                    }
+                }
+
                 ScrollView {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     clip: true

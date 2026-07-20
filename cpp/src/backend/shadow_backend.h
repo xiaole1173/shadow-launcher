@@ -126,6 +126,7 @@ class ShadowBackend : public QObject {
 
     // ── Version details/summary ──
     Q_PROPERTY(QVariantList versionDetails READ versionDetails NOTIFY versionDetailsReady)
+    Q_PROPERTY(bool isScanningVersions READ isScanningVersions NOTIFY scanningChanged)
     Q_PROPERTY(QVariantMap currentVersionSummary READ currentVersionSummary NOTIFY currentVersionSummaryChanged)
 
     // ── Download queue ──
@@ -378,6 +379,7 @@ public:
     Q_INVOKABLE QString loginType() const;
     QString selectedSkinPath() const { return m_selectedSkinPath; }
     bool isWardrobeBusy() const { return m_wardrobeBusy; }
+    bool isScanningVersions() const { return m_isScanningVersions; }
     Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
 
@@ -521,6 +523,7 @@ signals:
     void embeddedLoginChanged();
     void versionListReady();
     void versionDetailsReady();
+    void scanningChanged();
     void installedVersionsChanged();
     void activeVersionNamesChanged();
     void selectedVersionChanged();
@@ -711,6 +714,9 @@ private:
     QVariantMap m_gameDirInfo;
     QVariantList m_versionDetails;
     QVariantMap m_currentVersionSummary;
+
+    // ── Async version scanning state ──
+    bool m_isScanningVersions = false;
 
     // ── Resource download progress tracking ──
     int m_resourceDlProgress = 0;
