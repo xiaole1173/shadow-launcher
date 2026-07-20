@@ -265,7 +265,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     delegate: ItemDelegate {
-                        width: javaModeCombo.width
+                        width: parent.width
                         contentItem: Text {
                             text: modelData
                             font.pixelSize: StyleTokens.fontSizeSm
@@ -279,19 +279,22 @@ Item {
                     }
 
                     popup: Popup {
-                        y: javaModeCombo.height
-                        width: javaModeCombo.width
-                        padding: 2
-                        topMargin: 4
-                        enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
-                        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80 } }
+                        y: javaModeCombo.height + 4
+                        width: parent.width
+                        padding: 4
+                        enter: Transition {
+                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                            NumberAnimation { property: "y"; from: javaModeCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
+                        }
+                        exit: Transition {
+                            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
+                        }
                         contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
+                            clip: true; implicitHeight: contentHeight
                             model: javaModeCombo.popup.visible ? javaModeCombo.delegateModel : null
                             currentIndex: javaModeCombo.highlightedIndex
                         }
-                        background: Rectangle { radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary; border.color: StyleTokens.bgCard }
+                        background: Rectangle { radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated }
                     }
 
                     onCurrentIndexChanged: {
@@ -368,7 +371,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     delegate: ItemDelegate {
-                        width: javaListCombo.width
+                        width: parent.width
                         contentItem: RowLayout {
                             Text {
                                 text: modelData.label
@@ -390,19 +393,22 @@ Item {
                     }
 
                     popup: Popup {
-                        y: javaListCombo.height
-                        width: javaListCombo.width
-                        padding: 2
-                        topMargin: 4
-                        enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
-                        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80 } }
+                        y: javaListCombo.height + 4
+                        width: parent.width
+                        padding: 4
+                        enter: Transition {
+                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                            NumberAnimation { property: "y"; from: javaListCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
+                        }
+                        exit: Transition {
+                            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
+                        }
                         contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
+                            clip: true; implicitHeight: contentHeight
                             model: javaListCombo.popup.visible ? javaListCombo.delegateModel : null
                             currentIndex: javaListCombo.highlightedIndex
                         }
-                        background: Rectangle { radius: StyleTokens.radiusMd; color: "#0d1018"; border.color: StyleTokens.bgCard }
+                        background: Rectangle { radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated }
                     }
 
                     onCurrentIndexChanged: {

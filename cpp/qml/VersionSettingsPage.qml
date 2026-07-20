@@ -432,7 +432,7 @@ Rectangle {
                                     }
 
                                     delegate: ItemDelegate {
-                                        width: authModeCombo.width
+                                        width: parent.width
                                         height: 36
                                         contentItem: Text {
                                             text: modelData
@@ -448,21 +448,22 @@ Rectangle {
                                     }
 
                                     popup: Popup {
-                                        y: authModeCombo.height
+                                        y: authModeCombo.height + 4
                                         width: authModeCombo.width
-                                        height: implicitHeight
                                         padding: 4
-                                        background: Rectangle {
-                                            color: StyleTokens.surfaceLight
-                                            radius: StyleTokens.radiusLg
-                                            border.color: StyleTokens.bgHover
+                                        enter: Transition {
+                                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                                            NumberAnimation { property: "y"; from: authModeCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
+                                        }
+                                        exit: Transition {
+                                            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
                                         }
                                         contentItem: ListView {
-                                            clip: true
-                                            implicitHeight: contentHeight
+                                            clip: true; implicitHeight: contentHeight
                                             model: authModeCombo.popup.visible ? authModeCombo.delegateModel : null
                                             currentIndex: authModeCombo.highlightedIndex
                                         }
+                                        background: Rectangle { radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated }
                                     }
 
                                     onCurrentIndexChanged: {
