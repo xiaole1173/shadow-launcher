@@ -394,7 +394,7 @@ Rectangle {
                             Rectangle { radius: StyleTokens.radiusSm; height: 18; width: langTag.implicitWidth + 10; color: StyleTokens.bgHover
                                 Text { id: langTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
                             }
-                            Item { Layout.fillWidth: true }
+                            Item { Layout.preferredWidth: 32 }
                             ComboBox {
                                 id: langCombo
                                 model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
@@ -436,7 +436,8 @@ Rectangle {
                                     width: langCombo.popup.width  // use popup width
                                     contentItem: Text {
                                         text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                                        verticalAlignment: Text.AlignVCenter; leftPadding: 12
+                                        verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
+                                        elide: Text.ElideRight
                                     }
                                     background: Rectangle {
                                         color: highlighted ? "#252a38" : "transparent"
@@ -446,7 +447,7 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langCombo.height + 4
-                                    width: 380
+                                    width: langCombo.width
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
@@ -522,7 +523,8 @@ Rectangle {
                                     width: langModeCombo.popup.width
                                     contentItem: Text {
                                         text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                                        verticalAlignment: Text.AlignVCenter; leftPadding: 12
+                                        verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
+                                        elide: Text.ElideRight
                                     }
                                     background: Rectangle {
                                         color: highlighted ? "#252a38" : "transparent"
@@ -532,7 +534,7 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langModeCombo.height + 4
-                                    width: 380
+                                    width: langModeCombo.width
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
