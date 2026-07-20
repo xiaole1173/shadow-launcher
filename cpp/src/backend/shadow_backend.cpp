@@ -863,15 +863,22 @@ QStringList ShadowBackend::aprilFoolVersions() const {
 
 void ShadowBackend::refreshVersionDetails()
 {
-    QDir gameDir(m_app->gameDir());
-    QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
-    QDir versionsDir(versionsPath);
+    // 异步执行：让 QML 先渲染加载状态，再扫描版本文件
+    QTimer::singleShot(0, this, [this]() {
+        m_isScanningVersions = true;
+        emit scanningChanged();
 
-    m_versionDetails.clear();
-    if (!versionsDir.exists()) {
-        emit versionDetailsReady();
-        return;
-    }
+        QDir gameDir(m_app->gameDir());
+        QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
+        QDir versionsDir(versionsPath);
+
+        m_versionDetails.clear();
+        if (!versionsDir.exists()) {
+            m_isScanningVersions = false;
+            emit scanningChanged();
+            emit versionDetailsReady();
+            return;
+        }
 
     // Map of known MC versions to their types (from cached manifest)
     QMap<QString, QString> knownTypes;
@@ -1011,6 +1018,10 @@ void ShadowBackend::refreshVersionDetails()
 
     emit versionDetailsReady();
     emit logMessage(tr("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
+
+    m_isScanningVersions = false;
+    emit scanningChanged();
+    });  // end QTimer::singleShot lambda
 }
 
 void ShadowBackend::refreshGameDirInfo()
@@ -1658,7 +1669,13 @@ void ShadowBackend::refreshInstalled() {
 }
 
 void ShadowBackend::refreshInstalledList() {
-    m_version->refreshInstalled();
+    QTimer::singleShot(0, this, [this]() {
+        m_isScanningVersions = true;
+        emit scanningChanged();
+        m_version->refreshInstalled();
+        m_isScanningVersions = false;
+        emit scanningChanged();
+    });
 }
 
 void ShadowBackend::installVersion(const QString& versionId) {
