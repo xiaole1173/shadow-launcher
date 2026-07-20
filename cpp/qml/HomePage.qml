@@ -1181,8 +1181,8 @@ backend.launch(currentSelectedVersion, loginMode === 0)
     Connections {
         target: backend
         function onWardrobeError(error) {
-        function onSelectedVersionChanged() { homePage._refreshThirdPartyLogin() }
             toastManager.show(error)
         }
+        function onSelectedVersionChanged() { homePage._refreshThirdPartyLogin() }
     }
 }
