@@ -1118,18 +1118,11 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
 // ── 版本 JSON 灵活查找（目录名≠文件名时使用）──
 QString Launcher::findVersionJson(const QString& verDir, const QString& dirName)
 {
-    // Fast path
+    // Fast path: 只做存在性检查，避免不必要的 JSON 解析
     QString path = verDir + QStringLiteral("/") + dirName + QStringLiteral(".json");
-    QFile f(path);
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonParseError err;
-        QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        f.close();
-        if (err.error == QJsonParseError::NoError && doc.isObject()
-            && doc.object().contains(QStringLiteral("mainClass")))
-            return path;
-    }
-    // Scan all .json files
+    if (QFileInfo::exists(path)) return path;
+
+    // Slow path: scan all .json files for valid version descriptors
     QDir vdir(verDir);
     const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
     for (const QString& jf : jsons) {
