@@ -515,14 +515,13 @@ Item {
                 }
 
                 delegate: ItemDelegate {
-                    width: parent.width
+                    width: combo.popup.width
                     contentItem: Text {
                         text: modelData
                         color: "#d0d4e0"
                         font.pixelSize: StyleTokens.fontSizeSm
                         verticalAlignment: Text.AlignVCenter
-                        leftPadding: 12; rightPadding: 12
-                        elide: Text.ElideRight
+                        leftPadding: 12
                     }
                     background: Rectangle {
                         color: highlighted ? "#252a38" : "transparent"
@@ -536,20 +535,25 @@ Item {
                     width: combo.width
                     implicitHeight: contentItem.implicitHeight + 8
                     padding: 4
+
                     enter: Transition {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "y"; from: combo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 150; easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "y"; from: combo.height - 2; to: combo.height + 4; duration: 200; easing.type: Easing.OutCubic }
                     }
                     exit: Transition {
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
+                        NumberAnimation { property: "opacity"; to: 0; duration: 100 }
                     }
+
                     contentItem: ListView {
-                        clip: true; implicitHeight: contentHeight
+                        clip: true
+                        implicitHeight: contentHeight
                         model: combo.popup.visible ? combo.delegateModel : null
                         currentIndex: combo.highlightedIndex
                     }
                     background: Rectangle {
-                        radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated
+                        radius: StyleTokens.radiusMd
+                        color: StyleTokens.surfaceOverlay
+                        border.color: StyleTokens.bgElevated
                     }
                 }
 
