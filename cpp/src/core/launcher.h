@@ -40,6 +40,8 @@ public:
     void setAutoLangMode(int mode) { m_autoLangMode = mode; }
     /// Set detected region (ISO 3166-1 alpha-2) for mode=2
     void setDetectedRegion(const QString& region) { m_detectedRegion = region; }
+    /// Set the version-specific game directory (respects isolation mode)
+    void setVersionGameDir(const QString& dir) { m_versionGameDir = dir; }
 
     void setAuthInfo(const QString& username, const QString& uuid, const QString& accessToken, bool isOnline) {
         m_authName = username;
@@ -65,7 +67,7 @@ private:
     void forceKill();
     QStringList buildArgs(const QString& versionId, int maxMemoryMB, const QJsonObject& versionJson) const;
     bool extractNatives(const QString& versionId, const QJsonObject& versionJson);
-    void ensureOptionsTxt(const QString& versionId);
+    void ensureOptionsTxt();
     static bool evaluateRules(const QJsonArray& rules);
     static bool evaluateRule(const QJsonObject& rule);
     void ensureLegacyAssets(const QString& assetIndexId);
@@ -84,6 +86,7 @@ private:
     bool m_cancelling = false;
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
     QString m_detectedRegion;
+    QString m_versionGameDir;
 };
 
 

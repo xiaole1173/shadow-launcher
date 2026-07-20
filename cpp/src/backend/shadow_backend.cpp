@@ -14,7 +14,6 @@
 #include "../core/version_downloader.h"
 #include "../core/geoip_service.h"
 #include "../core/mc_language.h"
-#include "../core/version_manager.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QTimer>
@@ -159,12 +158,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
         m_version->setDetectedRegion(region);
         // If mode=2 (IP region), retroactively write options.txt for all installed versions
         if (m_settings->autoLangMode() == 2) {
-            const QString gameDir = m_version->versionManager()->gameDir();
             const auto ids = m_version->installedIds();
             for (const QString& id : ids) {
-                QString versionGameDir = gameDir
-                    + QStringLiteral("/versions/") + id
-                    + QStringLiteral("/game");
+                QString versionGameDir = m_settings->getVersionGameDir(id);
                 QString mcLang = mc_language::regionToMinecraftLang(region);
                 mc_language::writeOptionsTxt(versionGameDir, mcLang);
             }
@@ -1741,6 +1737,7 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
 
     m_launch->setAutoLangMode(m_settings->autoLangMode());
     m_launch->setDetectedRegion(m_geoIp ? m_geoIp->cachedRegion() : QString());
+    m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));
     m_launch->launch(versionId, username, javaPath, maxMemory, jvmArgs, gameArgs, highPerfGpu);
 }
 

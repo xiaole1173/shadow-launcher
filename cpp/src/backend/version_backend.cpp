@@ -1136,9 +1136,11 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         // ── Auto-language: IP region mode — write options.txt after install ──
         if (m_autoLangMode == 2 && !m_detectedRegion.isEmpty()) {
-            QString gameDirPath = m_versionMgr->gameDir()
-                + QStringLiteral("/versions/") + finishedId
-                + QStringLiteral("/game");
+            QString gameDirPath = m_isolation
+                ? m_isolation->getVersionGameDir(finishedId)
+                : (m_versionMgr->gameDir()
+                   + QStringLiteral("/versions/") + finishedId
+                   + QStringLiteral("/game"));
             QString mcLang = mc_language::regionToMinecraftLang(m_detectedRegion);
             mc_language::writeOptionsTxt(gameDirPath, mcLang);
             qCInfo(logVersion) << QStringLiteral("安装后语言调整 区域=%1 lang=%2 版本=%3")
