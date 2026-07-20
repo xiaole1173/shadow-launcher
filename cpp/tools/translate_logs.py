@@ -47,7 +47,6 @@ replace_in_file(base / 'backend/account_backend.cpp', [
     ('<< "renderHead3D: skin format"', '<< QStringLiteral("皮肤格式: ")'),
     ('<< "renderHead3D: hasHat="', '<< QStringLiteral("皮肤帽子: ")'),
     ('<< ", format="', '<< QStringLiteral(" 格式:")'),
-    ('<< "PCL-2D head:"', '<< QStringLiteral("头像: ")'),
     ('<< "Skin from cache, face:"', '<< QStringLiteral("皮肤缓存: ")'),
     ('<< "Skin: placeholder for"', '<< QStringLiteral("皮肤占位: ")'),
     ('<< "Skin: using cached face:"', '<< QStringLiteral("皮肤缓存: ")'),
