@@ -13,6 +13,8 @@
 #include "../multiplayer/encrypted_addr.h"  // kWorker offset constants
 #include "../core/version_downloader.h"
 #include "../core/geoip_service.h"
+#include "../core/mc_language.h"
+#include "../core/version_manager.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QTimer>
@@ -152,9 +154,21 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_settings, &SettingsBackend::autoLangModeChanged, this, [this]() {
         m_version->setAutoLangMode(m_settings->autoLangMode());
     });
-    // When GeoIP detects region, update VersionBackend
+    // When GeoIP detects region, update VersionBackend and retroactively apply
     connect(m_geoIp, &GeoIpService::regionDetected, this, [this](const QString& region) {
         m_version->setDetectedRegion(region);
+        // If mode=2 (IP region), retroactively write options.txt for all installed versions
+        if (m_settings->autoLangMode() == 2) {
+            const QString gameDir = m_version->versionManager()->gameDir();
+            const auto ids = m_version->installedIds();
+            for (const QString& id : ids) {
+                QString versionGameDir = gameDir
+                    + QStringLiteral("/versions/") + id
+                    + QStringLiteral("/game");
+                QString mcLang = mc_language::regionToMinecraftLang(region);
+                mc_language::writeOptionsTxt(versionGameDir, mcLang);
+            }
+        }
     });
     // Background pre-detect (3s delay so it doesn't slow startup)
     QTimer::singleShot(3000, m_geoIp, &GeoIpService::detectRegion);

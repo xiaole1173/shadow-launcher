@@ -28,6 +28,19 @@ QString localeToMinecraftLang(const QLocale& locale)
         return QStringLiteral("ja_jp");
     case QLocale::Korean:
         return QStringLiteral("ko_kr");
+    case QLocale::French:
+        return QStringLiteral("fr_fr");
+    case QLocale::German:
+        return QStringLiteral("de_de");
+    case QLocale::Spanish:
+        return QStringLiteral("es_es");
+    case QLocale::Portuguese:
+        // Prefer Brazilian Portuguese (pt_br) as the dominant MC dialect
+        return country == QLocale::Portugal ? QStringLiteral("pt_pt") : QStringLiteral("pt_br");
+    case QLocale::Russian:
+        return QStringLiteral("ru_ru");
+    case QLocale::Italian:
+        return QStringLiteral("it_it");
     default:
         return QStringLiteral("en_us");
     }
@@ -46,9 +59,13 @@ QString regionToMinecraftLang(const QString& regionCode)
     // Other commonly detected regions
     if (upper == QStringLiteral("JP"))  return QStringLiteral("ja_jp");
     if (upper == QStringLiteral("KR"))  return QStringLiteral("ko_kr");
-
-    // Extend with more languages as needed:
-    // FR→fr_fr, DE→de_de, ES→es_es, PT→pt_br, RU→ru_ru, IT→it_it, etc.
+    if (upper == QStringLiteral("FR"))  return QStringLiteral("fr_fr");
+    if (upper == QStringLiteral("DE"))  return QStringLiteral("de_de");
+    if (upper == QStringLiteral("ES"))  return QStringLiteral("es_es");
+    if (upper == QStringLiteral("BR"))  return QStringLiteral("pt_br");
+    if (upper == QStringLiteral("PT"))  return QStringLiteral("pt_pt");
+    if (upper == QStringLiteral("RU"))  return QStringLiteral("ru_ru");
+    if (upper == QStringLiteral("IT"))  return QStringLiteral("it_it");
 
     return QStringLiteral("en_us");
 }
