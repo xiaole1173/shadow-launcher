@@ -34,6 +34,7 @@ Flickable {
                         checked: backend ? backend.embeddedLoginEnabled : false
                         onToggled: { if (backend) backend.setEmbeddedLoginEnabled(checked) }
                         palette { mid: "#3a4eb8"; dark: "#252835"; light: "#5d6fe0"; button: checked ? "#5d6fe0" : "#353845" }
+                        Behavior on checked { NumberAnimation { duration: 200 } }
                     }
                 }
                 Text {
@@ -109,6 +110,13 @@ Flickable {
                             width: langCombo.width
                             implicitHeight: contentItem.implicitHeight + 8
                             padding: 4
+                            enter: Transition {
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.6 }
+                            }
+                            exit: Transition {
+                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80; easing.type: Easing.InCubic }
+                            }
                             contentItem: ListView {
                                 clip: true; implicitHeight: contentHeight
                                 model: langCombo.popup.visible ? langCombo.delegateModel : null
@@ -195,6 +203,13 @@ Flickable {
                             width: langModeCombo.width
                             implicitHeight: contentItem.implicitHeight + 8
                             padding: 4
+                            enter: Transition {
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.6 }
+                            }
+                            exit: Transition {
+                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80; easing.type: Easing.InCubic }
+                            }
                             contentItem: ListView {
                                 clip: true; implicitHeight: contentHeight
                                 model: langModeCombo.popup.visible ? langModeCombo.delegateModel : null
@@ -266,6 +281,8 @@ Flickable {
                     anchors.fill: bgPreview; visible: hasBg
                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onClicked: { bgCropOverlay.active = true }
+                    scale: containsMouse ? (pressed ? 0.95 : 1.05) : 1.0
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 }
                 Rectangle {
                     opacity: hasBg ? 0 : 0
@@ -308,6 +325,7 @@ Flickable {
                                     x: sidebarSPSlider.leftPadding + sidebarSPSlider.visualPosition * (sidebarSPSlider.availableWidth - width)
                                     y: sidebarSPSlider.topPadding + sidebarSPSlider.availableHeight / 2 - height / 2
                                     radius: StyleTokens.radiusMd; color: StyleTokens.accentLight
+                                    Behavior on x { SmoothedAnimation { velocity: 600; duration: 200 } }
                                 }
                             }
                             Text { text: (backend ? backend.sidebarOpacity : 0.90).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
@@ -336,6 +354,7 @@ Flickable {
                                     x: contentSPSlider.leftPadding + contentSPSlider.visualPosition * (contentSPSlider.availableWidth - width)
                                     y: contentSPSlider.topPadding + contentSPSlider.availableHeight / 2 - height / 2
                                     radius: StyleTokens.radiusMd; color: StyleTokens.accentLight
+                                    Behavior on x { SmoothedAnimation { velocity: 600; duration: 200 } }
                                 }
                             }
                             Text { text: (backend ? backend.contentOpacity : 0.70).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
