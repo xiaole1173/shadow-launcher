@@ -1042,42 +1042,25 @@ void ShadowBackend::refreshVersionDetails()
 
 void ShadowBackend::refreshGameDirInfo()
 {
+    QTimer::singleShot(0, this, [this]() {
     QDir gameDir(m_app->gameDir());
     QVariantMap info;
 
-    // Count installed versions
+    // Count installed versions (fast: only directory entries, no file traversal)
     QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
     QDir versionsDir(versionsPath);
     int versionCount = 0;
-    qint64 totalSize = 0;
 
     if (versionsDir.exists()) {
         const QStringList entries = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
         for (const QString& versionId : entries) {
             QString jarPath = versionsDir.filePath(versionId + QStringLiteral("/") + versionId + QStringLiteral(".jar"));
             if (QFileInfo::exists(jarPath)) versionCount++;
-
-            QDirIterator it(versionsDir.filePath(versionId), QDir::Files, QDirIterator::Subdirectories);
-            while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
-            // Also count isolated game directory
-            QString gamePath = versionsDir.filePath(versionId + QStringLiteral("/game"));
-            if (QDir(gamePath).exists()) {
-                QDirIterator git(gamePath, QDir::Files, QDirIterator::Subdirectories);
-                while (git.hasNext()) { git.next(); totalSize += git.fileInfo().size(); }
-            }
         }
     }
     info[QStringLiteral("versionCount")] = versionCount;
 
-    // Count shared assets (objects/ directory)
-    QString assetsPath = gameDir.absoluteFilePath(QStringLiteral("assets"));
-    QDir assetsDir(assetsPath);
-    if (assetsDir.exists()) {
-        QDirIterator ait(assetsPath, QDir::Files, QDirIterator::Subdirectories);
-        while (ait.hasNext()) { ait.next(); totalSize += ait.fileInfo().size(); }
-    }
-
-    // Count mods
+    // Count mods (fast: only mods directory, top-level jar count)
     QString modsPath = gameDir.absoluteFilePath(QStringLiteral("mods"));
     QDir modsDir(modsPath);
     int modCount = 0;
@@ -1087,19 +1070,36 @@ void ShadowBackend::refreshGameDirInfo()
     }
     info[QStringLiteral("modCount")] = modCount;
 
-    // Format size
+    // Fast size estimation: only count top-level entries, not recursive traversal
+    // (Recursive QDirIterator on the game directory can take seconds with large assets/objects/)
     QString sizeDisplay;
-    if (totalSize >= 1073741824) {
-        sizeDisplay = QString::number(totalSize / 1073741824.0, 'f', 2) + QStringLiteral(" GB");
-    } else if (totalSize >= 1048576) {
-        sizeDisplay = QString::number(totalSize / 1048576.0, 'f', 1) + QStringLiteral(" MB");
-    } else {
-        sizeDisplay = QString::number(totalSize / 1024.0, 'f', 0) + QStringLiteral(" KB");
+    {
+        qint64 totalSize = 0;
+        const auto topFiles = gameDir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+        for (const QFileInfo& fi : topFiles)
+            totalSize += fi.size();
+        const auto topDirs = gameDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo& di : topDirs) {
+            // Only count files directly inside top-level dirs, not recursive
+            QDir sd(di.absoluteFilePath());
+            const auto sf = sd.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+            for (const QFileInfo& f : sf)
+                totalSize += f.size();
+        }
+
+        if (totalSize >= 1073741824) {
+            sizeDisplay = QString::number(totalSize / 1073741824.0, 'f', 2) + QStringLiteral(" GB");
+        } else if (totalSize >= 1048576) {
+            sizeDisplay = QString::number(totalSize / 1048576.0, 'f', 1) + QStringLiteral(" MB");
+        } else {
+            sizeDisplay = QString::number(totalSize / 1024.0, 'f', 0) + QStringLiteral(" KB");
+        }
     }
     info[QStringLiteral("sizeDisplay")] = sizeDisplay;
 
     m_gameDirInfo = info;
     emit gameDirChanged();
+    });
 }
 
 QVariantMap ShadowBackend::systemMemoryInfo() const {
