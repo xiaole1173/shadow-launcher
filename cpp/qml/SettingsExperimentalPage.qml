@@ -94,6 +94,7 @@ Flickable {
                             }
                         }
                         delegate: ItemDelegate {
+                            width: parent.width
                             contentItem: Text {
                                 text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
                                 verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
@@ -111,8 +112,8 @@ Flickable {
                             implicitHeight: contentItem.implicitHeight + 8
                             padding: 4
                             enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.6 }
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "y"; from: langCombo.height + 2; duration: 140; easing.type: Easing.OutCubic }
                             }
                             exit: Transition {
                                 NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80; easing.type: Easing.InCubic }
@@ -187,6 +188,7 @@ Flickable {
                             }
                         }
                         delegate: ItemDelegate {
+                            width: parent.width
                             contentItem: Text {
                                 text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
                                 verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
@@ -204,8 +206,8 @@ Flickable {
                             implicitHeight: contentItem.implicitHeight + 8
                             padding: 4
                             enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.6 }
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "y"; from: langModeCombo.height + 2; duration: 140; easing.type: Easing.OutCubic }
                             }
                             exit: Transition {
                                 NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80; easing.type: Easing.InCubic }
@@ -250,16 +252,20 @@ Flickable {
                     }
                     Item { Layout.fillWidth: true }
                     Text { text: hasBg ? qsTr("已设置") : qsTr("未设置"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                    Rectangle { width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgBrowseHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
-                        scale: bgBrowseHov.containsMouse ? 1.05 : 1.0
+                    Rectangle { width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgBrowseHov.pressed ? "#1e2a40" : (bgBrowseHov.containsMouse ? "#252a38" : "#161a24"); border.color: bgBrowseHov.containsMouse ? "#4a5ed0" : StyleTokens.bgHover
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        scale: bgBrowseHov.containsMouse ? (bgBrowseHov.pressed ? 0.94 : 1.04) : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Text { anchors.centerIn: parent; text: qsTr("浏览"); font.pixelSize: StyleTokens.fontSizeSm; color: "#d0d4e0" }
                         MouseArea { id: bgBrowseHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) backend.pickBackgroundImage() }
                         }
                     }
-                    Rectangle { visible: hasBg; width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgClearHov.hovered ? "#302020" : "#161a24"; border.color: StyleTokens.bgHover
-                        scale: bgClearHov.containsMouse ? 1.05 : 1.0
+                    Rectangle { visible: hasBg; width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgClearHov.pressed ? "#3a1818" : (bgClearHov.containsMouse ? "#302020" : "#161a24"); border.color: bgClearHov.containsMouse ? "#d06060" : StyleTokens.bgHover
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        scale: bgClearHov.containsMouse ? (bgClearHov.pressed ? 0.94 : 1.04) : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Text { anchors.centerIn: parent; text: qsTr("清除"); font.pixelSize: StyleTokens.fontSizeSm; color: "#d08080" }
                         MouseArea { id: bgClearHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
