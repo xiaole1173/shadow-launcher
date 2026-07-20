@@ -52,6 +52,7 @@ public:
 
     // Auto-language mode (0=off, 1=system locale, 2=IP region)
     void setAutoLangMode(int mode) { m_autoLangMode = mode; }
+    void setDetectedRegion(const QString& region) { m_detectedRegion = region; }
 
     // Auth info for online mode
     void setAuthInfo(const QString& username, const QString& uuid,
@@ -105,6 +106,7 @@ private:
     bool m_authIsOnline = false;
 
     int m_autoLangMode = 1;
+    QString m_detectedRegion;
 
     // ── Token refresh retry state ──
     int m_refreshRetryCount = 0;

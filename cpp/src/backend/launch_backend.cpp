@@ -511,6 +511,7 @@ void LaunchBackend::runNextCheck()
         launcher->setGameDir(m_gameDir);
         launcher->setAuthInfo(m_authName, m_authUuid, m_authToken, m_authIsOnline);
         launcher->setAutoLangMode(m_autoLangMode);
+        launcher->setDetectedRegion(m_detectedRegion);
         launcher->setProperty("launchVersion", m_pendingVersionId);
         // Connect signals
         m_activeLauncher = launcher;  // only this launcher's progress feeds the overlay

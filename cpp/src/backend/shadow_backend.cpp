@@ -1740,6 +1740,7 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     }
 
     m_launch->setAutoLangMode(m_settings->autoLangMode());
+    m_launch->setDetectedRegion(m_geoIp ? m_geoIp->cachedRegion() : QString());
     m_launch->launch(versionId, username, javaPath, maxMemory, jvmArgs, gameArgs, highPerfGpu);
 }
 
