@@ -887,25 +887,106 @@ void ShadowBackend::refreshVersionDetails()
         if (v.releaseTime.isValid())
             releaseTimes[v.id] = v.releaseTime;
     }
+    // Helper: find a valid version json in a directory (flexible scanning)
+    auto findVersionJson = [](const QString& dirPath, const QString& dirName) -> QString {
+        // Fast path: {dirName}/{dirName}.json
+        QString path = dirPath + QStringLiteral("/") + dirName + QStringLiteral(".json");
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+            f.close();
+            if (err.error == QJsonParseError::NoError && doc.isObject()
+                && doc.object().contains(QStringLiteral("mainClass")))
+                return path;
+        }
+        // Slow path: scan all .json files
+        QDir vdir(dirPath);
+        const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
+        for (const QString& jf : jsons) {
+            if (jf == dirName + QStringLiteral(".json")) continue;
+            if (jf == QStringLiteral("authlib-injector.json")) continue;
+            path = dirPath + QStringLiteral("/") + jf;
+            QFile jf2(path);
+            if (jf2.open(QIODevice::ReadOnly)) {
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(jf2.readAll(), &err);
+                jf2.close();
+                if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                    QJsonObject obj = doc.object();
+                    if (obj.contains(QStringLiteral("mainClass"))
+                        && obj.contains(QStringLiteral("type"))
+                        && obj.contains(QStringLiteral("id")))
+                        return path;
+                }
+            }
+        }
+        return QString();
+    };
+
     for (const QString& versionId : entries) {
         QString verPath = versionsDir.filePath(versionId);
+
+        // === Find version JSON (flexible) ===
+        QString jsonPath = findVersionJson(verPath, versionId);
+        if (jsonPath.isEmpty()) continue;  // no valid version json found
+
+        // Parse JSON to get the real version id
+        QFile jf(jsonPath);
+        QJsonObject verJson;
+        if (jf.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(jf.readAll());
+            jf.close();
+            if (doc.isObject()) verJson = doc.object();
+        }
+
+        // === Find the main JAR (flexible) ===
+        // 1. Try {dir}/{dir}.jar
         QString jarPath = verPath + QStringLiteral("/") + versionId + QStringLiteral(".jar");
-        if (!QFileInfo::exists(jarPath)) continue;
+        // 2. Try JSON's "jar" field if set and different from dir name
+        if (!QFileInfo::exists(jarPath) && verJson.contains(QStringLiteral("jar"))) {
+            QString jarName = verJson.value(QStringLiteral("jar")).toString();
+            if (!jarName.isEmpty() && jarName != versionId)
+                jarPath = verPath + QStringLiteral("/") + jarName + QStringLiteral(".jar");
+        }
+        // 3. Scan any .jar files in the directory
+        if (!QFileInfo::exists(jarPath)) {
+            QDir vd(verPath);
+            const QStringList jars = vd.entryList(QStringList() << QStringLiteral("*.jar"), QDir::Files);
+            for (const QString& jfile : jars) {
+                // Skip authlib-injector and other non-version jars
+                if (jfile.contains(QStringLiteral("authlib-injector"))
+                    || jfile.contains(QStringLiteral("nide8auth")))
+                    continue;
+                QString candPath = verPath + QStringLiteral("/") + jfile;
+                // Skip version json, small files (< 1MB) that can't be MC
+                QFileInfo fi(candPath);
+                if (fi.size() < 1024 * 1024) continue;
+                jarPath = candPath;
+                break;
+            }
+        }
+        // If no jar found, that's OK — loader versions inherit from vanilla
 
         QVariantMap detail;
         detail[QStringLiteral("id")] = versionId;
 
-        // ── Detect mod loader FIRST (directory-based + versionId-based) ──
+        // ── Determine base MC version from JSON id ──
+        QString baseMcVersion = versionId;
+        if (!verJson.isEmpty() && verJson.contains(QStringLiteral("id"))) {
+            baseMcVersion = verJson.value(QStringLiteral("id")).toString();
+        }
+
+        // ── Detect mod loader (directory-based + versionId-based) ──
         QString loaderType = tr("原版");
         QString loaderVersion;
-        QString baseMcVersion = versionId;  // default: same as versionId
 
         // Try to detect loader from versionId pattern: "XX.X-neoforge-XX.X" etc.
         static const QRegularExpression loaderIdPattern(R"(^(.+?)-(neoforge|forge|fabric|quilt)-(.+)$)");
         QRegularExpressionMatch loaderMatch = loaderIdPattern.match(versionId);
         if (loaderMatch.hasMatch()) {
-            baseMcVersion = loaderMatch.captured(1);  // e.g. "26.2"
-            loaderVersion = loaderMatch.captured(3);  // e.g. "26.2.0.7-beta"
+            baseMcVersion = loaderMatch.captured(1);
+            loaderVersion = loaderMatch.captured(3);
         }
 
         // Directory-based loader detection (more reliable than versionId parsing)
@@ -983,6 +1064,8 @@ void ShadowBackend::refreshVersionDetails()
             while (modIt.hasNext()) { modIt.next(); modCount++; }
         }
         detail[QStringLiteral("modCount")] = modCount;
+        detail[QStringLiteral("jsonPath")] = jsonPath;
+        detail[QStringLiteral("jarPath")] = jarPath;
 
         m_versionDetails.append(detail);
     }
