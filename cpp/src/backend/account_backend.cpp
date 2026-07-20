@@ -19,6 +19,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QPainter>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QUrl>
 #include <QUrlQuery>
@@ -1103,9 +1104,18 @@ void AccountBackend::refreshMicrosoftToken()
     req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
     req.setTransferTimeout(10000);
 
-    QNetworkReply* reply = HttpClient::instance().post(req, body);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
+    QNetworkReply* rawReply = HttpClient::instance().post(req, body);
+    QPointer<QNetworkReply> replyGuard(rawReply);
+    connect(rawReply, &QNetworkReply::finished, this, [this, replyGuard]() {
+        QNetworkReply* reply = replyGuard.data();
+        if (!reply) {
+            m_refreshingToken = false;
+            qCWarning(logAccount) << QStringLiteral("Microsoft Token刷新失败 原因=reply已销毁");
+            emit tokenRefreshed(false);
+            emit tokenRefreshFailed(false, tr("网络请求异常"));
+            return;
+        }
+
         QByteArray raw = reply->readAll();
         QJsonObject obj = QJsonDocument::fromJson(raw).object();
 
@@ -1169,6 +1179,8 @@ void AccountBackend::refreshMicrosoftToken()
             } else {
                 emit logMessage(tr("令牌刷新暂时失败（%1），将在下次启动时重试").arg(reason));
             }
+
+            reply->deleteLater();
             return;
         }
 
@@ -1180,6 +1192,8 @@ void AccountBackend::refreshMicrosoftToken()
         // m_refreshingToken already true from function entry
         // Don't set m_loggedIn here — wait for MC chain to complete via loginSuccess/loginFailed
         m_msAuth->refreshMcChain(newAccessToken);
+
+        reply->deleteLater();
     });
 }
 
