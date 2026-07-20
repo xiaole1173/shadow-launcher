@@ -1388,29 +1388,61 @@ void VersionBackend::updateInstalledList()
     const QString versionsDir = m_gameDir + QStringLiteral("/versions");
     QDir dir(versionsDir);
 
-    if (!dir.exists()) {
-        return;
-    }
+    if (!dir.exists()) return;
 
-    const QStringList subDirs =
-        dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    auto findValidJson = [](const QString& dirPath, const QString& dirName) -> QString {
+        // Fast path: try {dirName}/{dirName}.json
+        QString path = dirPath + QStringLiteral("/") + dirName + QStringLiteral(".json");
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+            f.close();
+            if (err.error == QJsonParseError::NoError && doc.isObject()
+                && doc.object().contains(QStringLiteral("mainClass")))
+                return path;
+        }
+        // Slow path: scan all .json files for valid version descriptors
+        QDir vdir(dirPath);
+        const QStringList jsons = vdir.entryList(QStringList() << QStringLiteral("*.json"), QDir::Files);
+        for (const QString& jf : jsons) {
+            if (jf == dirName + QStringLiteral(".json")) continue; // already tried
+            // Skip known auxiliary configs
+            if (jf == QStringLiteral("authlib-injector.json")) continue;
+            path = dirPath + QStringLiteral("/") + jf;
+            QFile jf2(path);
+            if (jf2.open(QIODevice::ReadOnly)) {
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(jf2.readAll(), &err);
+                jf2.close();
+                if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                    QJsonObject obj = doc.object();
+                    if (obj.contains(QStringLiteral("mainClass"))
+                        && obj.contains(QStringLiteral("type"))
+                        && obj.contains(QStringLiteral("id")))
+                        return path;
+                }
+            }
+        }
+        return QString();
+    };
+
+    const QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
     for (const QString& subDir : subDirs) {
-        // Check for {versionId}/{versionId}.jar
-        const QString jarPath =
-            versionsDir + QStringLiteral("/") + subDir +
-            QStringLiteral("/") + subDir + QStringLiteral(".jar");
+        const QString verPath = versionsDir + QStringLiteral("/") + subDir;
 
-        if (QFileInfo::exists(jarPath)) {
+        // Fast path: standard {name}/{name}.jar or {name}/{name}.json
+        const QString fastJar = verPath + QStringLiteral("/") + subDir + QStringLiteral(".jar");
+        const QString fastJson = verPath + QStringLiteral("/") + subDir + QStringLiteral(".json");
+        if (QFileInfo::exists(fastJar) || QFileInfo::exists(fastJson)) {
             m_installedIds.append(subDir);
-        } else {
-            // Forge/NeoForge/Fabric versions only have a .json (inherit jar from vanilla)
-            const QString jsonPath =
-                versionsDir + QStringLiteral("/") + subDir +
-                QStringLiteral("/") + subDir + QStringLiteral(".json");
-            if (QFileInfo::exists(jsonPath)) {
-                m_installedIds.append(subDir);
-            }
+            continue;
+        }
+
+        // Flexible path: search for any valid version json
+        if (!findValidJson(verPath, subDir).isEmpty()) {
+            m_installedIds.append(subDir);
         }
     }
 }
