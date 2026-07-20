@@ -394,7 +394,7 @@ Rectangle {
                             Rectangle { radius: StyleTokens.radiusSm; height: 18; width: langTag.implicitWidth + 10; color: StyleTokens.bgHover
                                 Text { id: langTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
                             }
-                            Item { Layout.preferredWidth: 32 }
+                            Item { Layout.fillWidth: true }
                             ComboBox {
                                 id: langCombo
                                 model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
@@ -408,7 +408,7 @@ Rectangle {
                                     if (_syncBack) return
                                     if (backend) backend.switchLanguage(currentIndex)
                                 }
-                                Layout.preferredWidth: 220; Layout.minimumWidth: 160
+                                Layout.preferredWidth: 280
 
                                 // ── Custom dark style ──
                                 background: Rectangle {
@@ -447,7 +447,7 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langCombo.height + 4
-                                    width: langCombo.width
+                                    x: langCombo.width - width
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
@@ -534,7 +534,7 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langModeCombo.height + 4
-                                    width: langModeCombo.width
+                                    x: langModeCombo.width - width
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
