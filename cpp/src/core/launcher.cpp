@@ -118,8 +118,8 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     extractNatives(versionId, versionJson);
 
     // --- Ensure options.txt has language setting ---
-    // Mode 0: off; Mode 1: system locale (default); Mode 2: IP region (set during install, skip)
-    if (m_autoLangMode == 1) {
+    // Mode 0: off; Mode 1: system locale (default); Mode 2: IP region
+    if (m_autoLangMode == 1 || m_autoLangMode == 2) {
         ensureOptionsTxt(versionId);
     }
 
