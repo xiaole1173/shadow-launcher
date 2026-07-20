@@ -197,40 +197,23 @@ Item {
                                         visible: modelData.major > 0
                                     }
                                 }
-                            width: parent.width
-                            contentItem: Text {
-                                text: {
-                                    var idx = javaListCombo.currentIndex
-                                    if (idx < 0) return qsTr("点击选择 Java...")
-                                    var m = javaListCombo.model
-                                    if (m && idx < m.length) return m[idx].label
-                                    return ""
+                                background: Rectangle {
+                                    color: highlighted ? "#253555" : "#1A1D24"
+                                    Behavior on color { ColorAnimation { duration: 100 } }
                                 }
-                                color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                                verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12; elide: Text.ElideRight
-                            }
-                            background: Rectangle {
-                                color: highlighted ? "#252a38" : "transparent"
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                            }
-                            highlighted: javaListCombo.highlightedIndex === index
+                                highlighted: javaListCombo.highlightedIndex === index
                             }
                             popup: Popup {
-                                y: javaListCombo.height + 4; width: javaListCombo.width
-                                padding: 4
-                                enter: Transition {
-                                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
-                                    NumberAnimation { property: "y"; from: javaListCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
-                                }
-                                exit: Transition {
-                                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
-                                }
+                                y: javaListCombo.height; width: javaListCombo.width
+                                padding: 2; topMargin: 4
+                                enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
+                                exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80 } }
                                 contentItem: ListView {
                                     clip: true; implicitHeight: contentHeight
                                     model: javaListCombo.popup.visible ? javaListCombo.delegateModel : null
                                     currentIndex: javaListCombo.highlightedIndex
                                 }
-                                background: Rectangle { radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated }
+                                background: Rectangle { radius: StyleTokens.radiusMd; color: "#1A1D24"; border.color: StyleTokens.bgHover }
                             }
 
                             onCurrentIndexChanged: {
