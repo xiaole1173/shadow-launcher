@@ -446,11 +446,11 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langCombo.height + 4
-                                    x: langCombo.width - width
+                                    width: langCombo.width
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
-                                        clip: true; implicitHeight: contentHeight; implicitWidth: contentWidth
+                                        clip: true; implicitHeight: contentHeight
                                         model: langCombo.popup.visible ? langCombo.delegateModel : null
                                         currentIndex: langCombo.highlightedIndex
                                     }
@@ -532,11 +532,11 @@ Rectangle {
                                 }
                                 popup: Popup {
                                     y: langModeCombo.height + 4
-                                    x: langModeCombo.width - width
+                                    width: langModeCombo.width
                                     implicitHeight: contentItem.implicitHeight + 8
                                     padding: 4
                                     contentItem: ListView {
-                                        clip: true; implicitHeight: contentHeight; implicitWidth: contentWidth
+                                        clip: true; implicitHeight: contentHeight
                                         model: langModeCombo.popup.visible ? langModeCombo.delegateModel : null
                                         currentIndex: langModeCombo.highlightedIndex
                                     }
