@@ -120,7 +120,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     // --- Ensure options.txt has language setting ---
     // Mode 0: off; Mode 1: system locale (default); Mode 2: IP region
     if (m_autoLangMode == 1 || m_autoLangMode == 2) {
-        ensureOptionsTxt(versionId);
+        ensureOptionsTxt();
     }
 
     // --- Build arguments ---
@@ -1001,17 +1001,16 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
 // Private Helpers — Language Detection & options.txt
 // ============================================================
 
-void Launcher::ensureOptionsTxt(const QString& versionId)
+void Launcher::ensureOptionsTxt()
 {
-    QString gameDir = m_gameDir + QStringLiteral("/versions/") + versionId
-                      + QStringLiteral("/game");
+    if (m_versionGameDir.isEmpty()) return;
     QString mcLang;
     if (m_autoLangMode == 2 && !m_detectedRegion.isEmpty()) {
         mcLang = mc_language::regionToMinecraftLang(m_detectedRegion);
     } else {
         mcLang = mc_language::localeToMinecraftLang(QLocale::system());
     }
-    mc_language::writeOptionsTxt(gameDir, mcLang);
+    mc_language::writeOptionsTxt(m_versionGameDir, mcLang);
 }
 
 // ============================================================
