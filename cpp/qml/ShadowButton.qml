@@ -8,8 +8,8 @@ import QtQuick.Controls.Basic
 
 Button {
     id: shadowBtn
-    property string accentColor: "#4a9eff"
-    property string textColor: "#ffffff"
+    property color accentColor: StyleTokens.accent
+    property color textColor: StyleTokens.textInverse
 
     flat: true
     font.pixelSize: StyleTokens.fontSizeMd
@@ -42,7 +42,7 @@ Button {
     contentItem: Text {
         text: shadowBtn.text
         font: shadowBtn.font
-        color: shadowBtn.enabled ? shadowBtn.textColor : "#555760"
+        color: shadowBtn.enabled ? shadowBtn.textColor : StyleTokens.textMuted
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }

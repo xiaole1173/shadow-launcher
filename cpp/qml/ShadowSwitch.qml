@@ -49,7 +49,7 @@ Switch {
             width: 16
             height: 16
             radius: height / 2
-            color: control.enabled ? "#e4e8f2" : "#707080"
+            color: control.enabled ? StyleTokens.textSecondary : StyleTokens.textMuted
             anchors.verticalCenter: parent.verticalCenter
             x: control.checked ? parent.width - width - 3 : 3
 
