@@ -295,147 +295,147 @@ Item {
                 text: debugCol.log("fetching", String(page.javaBackend ? page.javaBackend.fetching : "null"))
                 color: page.javaBackend && page.javaBackend.fetching ? "#ff8844" : "#885555"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("versions", String(page.javaBackend ? page.javaBackend.javaVersions.length : "null"))
                 color: page.javaBackend && page.javaBackend.javaVersions.length > 0 ? "#44ff44" : "#885555"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("types", String(page.javaBackend ? page.javaBackend.javaTypes.length : "null"))
                 color: page.javaBackend && page.javaBackend.javaTypes.length > 0 ? "#44ff44" : "#885555"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("archs", String(page.javaBackend ? page.javaBackend.javaArchs.length : "null"))
                 color: page.javaBackend && page.javaBackend.javaArchs.length > 0 ? "#44ff44" : "#885555"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("oses", String(page.javaBackend ? page.javaBackend.javaOSes.length : "null"))
                 color: page.javaBackend && page.javaBackend.javaOSes.length > 0 ? "#44ff44" : "#885555"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 选中值 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: "Consolas, monospace" }
+            Text { text: "── 选中值 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: debugCol.log("selVer", String(page.javaBackend ? page.javaBackend.selectedVersion || "(empty)" : "null"))
                 color: "#88aadd"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("selType", String(page.javaBackend ? page.javaBackend.selectedType || "(empty)" : "null"))
                 color: "#88aadd"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("selArch", String(page.javaBackend ? page.javaBackend.selectedArch || "(empty)" : "null"))
                 color: "#88aadd"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("selOS", String(page.javaBackend ? page.javaBackend.selectedOS || "(empty)" : "null"))
                 color: "#88aadd"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 动画触发 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: "Consolas, monospace" }
+            Text { text: "── 动画触发 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: debugCol.log("toast", page.toastManager ? "set" : "NULL")
                 color: page.toastManager ? "#44ff44" : "#ff4444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tStart", page.toastStartCount)
                 color: page.toastStartCount > 0 ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tFinish", page.toastFinishCount)
                 color: page.toastFinishCount > 0 ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("vSpinner", String(ddVersion.showSpinner))
                 color: ddVersion.showSpinner ? "#ffaa00" : "#664400"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tSpinner", String(ddType.showSpinner))
                 color: ddType.showSpinner ? "#ffaa00" : "#664400"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("aSpinner", String(ddArch.showSpinner))
                 color: ddArch.showSpinner ? "#ffaa00" : "#664400"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("oSpinner", String(ddOS.showSpinner))
                 color: ddOS.showSpinner ? "#ffaa00" : "#664400"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 启用状态 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: "Consolas, monospace" }
+            Text { text: "── 启用状态 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: debugCol.log("vEnabled", String(ddVersion.enabled))
                 color: ddVersion.enabled ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tEnabled", String(ddType.enabled))
                 color: ddType.enabled ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("aEnabled", String(ddArch.enabled))
                 color: ddArch.enabled ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("oEnabled", String(ddOS.enabled))
                 color: ddOS.enabled ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 下载进度 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: "Consolas, monospace" }
+            Text { text: "── 下载进度 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: "pct: " + progressPct + "%"
                 color: "#88ddff"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: "speed: " + progressSpeedText
                 color: "#88ddff"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: "barVis: " + progressBar.visible
                 color: progressBar.visible ? "#44ff44" : "#884444"
                 font.pixelSize: StyleTokens.fontSizeXs
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
         }
     }
