@@ -1389,12 +1389,12 @@ Rectangle {
     Connections {
         target: backend
         function onLoginModeChanged() {
-            // 启动时后端发射 loginModeChanged, 同步到 QML 本地状态
-            // 外置登录但 session 无效时回退到离线模式
+            // 同步后端保存的登录模式到 QML
             var mode = backend ? backend.lastLoginMode : 1
-            if (mode === 2 && (!backend.yggdrasil || !backend.yggdrasil.loggedIn))
-                mode = 1
             loginMode = mode
+            // 如果外置登录 session 过期，留在外置登录 tab 让用户重新登录
+            if (mode === 2 && backend && backend.yggdrasil && !backend.yggdrasil.loggedIn && toastManager)
+                toastManager.show("外置登录会话已过期，请重新登录")
         }
     }
 }
