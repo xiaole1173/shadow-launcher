@@ -50,6 +50,10 @@ public:
     Q_INVOKABLE QStringList checkVersionMissingNatives(const QString& versionId);
     Q_INVOKABLE QStringList checkVersionLibraries(const QString& versionId);
 
+    // Yggdrasil 外置登录模式
+    void setYggdrasilMode(const QString &apiRoot, const QString &accessToken);
+    void clearYggdrasilMode();
+
     // Auto-language mode (0=off, 1=system locale, 2=IP region)
     void setAutoLangMode(int mode) { m_autoLangMode = mode; }
     void setDetectedRegion(const QString& region) { m_detectedRegion = region; }
@@ -105,6 +109,11 @@ private:
     QString m_authUuid;
     QString m_authToken;
     bool m_authIsOnline = false;
+
+    // Yggdrasil 外置登录
+    QString m_yggApiRoot;
+    QString m_yggAccessToken;
+    bool m_yggdrasilMode = false;
 
     int m_autoLangMode = 1;
     QString m_detectedRegion;

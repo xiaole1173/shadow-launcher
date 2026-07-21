@@ -26,6 +26,7 @@ class ResourceBackend;
 class StatsBackend;
 class JavaBackend;
 class UserDataBackend;
+class YggdrasilBackend;
 class ModManager;
 class LocalModManager;
 class IconCache;
@@ -631,6 +632,7 @@ signals:
 public:
     AppBackend* app() const { return m_app; }
     AccountBackend* account() const { return m_account; }
+    YggdrasilBackend* yggdrasil() const { return m_yggdrasil; }
     Q_INVOKABLE SettingsBackend* settings() const { return m_settings; }
     // Auto-language mode helpers (bypass backend.settings.* QML chain issues in Loaders)
     Q_INVOKABLE int diagAutoLangComboIdx() const;
@@ -687,6 +689,7 @@ private:
     ResourceBackend* m_resource = nullptr;
     StatsBackend*   m_stats = nullptr;
     JavaBackend*    m_java = nullptr;
+    YggdrasilBackend* m_yggdrasil = nullptr;
     UserDataBackend* m_userData = nullptr;
     IconCache* m_modIconCache = nullptr;
     IconCache* m_shaderIconCache = nullptr;

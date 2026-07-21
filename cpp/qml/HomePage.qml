@@ -15,6 +15,7 @@ Rectangle {
     property var appWindow
     property string currentSelectedVersion: ""
     property int loginMode: 0
+    property string _yggStatusText: ""
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
 
     // Signals
@@ -110,6 +111,28 @@ Rectangle {
                     Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
+            }
+            Rectangle {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                color: loginMode === 2 ? "#1a1f2e" : "transparent"; radius: StyleTokens.radiusLg
+                Rectangle {
+                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                    width: loginMode === 2 ? 8 : 6; height: loginMode === 2 ? 8 : 6
+                    radius: loginMode === 2 ? 4 : 3; color: loginMode === 2 ? "#6080e8" : "#3a3d50"
+                    Behavior on width { NumberAnimation { duration: 200 } }
+                    Behavior on height { NumberAnimation { duration: 200 } }
+                    Behavior on radius { NumberAnimation { duration: 200 } }
+                    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                }
+                Row {
+                    anchors.centerIn: parent; spacing: 6
+                    Image {
+                        source: "icons/lucide/globe.svg"; width: 14; height: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
+                }
+                MouseArea { anchors.fill: parent; onClicked: { loginMode = 2 } }
             }
         }
     }
@@ -418,6 +441,248 @@ Rectangle {
                 message: offlineNameInput.text !== "" && /[^a-zA-Z0-9_]/.test(offlineNameInput.text)
                     ? qsTr("对于1.18+版本，玩家名中如果出现除了英文、数字、下划线以外的非法字符，单人存档、局域网联机、进服务器全都可能无法进入世界！")
                     : ""
+            }
+        }
+    }
+
+    // ── Yggdrasil 外置登录（未登录状态）──
+    Rectangle {
+        id: yggdrasilForm
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: loginSwitch.bottom; anchors.topMargin: 20
+        width: 340
+        property bool showYggForm: loginMode === 2 && (backend ? !backend.yggdrasil.loggedIn : false)
+        opacity: showYggForm ? 1 : 0
+        visible: opacity > 0
+        scale: showYggForm ? 1 : 0.9
+        transformOrigin: Item.Top
+        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
+        height: childrenRect.height; color: "transparent"
+
+        ColumnLayout {
+            width: parent.width; spacing: 10
+
+            // 认证服务器地址
+            Rectangle {
+                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
+                color: StyleTokens.bgSecondary; border.color: yggApiRootInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+                TextInput {
+                    id: yggApiRootInput
+                    anchors.fill: parent; anchors.leftMargin: 12
+                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                    verticalAlignment: TextInput.AlignVCenter
+                    text: qsTr("https://littleskin.cn/api/yggdrasil")
+                }
+                Text {
+                    anchors.left: parent.left; anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("认证服务器地址"); color: "#a8b0c0"
+                    font.pixelSize: StyleTokens.fontSizeMd
+                    visible: !yggApiRootInput.text
+                }
+            }
+
+            // 邮箱/用户名
+            Rectangle {
+                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
+                color: StyleTokens.bgSecondary; border.color: yggEmailInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+                TextInput {
+                    id: yggEmailInput
+                    anchors.fill: parent; anchors.leftMargin: 12
+                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                    verticalAlignment: TextInput.AlignVCenter
+                }
+                Text {
+                    anchors.left: parent.left; anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("邮箱 / 用户名"); color: "#a8b0c0"
+                    font.pixelSize: StyleTokens.fontSizeMd
+                    visible: !yggEmailInput.text
+                }
+            }
+
+            // 密码
+            Rectangle {
+                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
+                color: StyleTokens.bgSecondary; border.color: yggPasswordInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+                TextInput {
+                    id: yggPasswordInput
+                    anchors.fill: parent; anchors.leftMargin: 12
+                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                    verticalAlignment: TextInput.AlignVCenter
+                    echoMode: TextInput.Password
+                }
+                Text {
+                    anchors.left: parent.left; anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("密码"); color: "#a8b0c0"
+                    font.pixelSize: StyleTokens.fontSizeMd
+                    visible: !yggPasswordInput.text
+                }
+            }
+
+            // 操作按钮
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+
+                // 登录
+                Rectangle {
+                    Layout.fillWidth: true; height: 38; radius: StyleTokens.radiusLg
+                    color: yggLoginBtnMouse.containsMouse ? "#4a5ec8" : "#3a4eb8"
+                    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    scale: yggLoginBtnMouse.pressed ? 0.95 : (yggLoginBtnMouse.containsMouse ? 1.03 : 1.0)
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    Row {
+                        anchors.centerIn: parent; spacing: 6
+                        Image { source: "icons/lucide/log-in.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: qsTr("登录"); color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold }
+                    }
+                    MouseArea {
+                        id: yggLoginBtnMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (!backend) return
+                            var apiRoot = yggApiRootInput.text.trim()
+                            var email = yggEmailInput.text.trim()
+                            var password = yggPasswordInput.text
+                            if (!apiRoot || !email || !password) {
+                                if (toastManager) toastManager.show("请填写完整的登录信息")
+                                return
+                            }
+                            backend.yggdrasil.login(apiRoot, email, password)
+                        }
+                    }
+                }
+
+                // 注册
+                Rectangle {
+                    Layout.preferredWidth: 80; height: 38; radius: StyleTokens.radiusLg
+                    color: yggRegBtnMouse.containsMouse ? "#1a1f2e" : "#11141c"
+                    border.color: yggRegBtnMouse.containsMouse ? "#3a4eb8" : StyleTokens.bgElevated; border.width: 1
+                    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("注册"); color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeSm
+                    }
+                    MouseArea {
+                        id: yggRegBtnMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var url = backend && backend.yggdrasil.registerUrl ? backend.yggdrasil.registerUrl : qsTr("https://littleskin.cn/auth/register")
+                            Qt.openUrlExternally(url)
+                        }
+                    }
+                }
+            }
+
+            // 状态消息
+            Text {
+                Layout.fillWidth: true; visible: _yggStatusText.length > 0
+                text: _yggStatusText; color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeSm
+                horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    // ── Yggdrasil 已登录显示 ──
+    Rectangle {
+        id: yggdrasilDisplay
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: loginSwitch.bottom; anchors.topMargin: 20
+        width: 340
+        property bool showYggState: loginMode === 2 && backend && backend.yggdrasil.loggedIn
+        opacity: showYggState ? 1 : 0
+        visible: opacity > 0
+        scale: showYggState ? 1 : 0.85
+        transformOrigin: Item.Center
+        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 500; easing.type: Easing.OutElastic } }
+        height: childrenRect.height; color: "transparent"
+
+        ColumnLayout {
+            anchors.horizontalCenter: parent.horizontalCenter; spacing: 8
+
+            // 头像 + 名
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter; spacing: 10
+                MinecraftHead2D {
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 48; height: 48
+                    skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
+                }
+                Text { text: backend.yggdrasil.username; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
+            }
+
+            // UUID + 服务器
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: backend.yggdrasil.uuid; font.pixelSize: StyleTokens.fontSizeXs
+                color: "#a8b0c0"; font.family: "Consolas, monospace"
+            }
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: backend.yggdrasil.metaServerName || backend.yggdrasil.apiRoot
+                font.pixelSize: StyleTokens.fontSizeXs; color: "#7E8596"
+                elide: Text.ElideMiddle; Layout.maximumWidth: 320
+            }
+
+            // 多角色选择
+            Rectangle {
+                Layout.fillWidth: true
+                visible: backend.yggdrasil.profiles.length > 1
+                height: visible ? (Math.min(backend.yggdrasil.profiles.length, 4) * 32 + 8) : 0
+                color: "#11141c"; radius: StyleTokens.radiusMd; border.color: StyleTokens.bgElevated; border.width: 1; clip: true
+                ListView {
+                    anchors.fill: parent; anchors.margins: 4
+                    model: backend.yggdrasil.profiles
+                    spacing: 2
+                    delegate: Rectangle {
+                        width: ListView.view.width; height: 30; radius: StyleTokens.radiusSm
+                        color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (rowMouse.containsMouse ? "#1a1f2e" : "transparent")
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 8; spacing: 6
+                            Rectangle {
+                                width: 6; height: 6; radius: 3
+                                color: model.index === backend.yggdrasil.profileIndex ? "#6080e8" : "transparent"
+                            }
+                            Text {
+                                text: modelData.name || ""
+                                color: model.index === backend.yggdrasil.profileIndex ? "#e4e8f2" : "#9498a8"
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
+                            }
+                        }
+                        MouseArea {
+                            id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (backend) backend.yggdrasil.selectProfile(model.index) }
+                        }
+                    }
+                }
+            }
+
+            // 登出
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter; spacing: 12
+                Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeSm; color: "#a8b0c0" }
+                Rectangle {
+                    width: 60; height: 24; radius: StyleTokens.radiusSm
+                    color: "transparent"; border.color: StyleTokens.surfaceLight
+                    Row {
+                        anchors.centerIn: parent; spacing: 4
+                        Image { source: "icons/lucide/log-out.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: qsTr("登出"); font.pixelSize: StyleTokens.fontSizeSm; color: "#c05050" }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (backend) {
+                                backend.yggdrasil.logout()
+                                if (toastManager) toastManager.show("已退出外置登录")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -796,7 +1061,12 @@ Rectangle {
                             toastManager.show("请先完成正版登录")
                             return
                         }
-                        backend.launch(currentSelectedVersion, loginMode === 0)
+                        // Yggdrasil mode: must be logged in
+                        if (loginMode === 2 && !backend.yggdrasil.loggedIn) {
+                            toastManager.show("请先完成外置登录")
+                            return
+                        }
+                        backend.launch(currentSelectedVersion, loginMode === 0 || loginMode === 2)
                     }
                 }
             }
@@ -1078,6 +1348,34 @@ Rectangle {
         target: backend
         function onWardrobeError(error) {
             toastManager.show(error)
+        }
+    }
+
+    // ══ Yggdrasil 信号 ══
+    Connections {
+        target: backend.yggdrasil
+
+        function onStateChanged() {
+            _yggStatusText = ""
+        }
+
+        function onLoginSuccess() {
+            _yggStatusText = ""
+            if (toastManager) toastManager.show("外置登录成功")
+        }
+
+        function onLoginFailed(error) {
+            _yggStatusText = ""
+            if (toastManager) toastManager.show("外置登录失败: " + error)
+        }
+
+        function onMetaReady() {
+            if (backend.yggdrasil.metaServerName)
+                _yggStatusText = "已连接: " + backend.yggdrasil.metaServerName
+        }
+
+        function onMetaFailed(error) {
+            if (toastManager) toastManager.show("获取服务器信息失败: " + error)
         }
     }
 }
