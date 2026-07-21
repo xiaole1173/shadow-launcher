@@ -104,7 +104,7 @@ Rectangle {
         anchors.centerIn: parent
         width: 460
         height: Math.min(Math.max(320, root._importing || root._hasResult ? 400 : 300), parent.height - 80)
-        radius: 16
+        radius: StyleTokens.radiusWindow
         color: StyleTokens.surfaceOverlay
         border.color: "#2a2f3a"
         border.width: 1

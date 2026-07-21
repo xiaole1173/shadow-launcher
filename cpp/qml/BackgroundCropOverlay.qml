@@ -97,7 +97,7 @@ Rectangle {
             }
             Item { Layout.fillWidth: true }
             Rectangle {
-                width: 32; height: 32; radius: 16; color: closeHov.hovered ? "#282838" : "transparent"
+                width: 32; height: 32; radius: StyleTokens.radiusWindow; color: closeHov.hovered ? "#282838" : "transparent"
                 Text { anchors.centerIn: parent; text: "\u2715"; font.pixelSize: StyleTokens.fontSizeLg; color: StyleTokens.textTertiary }
                 MouseArea {
                     id: closeHov; anchors.fill: parent; hoverEnabled: true
