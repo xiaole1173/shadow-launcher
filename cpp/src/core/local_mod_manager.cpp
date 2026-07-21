@@ -41,12 +41,25 @@ QString LocalModManager::modsDir(const QString& versionId) const
 {
     if (versionId.isEmpty()) return m_gameDir + QStringLiteral("/mods");
 
-    // Isolated: .minecraft/versions/<id>/game/mods
-    QString isolatedDir = m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game/mods");
-    if (QDir(isolatedDir).exists() || QDir(m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game")).exists())
-        return isolatedDir;
+    const QString verDir  = m_gameDir + QStringLiteral("/versions/") + versionId;
+    const QString gameDir = verDir + QStringLiteral("/game");
 
-    // Non-isolated: .minecraft/mods (shared)
+    // ── 检查 game/ 是否真的有内容（而非旧代码 mkpath 产物）──
+    auto hasContent = [](const QString& p) -> bool {
+        return QDir(p).exists()
+            && !QDir(p).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty();
+    };
+
+    // 隔离模式：game/ 存在且有内容 → 用 game/mods/
+    if (hasContent(gameDir))
+        return gameDir + QStringLiteral("/mods");
+
+    // 方案 C：无 game/ 或为空 → 检查版本根目录（散乱文件结构）
+    const QString scatteredDir = verDir + QStringLiteral("/mods");
+    if (QDir(scatteredDir).exists())
+        return scatteredDir;
+
+    // 共享模式退路
     return m_gameDir + QStringLiteral("/mods");
 }
 
@@ -475,11 +488,25 @@ QVariantMap LocalModManager::entryToMap(const LocalModEntry& e) const
 
 QString LocalModManager::resourcePacksDir(const QString& versionId) const
 {
-    // Isolated path: .minecraft/versions/<id>/game/resourcepacks
-    QString isolatedDir = m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game/resourcepacks");
-    if (QDir(m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game")).exists())
-        return isolatedDir;
-    // Fallback: .minecraft/resourcepacks (shared)
+    const QString verDir  = m_gameDir + QStringLiteral("/versions/") + versionId;
+    const QString gameDir = verDir + QStringLiteral("/game");
+
+    // ── 检查 game/ 是否真的有内容（而非旧代码 mkpath 产物）──
+    auto hasContent = [](const QString& p) -> bool {
+        return QDir(p).exists()
+            && !QDir(p).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty();
+    };
+
+    // 隔离模式：game/ 存在且有内容 → 用 game/resourcepacks/
+    if (hasContent(gameDir))
+        return gameDir + QStringLiteral("/resourcepacks");
+
+    // 方案 C：无 game/ 或为空 → 检查版本根目录（散乱文件结构）
+    const QString scatteredDir = verDir + QStringLiteral("/resourcepacks");
+    if (QDir(scatteredDir).exists())
+        return scatteredDir;
+
+    // 共享模式退路
     return m_gameDir + QStringLiteral("/resourcepacks");
 }
 

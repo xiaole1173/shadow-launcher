@@ -939,8 +939,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         }
     }
 
-    // Ensure game directory exists
-    QDir().mkpath(m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
+    // Ensure game directory exists (could be game/ or version root for scattered structure)
+    QDir().mkpath(m_versionGameDir);
 
     return args;
 }

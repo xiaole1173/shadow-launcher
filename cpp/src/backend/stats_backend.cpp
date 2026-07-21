@@ -73,7 +73,8 @@ void StatsBackend::refresh()
         for (const VerInfo& vi : infos) {
             QString mcDir;
             if (iso && iso->isEnabled()) {
-                mcDir = gameDir + QStringLiteral("/versions/") + vi.id + QStringLiteral("/game");
+                // 方案 C：复用 getVersionGameDir 逻辑（有 game/ 用 game/，否则版本根目录）
+                mcDir = iso->getVersionGameDir(vi.id);
             } else {
                 mcDir = gameDir;
             }
