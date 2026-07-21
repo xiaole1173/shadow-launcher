@@ -771,18 +771,43 @@ Rectangle {
                     Rectangle {
                         width: parent.width; height: 40; radius: StyleTokens.radiusLg
                         color: StyleTokens.bgSecondary
-                        border.color: yggServerAddrInput.activeFocus ? StyleTokens.borderFocus : StyleTokens.bgElevated
+                        readonly property bool addrValid: yggServerAddrInput.addrValid
+                        border.color: {
+                            if (yggServerAddrInput.activeFocus) return StyleTokens.borderFocus
+                            if (!addrValid && yggServerAddrInput.text) return "#cc5555"
+                            return StyleTokens.bgElevated
+                        }
                         border.width: 1
                         Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                         TextInput {
                             id: yggServerAddrInput
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                            color: addrValid || !text ? "#e4e8f2" : "#ff9999"
+                            font.pixelSize: StyleTokens.fontSizeMd
                             verticalAlignment: TextInput.AlignVCenter
                             text: backend.yggdrasil ? backend.yggdrasil.serverAddress : ""
+
+                            // 实时地址格式校验（镜像 C++ 规则）
+                            property bool addrValid: true
+                            onTextChanged: {
+                                var t = text
+                                if (!t) { addrValid = true; return }
+                                if (/[\s\x00-\x1f]/.test(t)) { addrValid = false; return }
+                                if (!/^[a-zA-Z0-9.\-:]+$/.test(t)) { addrValid = false; return }
+                                if ((t.match(/:/g)||[]).length > 1) { addrValid = false; return }
+                                var parts = t.split(':')
+                                var host = parts[0]
+                                if (!host || host.length > 253) { addrValid = false; return }
+                                if (/^[.\-]|[.\-]$/.test(host)) { addrValid = false; return }
+                                if (parts.length === 2) {
+                                    var port = parseInt(parts[1], 10)
+                                    if (isNaN(port) || port < 1 || port > 65535) { addrValid = false; return }
+                                }
+                                addrValid = true
+                            }
                             onEditingFinished: {
-                                if (backend && backend.yggdrasil)
+                                if (addrValid && backend && backend.yggdrasil)
                                     backend.yggdrasil.serverAddress = text
                             }
                         }

@@ -31,6 +31,7 @@ class YggdrasilBackend : public QObject {
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(bool hadSavedSession READ hadSavedSession CONSTANT)
     Q_PROPERTY(QString serverAddress READ serverAddress WRITE setServerAddress NOTIFY serverAddressChanged)
+    Q_PROPERTY(bool serverAddressValid READ serverAddressValid NOTIFY serverAddressChanged)
     Q_PROPERTY(QString serverName READ serverName WRITE setServerName NOTIFY serverNameChanged)
     Q_PROPERTY(bool autoJoinServer READ autoJoinServer WRITE setAutoJoinServer NOTIFY autoJoinServerChanged)
 
@@ -65,8 +66,10 @@ public:
     QString sessionFilePath() const;
 
     // ── 服务器设置 ──
+    static bool isValidServerAddress(const QString &addr);
     QString serverAddress() const;
     void setServerAddress(const QString &addr);
+    bool serverAddressValid() const { return isValidServerAddress(serverAddress()); }
     QString serverName() const;
     void setServerName(const QString &name);
     bool autoJoinServer() const;
