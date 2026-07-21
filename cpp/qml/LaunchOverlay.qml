@@ -338,16 +338,15 @@ Rectangle {
             }
         }
 
-        // Status toast bar (supports warning/success themed styles)
-        Rectangle {
+        // Status toast bar — InlineToast style (same design as ToastManager toasts)
+        Item {
             id: toastBar
+            clip: true
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             Layout.preferredHeight: toastLabel.implicitHeight + 20
             Layout.maximumWidth: 420
             visible: statusText !== "" && !checkFailed
-            opacity: statusText !== "" && !checkFailed ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
             // Pick style based on authlib-injector state
             property var style: {
@@ -356,39 +355,46 @@ Rectangle {
                 return null  // transparent fallback
             }
 
-            color: style ? style.bgColor : "transparent"
-            Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
-            radius: style ? style.radius : 8
-            Behavior on radius { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-            border.color: style ? style.borderColor : "transparent"
-            Behavior on border.color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
-            border.width: style ? 1 : 0
-
-            // Left accent strip
+            // Opacity wrapper — matches InlineToast pattern
             Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: style ? 3 : 0
-                color: style ? style.leftAccentColor : "transparent"
-                radius: 2
+                anchors.fill: parent
+                radius: StyleTokens.radiusSm
+                color: style ? style.bgColor : "transparent"
+                Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                opacity: statusText !== "" && !checkFailed ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 200 } }
+
+                // Left accent strip (3px, same as InlineToast)
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: style ? 3 : 0
+                    color: style ? style.leftAccentColor : "transparent"
+                    radius: 2
+                }
+
+                // Content label — left-aligned like InlineToast
+                Text {
+                    id: toastLabel
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: _authlibDlDone ? _authlibDlText : (_authlibDlActive ? _authlibDlText : statusText)
+                    color: style ? style.textColor : (checkFailed ? "#a08080" : "#9094a8")
+                    font.pixelSize: StyleTokens.fontSizeSm
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    wrapMode: Text.WordWrap
+                }
             }
 
-            // Content label
-            Text {
-                id: toastLabel
-                anchors.left: parent.left
-                anchors.leftMargin: style ? 14 : 0
-                anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                text: _authlibDlDone ? _authlibDlText : (_authlibDlActive ? _authlibDlText : statusText)
-                color: style ? style.textColor : (checkFailed ? "#a08080" : "#9094a8")
-                font.pixelSize: StyleTokens.fontSizeSm
-                elide: Text.ElideRight
-                maximumLineCount: 2
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
+            // Elastic slide from right (InlineToast style)
+            transform: Translate {
+                x: statusText !== "" && !checkFailed ? 0 : toastBar.width
+                Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
             }
         }
 
