@@ -88,6 +88,10 @@ private:
     State m_state = Idle;
     bool m_userInitiated = false;
 
+    // 静默检查频率控制：6小时内不重复
+    static constexpr qint64 kSilentCheckIntervalMs = 6 * 3600 * 1000;
+    qint64 m_lastSilentCheck = 0;
+
     QString m_currentVersion;
     QString m_qtVersion;
     int m_resourceEpoch = 0;

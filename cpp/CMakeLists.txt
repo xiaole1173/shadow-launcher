@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ShadowLauncher VERSION 0.3.0 LANGUAGES CXX)
+project(ShadowLauncher VERSION 0.3.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)  # Qt default
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -400,7 +400,7 @@ target_link_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/lib")
 # Define WEBP_STATIC_LINK for static lib (needed on Windows)
 target_compile_definitions(ShadowLauncher PRIVATE
     WEBP_STATIC_LINK
-    SHADOW_DISPLAY_VERSION="v0.3.0-beta"
+    SHADOW_DISPLAY_VERSION="v0.3.1-beta"
     SHADOW_QT_VERSION="${Qt6_VERSION}"
     SHADOW_RESOURCE_EPOCH=1
 )
