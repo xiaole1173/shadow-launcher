@@ -110,7 +110,7 @@ Rectangle {
                             text: mp ? mp.roomCode : ""
                             font.pixelSize: StyleTokens.fontSizeXl; font.bold: true
                             color: "#7ec8e3"
-                            font.family: "Consolas, monospace"
+                            font.family: StyleTokens.fontFamilyMono
                         }
                     }
                     Rectangle {
@@ -197,10 +197,10 @@ Rectangle {
                                     text: modelData.ip || "—"
                                     color: StyleTokens.textTertiary
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    font.family: "Consolas, monospace"
+                                    font.family: StyleTokens.fontFamilyMono
                                     Layout.preferredWidth: ipText.implicitWidth
                                 }
-                                Text { id: ipText; visible: false; text: modelData.ip || "—"; font.pixelSize: StyleTokens.fontSizeSm; font.family: "Consolas, monospace" }
+                                Text { id: ipText; visible: false; text: modelData.ip || "—"; font.pixelSize: StyleTokens.fontSizeSm; font.family: StyleTokens.fontFamilyMono }
 
                                 // Latency
                                 Rectangle {
@@ -364,13 +364,13 @@ Rectangle {
                     id: joinInput
                     anchors.fill: parent; anchors.margins: 12
                     verticalAlignment: TextInput.AlignVCenter
-                    font.pixelSize: StyleTokens.fontSizeLg; font.family: "Consolas, monospace"
+                    font.pixelSize: StyleTokens.fontSizeLg; font.family: StyleTokens.fontFamilyMono
                     color: "#e0e0e0"; clip: true
                     Text {
                         anchors.centerIn: parent
                         text: "粘贴房间码 (U/XXXX-...)"
                         color: "#555"; font.pixelSize: StyleTokens.fontSizeLg
-                        font.family: "Consolas, monospace"
+                        font.family: StyleTokens.fontFamilyMono
                         visible: !joinInput.text
                     }
                 }

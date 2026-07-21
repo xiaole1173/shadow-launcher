@@ -126,7 +126,7 @@ Rectangle {
                     // Speed
                     Text {
                         text: fmtSpeed(model.speed || 0)
-                        font.pixelSize: StyleTokens.fontSizeSm; color: "#5d6fe0"; font.family: "Consolas, monospace"
+                        font.pixelSize: StyleTokens.fontSizeSm; color: "#5d6fe0"; font.family: StyleTokens.fontFamilyMono
                     }
                 }
 

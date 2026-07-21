@@ -102,7 +102,7 @@ Rectangle {
                 textFormat: TextEdit.RichText
                 wrapMode: TextEdit.WrapAnywhere
                 color: "#ccc"
-                font.family: "Consolas, 'Microsoft YaHei', monospace"
+                font.family: StyleTokens.fontFamilyMonoMicrosoft YaHei', monospace"
                 font.pixelSize: StyleTokens.fontSizeSm
                 selectByMouse: true
                 padding: 8

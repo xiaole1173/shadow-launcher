@@ -69,7 +69,7 @@ Item {
                 + " | count=" + (backend && backend.versionGameStats ? backend.versionGameStats.length : "?")
             font.pixelSize: StyleTokens.fontSizeSm
             color: "#ff6666"
-            font.family: "Consolas"
+            font.family: StyleTokens.fontFamilyMono
         }
 
         // ── Content slot ──
