@@ -41,22 +41,6 @@ Rectangle {
     property bool _skinRefreshPending: false
     property bool showCapePopup: false
 
-    // ── Third-party login state (per-version, refreshed when version changes) ──
-    property int _thirdPartyLoginType: 0
-    property string _thirdPartyAuthServer: ""
-    property string _thirdPartyAuthRegisterUrl: ""
-    function _refreshThirdPartyLogin() {
-        if (backend && currentSelectedVersion) {
-            _thirdPartyLoginType = backend.versionLoginType(currentSelectedVersion)
-            _thirdPartyAuthServer = backend.versionAuthServer(currentSelectedVersion) || ""
-            _thirdPartyAuthRegisterUrl = backend.versionAuthRegisterUrl(currentSelectedVersion) || ""
-        } else {
-            _thirdPartyLoginType = 0
-            _thirdPartyAuthServer = ""
-            _thirdPartyAuthRegisterUrl = ""
-        }
-    }
-
     function doModifySkin() {
         if (!backend) return
         backend.browseSkin()
@@ -74,14 +58,13 @@ Rectangle {
     }
     property int backendLoginType: backend ? (backend.isOnline ? 0 : 1) : -1
 
-    // Login switch tabs (hidden when third-party login is active)
+    // Login switch tabs
     Rectangle {
         id: loginSwitch
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top; anchors.topMargin: 32
         width: 280; height: 38; radius: StyleTokens.radiusLg
         color: "#11141c"; border.color: StyleTokens.bgInput
-        visible: _thirdPartyLoginType === 0
         RowLayout {
             anchors.fill: parent; spacing: 0
             Rectangle {
@@ -137,7 +120,7 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: loginSwitch.bottom; anchors.topMargin: 20
         width: 300
-        property bool showForm: loginMode === 0 && !loggedIn && _thirdPartyLoginType === 0
+        property bool showForm: loginMode === 0 && !loggedIn
         opacity: showForm ? 1 : 0
         visible: opacity > 0
         scale: showForm ? 1 : 0.9
@@ -247,7 +230,7 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: loginSwitch.bottom; anchors.topMargin: 20
         width: 360
-        property bool showForm: loginMode === 1 && _thirdPartyLoginType === 0
+        property bool showForm: loginMode === 1
         opacity: showForm ? 1 : 0
         visible: opacity > 0
         scale: showForm ? 1 : 0.9
@@ -439,95 +422,13 @@ Rectangle {
         }
     }
 
-        // Third-party login form (visible when version has third-party login)
-    Rectangle {
-        id: thirdPartyLoginForm
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: loginSwitch.bottom; anchors.topMargin: 20
-        width: 360
-        property bool showThirdParty: _thirdPartyLoginType > 0
-        opacity: showThirdParty ? 1 : 0
-        visible: opacity > 0
-        scale: showThirdParty ? 1 : 0.9
-        transformOrigin: Item.Top
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutBack } }
-        height: childrenRect.height; color: "transparent"
-
-        onVisibleChanged: {
-            if (visible && backend && currentSelectedVersion) {
-                var saved = backend.versionLoginUsername(currentSelectedVersion)
-                if (saved) thirdPartyAccountInput.text = saved
-                var savedPwd = backend.versionLoginPassword(currentSelectedVersion)
-                if (savedPwd) thirdPartyPasswordInput.text = savedPwd
-            }
-        }
-
-        ColumnLayout {
-            width: parent.width; spacing: 12
-
-            Text {
-                Layout.fillWidth: true
-                text: qsTr("认证服务器: ") + (_thirdPartyAuthServer || "")
-                font.pixelSize: StyleTokens.fontSizeSm
-                color: "#7E8596"
-                wrapMode: Text.WordWrap
-            }
-
-            Rectangle {
-                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated; border.width: 1
-                TextInput {
-                    id: thirdPartyAccountInput
-                    anchors.fill: parent; anchors.leftMargin: 12
-                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
-                    verticalAlignment: TextInput.AlignVCenter
-                    onTextChanged: {
-                        if (backend && currentSelectedVersion)
-                            backend.setVersionLoginUsername(currentSelectedVersion, text)
-                    }
-                }
-                Text {
-                    anchors.left: parent.left; anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("账号"); color: "#a8b0c0"
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    visible: !thirdPartyAccountInput.text
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated; border.width: 1
-                TextInput {
-                    id: thirdPartyPasswordInput
-                    anchors.fill: parent; anchors.leftMargin: 12
-                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
-                    verticalAlignment: TextInput.AlignVCenter
-                    echoMode: TextInput.Password
-                    onTextChanged: {
-                        if (backend && currentSelectedVersion)
-                            backend.setVersionLoginPassword(currentSelectedVersion, text)
-                    }
-                }
-                Text {
-                    anchors.left: parent.left; anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("密码"); color: "#a8b0c0"
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    visible: !thirdPartyPasswordInput.text
-                }
-            }
-        }
-    }
-
-// Logged-in display
+    // Logged-in display
     Rectangle {
         id: loggedInDisplay
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: loginSwitch.bottom; anchors.topMargin: 20
         width: 300
-        property bool showState: loggedIn && loginMode === 0 && _thirdPartyLoginType === 0
+        property bool showState: loggedIn && loginMode === 0
         opacity: showState ? 1 : 0
         visible: opacity > 0
         scale: showState ? 1 : 0.85
@@ -582,7 +483,7 @@ Rectangle {
     Rectangle {
         id: skinCapePanel
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: _thirdPartyLoginType > 0 ? thirdPartyLoginForm.bottom : (loginMode === 0 ? loggedInDisplay.bottom : offlineForm.bottom)
+        anchors.top: loginMode === 0 ? loggedInDisplay.bottom : offlineForm.bottom
         anchors.topMargin: 12
         width: 340; color: "transparent"
         visible: loginMode === 0 && backend && backend.username
@@ -895,12 +796,7 @@ Rectangle {
                             toastManager.show("请先完成正版登录")
                             return
                         }
-                                                // Third-party login: set credentials before launch
-                        if (_thirdPartyLoginType > 0) {
-                            var srv = backend.versionAuthServer(currentSelectedVersion) || ""
-                            backend.setLaunchThirdPartyLogin(_thirdPartyLoginType, srv, thirdPartyAccountInput.text.trim())
-                        }
-backend.launch(currentSelectedVersion, loginMode === 0)
+                        backend.launch(currentSelectedVersion, loginMode === 0)
                     }
                 }
             }
@@ -1181,7 +1077,6 @@ backend.launch(currentSelectedVersion, loginMode === 0)
     Connections {
         target: backend
         function onWardrobeError(error) {
-        function onSelectedVersionChanged() { homePage._refreshThirdPartyLogin() }
             toastManager.show(error)
         }
     }
