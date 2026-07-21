@@ -198,6 +198,8 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/InstallPage.qml
         qml/KillButton.qml
         qml/LaunchOverlay.qml
+        qml/ToastStyleWarning.qml
+        qml/ToastStyleSuccess.qml
         qml/MainWindow.qml
         qml/BetaKeyDialog.qml
         qml/MinecraftHead2D.qml

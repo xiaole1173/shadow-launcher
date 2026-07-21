@@ -18,6 +18,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QEventLoop>
+#include <QNetworkRequest>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -553,7 +554,7 @@ void LaunchBackend::runNextCheck()
                 // 尝试从多个镜像下载
                 QStringList urls = {
                     QStringLiteral("https://authlib-injector.yushi.moe/artifact/latest.json"),
-                    QStringLiteral("https://bmclapi2.bangbang93.cn/mirrors/authlib-injector/artifact/latest.json"),
+                    QStringLiteral("https://bmclapi.bangbang93.cn/mirrors/authlib-injector/artifact/latest.json"),
                 };
 
                 bool dlOk = false;
@@ -574,7 +575,9 @@ void LaunchBackend::runNextCheck()
 
                     QJsonDocument metaDoc = QJsonDocument::fromJson(metaData);
                     QJsonObject metaObj = metaDoc.object();
-                    QString downloadUrl = metaObj.value(QStringLiteral("downloadUrl")).toString();
+                    QString downloadUrl = metaObj.value(QStringLiteral("download_url")).toString();
+                    if (downloadUrl.isEmpty())
+                        downloadUrl = metaObj.value(QStringLiteral("downloadUrl")).toString();
                     if (downloadUrl.isEmpty())
                         downloadUrl = metaObj.value(QStringLiteral("artifact")).toObject()
                                       .value(QStringLiteral("url")).toString();
@@ -601,24 +604,52 @@ void LaunchBackend::runNextCheck()
                 }
 
                 if (!dlOk) {
-                    // 最后尝试直接下载
-                    QString directUrl = QStringLiteral("https://github.com/yushijinhun/authlib-injector/releases/latest/download/authlib-injector.jar");
-                    QNetworkAccessManager nam;
-                    QNetworkReply *jarReply = nam.get(QNetworkRequest(QUrl(directUrl)));
-                    QEventLoop loop;
-                    QObject::connect(jarReply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                    loop.exec();
+                    // 最后尝试从 GitHub Releases API 获取下载链接
+                    QString ghApiUrl = QStringLiteral("https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest");
+                    QNetworkAccessManager ghNam;
+                    QNetworkRequest ghReq2;
+                    ghReq2.setUrl(QUrl(ghApiUrl));
+                    ghReq2.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+                    ghReq2.setRawHeader("Accept", "application/json");
+                    QNetworkReply *ghReply = ghNam.get(ghReq2);
+                    QEventLoop ghLoop;
+                    QObject::connect(ghReply, &QNetworkReply::finished, &ghLoop, &QEventLoop::quit);
+                    ghLoop.exec();
 
-                    if (jarReply->error() == QNetworkReply::NoError) {
-                        QFile file(jarPath);
-                        if (file.open(QIODevice::WriteOnly)) {
-                            file.write(jarReply->readAll());
-                            file.close();
-                            dlOk = true;
-                            qCInfo(logLaunch) << "已从 GitHub 下载 authlib-injector.jar";
+                    if (ghReply->error() == QNetworkReply::NoError) {
+                        QByteArray ghData = ghReply->readAll();
+                        ghReply->deleteLater();
+
+                        QJsonDocument ghDoc = QJsonDocument::fromJson(ghData);
+                        QJsonArray assets = ghDoc.object().value(QStringLiteral("assets")).toArray();
+                        QString ghDownloadUrl;
+                        for (const QJsonValue &av : assets) {
+                            QJsonObject asset = av.toObject();
+                            QString name = asset.value(QStringLiteral("name")).toString();
+                            if (name.endsWith(QStringLiteral(".jar")) && !name.contains(QStringLiteral("-sources"))) {
+                                ghDownloadUrl = asset.value(QStringLiteral("browser_download_url")).toString();
+                                break;
+                            }
+                        }
+
+                        if (!ghDownloadUrl.isEmpty()) {
+                            QNetworkReply *jarReply = ghNam.get(QNetworkRequest(QUrl(ghDownloadUrl)));
+                            QEventLoop jarLoop;
+                            QObject::connect(jarReply, &QNetworkReply::finished, &jarLoop, &QEventLoop::quit);
+                            jarLoop.exec();
+
+                            if (jarReply->error() == QNetworkReply::NoError) {
+                                QFile file(jarPath);
+                                if (file.open(QIODevice::WriteOnly)) {
+                                    file.write(jarReply->readAll());
+                                    file.close();
+                                    dlOk = true;
+                                    qCInfo(logLaunch) << "已从 GitHub 下载 authlib-injector.jar";
+                                }
+                            }
+                            jarReply->deleteLater();
                         }
                     }
-                    jarReply->deleteLater();
                 }
 
                 if (!dlOk) {

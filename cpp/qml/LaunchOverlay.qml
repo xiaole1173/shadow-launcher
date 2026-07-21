@@ -11,6 +11,23 @@ Rectangle {
     color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
     property var backend: null
     property var toastManager: null
+    readonly property var toastWarningStyle: ToastStyleWarning {}
+    readonly property var toastSuccessStyle: ToastStyleSuccess {}
+
+    // ── Authlib-injector download toast state ──
+    property bool _authlibDlActive: false
+    property bool _authlibDlDone: false
+    property string _authlibDlText: ""
+
+    Timer {
+        id: authlibDlDoneTimer
+        interval: 2500
+        onTriggered: {
+            _authlibDlActive = false
+            _authlibDlDone = false
+            _authlibDlText = ""
+        }
+    }
 
     // Block all mouse events from passing through to underlying UI
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
@@ -107,6 +124,22 @@ Rectangle {
             console.log("[overlay] progress: " + pct + "% - " + status)
             progressValue = pct
             statusText = status
+
+            // Authlib-injector download toast state machine
+            if (status.indexOf("authlib-injector") >= 0) {
+                _authlibDlActive = true
+                _authlibDlText = status
+                _authlibDlDone = false
+                authlibDlDoneTimer.stop()
+            } else if (_authlibDlActive && !_authlibDlDone) {
+                // Transition: download just finished
+                _authlibDlDone = true
+                _authlibDlText = "authlib-injector.jar 下载完成"
+                authlibDlDoneTimer.start()
+            } else if (!_authlibDlDone) {
+                _authlibDlText = status
+            }
+
             if (pct === 100 && !checkFailed) {
                 closeTimer.start()
             }
@@ -295,21 +328,55 @@ Rectangle {
             }
         }
 
-        // Status text
-        Text {
-            id: statusLabel
+        // Status toast bar (supports warning/success themed styles)
+        Rectangle {
+            id: toastBar
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
-            Layout.maximumHeight: 48
-            text: statusText
-            color: checkFailed ? "#a08080" : "#9094a8"
-            font.pixelSize: StyleTokens.fontSizeSm
-            elide: Text.ElideRight
-            maximumLineCount: 3
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
-            clip: true
-            visible: statusText !== ""
+            Layout.preferredHeight: toastLabel.implicitHeight + 20
+            Layout.maximumWidth: 420
+            visible: statusText !== "" && !checkFailed
+            opacity: statusText !== "" && !checkFailed ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
+
+            // Pick style based on authlib-injector state
+            property var style: {
+                if (_authlibDlActive && !_authlibDlDone) return toastWarningStyle
+                if (_authlibDlDone) return toastSuccessStyle
+                return null  // transparent fallback
+            }
+
+            color: style ? style.bgColor : "transparent"
+            radius: style ? style.radius : 8
+            border.color: style ? style.borderColor : "transparent"
+            border.width: style ? 1 : 0
+
+            // Left accent strip
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: style ? 3 : 0
+                color: style ? style.leftAccentColor : "transparent"
+                radius: 2
+            }
+
+            // Content label
+            Text {
+                id: toastLabel
+                anchors.left: parent.left
+                anchors.leftMargin: style ? 14 : 0
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                text: _authlibDlDone ? _authlibDlText : (_authlibDlActive ? _authlibDlText : statusText)
+                color: style ? style.textColor : (checkFailed ? "#a08080" : "#9094a8")
+                font.pixelSize: StyleTokens.fontSizeSm
+                elide: Text.ElideRight
+                maximumLineCount: 2
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+            }
         }
 
         // Action buttons
