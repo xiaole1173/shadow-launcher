@@ -249,7 +249,7 @@ Window {
 
     // ── Rounded window container ──
     Rectangle {
-        anchors.fill: parent; radius: 16
+        anchors.fill: parent; radius: StyleTokens.radiusWindow
         color: hasCustomBg ? "transparent" : "#0c0f16"
         clip: true
 
@@ -314,7 +314,7 @@ Window {
 
         // ── Loading bar (Android-style indeterminate) ──
         // FIX: fixed height 2px + opacity control → zero layout jitter
-        // FIX: inset from rounded window corners (radius: 16)
+        // FIX: inset from rounded window corners (radius: StyleTokens.radiusWindow)
         Rectangle {
             id: loadingBar
             Layout.fillWidth: true

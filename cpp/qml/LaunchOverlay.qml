@@ -470,7 +470,7 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 width: 3
                 color: authlibToast._curStyle.leftAccentColor
-                radius: 2
+                radius: StyleTokens.radiusXs
             }
 
             // Message — left-aligned, InlineToast style
