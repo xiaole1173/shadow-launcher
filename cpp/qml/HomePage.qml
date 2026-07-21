@@ -16,6 +16,7 @@ Rectangle {
     property string currentSelectedVersion: ""
     property int loginMode: 0
     property string _yggStatusText: ""
+    property string _yggAutoServer: ""
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
 
     // Signals
@@ -702,6 +703,40 @@ Rectangle {
         }
     }
 
+    // ── 自动进入服务器（外置登录） ──
+    Rectangle {
+        id: yggAutoServerBox
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: yggdrasilDisplay.bottom; anchors.topMargin: 10
+        width: 300; height: 36; radius: StyleTokens.radiusMd
+        color: StyleTokens.bgSecondary; border.color: yggAutoServerInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+        visible: loginMode === 2 && backend && backend.yggdrasil && backend.yggdrasil.loggedIn
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+        transformOrigin: Item.Top
+        scale: visible ? 1 : 0.9
+
+        RowLayout {
+            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8
+            spacing: 6
+            Text {
+                text: qsTr("进入服务器")
+                font.pixelSize: StyleTokens.fontSizeSm; color: "#9498a8"
+            }
+            TextInput {
+                id: yggAutoServerInput
+                Layout.fillWidth: true
+                color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeSm
+                verticalAlignment: TextInput.AlignVCenter
+                text: _yggAutoServer
+                onEditingFinished: _yggAutoServer = text.trim()
+                placeholderText: qsTr("IP:端口 (可选)")
+                placeholderTextColor: "#606478"
+            }
+        }
+    }
+
     // Logged-in display
     Rectangle {
         id: loggedInDisplay
@@ -1080,6 +1115,20 @@ Rectangle {
                         if (loginMode === 2 && !backend.yggdrasil.loggedIn) {
                             toastManager.show("请先完成外置登录")
                             return
+                        }
+                        // 自动进入服务器（外置登录模式）— 写入版本游戏参数
+                        if (loginMode === 2 && _yggAutoServer) {
+                            var existing = backend.versionGameArgs(currentSelectedVersion) || ""
+                            // 移除旧的 --server/--port
+                            existing = existing.replace(/--server\s+\S+/g, "").replace(/--port\s+\S+/g, "").trim()
+                            var parts = _yggAutoServer.split(":")
+                            var serverArgs = parts.length === 2 && parts[1]
+                                ? "--server " + parts[0] + " --port " + parts[1]
+                                : "--server " + _yggAutoServer
+                            if (existing)
+                                existing += " "
+                            existing += serverArgs
+                            backend.setVersionGameArgs(currentSelectedVersion, existing)
                         }
                         backend.launch(currentSelectedVersion, loginMode === 0 || loginMode === 2)
                     }
