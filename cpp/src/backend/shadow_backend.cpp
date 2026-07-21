@@ -1766,6 +1766,21 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     qCInfo(logApp) << QStringLiteral("启动内存: %1MB (verMode=%2, auto=%3)").arg(maxMemory).arg(verMode).arg(m_settings->autoMemoryEnabled());
     QString jvmArgs = resolvedJvmArgs(versionId);
     QString gameArgs = resolvedGameArgs(versionId);
+
+    // 外置登录：自动进入服务器
+    auto *yggServer = static_cast<YggdrasilBackend*>(m_yggdrasil);
+    if (m_lastLoginMode == 2 && yggServer && yggServer->loggedIn()
+            && yggServer->autoJoinServer() && !yggServer->serverAddress().isEmpty()) {
+        QString addr = yggServer->serverAddress();
+        QStringList parts = addr.split(':');
+        QString host = parts.value(0);
+        int port = parts.size() > 1 ? parts.value(1).toInt() : 25565;
+        if (!host.isEmpty()) {
+            gameArgs += QStringLiteral(" --server %1 --port %2").arg(host).arg(port);
+            qCInfo(logApp) << QStringLiteral("[服务端] 自动连接: %1:%2").arg(host).arg(port);
+        }
+    }
+
     bool highPerfGpu = resolvedHighPerfGpu(versionId);
     m_launchVersion = versionId;
     m_launchUsername = username;
