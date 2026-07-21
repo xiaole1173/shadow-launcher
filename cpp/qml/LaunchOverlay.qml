@@ -11,23 +11,6 @@ Rectangle {
     color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
     property var backend: null
     property var toastManager: null
-    readonly property var toastWarningStyle: ToastStyleWarning {}
-    readonly property var toastSuccessStyle: ToastStyleSuccess {}
-
-    // ── Authlib-injector download toast state ──
-    property bool _authlibDlActive: false
-    property bool _authlibDlDone: false
-    property string _authlibDlText: ""
-
-    Timer {
-        id: authlibDlDoneTimer
-        interval: 2500
-        onTriggered: {
-            _authlibDlActive = false
-            _authlibDlDone = false
-            _authlibDlText = ""
-        }
-    }
 
     // Block all mouse events from passing through to underlying UI
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
@@ -89,6 +72,22 @@ Rectangle {
     property string checkFailedDetails: ""
     property var missingFilesList: []
     property string checkWarning: ""
+    readonly property var toastWarningStyle: ToastStyleWarning {}
+    readonly property var toastSuccessStyle: ToastStyleSuccess {}
+
+    // Authlib-injector download toast state
+    property bool _authlibDlActive: false
+    property bool _authlibDlDone: false
+    property string _authlibDlText: ""
+    property Timer _authlibDlDoneTimer: Timer {
+        interval: 2500
+        onTriggered: {
+            _authlibDlActive = false
+            _authlibDlDone = false
+            _authlibDlText = ""
+        }
+    }
+
 
     onCheckFailedChanged: {
         if (checkFailed) {
@@ -120,28 +119,17 @@ Rectangle {
             }
         }
 
-        function onLaunchProgressChanged(pct, status) {
-            console.log("[overlay] progress: " + pct + "% - " + status)
+                function onLaunchProgressChanged(pct, status) {
             progressValue = pct
             statusText = status
-
-            // Authlib-injector download toast state machine
-            if (status.indexOf("authlib-injector") >= 0) {
-                _authlibDlActive = true
-                _authlibDlText = status
-                _authlibDlDone = false
-                authlibDlDoneTimer.stop()
-            } else if (_authlibDlActive && !_authlibDlDone && status.indexOf("authlib-injector") < 0) {
-                // Transition: download just finished (next step cleared the injector status)
-                _authlibDlDone = true
-                _authlibDlText = "authlib-injector.jar 下载完成"
-                authlibDlDoneTimer.start()
-            } else if (!_authlibDlDone) {
-                _authlibDlText = status
-            }
-
             if (pct === 100 && !checkFailed) {
                 closeTimer.start()
+            }
+            // Authlib-injector download completion detection
+            if (_authlibDlActive && !_authlibDlDone && status.indexOf("authlib-injector") < 0) {
+                _authlibDlDone = true
+                _authlibDlText = "authlib-injector.jar 下载完成"
+                _authlibDlDoneTimer.start()
             }
         }
 
@@ -156,17 +144,14 @@ Rectangle {
         }
 
         function onLaunchCheckWarning(warning) {
-            // Authlib-injector warnings are handled by toastBar — suppress checkWarning to avoid duplicate
+            checkWarning = warning || ""
+            // Authlib-injector detection
             if (warning && warning.indexOf("authlib-injector") >= 0) {
-                checkWarning = ""
                 _authlibDlActive = true
                 _authlibDlText = warning
                 _authlibDlDone = false
-                authlibDlDoneTimer.stop()
-                return
+                _authlibDlDoneTimer.stop()
             }
-            // Non-authlib-injector warnings still go through old panel
-            checkWarning = warning || ""
         }
     }
 
@@ -338,52 +323,42 @@ Rectangle {
             }
         }
 
-        // Status toast bar — InlineToast style (same design as ToastManager toasts)
+        // Authlib-injector download notification — InlineToast style
         Item {
-            id: toastBar
+            id: authlibToast
             clip: true
-            Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
-            Layout.preferredHeight: toastLabel.implicitHeight + 20
+            Layout.preferredHeight: authToastLabel.implicitHeight + 20
             Layout.maximumWidth: 420
-            visible: statusText !== "" && !checkFailed
+            visible: _authlibDlActive
 
-            // Pick style based on authlib-injector state
-            property var style: {
-                if (_authlibDlActive && !_authlibDlDone) return toastWarningStyle
-                if (_authlibDlDone) return toastSuccessStyle
-                return null  // transparent fallback
-            }
+            readonly property var _curStyle: _authlibDlDone ? toastSuccessStyle : toastWarningStyle
 
-            // Opacity wrapper — matches InlineToast pattern
             Rectangle {
                 anchors.fill: parent
                 radius: StyleTokens.radiusSm
-                color: style ? style.bgColor : "transparent"
-                Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                opacity: statusText !== "" && !checkFailed ? 1 : 0
+                color: authlibToast._curStyle.bgColor
+                opacity: _authlibDlActive ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 200 } }
 
-                // Left accent strip (3px, same as InlineToast)
+                // Left accent strip (3px) — same as InlineToast
                 Rectangle {
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: style ? 3 : 0
-                    color: style ? style.leftAccentColor : "transparent"
+                    width: 3
+                    color: authlibToast._curStyle.leftAccentColor
                     radius: 2
                 }
 
-                // Content label — left-aligned like InlineToast
+                // Message — left-aligned, InlineToast style
                 Text {
-                    id: toastLabel
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    anchors.right: parent.right
-                    anchors.rightMargin: 8
+                    id: authToastLabel
+                    anchors.left: parent.left; anchors.leftMargin: 10
+                    anchors.right: parent.right; anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    text: _authlibDlDone ? _authlibDlText : (_authlibDlActive ? _authlibDlText : statusText)
-                    color: style ? style.textColor : (checkFailed ? "#a08080" : "#9094a8")
+                    text: _authlibDlText
+                    color: authlibToast._curStyle.textColor
                     font.pixelSize: StyleTokens.fontSizeSm
                     elide: Text.ElideRight
                     maximumLineCount: 2
@@ -391,11 +366,28 @@ Rectangle {
                 }
             }
 
-            // Elastic slide from right (InlineToast style)
+            // Elastic slide from right — matches InlineToast exactly
             transform: Translate {
-                x: statusText !== "" && !checkFailed ? 0 : toastBar.width
+                x: _authlibDlActive ? 0 : parent.width
                 Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
             }
+        }
+
+        // Status text
+        Text {
+            id: statusLabel
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
+            Layout.maximumHeight: 48
+            text: statusText
+            color: checkFailed ? "#a08080" : "#9094a8"
+            font.pixelSize: StyleTokens.fontSizeSm
+            elide: Text.ElideRight
+            maximumLineCount: 3
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignHCenter
+            clip: true
+            visible: statusText !== ""
         }
 
         // Action buttons
