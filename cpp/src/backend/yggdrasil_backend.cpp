@@ -170,6 +170,7 @@ void YggdrasilBackend::saveSession()
 void YggdrasilBackend::loadSession()
 {
     QFile file(sessionFilePath());
+    m_hadSavedSession = file.exists();
     if (!file.open(QIODevice::ReadOnly)) return;
 
     QByteArray data = file.readAll();
