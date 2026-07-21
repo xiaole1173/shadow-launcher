@@ -735,7 +735,7 @@ Rectangle {
                                         text: "失败: " + modelData
                                         color: "#c06060"
                                         font.pixelSize: StyleTokens.fontSizeSm
-                                        font.family: "Consolas, monospace"
+                                        font.family: StyleTokens.fontFamilyMono
                                         width: parent.width
                                         elide: Text.ElideRight
                                     }

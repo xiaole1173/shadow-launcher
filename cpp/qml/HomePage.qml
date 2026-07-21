@@ -624,7 +624,7 @@ Rectangle {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: backend.yggdrasil.uuid; font.pixelSize: StyleTokens.fontSizeXs
-                color: StyleTokens.textTertiary; font.family: "Consolas, monospace"
+                color: StyleTokens.textTertiary; font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
@@ -915,7 +915,7 @@ Rectangle {
                 Layout.alignment: Qt.AlignHCenter
                 text: backend ? (backend.accountUuid || "") : ""
                 font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
-                font.family: "Consolas, monospace"
+                font.family: StyleTokens.fontFamilyMono
             }
 
             // Login type + Logout
