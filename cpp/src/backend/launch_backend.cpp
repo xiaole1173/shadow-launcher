@@ -399,7 +399,8 @@ void LaunchBackend::runNextCheck()
             return;
         }
         // For online auth: refresh the Minecraft token before launching
-        if (m_authIsOnline && m_account) {
+        // (skip for yggdrasil mode - authlib-injector handles token validation)
+        if (m_authIsOnline && m_account && !m_yggdrasilMode) {
             qCInfo(logLaunch) << QStringLiteral("[启动前检查] 正在刷新在线Token");
             if (m_account->msRefreshToken().isEmpty()) {
                 qCInfo(logLaunch) << QStringLiteral("[启动前检查] 无刷新Token 跳过");
