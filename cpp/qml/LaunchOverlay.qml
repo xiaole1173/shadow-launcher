@@ -437,55 +437,60 @@ Rectangle {
                 }
             }
         }
-        // Authlib-injector download notification — InlineToast style
-        Item {
-            id: authlibToast
-            clip: true
-            Layout.fillWidth: true
-            Layout.preferredHeight: authToastLabel.implicitHeight + 20
-            Layout.maximumWidth: 420
-            visible: _authlibDlActive
 
-            readonly property var _curStyle: _authlibDlDone ? toastSuccessStyle : toastWarningStyle
 
+    }
+    // Authlib-injector download notification — InlineToast style
+    Item {
+        id: authlibToast
+        clip: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 24
+        anchors.leftMargin: parent.width * 0.2
+        anchors.rightMargin: parent.width * 0.2
+        height: authToastLabel.implicitHeight + 20
+        visible: _authlibDlActive
+
+        readonly property var _curStyle: _authlibDlDone ? toastSuccessStyle : toastWarningStyle
+
+        Rectangle {
+            anchors.fill: parent
+            radius: StyleTokens.radiusSm
+            color: authlibToast._curStyle.bgColor
+            opacity: _authlibDlActive ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            // Left accent strip (3px) — same as InlineToast
             Rectangle {
-                anchors.fill: parent
-                radius: StyleTokens.radiusSm
-                color: authlibToast._curStyle.bgColor
-                opacity: _authlibDlActive ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 200 } }
-
-                // Left accent strip (3px) — same as InlineToast
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: 3
-                    color: authlibToast._curStyle.leftAccentColor
-                    radius: 2
-                }
-
-                // Message — left-aligned, InlineToast style
-                Text {
-                    id: authToastLabel
-                    anchors.left: parent.left; anchors.leftMargin: 10
-                    anchors.right: parent.right; anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: _authlibDlText
-                    color: authlibToast._curStyle.textColor
-                    font.pixelSize: StyleTokens.fontSizeSm
-                    elide: Text.ElideRight
-                    maximumLineCount: 2
-                    wrapMode: Text.WordWrap
-                }
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 3
+                color: authlibToast._curStyle.leftAccentColor
+                radius: 2
             }
 
-            // Elastic slide from right — matches InlineToast exactly
-            transform: Translate {
-                x: _authlibDlActive ? 0 : parent.width
-                Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+            // Message — left-aligned, InlineToast style
+            Text {
+                id: authToastLabel
+                anchors.left: parent.left; anchors.leftMargin: 10
+                anchors.right: parent.right; anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                text: _authlibDlText
+                color: authlibToast._curStyle.textColor
+                font.pixelSize: StyleTokens.fontSizeSm
+                elide: Text.ElideRight
+                maximumLineCount: 2
+                wrapMode: Text.WordWrap
             }
         }
 
+        // Elastic slide from right — matches InlineToast exactly
+        transform: Translate {
+            x: _authlibDlActive ? 0 : parent.width
+            Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+        }
     }
 }
