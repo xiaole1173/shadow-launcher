@@ -153,6 +153,13 @@ Rectangle {
                 _authlibDlDoneTimer.stop()
             }
         }
+
+        function onLaunchCheckProgress(step) {
+            // Update authlib-injector download progress in toast
+            if (_authlibDlActive && !_authlibDlDone && step && step.indexOf("authlib-injector") >= 0) {
+                _authlibDlText = step
+            }
+        }
     }
 
     // ── UI ──
