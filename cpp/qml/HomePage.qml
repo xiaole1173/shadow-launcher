@@ -635,7 +635,7 @@ Rectangle {
             // 认证服务器名称
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: (backend && backend.yggdrasil && (backend.yggdrasil.metaServerName || backend.yggdrasil.apiRoot)) || ""
+                text: (backend && backend.yggdrasil && backend.yggdrasil.metaServerName) || ""
                 font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
                 elide: Text.ElideMiddle; Layout.maximumWidth: 320
             }
