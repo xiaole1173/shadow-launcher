@@ -30,6 +30,9 @@ class YggdrasilBackend : public QObject {
     Q_PROPERTY(int profileIndex READ profileIndex NOTIFY profilesChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(bool hadSavedSession READ hadSavedSession CONSTANT)
+    Q_PROPERTY(QString serverAddress READ serverAddress WRITE setServerAddress NOTIFY serverAddressChanged)
+    Q_PROPERTY(QString serverName READ serverName WRITE setServerName NOTIFY serverNameChanged)
+    Q_PROPERTY(bool autoJoinServer READ autoJoinServer WRITE setAutoJoinServer NOTIFY autoJoinServerChanged)
 
 public:
     explicit YggdrasilBackend(QObject *parent = nullptr);
@@ -61,6 +64,14 @@ public:
     bool hadSavedSession() const { return m_hadSavedSession; }
     QString sessionFilePath() const;
 
+    // ── 服务器设置 ──
+    QString serverAddress() const;
+    void setServerAddress(const QString &addr);
+    QString serverName() const;
+    void setServerName(const QString &name);
+    bool autoJoinServer() const;
+    void setAutoJoinServer(bool enabled);
+
 signals:
     void metaReady();
     void metaFailed(const QString &error);
@@ -69,6 +80,9 @@ signals:
     void stateChanged();
     void profilesChanged();
     void statusMessageChanged();
+    void serverAddressChanged();
+    void serverNameChanged();
+    void autoJoinServerChanged();
 
 private slots:
     void onMetaReply();

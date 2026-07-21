@@ -47,6 +47,7 @@ Rectangle {
     property bool capeExpanded: false
     property bool _skinRefreshPending: false
     property bool showCapePopup: false
+    property bool yggServerExpanded: false
 
     function doModifySkin() {
         if (!backend) return
@@ -685,6 +686,186 @@ Rectangle {
                             if (backend) {
                                 backend.yggdrasil.logout()
                                 if (toastManager) toastManager.show("已退出外置登录")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══ 外置登录 — 服务器设置 ═══
+    Rectangle {
+        id: yggServerPanel
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: yggdrasilDisplay.bottom
+        anchors.topMargin: 12
+        width: 340; color: "transparent"
+        visible: loginMode === 2 && backend && backend.yggdrasil && backend.yggdrasil.loggedIn
+        height: yggServerColumn.height
+        clip: true
+
+        Column {
+            id: yggServerColumn
+            width: parent.width; spacing: 4
+
+            // ── 折叠标题行 ──
+            Rectangle {
+                width: parent.width; height: 34; radius: StyleTokens.radiusMd
+                color: serverHeaderMouse2.containsMouse ? StyleTokens.bgElevated : StyleTokens.bgSecondary
+                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                scale: serverHeaderMouse2.pressed ? 0.97 : 1.0
+                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
+                    spacing: 6
+                    Image {
+                        source: "icons/lucide/monitor.svg"; width: 14; height: 14
+                        sourceSize: Qt.size(14, 14)
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    Text {
+                        text: qsTr("服务器设置")
+                        color: StyleTokens.textSecondary
+                        font.pixelSize: StyleTokens.fontSizeMd
+                        font.weight: Font.Medium
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    Item { Layout.fillWidth: true }
+                    Image {
+                        source: "icons/lucide/chevron-down.svg"; width: 12; height: 12
+                        sourceSize: Qt.size(12, 12)
+                        Layout.alignment: Qt.AlignVCenter
+                        rotation: yggServerExpanded ? 180 : 0
+                        Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                    }
+                }
+
+                MouseArea {
+                    id: serverHeaderMouse2
+                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        yggServerExpanded = !yggServerExpanded
+                        if (yggServerExpanded)
+                            yggServerContentArea.height = yggServerContentColumn.implicitHeight
+                        else
+                            yggServerContentArea.height = 0
+                    }
+                }
+            }
+
+            // ── 展开内容 ──
+            Rectangle {
+                id: yggServerContentArea
+                width: parent.width; height: 0
+                clip: true; color: "transparent"
+                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+                Column {
+                    id: yggServerContentColumn
+                    width: parent.width; spacing: 8
+
+                    // 服务器地址
+                    Rectangle {
+                        width: parent.width; height: 40; radius: StyleTokens.radiusLg
+                        color: StyleTokens.bgSecondary
+                        border.color: yggServerAddrInput.activeFocus ? StyleTokens.borderFocus : StyleTokens.bgElevated
+                        border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                        TextInput {
+                            id: yggServerAddrInput
+                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                            verticalAlignment: TextInput.AlignVCenter
+                            text: backend.yggdrasil ? backend.yggdrasil.serverAddress : ""
+                            onEditingFinished: {
+                                if (backend && backend.yggdrasil)
+                                    backend.yggdrasil.serverAddress = text
+                            }
+                        }
+                        Text {
+                            anchors.left: parent.left; anchors.leftMargin: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("服务器地址（如 mc.example.com:25565）")
+                            color: "#a8b0c0"
+                            font.pixelSize: StyleTokens.fontSizeMd
+                            visible: !yggServerAddrInput.text && !yggServerAddrInput.activeFocus
+                        }
+                    }
+
+                    // 服务器名称
+                    Rectangle {
+                        width: parent.width; height: 40; radius: StyleTokens.radiusLg
+                        color: StyleTokens.bgSecondary
+                        border.color: yggServerNameInput.activeFocus ? StyleTokens.borderFocus : StyleTokens.bgElevated
+                        border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                        TextInput {
+                            id: yggServerNameInput
+                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                            verticalAlignment: TextInput.AlignVCenter
+                            text: backend.yggdrasil ? backend.yggdrasil.serverName : ""
+                            onEditingFinished: {
+                                if (backend && backend.yggdrasil)
+                                    backend.yggdrasil.serverName = text
+                            }
+                        }
+                        Text {
+                            anchors.left: parent.left; anchors.leftMargin: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("服务器名称（可选，仅用于显示）")
+                            color: "#a8b0c0"
+                            font.pixelSize: StyleTokens.fontSizeMd
+                            visible: !yggServerNameInput.text && !yggServerNameInput.activeFocus
+                        }
+                    }
+
+                    // 自动进入服务器开关
+                    Rectangle {
+                        width: parent.width; height: 40; radius: StyleTokens.radiusLg
+                        color: "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4
+                            spacing: 8
+
+                            Text {
+                                text: qsTr("启动后自动进入服务器")
+                                color: StyleTokens.textSecondary
+                                font.pixelSize: StyleTokens.fontSizeMd
+                                Layout.fillWidth: true
+                            }
+
+                            // 自定义 Switch
+                            Rectangle {
+                                id: autoJoinSwitch
+                                property bool checked: backend.yggdrasil ? backend.yggdrasil.autoJoinServer : false
+                                width: 44; height: 24; radius: StyleTokens.radiusFull
+                                color: checked ? StyleTokens.accentLight : StyleTokens.bgHover
+                                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                                Rectangle {
+                                    width: 18; height: 18; radius: StyleTokens.radiusFull
+                                    color: "#e4e8f2"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: autoJoinSwitch.checked ? parent.width - width - 3 : 3
+                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (backend && backend.yggdrasil) {
+                                            backend.yggdrasil.autoJoinServer = !autoJoinSwitch.checked
+                                            autoJoinSwitch.checked = backend.yggdrasil.autoJoinServer
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

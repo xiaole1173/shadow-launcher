@@ -9,6 +9,7 @@
 #include <QStandardPaths>
 #include <QEventLoop>
 #include <QLoggingCategory>
+#include <QSettings>
 
 Q_LOGGING_CATEGORY(logYggBackend, "shadow.yggdrasil.backend")
 
@@ -259,6 +260,55 @@ void YggdrasilBackend::loadSession()
 void YggdrasilBackend::deleteSavedSession()
 {
     QFile::remove(sessionFilePath());
+}
+
+// ── 服务器设置（QSettings 持久化）──
+
+QString YggdrasilBackend::serverAddress() const
+{
+    QSettings settings;
+    return settings.value(QStringLiteral("yggdrasil/serverAddress"), QString()).toString();
+}
+
+void YggdrasilBackend::setServerAddress(const QString &addr)
+{
+    QSettings settings;
+    QString trimmed = addr.trimmed();
+    QString old = settings.value(QStringLiteral("yggdrasil/serverAddress"), QString()).toString();
+    if (old == trimmed) return;
+    settings.setValue(QStringLiteral("yggdrasil/serverAddress"), trimmed);
+    emit serverAddressChanged();
+}
+
+QString YggdrasilBackend::serverName() const
+{
+    QSettings settings;
+    return settings.value(QStringLiteral("yggdrasil/serverName"), QString()).toString();
+}
+
+void YggdrasilBackend::setServerName(const QString &name)
+{
+    QSettings settings;
+    QString trimmed = name.trimmed();
+    QString old = settings.value(QStringLiteral("yggdrasil/serverName"), QString()).toString();
+    if (old == trimmed) return;
+    settings.setValue(QStringLiteral("yggdrasil/serverName"), trimmed);
+    emit serverNameChanged();
+}
+
+bool YggdrasilBackend::autoJoinServer() const
+{
+    QSettings settings;
+    return settings.value(QStringLiteral("yggdrasil/autoJoinServer"), false).toBool();
+}
+
+void YggdrasilBackend::setAutoJoinServer(bool enabled)
+{
+    QSettings settings;
+    bool old = settings.value(QStringLiteral("yggdrasil/autoJoinServer"), false).toBool();
+    if (old == enabled) return;
+    settings.setValue(QStringLiteral("yggdrasil/autoJoinServer"), enabled);
+    emit autoJoinServerChanged();
 }
 
 // ── Slots (网络回复处理) ──
