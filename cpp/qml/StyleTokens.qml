@@ -88,11 +88,12 @@ QtObject {
     readonly property int radiusSm:   4
     readonly property int radiusMd:   6
     readonly property int radiusLg:   8
-    readonly property int radiusXl:  12
+    readonly property int radiusXl:   12
+    readonly property int radiusWindow: 16  // 窗口容器圆角
     readonly property int radiusFull: 9999
 
     // ──────────────────────────────────────
-    // [字体] 字号
+    // [字体] 字体
     // ──────────────────────────────────────
 
     // 字族 — 简中首选 Noto Sans SC，西文 fallback 自动
@@ -100,11 +101,11 @@ QtObject {
     // 等宽字族用于技术文本
     readonly property string fontFamilyMono: "JetBrains Mono, Consolas, monospace"
 
-    // 字重
-    readonly property int fontWeightLight:   Font.Light
-    readonly property int fontWeightNormal:  Font.Normal
-    readonly property int fontWeightMedium:  Font.Medium
-    readonly property int fontWeightBold:    Font.Bold
+    // 字重（使用整数值，Font.Light/Normal 等在 QtObject 单例中不可用）
+    readonly property int fontWeightLight:   25
+    readonly property int fontWeightNormal:  50
+    readonly property int fontWeightMedium:  57
+    readonly property int fontWeightBold:    75
 
     // 字号（较默认+1px 提升可读性）
     readonly property int fontSizeXs:   11  // 最小辅助文字
