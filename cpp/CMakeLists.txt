@@ -65,6 +65,7 @@ set(SOURCES
     src/core/mod_manager.cpp
     src/core/icon_cache.cpp
     src/core/microsoft_auth.cpp
+    src/core/yggdrasil_auth.cpp
     src/core/version_isolation.cpp
     src/core/mod_loader_installer.cpp
     src/core/local_mod_manager.cpp
@@ -77,6 +78,7 @@ set(SOURCES
     # Backend (Phase 3 鈥?added progressively)
     src/backend/app_backend.cpp
     src/backend/settings_backend.cpp
+    src/backend/yggdrasil_backend.cpp
     src/backend/account_backend.cpp
     src/backend/version_backend.cpp
     src/backend/launch_backend.cpp
@@ -111,10 +113,12 @@ set(HEADERS
     src/core/modpack_importer.h
     src/core/update_manager.h
     src/core/version_isolation.h
+    src/core/yggdrasil_auth.h
     src/core/crash_detector.h
     src/core/screenshot_server.h
     src/backend/app_backend.h
     src/backend/settings_backend.h
+    src/backend/yggdrasil_backend.h
     src/backend/account_backend.h
     src/backend/version_backend.h
     src/backend/launch_backend.h

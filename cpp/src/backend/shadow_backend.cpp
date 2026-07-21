@@ -31,6 +31,7 @@
 #include <QMutex>
 #include <QThread>
 #include "account_backend.h"
+#include "yggdrasil_backend.h"
 #include "app_backend.h"
 #include "check_backend.h"
 #include "userdata_backend.h"
@@ -98,6 +99,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
     bp("AppBackend");
     m_account = new AccountBackend(this);
     bp("AccountBackend");
+    m_yggdrasil = new YggdrasilBackend(this);
+    bp("YggdrasilBackend");
     m_settings = new SettingsBackend(this);
     bp("SettingsBackend");
     m_check = new CheckBackend(this);
@@ -1728,7 +1731,16 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
         m_multiplayer->prepareServerProperties(m_app->gameDir(), versionId);
     }
 
-    QString username = m_account->username();
+    // 外置登录模式：从 yggdrasil backend 获取用户名和 token
+    QString username;
+    if (m_lastLoginMode == 2 && m_yggdrasil && m_yggdrasil->loggedIn()) {
+        username = m_yggdrasil->username();
+        // 通知 launch backend 使用外置登录
+        m_launch->setYggdrasilMode(m_yggdrasil->apiRoot(), m_yggdrasil->accessToken());
+    } else {
+        username = m_account->username();
+        m_launch->clearYggdrasilMode();
+    }
 
     // Check per-version memory override
     int verMode = m_settings->versionMemoryMode(versionId);
@@ -1810,11 +1822,18 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
         return;
     }
 
-    // Pass auth info based on which tab the user launched from
+    // Pass auth info based on mode
     if (online) {
-        qCInfo(logLaunch) << QStringLiteral("[认证] 在线模式启动 玩家名=%1 uuid=%2").arg(m_account->username(), m_account->accountUuid());
-        m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
-                              m_account->mcToken(), true);
+        if (m_lastLoginMode == 2 && m_yggdrasil && m_yggdrasil->loggedIn()) {
+            // 外置登录
+            qCInfo(logLaunch) << QStringLiteral("[认证] 外置登录模式启动 玩家名=%1 uuid=%2").arg(m_yggdrasil->username(), m_yggdrasil->uuid());
+            m_launch->setAuthInfo(m_yggdrasil->username(), m_yggdrasil->uuid(),
+                                  m_yggdrasil->accessToken(), true);
+        } else {
+            qCInfo(logLaunch) << QStringLiteral("[认证] 在线模式启动 玩家名=%1 uuid=%2").arg(m_account->username(), m_account->accountUuid());
+            m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
+                                  m_account->mcToken(), true);
+        }
     } else {
         qCInfo(logLaunch) << QStringLiteral("[认证] 离线模式启动 玩家名=%1 uuid=%2").arg(m_account->offlineUsername(), m_account->offlineUuid());
         m_launch->setAuthInfo(m_account->offlineUsername(), m_account->offlineUuid(), QString(), false);

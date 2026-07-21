@@ -51,6 +51,20 @@ void LaunchBackend::setGameDir(const QString& dir)
     m_gameDir = dir;
 }
 
+void LaunchBackend::setYggdrasilMode(const QString &apiRoot, const QString &accessToken)
+{
+    m_yggApiRoot = apiRoot;
+    m_yggAccessToken = accessToken;
+    m_yggdrasilMode = true;
+}
+
+void LaunchBackend::clearYggdrasilMode()
+{
+    m_yggApiRoot.clear();
+    m_yggAccessToken.clear();
+    m_yggdrasilMode = false;
+}
+
 // ============================================================
 // Slot: launch
 // ============================================================
@@ -517,6 +531,21 @@ void LaunchBackend::runNextCheck()
         qCDebug(logLaunch) << "[PROGRESS] 65% - 检查内存分配...";
         if (m_pendingMaxMemory < 512)
             emit launchCheckWarning(tr("内存不足 512MB，可能影响运行"));
+        // Inject authlib-injector JVM arg for Yggdrasil mode
+        if (m_yggdrasilMode && !m_yggApiRoot.isEmpty()) {
+            QString jarPath = m_gameDir + QStringLiteral("/authlib-injector.jar");
+            QString agentArg = QStringLiteral("-javaagent:") + QDir::toNativeSeparators(jarPath)
+                              + QStringLiteral("=") + m_yggApiRoot;
+            if (!m_pendingJvmArgs.isEmpty())
+                m_pendingJvmArgs += QStringLiteral(" ");
+            m_pendingJvmArgs += agentArg;
+            m_pendingJvmArgs += QStringLiteral(" -Dauthlibinjector.side=client");
+            qCInfo(logLaunch) << "已添加 authlib-injector JVM 参数";
+
+            if (!QFileInfo::exists(jarPath))
+                emit launchCheckWarning(tr("authlib-injector.jar 不存在，外置登录可能无法正常工作"));
+        }
+
         qCInfo(logLaunch) << QStringLiteral("[启动前检查] 全部通过 开始启动Minecraft");
         break;
     }
