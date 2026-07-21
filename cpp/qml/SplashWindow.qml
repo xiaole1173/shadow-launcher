@@ -43,7 +43,7 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("正在启动...")
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: "#5a647a"
+                color: StyleTokens.textMuted
             }
         }
     }
