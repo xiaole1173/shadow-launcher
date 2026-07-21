@@ -347,8 +347,11 @@ Rectangle {
             }
 
             color: style ? style.bgColor : "transparent"
+            Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
             radius: style ? style.radius : 8
+            Behavior on radius { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
             border.color: style ? style.borderColor : "transparent"
+            Behavior on border.color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
             border.width: style ? 1 : 0
 
             // Left accent strip
