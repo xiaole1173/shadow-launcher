@@ -16,8 +16,8 @@ Rectangle {
     property int cardHeight: headerH + (expanded ? contentColumn.implicitHeight + 8 : 0)
     Layout.preferredHeight: cardHeight
     clip: true; radius: StyleTokens.radiusLg
-    color: _hovered ? "#161a26" : "#11141c"
-    border.color: _hovered ? "#3a5ed0" : "#1e2230"
+    color: _hovered ? StyleTokens.bgCard : StyleTokens.bgSecondary
+    border.color: _hovered ? StyleTokens.accentHover : StyleTokens.bgElevated
     border.width: _hovered ? 1.5 : 1
 
     // ── Public API ──
@@ -60,13 +60,13 @@ Rectangle {
             anchors.fill: parent; anchors.margins: 10; spacing: 10
             Text {
                 text: (card.expanded ? "\u25BC" : "\u25B8") + "  " + card.title
-                color: "#6080d8"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold
+                color: StyleTokens.accentLight; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold
             }
             Item { Layout.fillWidth: true }
             Text {
                 visible: card.subtitle !== ""
                 text: card.subtitle
-                color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs
+                color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
             }
         }
 

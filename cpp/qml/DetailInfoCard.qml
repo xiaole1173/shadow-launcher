@@ -83,14 +83,14 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     text: cardTitle || "未命名"
-                    color: "#d0d4e0"
+                    color: StyleTokens.textSecondary
                     font.pixelSize: StyleTokens.fontSizeXl; font.weight: Font.Bold
                     elide: Text.ElideRight
                 }
                 Text {
                     Layout.fillWidth: true
                     text: cardDesc || "无简介"
-                    color: "#7888a8"
+                    color: StyleTokens.textTertiary
                     font.pixelSize: StyleTokens.fontSizeXs
                     maximumLineCount: 2
                     wrapMode: Text.WordWrap

@@ -97,7 +97,7 @@ Window {
                 text: "验证"
                 font.pixelSize: StyleTokens.fontSizeLg
                 font.bold: true
-                color: "white"
+                color: StyleTokens.textInverse
             }
 
             MouseArea {
