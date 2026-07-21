@@ -451,16 +451,17 @@ Rectangle {
         anchors.leftMargin: parent.width * 0.2
         anchors.rightMargin: parent.width * 0.2
         height: authToastLabel.implicitHeight + 20
-        visible: _authlibDlActive
 
         readonly property var _curStyle: _authlibDlDone ? toastSuccessStyle : toastWarningStyle
+
+        // Opacity + translate for both entry and exit animations
+        opacity: _authlibDlActive ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
 
         Rectangle {
             anchors.fill: parent
             radius: StyleTokens.radiusSm
             color: authlibToast._curStyle.bgColor
-            opacity: _authlibDlActive ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 200 } }
 
             // Left accent strip (3px) — same as InlineToast
             Rectangle {
@@ -487,7 +488,7 @@ Rectangle {
             }
         }
 
-        // Elastic slide from right — matches InlineToast exactly
+        // Elastic slide from right — entry and exit matched
         transform: Translate {
             x: _authlibDlActive ? 0 : parent.width
             Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
