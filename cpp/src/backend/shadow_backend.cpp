@@ -1733,10 +1733,11 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
 
     // 外置登录模式：从 yggdrasil backend 获取用户名和 token
     QString username;
-    if (m_lastLoginMode == 2 && m_yggdrasil && m_yggdrasil->loggedIn()) {
-        username = m_yggdrasil->username();
+    auto *ygg = static_cast<YggdrasilBackend*>(m_yggdrasil);
+    if (m_lastLoginMode == 2 && ygg && ygg->loggedIn()) {
+        username = ygg->username();
         // 通知 launch backend 使用外置登录
-        m_launch->setYggdrasilMode(m_yggdrasil->apiRoot(), m_yggdrasil->accessToken());
+        m_launch->setYggdrasilMode(ygg->apiRoot(), ygg->accessToken());
     } else {
         username = m_account->username();
         m_launch->clearYggdrasilMode();
@@ -1824,11 +1825,12 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
 
     // Pass auth info based on mode
     if (online) {
-        if (m_lastLoginMode == 2 && m_yggdrasil && m_yggdrasil->loggedIn()) {
+        auto *ygg2 = static_cast<YggdrasilBackend*>(m_yggdrasil);
+        if (m_lastLoginMode == 2 && ygg2 && ygg2->loggedIn()) {
             // 外置登录
-            qCInfo(logLaunch) << QStringLiteral("[认证] 外置登录模式启动 玩家名=%1 uuid=%2").arg(m_yggdrasil->username(), m_yggdrasil->uuid());
-            m_launch->setAuthInfo(m_yggdrasil->username(), m_yggdrasil->uuid(),
-                                  m_yggdrasil->accessToken(), true);
+            qCInfo(logLaunch) << QStringLiteral("[认证] 外置登录模式启动 玩家名=%1 uuid=%2").arg(ygg2->username(), ygg2->uuid());
+            m_launch->setAuthInfo(ygg2->username(), ygg2->uuid(),
+                                  ygg2->accessToken(), true);
         } else {
             qCInfo(logLaunch) << QStringLiteral("[认证] 在线模式启动 玩家名=%1 uuid=%2").arg(m_account->username(), m_account->accountUuid());
             m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
