@@ -411,15 +411,7 @@ VersionBackend::VersionBackend(QObject* parent)
             ses.mlBytesDone = 0;
             ses.mlBytesAll = 0;
             ses.mlFileTotal = 0;
-            // Only mark as active if not already completed (prevents flash: completed→active→completed)
-            if (ses.loaderStepIdx >= 0 && ses.loaderStepIdx < ses.steps.size()) {
-                QVariantMap curStep = ses.steps[ses.loaderStepIdx].toMap();
-                if (curStep.value(QStringLiteral("status")).toString() != QStringLiteral("completed")) {
-                    updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), 0);
-                }
-            } else {
-                updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), 0);
-            }
+            updateStep(mlId, ses.loaderStepIdx, QStringLiteral("active"), 0);
         }
     });
     connect(m_mlInstaller, &ModLoaderInstaller::verifyFinished, this,
@@ -3953,18 +3945,22 @@ void VersionBackend::doRebuildInstallCards() {
             if (verifying) {
                 c.progress = (st.verifyTotal > 0) ? (qreal)st.verifyChecked / st.verifyTotal : 0.0;
                 c.totalProgressVisible = false;
-                c.speed = 0;
             } else {
                 // Weighted: cat1 (libraries+client) 50%, cat2 (assets) 50%.
                 // Each category internally uses its own byte progress.
                 qreal pct1 = st.catBytesTotal[1] > 0 ? (qreal)st.catBytesDl[1] / st.catBytesTotal[1] : 0.0;
                 qreal pct2 = st.catBytesTotal[2] > 0 ? (qreal)st.catBytesDl[2] / st.catBytesTotal[2] : 0.0;
                 c.progress = qMin(1.0, 0.5 * pct1 + 0.5 * pct2);
-                // Monotonic guard: download progress never goes backward
-                if (c.progress < st.lastCardProgress)
-                    c.progress = st.lastCardProgress;
-                st.lastCardProgress = c.progress;
-                c.speed = (c.progress >= 1.0) ? 0 : st.speed;
+            }
+            // Monotonic guard: card progress never goes backward
+            if (c.progress < st.lastCardProgress)
+                c.progress = st.lastCardProgress;
+            st.lastCardProgress = c.progress;
+            // Speed: 0 during verify, 0 after 100%, else per-state speed
+            if (verifying || c.progress >= 1.0) {
+                c.speed = 0;
+            } else {
+                c.speed = st.speed;
             }
             c.phase = st.phase;
 

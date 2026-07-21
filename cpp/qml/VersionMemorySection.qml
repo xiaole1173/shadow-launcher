@@ -24,7 +24,6 @@ Item {
     property real sysTotalMB: 8192
     property real sysAvailMB: 4096
     property real sysUsedMB: 4096
-    property int  sysUsedPercent: 0
     property int  autoRecMB: 2048
 
     function sliderMax() { return Math.max(1024, Math.floor(sysAvailMB / 256) * 256) }
@@ -34,7 +33,6 @@ Item {
         return globalAuto ? autoRecMB : globalMaxMB
     }
     function gameAllocGB() { return (gameAllocMB() / 1024).toFixed(1) }
-    function sysUsedGB()   { return (sysUsedMB / 1024).toFixed(1) }
     function sysAvailGB()  { return (sysAvailMB / 1024).toFixed(1) }
     function sysTotalGB()  { return (sysTotalMB / 1024).toFixed(1) }
 
@@ -45,7 +43,7 @@ Item {
         onTriggered: {
             if (!backend) return
             var mem = backend.getMemoryStatus()
-            if (mem) { sysTotalMB = mem.total || 4096; sysAvailMB = mem.available || 2048; sysUsedMB = sysTotalMB - sysAvailMB; sysUsedPercent = mem.percent || 0 }
+            if (mem) { sysTotalMB = mem.total || 4096; sysAvailMB = mem.available || 2048; sysUsedMB = sysTotalMB - sysAvailMB }
         }
     }
 
@@ -58,7 +56,6 @@ Item {
             sysTotalMB = mem.total || 4096
             sysAvailMB = mem.available || 2048
             sysUsedMB = sysTotalMB - sysAvailMB
-            sysUsedPercent = mem.percent || 0
             autoRecMB = mem.recommended || 2048
         }
         if (currentSelectedVersion) {
@@ -98,7 +95,8 @@ Item {
 
             RowLayout {
                 anchors.fill: parent; anchors.margins: 12; spacing: 8
-                Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 0 ? "#4A8FE7" : "#2a2f3a" }
+                Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"; border.color: allocMode === 0 ? "#4A8FE7" : "#5A6173"; border.width: 2
+                    Rectangle { anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs; color: allocMode === 0 ? "#4A8FE7" : "transparent" } }
                 Text { text: qsTr("跟随全局设置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 0 ? "#e8ecf8" : "#8890a0"; Layout.fillWidth: true }
                 Text { font.pixelSize: StyleTokens.fontSizeXs; color: "#5A6173"; text: globalAuto ? qsTr("自动") : globalMaxMB + " MB" }
             }
@@ -121,7 +119,8 @@ Item {
                 spacing: 2
 
                 RowLayout { spacing: 8
-                    Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 1 ? "#4A8FE7" : "#2a2f3a" }
+                    Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"; border.color: allocMode === 1 ? "#4A8FE7" : "#5A6173"; border.width: 2
+                        Rectangle { anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs; color: allocMode === 1 ? "#4A8FE7" : "transparent" } }
                     Text { text: qsTr("自动配置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 1 ? "#e8ecf8" : "#8890a0" }
                 }
                 Text { text: qsTr("启动时根据剩余内存动态分配"); font.pixelSize: StyleTokens.fontSizeXs; color: "#5A6173"; Layout.leftMargin: 24 }
@@ -148,7 +147,8 @@ Item {
                 spacing: allocMode === 2 ? 8 : 0
 
                 RowLayout { spacing: 8
-                    Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 2 ? "#4A8FE7" : "#2a2f3a" }
+                    Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"; border.color: allocMode === 2 ? "#4A8FE7" : "#5A6173"; border.width: 2
+                        Rectangle { anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs; color: allocMode === 2 ? "#4A8FE7" : "transparent" } }
                     Text { text: qsTr("自定义"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 2 ? "#e8ecf8" : "#8890a0"; Layout.fillWidth: true }
                     Text { visible: allocMode === 2; text: customMB + " MB"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.accentLink }
                 }
@@ -196,7 +196,7 @@ Item {
             Layout.fillWidth: true; Layout.preferredHeight: 64; radius: StyleTokens.radiusMd
             color: "#11141c"; border.color: StyleTokens.bgInput
 
-            property real usedW: sysUsedPercent > 0 ? sysUsedPercent / 100 : (sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0)
+            property real usedW: sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0
             property real gameW: sysTotalMB > 0 ? gameAllocMB() / sysTotalMB : 0
             property real bw: barContainer.width - 36
 
@@ -231,7 +231,7 @@ Item {
                 }
             }
 
-            Text { x: 18; y: 40; text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#C0C8D8" }
+            Text { x: 18; y: 40; text: sysAvailGB() + " GB / " + sysTotalGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#C0C8D8" }
             Text { x: 18 + barContainer.bw * barContainer.usedW; y: 40; text: gameAllocGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#9CB8E0"
                 Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
         }

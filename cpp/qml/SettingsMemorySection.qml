@@ -19,13 +19,11 @@ Item {
     property real sysTotalMB: 4096
     property real sysAvailMB: 4096
     property real sysUsedMB: 0
-    property int  sysUsedPercent: 0
     property int  autoRecommendedMB: 2048
 
     // ── 游戏分配值 ──
     function gameAllocMB() { return allocMode === 1 ? customMB : autoRecommendedMB }
     function gameAllocGB() { return (gameAllocMB() / 1024).toFixed(1) }
-    function sysUsedGB()   { return (sysUsedMB / 1024).toFixed(1) }
     function sysAvailGB()  { return (sysAvailMB / 1024).toFixed(1) }
     function sysTotalGB()  { return (sysTotalMB / 1024).toFixed(1) }
 
@@ -46,7 +44,6 @@ Item {
                 sysTotalMB = mem.total || 4096
                 sysAvailMB = mem.available || 2048
                 sysUsedMB = sysTotalMB - sysAvailMB
-                sysUsedPercent = mem.percent || 0
             }
         }
     }
@@ -60,7 +57,6 @@ Item {
             sysTotalMB = mem.total || 4096
             sysAvailMB = mem.available || 2048
             sysUsedMB = sysTotalMB - sysAvailMB
-            sysUsedPercent = mem.percent || 0
             autoRecommendedMB = mem.recommended || 2048
         }
         // clamp customMB to sliderMax on init
@@ -114,8 +110,13 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
                     Rectangle {
-                        width: 16; height: 16; radius: StyleTokens.radiusLg
-                        color: allocMode === 0 ? "#4A8FE7" : "#2a2f3a"
+                        width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"
+                        border.color: allocMode === 0 ? "#4A8FE7" : "#5A6173"; border.width: 2
+                        Rectangle {
+                            anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs
+                            color: allocMode === 0 ? "#4A8FE7" : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
                     }
                     Text {
                         text: qsTr("自动配置")
@@ -165,8 +166,13 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
                     Rectangle {
-                        width: 16; height: 16; radius: StyleTokens.radiusLg
-                        color: allocMode === 1 ? "#4A8FE7" : "#2a2f3a"
+                        width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"
+                        border.color: allocMode === 1 ? "#4A8FE7" : "#5A6173"; border.width: 2
+                        Rectangle {
+                            anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs
+                            color: allocMode === 1 ? "#4A8FE7" : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
                     }
                     Text {
                         text: qsTr("自定义")
@@ -284,7 +290,7 @@ Item {
             Layout.fillWidth: true; Layout.preferredHeight: 64; radius: StyleTokens.radiusMd
             color: "#11141c"; border.color: StyleTokens.bgInput
 
-            property real usedW: sysUsedPercent > 0 ? sysUsedPercent / 100 : (sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0)
+            property real usedW: sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0
             property real gameW: sysTotalMB > 0 ? gameAllocMB() / sysTotalMB : 0
 
             // 可用宽度
@@ -344,7 +350,7 @@ Item {
             Text {
                 x: 18
                 y: 40
-                text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"
+                text: sysAvailGB() + " GB / " + sysTotalGB() + " GB"
                 font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#C0C8D8"
             }
             Text {
