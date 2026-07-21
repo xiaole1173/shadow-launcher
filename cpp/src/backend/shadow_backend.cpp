@@ -1772,10 +1772,19 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     if (m_lastLoginMode == 2 && yggServer && yggServer->loggedIn()
             && yggServer->autoJoinServer() && !yggServer->serverAddress().isEmpty()) {
         QString addr = yggServer->serverAddress();
-        QStringList parts = addr.split(':');
-        QString host = parts.value(0);
-        int port = parts.size() > 1 ? parts.value(1).toInt() : 25565;
-        if (!host.isEmpty()) {
+        // 二次验证（防御性编程，理论上 setter 已过滤）
+        if (!YggdrasilBackend::isValidServerAddress(addr)) {
+            qCWarning(logApp) << QStringLiteral("[服务端] 服务器地址无效，跳过自动连接: %1").arg(addr);
+        } else {
+            QStringList parts = addr.split(QLatin1Char(':'));
+            QString host = parts.value(0);
+            int port = 25565;
+            if (parts.size() >= 2) {
+                bool ok = false;
+                int parsed = parts.value(1).toInt(&ok);
+                if (ok && parsed > 0 && parsed <= 65535)
+                    port = parsed;
+            }
             gameArgs += QStringLiteral(" --server %1 --port %2").arg(host).arg(port);
             qCInfo(logApp) << QStringLiteral("[服务端] 自动连接: %1:%2").arg(host).arg(port);
         }

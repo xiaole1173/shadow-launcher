@@ -10,6 +10,7 @@
 #include <QEventLoop>
 #include <QLoggingCategory>
 #include <QSettings>
+#include <QRegularExpression>
 
 Q_LOGGING_CATEGORY(logYggBackend, "shadow.yggdrasil.backend")
 
@@ -262,6 +263,54 @@ void YggdrasilBackend::deleteSavedSession()
     QFile::remove(sessionFilePath());
 }
 
+// ── 服务器地址格式验证 ──
+// 合法格式: host 或 host:port
+// host: 字母/数字/连字符/点，不能以连字符开头/结尾
+// port: 可选，1-65535
+bool YggdrasilBackend::isValidServerAddress(const QString &addr)
+{
+    if (addr.isEmpty()) return true;  // 空地址 = 未设置，视为合法
+
+    // 禁止空格和控制字符
+    for (const QChar &c : addr) {
+        if (c.isSpace() || (c.unicode() < 0x20 && c.unicode() != 0)) return false;
+    }
+
+    // 分离 host 和 port
+    QStringList parts = addr.split(QLatin1Char(':'));
+    if (parts.size() > 2) return false;  // 多个冒号
+
+    // 验证 host
+    const QString &host = parts[0];
+    if (host.isEmpty()) return false;
+
+    // host 长度限制（DNS 标签）
+    if (host.size() > 253) return false;
+
+    // host 不能以 . - 开头/结尾
+    if (host.startsWith(QLatin1Char('.')) || host.startsWith(QLatin1Char('-'))
+        || host.endsWith(QLatin1Char('.')) || host.endsWith(QLatin1Char('-'))) {
+        return false;
+    }
+
+    // host 逐字符检查：只允许字母、数字、点、连字符
+    for (const QChar &c : host) {
+        ushort u = c.unicode();
+        bool ok = (u >= 'a' && u <= 'z') || (u >= 'A' && u <= 'Z')
+                  || (u >= '0' && u <= '9') || u == '.' || u == '-';
+        if (!ok) return false;
+    }
+
+    // 验证 port（如果有）
+    if (parts.size() == 2) {
+        bool ok = false;
+        int port = parts[1].toInt(&ok);
+        if (!ok || port < 1 || port > 65535) return false;
+    }
+
+    return true;
+}
+
 // ── 服务器设置（QSettings 持久化）──
 
 QString YggdrasilBackend::serverAddress() const
@@ -276,6 +325,10 @@ void YggdrasilBackend::setServerAddress(const QString &addr)
     QString trimmed = addr.trimmed();
     QString old = settings.value(QStringLiteral("yggdrasil/serverAddress"), QString()).toString();
     if (old == trimmed) return;
+    if (!isValidServerAddress(trimmed)) {
+        qCWarning(logYggBackend) << "server address rejected (invalid):" << trimmed;
+        return;  // 不保存非法地址
+    }
     settings.setValue(QStringLiteral("yggdrasil/serverAddress"), trimmed);
     emit serverAddressChanged();
 }
