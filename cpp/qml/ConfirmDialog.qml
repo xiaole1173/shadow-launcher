@@ -31,13 +31,13 @@ Item {
     // Dialog box
     Rectangle {
         anchors.centerIn: parent; width: 360; height: 180; radius: StyleTokens.radiusLg; z: 1
-        color: "#141820"; border.color: "#2a1f24"; border.width: 1
+        color: StyleTokens.surfaceOverlay; border.color: "#2a1f24"; border.width: 1
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 12
             Text { text: root.title; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
-            Text { text: root.message; font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            Text { text: root.message; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.fillWidth: true; wrapMode: Text.WordWrap }
             Item { Layout.fillHeight: true }
             RowLayout {
                 Layout.alignment: Qt.AlignRight; spacing: 10
@@ -45,7 +45,7 @@ Item {
                     width: 80; height: 32; radius: StyleTokens.radiusSm; color: "transparent"; border.color: StyleTokens.bgHover
                     scale: cancelDlgMa.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: qsTr("取消"); font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8" }
+                    Text { anchors.centerIn: parent; text: qsTr("取消"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                     MouseArea {
                         id: cancelDlgMa
                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -53,7 +53,7 @@ Item {
                     }
                 }
                 Rectangle {
-                    width: 80; height: 32; radius: StyleTokens.radiusSm; color: "#c05050"
+                    width: 80; height: 32; radius: StyleTokens.radiusSm; color: StyleTokens.textDanger
                     scale: confirmDlgMa.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: qsTr("确认"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }

@@ -78,7 +78,7 @@ Item {
                         anchors.rightMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
                         text: model.msg || ""
-                        color: "#c8d8f0"
+                        color: StyleTokens.textSecondary
                         font.pixelSize: StyleTokens.fontSizeSm
                         elide: Text.ElideRight
                         maximumLineCount: 1

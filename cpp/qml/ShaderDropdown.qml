@@ -8,7 +8,7 @@ Rectangle {
     id: root
     height: 28; radius: StyleTokens.radiusSm
     color: (hov.containsMouse || menu.visible) ? "#1e3260" : "#0c0e14"
-    border.color: (hov.containsMouse || menu.visible) ? "#5078e0" : "#2a3040"; border.width: 1
+    border.color: (hov.containsMouse || menu.visible) ? StyleTokens.accentHover : StyleTokens.bgHover; border.width: 1
 
     property var ddOptions: []
     property string ddPropName: ""
@@ -28,7 +28,7 @@ Rectangle {
     RowLayout {
         anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 4; spacing: 4
         Text { Layout.fillWidth: true; text: root.selectedLabel(); color: "#788db0"; font.pixelSize: StyleTokens.fontSizeSm; elide: Text.ElideRight }
-        Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+        Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
     }
 
     MouseArea {
@@ -39,7 +39,7 @@ Rectangle {
     Popup {
         id: menu; y: parent.height + 4; width: Math.max(parent.width, 120)
         padding: 4; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle { color: "#0f1118"; border.color: "#2a3040"; radius: StyleTokens.radiusMd }
+        background: Rectangle { color: StyleTokens.bgPrimary; border.color: StyleTokens.bgHover; radius: StyleTokens.radiusMd }
         contentItem: ColumnLayout {
             spacing: 2
             Repeater {
