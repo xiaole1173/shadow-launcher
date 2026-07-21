@@ -536,8 +536,6 @@ Window {
                                 item.versionSelectRequested.connect(function() { showVersionSelect = true })
                                 item.versionSettingsRequested.connect(function() { showVersionSettings = true })
                                 item.loginModeChanged.connect(function(mode) { loginMode = mode })
-                                item.displayName = backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""
-
                                 // Microsoft login signal → HomePage UI (prevents stale "正在打开浏览器...")
                                 var msLoginForm = item.msLoginForm
                                 if (msLoginForm) {
