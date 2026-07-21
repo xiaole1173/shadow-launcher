@@ -98,7 +98,7 @@ QNetworkReply* YggdrasilAuth::authenticate(const QString &apiRoot,
     QJsonObject payload;
     QJsonObject agent;
     agent[QStringLiteral("name")] = QStringLiteral("Minecraft");
-    agent[QStringLiteral("version")] = QStringLiteral("1");
+    agent[QStringLiteral("version")] = 1;
     payload[QStringLiteral("agent")] = agent;
     payload[QStringLiteral("username")] = username;
     payload[QStringLiteral("password")] = password;
