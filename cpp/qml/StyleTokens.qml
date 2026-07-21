@@ -36,7 +36,9 @@ QtObject {
     // 文字色
     readonly property color textPrimary:   "#e8ecf8"
     readonly property color textSecondary: "#e4e8f2"
-    readonly property color textTertiary:  "#9094a8"
+    readonly property color textTertiary:  "#a8b0c0"
+    readonly property color textSubtle:    "#8088a0"
+    readonly property color textDanger:    "#c05050"
     readonly property color textMuted:     "#505468"
     readonly property color textInverse:   "#ffffff"
 
