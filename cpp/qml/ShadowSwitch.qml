@@ -4,27 +4,29 @@ import QtQuick
 import QtQuick.Controls.Basic
 
 // ═══════════════════════════════════════════════════════════════
-//  ShadowSwitch — 统一开关组件
+//  ShadowSwitch — 统一开关组件（纯 indicator，无自带 label）
 //
-//  用法:
+//  用法（无标签）:
 //    ShadowSwitch {
-//        checked: backend.yggdrasil.autoJoinServer
-//        onToggled: backend.yggdrasil.autoJoinServer = checked
+//        checked: backend.someProp
+//        onToggled: backend.someProp = checked
+//    }
+//
+//  用法（带标签 — 在外面用 RowLayout + Text）:
+//    RowLayout {
+//        Text { text: "选项名"; Layout.fillWidth: true }
+//        ShadowSwitch { checked: ...; onToggled: ... }
 //    }
 //
 //  属性:
 //    checked   — 当前开关状态
 //    enabled   — 是否可交互（默认 true）
-//    label     — 左侧标签文本（为空则不显示）
 // ═══════════════════════════════════════════════════════════════
 
 Switch {
     id: control
 
-    // ── 公开属性 ──
-    property string label: ""
-
-    // ── 自定义样式 ──
+    // ── 自定义 indicator 样式 ──
     indicator: Rectangle {
         implicitWidth: 40
         implicitHeight: 22
@@ -54,11 +56,6 @@ Switch {
         }
     }
 
-    // ── 可选标签 ──
-    contentItem: Text {
-        text: control.label
-        color: control.enabled ? StyleTokens.textSecondary : StyleTokens.textMuted
-        font.pixelSize: StyleTokens.fontSizeMd
-        verticalAlignment: Text.AlignVCenter
-    }
+    // ── 不覆写 contentItem：由使用者在外部放 Text ──
+    // （原生 Switch 默认无 content，indicator 自然居中/靠右）
 }
