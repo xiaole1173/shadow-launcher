@@ -217,7 +217,6 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/VersionSettingsPage.qml
         qml/VersionMemorySection.qml
         qml/VersionLaunchSection.qml
-        qml/VersionLoginSection.qml
         qml/ModpackImportOverlay.qml
         qml/StyleTokens.qml
         qml/JavaPage.qml
