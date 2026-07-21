@@ -26,6 +26,11 @@ import QtQuick.Controls.Basic
 Switch {
     id: control
 
+    // 消除默认内边距，让 indicator 自然居中
+    topPadding: 0
+    bottomPadding: 0
+    implicitHeight: 22
+
     // ── 自定义 indicator 样式 ──
     indicator: Rectangle {
         implicitWidth: 40
@@ -33,6 +38,7 @@ Switch {
         radius: height / 2
         color: control.checked ? StyleTokens.accentLight : StyleTokens.bgHover
         opacity: control.enabled ? 1.0 : 0.4
+        anchors.verticalCenter: parent.verticalCenter
 
         Behavior on color {
             ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
