@@ -156,19 +156,17 @@ Rectangle {
         }
 
         function onLaunchCheckWarning(warning) {
-            checkWarning = warning || ""
-            // Authlib-injector download detection (messages come through warnings, not progress)
+            // Authlib-injector warnings are handled by toastBar — suppress checkWarning to avoid duplicate
             if (warning && warning.indexOf("authlib-injector") >= 0) {
+                checkWarning = ""
                 _authlibDlActive = true
                 _authlibDlText = warning
                 _authlibDlDone = false
                 authlibDlDoneTimer.stop()
-            } else if (warning && _authlibDlActive && !_authlibDlDone) {
-                // Authlib-injector warning just cleared/replaced into something else
-                _authlibDlDone = true
-                _authlibDlText = "authlib-injector.jar 下载完成"
-                authlibDlDoneTimer.start()
+                return
             }
+            // Non-authlib-injector warnings still go through old panel
+            checkWarning = warning || ""
         }
     }
 
