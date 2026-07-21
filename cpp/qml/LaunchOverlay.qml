@@ -131,8 +131,8 @@ Rectangle {
                 _authlibDlText = status
                 _authlibDlDone = false
                 authlibDlDoneTimer.stop()
-            } else if (_authlibDlActive && !_authlibDlDone) {
-                // Transition: download just finished
+            } else if (_authlibDlActive && !_authlibDlDone && status.indexOf("authlib-injector") < 0) {
+                // Transition: download just finished (next step cleared the injector status)
                 _authlibDlDone = true
                 _authlibDlText = "authlib-injector.jar 下载完成"
                 authlibDlDoneTimer.start()
@@ -157,6 +157,18 @@ Rectangle {
 
         function onLaunchCheckWarning(warning) {
             checkWarning = warning || ""
+            // Authlib-injector download detection (messages come through warnings, not progress)
+            if (warning && warning.indexOf("authlib-injector") >= 0) {
+                _authlibDlActive = true
+                _authlibDlText = warning
+                _authlibDlDone = false
+                authlibDlDoneTimer.stop()
+            } else if (warning && _authlibDlActive && !_authlibDlDone) {
+                // Authlib-injector warning just cleared/replaced into something else
+                _authlibDlDone = true
+                _authlibDlText = "authlib-injector.jar 下载完成"
+                authlibDlDoneTimer.start()
+            }
         }
     }
 
