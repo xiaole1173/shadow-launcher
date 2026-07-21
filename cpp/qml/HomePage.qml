@@ -636,7 +636,7 @@ Rectangle {
             // 认证服务器名称
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: backend.yggdrasil.metaServerName || backend.yggdrasil.apiRoot
+                text: (backend && backend.yggdrasil && (backend.yggdrasil.metaServerName || backend.yggdrasil.apiRoot)) || ""
                 font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
                 elide: Text.ElideMiddle; Layout.maximumWidth: 320
             }
@@ -704,7 +704,7 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd
                 color: StyleTokens.bgSecondary; border.color: yggAutoServerInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
-                visible: backend.yggdrasil.metaServerName.length > 0 || _yggAutoServer.length > 0
+                visible: _yggAutoServer.length > 0 || (backend && backend.yggdrasil && backend.yggdrasil.metaServerName && backend.yggdrasil.metaServerName.length > 0)
                 opacity: visible ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                 scale: visible ? 1 : 0.9
