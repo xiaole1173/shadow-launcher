@@ -35,8 +35,14 @@ Rectangle {
 
     property alias msLoginForm: msLoginForm
 
-    property string displayName: backend ? (loginMode === 0 ? (backend.username || "") : (backend.offlineUsername || "")) : ""
-    property bool loggedIn: backend ? (loginMode === 0 ? backend.username !== "" : backend.offlineUsername !== "") : false
+    property string displayName: backend ? (
+        loginMode === 0 ? (backend.username || "") :
+        (loginMode === 2 ? (backend.yggdrasil ? backend.yggdrasil.username : "") :
+        (backend.offlineUsername || ""))) : ""
+    property bool loggedIn: backend ? (
+        loginMode === 0 ? backend.username !== "" :
+        (loginMode === 2 ? (backend.yggdrasil ? backend.yggdrasil.loggedIn : false) :
+        backend.offlineUsername !== "")) : false
     property bool skinCapeExpanded: false
     property bool capeExpanded: false
     property bool _skinRefreshPending: false
@@ -132,7 +138,7 @@ Rectangle {
                     }
                     Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
                 }
-                MouseArea { anchors.fill: parent; onClicked: { loginMode = 2 } }
+                MouseArea { anchors.fill: parent; onClicked: { loginMode = 2; if (backend) { backend.lastLoginMode = 2; toastManager.show("已切换至外置登录") } } }
             }
         }
     }
@@ -1376,6 +1382,19 @@ Rectangle {
 
         function onMetaFailed(error) {
             if (toastManager) toastManager.show("获取服务器信息失败: " + error)
+        }
+    }
+
+    // ══ 启动时恢复登录模式 ══
+    Connections {
+        target: backend
+        function onLoginModeChanged() {
+            // 启动时后端发射 loginModeChanged, 同步到 QML 本地状态
+            // 外置登录但 session 无效时回退到离线模式
+            var mode = backend ? backend.lastLoginMode : 1
+            if (mode === 2 && (!backend.yggdrasil || !backend.yggdrasil.loggedIn))
+                mode = 1
+            loginMode = mode
         }
     }
 }

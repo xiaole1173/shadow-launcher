@@ -396,20 +396,25 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     QCoreApplication::applicationName());
         m_lastLoginMode = s.value(QStringLiteral("account/lastLoginMode"), 1).toInt();
         QString lastUser = s.value(QStringLiteral("account/lastUsername")).toString();
-        if ((m_lastLoginMode == 1 || m_lastLoginMode == 0) && !lastUser.isEmpty()) {
+        if (!lastUser.isEmpty()) {
             // Auto-restore login on startup — differentiate mode
             QTimer::singleShot(100, this, [this, lastUser]() {
                 if (m_lastLoginMode == 0) {
                     // Microsoft (online) — session already restored in AccountBackend ctor via loadMicrosoftSession()
-                    // Just update the offline skin as fallback, don't override online state
                     qCInfo(logApp) << QStringLiteral("[启动] 恢复正版登录: ") << lastUser;
-                } else {
+                } else if (m_lastLoginMode == 1) {
                     // Offline mode
                     qCInfo(logApp) << QStringLiteral("[启动] 恢复离线登录: ") << lastUser;
                     m_account->offlineLogin(lastUser);
                 }
+                // m_lastLoginMode == 2 (外置登录): YggdrasilBackend 的 loadSession() 已自动恢复
             });
         }
+
+        // 通知 QML 恢复登录模式（包括外置登录）
+        QTimer::singleShot(200, this, [this]() {
+            emit loginModeChanged();
+        });
     }
 
     // ── Signal forwarding: ResourceBackend → ShadowBackend ──
