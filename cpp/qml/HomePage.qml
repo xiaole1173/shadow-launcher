@@ -748,10 +748,10 @@ Rectangle {
     Rectangle {
         id: skinCapePanel
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: loginMode === 0 ? loggedInDisplay.bottom : offlineForm.bottom
+        anchors.top: loginMode === 0 ? loggedInDisplay.bottom : (loginMode === 2 ? yggdrasilDisplay.bottom : offlineForm.bottom)
         anchors.topMargin: 12
         width: 340; color: "transparent"
-        visible: loginMode === 0 && backend && backend.username
+        visible: (loginMode === 0 && backend && backend.username) || (loginMode === 2 && backend && backend.yggdrasil.loggedIn)
         height: skinCapeColumn.height
         clip: true
 
