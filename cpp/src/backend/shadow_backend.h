@@ -41,6 +41,7 @@ class ShadowBackend : public QObject {
                                   std::function<void(const QVariantList&)>);
     // ── Account ──
     Q_PROPERTY(QObject* account READ account CONSTANT)
+    Q_PROPERTY(QObject* yggdrasil READ yggdrasil CONSTANT)
     Q_PROPERTY(QString username READ username NOTIFY accountChanged)
     Q_PROPERTY(QString offlineUsername READ offlineUsername NOTIFY accountChanged)
     Q_PROPERTY(bool isOnline READ isOnline NOTIFY accountChanged)
@@ -632,7 +633,7 @@ signals:
 public:
     AppBackend* app() const { return m_app; }
     AccountBackend* account() const { return m_account; }
-    YggdrasilBackend* yggdrasil() const { return m_yggdrasil; }
+    QObject* yggdrasil() const { return m_yggdrasil; }
     Q_INVOKABLE SettingsBackend* settings() const { return m_settings; }
     // Auto-language mode helpers (bypass backend.settings.* QML chain issues in Loaders)
     Q_INVOKABLE int diagAutoLangComboIdx() const;
@@ -689,7 +690,7 @@ private:
     ResourceBackend* m_resource = nullptr;
     StatsBackend*   m_stats = nullptr;
     JavaBackend*    m_java = nullptr;
-    YggdrasilBackend* m_yggdrasil = nullptr;
+    QObject* m_yggdrasil = nullptr;
     UserDataBackend* m_userData = nullptr;
     IconCache* m_modIconCache = nullptr;
     IconCache* m_shaderIconCache = nullptr;
