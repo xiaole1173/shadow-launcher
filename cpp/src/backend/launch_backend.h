@@ -59,10 +59,6 @@ public:
     void setAuthInfo(const QString& username, const QString& uuid,
                     const QString& accessToken, bool isOnline);
 
-    // ── Third-party login info (set before launch) ──
-    Q_INVOKABLE void setLaunchThirdPartyLogin(int loginType, const QString& authServer,
-                                              const QString& loginUsername);
-
     // ---- Called by ShadowBackend to sync game directory ----
     void setGameDir(const QString& dir);
     void setAccount(AccountBackend* account) { m_account = account; }
@@ -129,25 +125,6 @@ private:
     QString m_pendingJvmArgs;
     QString m_pendingGameArgs;
     bool m_pendingHighPerfGpu = false;
-
-    // ── Third-party login state ──
-    int m_pendingLoginType = 0;
-    QString m_pendingAuthServer;
-    QString m_pendingLoginUsername;
-    QStringList m_extraJvmArgs;
-    bool m_authlibJarNeeded = false;
-    QString m_authlibJarPath;
-    QString m_authlibDownloadUrl;
-    QString m_authlibMirrorUrl;
-    bool m_nide8JarNeeded = false;
-    QString m_nide8JarPath;
-
-    // ── Async third-party login helpers ──
-    void startAuthlibInjectorPrep();
-    void startAuthlibPrefetch();
-    void startNide8Prep();
-    // Helper to advance check flow
-    void advanceToNextCheckStep();
 };
 
 } // namespace ShadowLauncher
