@@ -311,7 +311,7 @@ void YggdrasilBackend::onAuthenticateReply()
     QByteArray data = reply->readAll();
     QString errorOut;
     YggdrasilSession session = YggdrasilAuth::parseAuthenticate(
-        data, m_pendingEmail, m_pendingEmail, errorOut);
+        data, m_pendingApiRoot, m_pendingEmail, errorOut);
 
     if (!errorOut.isEmpty()) {
         setStatus(QString());
