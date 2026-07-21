@@ -1392,8 +1392,10 @@ Rectangle {
             // 同步后端保存的登录模式到 QML
             var mode = backend ? backend.lastLoginMode : 1
             loginMode = mode
-            // 如果外置登录 session 过期，留在外置登录 tab 让用户重新登录
-            if (mode === 2 && backend && backend.yggdrasil && !backend.yggdrasil.loggedIn && toastManager)
+            // 外置登录 session 过期（之前登录过但现在无效），留在 tab 让用户重新登录
+            if (mode === 2 && backend && backend.yggdrasil
+                    && backend.yggdrasil.hadSavedSession && !backend.yggdrasil.loggedIn
+                    && toastManager)
                 toastManager.show("外置登录会话已过期，请重新登录")
         }
     }

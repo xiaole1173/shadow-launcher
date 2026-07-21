@@ -29,6 +29,7 @@ class YggdrasilBackend : public QObject {
     Q_PROPERTY(QVariantList profiles READ profiles NOTIFY profilesChanged)
     Q_PROPERTY(int profileIndex READ profileIndex NOTIFY profilesChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
+    Q_PROPERTY(bool hadSavedSession READ hadSavedSession CONSTANT)
 
 public:
     explicit YggdrasilBackend(QObject *parent = nullptr);
@@ -57,6 +58,7 @@ public:
     Q_INVOKABLE void saveSession();
     Q_INVOKABLE void loadSession();
     Q_INVOKABLE void deleteSavedSession();
+    bool hadSavedSession() const { return m_hadSavedSession; }
     QString sessionFilePath() const;
 
 signals:
@@ -86,6 +88,7 @@ private:
     QString m_pendingEmail;     // 登录过程中记录邮箱
     QString m_pendingPassword;  // 登录过程中记录密码（仅用于 signout）
     bool m_loggingOut = false;
+    bool m_hadSavedSession = false;  // session.json 是否存在过
 };
 
 } // namespace ShadowLauncher
