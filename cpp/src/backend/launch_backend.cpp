@@ -715,6 +715,7 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
 
     // After 3s, check if process still alive
     QTimer::singleShot(3000, this, [this, launcher]() {
+        if (m_cancelled) return;  // Guard: cancel may have fired
         if (!launcher->isRunning()) {
             emit launchProgressChanged(0, tr("游戏进程意外退出"));
             emit launchCheckFailed(tr("进程存活"), tr("游戏进程在窗口出现前退出"));
