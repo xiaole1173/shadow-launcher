@@ -491,7 +491,7 @@ Item {
                     id: jvmArgsInput
                     anchors.fill: parent; anchors.margins: 8
                     color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm
-                    font.family: "Consolas, monospace"
+                    font.family: StyleTokens.fontFamilyMono
                     text: root._effectiveJvmArgs()
                     readOnly: root._mode === 0
                     activeFocusOnPress: root._mode === 1
@@ -655,7 +655,7 @@ Item {
                     id: gameArgsInput
                     anchors.fill: parent; anchors.margins: 8
                     color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm
-                    font.family: "Consolas, monospace"
+                    font.family: StyleTokens.fontFamilyMono
                     text: root._effectiveGameArgs()
                     readOnly: root._mode === 0
                     activeFocusOnPress: root._mode === 1

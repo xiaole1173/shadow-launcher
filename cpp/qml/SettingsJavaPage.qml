@@ -134,7 +134,7 @@ Item {
                     // Path
                     Text {
                         text: backend && backend.javaPath ? backend.javaPath : qsTr("未找到 Java 可执行文件 — 请检测或手动指定")
-                        font.pixelSize: StyleTokens.fontSizeSm; font.family: "Consolas, monospace"; color: StyleTokens.textTertiary
+                        font.pixelSize: StyleTokens.fontSizeSm; font.family: StyleTokens.fontFamilyMono; color: StyleTokens.textTertiary
                         elide: Text.ElideMiddle; Layout.fillWidth: true
                     }
 
@@ -319,7 +319,7 @@ Item {
                     id: jvmArgsInput
                     anchors.fill: parent; anchors.margins: 10
                     color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm
-                    font.family: "Consolas, monospace"
+                    font.family: StyleTokens.fontFamilyMono
                     text: backend ? backend.jvmArgs || "" : ""
                     wrapMode: TextEdit.Wrap; selectByMouse: true
                     activeFocusOnPress: true
@@ -334,7 +334,7 @@ Item {
                         anchors.fill: parent; anchors.margins: 2
                         text: defaultJvmArgs
                         color: "#5A6173"; font.pixelSize: StyleTokens.fontSizeSm
-                        font.family: "Consolas, monospace"
+                        font.family: StyleTokens.fontFamilyMono
                         visible: jvmArgsInput.text === "" && !jvmArgsInput.activeFocus
                         wrapMode: Text.WordWrap
                     }
@@ -435,7 +435,7 @@ Item {
                     id: gameArgsInput
                     anchors.fill: parent; anchors.margins: 10
                     color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm
-                    font.family: "Consolas, monospace"
+                    font.family: StyleTokens.fontFamilyMono
                     text: backend ? backend.gameArgs || "" : ""
                     activeFocusOnPress: true
                     onEditingFinished: { if (backend) backend.setGameArgs(text) }

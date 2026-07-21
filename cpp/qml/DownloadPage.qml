@@ -672,7 +672,7 @@ Rectangle {
                                        (model.vtype === "snapshot" ? "#b84" :
                                        (model.vtype === "april_fools" ? "#e9a" : "#999"))
                                 font.pixelSize: StyleTokens.fontSizeXs
-                                font.family: "Consolas, monospace"
+                                font.family: StyleTokens.fontFamilyMono
                             }
                         }
 
