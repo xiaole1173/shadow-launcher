@@ -74,8 +74,7 @@ Launcher::~Launcher()
 
 void Launcher::start(const QString& versionId, const QString& javaPath, int maxMemoryMB,
                      const QString& jvmArgs, const QString& gameArgs, bool highPerfGpu,
-                     const QString& resolvedJsonPath, const QString& resolvedJarPath,
-                     const QStringList& extraJvmArgs)
+                     const QString& resolvedJsonPath, const QString& resolvedJarPath)
 {
     // --- Validate ---
     QString errorMsg;
@@ -152,7 +151,6 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
 
     // --- Build arguments ---
     QStringList args = buildArgs(versionId, maxMemoryMB, versionJson);
-    args.append(extraJvmArgs);
 
     emit launchProgress(tr("启动 Minecraft %1...").arg(versionId));
 
