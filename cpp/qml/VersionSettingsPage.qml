@@ -26,7 +26,7 @@ Rectangle {
 
     // ── Signals ─────────────────────────────────────────────────
     signal goBack()
-    // Unused signal (replaced by auto-save login section)
+    // signal authlibInjectorApplied(string url)  -- replaced by auto-save
 
     // ── Internal state ──────────────────────────────────────────
     property string _authlibMode: "none"      // "none" | "authlib" | "custom"
@@ -65,9 +65,8 @@ Rectangle {
             clear()
             // Always-visible items
             append({ label: "设置",             section: 0 })
-            append({ label: "登录",             section: 1 })
-            append({ label: "游戏完整性校验",     section: 2 })
-            append({ label: "资源包管理",         section: 3 })
+            append({ label: "游戏完整性校验",     section: 1 })
+            append({ label: "资源包管理",         section: 2 })
 
             let nextSec = 3
             if (page.hasModLoader) {
@@ -354,47 +353,19 @@ Rectangle {
                             }
                         }
 
-
-                    }
-                }
-
-                // ── Section 1: 登录 ──────────────────────────────
-                Flickable {
-                    id: loginFlickable
-                    anchors.fill: parent
-                    contentHeight: loginContent.height + 40
-                    clip: true
-                    visible: page.currentSection === 1
-                    opacity: page.currentSection === 1 ? 1 : 0
-
-                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
-
-                    ColumnLayout {
-                        id: loginContent
-                        width: parent.width - 48
-                        x: 24
-                        spacing: 16
-
-                        Item { Layout.preferredHeight: 8 }
-
+                        // ── 登录 ──
                         Text {
-                            text: qsTr("第三方登录")
+                            text: qsTr("登录")
                             font.pixelSize: StyleTokens.fontSizeMd
                             font.weight: Font.SemiBold
-                            color: StyleTokens.textPrimary
-                        }
-
-                        Text {
-                            text: qsTr("使用自定义认证服务器进行登录验证，支持 Authlib-Injector 和统一通行证。\n请先在下方选择登录方式，然后返回启动页输入账号密码。")
-                            font.pixelSize: StyleTokens.fontSizeSm
                             color: "#7E8596"
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                            lineHeight: 1.5
+                            Layout.leftMargin: 4
+                            Layout.topMargin: 8
                         }
 
+                        // Login mode dropdown
                         RowLayout {
-                            Layout.topMargin: 8
+                            Layout.leftMargin: 4
                             spacing: 12
 
                             Text {
@@ -520,6 +491,8 @@ Rectangle {
                         TextField {
                             id: authServerField
                             Layout.fillWidth: true
+                            Layout.leftMargin: 82
+                            Layout.rightMargin: 40
                             visible: false
                             placeholderText: qsTr("认证服务器地址")
                             placeholderTextColor: "#5A6173"
@@ -547,6 +520,8 @@ Rectangle {
                         TextField {
                             id: registerUrlField
                             Layout.fillWidth: true
+                            Layout.leftMargin: 82
+                            Layout.rightMargin: 40
                             Layout.topMargin: 8
                             visible: false
                             placeholderText: qsTr("认证注册链接")
@@ -573,14 +548,14 @@ Rectangle {
                     }
                 }
 
-                // ── Section 2: 游戏完整性校验 ────────────────────
+                // ── Section 1: 游戏完整性校验 ────────────────────
                 Flickable {
                     id: section1Flickable
                     anchors.fill: parent
                     contentHeight: integrityContent.height + 40
                     clip: true
-                    visible: page.currentSection === 3
-                    opacity: page.currentSection === 3 ? 1 : 0
+                    visible: page.currentSection === 1
+                    opacity: page.currentSection === 1 ? 1 : 0
 
                     Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
@@ -832,7 +807,7 @@ Rectangle {
                     }
                 }
 
-                // ── Section 3: 资源包管理 ─────────────────────────
+                // ── Section 2: 资源包管理 ─────────────────────────
                 Flickable {
                     id: section2Flickable
                     anchors.fill: parent
@@ -961,13 +936,13 @@ Rectangle {
                     }
                 }
 
-                // ── Sections 4+: Conditional placeholders ─────────
+                // ── Sections 3-6: Conditional placeholders ─────────
                 Flickable {
                     id: sectionConditionalFlickable
                     anchors.fill: parent
                     contentHeight: conditionalContent.height + 40
                     clip: true
-                    visible: page.currentSection >= 4
+                    visible: page.currentSection >= 3
                     opacity: page.currentSection >= 3 ? 1 : 0
 
                     Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
