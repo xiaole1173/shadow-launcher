@@ -693,10 +693,9 @@ Item {
                         Layout.fillWidth: true
                         Text { text: qsTr("要求 Java 使用高性能显卡"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         Item { Layout.fillWidth: true }
-                        Switch {
+                        ShadowSwitch {
                             checked: root._effectiveHighPerfGpu()
                             enabled: root._mode === 1
-                            opacity: root._mode === 0 ? 0.5 : 1.0
                             onToggled: {
                                 if (root._mode !== 1) return
                                 root._perVerHighPerfGpu = checked
@@ -709,7 +708,7 @@ Item {
                         Layout.fillWidth: true
                         Text { text: qsTr("版本隔离（模组/存档独立存储）"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         Item { Layout.fillWidth: true }
-                        Switch { checked: true; enabled: false; opacity: 0.5 }
+                        ShadowSwitch { checked: true; enabled: false }
                         Text { text: qsTr("始终开启"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
                     }
                 }

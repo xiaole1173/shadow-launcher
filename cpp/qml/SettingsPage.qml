@@ -189,10 +189,7 @@ Rectangle {
                         spacing: 8
                         Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#e8ecf8"; Layout.fillWidth: true }
                         Text { text: "已开启"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                        Switch { id: isolationSwitch; Layout.alignment: Qt.AlignVCenter; checked: true; enabled: false
-                            palette { mid: "#3a4eb8"; dark: "#252835"; light: "#5d6fe0"; button: checked ? "#5d6fe0" : "#353845" }
-                            opacity: 0.5
-                        }
+                        ShadowSwitch { id: isolationSwitch; Layout.alignment: Qt.AlignVCenter; checked: true; enabled: false }
                     }
                 }
 

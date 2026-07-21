@@ -214,6 +214,7 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/SettingsMemoryPage.qml
         qml/SettingsPage.qml
         qml/ShadowButton.qml
+        qml/ShadowSwitch.qml
         qml/SplashWindow.qml
         qml/SubPageOverlays.qml
         qml/ToastManager.qml

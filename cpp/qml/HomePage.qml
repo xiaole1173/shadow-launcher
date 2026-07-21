@@ -841,30 +841,13 @@ Rectangle {
                                 Layout.fillWidth: true
                             }
 
-                            // 自定义 Switch
-                            Rectangle {
+                            ShadowSwitch {
                                 id: autoJoinSwitch
-                                property bool checked: backend.yggdrasil ? backend.yggdrasil.autoJoinServer : false
-                                width: 44; height: 24; radius: StyleTokens.radiusFull
-                                color: checked ? StyleTokens.accentLight : StyleTokens.bgHover
-                                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                                Rectangle {
-                                    width: 18; height: 18; radius: StyleTokens.radiusFull
-                                    color: "#e4e8f2"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    x: autoJoinSwitch.checked ? parent.width - width - 3 : 3
-                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (backend && backend.yggdrasil) {
-                                            backend.yggdrasil.autoJoinServer = !autoJoinSwitch.checked
-                                            autoJoinSwitch.checked = backend.yggdrasil.autoJoinServer
-                                        }
-                                    }
+                                Layout.alignment: Qt.AlignVCenter
+                                checked: backend.yggdrasil ? backend.yggdrasil.autoJoinServer : false
+                                onToggled: {
+                                    if (backend && backend.yggdrasil)
+                                        backend.yggdrasil.autoJoinServer = checked
                                 }
                             }
                         }

@@ -29,19 +29,10 @@ Flickable {
                     }
                     Item { Layout.fillWidth: true }
                     Text { text: embeddedSwitch.checked ? qsTr("已开启") : qsTr("已关闭"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                    Switch {
+                    ShadowSwitch {
                         id: embeddedSwitch; Layout.alignment: Qt.AlignVCenter
                         checked: backend ? backend.embeddedLoginEnabled : false
                         onToggled: { if (backend) backend.setEmbeddedLoginEnabled(checked) }
-                        palette { mid: "#3a4eb8"; dark: "#252835"; light: "#5d6fe0"; button: checked ? "#5d6fe0" : "#353845" }
-                        Behavior on checked { NumberAnimation { duration: 200 } }
-                        background: Rectangle {
-                            implicitWidth: 44; implicitHeight: 28; radius: 14
-                            color: "transparent"
-                            border.color: embeddedSwitch.hovered ? Qt.rgba(1,1,1,0.12) : "transparent"
-                            border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
-                        }
                     }
                 }
                 Text {

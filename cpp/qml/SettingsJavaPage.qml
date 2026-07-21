@@ -463,7 +463,7 @@ Item {
                         Layout.fillWidth: true
                         Text { text: qsTr("要求 Java 使用高性能显卡"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         Item { Layout.fillWidth: true }
-                        Switch {
+                        ShadowSwitch {
                             checked: backend ? backend.highPerfGpu : false
                             onToggled: { if (backend) backend.setHighPerfGpu(checked) }
                         }
