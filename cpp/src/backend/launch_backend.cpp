@@ -586,6 +586,12 @@ void LaunchBackend::runNextCheck()
                         QNetworkReply *jarReply = nam.get(QNetworkRequest(QUrl(downloadUrl)));
                         QEventLoop loop2;
                         QObject::connect(jarReply, &QNetworkReply::finished, &loop2, &QEventLoop::quit);
+                        QObject::connect(jarReply, &QNetworkReply::downloadProgress, this, [this](qint64 recv, qint64 total) {
+                            if (total > 0) {
+                                int pct = qMin((int)(recv * 100 / total), 100);
+                                emit launchCheckProgress(tr("正在下载 authlib-injector.jar (%1%)...").arg(pct));
+                            }
+                        });
                         loop2.exec();
 
                         if (jarReply->error() == QNetworkReply::NoError) {
@@ -636,6 +642,12 @@ void LaunchBackend::runNextCheck()
                             QNetworkReply *jarReply = ghNam.get(QNetworkRequest(QUrl(ghDownloadUrl)));
                             QEventLoop jarLoop;
                             QObject::connect(jarReply, &QNetworkReply::finished, &jarLoop, &QEventLoop::quit);
+                            QObject::connect(jarReply, &QNetworkReply::downloadProgress, this, [this](qint64 recv, qint64 total) {
+                                if (total > 0) {
+                                    int pct = qMin((int)(recv * 100 / total), 100);
+                                    emit launchCheckProgress(tr("正在下载 authlib-injector.jar (%1%)...").arg(pct));
+                                }
+                            });
                             jarLoop.exec();
 
                             if (jarReply->error() == QNetworkReply::NoError) {
