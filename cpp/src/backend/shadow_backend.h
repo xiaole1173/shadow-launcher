@@ -340,6 +340,7 @@ public:
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void cancelVersionInstall(const QString& versionId);
     Q_INVOKABLE void launch(const QString& versionId, bool online);
+    Q_INVOKABLE void setExtraGameArgs(const QString& args);
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();
     Q_INVOKABLE void killMinecraft();
@@ -704,6 +705,7 @@ private:
     int m_lastLoginMode = 1;
     QString m_launchVersion;
     QString m_launchUsername;
+    QString m_extraGameArgs;
 
     // ── Beta key ──
     QString m_betaStatus;

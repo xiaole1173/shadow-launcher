@@ -1730,6 +1730,10 @@ void ShadowBackend::setSelectedVersion(const QString& versionId) {
 // Q_INVOKABLE methods — Launch
 // ============================================================
 
+void ShadowBackend::setExtraGameArgs(const QString& args) {
+    m_extraGameArgs = args;
+}
+
 void ShadowBackend::launch(const QString& versionId, bool online) {
     // Prepare server.properties for multiplayer (disable online-mode)
     if (m_multiplayer) {
@@ -1769,6 +1773,14 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     bool highPerfGpu = resolvedHighPerfGpu(versionId);
     m_launchVersion = versionId;
     m_launchUsername = username;
+
+    // Append extra game args (e.g. --server for auto-connect)
+    if (!m_extraGameArgs.isEmpty()) {
+        if (!gameArgs.isEmpty())
+            gameArgs += QStringLiteral(" ");
+        gameArgs += m_extraGameArgs;
+        m_extraGameArgs.clear();
+    }
 
     // Determine required Java version from version JSON
     int requiredMajor = requiredJavaMajor(versionId);
