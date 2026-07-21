@@ -265,27 +265,7 @@ Rectangle {
             }
         }
 
-        // Warning
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: warnText.implicitHeight + 16
-            color: "#1a1800"
-            radius: StyleTokens.radiusMd
-            border.color: StyleTokens.warningBg
-            visible: checkWarning !== ""
-            opacity: checkWarning !== "" ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
 
-            Text {
-                id: warnText
-                anchors.centerIn: parent
-                text: checkWarning
-                color: "#e0c040"
-                font.pixelSize: StyleTokens.fontSizeSm
-                width: parent.width - 20
-                wrapMode: Text.WordWrap
-            }
-        }
 
         // Progress (normal state)
         Item {
