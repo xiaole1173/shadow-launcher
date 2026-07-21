@@ -60,6 +60,7 @@ void UpdateManager::saveState()
     obj["download_total"] = m_downloadTotal;
     obj["download_received"] = m_downloadReceived;
     obj["release_notes"] = m_releaseNotes;
+    obj["last_silent_check"] = m_lastSilentCheck;
 
     QFile f(stateDir() + "state.json");
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -169,6 +170,29 @@ void UpdateManager::setState(State s)
 void UpdateManager::checkSilent()
 {
     if (isBusy()) return;
+
+    // 从 state.json 读取上次检查时间戳
+    {
+        QFile f(stateDir() + "state.json");
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            if (doc.isObject()) {
+                m_lastSilentCheck = static_cast<qint64>(
+                    doc.object().value("last_silent_check").toDouble());
+            }
+        }
+    }
+
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastSilentCheck < kSilentCheckIntervalMs) {
+        qint64 remainingH = (kSilentCheckIntervalMs - (now - m_lastSilentCheck)) / 3600000;
+        qint64 remainingM = ((kSilentCheckIntervalMs - (now - m_lastSilentCheck)) % 3600000) / 60000;
+        qCInfo(logApp) << "[UpdateManager] 跳过静默检查(距上次不足"
+                       << (kSilentCheckIntervalMs / 3600000) << "小时)，剩余"
+                       << remainingH << "h" << remainingM << "m";
+        return;
+    }
+
     qCInfo(logApp) << "[UpdateManager] 启动后自动检查更新";
     m_userInitiated = false;
     doCheck();
@@ -192,6 +216,10 @@ void UpdateManager::doCheck()
         emit checkCompleted(false, QString());
         return;
     }
+
+    // 标记检查时间
+    if (!m_userInitiated)
+        m_lastSilentCheck = QDateTime::currentMSecsSinceEpoch();
 
     setState(Checking);
     qCInfo(logApp) << "[UpdateManager] 检查更新... 当前版本:" << m_currentVersion;

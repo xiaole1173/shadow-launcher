@@ -23,6 +23,7 @@
 #include <QScreen>
 #include <QPixmap>
 #include <QWindow>
+#include <QSurfaceFormat>
 #include <QTranslator>
 #include <QSettings>
 #include <memory>
@@ -279,6 +280,16 @@ int main(int argc, char *argv[])
     // Qt attribute setup
     checkpoint(QStringLiteral("Setting Qt attributes..."));
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+
+    // ── Transparent frameless window: require alpha channel ──
+    // Without this, Window { color: "transparent" } may flash white corners
+    // on certain GPU/driver combos (Intel, some NVidia).
+    {
+        QSurfaceFormat fmt;
+        fmt.setAlphaBufferSize(8);
+        QSurfaceFormat::setDefaultFormat(fmt);
+    }
+
     QApplication app(argc, argv);
     checkpoint(QStringLiteral("QApplication constructed"));
 
@@ -372,6 +383,10 @@ int main(int argc, char *argv[])
         &app, [taskbarFilter, pStartupTimer, ssServer](QObject* obj, const QUrl&) {
             QQuickWindow* win = qobject_cast<QQuickWindow*>(obj);
             if (!win) return;
+
+            // ── Force transparent window background (prevents white corner artifacts) ──
+            win->setColor(Qt::transparent);
+
             taskbarFilter->targetWindow = win;
             screenshotWindow = win;
             if (ssServer) ssServer->setWindow(win);
