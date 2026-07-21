@@ -62,7 +62,7 @@ Rectangle {
             id: delegateRoot
             width: cardsView.width; implicitHeight: cardContent.implicitHeight + 20
             radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary
-            border.color: "#1e2230"; border.width: 1
+            border.color: StyleTokens.bgElevated; border.width: 1
 
             // ── Card click → toggle cancel button ──
             MouseArea {

@@ -838,7 +838,7 @@ Rectangle {
                                     Label {
                                         id: threadBadge
                                         anchors.centerIn: parent
-                                        text: _threads; color: "#FFFFFF"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
+                                        text: _threads; color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
                                     }
                                 }
                             }
@@ -871,7 +871,7 @@ Rectangle {
                                         id: speedBadge
                                         anchors.centerIn: parent
                                         text: _speedLimit < 0 ? qsTr("无限制") : _speedLimit.toFixed(1) + " MB/s"
-                                        color: "#FFFFFF"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
+                                        color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
                                     }
                                 }
                             }

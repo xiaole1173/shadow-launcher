@@ -181,13 +181,13 @@ Rectangle {
                 anchors.fill: parent; spacing: 12
                 Text { text: qsTr("通用设置"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
 
-                Rectangle { Layout.fillWidth: true; height: 52; radius: StyleTokens.radiusMd; color: "#11141c"; border.color: StyleTokens.bgInput
+                Rectangle { Layout.fillWidth: true; height: 52; radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
                     RowLayout {
                         anchors.left: parent.left; anchors.leftMargin: 14
                         anchors.right: parent.right; anchors.rightMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
-                        Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#e8ecf8"; Layout.fillWidth: true }
+                        Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textPrimary; Layout.fillWidth: true }
                         Text { text: "已开启"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                         ShadowSwitch { id: isolationSwitch; Layout.alignment: Qt.AlignVCenter; checked: true; enabled: false }
                     }
@@ -202,7 +202,7 @@ Rectangle {
                     id: fileSrcCard
                     Layout.fillWidth: true
                     implicitHeight: fileSrcCard._open ? 148 : 40
-                    radius: StyleTokens.radiusMd; color: "#11141c"; clip: true
+                    radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; clip: true
                     border.color: fileSrcCard._open ? "#5068d8" : "#1a1f2a"; border.width: 1
 
                     Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
@@ -216,7 +216,7 @@ Rectangle {
                     Rectangle { width: parent.width; height: 40; color: "#0d1016"; radius: StyleTokens.radiusMd
                         RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
                             Text { Layout.fillWidth: true; text: fileSrcCard._label; color: "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeMd; elide: Text.ElideRight }
-                            Text { text: fileSrcCard._open ? "▲" : "▼"; color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeXs }
+                            Text { text: fileSrcCard._open ? "▲" : "▼"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs }
                         }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: fileSrcCard._open = !fileSrcCard._open }
                     }
@@ -236,12 +236,12 @@ Rectangle {
                 }
 
                 // ── 版本列表源 ──
-                Text { text: qsTr("版本列表源"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8088a0"; Layout.topMargin: 8 }
+                Text { text: qsTr("版本列表源"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; Layout.topMargin: 8 }
                 Rectangle {
                     id: listSrcCard
                     Layout.fillWidth: true
                     implicitHeight: listSrcCard._open2 ? 148 : 40
-                    radius: StyleTokens.radiusMd; color: "#11141c"; clip: true
+                    radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; clip: true
                     border.color: listSrcCard._open2 ? "#5068d8" : "#1a1f2a"; border.width: 1
 
                     Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
@@ -255,7 +255,7 @@ Rectangle {
                     Rectangle { width: parent.width; height: 40; color: "#0d1016"; radius: StyleTokens.radiusMd
                         RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
                             Text { Layout.fillWidth: true; text: listSrcCard._label; color: "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeMd; elide: Text.ElideRight }
-                            Text { text: listSrcCard._open2 ? "▲" : "▼"; color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeXs }
+                            Text { text: listSrcCard._open2 ? "▲" : "▼"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs }
                         }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: listSrcCard._open2 = !listSrcCard._open2 }
                     }
@@ -275,7 +275,7 @@ Rectangle {
                 }
 
                 // ── 最大线程数 ──
-                Text { id:thrLab; text:qsTr("最大线程数")+": "+thrSld._v; font.pixelSize:StyleTokens.fontSizeSm; color:"#8088a0"; Layout.topMargin:8 }
+                Text { id:thrLab; text:qsTr("最大线程数")+": "+thrSld._v; font.pixelSize:StyleTokens.fontSizeSm; color:StyleTokens.textSubtle; Layout.topMargin:8 }
                 Item {
                     id:thrSld
                     Layout.fillWidth:true; Layout.preferredHeight:28
@@ -285,7 +285,7 @@ Rectangle {
                         Rectangle { anchors.left:parent.left; anchors.top:parent.top; anchors.bottom:parent.bottom
                             width:thrTrk.width*((thrSld._v-1)/127); radius: StyleTokens.radiusXs; color:StyleTokens.accentHover }
                     }
-                    Rectangle { id:thrHnd; width:14; height:14; radius: StyleTokens.radiusMd; color:"#fff"; border.width:2; border.color:StyleTokens.accentHover
+                    Rectangle { id:thrHnd; width:14; height:14; radius: StyleTokens.radiusMd; color:StyleTokens.textInverse; border.width:2; border.color:StyleTokens.accentHover
                         anchors.verticalCenter:thrTrk.verticalCenter
                         x:thrTrk.x+thrTrk.width*((thrSld._v-1)/127)-7 }
                     MouseArea { anchors.fill:parent
@@ -296,7 +296,7 @@ Rectangle {
                 }
 
                 // ── 速度限制 ──
-                Text { id:spdLab; text:qsTr("速度限制")+": "+(spdSld._s>=0?spdSld._s.toFixed(1)+" MB/s":qsTr("无限制")); font.pixelSize:StyleTokens.fontSizeSm; color:"#8088a0"; Layout.topMargin:8 }
+                Text { id:spdLab; text:qsTr("速度限制")+": "+(spdSld._s>=0?spdSld._s.toFixed(1)+" MB/s":qsTr("无限制")); font.pixelSize:StyleTokens.fontSizeSm; color:StyleTokens.textSubtle; Layout.topMargin:8 }
                 Item {
                     id:spdSld
                     Layout.fillWidth:true; Layout.preferredHeight:28
@@ -309,7 +309,7 @@ Rectangle {
                         Rectangle { anchors.left:parent.left; anchors.top:parent.top; anchors.bottom:parent.bottom
                             width:spdTrk.width*(spdSld._i/21); radius: StyleTokens.radiusXs; color:StyleTokens.accentHover }
                     }
-                    Rectangle { id:spdHnd; width:14; height:14; radius: StyleTokens.radiusMd; color:"#fff"; border.width:2; border.color:StyleTokens.accentHover
+                    Rectangle { id:spdHnd; width:14; height:14; radius: StyleTokens.radiusMd; color:StyleTokens.textInverse; border.width:2; border.color:StyleTokens.accentHover
                         anchors.verticalCenter:spdTrk.verticalCenter
                         x:spdTrk.x+spdTrk.width*(spdSld._i/21)-7 }
                     MouseArea { anchors.fill:parent
@@ -356,7 +356,7 @@ Rectangle {
 
                 // About card
                 Rectangle {
-                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
                     Layout.preferredHeight: aboutCardContent.height + 34
                     ColumnLayout {
                         id: aboutCardContent
@@ -412,7 +412,7 @@ Rectangle {
 
                 // Acknowledgments card
                 Rectangle {
-                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
                     Layout.preferredHeight: ackContent.height + 34
                     ColumnLayout {
                         id: ackContent
@@ -422,22 +422,22 @@ Rectangle {
                         Column { Layout.fillWidth: true; spacing: 14
                             Item {
                                 width: parent.width; height: ack1Desc.y + ack1Desc.height
-                                Text { id: ack1Name; text: "bangbang93"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack1Name; text: "bangbang93"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
                                 Text { id: ack1Desc; text: qsTr("提供的 BMCLAPI 极大程度上解决了各类官方源的逆天下载速度问题！包括 Minecraft、Forge、Neoforge、Optifine 等等。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack1Name.bottom; anchors.topMargin: 3 }
                             }
                             Item {
                                 width: parent.width; height: ack2Desc.y + ack2Desc.height
-                                Text { id: ack2Name; text: "z0z0r4"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack2Name; text: "z0z0r4"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
                                 Text { id: ack2Desc; text: qsTr("提供的 MCIM 解决了直连 Modrinth 的逆天下载速度问题。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack2Name.bottom; anchors.topMargin: 3 }
                             }
                             Item {
                                 width: parent.width; height: ack3Desc.y + ack3Desc.height
-                                Text { id: ack3Name; text: "Lucide"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack3Name; text: "Lucide"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
                                 Text { id: ack3Desc; text: qsTr("提供了启动器目前可见的所有图标！"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack3Name.bottom; anchors.topMargin: 3 }
                             }
                             Item {
                                 width: parent.width; height: ack4Desc.y + ack4Desc.height
-                                Text { id: ack4Name; text: "ChunMoMo"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: "#e8ecf8"; width: parent.width }
+                                Text { id: ack4Name; text: "ChunMoMo"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
                                 Text { id: ack4Desc; text: qsTr("提供了测试联机功能的电脑，将我从想测试联机功能但找不到两台电脑的水深火热中救了出来......"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack4Name.bottom; anchors.topMargin: 3 }
                             }
                         }
@@ -446,7 +446,7 @@ Rectangle {
 
                 // Launcher Logs card
                 Rectangle {
-                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
                     Layout.preferredHeight: logsRow.height + 24
                     RowLayout {
                         id: logsRow

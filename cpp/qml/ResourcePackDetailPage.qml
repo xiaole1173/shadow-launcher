@@ -215,7 +215,7 @@ Rectangle {
 
                         Text {
                             id: rpModBtn; anchors.centerIn: parent
-                            text: qsTr("转到 Modrinth"); color: "#6080e8"; font.pixelSize: StyleTokens.fontSizeSm
+                            text: qsTr("转到 Modrinth"); color: StyleTokens.accentLight; font.pixelSize: StyleTokens.fontSizeSm
                         }
                         MouseArea {
                             id: rpModBtnHov; anchors.fill: parent

@@ -713,7 +713,7 @@ Window {
                             anchors.centerIn: parent
                             radius: StyleTokens.radiusXl
                             color: StyleTokens.bgSecondary
-                            border { color: "#1a1f2a"; width: 1 }
+                            border { color: StyleTokens.bgInput; width: 1 }
                             scale: 0.85
                             opacity: 0
 
@@ -769,7 +769,7 @@ Window {
                                         contentItem: Rectangle {
                                             implicitWidth: 4
                                             radius: StyleTokens.radiusXs
-                                            color: "#3a3d50"
+                                            color: StyleTokens.textMuted
                                         }
                                     }
 
@@ -1111,7 +1111,7 @@ Window {
     Rectangle {
         id: modDlErrorDialog; z: 400
         anchors.centerIn: parent; width: 400; height: 200; radius: StyleTokens.radiusLg
-        color: "#141820"; border.color: "#3a1a1a"; border.width: 1
+        color: StyleTokens.surfaceOverlay; border.color: StyleTokens.errorBg; border.width: 1
         visible: showModDlError
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         ColumnLayout {

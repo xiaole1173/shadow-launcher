@@ -105,7 +105,7 @@ Rectangle {
         width: 460
         height: Math.min(Math.max(320, root._importing || root._hasResult ? 400 : 300), parent.height - 80)
         radius: 16
-        color: "#141820"
+        color: StyleTokens.surfaceOverlay
         border.color: "#2a2f3a"
         border.width: 1
         clip: true
@@ -128,7 +128,7 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     height: 1
-                    color: "#1e2230"
+                    color: StyleTokens.bgElevated
                 }
 
                 Text {
@@ -187,7 +187,7 @@ Rectangle {
                     // File picker area
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 80
-                        radius: 8; color: "#1a1f2a"; border.color: "#2a2f3a"; border.width: 1
+                        radius: 8; color: StyleTokens.bgInput; border.color: "#2a2f3a"; border.width: 1
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 6
                             Text {
@@ -237,7 +237,7 @@ Rectangle {
                     // Progress bar
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 6
-                        radius: 3; color: "#1e2230"
+                        radius: 3; color: StyleTokens.bgElevated
                         Rectangle {
                             width: parent.width * Math.max(0.02, root._progress)
                             height: parent.height; radius: 3

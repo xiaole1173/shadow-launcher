@@ -18,7 +18,7 @@ Flickable {
         Text { text: qsTr("以下功能处于实验阶段，可能存在不稳定的情况。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput; clip: true
+            Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 RowLayout {
@@ -44,7 +44,7 @@ Flickable {
 
         // ── Language selector ──
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput; clip: true
+            Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 RowLayout {
@@ -138,7 +138,7 @@ Flickable {
         // ── MC auto-language ──
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: langModeCard.implicitHeight + 28
-            radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+            radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
             ColumnLayout {
                 id: langModeCard
                 anchors.fill: parent; anchors.margins: 14; spacing: 6
@@ -240,7 +240,7 @@ Flickable {
         // ── Custom background ──
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: bgCardContent.implicitHeight + 28
-            radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+            radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
             ColumnLayout {
                 id: bgCardContent
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
@@ -310,7 +310,7 @@ Flickable {
                     Layout.fillWidth: true; spacing: 16
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 4
-                        Text { text: qsTr("菜单栏透明度"); font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8" }
+                        Text { text: qsTr("菜单栏透明度"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                         RowLayout { Layout.fillWidth: true; spacing: 8
                             Slider {
                                 id: sidebarSPSlider
@@ -339,7 +339,7 @@ Flickable {
                     }
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 4
-                        Text { text: qsTr("背景可见度"); font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8" }
+                        Text { text: qsTr("背景可见度"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                         RowLayout { Layout.fillWidth: true; spacing: 8
                             Slider {
                                 id: contentSPSlider

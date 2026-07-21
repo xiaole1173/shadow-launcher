@@ -207,7 +207,7 @@ Rectangle {
     Rectangle {
         id: btnBar
         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-        height: 56; color: "#0c0f16"; z: 5
+        height: 56; color: StyleTokens.bgPrimary; z: 5
 
         RowLayout {
             anchors.centerIn: parent; spacing: 12
@@ -218,7 +218,7 @@ Rectangle {
                 color: resetHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
                 Text {
                     anchors.centerIn: parent; text: "重置居中"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8"
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
                 }
                 MouseArea {
                     id: resetHov; anchors.fill: parent; hoverEnabled: true
@@ -240,7 +240,7 @@ Rectangle {
             Rectangle {
                 width: 28; height: 28; radius: StyleTokens.radiusMd
                 color: zoomOutHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
-                Text { anchors.centerIn: parent; text: "−"; font.pixelSize: StyleTokens.fontSizeMd; color: "#b0b8c8" }
+                Text { anchors.centerIn: parent; text: "−"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textTertiary }
                 MouseArea {
                     id: zoomOutHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
@@ -255,7 +255,7 @@ Rectangle {
             Rectangle {
                 width: 28; height: 28; radius: StyleTokens.radiusMd
                 color: zoomInHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
-                Text { anchors.centerIn: parent; text: "+"; font.pixelSize: StyleTokens.fontSizeMd; color: "#b0b8c8" }
+                Text { anchors.centerIn: parent; text: "+"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textTertiary }
                 MouseArea {
                     id: zoomInHov; anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor

@@ -37,7 +37,7 @@ Rectangle {
     Rectangle { x: 16; y: 16; height: 28; width: 80; radius: StyleTokens.radiusSm; color: "transparent"
         scale: vsBackHover.containsMouse ? 1.06 : 1.0
         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        Text { anchors.centerIn: parent; text: qsTr("\u2190 返回启动"); color: "#a8b0c0"; font.pixelSize: StyleTokens.fontSizeSm }
+        Text { anchors.centerIn: parent; text: qsTr("\u2190 返回启动"); color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm }
         MouseArea { id: vsBackHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSelect = false } }
     }
     RowLayout {
@@ -50,7 +50,7 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
         Rectangle {
             Layout.preferredWidth: Math.min(220, parent.width * 0.35); Layout.fillHeight: true
-            color: "#11141c"; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
+            color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 14; spacing: 6
                 Text { text: qsTr("游戏文件夹"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
@@ -145,22 +145,22 @@ Rectangle {
                         anchors.top: parent.top; anchors.topMargin: 8
                         spacing: 4
                         RowLayout {
-                            Text { text: qsTr("版本"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                            Text { text: qsTr("版本"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; Layout.preferredWidth: 40 }
                             Text { text: backend ? (backend.gameDirInfo.versionCount || 0) : 0; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.accentLink }
                         }
                         RowLayout {
-                            Text { text: qsTr("模组"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                            Text { text: qsTr("模组"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; Layout.preferredWidth: 40 }
                             Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textSecondary }
                         }
                         RowLayout {
-                            Text { text: qsTr("占用"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0"; Layout.preferredWidth: 40 }
+                            Text { text: qsTr("占用"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; Layout.preferredWidth: 40 }
                             Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textSecondary }
                         }
                     }
                 }
 
                 Item { height: 4; width: 1 }
-                Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: "#1e2230"; border.width: 1
+                Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.bgElevated; border.width: 1
                     scale: addDirHover.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: qsTr("+ 添加文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: addDirHover.containsMouse ? "#b0b8e0" : "#9498a8" }
@@ -170,7 +170,7 @@ Rectangle {
                         onClicked: { toastManager.show("功能开发中，请前往文件夹手动添加") }
                     }
                 }
-                Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: "#1e2230"; border.width: 1
+                Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.bgElevated; border.width: 1
                     scale: importHover.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text { anchors.centerIn: parent; text: qsTr("导入整合包"); font.pixelSize: StyleTokens.fontSizeSm; color: importHover.containsMouse ? "#b0b8e0" : "#9498a8" }
@@ -211,7 +211,7 @@ Rectangle {
         }
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
-            color: "#11141c"; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
+            color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
             ColumnLayout {
                 id: versionRightPanel
                 anchors.fill: parent; anchors.margins: 12; spacing: 6
@@ -259,7 +259,7 @@ Rectangle {
                         border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
                         TextInput {
                             id: searchField; anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
-                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeSm
+                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm
                             verticalAlignment: TextInput.AlignVCenter
                             Text {
                                 anchors.left: parent.left; anchors.leftMargin: 10
@@ -293,7 +293,7 @@ Rectangle {
                         property int versionSortIndex: 0
                         RowLayout {
                             anchors.centerIn: parent; spacing: 4
-                            Text { text: sortBtn.versionSortIndex === 0 ? "↓ 版本" : (sortBtn.versionSortIndex === 1 ? "↓ 版本" : (sortBtn.versionSortIndex === 2 ? "↓ 大小" : "↓ 模组")); font.pixelSize: StyleTokens.fontSizeXs; color: "#b0b8c8" }
+                            Text { text: sortBtn.versionSortIndex === 0 ? "↓ 版本" : (sortBtn.versionSortIndex === 1 ? "↓ 版本" : (sortBtn.versionSortIndex === 2 ? "↓ 大小" : "↓ 模组")); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
                         }
                         HoverHandler { id: sortHover }
                         property bool sortPressed: false
@@ -320,7 +320,7 @@ Rectangle {
                         property bool loadFiltPressed: false
                         RowLayout {
                             anchors.centerIn: parent; spacing: 4
-                            Text { text: loaderFilter.loaderLabels[loaderFilter.loaderFilterIndex]; font.pixelSize: StyleTokens.fontSizeXs; color: "#b0b8c8" }
+                            Text { text: loaderFilter.loaderLabels[loaderFilter.loaderFilterIndex]; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
                         }
                         HoverHandler { id: loaderFiltHover }
                         MouseArea {
@@ -413,7 +413,7 @@ Rectangle {
                 // 异步扫描加载指示器（覆盖在版本列表上方）
                 Rectangle {
                     anchors.fill: parent; visible: backend && backend.isScanningVersions
-                    color: "#11141c"
+                    color: StyleTokens.bgSecondary
                     z: 10
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 12
@@ -569,7 +569,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 40
                     text: versionFilteredModel.count === 0 && backend && backend.versionDetails && backend.versionDetails.length > 0
                           ? "没有匹配的版本" : (backend && backend.installedVersions && backend.installedVersions.length === 0 ? "还没有安装任何版本\n前往下载页面安装第一个版本吧" : "")
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#a8b0c0"
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
                     horizontalAlignment: Text.AlignHCenter
                     visible: versionFilteredModel.count === 0
                 }

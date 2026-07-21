@@ -139,7 +139,7 @@ Window {
                 anchors.centerIn: parent
                 spacing: 16
                 Text { text: "\u2705\u7f51\u7edc"; color: "#4caf50"; font.pixelSize: StyleTokens.fontSizeXs }
-                Text { text: "\u26a0\u8b66\u544a"; color: "#ff9800"; font.pixelSize: StyleTokens.fontSizeXs }
+                Text { text: "\u26a0\u8b66\u544a"; color: StyleTokens.warning; font.pixelSize: StyleTokens.fontSizeXs }
                 Text { text: "\u274c\u9519\u8bef"; color: "#f44336"; font.pixelSize: StyleTokens.fontSizeXs }
             }
         }

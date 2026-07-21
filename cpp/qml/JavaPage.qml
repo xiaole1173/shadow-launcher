@@ -186,7 +186,7 @@ Item {
             Text {
                 anchors.centerIn: parent
                 text: progressPct + "% · " + progressSpeedText
-                color: "#b0b8c8"
+                color: StyleTokens.textTertiary
                 font.pixelSize: StyleTokens.fontSizeSm
             }
         }

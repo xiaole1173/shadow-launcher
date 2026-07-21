@@ -254,7 +254,7 @@ Item {
                     }
                     contentItem: Text {
                         text: javaModeCombo.displayText
-                        font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8"
+                        font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
                         verticalAlignment: Text.AlignVCenter
                         leftPadding: 10
                     }
@@ -469,7 +469,7 @@ Item {
                 }
                 text: backend ? (backend.javaVersion || "") : ""
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: "#b0b8c8"
+                color: StyleTokens.textTertiary
                 Layout.leftMargin: 48
             }
 
@@ -490,7 +490,7 @@ Item {
                 TextEdit {
                     id: jvmArgsInput
                     anchors.fill: parent; anchors.margins: 8
-                    color: "#b0b8c8"; font.pixelSize: StyleTokens.fontSizeSm
+                    color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm
                     font.family: "Consolas, monospace"
                     text: root._effectiveJvmArgs()
                     readOnly: root._mode === 0
@@ -578,7 +578,7 @@ Item {
                             id: gcLabel
                             anchors.centerIn: parent
                             text: modelData.label
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8"
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
                         }
                         HoverHandler { id: gcHover }
                         MouseArea {
@@ -654,7 +654,7 @@ Item {
                 TextInput {
                     id: gameArgsInput
                     anchors.fill: parent; anchors.margins: 8
-                    color: "#b0b8c8"; font.pixelSize: StyleTokens.fontSizeSm
+                    color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm
                     font.family: "Consolas, monospace"
                     text: root._effectiveGameArgs()
                     readOnly: root._mode === 0

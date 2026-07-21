@@ -155,7 +155,7 @@ Rectangle {
 
                     Text {
                         text: mp ? "在线成员 (" + mp.players.length + ")" : "在线成员"
-                        font.pixelSize: StyleTokens.fontSizeMd; color: "#888"
+                        font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textTertiary
                         Layout.leftMargin: 4
                     }
 
@@ -305,7 +305,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.preferredWidth: 200; Layout.preferredHeight: 42; radius: StyleTokens.radiusLg
-                    color: "transparent"; border.color: "#ef4444"; border.width: 1.5
+                    color: "transparent"; border.color: StyleTokens.error; border.width: 1.5
                     scale: dcPress.pressed ? 0.95 : 1
                     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
 

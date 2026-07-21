@@ -242,7 +242,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.displayName || modelData.versionId || ""
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: "#b0b8c8"
+                                    color: StyleTokens.textTertiary
                                     width: 80
                                     elide: Text.ElideRight
                                 }

@@ -39,7 +39,7 @@ Window {
             Layout.alignment: Qt.AlignHCenter
             text: "内测版本 · 请输入密钥"
             font.pixelSize: StyleTokens.fontSizeMd
-            color: "#888"
+            color: StyleTokens.textTertiary
         }
 
         // Input
