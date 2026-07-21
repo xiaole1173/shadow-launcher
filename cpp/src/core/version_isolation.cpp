@@ -146,6 +146,14 @@ bool VersionIsolation::isVersionIsolated(const QString& versionId) const
     return QFileInfo::exists(marker);
 }
 
+// ── 检查目录是否非空（排除旧代码 mkpath 产物）──
+static bool isDirNonEmpty(const QString& path)
+{
+    QDir dir(path);
+    // entryList 返回 . 和 .. 之外的所有条目
+    return !dir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty();
+}
+
 // ============================================================
 // Get version game directory
 // ============================================================
@@ -155,11 +163,15 @@ QString VersionIsolation::getVersionGameDir(const QString& versionId) const
     if (m_gameDir.isEmpty()) return {};
 
     if (m_enabled) {
-        // Isolated: each version gets its own game/ subdirectory
-        const QString isolatedDir = m_gameDir + QStringLiteral("/versions/")
-                                    + versionId + QStringLiteral("/game");
-        QDir().mkpath(isolatedDir);
-        return isolatedDir;
+        const QString verDir = m_gameDir + QStringLiteral("/versions/")
+                               + versionId;
+        const QString gameDir = verDir + QStringLiteral("/game");
+
+        // 方案 C：有 game/ 子目录且非空 → 标准隔离模式
+        //         无 game/ 子目录或为空（旧代码 mkpath 产物）→ 降级到版本根目录
+        if (QDir(gameDir).exists() && isDirNonEmpty(gameDir))
+            return gameDir;
+        return verDir;
     }
 
     // Shared mode: all versions use the base game directory
