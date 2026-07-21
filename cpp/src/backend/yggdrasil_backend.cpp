@@ -199,6 +199,16 @@ void YggdrasilBackend::loadSession()
     m_meta.serverName = metaObj.value(QStringLiteral("serverName")).toString();
     m_meta.registerUrl = metaObj.value(QStringLiteral("registerUrl")).toString();
 
+    // 校验 session 合法性：apiRoot 必须看起来像 URL
+    if (m_session.isValid() && !m_session.apiRoot.startsWith(QStringLiteral("http://"))
+            && !m_session.apiRoot.startsWith(QStringLiteral("https://"))) {
+        qCWarning(logYggBackend) << "Corrupted session: apiRoot is not a URL, discarding";
+        m_session.clear();
+        deleteSavedSession();
+        emit stateChanged();
+        return;
+    }
+
     if (m_session.isValid()) {
         qCDebug(logYggBackend) << "Loaded yggdrasil session for" << m_session.username;
         emit stateChanged();
