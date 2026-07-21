@@ -13,7 +13,6 @@ Window {
     width: 960; height: 620
     title: "Shadow Launcher"
     color: "transparent"
-    font.family: StyleTokens.fontFamily
 
     property int navListIndex: 0
     property int pendingSubTab: -1  // for --navigate auto-test
