@@ -452,7 +452,7 @@ Rectangle {
         anchors.rightMargin: parent.width * 0.2
         height: authToastLabel.implicitHeight + 20
 
-        readonly property var _curStyle: _authlibDlDone ? toastSuccessStyle : toastWarningStyle
+        readonly property var _curStyle: (_authlibDlDone || !_authlibDlActive) ? toastSuccessStyle : toastWarningStyle
 
         // Opacity + translate for both entry and exit animations
         opacity: _authlibDlActive ? 1 : 0
