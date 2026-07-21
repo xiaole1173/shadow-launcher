@@ -25,6 +25,7 @@ Rectangle {
     property real sysTotalMB: 4096
     property real sysAvailMB: 4096
     property real sysUsedMB: 0
+    property int  sysUsedPercent: 0
     property int  autoRecommendedMB: 2048
 
     function gameAllocMB() {
@@ -33,6 +34,7 @@ Rectangle {
         return globalAuto ? autoRecommendedMB : globalMaxMB
     }
     function gameAllocGB() { return (gameAllocMB() / 1024).toFixed(1) }
+    function sysUsedGB()   { return (sysUsedMB / 1024).toFixed(1) }
     function sysAvailGB()  { return (sysAvailMB / 1024).toFixed(1) }
     function sysTotalGB()  { return (sysTotalMB / 1024).toFixed(1) }
     function sliderMax()   { return Math.max(1024, Math.floor(sysAvailMB / 256) * 256) }
@@ -49,6 +51,7 @@ Rectangle {
             sysTotalMB = mem.total || 4096
             sysAvailMB = mem.available || 2048
             sysUsedMB = sysTotalMB - sysAvailMB
+            sysUsedPercent = mem.percent || 0
             autoRecommendedMB = mem.recommended || 2048
         }
         var max = sliderMax()
@@ -61,7 +64,7 @@ Rectangle {
         onTriggered: {
             if (!backend) return
             var mem = backend.getMemoryStatus()
-            if (mem) { sysTotalMB = mem.total || 4096; sysAvailMB = mem.available || 2048; sysUsedMB = sysTotalMB - sysAvailMB }
+            if (mem) { sysTotalMB = mem.total || 4096; sysAvailMB = mem.available || 2048; sysUsedMB = sysTotalMB - sysAvailMB; sysUsedPercent = mem.percent || 0 }
         }
     }
 
@@ -116,8 +119,7 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
-                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"; border.color: allocMode === 0 ? "#4A8FE7" : "#5A6173"; border.width: 2
-                                Rectangle { anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs; color: allocMode === 0 ? "#4A8FE7" : "transparent" } }
+                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 0 ? "#4A8FE7" : "#2a2f3a" }
                             Text { text: qsTr("跟随全局设置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 0 ? "#e8ecf8" : "#8890a0"; Layout.fillWidth: true }
                             Text { font.pixelSize: StyleTokens.fontSizeXs; color: "#5A6173"; text: globalAuto ? qsTr("自动") : globalMaxMB + " MB" }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -135,8 +137,7 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
-                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"; border.color: allocMode === 1 ? "#4A8FE7" : "#5A6173"; border.width: 2
-                                Rectangle { anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs; color: allocMode === 1 ? "#4A8FE7" : "transparent" } }
+                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 1 ? "#4A8FE7" : "#2a2f3a" }
                             Text { text: qsTr("自动配置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 1 ? "#e8ecf8" : "#8890a0"; Layout.fillWidth: true }
                             Text { text: qsTr("启动时动态分配"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -163,8 +164,7 @@ Rectangle {
                             spacing: allocMode === 2 ? 8 : 0
 
                             RowLayout { spacing: 8
-                                Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: "transparent"; border.color: allocMode === 2 ? "#4A8FE7" : "#5A6173"; border.width: 2
-                                    Rectangle { anchors.centerIn: parent; width: 7; height: 7; radius: StyleTokens.radiusXs; color: allocMode === 2 ? "#4A8FE7" : "transparent" } }
+                                Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 2 ? "#4A8FE7" : "#2a2f3a" }
                                 Text { text: qsTr("自定义"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 2 ? "#e8ecf8" : "#8890a0" }
                                 Item { Layout.fillWidth: true }
                                 Text { visible: allocMode === 2; text: customMB + " MB"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.accentLink }
@@ -217,7 +217,7 @@ Rectangle {
                 Layout.fillWidth: true; Layout.margins: 20; Layout.preferredHeight: 56; radius: StyleTokens.radiusMd
                 color: "#11141c"; border.color: StyleTokens.bgInput
                 property real bw: width - 28
-                property real usedFrac: sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0
+                property real usedFrac: sysUsedPercent > 0 ? sysUsedPercent / 100 : (sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0)
                 property real gameFrac: sysTotalMB > 0 ? gameAllocMB() / sysTotalMB : 0
 
                 Text { x: 14; y: 6; text: qsTr("已使用内存"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
@@ -237,7 +237,7 @@ Rectangle {
                         Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
                 }
 
-                Text { x: 14; y: 32; text: sysAvailGB() + " GB / " + sysTotalGB() + " GB"
+                Text { x: 14; y: 32; text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"
                     font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: "#C0C8D8" }
                 Text { id: gameNum; x: 14 + bw * usedFrac; y: 32
                     text: gameAllocGB() + " GB"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: "#9CB8E0"
