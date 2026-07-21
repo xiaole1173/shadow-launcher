@@ -88,7 +88,8 @@ QtObject {
     readonly property int radiusSm:   4
     readonly property int radiusMd:   6
     readonly property int radiusLg:   8
-    readonly property int radiusXl:  12
+    readonly property int radiusXl:   12
+    readonly property int radiusWindow: 16  // 窗口容器圆角
     readonly property int radiusFull: 9999
 
     // ──────────────────────────────────────
