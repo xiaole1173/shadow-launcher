@@ -72,7 +72,7 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top; anchors.topMargin: 32
         width: 280; height: 38; radius: StyleTokens.radiusLg
-        color: "#11141c"; border.color: StyleTokens.bgInput
+        color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
         RowLayout {
             anchors.fill: parent; spacing: 0
             Rectangle {
@@ -202,7 +202,7 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true; height: msLoginForm.msInProgress ? 80 : 0
                 visible: msLoginForm.msInProgress
-                color: "#11141c"; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgElevated
+                color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgElevated
                 Behavior on height { NumberAnimation { duration: 300 } }
 
                 ColumnLayout {
@@ -212,7 +212,7 @@ Rectangle {
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: msLoginForm.msStatusText
-                        color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.Wrap; Layout.maximumWidth: 260
                     }
@@ -321,7 +321,7 @@ Rectangle {
                         anchors.left: parent.left; anchors.right: dropdownBtn.left
                         anchors.leftMargin: 12; anchors.rightMargin: 4
                         height: parent.height
-                        color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                        color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                         verticalAlignment: TextInput.AlignVCenter
                         onTextChanged: {
                             if (backend) backend.updateOfflineSkin(text)
@@ -330,7 +330,7 @@ Rectangle {
                     Text {
                         anchors.left: parent.left; anchors.leftMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("输入用户名"); color: "#a8b0c0"
+                        text: qsTr("输入用户名"); color: StyleTokens.textTertiary
                         font.pixelSize: StyleTokens.fontSizeMd
                         visible: !offlineNameInput.text
                     }
@@ -351,7 +351,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: nameInputContainer.popupOpen ? "▲" : "▼"
-                        color: "#a8b0c0"; font.pixelSize: StyleTokens.fontSizeXs
+                        color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeXs
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -391,7 +391,7 @@ Rectangle {
                             Text {
                                 anchors.left: parent.left; anchors.leftMargin: 12
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: modelData; color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                                text: modelData; color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                             }
 
                             // Delete button (×)
@@ -477,14 +477,14 @@ Rectangle {
                 TextInput {
                     id: yggApiRootInput
                     anchors.fill: parent; anchors.leftMargin: 12
-                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                    color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                     verticalAlignment: TextInput.AlignVCenter
                     text: qsTr("https://littleskin.cn/api/yggdrasil")
                 }
                 Text {
                     anchors.left: parent.left; anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("认证服务器地址"); color: "#a8b0c0"
+                    text: qsTr("认证服务器地址"); color: StyleTokens.textTertiary
                     font.pixelSize: StyleTokens.fontSizeMd
                     visible: !yggApiRootInput.text
                 }
@@ -497,13 +497,13 @@ Rectangle {
                 TextInput {
                     id: yggEmailInput
                     anchors.fill: parent; anchors.leftMargin: 12
-                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                    color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                     verticalAlignment: TextInput.AlignVCenter
                 }
                 Text {
                     anchors.left: parent.left; anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("邮箱 / 用户名"); color: "#a8b0c0"
+                    text: qsTr("邮箱 / 用户名"); color: StyleTokens.textTertiary
                     font.pixelSize: StyleTokens.fontSizeMd
                     visible: !yggEmailInput.text
                 }
@@ -516,14 +516,14 @@ Rectangle {
                 TextInput {
                     id: yggPasswordInput
                     anchors.fill: parent; anchors.leftMargin: 12
-                    color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                    color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                     verticalAlignment: TextInput.AlignVCenter
                     echoMode: TextInput.Password
                 }
                 Text {
                     anchors.left: parent.left; anchors.leftMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("密码"); color: "#a8b0c0"
+                    text: qsTr("密码"); color: StyleTokens.textTertiary
                     font.pixelSize: StyleTokens.fontSizeMd
                     visible: !yggPasswordInput.text
                 }
@@ -543,7 +543,7 @@ Rectangle {
                     Row {
                         anchors.centerIn: parent; spacing: 6
                         Image { source: "icons/lucide/log-in.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("登录"); color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold }
+                        Text { text: qsTr("登录"); color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold }
                     }
                     MouseArea {
                         id: yggLoginBtnMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -570,7 +570,7 @@ Rectangle {
                     Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text {
                         anchors.centerIn: parent
-                        text: qsTr("注册"); color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeSm
+                        text: qsTr("注册"); color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                     }
                     MouseArea {
                         id: yggRegBtnMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -585,7 +585,7 @@ Rectangle {
             // 状态消息
             Text {
                 Layout.fillWidth: true; visible: _yggStatusText.length > 0
-                text: _yggStatusText; color: "#8088a0"; font.pixelSize: StyleTokens.fontSizeSm
+                text: _yggStatusText; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                 horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
             }
         }
@@ -624,7 +624,7 @@ Rectangle {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: backend.yggdrasil.uuid; font.pixelSize: StyleTokens.fontSizeXs
-                color: "#a8b0c0"; font.family: "Consolas, monospace"
+                color: StyleTokens.textTertiary; font.family: "Consolas, monospace"
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
@@ -638,7 +638,7 @@ Rectangle {
                 Layout.fillWidth: true
                 visible: backend.yggdrasil.profiles.length > 1
                 height: visible ? (Math.min(backend.yggdrasil.profiles.length, 4) * 32 + 8) : 0
-                color: "#11141c"; radius: StyleTokens.radiusMd; border.color: StyleTokens.bgElevated; border.width: 1; clip: true
+                color: StyleTokens.bgSecondary; radius: StyleTokens.radiusMd; border.color: StyleTokens.bgElevated; border.width: 1; clip: true
                 ListView {
                     anchors.fill: parent; anchors.margins: 4
                     model: backend.yggdrasil.profiles
@@ -671,14 +671,14 @@ Rectangle {
             // 登出
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter; spacing: 12
-                Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeSm; color: "#a8b0c0" }
+                Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                 Rectangle {
                     width: 60; height: 24; radius: StyleTokens.radiusSm
                     color: "transparent"; border.color: StyleTokens.surfaceLight
                     Row {
                         anchors.centerIn: parent; spacing: 4
                         Image { source: "icons/lucide/log-out.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("登出"); font.pixelSize: StyleTokens.fontSizeSm; color: "#c05050" }
+                        Text { text: qsTr("登出"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textDanger }
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -815,7 +815,7 @@ Rectangle {
                             anchors.left: parent.left; anchors.leftMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
                             text: qsTr("服务器地址（如 mc.example.com:25565）")
-                            color: "#a8b0c0"
+                            color: StyleTokens.textTertiary
                             font.pixelSize: StyleTokens.fontSizeMd
                             visible: !yggServerAddrInput.text && !yggServerAddrInput.activeFocus
                         }
@@ -832,7 +832,7 @@ Rectangle {
                         TextInput {
                             id: yggServerNameInput
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeMd
+                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                             verticalAlignment: TextInput.AlignVCenter
                             text: backend.yggdrasil ? backend.yggdrasil.serverName : ""
                             onEditingFinished: {
@@ -844,7 +844,7 @@ Rectangle {
                             anchors.left: parent.left; anchors.leftMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
                             text: qsTr("服务器名称（可选，仅用于显示）")
-                            color: "#a8b0c0"
+                            color: StyleTokens.textTertiary
                             font.pixelSize: StyleTokens.fontSizeMd
                             visible: !yggServerNameInput.text && !yggServerNameInput.activeFocus
                         }
@@ -914,21 +914,21 @@ Rectangle {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: backend ? (backend.accountUuid || "") : ""
-                font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0"
+                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
                 font.family: "Consolas, monospace"
             }
 
             // Login type + Logout
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter; spacing: 12
-                Text { text: loginMode === 1 ? "离线模式" : "正版登录"; font.pixelSize: StyleTokens.fontSizeSm; color: "#a8b0c0" }
+                Text { text: loginMode === 1 ? "离线模式" : "正版登录"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                 Rectangle {
                     width: 60; height: 24; radius: StyleTokens.radiusSm
                     color: "transparent"; border.color: StyleTokens.surfaceLight
                     Row {
                         anchors.centerIn: parent; spacing: 4
                         Image { source: "icons/lucide/log-out.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("登出"); font.pixelSize: StyleTokens.fontSizeSm; color: "#c05050" }
+                        Text { text: qsTr("登出"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textDanger }
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -1120,7 +1120,7 @@ Rectangle {
                                 Layout.fillWidth: true
                                 visible: loginMode === 1
                                 text: qsTr("披风仅正版登录可用")
-                                color: "#a8b0c0"
+                                color: StyleTokens.textTertiary
                                 font.pixelSize: StyleTokens.fontSizeSm; font.italic: true
                                 padding: 10
                             }
@@ -1214,11 +1214,11 @@ Rectangle {
             // Current version indicator
             Rectangle {
                 Layout.fillWidth: true; height: 32; radius: StyleTokens.radiusMd
-                color: "#11141c"; border.color: currentSelectedVersion ? "#1a2848" : "#0e1118"
+                color: StyleTokens.bgSecondary; border.color: currentSelectedVersion ? "#1a2848" : "#0e1118"
                 border.width: currentSelectedVersion ? 1 : 0
                 RowLayout {
                     anchors.centerIn: parent; spacing: 8
-                    Rectangle { width: 8; height: 8; radius: StyleTokens.radiusSm; color: "#6080e8"; visible: currentSelectedVersion !== "" }
+                    Rectangle { width: 8; height: 8; radius: StyleTokens.radiusSm; color: StyleTokens.accentLight; visible: currentSelectedVersion !== "" }
                     Text { text: currentSelectedVersion || "未选择版本"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: currentSelectedVersion ? "#8aa8f0" : "#787c90" }
                 }
             }
@@ -1279,7 +1279,7 @@ Rectangle {
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
                         Image { source: "icons/lucide/list.svg"; width: 16; height: 16; }
-                        Text { text: qsTr("版本选择"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#b0b8c8" }
+                        Text { text: qsTr("版本选择"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textTertiary }
                     }
                 }
                 Rectangle {
@@ -1293,7 +1293,7 @@ Rectangle {
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
                         Image { source: "icons/lucide/wrench.svg"; width: 16; height: 16; }
-                        Text { text: qsTr("版本设置"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#b0b8c8" }
+                        Text { text: qsTr("版本设置"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textTertiary }
                     }
                 }
             }
@@ -1401,7 +1401,7 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: loginMode === 1
                         text: qsTr("披风仅正版登录可用")
-                        color: "#a8b0c0"
+                        color: StyleTokens.textTertiary
                         font.pixelSize: StyleTokens.fontSizeSm; font.italic: true
                         Layout.topMargin: 4; Layout.bottomMargin: 4
                         padding: 12

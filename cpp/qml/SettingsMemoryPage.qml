@@ -178,7 +178,7 @@ Rectangle {
                                         Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } } } }
                                 // knob
                                 Rectangle { id: mpKnob; width: 18; height: 18; radius: StyleTokens.radiusLg; anchors.verticalCenter: parent.verticalCenter
-                                    color: mpDrag.drag.active ? "#7BA8F0" : "#5A9CF0"; border.color: "#FFFFFF"; border.width: 1.5
+                                    color: mpDrag.drag.active ? "#7BA8F0" : "#5A9CF0"; border.color: StyleTokens.textInverse; border.width: 1.5
                                     x: ((customMB - 512) / (sliderMax() - 512)) * (mpTrack.width - width)
                                     Behavior on x { enabled: !mpDrag.drag.active; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     MouseArea { id: mpDrag; anchors.fill: parent; drag.target: parent; drag.axis: Drag.XAxis
@@ -215,7 +215,7 @@ Rectangle {
             // ═══ 内存可视化条（双条，对齐 SettingsMemorySection） ═══
             Rectangle {
                 Layout.fillWidth: true; Layout.margins: 20; Layout.preferredHeight: 56; radius: StyleTokens.radiusMd
-                color: "#11141c"; border.color: StyleTokens.bgInput
+                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
                 property real bw: width - 28
                 property real usedFrac: sysUsedPercent > 0 ? sysUsedPercent / 100 : (sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0)
                 property real gameFrac: sysTotalMB > 0 ? gameAllocMB() / sysTotalMB : 0

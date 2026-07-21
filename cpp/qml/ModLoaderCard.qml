@@ -135,12 +135,12 @@ Rectangle {
 
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8
-                    Text { text: modelData.version || "Loading..."; font.pixelSize: StyleTokens.fontSizeMd; color: "#e4e8f2"; Layout.fillWidth: true; elide: Text.ElideRight }
+                    Text { text: modelData.version || "Loading..."; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight }
                     // "Latest" badge
                     Rectangle {
                         visible: modelData.isLatestRelease !== undefined && modelData.isLatestRelease
                         height: 18; implicitWidth: latestTag.implicitWidth + 10; radius: StyleTokens.radiusXs; color: "#3a50b0"
-                        Text { id: latestTag; anchors.centerIn: parent; text: qsTr("最新"); font.pixelSize: StyleTokens.fontSizeXs; color: "#e8ecf8"; font.weight: Font.Bold }
+                        Text { id: latestTag; anchors.centerIn: parent; text: qsTr("最新"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textPrimary; font.weight: Font.Bold }
                     }
                     Rectangle {
                         visible: modelData.type !== undefined && modelData.type !== ""

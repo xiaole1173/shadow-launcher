@@ -213,7 +213,7 @@ Item {
                                     model: javaListCombo.popup.visible ? javaListCombo.delegateModel : null
                                     currentIndex: javaListCombo.highlightedIndex
                                 }
-                                background: Rectangle { radius: StyleTokens.radiusMd; color: "#1A1D24"; border.color: StyleTokens.bgHover }
+                                background: Rectangle { radius: StyleTokens.radiusMd; color: StyleTokens.surfaceLight; border.color: StyleTokens.bgHover }
                             }
 
                             onCurrentIndexChanged: {
@@ -311,14 +311,14 @@ Item {
             }
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 120
-                radius: StyleTokens.radiusLg; color: "#11141c"
+                radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary
                 border.color: root._jvmFocused ? "#5068d8" : "#1a1f2a"
                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
                 TextEdit {
                     id: jvmArgsInput
                     anchors.fill: parent; anchors.margins: 10
-                    color: "#e8ecf8"; font.pixelSize: StyleTokens.fontSizeSm
+                    color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm
                     font.family: "Consolas, monospace"
                     text: backend ? backend.jvmArgs || "" : ""
                     wrapMode: TextEdit.Wrap; selectByMouse: true
@@ -430,11 +430,11 @@ Item {
             }
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 44
-                radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
                 TextInput {
                     id: gameArgsInput
                     anchors.fill: parent; anchors.margins: 10
-                    color: "#e8ecf8"; font.pixelSize: StyleTokens.fontSizeSm
+                    color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm
                     font.family: "Consolas, monospace"
                     text: backend ? backend.gameArgs || "" : ""
                     activeFocusOnPress: true
@@ -451,7 +451,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: optionsColumn.implicitHeight + 16
-                radius: StyleTokens.radiusLg; color: "#11141c"; border.color: StyleTokens.bgInput
+                radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
 
                 ColumnLayout {
                     id: optionsColumn

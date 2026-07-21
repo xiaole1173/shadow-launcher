@@ -125,7 +125,7 @@ Rectangle {
         // TOP BAR: version info + actions ===
         Rectangle {
             Layout.fillWidth: true; height: 56; radius: StyleTokens.radiusLg
-            color: "#11141c"; border.color: StyleTokens.bgInput
+            color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
             RowLayout {
                 anchors.fill: parent; anchors.margins: 14; spacing: 12
 
@@ -289,7 +289,7 @@ Rectangle {
         }  // close sidebar Rectangle
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
-            color: "#11141c"; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
+            color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
 
             // Section 0: 概览 ===
             ColumnLayout {
@@ -304,18 +304,18 @@ Rectangle {
                     RowLayout {
                         anchors.fill: parent; anchors.margins: 14; spacing: 12
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: qsTr("占用空间"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0" }
+                            Text { text: qsTr("占用空间"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
                             Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary }
                         }
                         Rectangle { width: 1; height: 32; color: StyleTokens.bgCard }
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: qsTr("已装 Mod"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0" }
+                            Text { text: qsTr("已装 Mod"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
                             Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary }
 
                         }
                         Rectangle { width: 1; height: 32; color: StyleTokens.bgCard }
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a8b0c0" }
+                            Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
                             Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
                         }
                     }
@@ -569,7 +569,7 @@ Rectangle {
                         }
                     }
 
-                    Text { text: qsTr("管理已安装的 Mod，拖拽 JAR 文件到此区域快捷导入。内置支持 Fabric/NeoForge/Forge 元数据识别。\n"); font.pixelSize: StyleTokens.fontSizeSm; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    Text { text: qsTr("管理已安装的 Mod，拖拽 JAR 文件到此区域快捷导入。内置支持 Fabric/NeoForge/Forge 元数据识别。\n"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                     // Search
                     Rectangle {
@@ -578,7 +578,7 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: modSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
-                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
+                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: modSection.filterModList()
                         }
                         Image {
@@ -850,7 +850,7 @@ Rectangle {
                         }
                     }
 
-                    Text { text: qsTr("管理已安装的资源包和材质包。支持 pack.mcmeta 元数据解析和 pack.png 图标提取。\n"); font.pixelSize: StyleTokens.fontSizeSm; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    Text { text: qsTr("管理已安装的资源包和材质包。支持 pack.mcmeta 元数据解析和 pack.png 图标提取。\n"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                     // Search
                     Rectangle {
@@ -859,7 +859,7 @@ Rectangle {
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: rpSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
-                            color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
+                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: rpSection.filterRPList()
                         }
                         Image {
@@ -1124,7 +1124,7 @@ Rectangle {
                             Rectangle { width: 60; height: 24; radius: StyleTokens.radiusXs; color: "transparent"; border.color: "#4a2828"
                                 Row { anchors.centerIn: parent; spacing: 3
                                 Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: qsTr("删除"); font.pixelSize: StyleTokens.fontSizeXs; color: "#c05050" }
+                                Text { text: qsTr("删除"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textDanger }
                             }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (backend) { _showConfirm("确认删除", "删除存档 \"" + name + "\"？\n此操作不可撤销。", function() { backend.deleteSave(name, currentSelectedVersion); saveListModel.remove(index); toastManager.show("已删除存档: " + name) }) } }
@@ -1148,7 +1148,7 @@ Rectangle {
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
                 Text { text: qsTr("游戏完整性校验"); font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textSecondary }
-                Text { text: qsTr("扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#9498a8"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                Text { text: qsTr("扫描选定版本的游戏文件完整性，检查损坏或缺失的文件。"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                 // Start button
                 Rectangle {
@@ -1394,7 +1394,7 @@ Rectangle {
                 Item { height: 12; width: 1 }
 
                 // Delete version
-                Text { text: qsTr("危险操作"); font.pixelSize: StyleTokens.fontSizeXs; color: "#c05050"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("危险操作"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textDanger; font.letterSpacing: 1.5 }
                 Rectangle {
                     Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.surfaceLight
                     scale: delVerHover.containsMouse ? 1.02 : 1.0
@@ -1472,19 +1472,19 @@ function _showToast(msg) {
             // Panel (fully opaque sibling)
             Rectangle {
                 anchors.centerIn: parent; width: 360; height: 190; radius: StyleTokens.radiusLg
-                color: "#141820"; border.color: "#2a1f24"; border.width: 1
+                color: StyleTokens.surfaceOverlay; border.color: "#2a1f24"; border.width: 1
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 20; spacing: 12
                     Text { text: _confirmTitle; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
-                    Text { text: _confirmMessage; font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    Text { text: _confirmMessage; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     Item { Layout.fillHeight: true }
                     RowLayout {
                         Layout.alignment: Qt.AlignRight; spacing: 10
                         Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: "transparent"; border.color: StyleTokens.bgHover
-                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8" }
+                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _confirmVisible = false }
                         }
-                        Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: "#c05050"
+                        Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: StyleTokens.textDanger
                             Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
@@ -1522,13 +1522,13 @@ function _showToast(msg) {
             // Panel (fully opaque sibling)
             Rectangle {
                 anchors.centerIn: parent; width: 380; height: 190; radius: StyleTokens.radiusLg
-                color: "#141820"; border.color: StyleTokens.bgHover; border.width: 1
+                color: StyleTokens.surfaceOverlay; border.color: StyleTokens.bgHover; border.width: 1
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 20; spacing: 12
                     Text { text: "重命名版本"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
-                    Text { text: "请输入新的版本名称"; font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8" }
+                    Text { text: "请输入新的版本名称"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                     Rectangle {
-                        Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: "#1a1d28"; border.color: "#2a3040"
+                        Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: "#1a1d28"; border.color: StyleTokens.bgHover
                         TextInput {
                             anchors.fill: parent; anchors.margins: 10
                             text: _renameNewId; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textSecondary
@@ -1540,7 +1540,7 @@ function _showToast(msg) {
                     RowLayout {
                         Layout.alignment: Qt.AlignRight; spacing: 10
                         Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: "transparent"; border.color: StyleTokens.bgHover
-                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: StyleTokens.fontSizeSm; color: "#b0b8c8" }
+                            Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _renameVisible = false }
                         }
                         Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: "#3a4eb8"

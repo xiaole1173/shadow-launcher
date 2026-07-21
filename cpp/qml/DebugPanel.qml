@@ -124,7 +124,7 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 16
                 Text { text: "\u7f51\u7edc"; color: "#4caf50"; font.pixelSize: StyleTokens.fontSizeXs }
-                Text { text: "\u8fdb\u5ea6"; color: "#ff9800"; font.pixelSize: StyleTokens.fontSizeXs }
+                Text { text: "\u8fdb\u5ea6"; color: StyleTokens.warning; font.pixelSize: StyleTokens.fontSizeXs }
                 Text { text: "\u9519\u8bef"; color: "#f44336"; font.pixelSize: StyleTokens.fontSizeXs }
             }
         }

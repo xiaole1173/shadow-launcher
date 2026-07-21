@@ -879,7 +879,7 @@ Rectangle {
             // Filter Card
             Rectangle {
                 Layout.fillWidth: true; height: 130; radius: StyleTokens.radiusLg
-                color: "#11141c"; border.color: StyleTokens.bgElevated
+                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
 
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 12; spacing: 8
@@ -906,7 +906,7 @@ Rectangle {
 
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("输入 Mod 名称..."); color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm
+                                    text: qsTr("输入 Mod 名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                                     visible: !modInput.text
                                 }
                             }
@@ -918,7 +918,7 @@ Rectangle {
                             scale: modSearchBtn2.pressed ? 0.92 : (modSearchBtn2.hovered ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: "#fff"; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
+                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
                             MouseArea {
                                 id: modSearchBtn2; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -970,7 +970,7 @@ Rectangle {
                                     color: page.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: modLdrHov2; anchors.fill: parent
@@ -1057,7 +1057,7 @@ Rectangle {
                                     color: page.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: modVerHov2; anchors.fill: parent
@@ -1158,7 +1158,7 @@ Rectangle {
                                     color: page.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: modCatHov2; anchors.fill: parent
@@ -1245,7 +1245,7 @@ Rectangle {
                                     color: page.modEnvironment ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: modEnvHov2; anchors.fill: parent
@@ -1390,7 +1390,7 @@ Rectangle {
 
                             Rectangle {
                                 Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: StyleTokens.radiusMd
-                                color: "#1a1f2e"; clip: true
+                                color: StyleTokens.bgCard; clip: true
 
                                 Image {
                                     anchors.fill: parent; anchors.margins: 2
@@ -1406,7 +1406,7 @@ Rectangle {
                                     id: modIconFallback2
                                     anchors.centerIn: parent
                                     text: model ? (model.title ? model.title[0] : "M") : "M"
-                                    color: "#5068c8"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true
+                                    color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true
                                     visible: !model || !model.icon
                                 }
                             }
@@ -1603,7 +1603,7 @@ Rectangle {
             // ── Filter Card ──
             Rectangle {
                 Layout.fillWidth: true; height: 130; radius: StyleTokens.radiusLg
-                color: "#11141c"; border.color: StyleTokens.bgElevated
+                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 12; spacing: 8
 
@@ -1624,7 +1624,7 @@ Rectangle {
                                 Keys.onReturnPressed: shaderTab.doSearch()
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("输入光影名称..."); color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm
+                                    text: qsTr("输入光影名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                                     visible: !shaderInput.text
                                 }
                             }
@@ -1635,7 +1635,7 @@ Rectangle {
                             scale: sBtnHov.pressed ? 0.92 : (sBtnHov.containsMouse ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: "#fff"; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
+                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
                             MouseArea {
                                 id: sBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: shaderTab.doSearch()
@@ -1675,7 +1675,7 @@ Rectangle {
                                     color: shaderTab.shaderCategory ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "\u25BE"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: sCatHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1684,7 +1684,7 @@ Rectangle {
                             Popup {
                                 id: sCatMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 130; padding: 4
-                                background: Rectangle { color: "#0f1118"; border.color: "#2a3040"; radius: StyleTokens.radiusMd }
+                                background: Rectangle { color: "#0f1118"; border.color: StyleTokens.bgHover; radius: StyleTokens.radiusMd }
                                 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1731,7 +1731,7 @@ Rectangle {
                                     color: shaderTab.shaderFeature ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "\u25BE"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: sFeatHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1740,7 +1740,7 @@ Rectangle {
                             Popup {
                                 id: sFeatMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 140; padding: 4
-                                background: Rectangle { color: "#0f1118"; border.color: "#2a3040"; radius: StyleTokens.radiusMd }
+                                background: Rectangle { color: "#0f1118"; border.color: StyleTokens.bgHover; radius: StyleTokens.radiusMd }
                                 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1787,7 +1787,7 @@ Rectangle {
                                     color: shaderTab.shaderPerformance ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "\u25BE"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: sPerfHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1796,7 +1796,7 @@ Rectangle {
                             Popup {
                                 id: sPerfMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 110; padding: 4
-                                background: Rectangle { color: "#0f1118"; border.color: "#2a3040"; radius: StyleTokens.radiusMd }
+                                background: Rectangle { color: "#0f1118"; border.color: StyleTokens.bgHover; radius: StyleTokens.radiusMd }
                                 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1843,7 +1843,7 @@ Rectangle {
                                     color: shaderTab.shaderLoader ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "\u25BE"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: sLdrHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1852,7 +1852,7 @@ Rectangle {
                             Popup {
                                 id: sLdrMenu; closePolicy: Popup.NoAutoClose
                                 y: parent.height + 4; width: 120; padding: 4
-                                background: Rectangle { color: "#0f1118"; border.color: "#2a3040"; radius: StyleTokens.radiusMd }
+                                background: Rectangle { color: "#0f1118"; border.color: StyleTokens.bgHover; radius: StyleTokens.radiusMd }
                                 
                                 enter: Transition {
                                     ParallelAnimation {
@@ -1905,7 +1905,7 @@ Rectangle {
                                     color: page.shaderGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "\u25BE"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: sVerHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -2037,7 +2037,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: shaderTab.shaderSearching ? qsTr("加载中...") : qsTr("加载更多")
-                        color: "#5068c8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeSm
                     }
                     MouseArea {
                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -2054,7 +2054,7 @@ Rectangle {
 
                 delegate: Rectangle {
                     width: shaderCardView.width; height: 64; radius: StyleTokens.radiusLg
-                    color: "#11141c"; border.color: StyleTokens.bgElevated
+                    color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
 
                     opacity: 0
                     Component.onCompleted: { opacity = 1 }
@@ -2078,7 +2078,7 @@ Rectangle {
 
                         Rectangle {
                             Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: StyleTokens.radiusMd
-                            color: "#1a1f2e"; clip: true
+                            color: StyleTokens.bgCard; clip: true
                             Image {
                                 anchors.fill: parent; anchors.margins: 2
                                 fillMode: Image.PreserveAspectFit
@@ -2093,7 +2093,7 @@ Rectangle {
                                 id: sIconFallback
                                 anchors.centerIn: parent
                                 text: model ? (model.title ? model.title[0] : "S") : "S"
-                                color: "#5068c8"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true
+                                color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true
                                 visible: !model || !model.icon
                             }
                         }
@@ -2179,7 +2179,7 @@ Rectangle {
             // ── Filter Card ──
             Rectangle {
                 Layout.fillWidth: true; height: 150; radius: StyleTokens.radiusLg
-                color: "#11141c"; border.color: StyleTokens.bgElevated
+                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
 
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 12; spacing: 8
@@ -2206,7 +2206,7 @@ Rectangle {
 
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("输入资源包名称..."); color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm
+                                    text: qsTr("输入资源包名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                                     visible: !rpSearchInput.text
                                 }
                             }
@@ -2230,7 +2230,7 @@ Rectangle {
                                     text: "Modrinth (MCIM)"; color: "#788db0"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: rpSrcHov; anchors.fill: parent
@@ -2296,7 +2296,7 @@ Rectangle {
                                     color: page.rpGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
-                                Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                             }
                             MouseArea {
                                 id: rpVerHov; anchors.fill: parent
@@ -2408,7 +2408,7 @@ Rectangle {
                                         color: page.rpCategoryFilter ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                         elide: Text.ElideRight
                                     }
-                                    Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                    Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                                 }
                                 MouseArea {
                                     id: rpCatHov; anchors.fill: parent
@@ -2500,7 +2500,7 @@ Rectangle {
                                         color: page.rpFeatureFilter ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                         elide: Text.ElideRight
                                     }
-                                    Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                    Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                                 }
                                 MouseArea {
                                     id: rpFeatHov; anchors.fill: parent
@@ -2572,7 +2572,7 @@ Rectangle {
                                         color: page.rpResolutionFilter ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                         elide: Text.ElideRight
                                     }
-                                    Text { text: "▾"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs }
+                                    Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
                                 }
                                 MouseArea {
                                     id: rpResHov; anchors.fill: parent
@@ -2654,7 +2654,7 @@ Rectangle {
                         Rectangle {
                             width: 72; height: 28; radius: StyleTokens.radiusSm
                             color: StyleTokens.accentHover
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: "#e8ecf8"; font.pixelSize: StyleTokens.fontSizeSm }
+                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm }
                             MouseArea {
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 // FIX 1: Search button — the ONLY trigger for loadRpFirstPage() from filter changes
@@ -2665,7 +2665,7 @@ Rectangle {
                         Rectangle {
                             width: 72; height: 28; radius: StyleTokens.radiusSm
                             color: rpResetHov.hovered ? "#252a38" : "#151922"
-                            border.color: "#2a3040"; border.width: 1
+                            border.color: StyleTokens.bgHover; border.width: 1
                             visible: page.rpCategoryFilter || page.rpFeatureFilter || page.rpResolutionFilter || page.rpGameVersion || rpSearchInput.text
                             Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm }
                             MouseArea {
@@ -2688,7 +2688,7 @@ Rectangle {
 
             Text {
                 text: qsTr("资源包 | 来源: MCIM (mcimirror.top) | ") + (rpTotalHits || rpResultsModel.count || 0) + " 个结果"
-                color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm
+                color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
             }
             // ── Results: vertical full-width cards ──
             ScrollView {
@@ -2708,7 +2708,7 @@ Rectangle {
                         Text {
                             anchors.centerIn: parent
                             text: rpLoadingMore ? "加载中..." : "加载更多"
-                            color: "#5068c8"; font.pixelSize: StyleTokens.fontSizeSm
+                            color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeSm
                         }
                         MouseArea {
                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -2788,7 +2788,7 @@ Rectangle {
                                     id: rpIconFallback
                                     anchors.centerIn: parent
                                     text: model ? (model.title ? model.title[0] : "R") : "R"
-                                    color: "#5068c8"; font.pixelSize: StyleTokens.fontSizeXl; font.bold: true
+                                    color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeXl; font.bold: true
                                 }
                             }
 
@@ -2859,7 +2859,7 @@ Rectangle {
                                             id: rpTagComp
                                             Rectangle {
                                                 height: 16; width: tText.implicitWidth + 10; radius: StyleTokens.radiusSm
-                                                color: "#151922"; border.color: "#2a3040"; border.width: 1
+                                                color: "#151922"; border.color: StyleTokens.bgHover; border.width: 1
                                                 property string tagLabel: ""
                                                 Text {
                                                     id: tText; anchors.centerIn: parent
@@ -2978,7 +2978,7 @@ Rectangle {
                                 // Row 3: Description (1 line)
                                 Text {
                                     Layout.fillWidth: true
-                                    text: model.desc || ""; color: "#505468"; font.pixelSize: StyleTokens.fontSizeXs
+                                    text: model.desc || ""; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
                                     elide: Text.ElideRight; maximumLineCount: 1
                                 }
 
@@ -3167,7 +3167,7 @@ Rectangle {
                     for (var j = 0; j < maxChips; j++) {
                         chips.push({text: vers[j], color: "#90a0c8"})
                     }
-                    if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: "#5068c8"})
+                    if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: StyleTokens.accentHover})
                     var chipsJson = JSON.stringify(chips)
                     for (var i = 0; i < rpResultsModel.count; i++) {
                         if (rpResultsModel.get(i).slug === slug) {
@@ -3186,7 +3186,7 @@ Rectangle {
             for (var j = 0; j < maxChips; j++) {
                 chips.push({text: versions[j], color: "#90a0c8"})
             }
-            if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: "#5068c8"})
+            if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: StyleTokens.accentHover})
             var chipsJson = JSON.stringify(chips)
 
             var found = false

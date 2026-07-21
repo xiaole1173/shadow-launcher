@@ -412,7 +412,7 @@ Rectangle {
                     anchors.fill: parent; anchors.margins: 12; spacing: 8
                     RowLayout {
                         Layout.fillWidth: true
-                        Text { text: "Minecraft " + mcVersion; font.pixelSize: StyleTokens.fontSizeXl; font.weight: Font.Bold; color: "#e4e8f2"; verticalAlignment: Text.AlignVCenter }
+                        Text { text: "Minecraft " + mcVersion; font.pixelSize: StyleTokens.fontSizeXl; font.weight: Font.Bold; color: StyleTokens.textSecondary; verticalAlignment: Text.AlignVCenter }
                     }
                     Rectangle {
                         Layout.fillWidth: true; height: 32; radius: StyleTokens.radiusSm

@@ -67,7 +67,7 @@ Rectangle {
             }
 
             // Version info card
-            Rectangle { Layout.fillWidth: true; height: 48; radius: StyleTokens.radiusLg; color: "#1a1f2e"; border.color: StyleTokens.bgElevated
+            Rectangle { Layout.fillWidth: true; height: 48; radius: StyleTokens.radiusLg; color: StyleTokens.bgCard; border.color: StyleTokens.bgElevated
                 RowLayout { anchors.fill: parent; anchors.margins: 14; spacing: 10
                     Text { text: root.versionId; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textPrimary }
                     Rectangle { radius: StyleTokens.radiusXs; height: 18; width: typeLabel.implicitWidth + 10; color: StyleTokens.accentSubtle
@@ -106,16 +106,16 @@ Rectangle {
                 Text { text: qsTr("附加组件"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0" }
                 Text { text: qsTr("Fabric / OptiFine / Forge 自动安装功能即将支持"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted }
                 RowLayout { spacing: 8; opacity: 0.4
-                    Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: "#1a1f2e"; border.color: StyleTokens.bgElevated
-                        Text { anchors.centerIn: parent; text: "Fabric"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm }
+                    Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: StyleTokens.bgCard; border.color: StyleTokens.bgElevated
+                        Text { anchors.centerIn: parent; text: "Fabric"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm }
                         MouseArea { anchors.fill: parent; onClicked: {} }
                     }
-                    Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: "#1a1f2e"; border.color: StyleTokens.bgElevated
-                        Text { anchors.centerIn: parent; text: "OptiFine"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm }
+                    Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: StyleTokens.bgCard; border.color: StyleTokens.bgElevated
+                        Text { anchors.centerIn: parent; text: "OptiFine"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm }
                         MouseArea { anchors.fill: parent; onClicked: {} }
                     }
-                    Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: "#1a1f2e"; border.color: StyleTokens.bgElevated
-                        Text { anchors.centerIn: parent; text: "Forge"; color: "#505468"; font.pixelSize: StyleTokens.fontSizeSm }
+                    Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: StyleTokens.bgCard; border.color: StyleTokens.bgElevated
+                        Text { anchors.centerIn: parent; text: "Forge"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm }
                         MouseArea { anchors.fill: parent; onClicked: {} }
                     }
                 }

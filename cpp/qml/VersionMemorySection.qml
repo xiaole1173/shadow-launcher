@@ -159,7 +159,7 @@ Item {
                             width: sliderMax() > 512 ? ((customMB - 512) / (sliderMax() - 512)) * parent.width : 0
                             Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } } } }
                     Rectangle { id: knob; width: 18; height: 18; radius: StyleTokens.radiusLg; anchors.verticalCenter: parent.verticalCenter
-                        color: dragArea.drag.active ? "#7BA8F0" : "#5A9CF0"; border.color: "#FFFFFF"; border.width: 1.5
+                        color: dragArea.drag.active ? "#7BA8F0" : "#5A9CF0"; border.color: StyleTokens.textInverse; border.width: 1.5
                         x: sliderMax() > 512 ? ((customMB - 512) / (sliderMax() - 512)) * (track.width - width) : 0
                         Behavior on x { enabled: !dragArea.drag.active; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                         MouseArea { id: dragArea; anchors.fill: parent; drag.target: parent; drag.axis: Drag.XAxis
@@ -194,7 +194,7 @@ Item {
         Rectangle {
             id: barContainer
             Layout.fillWidth: true; Layout.preferredHeight: 64; radius: StyleTokens.radiusMd
-            color: "#11141c"; border.color: StyleTokens.bgInput
+            color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
 
             property real usedW: sysUsedPercent > 0 ? sysUsedPercent / 100 : (sysTotalMB > 0 ? sysUsedMB / sysTotalMB : 0)
             property real gameW: sysTotalMB > 0 ? gameAllocMB() / sysTotalMB : 0
