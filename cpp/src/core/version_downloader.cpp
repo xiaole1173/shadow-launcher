@@ -935,13 +935,12 @@ VersionDownloader::collectVerifyItems(const QJsonObject& versionJson,
 
     int totalItems = items.size();
     qCInfo(logVersion) << QStringLiteral("[校验] 收集到%1个文件待SHA1校验").arg(totalItems);
-    // Phase A complete — mark as done, then Phase B starts right away
-    // Use 1 instead of 0 so the progress bar immediately shows >0%
+    // Phase A complete — mark as done, then Phase B starts at 0
     emit verifyProgressChanged(totalItems, totalItems);
     QCoreApplication::processEvents();
 
-    // Notify UI that verification is starting (emit 1 to break the 0% barrier)
-    emit verifyProgressChanged(1, qMax(totalItems, 1));
+    // Notify UI that verification is starting
+    emit verifyProgressChanged(0, totalItems);
     QCoreApplication::processEvents();
 
     return items;
@@ -1122,7 +1121,7 @@ QString VersionDownloader::AsyncVerifyWorker::sha1FileFast(const QString& filePa
 }
 
 void VersionDownloader::AsyncVerifyWorker::process() {
-    const int kEmitInterval = 5;
+    const int kEmitInterval = 10;
     m_failed = 0;
     m_failedLabels.clear();
     m_failedPaths.clear();
