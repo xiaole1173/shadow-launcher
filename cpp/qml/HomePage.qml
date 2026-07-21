@@ -16,7 +16,6 @@ Rectangle {
     property string currentSelectedVersion: ""
     property int loginMode: 0
     property string _yggStatusText: ""
-    property string _yggAutoServer: ""
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
 
     // Signals
@@ -700,37 +699,6 @@ Rectangle {
                 }
             }
 
-            // 自动进入服务器 — 可选
-            Rectangle {
-                Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd
-                color: StyleTokens.bgSecondary; border.color: yggAutoServerInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
-                visible: _yggAutoServer.length > 0 || (backend && backend.yggdrasil && backend.yggdrasil.metaServerName && backend.yggdrasil.metaServerName.length > 0)
-                opacity: visible ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                scale: visible ? 1 : 0.9
-                Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
-                transformOrigin: Item.Top
-
-                RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8
-                    spacing: 6
-                    Text {
-                        text: qsTr("进入服务器")
-                        font.pixelSize: StyleTokens.fontSizeSm
-                        color: "#9498a8"
-                    }
-                    TextInput {
-                        id: yggAutoServerInput
-                        Layout.fillWidth: true
-                        color: "#e4e8f2"; font.pixelSize: StyleTokens.fontSizeSm
-                        verticalAlignment: TextInput.AlignVCenter
-                        text: _yggAutoServer
-                        onEditingFinished: _yggAutoServer = text.trim()
-                        placeholderText: qsTr("IP:端口 (可选)")
-                        placeholderTextColor: "#606478"
-                    }
-                }
-            }
         }
     }
 
@@ -1112,15 +1080,6 @@ Rectangle {
                         if (loginMode === 2 && !backend.yggdrasil.loggedIn) {
                             toastManager.show("请先完成外置登录")
                             return
-                        }
-                        // 自动进入服务器（外置登录模式）
-                        if (loginMode === 2 && _yggAutoServer) {
-                            var parts = _yggAutoServer.split(":")
-                            if (parts.length === 2 && parts[1]) {
-                                backend.setExtraGameArgs("--server " + parts[0] + " --port " + parts[1])
-                            } else {
-                                backend.setExtraGameArgs("--server " + _yggAutoServer)
-                            }
                         }
                         backend.launch(currentSelectedVersion, loginMode === 0 || loginMode === 2)
                     }
