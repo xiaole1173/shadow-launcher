@@ -627,7 +627,7 @@ Rectangle {
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: backend.yggdrasil.metaServerName || backend.yggdrasil.apiRoot
+                text: backend.yggdrasil.email
                 font.pixelSize: StyleTokens.fontSizeXs; color: "#7E8596"
                 elide: Text.ElideMiddle; Layout.maximumWidth: 320
             }
