@@ -82,6 +82,7 @@ private:
     YggdrasilSession m_session;
     YggdrasilMeta m_meta;
     QString m_statusMessage;
+    QString m_pendingApiRoot;   // 登录过程中记录的 API Root
     QString m_pendingEmail;     // 登录过程中记录邮箱
     QString m_pendingPassword;  // 登录过程中记录密码（仅用于 signout）
     bool m_loggingOut = false;

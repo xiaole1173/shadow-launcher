@@ -15,6 +15,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMap>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QEventLoop>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -542,8 +545,85 @@ void LaunchBackend::runNextCheck()
             m_pendingJvmArgs += QStringLiteral(" -Dauthlibinjector.side=client");
             qCInfo(logLaunch) << "已添加 authlib-injector JVM 参数";
 
-            if (!QFileInfo::exists(jarPath))
-                emit launchCheckWarning(tr("authlib-injector.jar 不存在，外置登录可能无法正常工作"));
+            if (!QFileInfo::exists(jarPath)) {
+                emit launchCheckWarning(tr("正在下载 authlib-injector.jar..."));
+                emit launchCheckProgress(tr("正在下载 authlib-injector.jar..."));
+
+                // 尝试从多个镜像下载
+                QStringList urls = {
+                    QStringLiteral("https://authlib-injector.yushi.moe/artifact/latest.json"),
+                    QStringLiteral("https://bmclapi2.bangbang93.cn/mirrors/authlib-injector/artifact/latest.json"),
+                };
+
+                bool dlOk = false;
+                for (const QString &metaUrl : urls) {
+                    QNetworkAccessManager nam;
+                    QNetworkReply *metaReply = nam.get(QNetworkRequest(QUrl(metaUrl)));
+                    QEventLoop loop;
+                    QObject::connect(metaReply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    loop.exec();
+
+                    if (metaReply->error() != QNetworkReply::NoError) {
+                        metaReply->deleteLater();
+                        continue;
+                    }
+
+                    QByteArray metaData = metaReply->readAll();
+                    metaReply->deleteLater();
+
+                    QJsonDocument metaDoc = QJsonDocument::fromJson(metaData);
+                    QJsonObject metaObj = metaDoc.object();
+                    QString downloadUrl = metaObj.value(QStringLiteral("downloadUrl")).toString();
+                    if (downloadUrl.isEmpty())
+                        downloadUrl = metaObj.value(QStringLiteral("artifact")).toObject()
+                                      .value(QStringLiteral("url")).toString();
+
+                    if (!downloadUrl.isEmpty()) {
+                        QNetworkReply *jarReply = nam.get(QNetworkRequest(QUrl(downloadUrl)));
+                        QEventLoop loop2;
+                        QObject::connect(jarReply, &QNetworkReply::finished, &loop2, &QEventLoop::quit);
+                        loop2.exec();
+
+                        if (jarReply->error() == QNetworkReply::NoError) {
+                            QFile file(jarPath);
+                            if (file.open(QIODevice::WriteOnly)) {
+                                file.write(jarReply->readAll());
+                                file.close();
+                                dlOk = true;
+                                qCInfo(logLaunch) << "已下载 authlib-injector.jar 到" << jarPath;
+                                jarReply->deleteLater();
+                                break;
+                            }
+                        }
+                        jarReply->deleteLater();
+                    }
+                }
+
+                if (!dlOk) {
+                    // 最后尝试直接下载
+                    QString directUrl = QStringLiteral("https://github.com/yushijinhun/authlib-injector/releases/latest/download/authlib-injector.jar");
+                    QNetworkAccessManager nam;
+                    QNetworkReply *jarReply = nam.get(QNetworkRequest(QUrl(directUrl)));
+                    QEventLoop loop;
+                    QObject::connect(jarReply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    loop.exec();
+
+                    if (jarReply->error() == QNetworkReply::NoError) {
+                        QFile file(jarPath);
+                        if (file.open(QIODevice::WriteOnly)) {
+                            file.write(jarReply->readAll());
+                            file.close();
+                            dlOk = true;
+                            qCInfo(logLaunch) << "已从 GitHub 下载 authlib-injector.jar";
+                        }
+                    }
+                    jarReply->deleteLater();
+                }
+
+                if (!dlOk) {
+                    emit launchCheckWarning(tr("authlib-injector.jar 下载失败，外置登录可能无法正常工作"));
+                }
+            }
         }
 
         qCInfo(logLaunch) << QStringLiteral("[启动前检查] 全部通过 开始启动Minecraft");
