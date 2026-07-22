@@ -34,7 +34,7 @@ Rectangle {
         }
     }
 
-    BackButton { x: 16; y: 16; onClicked: root.goBack() }
+    BackButton { x: 16; y: 16; onClicked: appWindow.showVersionSelect = false }
     RowLayout {
         id: vsContent
         anchors.fill: parent; anchors.margins: 16; anchors.topMargin: 52; spacing: 16
