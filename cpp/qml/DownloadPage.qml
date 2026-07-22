@@ -875,11 +875,7 @@ Rectangle {
                     modTab.doModSearch()
                 }
 
-                content: ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    // Row 2: loader + version + category + environment
+                // Row 2: loader + version + category + environment
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
 
@@ -930,7 +926,6 @@ Rectangle {
                             onValueSelected: function(v) { page.modEnvironment = v }
                         }
                     }
-                }
             }
             // Results
 
@@ -1124,11 +1119,7 @@ Rectangle {
                 onSearchRequested: shaderTab.doSearch()
                 onResetRequested: shaderTab.resetFilters()
 
-                content: ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    RowLayout {
+                RowLayout {
                         Layout.fillWidth: true; spacing: 8
 
                         Text { text: qsTr("风格"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
@@ -1192,9 +1183,7 @@ Rectangle {
                         }
 
                         Item { Layout.fillWidth: true }
-                    }
                 }
-            }
             // -- Card Grid --
 
             // ── Card Grid ──
@@ -1309,8 +1298,7 @@ Rectangle {
             DownloadFilterCard {
                 id: rpFilterCard
                 searchPlaceholder: qsTr("输入资源包名称...")
-                searchText: rpFilterCard.searchText
-                showSourceDropdown: true
+                                showSourceDropdown: true
                 sourceModel: [
                     { value: "modrinth", label: "Modrinth (MCIM镜像)" },
                     { value: "modrinth-direct", label: "Modrinth (直连)" }
@@ -1326,11 +1314,7 @@ Rectangle {
                 onSearchRequested: rpPage.doRpSearch()
                 onResetRequested: rpPage.resetFilters()
 
-                content: ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    RowLayout {
+                RowLayout {
                         Layout.fillWidth: true; spacing: 10
 
                         Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
