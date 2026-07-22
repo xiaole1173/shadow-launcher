@@ -81,36 +81,9 @@ Rectangle {
                 Layout.preferredHeight: 48
                 Layout.topMargin: 12
 
-                Rectangle {
-                    id: backButton
-                    width: backLabel.implicitWidth + 24
-                    height: 36
-                    radius: root.radius
-                    color: "transparent"
+                BackButton {
                     anchors.verticalCenter: parent.verticalCenter
-
-                    Label {
-                        id: backLabel
-                        anchors.centerIn: parent
-                        text: qsTr("← 设置")
-                        color: root.colorTertiary
-                        font.pixelSize: StyleTokens.fontSizeLg
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        onClicked: root.goBack()
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: root.radius
-                            color: root.colorBorder
-                            opacity: parent.containsMouse ? 0.3 : 0
-                            Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeOutDuration; easing.type: AnimationTokens.itemFadeOutEasing } }
-                        }
-                    }
+                    onClicked: root.goBack()
                 }
 
                 Label {

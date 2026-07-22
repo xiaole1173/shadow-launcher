@@ -116,35 +116,9 @@ Rectangle {
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
 
-            Rectangle {
-                id: backBtnRect
-                width: backLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                color: backMouse.containsMouse ? "#1a2440" : "transparent"
-                Behavior on color { ColorAnimation { duration: 150 } }
-
-                property real _eScale: 1.0
-                scale: _eScale
-                Timer { id: backRestoreTimer; interval: 120
-                    onTriggered: { backBtnRect._eScale = 1.0 }
-                }
-                Behavior on _eScale {
-                    SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
-                }
-
-                Text {
-                    id: backLabel; anchors.centerIn: parent
-                    text: "\u2190 \u8fd4\u56de"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium
-                    color: backMouse.containsMouse ? "#6080e8" : "#a0a8c0"
-                }
-                MouseArea {
-                    id: backMouse; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        backBtnRect._eScale = 0.92
-                        backRestoreTimer.restart()
-                        root.goBack()
-                    }
-                }
+            BackButton {
+                id: backBtn
+                onClicked: root.goBack()
             }
 
             Item { Layout.fillWidth: true }
@@ -155,7 +129,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
             }
             Item { Layout.fillWidth: true }
-            Item { width: backLabel.implicitWidth + 20 }
+            Item { width: backBtn.width }
         }
     }
 

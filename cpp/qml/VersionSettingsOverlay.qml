@@ -130,12 +130,8 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 14; spacing: 12
 
                 // Back button
-                Rectangle {
-                    width: 60; height: 28; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.bgCard
-                    scale: backHover.containsMouse ? 1.06 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: qsTr("← 返回"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                    MouseArea { id: backHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSettings = false } }
+                BackButton {
+                    onClicked: overlay.goBack()
                 }
 
                 // Version label

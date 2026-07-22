@@ -34,12 +34,7 @@ Rectangle {
         }
     }
 
-    Rectangle { x: 16; y: 16; height: 28; width: 80; radius: StyleTokens.radiusSm; color: "transparent"
-        scale: vsBackHover.containsMouse ? 1.06 : 1.0
-        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        Text { anchors.centerIn: parent; text: qsTr("\u2190 返回启动"); color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm }
-        MouseArea { id: vsBackHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { showVersionSelect = false } }
-    }
+    BackButton { x: 16; y: 16; onClicked: root.goBack() }
     RowLayout {
         id: vsContent
         anchors.fill: parent; anchors.margins: 16; anchors.topMargin: 52; spacing: 16

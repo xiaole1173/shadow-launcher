@@ -327,28 +327,8 @@ Rectangle {
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
-            Rectangle {
-                width: backLabel.implicitWidth + 32; height: 30; radius: StyleTokens.radiusMd
-                color: backMouse.containsMouse ? "#1a2440" : "transparent"
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Row {
-                    anchors.centerIn: parent; spacing: 4
-                    Image {
-                        anchors.verticalCenter: parent.verticalCenter
-                        source: "icons/lucide/arrow-left.svg"
-                        width: 14; height: 14
-                    }
-                    Text {
-                        id: backLabel
-                        text: "\u8fd4\u56de"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium
-                        color: backMouse.containsMouse ? "#6080e8" : "#a0a8c0"
-                    }
-                }
-                MouseArea {
-                    id: backMouse; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: { if (backend) backend.logMessage("[install] back"); root.goBack() }
-                }
+            BackButton {
+                onClicked: root.goBack()
             }
             Item { Layout.fillWidth: true }
             Text { text: mcVersion || "???"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
