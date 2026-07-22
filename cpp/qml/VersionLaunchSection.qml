@@ -423,37 +423,17 @@ Item {
                 }
 
                 // Refresh icon button
-                Rectangle {
-                    id: refreshBtn
-                    width: 30; height: 30; radius: StyleTokens.radiusMd
-                    color: refreshJavaHover.hovered ? "#222a3a" : "#141820"
-                    border.color: StyleTokens.bgHover
-                    scale: refreshMa.pressed ? 0.88 : 1.0
-                    enabled: root._mode === 1
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    Behavior on color { ColorAnimation { duration: 120 } }
-                    Image {
-                        id: refreshIcon
-                        anchors.centerIn: parent
-                        source: "icons/lucide/refresh-cw.svg"
-                        width: 16; height: 16
-                    }
-                    HoverHandler { id: refreshJavaHover }
-                    MouseArea {
-                        id: refreshMa
-                        anchors.fill: parent
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: {
-                            if (!enabled || !backend) return
-                            toastManager.show(qsTr("正在扫描 Java 环境..."))
-                            backend.scanJavaInstallations()
-                            _javaList = backend.availableJavaList || []
-                            _updateJavaIndex()
-                            var count = _javaList.length
-                            toastManager.show(count > 0
-                                ? qsTr("扫描完成，共检出 ") + count + qsTr(" 个 Java")
-                                : qsTr("未检测到 Java 环境，请手动导入或安装 Java"))
-                        }
+                RefreshButton {
+                    onClicked: {
+                        if (!backend) return
+                        toastManager.show(qsTr("正在扫描 Java 环境..."))
+                        backend.scanJavaInstallations()
+                        _javaList = backend.availableJavaList || []
+                        _updateJavaIndex()
+                        var count = _javaList.length
+                        toastManager.show(count > 0
+                            ? qsTr("扫描完成，共检出 ") + count + qsTr(" 个 Java")
+                            : qsTr("未检测到 Java 环境，请手动导入或安装 Java"))
                     }
                 }
             }
