@@ -138,15 +138,16 @@ Item {
                         elide: Text.ElideMiddle; Layout.fillWidth: true
                     }
 
-                    // Java list ComboBox + refresh
+                    // Java list + refresh
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
 
-                        ComboBox {
+                        ShadowDropdown {
                             id: javaListCombo
                             Layout.fillWidth: true
-                            textRole: "label"; valueRole: "path"
-                            implicitHeight: 34
+                            valueKey: "path"
+                            labelKey: "label"
+                            placeholderText: qsTr("点击选择 Java...")
 
                             model: {
                                 var items = []
@@ -160,82 +161,28 @@ Item {
                                 items.push({ label: qsTr("导入电脑中已有的 Java..."), path: "__browse__", major: 0 })
                                 return items
                             }
-                            currentIndex: root._selectedJavaIndex
+                            currentValue: root._selectedJavaIndex >= 0 && root._javaList ? root._javaList[root._selectedJavaIndex].path : ""
 
-                            background: Rectangle {
-                                radius: StyleTokens.radiusMd; color: StyleTokens.surfaceLight
-                                border.color: javaListCombo.hovered ? StyleTokens.accent : "#2a2f3a"
-                            }
-                            contentItem: Text {
-                                text: {
-                                    var idx = javaListCombo.currentIndex
-                                    if (idx < 0) return qsTr("点击选择 Java...")
-                                    var m = javaListCombo.model
-                                    if (m && idx < m.length) return m[idx].label
-                                    return qsTr("点击选择 Java...")
-                                }
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                color: javaListCombo.currentIndex < 0 ? "#5A6173" : "#B4BAC6"
-                                verticalAlignment: Text.AlignVCenter; leftPadding: 10
-                            }
-                            indicator: Text {
-                                text: "▼"; font.pixelSize: StyleTokens.fontSizeXs; color: "#7E8596"
-                                anchors.right: parent.right; anchors.rightMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            delegate: ItemDelegate {
-                                width: javaListCombo.width
-                                contentItem: RowLayout {
-                                    Text {
-                                        text: modelData.label; font.pixelSize: StyleTokens.fontSizeSm
-                                        color: highlighted ? StyleTokens.textPrimary : "#B4BAC6"
-                                        Layout.fillWidth: true
-                                    }
-                                    Text {
-                                        text: modelData.major > 0 ? qsTr("推荐") : ""
-                                        font.pixelSize: StyleTokens.fontSizeXs; color: "#10B981"
-                                        visible: modelData.major > 0
-                                    }
-                                }
-                                background: Rectangle {
-                                    color: highlighted ? "#253555" : "#1A1D24"
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-                                }
-                                highlighted: javaListCombo.highlightedIndex === index
-                            }
-                            popup: Popup {
-                                y: javaListCombo.height; width: javaListCombo.width
-                                padding: 2; topMargin: 4
-                                enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
-                                exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80 } }
-                                contentItem: ListView {
-                                    clip: true; implicitHeight: contentHeight
-                                    model: javaListCombo.popup.visible ? javaListCombo.delegateModel : null
-                                    currentIndex: javaListCombo.highlightedIndex
-                                }
-                                background: Rectangle { radius: StyleTokens.radiusMd; color: StyleTokens.surfaceLight; border.color: StyleTokens.bgHover }
-                            }
-
-                            onCurrentIndexChanged: {
-                                if (currentIndex < 0) return
-                                var m = model
-                                if (!m || currentIndex >= m.length) return
-                                var item = m[currentIndex]
-                                if (item.path === "__browse__") {
+                            onValueSelected: function(v) {
+                                if (v === "__browse__") {
                                     if (backend) backend.openJavaFileDialog()
-                                    javaListCombo.currentIndex = root._selectedJavaIndex
                                     return
                                 }
-                                root._selectedJavaIndex = currentIndex
-                                if (backend && currentIndex < (root._javaList || []).length)
-                                    backend.selectJavaByIndex(currentIndex)
+                                var list = root._javaList || []
+                                for (var i = 0; i < list.length; i++) {
+                                    if (list[i].path === v) {
+                                        root._selectedJavaIndex = i
+                                        if (backend) backend.selectJavaByIndex(i)
+                                        return
+                                    }
+                                }
                             }
                         }
 
                         // Refresh
                         Rectangle {
                             id: refreshBtn
-                            width: 34; height: 34; radius: StyleTokens.radiusMd
+                            width: 28; height: 28; radius: StyleTokens.radiusMd
                             color: refreshHover.hovered ? StyleTokens.accentSubtle : "transparent"
                             border.color: StyleTokens.bgHover
                             scale: refreshMa.pressed ? 0.88 : 1.0
