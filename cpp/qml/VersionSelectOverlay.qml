@@ -240,18 +240,13 @@ Rectangle {
                         }
                     }
                     // Install button — shortcut to download new versions
-                    Rectangle {
-                        width: 28; height: 28; radius: StyleTokens.radiusSm; color: installBtnHover.hovered ? "#2553a8" : StyleTokens.accent
-                        scale: versionRightPanel.installBtnPressed ? 0.9 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: "+"; font.pixelSize: StyleTokens.fontSizeXl; font.weight: Font.Bold; color: StyleTokens.textPrimary }
-                        HoverHandler { id: installBtnHover }
-                        ToolTip { visible: installBtnHover.hovered; text: qsTr("安装新版本"); delay: 500 }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onPressed: versionRightPanel.installBtnPressed = true
-                            onReleased: versionRightPanel.installBtnPressed = false
-                            onClicked: { showVersionSelect = false; switchPage(1); toastManager.show("正在前往下载页面") }  // 导航到下载页
-                        }
+                    ShadowIconButton {
+                        id: installBtn
+                        icon: "+"; iconPixelSize: 18
+                        defaultColor: StyleTokens.accent; hoverColor: "#2553a8"
+                        iconColor: "#ffffff"; iconHoverColor: "#ffffff"
+                        onClicked: { showVersionSelect = false; switchPage(1); toastManager.show("正在前往下载页面") }
+                        ToolTip { visible: installBtn._hovered; text: qsTr("安装新版本"); delay: 500 }
                     }
                     // Sort button
                     Rectangle {

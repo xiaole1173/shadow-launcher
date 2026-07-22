@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
-import QtQuick.Controls.Basic
 
 // ═══ ShadowIconButton — 统一纯图标按钮 ═══
 //
@@ -67,7 +66,10 @@ Rectangle {
     radius: StyleTokens.radiusLg
     color: {
         if (root.hoverColor.a > 0) {
-            return _pressed ? root.pressColor : (_hovered ? root.hoverColor : root.defaultColor)
+            if (_pressed) {
+                return root.pressColor.a > 0 ? root.pressColor : Qt.darker(root.hoverColor, 1.2)
+            }
+            return _hovered ? root.hoverColor : root.defaultColor
         }
         // Auto based on type
         if (!_hovered && !_pressed) return root.defaultColor.a > 0 ? root.defaultColor : "transparent"
@@ -99,8 +101,8 @@ Rectangle {
         text: root.icon
         color: _hovered || _pressed ? root.iconHoverColor : root.iconColor
         font.pixelSize: root.iconPixelSize > 0 ? root.iconPixelSize :
-                        root.width <= 24 ? StyleTokens.fontSizeXs :
-                        root.width <= 28 ? StyleTokens.fontSizeSm : StyleTokens.fontSizeMd
+                        root.width <= 24 ? StyleTokens.fontSizeSm :
+                        root.width <= 28 ? StyleTokens.fontSizeMd : StyleTokens.fontSizeLg
         font.weight: Font.Bold
         visible: root.source === ""
     }
