@@ -1044,107 +1044,24 @@ Rectangle {
                         }
                     }
 
-                    delegate: Rectangle {
-                        id: modCard2
-                        width: modListView2.width - 8; height: 64; radius: StyleTokens.radiusLg
-                        color: modCardHov2.hovered ? "#121620" : "#0e1018"
-                        border.color: modCardHov2.hovered ? StyleTokens.accentHover : StyleTokens.bgInput; border.width: 1
-                        scale: modCardHov2.hovered ? 1.01 : 1.0
-
-                        opacity: 0
-                        Component.onCompleted: { opacity = 1 }
-
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-                        Rectangle {
-                            anchors.fill: parent; radius: parent.radius
-                            opacity: modCardHov2.hovered ? 0.06 : 0
-                            gradient: Gradient {
-                                GradientStop { position: 0; color: StyleTokens.accentLight }
-                                GradientStop { position: 1; color: StyleTokens.accentLight }
-                            }
-                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent; anchors.margins: 8; spacing: 8
-
-                            Rectangle {
-                                Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: StyleTokens.radiusMd
-                                color: StyleTokens.bgCard; clip: true
-
-                                Image {
-                                    anchors.fill: parent; anchors.margins: 2
-                                    fillMode: Image.PreserveAspectFit
-                                    asynchronous: true; cache: true
-                                    source: model.icon || ""
-                                    onStatusChanged: {
-                                        if (status === Image.Error) modIconFallback2.visible = true
-                                        else if (status === Image.Ready) modIconFallback2.visible = false
-                                    }
-                                }
-                                Text {
-                                    id: modIconFallback2
-                                    anchors.centerIn: parent
-                                    text: model ? (model.title ? model.title[0] : "M") : "M"
-                                    color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true
-                                    visible: !model || !model.icon
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true; spacing: 1
-                                Layout.alignment: Qt.AlignVCenter
-
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 4
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: model.title || ""; color: "#d0d4e0"
-                                        font.pixelSize: StyleTokens.fontSizeSm; font.bold: true; elide: Text.ElideRight
-                                    }
-                                    Rectangle {
-                                        Layout.preferredWidth: 56; height: 15; radius: StyleTokens.radiusXs; color: StyleTokens.bgElevated
-                                        Text { anchors.centerIn: parent; text: "Modrinth"; color: "#9088e0"; font.pixelSize: StyleTokens.fontSizeXs }
-                                    }
-                                }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: model.desc || ""; color: "#606478"
-                                    font.pixelSize: StyleTokens.fontSizeXs; elide: Text.ElideRight; maximumLineCount: 1
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 12
-                                    Text { text: modTab.fmtVersionRange(model.versions); color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs }
-                                    RowLayout {
-                                        spacing: 3
-                                        Image { source: "icons/lucide/download.svg"; width: 8; height: 8; sourceSize.width: 8; sourceSize.height: 8; Layout.alignment: Qt.AlignVCenter }
-                                        Text { text: modTab.formatDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: StyleTokens.fontSizeXs }
-                                    }
-                                    Text { text: modTab.fmtDate(model.dateModified); color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs }
-                                    Text { text: modTab.fmtLoaders(model.loadersList || model.loader || ""); color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs; Layout.fillWidth: true; elide: Text.ElideRight }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: modCardHov2
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                page._modDetailSlug = model.slug
-                                page._modDetailTitle = model.title || ""
-                                page._modDetailDesc = model.desc || ""
-                                page._modDetailIcon = model.icon || ""
-                                page._showModDetail = true
-                                console.info("[UI] 打开 模组详情 slug=" + model.slug)
-                            }
+                    delegate: DownloadCard {
+                        width: modListView2.width - 8
+                        title: model.title || ""
+                        description: model.desc || ""
+                        iconUrl: model.icon || ""
+                        slug: model.slug || ""
+                        downloads: model.downloads || 0
+                        source: "Modrinth"
+                        gameVersions: model.versions || ""
+                        dateModified: model.dateModified || ""
+                        loaders: (model.loadersList || model.loader || "")
+                        onClicked: {
+                            page._modDetailSlug = model.slug
+                            page._modDetailTitle = model.title || ""
+                            page._modDetailDesc = model.desc || ""
+                            page._modDetailIcon = model.icon || ""
+                            page._showModDetail = true
+                            console.info("[UI] 打开 模组详情 slug=" + model.slug)
                         }
                     }
                 }
@@ -1486,86 +1403,23 @@ Rectangle {
                     }
                 }
 
-                delegate: Rectangle {
-                    width: shaderCardView.width; height: 64; radius: StyleTokens.radiusLg
-                    color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
-
-                    opacity: 0
-                    Component.onCompleted: { opacity = 1 }
-                    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        onClicked: {
-                            page._shaderDetailSlug = model.slug
-                            page._shaderDetailTitle = model.title || ""
-                            page._shaderDetailDesc = model.desc || ""
-                            page._shaderDetailIcon = model.icon || ""
-                            page._showShaderDetail = true
-                            console.info("[UI] 打开 光影详情 slug=" + model.slug)
-                        }
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent; anchors.margins: 8; spacing: 8
-
-                        Rectangle {
-                            Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: StyleTokens.radiusMd
-                            color: StyleTokens.bgCard; clip: true
-                            Image {
-                                anchors.fill: parent; anchors.margins: 2
-                                fillMode: Image.PreserveAspectFit
-                                asynchronous: true; cache: true
-                                source: model.icon || ""
-                                onStatusChanged: {
-                                    if (status === Image.Error) sIconFallback.visible = true
-                                    else if (status === Image.Ready) sIconFallback.visible = false
-                                }
-                            }
-                            Text {
-                                id: sIconFallback
-                                anchors.centerIn: parent
-                                text: model ? (model.title ? model.title[0] : "S") : "S"
-                                color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true
-                                visible: !model || !model.icon
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true; spacing: 1
-                            Layout.alignment: Qt.AlignVCenter
-
-                            RowLayout {
-                                Layout.fillWidth: true; spacing: 4
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: model.title || ""; color: "#d0d4e0"
-                                    font.pixelSize: StyleTokens.fontSizeSm; font.bold: true; elide: Text.ElideRight
-                                }
-                                Rectangle {
-                                    Layout.preferredWidth: 56; height: 15; radius: StyleTokens.radiusXs; color: StyleTokens.bgElevated
-                                    Text { anchors.centerIn: parent; text: "Modrinth"; color: "#9088e0"; font.pixelSize: StyleTokens.fontSizeXs }
-                                }
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: model.desc || ""; color: "#606478"
-                                font.pixelSize: StyleTokens.fontSizeXs; elide: Text.ElideRight; maximumLineCount: 1
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true; spacing: 12
-                                Text { text: shaderTab.fVersions(model.versions) ? "适用: " + shaderTab.fVersions(model.versions) : ""; color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs }
-                                RowLayout {
-                                    spacing: 3
-                                    Image { source: "icons/lucide/download.svg"; width: 8; height: 8; sourceSize.width: 8; sourceSize.height: 8; Layout.alignment: Qt.AlignVCenter }
-                                    Text { text: rpPage.fmtDownloads(model.downloads || 0); color: "#788090"; font.pixelSize: StyleTokens.fontSizeXs }
-                                }
-                                Text { text: shaderTab.fDate(model.dateModified) || "无日期"; color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs }
-                            }
-                        }
+                delegate: DownloadCard {
+                    width: shaderCardView.width
+                    title: model.title || ""
+                    description: model.desc || ""
+                    iconUrl: model.icon || ""
+                    slug: model.slug || ""
+                    downloads: model.downloads || 0
+                    source: "Modrinth"
+                    gameVersions: model.versions || ""
+                    dateModified: model.dateModified || ""
+                    onClicked: {
+                        page._shaderDetailSlug = model.slug
+                        page._shaderDetailTitle = model.title || ""
+                        page._shaderDetailDesc = model.desc || ""
+                        page._shaderDetailIcon = model.icon || ""
+                        page._showShaderDetail = true
+                        console.info("[UI] 打开 光影详情 slug=" + model.slug)
                     }
                 }
             }
@@ -1907,293 +1761,30 @@ Rectangle {
                         }
                     }
 
-                    delegate: Rectangle {
-                        id: rpCard
-                        width: rpListView.width - 8; height: 130; clip: true
-                        color: rpCardHov.hovered ? "#121620" : "#0e1018"
-                        radius: StyleTokens.radiusLg; border.color: rpCardHov.hovered ? StyleTokens.accentHover : StyleTokens.bgInput; border.width: 1
-                        scale: rpCardHov.hovered ? 1.01 : 1.0
-
-                        opacity: 0
-                        Component.onCompleted: { opacity = 1 }
-
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-                        // Hover glow overlay
-                        Rectangle {
-                            anchors.fill: parent; radius: parent.radius
-                            opacity: rpCardHov.hovered ? 0.06 : 0
-                            gradient: Gradient {
-                                GradientStop { position: 0; color: StyleTokens.accentLight }
-                                GradientStop { position: 1; color: StyleTokens.accentLight }
-                            }
-                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent; anchors.margins: 10; spacing: 10
-
-                            // Icon (network image with MCIM fallback)
-                            Rectangle {
-                                width: 44; height: 44; radius: StyleTokens.radiusLg; color: StyleTokens.bgCard
-                                Layout.preferredWidth: 44; Layout.preferredHeight: 44
-                                clip: true
-
-                                Image {
-                                    id: rpCardIcon
-                                    anchors.fill: parent
-
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true; cache: true
-                                    autoTransform: true
-                                    sourceSize.width: 88; sourceSize.height: 88
-
-                                    Component.onCompleted: {
-                                        if (model && model.icon) {
-                                            var url = model.icon
-                                            url = url.replace("cdn.modrinth.com", "mod.mcimirror.top")
-                                            url = url.replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                            source = url
-                                        }
-                                    }
-                                    onStatusChanged: {
-                                        if (status === Image.Ready) { rpIconFallback.visible = false }
-                                        else if (status === Image.Error) { rpIconFallback.visible = true }
-                                    }
-                                }
-
-                                Text {
-                                    id: rpIconFallback
-                                    anchors.centerIn: parent
-                                    text: model ? (model.title ? model.title[0] : "R") : "R"
-                                    color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeXl; font.bold: true
-                                }
-                            }
-
-                            // Content
-                            ColumnLayout {
-                                Layout.fillWidth: true; spacing: 3
-
-                                // Row 1: Title + downloads
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 6
-                                    Text {
-                                        text: model.title || ""; color: "#d0d4e0"
-                                        font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; elide: Text.ElideRight
-                                        Layout.fillWidth: true
-                                    }
-                                    RowLayout {
-                                        spacing: 3
-                                        Image { source: "icons/lucide/download.svg"; width: 8; height: 8; sourceSize.width: 8; sourceSize.height: 8; Layout.alignment: Qt.AlignVCenter }
-                                        Text {
-                                            text: rpPage.fmtDownloads(model.downloads || 0)
-                                            color: "#788090"; font.pixelSize: StyleTokens.fontSizeXs
-                                        }
-                                    }
-                                }
-
-                                // Row 2: Chinese tags (imperative, no Repeater binding)
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: rpTagRow.hasTags ? 18 : 0
-                                    visible: rpTagRow.hasTags
-                                    clip: true
-                                    Row {
-                                        id: rpTagRow
-                                        spacing: 4
-                                        property string tagsJson: ""
-                                        property string _tagPending: ""
-                                        property bool hasTags: false
-                                        property var tagMap: ({
-                                            "combat":"战斗", "cursed":"猎奇", "decoration":"装饰",
-                                            "modded":"模组适配", "realistic":"写实", "simplistic":"简约",
-                                            "themed":"主题", "tweaks":"微调", "utility":"实用",
-                                            "vanilla-like":"原版", "fantasy":"幻想", "modern":"现代",
-                                            "medieval":"中世纪", "futuristic":"未来", "cartoon":"卡通",
-                                            "pvp":"PVP", "minigame":"小游戏", "gui":"界面", "font":"字体",
-                                            "hd":"高清", "photorealism":"照片", "cute":"可爱",
-                                            "dark":"暗色", "light":"亮色", "clean":"简洁"
-                                        })
-                                        Timer {
-                                            id: rpTagTimer; interval: 1
-                                            onTriggered: {
-                                                var json = rpTagRow._tagPending; rpTagRow._tagPending = ""
-                                                for (var i = rpTagRow.children.length - 1; i >= 0; i--) {
-                                                    if (rpTagRow.children[i] !== rpTagComp) rpTagRow.children[i].destroy()
-                                                }
-                                                if (!json || json === "" || json === "[]") { rpTagRow.hasTags = false; return }
-                                                var tags = []; try { tags = JSON.parse(json) } catch(e) { rpTagRow.hasTags = false; return }
-                                                rpTagRow.hasTags = (tags.length > 0)
-                                                for (var t = 0; t < Math.min(tags.length, 4); t++) {
-                                                    var en = String(tags[t]).toLowerCase()
-                                                    rpTagComp.createObject(rpTagRow, {
-                                                        "tagLabel": rpTagRow.tagMap[en] || en
-                                                    })
-                                                }
-                                            }
-                                        }
-                                        onTagsJsonChanged: { rpTagRow._tagPending = tagsJson; rpTagTimer.restart() }
-                                        Component {
-                                            id: rpTagComp
-                                            Rectangle {
-                                                height: 16; width: tText.implicitWidth + 10; radius: StyleTokens.radiusSm
-                                                color: "#151922"; border.color: StyleTokens.bgHover; border.width: 1
-                                                property string tagLabel: ""
-                                                Text {
-                                                    id: tText; anchors.centerIn: parent
-                                                    text: tagLabel; color: "#788090"; font.pixelSize: StyleTokens.fontSizeXs
-                                                }
-                                            }
-                                        }
-                                        Binding {
-                                            target: rpTagRow; property: "tagsJson"
-                                            value: model ? (model.categories || "[]") : "[]"
-                                            when: model !== null
-                                        }
-                                    }
-                                }
-
-                                // Row 2.5: Feature tags (PBR, animations, etc.)
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: rpFeatRow.hasFeats ? 18 : 0
-                                    visible: rpFeatRow.hasFeats
-                                    clip: true
-                                    Row {
-                                        id: rpFeatRow
-                                        spacing: 4
-                                        property string featJson: ""
-                                        property string _featPending: ""
-                                        property bool hasFeats: false
-                                        Timer {
-                                            id: rpFeatTimer; interval: 1
-                                            onTriggered: {
-                                                var json = rpFeatRow._featPending; rpFeatRow._featPending = ""
-                                                for (var i = rpFeatRow.children.length - 1; i >= 0; i--) {
-                                                    if (rpFeatRow.children[i] !== rpFeatComp) rpFeatRow.children[i].destroy()
-                                                }
-                                                if (!json || json === "" || json === "[]") { rpFeatRow.hasFeats = false; return }
-                                                var tags = []; try { tags = JSON.parse(json) } catch(e) { rpFeatRow.hasFeats = false; return }
-                                                rpFeatRow.hasFeats = (tags.length > 0)
-                                                for (var t = 0; t < Math.min(tags.length, 4); t++) {
-                                                    var en = String(tags[t]).toLowerCase()
-                                                    rpFeatComp.createObject(rpFeatRow, {
-                                                        "tagLabel": page.rpFeatureMap[en] || en
-                                                    })
-                                                }
-                                            }
-                                        }
-                                        onFeatJsonChanged: { rpFeatRow._featPending = featJson; rpFeatTimer.restart() }
-                                        Component {
-                                            id: rpFeatComp
-                                            Rectangle {
-                                                height: 16; width: tText2.implicitWidth + 10; radius: StyleTokens.radiusSm
-                                                color: "#1a1428"; border.color: "#382848"; border.width: 1
-                                                property string tagLabel: ""
-                                                Text {
-                                                    id: tText2; anchors.centerIn: parent
-                                                    text: tagLabel; color: "#a878c8"; font.pixelSize: StyleTokens.fontSizeXs
-                                                }
-                                            }
-                                        }
-                                        Binding {
-                                            target: rpFeatRow; property: "featJson"
-                                            value: model ? (model.features || "[]") : "[]"
-                                            when: model !== null
-                                        }
-                                    }
-                                }
-
-                                // Row 2.6: Resolution tags
-                                Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: rpResTagRow2.hasRes ? 18 : 0
-                                    visible: rpResTagRow2.hasRes
-                                    clip: true
-                                    Row {
-                                        id: rpResTagRow2
-                                        spacing: 4
-                                        property bool hasRes: false
-                                        property string resJson: ""
-                                        property string _resPending: ""
-                                        Timer {
-                                            id: rpResTimer; interval: 1
-                                            onTriggered: {
-                                                var json = rpResTagRow2._resPending; rpResTagRow2._resPending = ""
-                                                for (var i = rpResTagRow2.children.length - 1; i >= 0; i--) {
-                                                    if (rpResTagRow2.children[i] !== rpResComp) rpResTagRow2.children[i].destroy()
-                                                }
-                                                if (!json || json === "" || json === "[]") { rpResTagRow2.hasRes = false; return }
-                                                var tags = []; try { tags = JSON.parse(json) } catch(e) { rpResTagRow2.hasRes = false; return }
-                                                rpResTagRow2.hasRes = (tags.length > 0)
-                                                for (var t = 0; t < Math.min(tags.length, 4); t++) {
-                                                    rpResComp.createObject(rpResTagRow2, {
-                                                        "tagLabel": String(tags[t])
-                                                    })
-                                                }
-                                            }
-                                        }
-                                        onResJsonChanged: { rpResTagRow2._resPending = resJson; rpResTimer.restart() }
-                                        Component {
-                                            id: rpResComp
-                                            Rectangle {
-                                                height: 16; width: tText3.implicitWidth + 10; radius: StyleTokens.radiusSm
-                                                color: "#282218"; border.color: "#504828"; border.width: 1
-                                                property string tagLabel: ""
-                                                Text {
-                                                    id: tText3; anchors.centerIn: parent
-                                                    text: tagLabel; color: "#c8a860"; font.pixelSize: StyleTokens.fontSizeXs
-                                                }
-                                            }
-                                        }
-                                        Binding {
-                                            target: rpResTagRow2; property: "resJson"
-                                            value: model ? (model.resolutions || "[]") : "[]"
-                                            when: model !== null
-                                        }
-                                    }
-                                }
-
-                                // Row 3: Description (1 line)
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: model.desc || ""; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
-                                    elide: Text.ElideRight; maximumLineCount: 1
-                                }
-
-                                // Row 4: Version range + date
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 6
-                                    Text {
-                                        text: rpPage.fmtVersionRange(model.versionStr || "")
-                                        color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                                        visible: text !== ""
-                                    }
-                                    Text {
-                                        text: model.updated ? String(model.updated).slice(0, 10) : ""
-                                        color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs; visible: model.updated !== undefined
-                                    }
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: rpCardHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                console.log("[RP-DEBUG] card clicked:", model.slug)
-                                var iconUrl = (model.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                                page._rpDetailIconUrl = iconUrl
-                                page._rpDetailAuthor = model.author || ""
-                                page._rpDetailDesc = model.desc || ""
-                                page._rpDetailSlug = model.slug
-                                page._rpDetailTitle = model.title
-                                page._rpDetailDownloads = model.downloads || 0
-                                page._rpDetailUpdated = model.updated || ""
-                                console.info("[UI] 打开 资源包详情 slug=" + model.slug)
-                                page._showRpDetail = true
-                            }
+                    delegate: DownloadCard {
+                        width: rpListView.width - 8
+                        title: model.title || ""
+                        description: model.desc || ""
+                        iconUrl: model.icon || ""
+                        slug: model.slug || ""
+                        downloads: model.downloads || 0
+                        gameVersions: model.versionStr || ""
+                        dateModified: model.updated || ""
+                        categoriesJson: model.categories || "[]"
+                        featuresJson: model.features || "[]"
+                        resolutionsJson: model.resolutions || "[]"
+                        onClicked: {
+                            console.log("[RP-DEBUG] card clicked:", model.slug)
+                            var iconUrl = (model.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                            page._rpDetailIconUrl = iconUrl
+                            page._rpDetailAuthor = model.author || ""
+                            page._rpDetailDesc = model.desc || ""
+                            page._rpDetailSlug = model.slug
+                            page._rpDetailTitle = model.title
+                            page._rpDetailDownloads = model.downloads || 0
+                            page._rpDetailUpdated = model.updated || ""
+                            console.info("[UI] 打开 资源包详情 slug=" + model.slug)
+                            page._showRpDetail = true
                         }
                     }
                 }
