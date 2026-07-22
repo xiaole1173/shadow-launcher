@@ -10,16 +10,28 @@ Window {
     height: 300
     visible: true
     flags: Qt.Dialog | Qt.FramelessWindowHint
-    color: StyleTokens.bgCard
+    color: "transparent"
     title: "Shadow Launcher 内测版"
 
-    // Dark rounded border
+    // Background — explicit solid rect for FramelessWindowHint
     Rectangle {
         anchors.fill: parent
-        color: "transparent"
+        radius: StyleTokens.radiusXl
+        color: StyleTokens.bgCard
         border.color: StyleTokens.bgHover
         border.width: 1
-        radius: StyleTokens.radiusXl
+        clip: true
+
+        // Window drag handler — transparent over title area
+        MouseArea {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 36
+            drag.target: root
+            drag.axis: Drag.XAndYAxis
+            cursorShape: Qt.SizeAllCursor
+        }
     }
 
     ColumnLayout {
