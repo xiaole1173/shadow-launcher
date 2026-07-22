@@ -106,7 +106,7 @@ Rectangle {
         height: Math.min(Math.max(320, root._importing || root._hasResult ? 400 : 300), parent.height - 80)
         radius: StyleTokens.radiusWindow
         color: StyleTokens.surfaceOverlay
-        border.color: "#2a2f3a"
+        border.color: StyleTokens.borderLight
         border.width: 1
         clip: true
 
@@ -135,8 +135,8 @@ Rectangle {
                     anchors.left: parent.left; anchors.leftMargin: 20
                     anchors.verticalCenter: parent.verticalCenter
                     text: root._hasResult ? qsTr("导入完成") : qsTr("导入整合包")
-                    color: "#e0e4f0"
-                    font.pixelSize: 15
+                    color: StyleTokens.textPrimary
+                    font.pixelSize: StyleTokens.fontSizeLg
                     font.bold: true
                 }
 
@@ -144,11 +144,11 @@ Rectangle {
                 Rectangle {
                     anchors.right: parent.right; anchors.rightMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 28; height: 28; radius: 6
-                    color: closeBtn.containsMouse ? "#2a2f3a" : "transparent"
+                    width: 28; height: 28; radius: StyleTokens.radiusMd
+                    color: closeBtn.containsMouse ? StyleTokens.borderLight : "transparent"
                     visible: !root._importing
                     Text {
-                        anchors.centerIn: parent; text: "\u00D7"; color: "#8890a0"; font.pixelSize: 14
+                        anchors.centerIn: parent; text: "\u00D7"; color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd
                     }
                     MouseArea {
                         id: closeBtn
@@ -167,42 +167,42 @@ Rectangle {
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 20
-                    spacing: 12
+                    spacing: StyleTokens.spacingMd
                     visible: !root._importing && !root._hasResult && !root._statusText.length
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr("选择整合包文件")
-                        color: "#b0b8d0"
-                        font.pixelSize: 14
+                        color: StyleTokens.textSecondary
+                        font.pixelSize: StyleTokens.fontSizeMd
                     }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr("支持 Modrinth (.mrpack) 和 CurseForge (.zip) 格式")
-                        color: "#687080"
-                        font.pixelSize: 11
+                        color: StyleTokens.textSubtle
+                        font.pixelSize: StyleTokens.fontSizeXs
                     }
 
                     // File picker area
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 80
-                        radius: 8; color: StyleTokens.bgInput; border.color: "#2a2f3a"; border.width: 1
+                        radius: StyleTokens.radiusLg; color: StyleTokens.bgInput; border.color: StyleTokens.borderLight; border.width: 1
                         ColumnLayout {
-                            anchors.centerIn: parent; spacing: 6
+                            anchors.centerIn: parent; spacing: StyleTokens.spacingSm
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: qsTr("点击下方按钮选择文件或在文件夹图标处拖放")
-                                color: "#687080"; font.pixelSize: 11
+                                color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs
                             }
                             Rectangle {
                                 Layout.alignment: Qt.AlignHCenter
-                                width: 180; height: 36; radius: 8
-                                color: pickArea.containsMouse ? "#2a2f3a" : "#1e2230"
-                                border.color: "#3a3f4a"; border.width: 1
+                                width: 180; height: 36; radius: StyleTokens.radiusLg
+                                color: pickArea.containsMouse ? StyleTokens.borderLight : "#1e2230"
+                                border.color: StyleTokens.borderLight; border.width: 1
                                 Text {
                                     anchors.centerIn: parent
-                                    text: qsTr("选择文件"); color: "#8890e0"; font.pixelSize: 13
+                                    text: qsTr("选择文件"); color: StyleTokens.accentLink; font.pixelSize: StyleTokens.fontSizeCaption
                                 }
                                 MouseArea {
                                     id: pickArea
@@ -218,30 +218,30 @@ Rectangle {
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 20
-                    spacing: 10
+                    spacing: StyleTokens.spacingMd
                     visible: root._importing || (!root._hasResult && root._statusText.length > 0 && !root._importing)
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: root._statusText || qsTr("准备中...")
-                        color: "#c0c8e0"; font.pixelSize: 14
+                        color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
                     }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: root._currentFile
-                        color: "#687080"; font.pixelSize: 10
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs
                         visible: root._currentFile.length > 0
                     }
 
                     // Progress bar
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 6
-                        radius: 3; color: StyleTokens.bgElevated
+                        radius: StyleTokens.radiusXs; color: StyleTokens.bgElevated
                         Rectangle {
                             width: parent.width * Math.max(0.02, root._progress)
-                            height: parent.height; radius: 3
-                            color: "#8890e0"
+                            height: parent.height; radius: StyleTokens.radiusXs
+                            color: StyleTokens.accentLink
                             Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                         }
                     }
@@ -255,23 +255,23 @@ Rectangle {
                         ListView {
                             anchors.fill: parent
                             model: root._modItems
-                            spacing: 2
+                            spacing: StyleTokens.spacingXs
                             delegate: RowLayout {
                                 width: ListView.view.width
                                 height: 22
-                                spacing: 6
+                                spacing: StyleTokens.spacingSm
 
                                 Text {
                                     text: modelData.status === "done" ? "完成" :
                                           modelData.status === "fail" ? "失败" : "等待"
                                     color: modelData.status === "done" ? "#60b060" :
-                                           modelData.status === "fail" ? "#c06060" : "#687080"
-                                    font.pixelSize: 12
+                                           modelData.status === "fail" ? StyleTokens.errorLight : StyleTokens.textSubtle
+                                    font.pixelSize: StyleTokens.fontSizeSm
                                 }
                                 Text {
                                     text: modelData.name || ""
-                                    color: modelData.status === "fail" ? "#c06060" : "#a0a8b8"
-                                    font.pixelSize: 11
+                                    color: modelData.status === "fail" ? StyleTokens.errorLight : "#a0a8b8"
+                                    font.pixelSize: StyleTokens.fontSizeXs
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
@@ -282,13 +282,13 @@ Rectangle {
                     // Cancel button
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
-                        width: 100; height: 30; radius: 8
+                        width: 100; height: 30; radius: StyleTokens.radiusLg
                         color: cancelBtn.containsMouse ? "#2a1520" : "#1e1820"
                         border.color: "#3a1520"; border.width: 1
                         visible: root._importing
                         Text {
                             anchors.centerIn: parent
-                            text: qsTr("取消"); color: "#c06060"; font.pixelSize: 12
+                            text: qsTr("取消"); color: StyleTokens.errorLight; font.pixelSize: StyleTokens.fontSizeSm
                         }
                         MouseArea {
                             id: cancelBtn
@@ -305,7 +305,7 @@ Rectangle {
                 // ──[State 3] Finished ──
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 10
+                    spacing: StyleTokens.spacingMd
                     visible: root._hasResult && !root._importing
 
                     Text {
@@ -317,22 +317,22 @@ Rectangle {
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr("整合包「%1」导入成功").arg(root._resultName)
-                        color: "#c0c8e0"; font.pixelSize: 14; font.bold: true
+                        color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
                     }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: root._resultVersionId
-                        color: "#687080"; font.pixelSize: 11
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs
                     }
 
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
-                        width: 100; height: 32; radius: 8
-                        color: finishBtn.containsMouse ? "#2a2f3a" : "#1e2230"
+                        width: 100; height: 32; radius: StyleTokens.radiusLg
+                        color: finishBtn.containsMouse ? StyleTokens.borderLight : "#1e2230"
                         Text {
                             anchors.centerIn: parent
-                            text: qsTr("关闭"); color: "#8890e0"; font.pixelSize: 13
+                            text: qsTr("关闭"); color: StyleTokens.accentLink; font.pixelSize: StyleTokens.fontSizeCaption
                         }
                         MouseArea {
                             id: finishBtn
