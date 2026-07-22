@@ -573,12 +573,12 @@ Rectangle {
 
                     // Search
                     Rectangle {
-                        Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
-                        border.color: modSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.bgCard
+                        Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgInput
+                        border.color: modSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: modSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
-                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
+                            color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: modSection.filterModList()
                         }
                         Image {
@@ -588,7 +588,7 @@ Rectangle {
                         }
                         Text {
                             anchors { left: parent.left; leftMargin: 32; verticalCenter: parent.verticalCenter }
-                            text: qsTr("搜索 Mod 名称..."); color: "#9ca0b4"; font.pixelSize: StyleTokens.fontSizeSm
+                            text: qsTr("搜索 Mod 名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                             visible: !modSearchField.text
                         }
                     }
@@ -854,12 +854,12 @@ Rectangle {
 
                     // Search
                     Rectangle {
-                        Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
-                        border.color: rpSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.bgCard
+                        Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgInput
+                        border.color: rpSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: rpSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
-                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
+                            color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: rpSection.filterRPList()
                         }
                         Image {
@@ -869,7 +869,7 @@ Rectangle {
                         }
                         Text {
                             anchors { left: parent.left; leftMargin: 32; verticalCenter: parent.verticalCenter }
-                            text: qsTr("搜索资源包名称..."); color: "#9ca0b4"; font.pixelSize: StyleTokens.fontSizeSm
+                            text: qsTr("搜索资源包名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                             visible: !rpSearchField.text
                         }
                     }

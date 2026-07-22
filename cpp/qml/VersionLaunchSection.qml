@@ -425,19 +425,18 @@ Item {
                 // Refresh icon button
                 Rectangle {
                     id: refreshBtn
-                    width: 34; height: 34; radius: StyleTokens.radiusMd
-                    color: refreshJavaHover.hovered ? StyleTokens.accentSubtle : "transparent"
-                    border.color: StyleTokens.bgCard
+                    width: 30; height: 30; radius: StyleTokens.radiusMd
+                    color: refreshJavaHover.hovered ? "#222a3a" : "#141820"
+                    border.color: StyleTokens.bgHover
                     scale: refreshMa.pressed ? 0.88 : 1.0
                     enabled: root._mode === 1
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 120 } }
-                    Text {
+                    Image {
                         id: refreshIcon
                         anchors.centerIn: parent
-                        text: "↻"
-                        font.pixelSize: StyleTokens.fontSizeLg; color: StyleTokens.accentLight
-                        rotation: 0
+                        source: "icons/lucide/refresh-cw.svg"
+                        width: 16; height: 16
                     }
                     HoverHandler { id: refreshJavaHover }
                     MouseArea {
