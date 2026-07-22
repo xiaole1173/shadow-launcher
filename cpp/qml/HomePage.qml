@@ -28,7 +28,7 @@ Rectangle {
     // loginModeChanged is auto-generated from property int loginMode
 
     gradient: Gradient {
-        GradientStop { position: 0.0; color: hasBg ? "transparent" : "#0c0f16" }
+        GradientStop { position: 0.0; color: hasBg ? "transparent" : StyleTokens.bgPrimary }
         GradientStop { position: 0.5; color: hasBg ? "transparent" : "#111520" }
         GradientStop { position: 1.0; color: hasBg ? "transparent" : "#0e111a" }
     }
@@ -77,7 +77,7 @@ Rectangle {
             anchors.fill: parent; spacing: 0
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
-                color: loginMode === 0 ? "#1a1f2e" : "transparent"; radius: StyleTokens.radiusLg
+                color: loginMode === 0 ? StyleTokens.bgCard : "transparent"; radius: StyleTokens.radiusLg
                 Rectangle {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                     width: loginMode === 0 ? 8 : 6; height: loginMode === 0 ? 8 : 6
@@ -93,13 +93,13 @@ Rectangle {
                         source: "icons/lucide/key.svg"; width: 14; height: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("正版登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 0 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("正版登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 0 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
             }
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
-                color: loginMode === 1 ? "#1a1f2e" : "transparent"; radius: StyleTokens.radiusLg
+                color: loginMode === 1 ? StyleTokens.bgCard : "transparent"; radius: StyleTokens.radiusLg
                 Rectangle {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                     width: loginMode === 1 ? 8 : 6; height: loginMode === 1 ? 8 : 6
@@ -115,13 +115,13 @@ Rectangle {
                         source: "icons/lucide/user.svg"; width: 14; height: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 1 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 1 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
             }
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
-                color: loginMode === 2 ? "#1a1f2e" : "transparent"; radius: StyleTokens.radiusLg
+                color: loginMode === 2 ? StyleTokens.bgCard : "transparent"; radius: StyleTokens.radiusLg
                 Rectangle {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                     width: loginMode === 2 ? 8 : 6; height: loginMode === 2 ? 8 : 6
@@ -137,7 +137,7 @@ Rectangle {
                         source: "icons/lucide/globe.svg"; width: 14; height: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? "#e4e8f2" : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 2; if (backend) { backend.lastLoginMode = 2; toastManager.show("已切换至外置登录") } } }
             }
@@ -168,7 +168,7 @@ Rectangle {
             // Start button
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter; width: 200; height: 40; radius: StyleTokens.radiusLg
-                color: msLoginForm.msInProgress ? "#1a1f2e" : (startMsBtn.containsMouse ? "#3a4aa0" : "#2a3878")
+                color: msLoginForm.msInProgress ? StyleTokens.bgCard : (startMsBtn.containsMouse ? "#3a4aa0" : "#2a3878")
                 Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Row {
                     anchors.centerIn: parent; spacing: 8
@@ -178,7 +178,7 @@ Rectangle {
                     }
                     Text {
                         text: msLoginForm.msInProgress ? "登录中..." : "Microsoft 登录"
-                        color: msLoginForm.msInProgress ? "#9498a8" : "#e4e8f2"
+                        color: msLoginForm.msInProgress ? "#9498a8" : StyleTokens.textSecondary
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold
                     }
                 }
@@ -236,7 +236,7 @@ Rectangle {
                     // Cancel button link
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("取消"); color: cancelMsBtn2.containsMouse ? "#e06060" : "#604040"
+                        text: qsTr("取消"); color: cancelMsBtn2.containsMouse ? StyleTokens.errorLight : "#604040"
                         font.pixelSize: StyleTokens.fontSizeSm; font.underline: true
                         MouseArea {
                             id: cancelMsBtn2
@@ -473,7 +473,7 @@ Rectangle {
             // 认证服务器地址
             Rectangle {
                 Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: yggApiRootInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+                color: StyleTokens.bgSecondary; border.color: yggApiRootInput.activeFocus ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
                 TextInput {
                     id: yggApiRootInput
                     anchors.fill: parent; anchors.leftMargin: 12
@@ -493,7 +493,7 @@ Rectangle {
             // 邮箱/用户名
             Rectangle {
                 Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: yggEmailInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+                color: StyleTokens.bgSecondary; border.color: yggEmailInput.activeFocus ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
                 TextInput {
                     id: yggEmailInput
                     anchors.fill: parent; anchors.leftMargin: 12
@@ -512,7 +512,7 @@ Rectangle {
             // 密码
             Rectangle {
                 Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: yggPasswordInput.activeFocus ? "#3B82F6" : StyleTokens.bgElevated; border.width: 1
+                color: StyleTokens.bgSecondary; border.color: yggPasswordInput.activeFocus ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
                 TextInput {
                     id: yggPasswordInput
                     anchors.fill: parent; anchors.leftMargin: 12
@@ -536,7 +536,7 @@ Rectangle {
                 // 登录
                 Rectangle {
                     Layout.fillWidth: true; height: 38; radius: StyleTokens.radiusLg
-                    color: yggLoginBtnMouse.containsMouse ? "#4a5ec8" : "#3a4eb8"
+                    color: yggLoginBtnMouse.containsMouse ? "#4a5ec8" : StyleTokens.accent
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     scale: yggLoginBtnMouse.pressed ? 0.95 : (yggLoginBtnMouse.containsMouse ? 1.03 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -564,8 +564,8 @@ Rectangle {
                 // 注册
                 Rectangle {
                     Layout.preferredWidth: 80; height: 38; radius: StyleTokens.radiusLg
-                    color: yggRegBtnMouse.containsMouse ? "#1a1f2e" : "#11141c"
-                    border.color: yggRegBtnMouse.containsMouse ? "#3a4eb8" : StyleTokens.bgElevated; border.width: 1
+                    color: yggRegBtnMouse.containsMouse ? StyleTokens.bgCard : StyleTokens.bgSecondary
+                    border.color: yggRegBtnMouse.containsMouse ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Text {
@@ -645,7 +645,7 @@ Rectangle {
                     spacing: 2
                     delegate: Rectangle {
                         width: ListView.view.width; height: 30; radius: StyleTokens.radiusSm
-                        color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (rowMouse.containsMouse ? "#1a1f2e" : "transparent")
+                        color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (rowMouse.containsMouse ? StyleTokens.bgCard : "transparent")
                         Behavior on color { ColorAnimation { duration: 120 } }
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 8; spacing: 6
@@ -655,7 +655,7 @@ Rectangle {
                             }
                             Text {
                                 text: modelData.name || ""
-                                color: model.index === backend.yggdrasil.profileIndex ? "#e4e8f2" : "#9498a8"
+                                color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.textSecondary : "#9498a8"
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
                             }
@@ -783,7 +783,7 @@ Rectangle {
                         TextInput {
                             id: yggServerAddrInput
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                            color: addrValid || !text ? "#e4e8f2" : "#ff9999"
+                            color: addrValid || !text ? StyleTokens.textSecondary : "#ff9999"
                             font.pixelSize: StyleTokens.fontSizeMd
                             verticalAlignment: TextInput.AlignVCenter
                             text: backend.yggdrasil ? backend.yggdrasil.serverAddress : ""
@@ -1214,7 +1214,7 @@ Rectangle {
             // Current version indicator
             Rectangle {
                 Layout.fillWidth: true; height: 32; radius: StyleTokens.radiusMd
-                color: StyleTokens.bgSecondary; border.color: currentSelectedVersion ? "#1a2848" : "#0e1118"
+                color: StyleTokens.bgSecondary; border.color: currentSelectedVersion ? StyleTokens.accentSubtle : "#0e1118"
                 border.width: currentSelectedVersion ? 1 : 0
                 RowLayout {
                     anchors.centerIn: parent; spacing: 8
@@ -1226,7 +1226,7 @@ Rectangle {
             Rectangle {
                 id: launchBtn
                 Layout.fillWidth: true; height: 44; radius: StyleTokens.radiusLg
-                color: launchHover.containsMouse ? (launchHover.pressed ? "#2a3a90" : "#4a5ec8") : "#3a4eb8"
+                color: launchHover.containsMouse ? (launchHover.pressed ? "#2a3a90" : "#4a5ec8") : StyleTokens.accent
                 scale: launchHover.containsMouse ? (launchHover.pressed ? 0.95 : 1.03) : 1.0
                 Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }

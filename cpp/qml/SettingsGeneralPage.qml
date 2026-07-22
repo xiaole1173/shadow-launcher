@@ -238,7 +238,7 @@ Rectangle {
                                 id: visKeepLabel
                                 anchors.centerIn: parent
                                 text: qsTr("保持不变")
-                                color: d.launcherVisibility === "keep" ? "#FFFFFF" : root.colorSecondary
+                                color: d.launcherVisibility === "keep" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -266,7 +266,7 @@ Rectangle {
                                 id: visHideLabel
                                 anchors.centerIn: parent
                                 text: qsTr("启动后隐藏，游戏退出后显示")
-                                color: d.launcherVisibility === "hideOnLaunch" ? "#FFFFFF" : root.colorSecondary
+                                color: d.launcherVisibility === "hideOnLaunch" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -323,7 +323,7 @@ Rectangle {
                                 id: priNormalLabel
                                 anchors.centerIn: parent
                                 text: qsTr("正常")
-                                color: d.processPriority === "normal" ? "#FFFFFF" : root.colorSecondary
+                                color: d.processPriority === "normal" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -351,7 +351,7 @@ Rectangle {
                                 id: priHighLabel
                                 anchors.centerIn: parent
                                 text: qsTr("高")
-                                color: d.processPriority === "high" ? "#FFFFFF" : root.colorSecondary
+                                color: d.processPriority === "high" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -379,7 +379,7 @@ Rectangle {
                                 id: priRealtimeLabel
                                 anchors.centerIn: parent
                                 text: qsTr("实时")
-                                color: d.processPriority === "realtime" ? "#FFFFFF" : root.colorSecondary
+                                color: d.processPriority === "realtime" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -436,7 +436,7 @@ Rectangle {
                                 id: winDefaultLabel
                                 anchors.centerIn: parent
                                 text: qsTr("默认")
-                                color: d.windowSize === "default" ? "#FFFFFF" : root.colorSecondary
+                                color: d.windowSize === "default" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -464,7 +464,7 @@ Rectangle {
                                 id: winFullscreenLabel
                                 anchors.centerIn: parent
                                 text: qsTr("全屏")
-                                color: d.windowSize === "fullscreen" ? "#FFFFFF" : root.colorSecondary
+                                color: d.windowSize === "fullscreen" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
@@ -492,7 +492,7 @@ Rectangle {
                                 id: winCustomLabel
                                 anchors.centerIn: parent
                                 text: qsTr("指定分辨率")
-                                color: d.windowSize === "custom" ? "#FFFFFF" : root.colorSecondary
+                                color: d.windowSize === "custom" ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 

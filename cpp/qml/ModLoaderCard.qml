@@ -10,8 +10,8 @@ Rectangle {
     Layout.fillWidth: true
     Layout.preferredHeight: cardHeight
     radius: StyleTokens.radiusLg
-    color: cardDisabled ? "#0e1018" : (cardHovered ? "#161a26" : "#11141c")
-    border.color: cardDisabled ? "#1a1a24" : (cardHovered ? "#3a50b0" : "#1e2230")
+    color: cardDisabled ? "#0e1018" : (cardHovered ? "#161a26" : StyleTokens.bgSecondary)
+    border.color: cardDisabled ? "#1a1a24" : (cardHovered ? "#3a50b0" : StyleTokens.border)
     border.width: cardHovered ? 1.5 : 1
     opacity: cardDisabled ? 0.55 : 1
     scale: cardDisabled ? 0.98 : (cardHovered ? 1.01 : 1.0)
@@ -72,8 +72,8 @@ Rectangle {
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 8
-            Rectangle { width: 10; height: 10; radius: StyleTokens.radiusSm; color: cardDisabled ? "#404858" : selectedVersion ? "#4bc870" : "#505868" }
-            Text { text: card.title; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: cardDisabled ? "#687080" : "#e4e8f2" }
+            Rectangle { width: 10; height: 10; radius: StyleTokens.radiusSm; color: cardDisabled ? "#404858" : selectedVersion ? StyleTokens.success : "#505868" }
+            Text { text: card.title; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: cardDisabled ? "#687080" : StyleTokens.textSecondary }
             // Optional badge (e.g. "建议安装")
             Rectangle {
                 visible: card.badgeText !== "" && !cardDisabled
@@ -95,7 +95,7 @@ Rectangle {
             Text {
                 visible: selectedVersion !== ""
                 text: "\u2715"; font.pixelSize: StyleTokens.fontSizeMd
-                color: cancelArea.containsMouse ? "#e06060" : "#787c90"
+                color: cancelArea.containsMouse ? StyleTokens.errorLight : "#787c90"
                 Behavior on color { ColorAnimation { duration: 150 } }
                 TapHandler {
                     id: cancelArea; cursorShape: Qt.PointingHandCursor

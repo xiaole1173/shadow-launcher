@@ -249,7 +249,7 @@ Window {
     // ── Rounded window container ──
     Rectangle {
         anchors.fill: parent; radius: StyleTokens.radiusWindow
-        color: hasCustomBg ? "transparent" : "#0c0f16"
+        color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
         clip: true
 
         // ── Custom background image (clipped by container radius) ──
@@ -394,7 +394,7 @@ Window {
                             property var windowRoot: appWindow
                             scale: navMouse.containsMouse ? 1.03 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? "#11141c" : "transparent"; Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } } }
+                            Rectangle { anchors.fill: parent; color: navMouse.containsMouse ? StyleTokens.bgSecondary : "transparent"; Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } } }
                             Row {
                                 anchors.left: parent.left; anchors.leftMargin: 20; anchors.verticalCenter: parent.verticalCenter
                                 spacing: 8
@@ -403,7 +403,7 @@ Window {
                                     source: model.icon ? ("icons/lucide/" + model.icon + ".svg") : ""
                                     visible: model.icon !== undefined && model.icon !== ""
                                 }
-                                Text { text: appWindow.navLabel(model.pageKey); font.pixelSize: StyleTokens.fontSizeMd; color: navListIndex === index ? "#e4e8f2" : "#9498a8" }
+                                Text { text: appWindow.navLabel(model.pageKey); font.pixelSize: StyleTokens.fontSizeMd; color: navListIndex === index ? StyleTokens.textSecondary : "#9498a8" }
                             }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
                         }
@@ -435,7 +435,7 @@ Window {
                                     }
                                     Rectangle {
                                         width: 20; height: 20; radius: StyleTokens.radiusLg
-                                        color: runningKillHover.containsMouse ? "#e06060" : "#c05050"
+                                        color: runningKillHover.containsMouse ? StyleTokens.errorLight : "#c05050"
                                         scale: runningKillHover.containsMouse ? 1.15 : 1.0
                                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "\u2715"; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textInverse }
@@ -495,7 +495,7 @@ Window {
                         Item { width: 6 }
                         Rectangle {
                             width: 28; height: 28; radius: StyleTokens.radiusLg
-                            color: hdrClose.containsMouse ? (hdrClose.pressed ? "#e06060" : "#c05050") : "transparent"
+                            color: hdrClose.containsMouse ? (hdrClose.pressed ? StyleTokens.errorLight : "#c05050") : "transparent"
                             scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -558,11 +558,11 @@ Window {
 
                     // ========== DOWNLOAD & MULTIPLAYER & SETTINGS ==========
                     // ========== MULTIPLAYER ==========
-                    Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: hasCustomBg ? "transparent" : "#0c0f16"
+                    Rectangle { anchors.fill: parent; visible: navListIndex === 2; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
                         Loader { asynchronous: true; anchors.fill: parent; active: true; source: "MultiplayerPage.qml"; onLoaded: { item.toastManager = toastManager } }
                     }
 
-                    Rectangle { anchors.fill: parent; visible: navListIndex === 3; color: hasCustomBg ? "transparent" : "#0c0f16"
+                    Rectangle { anchors.fill: parent; visible: navListIndex === 3; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
                         opacity: navListIndex === 3 ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         Loader { id: statsPageLoader; asynchronous: true; anchors.fill: parent; active: navListIndex === 3; source: "StatsPage.qml"
@@ -571,7 +571,7 @@ Window {
                     }
 
 
-                    Rectangle { anchors.fill: parent; visible: navListIndex === 1 || _dlFadeOut; color: hasCustomBg ? "transparent" : "#0c0f16"
+                    Rectangle { anchors.fill: parent; visible: navListIndex === 1 || _dlFadeOut; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
                         opacity: navListIndex === 1 ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         onOpacityChanged: { if (opacity === 0) _dlFadeOut = false }
@@ -592,7 +592,7 @@ Window {
                                 }
                             }
                         } }
-                    Rectangle { anchors.fill: parent; visible: navListIndex === 4 || _settingsFadeOut; color: hasCustomBg ? "transparent" : "#0c0f16"
+                    Rectangle { anchors.fill: parent; visible: navListIndex === 4 || _settingsFadeOut; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
                         opacity: navListIndex === 4 ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         onOpacityChanged: { if (opacity === 0) _settingsFadeOut = false }
@@ -605,7 +605,7 @@ Window {
 
                     // ========== DOWNLOAD PROGRESS PAGE ==========
                     Rectangle {
-                        anchors.fill: parent; color: hasCustomBg ? "transparent" : "#0c0f16"
+                        anchors.fill: parent; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
                         opacity: navListIndex >= 4 && navModel.get(navListIndex).pageKey === "download_progress" ? 1 : 0
                         visible: opacity > 0
                         Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.InOutCubic } }
@@ -843,7 +843,7 @@ Window {
     // ════════════════════════════════════════════
     Rectangle {
         id: installPageOverlay
-        anchors.fill: parent; color: hasCustomBg ? "transparent" : "#0c0f16"; z: 21
+        anchors.fill: parent; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary; z: 21
         opacity: 0
         visible: true
         Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }

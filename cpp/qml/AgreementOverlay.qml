@@ -118,7 +118,7 @@ Rectangle {
         anchors.margins: 12
         width: 28; height: 28
         radius: StyleTokens.radiusLg
-        color: closeMA.containsMouse ? (closeMA.pressed ? "#e06060" : "#c05050") : "transparent"
+        color: closeMA.containsMouse ? (closeMA.pressed ? StyleTokens.errorLight : "#c05050") : "transparent"
         scale: closeMA.pressed ? 0.85 : (closeMA.containsMouse ? 1.12 : 1.0)
         Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -238,7 +238,7 @@ Rectangle {
                     text: "同意并继续"
                     font.pixelSize: StyleTokens.fontSizeMd
                     font.weight: Font.Medium
-                    color: agreeBtn.btnEnabled ? "#ffffff" : "#505878"
+                    color: agreeBtn.btnEnabled ? StyleTokens.textInverse : "#505878"
                 }
                 MouseArea {
                     anchors.fill: parent

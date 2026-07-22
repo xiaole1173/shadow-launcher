@@ -14,7 +14,7 @@ Rectangle {
     id: root
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
 
     property var backend: null
     property string mcVersion: ""
@@ -309,7 +309,7 @@ Rectangle {
     Rectangle {
         id: topBar
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-        height: 44; color: hasBg ? "transparent" : "#0c0f16"; z: 10
+        height: 44; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 10
 
         // Drag handler (behind RowLayout, only fires on empty areas)
         MouseArea {
@@ -365,7 +365,7 @@ Rectangle {
             Item { width: 6 }
             Rectangle {
                 width: 28; height: 28; radius: StyleTokens.radiusXl
-                color: closeHov.containsMouse ? (closeHov.pressed ? "#e06060" : "#c05050") : "transparent"
+                color: closeHov.containsMouse ? (closeHov.pressed ? StyleTokens.errorLight : "#c05050") : "transparent"
                 scale: closeHov.pressed ? 0.85 : (closeHov.containsMouse ? 1.12 : 1.0)
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on scale { NumberAnimation { duration: 150 } }
@@ -393,8 +393,8 @@ Rectangle {
                 id: mcCard
                 Layout.fillWidth: true
                 implicitHeight: root.versionConflict ? 116 : 96
-                radius: StyleTokens.radiusLg; color: mcCardHovered ? "#161a26" : "#11141c"
-                border.color: root.versionConflict ? "#803040" : (mcCardHovered ? "#3a50b0" : "#1e2230")
+                radius: StyleTokens.radiusLg; color: mcCardHovered ? "#161a26" : StyleTokens.bgSecondary
+                border.color: root.versionConflict ? "#803040" : (mcCardHovered ? "#3a50b0" : StyleTokens.border)
                 border.width: mcCardHovered ? 1.5 : 1
                 clip: true
                 scale: mcCardHovered ? 1.005 : 1.0
@@ -417,7 +417,7 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true; height: 32; radius: StyleTokens.radiusSm
                         color: StyleTokens.surfaceOverlay
-                        border.color: root.versionConflict ? "#c06050" : (nameInput.activeFocus ? "#3a5ed0" : "#2a3040")
+                        border.color: root.versionConflict ? "#c06050" : (nameInput.activeFocus ? "#3a5ed0" : StyleTokens.borderLight)
                         border.width: 1
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
@@ -742,7 +742,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.versionConflict ? qsTr("名称冲突") : qsTr("开始下载")
                 font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold
-                color: root.versionConflict ? "#c0b0c0" : "#ffffff"
+                color: root.versionConflict ? "#c0b0c0" : StyleTokens.textInverse
             }
         }
 

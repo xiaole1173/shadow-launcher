@@ -29,7 +29,7 @@ Window {
 
     function info(msg)  { _append("#aaa", "信息", msg) }
     function ok(msg)    { _append("#4caf50", "完成", msg) }
-    function warn(msg)  { _append("#ff9800", "警告", msg) }
+    function warn(msg)  { _append(StyleTokens.warning, "警告", msg) }
     function error(msg) { _append("#f44336", "错误", msg) }
     function net(url, status, sizebytes, timems) {
         var s = sizebytes < 1024 ? sizebytes + "B" :

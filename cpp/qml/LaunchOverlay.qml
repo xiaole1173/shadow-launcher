@@ -8,7 +8,7 @@ import QtQuick.Layouts
 Rectangle {
     id: overlay
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
-    color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
+    color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
     property var backend: null
     property var toastManager: null
 
@@ -294,7 +294,7 @@ Rectangle {
 
                     Rectangle {
                         height: 6; radius: StyleTokens.radiusSm
-                        color: "#3a4eb8"
+                        color: StyleTokens.accent
                         width: parent.width * (progressValue / 100)
                         Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                     }

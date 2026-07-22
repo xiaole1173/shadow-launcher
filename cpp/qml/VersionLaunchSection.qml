@@ -137,7 +137,7 @@ Item {
                     id: followGlobalBtn
                     width: 130; height: 36; radius: StyleTokens.radiusLg
                     color: root._mode === 0 ? "#2a3a6a" : (fgHover.hovered ? "#151c30" : "transparent")
-                    border.color: root._mode === 0 ? "#3a5ab8" : "#1a1f2e"
+                    border.color: root._mode === 0 ? "#3a5ab8" : StyleTokens.bgCard
                     scale: followGlobalMa.pressed ? 0.94 : 1.0
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -146,7 +146,7 @@ Item {
                         anchors.centerIn: parent
                         text: qsTr("跟随全局设置")
                         font.pixelSize: StyleTokens.fontSizeSm
-                        color: root._mode === 0 ? "#e8ecf8" : "#808aa0"
+                        color: root._mode === 0 ? StyleTokens.textPrimary : "#808aa0"
                     }
                     MouseArea {
                         id: followGlobalMa
@@ -162,7 +162,7 @@ Item {
                     id: customBtn
                     width: 130; height: 36; radius: StyleTokens.radiusLg
                     color: root._mode === 1 ? "#2a3a6a" : (customHover.hovered ? "#151c30" : "transparent")
-                    border.color: root._mode === 1 ? "#3a5ab8" : "#1a1f2e"
+                    border.color: root._mode === 1 ? "#3a5ab8" : StyleTokens.bgCard
                     scale: customMa.pressed ? 0.94 : 1.0
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -171,7 +171,7 @@ Item {
                         anchors.centerIn: parent
                         text: qsTr("独立配置")
                         font.pixelSize: StyleTokens.fontSizeSm
-                        color: root._mode === 1 ? "#e8ecf8" : "#808aa0"
+                        color: root._mode === 1 ? StyleTokens.textPrimary : "#808aa0"
                     }
                     MouseArea {
                         id: customMa
@@ -250,7 +250,7 @@ Item {
                     background: Rectangle {
                         radius: StyleTokens.radiusMd
                         color: StyleTokens.bgPrimary
-                        border.color: javaModeCombo.hovered ? "#3a5ab8" : "#1a1f2e"
+                        border.color: javaModeCombo.hovered ? "#3a5ab8" : StyleTokens.bgCard
                     }
                     contentItem: Text {
                         text: javaModeCombo.displayText
@@ -269,7 +269,7 @@ Item {
                         contentItem: Text {
                             text: modelData
                             font.pixelSize: StyleTokens.fontSizeSm
-                            color: highlighted ? "#e8ecf8" : "#b0b8c8"
+                            color: highlighted ? StyleTokens.textPrimary : "#b0b8c8"
                         }
                         background: Rectangle {
                             color: highlighted ? "#253555" : "#0d1018"
@@ -346,7 +346,7 @@ Item {
                     background: Rectangle {
                         radius: StyleTokens.radiusMd
                         color: "#0d1018"
-                        border.color: javaListCombo.hovered ? "#3a5ab8" : "#1a1f2e"
+                        border.color: javaListCombo.hovered ? "#3a5ab8" : StyleTokens.bgCard
                     }
                     contentItem: Text {
                         text: {
@@ -373,7 +373,7 @@ Item {
                             Text {
                                 text: modelData.label
                                 font.pixelSize: StyleTokens.fontSizeSm
-                                color: highlighted ? "#e8ecf8" : "#b0b8c8"
+                                color: highlighted ? StyleTokens.textPrimary : "#b0b8c8"
                                 Layout.fillWidth: true
                             }
                             Text {
@@ -426,7 +426,7 @@ Item {
                 Rectangle {
                     id: refreshBtn
                     width: 34; height: 34; radius: StyleTokens.radiusMd
-                    color: refreshJavaHover.hovered ? "#1a2848" : "transparent"
+                    color: refreshJavaHover.hovered ? StyleTokens.accentSubtle : "transparent"
                     border.color: StyleTokens.bgCard
                     scale: refreshMa.pressed ? 0.88 : 1.0
                     enabled: root._mode === 1
@@ -568,7 +568,7 @@ Item {
                     Rectangle {
                         id: gcChip
                         implicitWidth: gcLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                        color: gcHover.hovered || gcFlash.running ? "#1a2848" : "#0d1018"
+                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : "#0d1018"
                         border.color: StyleTokens.bgCard
                         scale: gcMa.pressed ? 0.92 : 1.0
                         opacity: root._mode === 0 ? 0.5 : 1.0
@@ -599,7 +599,7 @@ Item {
                             id: gcFlash
                             running: false
                             ColorAnimation { to: "#305080"; duration: 80 }
-                            ColorAnimation { to: "#1a2848"; duration: 300 }
+                            ColorAnimation { to: StyleTokens.accentSubtle; duration: 300 }
                             ColorAnimation { to: "#0d1018"; duration: 200 }
                         }
                     }

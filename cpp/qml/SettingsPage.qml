@@ -65,7 +65,7 @@ Rectangle {
 
                 delegate: Rectangle {
                     width: nav.width - 16; height: 38; radius: StyleTokens.radiusMd
-                    color: nav.currentIndex === index ? "#181c28" : (navMouse.containsMouse ? "#11141c" : "transparent")
+                    color: nav.currentIndex === index ? "#181c28" : (navMouse.containsMouse ? StyleTokens.bgSecondary : "transparent")
                     Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                     scale: navMouse.containsMouse ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -78,7 +78,7 @@ Rectangle {
                             width: 16; height: 16
                         }
                         Text {
-                            text: nav.navLabel(modelData.key); color: nav.currentIndex === index ? "#e8ecf8" : "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd
+                            text: nav.navLabel(modelData.key); color: nav.currentIndex === index ? StyleTokens.textPrimary : "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd
                             Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                             font.weight: nav.currentIndex === index ? Font.DemiBold : Font.Normal
                         }
@@ -203,7 +203,7 @@ Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: fileSrcCard._open ? 148 : 40
                     radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; clip: true
-                    border.color: fileSrcCard._open ? "#5068d8" : "#1a1f2a"; border.width: 1
+                    border.color: fileSrcCard._open ? "#5068d8" : StyleTokens.bgInput; border.width: 1
 
                     Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -242,7 +242,7 @@ Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: listSrcCard._open2 ? 148 : 40
                     radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; clip: true
-                    border.color: listSrcCard._open2 ? "#5068d8" : "#1a1f2a"; border.width: 1
+                    border.color: listSrcCard._open2 ? "#5068d8" : StyleTokens.bgInput; border.width: 1
 
                     Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -378,7 +378,7 @@ Rectangle {
                                 onClicked: Qt.openUrlExternally("https://github.com/xiaole1173/shadow-launcher")
                             }
                             ShadowButton {
-                                accentColor: "#1a2848"
+                                accentColor: StyleTokens.accentSubtle
                                 text: backend && backend.updateChecking ? qsTr("检查中...") : qsTr("检查更新")
                                 Layout.preferredWidth: 74; Layout.preferredHeight: 26
                                 font.pixelSize: StyleTokens.fontSizeSm

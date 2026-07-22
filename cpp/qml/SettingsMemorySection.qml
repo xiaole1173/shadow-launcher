@@ -100,7 +100,7 @@ Item {
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: 48; radius: StyleTokens.radiusMd
             color: allocMode === 0 ? "#181F30" : "#0f111a"
-            border.color: allocMode === 0 ? "#4A8FE7" : "#1a1f2a"
+            border.color: allocMode === 0 ? "#4A8FE7" : StyleTokens.bgInput
             border.width: allocMode === 0 ? 1.5 : 1
             Behavior on color { ColorAnimation { duration: 200 } }
             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -120,7 +120,7 @@ Item {
                     Text {
                         text: qsTr("自动配置")
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: allocMode === 0 ? Font.Medium : Font.Normal
-                        color: allocMode === 0 ? "#e8ecf8" : "#8890a0"
+                        color: allocMode === 0 ? StyleTokens.textPrimary : "#8890a0"
                     }
                 }
                 Text {
@@ -148,7 +148,7 @@ Item {
             id: customRow
             Layout.fillWidth: true; Layout.preferredHeight: allocMode === 1 ? 84 : 48; radius: StyleTokens.radiusMd
             color: allocMode === 1 ? "#181F30" : "#0f111a"
-            border.color: allocMode === 1 ? "#4A8FE7" : "#1a1f2a"
+            border.color: allocMode === 1 ? "#4A8FE7" : StyleTokens.bgInput
             border.width: allocMode === 1 ? 1.5 : 1
             Behavior on color { ColorAnimation { duration: 200 } }
             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -171,7 +171,7 @@ Item {
                     Text {
                         text: qsTr("自定义")
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: allocMode === 1 ? Font.Medium : Font.Normal
-                        color: allocMode === 1 ? "#e8ecf8" : "#8890a0"
+                        color: allocMode === 1 ? StyleTokens.textPrimary : "#8890a0"
                     }
                     Item { Layout.fillWidth: true }
                     Text {
