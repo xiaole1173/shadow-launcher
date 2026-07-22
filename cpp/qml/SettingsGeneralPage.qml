@@ -759,7 +759,7 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 4
                             Label { text: qsTr("文件下载源"); color: root.colorSecondary; font.pixelSize: StyleTokens.fontSizeMd }
-                            DownloadDropdown {
+                            ShadowDropdown {
                                 id: fileSourceDropdown
                                 Layout.fillWidth: true
                                 model: [
@@ -767,6 +767,7 @@ Rectangle {
                                     { text: qsTr("尽量使用官方源"), value: 1 },
                                     { text: qsTr("速度过慢自动切换镜像源"), value: 2 }
                                 ]
+                                labelKey: "text"
                                 currentValue: _fileSource
                                 onValueSelected: function(v) {
                                     _fileSource = v
@@ -780,7 +781,7 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 4
                             Label { text: qsTr("版本列表源"); color: root.colorSecondary; font.pixelSize: StyleTokens.fontSizeMd }
-                            DownloadDropdown {
+                            ShadowDropdown {
                                 id: listSourceDropdown
                                 Layout.fillWidth: true
                                 model: [
@@ -788,6 +789,7 @@ Rectangle {
                                     { text: qsTr("尽量使用官方源"), value: 1 },
                                     { text: qsTr("速度过慢自动切换镜像源"), value: 2 }
                                 ]
+                                labelKey: "text"
                                 currentValue: _listSource
                                 onValueSelected: function(v) {
                                     _listSource = v
