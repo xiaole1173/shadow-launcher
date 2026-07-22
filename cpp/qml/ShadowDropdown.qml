@@ -53,6 +53,9 @@ Rectangle {
     // Placeholder text when currentValue is empty/null
     property string placeholderText: "全部"
 
+    // Whether the dropdown is interactive
+    property bool enabled: true
+
     // Read-only: whether the popup is currently open
     readonly property bool open: popupMenu.visible
 
@@ -89,7 +92,7 @@ Rectangle {
 
     // ── Visual: trigger area ──
     color: (triggerMouse.containsMouse || popupMenu.visible) ? "#1e3260" : "#0c0e14"
-    border.color: (triggerMouse.containsMouse || popupMenu.visible || (currentValue !== "" && currentValue !== null)) ? "#5078e0" : StyleTokens.borderLight
+    border.color: (triggerMouse.containsMouse || popupMenu.visible) ? "#5078e0" : StyleTokens.borderLight
     border.width: 1
 
     Behavior on color { ColorAnimation { duration: 150 } }
@@ -104,7 +107,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             text: _resolvedLabel()
-            color: (currentValue !== "" && currentValue !== null) ? StyleTokens.accentLink : "#788090"
+            color: (currentValue !== "" && currentValue !== null) ? "#b4bac6" : "#788090"
             font.pixelSize: StyleTokens.fontSizeSm
             elide: Text.ElideRight
         }
@@ -121,6 +124,7 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
+            if (!root.enabled) return
             if (popupMenu.visible)
                 popupMenu.close()
             else
@@ -183,7 +187,7 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left: parent.left
                             anchors.leftMargin: 10
-                            text: root._itemLabel(modelData)
+                            text: root._itemValue(modelData) === "" ? root.placeholderText : root._itemLabel(modelData)
                             color: root._itemValue(modelData) === root.currentValue ? StyleTokens.accentHover : "#9094a8"
                             font.pixelSize: StyleTokens.fontSizeSm
                             font.weight: root._itemValue(modelData) === root.currentValue ? Font.DemiBold : Font.Normal

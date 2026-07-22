@@ -54,77 +54,17 @@ Flickable {
                         Text { id: langTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
                     }
                     Item { Layout.fillWidth: true }
-                    ComboBox {
+                    ShadowDropdown {
                         id: langCombo
                         model: ["简体中文（中国大陆）", "繁體中文（香港特別行政區 / 澳門特別行政區）", "繁體中文（中國台灣）"]
-                        property bool _syncBack: false
-                        Component.onCompleted: {
-                            _syncBack = true
-                            currentIndex = (backend && backend.readLanguageFile) ? backend.readLanguageFile() : 0
-                            _syncBack = false
-                        }
-                        onActivated: {
-                            if (_syncBack) return
-                            if (backend) backend.switchLanguage(currentIndex)
-                        }
                         Layout.preferredWidth: 280
-                        implicitHeight: 36
-
-                        // ── Custom dark style ──
-                        background: Rectangle {
-                            radius: StyleTokens.radiusMd; color: langCombo.hovered ? "#252a38" : "#161a24"
-                            border.color: langCombo.hovered ? StyleTokens.accent : StyleTokens.border
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
+                        placeholderText: ""
+                        Component.onCompleted: {
+                            var idx = (backend && backend.readLanguageFile) ? backend.readLanguageFile() : 0
+                            currentValue = model[idx]
                         }
-                        contentItem: Text {
-                            leftPadding: 12; verticalAlignment: Text.AlignVCenter
-                            text: langCombo.displayText; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                            elide: Text.ElideRight
-                        }
-                        indicator: Canvas {
-                            width: 12; height: 12; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                            onPaint: {
-                                var ctx = getContext("2d")
-                                ctx.strokeStyle = langCombo.hovered ? "#8088f0" : "#606478"
-                                ctx.lineWidth = 1.5
-                                ctx.beginPath(); ctx.moveTo(0, 3); ctx.lineTo(6, 9); ctx.lineTo(12, 3); ctx.stroke()
-                            }
-                        }
-                        delegate: ItemDelegate {
-                            width: parent.width
-                            contentItem: Text {
-                                text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                                verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
-                                elide: Text.ElideRight
-                            }
-                            background: Rectangle {
-                                color: highlighted ? "#252a38" : "transparent"
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                            }
-                            highlighted: langCombo.highlightedIndex === index
-                        }
-                        popup: Popup {
-                            y: langCombo.height + 4
-                            width: langCombo.width
-                            implicitHeight: contentItem.implicitHeight + 8
-                            padding: 4
-                            enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "y"; from: langCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
-                            }
-                            exit: Transition {
-                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
-                            }
-                            contentItem: ListView {
-                                clip: true; implicitHeight: contentHeight
-                                model: langCombo.popup.visible ? langCombo.delegateModel : null
-                                currentIndex: langCombo.highlightedIndex
-                            }
-                            background: Rectangle {
-                                radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated
-                            }
+                        onValueSelected: function(v) {
+                            if (backend) backend.switchLanguage(model.indexOf(v))
                         }
                     }
                 }
@@ -149,83 +89,22 @@ Flickable {
                         Text { id: langNewTag; anchors.centerIn: parent; text: qsTr("新增"); font.pixelSize: StyleTokens.fontSizeXs; color: "#70b8ff" }
                     }
                     Item { Layout.fillWidth: true }
-                    ComboBox {
+                    ShadowDropdown {
                         id: langModeCombo
                         model: [qsTr("系统区域（启动时自动检测）"), qsTr("IP 属地（安装时自动调整）"), qsTr("关闭（手动设置）")]
-                        property int _initLangModeIdx: 0
-                        property bool _syncLang: false
-                        Component.onCompleted: {
-                            _syncLang = true
-                            currentIndex = page._initLangModeIdx
-                            _syncLang = false
-                        }
-                        onActivated: {
-                            if (_syncLang) return
-                            backend.setAutoLangModeFromCombo(currentIndex)
-                        }
                         Layout.preferredWidth: 280
-                        implicitHeight: 36
-
-                        background: Rectangle {
-                            radius: StyleTokens.radiusMd; color: langModeCombo.hovered ? "#252a38" : "#161a24"
-                            border.color: langModeCombo.hovered ? StyleTokens.accent : StyleTokens.border
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
+                        placeholderText: ""
+                        Component.onCompleted: {
+                            currentValue = model[page._initLangModeIdx]
                         }
-                        contentItem: Text {
-                            leftPadding: 12; verticalAlignment: Text.AlignVCenter
-                            text: langModeCombo.displayText; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                            elide: Text.ElideRight
-                        }
-                        indicator: Canvas {
-                            width: 12; height: 12; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                            onPaint: {
-                                var ctx = getContext("2d")
-                                ctx.strokeStyle = langModeCombo.hovered ? "#8088f0" : "#606478"
-                                ctx.lineWidth = 1.5
-                                ctx.beginPath(); ctx.moveTo(0, 3); ctx.lineTo(6, 9); ctx.lineTo(12, 3); ctx.stroke()
-                            }
-                        }
-                        delegate: ItemDelegate {
-                            width: parent.width
-                            contentItem: Text {
-                                text: modelData; color: "#d0d4e0"; font.pixelSize: StyleTokens.fontSizeSm
-                                verticalAlignment: Text.AlignVCenter; leftPadding: 12; rightPadding: 12
-                                elide: Text.ElideRight
-                            }
-                            background: Rectangle {
-                                color: highlighted ? "#252a38" : "transparent"
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                            }
-                            highlighted: langModeCombo.highlightedIndex === index
-                        }
-                        popup: Popup {
-                            y: langModeCombo.height + 4
-                            width: langModeCombo.width
-                            implicitHeight: contentItem.implicitHeight + 8
-                            padding: 4
-                            enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "y"; from: langModeCombo.height + 4 - 6; duration: 180; easing.type: Easing.OutCubic }
-                            }
-                            exit: Transition {
-                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120; easing.type: Easing.InCubic }
-                            }
-                            contentItem: ListView {
-                                clip: true; implicitHeight: contentHeight
-                                model: langModeCombo.popup.visible ? langModeCombo.delegateModel : null
-                                currentIndex: langModeCombo.highlightedIndex
-                            }
-                            background: Rectangle {
-                                radius: StyleTokens.radiusMd; color: "#161a24"; border.color: StyleTokens.bgElevated
-                            }
+                        onValueSelected: function(v) {
+                            backend.setAutoLangModeFromCombo(model.indexOf(v))
                         }
                     }
                 }
                 Text {
                     text: {
-                        switch (langModeCombo.currentIndex) {
+                        switch (langModeCombo.model.indexOf(langModeCombo.currentValue)) {
                             case 0: return qsTr("每次启动游戏时根据电脑系统区域自动写入 options.txt") + "（默认识别 zh_CN / zh_HK / zh_TW / ja_JP / ko_KR）"
                             case 1: return qsTr("安装版本后根据 IP 属地自动写入 options.txt，启动时不覆盖")
                             case 2: return qsTr("不自动调整游戏语言，可在 Minecraft 游戏设置中手动选择")
