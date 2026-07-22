@@ -41,41 +41,7 @@ Rectangle {
             onClicked: root.goBack()
         }
 
-        // 刷新按钮 — 紧挨"← 启动"  [DIAGNOSTIC: pink bg for visibility]
-        Rectangle {
-            width: refreshLabel.implicitWidth + 24; height: 32; radius: StyleTokens.radiusMd
-            color: refreshHover.hovered ? StyleTokens.accent : StyleTokens.borderLight
-            border.color: refreshHover.hovered ? "#60A5FA" : "#3a4050"
-            border.width: 1
-            scale: refreshMa.pressed ? 0.88 : (refreshHover.hovered ? 1.08 : 1.0)
-            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
-            Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-            Text {
-                id: refreshLabel
-                anchors.centerIn: parent
-                text: qsTr("⟳ 刷新")
-                color: StyleTokens.textSecondary
-                font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium
-            }
-            HoverHandler { id: refreshHover }
-            ToolTip { visible: refreshHover.hovered; text: qsTr("刷新版本列表"); delay: 500 }
-            MouseArea {
-                id: refreshMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (backend) {
-                        toastManager.show("正在刷新...")
-                        if (mainWindow) mainWindow.pageLoading = true
-                        versionModel.clear()
-                        backend.refreshInstalled()
-                        backend.refreshVersionList()
-                    }
-                }
-            }
-        }
+        RefreshButton { onClicked: root.refreshVersions() }
 
         Text {
             Layout.fillWidth: true
