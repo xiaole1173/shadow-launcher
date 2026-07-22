@@ -90,10 +90,10 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 6
                     Image {
-                        source: "icons/lucide/key.svg"; width: 14; height: 14
+                        source: "icons/lucide/key.svg"; width: 12; height: 12
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("正版登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 0 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("正版登录"); font.pixelSize: StyleTokens.fontSizeSm; color: loginMode === 0 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
             }
@@ -112,10 +112,10 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 6
                     Image {
-                        source: "icons/lucide/user.svg"; width: 14; height: 14
+                        source: "icons/lucide/user.svg"; width: 12; height: 12
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 1 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeSm; color: loginMode === 1 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
             }
@@ -134,10 +134,10 @@ Rectangle {
                 Row {
                     anchors.centerIn: parent; spacing: 6
                     Image {
-                        source: "icons/lucide/globe.svg"; width: 14; height: 14
+                        source: "icons/lucide/globe.svg"; width: 12; height: 12
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeSm; color: loginMode === 2 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 2; if (backend) { backend.lastLoginMode = 2; toastManager.show("已切换至外置登录") } } }
             }
@@ -1278,8 +1278,8 @@ Rectangle {
                     MouseArea { id: verSelectHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { homePage.versionSelectRequested() } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Image { source: "icons/lucide/list.svg"; width: 16; height: 16; }
-                        Text { text: qsTr("版本选择"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textTertiary }
+                        Image { source: "icons/lucide/list.svg"; width: 14; height: 14; }
+                        Text { text: qsTr("版本选择"); font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textTertiary }
                     }
                 }
                 Rectangle {
@@ -1292,8 +1292,8 @@ Rectangle {
                     MouseArea { id: verSettingsHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (isVersionSelected()) { homePage.versionSettingsRequested() } else { if (toastManager) toastManager.show(qsTr("请先选择游戏版本")) } } }
                     RowLayout {
                         anchors.centerIn: parent; spacing: 6
-                        Image { source: "icons/lucide/wrench.svg"; width: 16; height: 16; }
-                        Text { text: qsTr("版本设置"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textTertiary }
+                        Image { source: "icons/lucide/wrench.svg"; width: 14; height: 14; }
+                        Text { text: qsTr("版本设置"); font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textTertiary }
                     }
                 }
             }
