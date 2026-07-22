@@ -129,7 +129,7 @@ Rectangle {
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
         }
-        var q = rpSearchInput.text || ""
+        var q = rpFilterCard.searchText || ""
         var ver = page.rpGameVersion || ""
         // Collect all 3 filter dimensions for backend facets
         var cats = []
@@ -146,7 +146,7 @@ Rectangle {
         rpLoadingMore = true
         page.rpPage++
         var offset = page.rpPage * 20
-        var q = rpSearchInput.text || ""
+        var q = rpFilterCard.searchText || ""
         var ver = page.rpGameVersion || ""
         console.log("[RP-DEBUG] loadNextPage p=", page.rpPage, "offset=", offset)
         backend.searchResourcepacks(q, ver, offset)
@@ -783,7 +783,7 @@ Rectangle {
             if (!backend) return
             page.modSearching = true
             modResultsModel.clear()
-            var q = modInput.text ? modInput.text.trim() : ""
+            var q = modFilterCard.searchText ? modFilterCard.searchText.trim() : ""
             console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", 0, 30)
@@ -859,86 +859,32 @@ Rectangle {
             anchors.margins: 12
             spacing: 8
 
-            // Filter Card
-            Rectangle {
-                Layout.fillWidth: true; height: 130; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
+                        // Filter Card (DownloadFilterCard)
+            DownloadFilterCard {
+                id: modFilterCard
+                searchPlaceholder: qsTr("输入 Mod 名称...")
+                buttonsPosition: 0
+                showPreRelease: true
+                preReleaseActive: page.modShowPreReleases
+                onPreReleaseToggled: function(v) { page.modShowPreReleases = v; modTab.doModSearch() }
+                onSearchRequested: modTab.doModSearch()
+                onResetRequested: function() {
+                    page.modLoader = ""; page.modGameVersion = ""
+                    page.modCategory = ""; page.modEnvironment = ""
+                    modFilterCard.searchText = ""; modResultsModel.clear()
+                    modTab.doModSearch()
+                }
 
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 8
+                content: ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
 
-                    // Row 1: search + buttons
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-
-                        Text { text: qsTr("搜索"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        Rectangle {
-                            Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
-                            color: StyleTokens.bgInput
-                            border.color: modInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
-
-                            TextInput {
-                                id: modInput
-                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: StyleTokens.textPrimary; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
-                                Keys.onReturnPressed: modTab.doModSearch()
-
-                                Text {
-                                    anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("输入 Mod 名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-                                    visible: !modInput.text
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: modSearchBtn2.hovered ? "#5a78e0" : StyleTokens.accentHover
-                            scale: modSearchBtn2.pressed ? 0.92 : (modSearchBtn2.hovered ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
-                            MouseArea {
-                                id: modSearchBtn2; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: modTab.doModSearch()
-                            }
-                        }
-
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: modResetBtn2.hovered ? "#2a2030" : "#1a1420"
-                            border.color: "#3a2840"; border.width: 1
-                            scale: modResetBtn2.pressed ? 0.92 : (modResetBtn2.hovered ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#b090c8"; font.pixelSize: StyleTokens.fontSizeXs }
-                            MouseArea {
-                                id: modResetBtn2; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    page.modLoader = ""; page.modGameVersion = ""
-                                    page.modCategory = ""; page.modEnvironment = ""
-                                    modInput.text = ""; modResultsModel.clear()
-                                    modTab.doModSearch()
-                                }
-                            }
-                        }
-                    }
-
-                    // Row 2: loader + version + environment
+                    // Row 2: loader + version + category + environment
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
 
                         Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
                         ShadowDropdown {
-                            id: modLdrDropdown
-
                             Layout.preferredWidth: 120
                             model: ["", "fabric", "forge", "quilt", "neoforge", "rift", "liteloader"]
                             labelFn: function(v) { return page.modLoaderLabels[v] || "全部" }
@@ -947,37 +893,27 @@ Rectangle {
                         }
 
                         Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
                         ShadowDropdown {
-                            id: modVerDropdown
-
                             Layout.preferredWidth: 120
                             model: {
-            if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
-            var seen = new Set()
-            var groups = []
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i]
-                if (!page.modShowPreReleases && !/^[0-9.]+$/.test(v)) continue
-                var major = v.split(/[.\-]/).slice(0, 2).join(".")
-                if (!seen.has(major)) {
-                    seen.add(major)
-                    groups.push(major)
-                }
-                if (groups.length >= 30) break
-            }
-            return [""].concat(groups)
-        }
+                                if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
+                                var seen = new Set(); var groups = []
+                                for (var i = 0; i < backend.versionIds.length; i++) {
+                                    var v = backend.versionIds[i]
+                                    if (!page.modShowPreReleases && !/^[0-9.]+$/.test(v)) continue
+                                    var major = v.split(/[.\-]/).slice(0, 2).join(".")
+                                    if (!seen.has(major)) { seen.add(major); groups.push(major) }
+                                    if (groups.length >= 30) break
+                                }
+                                return [""].concat(groups)
+                            }
                             labelFn: function(v) { return v ? "MC " + v : "全部" }
                             currentValue: page.modGameVersion
                             onValueSelected: function(v) { page.modGameVersion = v }
                         }
 
                         Text { text: qsTr("类别"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
                         ShadowDropdown {
-                            id: modCatDropdown
-
                             Layout.preferredWidth: 115
                             model: [""].concat(Object.keys(page.modCatLabels))
                             labelFn: function(v) { return page.modCatLabels[v] || "全部" }
@@ -986,10 +922,7 @@ Rectangle {
                         }
 
                         Text { text: qsTr("环境"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
                         ShadowDropdown {
-                            id: modEnvDropdown
-
                             Layout.preferredWidth: 95
                             model: ["", "client", "server"]
                             labelFn: function(v) { return page.modEnvLabels[v] || v || "全部" }
@@ -997,30 +930,9 @@ Rectangle {
                             onValueSelected: function(v) { page.modEnvironment = v }
                         }
                     }
-
-                    // Row 3: pre-release toggle
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Rectangle {
-                            width: modPreTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                            color: modPreTogHov.containsMouse ? (page.modShowPreReleases ? "#282040" : "#1a1e28") : (page.modShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.modShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: modPreTogText
-                                anchors.centerIn: parent
-                                text: page.modShowPreReleases ? qsTr("隐藏测试版") : qsTr("显示测试版")
-                                color: page.modShowPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                            }
-                            MouseArea {
-                                id: modPreTogHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.modShowPreReleases = !page.modShowPreReleases; modTab.doModSearch() }
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
                 }
             }
+            // Results
 
             // Results
             ScrollView {
@@ -1150,7 +1062,7 @@ Rectangle {
             var c = shaderPerformance ? [shaderPerformance] : []
             var d = shaderLoader ? [shaderLoader] : []
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderInput.text.trim(), ver, a.concat(b,c,d), [], [], 0, 50)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], 0, 50)
         }
         function loadMore() {
             if (!backend || shaderSearching || !hasMoreShaders) return
@@ -1160,11 +1072,11 @@ Rectangle {
             var c = shaderPerformance ? [shaderPerformance] : []
             var d = shaderLoader ? [shaderLoader] : []
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderInput.text.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, 50)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, 50)
         }
         function resetFilters() {
             shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
-            page.shaderGameVersion = ""; shaderInput.text = ""
+            page.shaderGameVersion = ""; shaderFilterCard.searchText = ""
             doSearch()
         }
 
@@ -1201,70 +1113,26 @@ Rectangle {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 12; spacing: 8
 
-            // ── Filter Card ──
-            Rectangle {
-                Layout.fillWidth: true; height: 130; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 8
+                        // -- Filter Card (DownloadFilterCard) --
+            DownloadFilterCard {
+                id: shaderFilterCard
+                searchPlaceholder: qsTr("输入光影名称...")
+                buttonsPosition: 0
+                showPreRelease: true
+                preReleaseActive: page.shaderShowPreReleases
+                onPreReleaseToggled: function(v) { page.shaderShowPreReleases = v }
+                onSearchRequested: shaderTab.doSearch()
+                onResetRequested: shaderTab.resetFilters()
 
-                    // Row 1: search + buttons
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-                        Text { text: qsTr("搜索"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-                        Rectangle {
-                            Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
-                            color: StyleTokens.bgInput
-                            border.color: shaderInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
-                            TextInput {
-                                id: shaderInput
-                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: StyleTokens.textPrimary; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
-                                Keys.onReturnPressed: shaderTab.doSearch()
-                                Text {
-                                    anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("输入光影名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-                                    visible: !shaderInput.text
-                                }
-                            }
-                        }
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: sBtnHov.containsMouse ? "#5a78e0" : StyleTokens.accentHover
-                            scale: sBtnHov.pressed ? 0.92 : (sBtnHov.containsMouse ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
-                            MouseArea {
-                                id: sBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: shaderTab.doSearch()
-                            }
-                        }
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: rBtnHov.containsMouse ? "#2a2030" : "#1a1420"
-                            border.color: "#3a2840"; border.width: 1
-                            scale: rBtnHov.pressed ? 0.92 : (rBtnHov.containsMouse ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#b090c8"; font.pixelSize: StyleTokens.fontSizeXs }
-                            MouseArea {
-                                id: rBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: shaderTab.resetFilters()
-                            }
-                        }
-                    }
+                content: ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
 
-                    // Row 2: 风格 + 特性 + 性能 + 加载器 (all in one row)
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
 
                         Text { text: qsTr("风格"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
                         ShadowDropdown {
-                            id: sCatDropdown
-
                             Layout.preferredWidth: 90
                             model: shaderTab.shaderCats
                             valueKey: "slug"
@@ -1274,8 +1142,6 @@ Rectangle {
 
                         Text { text: qsTr("特性"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
                         ShadowDropdown {
-                            id: sFeatDropdown
-
                             Layout.preferredWidth: 110
                             model: shaderTab.shaderFeatures
                             valueKey: "slug"
@@ -1285,8 +1151,6 @@ Rectangle {
 
                         Text { text: qsTr("性能"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
                         ShadowDropdown {
-                            id: sPerfDropdown
-
                             Layout.preferredWidth: 80
                             model: shaderTab.shaderPerfs
                             valueKey: "slug"
@@ -1296,8 +1160,6 @@ Rectangle {
 
                         Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
                         ShadowDropdown {
-                            id: sLdrDropdown
-
                             Layout.preferredWidth: 90
                             model: shaderTab.shaderLoaders
                             valueKey: "slug"
@@ -1306,55 +1168,34 @@ Rectangle {
                         }
                     }
 
-                    // Row 3: 版本 + toggle
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
 
                         Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
-
                         ShadowDropdown {
-                            id: sVerDropdown
-
                             Layout.preferredWidth: 100
                             model: {
-            if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
-            var seen = new Set(); var groups = []
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i]
-                if (!page.shaderShowPreReleases && !/^[0-9.]+$/.test(v)) continue
-                var major = v.split(/[.\-]/).slice(0,2).join(".")
-                if (!seen.has(major)) { seen.add(major); groups.push(major) }
-                if (groups.length >= 30) break
-            }
-            return [""].concat(groups)
-        }
+                                if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
+                                var seen = new Set(); var groups = []
+                                for (var i = 0; i < backend.versionIds.length; i++) {
+                                    var v = backend.versionIds[i]
+                                    if (!page.shaderShowPreReleases && !/^[0-9.]+$/.test(v)) continue
+                                    var major = v.split(/[.\-]/).slice(0,2).join(".")
+                                    if (!seen.has(major)) { seen.add(major); groups.push(major) }
+                                    if (groups.length >= 30) break
+                                }
+                                return [""].concat(groups)
+                            }
                             labelFn: function(v) { return v ? "MC " + v : "全部" }
                             currentValue: page.shaderGameVersion
                             onValueSelected: function(v) { page.shaderGameVersion = v }
-                        }
-
-                        // Show/hide pre-release toggle
-                        Rectangle {
-                            width: preTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                            color: preTogHov.containsMouse ? (page.shaderShowPreReleases ? "#282040" : "#1a1e28") : (page.shaderShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.shaderShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: preTogText
-                                anchors.centerIn: parent
-                                text: page.shaderShowPreReleases ? qsTr("隐藏测试版") : qsTr("显示测试版")
-                                color: page.shaderShowPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                            }
-                            MouseArea {
-                                id: preTogHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.shaderShowPreReleases = !page.shaderShowPreReleases }
-                            }
                         }
 
                         Item { Layout.fillWidth: true }
                     }
                 }
             }
+            // -- Card Grid --
 
             // ── Card Grid ──
             ListView {
@@ -1464,84 +1305,49 @@ Rectangle {
             anchors.margins: 12
             spacing: 8
 
-            // ── Filter Card ──
-            Rectangle {
-                Layout.fillWidth: true; height: 150; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
+                        // -- Filter Card (DownloadFilterCard) --
+            DownloadFilterCard {
+                id: rpFilterCard
+                searchPlaceholder: qsTr("输入资源包名称...")
+                searchText: rpFilterCard.searchText
+                showSourceDropdown: true
+                sourceModel: [
+                    { value: "modrinth", label: "Modrinth (MCIM镜像)" },
+                    { value: "modrinth-direct", label: "Modrinth (直连)" }
+                ]
+                sourceDisplayText: "Modrinth (MCIM)"
+                sourceValue: "modrinth"
+                sourceValueKey: "value"
 
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 8
+                buttonsPosition: 1
+                showPreRelease: true
+                preReleaseActive: page.rpShowPreReleases
+                onPreReleaseToggled: function(v) { page.rpShowPreReleases = v }
+                onSearchRequested: rpPage.doRpSearch()
+                onResetRequested: rpPage.resetFilters()
 
-                    // Row 1: 名称 + 来源
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
+                content: ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
 
-                        Text { text: qsTr("名称"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        Rectangle {
-                            Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
-                            color: StyleTokens.bgInput
-                            border.color: rpSearchInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
-
-                            TextInput {
-                                id: rpSearchInput
-                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: StyleTokens.textPrimary; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
-                                // REMOVED onAccepted trigger — search only on button click (Fix 1)
-
-                                Text {
-                                    anchors.fill: parent; verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("输入资源包名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-                                    visible: !rpSearchInput.text
-                                }
-                            }
-                        }
-
-                        Text { text: qsTr("来源"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: rpSourceDropdown
-
-                            Layout.preferredWidth: 140
-                            model: [
-            { value: "modrinth", label: "Modrinth (MCIM镜像)" },
-            { value: "modrinth-direct", label: "Modrinth (直连)" }
-        ]
-                            displayText: "Modrinth (MCIM)"
-                            currentValue: "modrinth"
-                            onValueSelected: function(v) { /* no action */ }
-                        }
-                    }
-
-                    // Row 2: 版本 + 类型
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
 
                         Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
                         ShadowDropdown {
-                            id: rpVerDropdown
-
                             Layout.preferredWidth: 120
                             model: {
-            if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
-            var seen = new Set()
-            var groups = []
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i]
-                if (!page.rpShowPreReleases && !/^[0-9.]+$/.test(v)) continue
-                var major = v.split(/[.\-]/).slice(0, 2).join(".")
-                if (!seen.has(major)) {
-                    seen.add(major)
-                    groups.push(major)
-                }
-                if (groups.length >= 30) break
-            }
-            return [""].concat(groups)
-        }
+                                if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
+                                var seen = new Set(); var groups = []
+                                for (var i = 0; i < backend.versionIds.length; i++) {
+                                    var v = backend.versionIds[i]
+                                    if (!page.rpShowPreReleases && !/^[0-9.]+$/.test(v)) continue
+                                    var major = v.split(/[.\-]/).slice(0, 2).join(".")
+                                    if (!seen.has(major)) { seen.add(major); groups.push(major) }
+                                    if (groups.length >= 30) break
+                                }
+                                return [""].concat(groups)
+                            }
                             labelFn: function(v) { return v ? "MC " + v : "全部" }
                             currentValue: page.rpGameVersion
                             onValueSelected: function(v) { page.rpGameVersion = v }
@@ -1549,683 +1355,75 @@ Rectangle {
 
                         Text { text: qsTr("筛选"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
 
-                        // Three filter dropdowns: Category | Feature | Resolution
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 6
-
-                            // ── Category dropdown ──
                         ShadowDropdown {
-                            id: rpCatDropdown
-
                             Layout.preferredWidth: 95
                             model: [
-            {key:"", label:"全部"},
-            {key:"combat", label:"战斗"},
-            {key:"cursed", label:"猎奇"},
-            {key:"decoration", label:"装饰"},
-            {key:"modded", label:"模组适配"},
-            {key:"realistic", label:"写实"},
-            {key:"simplistic", label:"简约"},
-            {key:"themed", label:"主题"},
-            {key:"tweaks", label:"微调"},
-            {key:"utility", label:"实用"},
-            {key:"vanilla-like", label:"原版"},
-            {key:"fantasy", label:"幻想"},
-            {key:"modern", label:"现代"},
-            {key:"medieval", label:"中世纪"},
-            {key:"futuristic", label:"未来"},
-            {key:"cartoon", label:"卡通"},
-            {key:"pvp", label:"PVP"},
-            {key:"minigame", label:"小游戏"},
-            {key:"gui", label:"界面"},
-            {key:"font", label:"字体"},
-            {key:"hd", label:"高清"},
-            {key:"photorealism", label:"照片"},
-            {key:"cute", label:"可爱"},
-            {key:"dark", label:"暗色"},
-            {key:"light", label:"亮色"},
-            {key:"clean", label:"简洁"}
-        ]
+                                {key:"", label:"全部"},
+                                {key:"combat", label:"战斗"}, {key:"cursed", label:"猎奇"}, {key:"decoration", label:"装饰"},
+                                {key:"modded", label:"模组适配"}, {key:"realistic", label:"写实"}, {key:"simplistic", label:"简约"},
+                                {key:"themed", label:"主题"}, {key:"tweaks", label:"微调"}, {key:"utility", label:"实用"},
+                                {key:"vanilla-like", label:"原版"}, {key:"fantasy", label:"幻想"}, {key:"modern", label:"现代"},
+                                {key:"medieval", label:"中世纪"}, {key:"futuristic", label:"未来"}, {key:"cartoon", label:"卡通"},
+                                {key:"pvp", label:"PVP"}, {key:"minigame", label:"小游戏"}, {key:"gui", label:"界面"},
+                                {key:"font", label:"字体"}, {key:"hd", label:"高清"}, {key:"photorealism", label:"照片"},
+                                {key:"cute", label:"可爱"}, {key:"dark", label:"暗色"}, {key:"light", label:"亮色"}, {key:"clean", label:"简洁"}
+                            ]
                             valueKey: "key"
                             displayText: {
-            var k = page.rpCategoryFilter
-            var m = { "": "类别", "combat": "战斗", "cursed": "猎奇", "decoration": "装饰",
-                "modded": "模组适配", "realistic": "写实", "simplistic": "简约",
-                "themed": "主题", "tweaks": "微调", "utility": "实用",
-                "vanilla-like": "原版", "fantasy": "幻想", "modern": "现代",
-                "medieval": "中世纪", "futuristic": "未来", "cartoon": "卡通",
-                "pvp": "PVP", "minigame": "小游戏", "gui": "界面", "font": "字体",
-                "hd": "高清", "photorealism": "照片", "cute": "可爱",
-                "dark": "暗色", "light": "亮色", "clean": "简洁" }
-            return m[k] || (k || "类别")
-        }
+                                var k = page.rpCategoryFilter
+                                var m = { "":"类别", "combat":"战斗", "cursed":"猎奇", "decoration":"装饰",
+                                    "modded":"模组适配", "realistic":"写实", "simplistic":"简约",
+                                    "themed":"主题", "tweaks":"微调", "utility":"实用",
+                                    "vanilla-like":"原版", "fantasy":"幻想", "modern":"现代",
+                                    "medieval":"中世纪", "futuristic":"未来", "cartoon":"卡通",
+                                    "pvp":"PVP", "minigame":"小游戏", "gui":"界面", "font":"字体",
+                                    "hd":"高清", "photorealism":"照片", "cute":"可爱",
+                                    "dark":"暗色", "light":"亮色", "clean":"简洁" }
+                                return m[k] || (k || "类别")
+                            }
                             currentValue: page.rpCategoryFilter
                             onValueSelected: function(v) { page.rpCategoryFilter = v }
                         }
 
-                            // ── Feature dropdown ──
                         ShadowDropdown {
-                            id: rpFeatDropdown
-
                             Layout.preferredWidth: 95
                             model: [
-            {key:"", label:"全部"},
-            {key:"audio", label:"音频"},
-            {key:"blocks", label:"方块"},
-            {key:"core-shaders", label:"核心着色器"},
-            {key:"entities", label:"实体"},
-            {key:"environment", label:"环境"},
-            {key:"equipment", label:"装备"},
-            {key:"fonts", label:"字体"},
-            {key:"gui", label:"图形界面"},
-            {key:"items", label:"物品"},
-            {key:"locale", label:"本地化"},
-            {key:"models", label:"模型"},
-            {key:"minecraft", label:"Minecraft"}
-        ]
+                                {key:"", label:"全部"},
+                                {key:"audio", label:"音频"}, {key:"blocks", label:"方块"},
+                                {key:"core-shaders", label:"核心着色器"}, {key:"entities", label:"实体"},
+                                {key:"environment", label:"环境"}, {key:"equipment", label:"装备"},
+                                {key:"fonts", label:"字体"}, {key:"gui", label:"图形界面"},
+                                {key:"items", label:"物品"}, {key:"locale", label:"本地化"},
+                                {key:"models", label:"模型"}, {key:"minecraft", label:"Minecraft"}
+                            ]
                             valueKey: "key"
                             displayText: {
-            var k = page.rpFeatureFilter
-            var m = { "audio": "音频", "blocks": "方块", "core-shaders": "核心着色器",
-                "entities": "实体", "environment": "环境", "equipment": "装备",
-                "fonts": "字体", "gui": "图形界面", "items": "物品",
-                "locale": "本地化", "models": "模型", "minecraft": "Minecraft" }
-            return k ? (m[k] || k) : "功能"
-        }
+                                var k = page.rpFeatureFilter
+                                var m = { "audio":"音频", "blocks":"方块", "core-shaders":"核心着色器",
+                                    "entities":"实体", "environment":"环境", "equipment":"装备",
+                                    "fonts":"字体", "gui":"图形界面", "items":"物品",
+                                    "locale":"本地化", "models":"模型", "minecraft":"Minecraft" }
+                                return k ? (m[k] || k) : "功能"
+                            }
                             currentValue: page.rpFeatureFilter
                             onValueSelected: function(v) { page.rpFeatureFilter = v }
                         }
 
-                            // ── Resolution dropdown ──
                         ShadowDropdown {
-                            id: rpResDropdown
-
                             Layout.preferredWidth: 95
                             model: [
-            {key:"", label:"全部"},
-            {key:"8x", label:"8x"},
-            {key:"16x", label:"16x"},
-            {key:"32x", label:"32x"},
-            {key:"64x", label:"64x"},
-            {key:"128x", label:"128x"},
-            {key:"256x", label:"256x"},
-            {key:"512x", label:"512x"}
-        ]
+                                {key:"", label:"全部"},
+                                {key:"8x", label:"8x"}, {key:"16x", label:"16x"},
+                                {key:"32x", label:"32x"}, {key:"64x", label:"64x"},
+                                {key:"128x", label:"128x"}, {key:"256x", label:"256x"},
+                                {key:"512x", label:"512x"}
+                            ]
                             valueKey: "key"
                             displayText: page.rpResolutionFilter || "分辨率"
                             currentValue: page.rpResolutionFilter
                             onValueSelected: function(v) { page.rpResolutionFilter = v }
                         }
-                        }
-                    }
-
-                    // Row 2.5: Pre-release toggle — FIX 3: moved below version/type row, left-aligned
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Rectangle {
-                            width: rpPreTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                            color: rpPreTogHov.containsMouse ? (page.rpShowPreReleases ? "#282040" : "#1a1e28") : (page.rpShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.rpShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: rpPreTogText
-                                anchors.centerIn: parent
-                                text: page.rpShowPreReleases ? qsTr("隐藏测试版") : qsTr("显示测试版")
-                                color: page.rpShowPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                            }
-                            MouseArea {
-                                id: rpPreTogHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    // Row 3: Buttons
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Item { Layout.fillWidth: true }
-
-                        Rectangle {
-                            width: 72; height: 28; radius: StyleTokens.radiusSm
-                            color: StyleTokens.accentHover
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm }
-                            MouseArea {
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                // FIX 1: Search button — the ONLY trigger for loadRpFirstPage() from filter changes
-                                onClicked: loadRpFirstPage()
-                            }
-                        }
-
-                        Rectangle {
-                            width: 72; height: 28; radius: StyleTokens.radiusSm
-                            color: rpResetHov.hovered ? "#252a38" : "#151922"
-                            border.color: StyleTokens.bgHover; border.width: 1
-                            visible: page.rpCategoryFilter || page.rpFeatureFilter || page.rpResolutionFilter || page.rpGameVersion || rpSearchInput.text
-                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm }
-                            MouseArea {
-                                id: rpResetHov; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    page.rpCategoryFilter = ""
-                                    page.rpFeatureFilter = ""
-                                    page.rpResolutionFilter = ""
-                                    page.rpGameVersion = ""
-                                    rpSearchInput.text = ""
-                                    // FIX 1: Clear all filters, then trigger search
-                                    loadRpFirstPage()
-                                }
-                            }
-                        }
                     }
                 }
             }
-
-            Text {
-                text: qsTr("资源包 | 来源: MCIM (mcimirror.top) | ") + (rpTotalHits || rpResultsModel.count || 0) + " 个结果"
-                color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-            }
-            // ── Results: vertical full-width cards ──
-            ScrollView {
-                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                ListView {
-                    id: rpListView
-                    anchors.fill: parent; spacing: 6
-                    model: rpResultsModel
-                    cacheBuffer: 200
-
-                    // Footer: load more indicator
-                    footer: Rectangle {
-                        width: rpListView.width; height: rpHasMore ? 40 : 0
-                        color: "transparent"; visible: rpHasMore
-                        Text {
-                            anchors.centerIn: parent
-                            text: rpLoadingMore ? "加载中..." : "加载更多"
-                            color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeSm
-                        }
-                        MouseArea {
-                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!rpLoadingMore && rpHasMore) loadNextRpPage() }
-                        }
-                    }
-
-                    // Auto-load when scrolled near bottom
-                    onContentYChanged: {
-                        if (!rpLoadingMore && rpHasMore && rpListView.count > 0) {
-                            var bottomEdge = contentHeight - height
-                            if (contentY >= bottomEdge - 100) {
-                                loadNextRpPage()
-                            }
-                        }
-                    }
-
-                    delegate: DownloadCard {
-                        width: rpListView.width - 8
-                        title: model.title || ""
-                        description: model.desc || ""
-                        iconUrl: model.icon || ""
-                        slug: model.slug || ""
-                        downloads: model.downloads || 0
-                        gameVersions: model.versionStr || ""
-                        dateModified: model.updated || ""
-                        categoriesJson: model.categories || "[]"
-                        featuresJson: model.features || "[]"
-                        resolutionsJson: model.resolutions || "[]"
-                        onClicked: {
-                            console.log("[RP-DEBUG] card clicked:", model.slug)
-                            var iconUrl = (model.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                            page._rpDetailIconUrl = iconUrl
-                            page._rpDetailAuthor = model.author || ""
-                            page._rpDetailDesc = model.desc || ""
-                            page._rpDetailSlug = model.slug
-                            page._rpDetailTitle = model.title
-                            page._rpDetailDownloads = model.downloads || 0
-                            page._rpDetailUpdated = model.updated || ""
-                            console.info("[UI] 打开 资源包详情 slug=" + model.slug)
-                            page._showRpDetail = true
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-
-    // ════════════════════════════════════════════
-    // Shared state (stands outside Item scope)
-    // ════════════════════════════════════════════
-    ListModel { id: modResultsModel }
-    ListModel { id: shaderResultsModel }
-    ListModel { id: rpResultsModel }
-
-    // Mod & Shader state
-    property bool modSearching: false
-    property var modDownloadingSlugs: ({})  // set<string> tracking slugs being downloaded
-    property var shaderDownloadingSlugs: ({})
-
-
-    // Label maps for dropdowns (on root page for id-based access)
-    property var modLoaderLabels: ({
-        "": "全部", "fabric": "Fabric", "forge": "Forge",
-        "quilt": "Quilt", "neoforge": "NeoForge", "rift": "Rift", "liteloader": "LiteLoader"
-    })
-    property var modCatLabels: ({
-        "adventure": "冒险类", "cursed": "猎奇诡异类", "decoration": "装饰类",
-        "economy": "经济系统类", "equipment": "装备武器类", "food": "食物食材类",
-        "game-mechanics": "游戏机制类", "library": "前置依赖库", "magic": "魔法类",
-        "management": "管理辅助类", "minigame": "迷你小游戏类", "mobs": "生物怪物类",
-        "optimization": "性能优化类", "social": "社交交互类", "storage": "仓储存储类",
-        "technology": "科技工业类", "transportation": "交通载具类", "utility": "实用工具类",
-        "world-generation": "世界生成类"
-    })
-    property var modEnvLabels: ({
-        "": "全部", "required": "客户端", "optional": "客户端+服务端", "unsupported": "纯服务端"
-    })
-    property string installingRpName: ""
-
-    Connections {
-        target: backend
-
-        function onResourcepackSearchCompleted(results, totalHits) { console.log('[RP-DEBUG] >>> SIGNAL RECEIVED, enter handler'); try {
-            console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
-            if (!results || results.length === 0) {
-                console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
-                page.rpHasMore = false
-                return
-            }
-            page.rpTotalHits = totalHits
-            page.rpLoadingMore = false
-
-            var isFirstPage = (page.rpPage === 0)
-            if (isFirstPage) {
-                rpResultsModel.clear()
-                page.rpHasMore = (totalHits > 20)
-                if (page.mainWindow && page.mainWindow.loadingBar) {
-                    page.mainWindow.loadingBar.opacity = 0
-                }
-            } else {
-                page.rpHasMore = ((page.rpPage + 1) * 20 < totalHits)
-            }
-
-            var slugs = []
-            var catFilter = page.rpCategoryFilter.toLowerCase()
-            var featFilter = page.rpFeatureFilter.toLowerCase()
-            var resFilter = page.rpResolutionFilter.toLowerCase()
-            for (var i = 0; i < results.length; i++) {
-                var r = results[i]
-                // Filter by category
-                if (catFilter) {
-                    var cats = r.categories || []
-                    var hasCat = false
-                    for (var c = 0; c < cats.length; c++) {
-                        if (String(cats[c]).toLowerCase() === catFilter) { hasCat = true; break }
-                    }
-                    if (!hasCat) continue
-                }
-                // Filter by feature
-                if (featFilter) {
-                    var feats = r.features || []
-                    var hasFeat = false
-                    for (var f = 0; f < feats.length; f++) {
-                        if (String(feats[f]).toLowerCase() === featFilter) { hasFeat = true; break }
-                    }
-                    if (!hasFeat) continue
-                }
-                // Filter by resolution
-                if (resFilter) {
-                    var resos = r.resolutions || []
-                    // Also check categories for resolution patterns (safety net)
-                    var resosFromCats = (r.categories && resFilter) ? r.categories.filter(function(x) { return String(x).toLowerCase() === resFilter }) : []
-                    var allResos = resos.concat(resosFromCats)
-                    var hasRes = false
-                    for (var x = 0; x < allResos.length; x++) {
-                        if (String(allResos[x]).toLowerCase() === resFilter) { hasRes = true; break }
-                    }
-                    if (!hasRes) continue
-                }
-                slugs.push(r.slug)
-                var rpIconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                if (rpIconUrl && backend) {
-                    rpIconUrl = backend.resolveRpIconUrl(rpIconUrl)
-                }
-                rpResultsModel.append({
-                    slug: r.slug || "",
-                    title: r.title || "",
-                    desc: r.desc || r.description || "",
-                    icon: rpIconUrl,
-                    downloads: r.downloads || 0,
-                    categories: JSON.stringify(r.categories || []),
-                    features: JSON.stringify(r.features || []),
-                    resolutions: JSON.stringify(r.resolutions || []),
-                    updated: r.updated || "",
-                    author: r.author || "",
-                    source: r.source || "Modrinth",
-                    chips: "",
-                    versionStr: ""
-                })
-            }
-            console.log("[RP-DEBUG]", page.rpDebugSeq, "model now", rpResultsModel.count, "/", totalHits)
-            if (backend && slugs.length > 0) {
-                backend.fetchResourcepackVersions(slugs)
-            }
-        } catch(e) { console.log('[RP-DEBUG] searchCompleted ERROR:', e.message); page.rpLoadingMore = false }
-        }
-
-        function onResourcepackSearchFailed(error) {
-            console.log("[resourcepack] search FAILED:", error)
-            toastManager.show("资源包搜索失败: " + error)
-        }
-
-        function onResourcepackDownloadFinished(slug, success, filePath) {
-            console.log("[resourcepack] download:", slug, "success:", success, "path:", filePath)
-            page.installingMod = false
-            page.installingModName = ""
-            if (success) toastManager.show("资源包已安装: " + slug)
-        }
-
-        function onResourcepackVersionsLoaded(data) {
-            console.log("[resourcepack] versions loaded, keys:", data ? Object.keys(data).length : 0)
-            if (data) {
-                // Set chips on model items (for cards already rendered)
-                var slugs = Object.keys(data)
-                for (var s = 0; s < slugs.length; s++) {
-                    var slug = slugs[s]
-                    var vers = data[slug]
-                    var chips = []
-                    var maxChips = Math.min(vers.length, 6)
-                    for (var j = 0; j < maxChips; j++) {
-                        chips.push({text: vers[j], color: "#90a0c8"})
-                    }
-                    if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: StyleTokens.accentHover})
-                    var chipsJson = JSON.stringify(chips)
-                    for (var i = 0; i < rpResultsModel.count; i++) {
-                        if (rpResultsModel.get(i).slug === slug) {
-                            rpResultsModel.setProperty(i, "chips", chipsJson)
-                            break
-                        }
-                    }
-                }
-            }
-        }
-
-        function onResourcepackVersionsPartial(slug, versions, details) {
-            console.log("[RP-DEBUG]", page.rpDebugSeq, "PARTIAL", slug, "vers=", versions.length, "modelCount=", rpResultsModel.count)
-            var chips = []
-            var maxChips = Math.min(versions.length, 6)
-            for (var j = 0; j < maxChips; j++) {
-                chips.push({text: versions[j], color: "#90a0c8"})
-            }
-            if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: StyleTokens.accentHover})
-            var chipsJson = JSON.stringify(chips)
-
-            var found = false
-            for (var i = 0; i < rpResultsModel.count; i++) {
-                if (rpResultsModel.get(i).slug === slug) {
-                    console.log("[RP-DEBUG]", page.rpDebugSeq, "SET chips on index", i, "slug=", slug, "chipsJson len=", chipsJson.length)
-                    rpResultsModel.setProperty(i, "chips", chipsJson)
-                    rpResultsModel.setProperty(i, "versionStr", versions.length > 0 ? versions.join(",") : "")
-                    found = true
-                    break
-                }
-            }
-            if (!found) {
-                console.log("[RP-DEBUG]", page.rpDebugSeq, "WARN: slug not found in model:", slug)
-            }
-        }
-
-        function onResourcepackVersionsProgress(done, total) {
-            console.log("[RP-DEBUG]", page.rpDebugSeq, "progress", done, "/", total)
-            if (page.mainWindow && page.mainWindow.loadingBar) {
-                page.mainWindow.loadingBar.opacity = (done < total) ? 1 : 0
-            }
-        }
-
-        function onResourceDownloadProgress(completed, total, fileName) {
-            if (page.installingRpName) {
-                var pct = total > 0 ? Math.round(completed / total * 100) : 0
-                console.log("[resourcepack] download progress:", page.installingRpName, completed, "/", total, "(" + pct + "%)")
-                toastManager.show("下载中 " + page.installingRpName + ": " + pct + "%")
-                if (page.mainWindow && page.mainWindow.loadingBar) {
-                    page.mainWindow.loadingBar.opacity = (completed < total) ? 1 : 0
-                }
-            }
-        }
-
-        function onResourceDownloadDone(success) {
-            if (page.installingRpName) {
-                console.log("[resourcepack] download done:", page.installingRpName, "success:", success)
-                toastManager.show(success ? ("下载完成: " + page.installingRpName) : ("下载失败: " + page.installingRpName))
-                page.installingRpName = ""
-                if (page.mainWindow && page.mainWindow.loadingBar) {
-                    page.mainWindow.loadingBar.opacity = 0
-                }
-            }
-        }
-
-        function onLogMessage(msg) {
-            if (msg.indexOf("[MODRINTH") >= 0) {
-                console.log("[resourcepack] " + msg)
-            }
-        }
-    }
-
-    // ── Resource Pack Detail (extracted to ResourcePackDetailPage.qml) ──
-    property bool _showRpDetail: false
-    property string _rpDetailSlug: ""
-    property string _rpDetailTitle: ""
-    property string _rpDetailIconUrl: ""
-    property string _rpDetailAuthor: ""
-    property string _rpDetailDesc: ""
-    property int _rpDetailDownloads: 0
-    property string _rpDetailUpdated: ""
-
-    // ── RP Detail Overlay ──
-    Rectangle {
-        id: rpDetailOverlay
-        anchors.fill: parent
-        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
-        z: 10
-        opacity: page._showRpDetail ? 1 : 0
-        visible: page._showRpDetail
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-        // Exit fade-out animation
-        SequentialAnimation {
-            id: rpExitAnim
-            NumberAnimation { target: rpDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-            ScriptAction { script: { page._showRpDetail = false; rpDetailLoader._keepActive = false } }
-        }
-
-        Loader {
-            id: rpDetailLoader
-            anchors.fill: parent
-            property bool _keepActive: false
-            active: page._showRpDetail || _keepActive
-            source: active ? "ResourcePackDetailPage.qml" : ""
-
-            onLoaded: {
-                _keepActive = true
-                if (item) {
-                    item.goBack.connect(function() { rpExitAnim.start() })
-                    item.backend = backend
-                    item.toastManager = toastManager
-                    item.mainWindow = mainWindow
-                    item.rpDetailSlug = page._rpDetailSlug
-                    item.rpDetailTitle = page._rpDetailTitle
-                    item.rpDetailIconUrl = page._rpDetailIconUrl
-                    item.rpDetailAuthor = page._rpDetailAuthor
-                    item.rpDetailDesc = page._rpDetailDesc
-                    item.rpDetailDownloads = page._rpDetailDownloads
-                    item.rpDetailUpdated = page._rpDetailUpdated
-                }
-            }
-
-            Connections {
-                target: page
-                function on_ShowRpDetailChanged() {
-                    if (page._showRpDetail) {
-                        rpDetailOverlay.opacity = Qt.binding(function() { return page._showRpDetail ? 1 : 0 })
-                    } else {
-                        rpUnloadTimer.start()
-                    }
-                }
-            }
-
-            Timer {
-                id: rpUnloadTimer
-                interval: 500
-                onTriggered: { if (!page._showRpDetail) rpDetailLoader._keepActive = false }
-            }
-        }
-    }
-
-    // ── Mod Detail (extracted to ModDetailPage.qml) ──
-    property bool _showModDetail: false
-    property string _modDetailSlug: ""
-    property string _modDetailTitle: ""
-    property string _modDetailDesc: ""
-    property string _modDetailIcon: ""
-
-    // ── Mod Detail Overlay ──
-    Rectangle {
-        id: modDetailOverlay
-        anchors.fill: parent
-        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
-        z: 10
-        opacity: page._showModDetail ? 1 : 0
-        visible: page._showModDetail
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-        // Exit fade-out animation
-        SequentialAnimation {
-            id: modExitAnim
-            NumberAnimation { target: modDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-            ScriptAction { script: { page._showModDetail = false; modDetailLoader._keepActive = false } }
-        }
-
-        Loader {
-            id: modDetailLoader
-            anchors.fill: parent
-            property bool _keepActive: false
-            active: page._showModDetail || _keepActive
-            source: active ? "ModDetailPage.qml" : ""
-
-            onLoaded: {
-                _keepActive = true
-                if (item) {
-                    item.goBack.connect(function() { modExitAnim.start() })
-                    item.backend = backend
-                    item.toastManager = toastManager
-                    item.mainWindow = mainWindow
-                    item.modDetailSlug = page._modDetailSlug
-                    item.modDetailTitle = page._modDetailTitle
-                    item.modDetailDesc = page._modDetailDesc
-                    item.modDetailIcon = page._modDetailIcon
-                }
-            }
-
-            Connections {
-                target: page
-                function on_ShowModDetailChanged() {
-                    if (page._showModDetail) {
-                        modDetailOverlay.opacity = Qt.binding(function() { return page._showModDetail ? 1 : 0 })
-                    } else {
-                        modUnloadTimer.start()
-                    }
-                }
-            }
-
-            Timer {
-                id: modUnloadTimer
-                interval: 500
-                onTriggered: { if (!_showModDetail) modDetailLoader._keepActive = false }
-            }
-        }
-    }
-
-    // ── Shader Detail (ShaderDetailPage.qml) ──
-    property bool _showShaderDetail: false
-    property string _shaderDetailSlug: ""
-    property string _shaderDetailTitle: ""
-    property string _shaderDetailDesc: ""
-    property string _shaderDetailIcon: ""
-
-    Rectangle {
-        id: shaderDetailOverlay
-        anchors.fill: parent
-        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
-        z: 10
-        opacity: page._showShaderDetail ? 1 : 0
-        visible: page._showShaderDetail
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-        SequentialAnimation {
-            id: shaderExitAnim
-            NumberAnimation { target: shaderDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-            ScriptAction { script: { page._showShaderDetail = false; shaderDetailLoader._keepActive = false } }
-        }
-
-        Loader {
-            id: shaderDetailLoader
-            anchors.fill: parent
-            property bool _keepActive: false
-            active: page._showShaderDetail || _keepActive
-            source: active ? "ShaderDetailPage.qml" : ""
-
-            onLoaded: {
-                _keepActive = true
-                if (item) {
-                    item.backend = backend
-                    item.toastManager = toastManager
-                    item.mainWindow = mainWindow
-                    item.shaderDetailSlug = page._shaderDetailSlug
-                    item.shaderDetailTitle = page._shaderDetailTitle
-                    item.shaderDetailDesc = page._shaderDetailDesc
-                    item.shaderDetailIcon = page._shaderDetailIcon
-                    item.goBack.connect(function() {
-                        shaderExitAnim.start()
-                    })
-                }
-            }
-
-            Connections {
-                target: page
-                function on_ShowShaderDetailChanged() {
-                    if (page._showShaderDetail) {
-                        shaderDetailOverlay.opacity = Qt.binding(function() { return page._showShaderDetail ? 1 : 0 })
-                    } else {
-                        shaderUnloadTimer.start()
-                    }
-                }
-            }
-
-            Timer {
-                id: shaderUnloadTimer
-                interval: 500
-                onTriggered: { if (!page._showShaderDetail) shaderDetailLoader._keepActive = false }
-            }
-        }
-    }
-
-    // ════════════════════════════════════════════
-    // TAB 4: Java 下载
-    // ════════════════════════════════════════════
-    JavaPage {
-        id: javaPage
-        anchors.top: tabBar.bottom
-        anchors.topMargin: 8
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        opacity: page.currentTab === 4 ? 1 : 0
-        enabled: page.currentTab === 4
-        visible: opacity > 0
-        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-        javaBackend: backend ? backend.javaBackend() : null
-    }
-
-}
+            // -- Card Grid --
