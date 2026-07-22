@@ -34,14 +34,13 @@ Rectangle {
     color: hovered ? "#121620" : "#0e1018"
     border.color: hovered ? StyleTokens.accentHover : StyleTokens.bgInput
     border.width: hovered ? 1.5 : 1
-    scale: hovered ? 1.01 : 1.0
+    scale: 1.0
 
     opacity: 0
     Component.onCompleted: opacity = 1
 
     Behavior on color { ColorAnimation { duration: 150 } }
     Behavior on border.color { ColorAnimation { duration: 150 } }
-    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
     // ── 公共 API ──
@@ -158,25 +157,38 @@ Rectangle {
                 id: tagSection
                 Layout.fillWidth: true
                 spacing: 3
-                visible: categories.length > 0 || features.length > 0 || resolutions.length > 0
+                visible: _catTags.length > 0 || _featTags.length > 0 || _resTags.length > 0
 
-                readonly property var categories: parseJSON(root.categoriesJson)
-                readonly property var features: parseJSON(root.featuresJson)
-                readonly property var resolutions: parseJSON(root.resolutionsJson)
+                property var _catTags: []
+                property var _featTags: []
+                property var _resTags: []
+
+                function refreshTags() {
+                    _catTags = parseJSON(root.categoriesJson).map(function(t){ return root.translateCategory(t) })
+                    _featTags = parseJSON(root.featuresJson).map(function(t){ return root.translateFeature(t) })
+                    _resTags = parseJSON(root.resolutionsJson)
+                }
+
+                Connections {
+                    target: root
+                    function onCategoriesJsonChanged() { tagSection.refreshTags() }
+                    function onFeaturesJsonChanged() { tagSection.refreshTags() }
+                    function onResolutionsJsonChanged() { tagSection.refreshTags() }
+                }
 
                 DownloadCardTagRow {
-                    visible: tagSection.categories.length > 0
-                    tags: tagSection.categories.map(function(t){ return root.translateCategory(t) })
+                    visible: tagSection._catTags.length > 0
+                    tags: tagSection._catTags
                     tagBg: "#151922"; tagBorder: StyleTokens.bgHover; tagColor: "#788090"
                 }
                 DownloadCardTagRow {
-                    visible: tagSection.features.length > 0
-                    tags: tagSection.features.map(function(t){ return root.translateFeature(t) })
+                    visible: tagSection._featTags.length > 0
+                    tags: tagSection._featTags
                     tagBg: "#1a1428"; tagBorder: "#382848"; tagColor: "#a878c8"
                 }
                 DownloadCardTagRow {
-                    visible: tagSection.resolutions.length > 0
-                    tags: tagSection.resolutions
+                    visible: tagSection._resTags.length > 0
+                    tags: tagSection._resTags
                     tagBg: "#282218"; tagBorder: "#504828"; tagColor: "#c8a860"
                 }
             }
