@@ -1,77 +1,87 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Controls.Basic
-import QtQuick.Layouts
-
-// SearchBox — 统一下载页/设置页搜索框组件
-//
-// 用法:
+// SearchBox.qml — 通用搜索框组件
+// 样式：28px 高度、bgInput 背景、activeFocus 高亮边框、右侧可选图标
+// 使用：
 //   SearchBox {
 //       id: mySearch
-//       placeholderText: qsTr("输入名称...")
+//       placeholderText: qsTr("搜索...")
 //       onAccepted: doSearch()
 //   }
-//
-// 可选:
-//   SearchBox {
-//       showIcon: true   // 左侧放大镜图标
-//       width: 200       // 固定宽度 (默认 Layout.fillWidth: true)
-//       text: bindingToSomeText
-//   }
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Rectangle {
     id: root
 
-    // ── 公开 API ──
-    property alias text: input.text
+    // ── 公开属性 ──
+    property alias text: searchInput.text
     property alias placeholderText: placeholder.text
-    property alias input: input
-    property bool showIcon: false
+    property alias input: searchInput
 
-    // ── 外观 ──
+    // 可选右侧图标（如搜索图标），为 null 时不显示
+    property var icon: null
+
+    // ── 信号 ──
+    signal accepted()           // 回车键按下
+    signal textChanged(string newText)
+
+    // ── 样式 ──
     Layout.fillWidth: true
-    implicitHeight: 28
+    height: 28
     radius: StyleTokens.radiusSm
     color: StyleTokens.bgInput
-    border.color: input.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
+    border.color: searchInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
     border.width: 1
+
+    Behavior on color { ColorAnimation { duration: 200 } }
     Behavior on border.color { ColorAnimation { duration: 200 } }
 
-    // ── 搜索图标 (可选) ──
-    Image {
-        id: iconImg
-        source: "icons/lucide/search.svg"
-        width: 14; height: 14
-        anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-        visible: root.showIcon
-    }
-
-    // ── 输入框 ──
+    // ── 文本输入 ──
     TextInput {
-        id: input
+        id: searchInput
         anchors.fill: parent
-        anchors.leftMargin: root.showIcon ? 32 : 8
+        anchors.leftMargin: 8
         anchors.rightMargin: 8
         color: StyleTokens.textPrimary
         verticalAlignment: TextInput.AlignVCenter
         font.pixelSize: StyleTokens.fontSizeSm
+        selectByMouse: true
+
         Keys.onReturnPressed: root.accepted()
+
+        onTextChanged: root.textChanged(searchInput.text)
+
+        // ── 占位文字 ──
+        Text {
+            id: placeholder
+            anchors.fill: parent
+            verticalAlignment: Text.AlignVCenter
+            color: StyleTokens.textMuted
+            font.pixelSize: StyleTokens.fontSizeSm
+            visible: !searchInput.text
+        }
     }
 
-    // ── 占位符 ──
-    Text {
-        id: placeholder
-        anchors.left: parent.left
-        anchors.leftMargin: root.showIcon ? 32 : 8
+    // ── 可选右侧图标（如搜索图标） ──
+    Loader {
+        anchors.right: parent.right
+        anchors.rightMargin: 4
         anchors.verticalCenter: parent.verticalCenter
-        text: qsTr("搜索...")
-        color: StyleTokens.textMuted
-        font.pixelSize: StyleTokens.fontSizeSm
-        visible: !input.text
+        sourceComponent: iconComponent
+        active: icon !== null
     }
 
-    // ── 信号 ──
-    signal accepted()
+    Component {
+        id: iconComponent
+        Rectangle {
+            width: 20; height: 20; radius: 4
+            color: "transparent"
+            Text {
+                anchors.centerIn: parent
+                text: root.icon || ""
+                color: StyleTokens.textMuted
+                font.pixelSize: StyleTokens.fontSizeMd
+            }
+        }
+    }
 }
