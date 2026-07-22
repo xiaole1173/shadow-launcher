@@ -37,25 +37,8 @@ Rectangle {
         height: 44
         spacing: 8
 
-        Rectangle {
-            width: backText.implicitWidth + 20; height: 32; radius: StyleTokens.radiusMd
-            color: backArea.containsMouse ? "#1A222D" : "transparent"
-            Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-            Text {
-                id: backText
-                anchors.centerIn: parent
-                text: qsTr("← 启动")
-                color: backArea.containsMouse ? StyleTokens.accent : "#B4BAC6"
-                font.pixelSize: StyleTokens.fontSizeMd
-                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-            }
-            MouseArea {
-                id: backArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.goBack()
-            }
+        BackButton {
+            onClicked: root.goBack()
         }
 
         // 刷新按钮 — 紧挨"← 启动"  [DIAGNOSTIC: pink bg for visibility]

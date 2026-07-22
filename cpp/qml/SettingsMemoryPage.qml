@@ -91,8 +91,7 @@ Rectangle {
             // 标题 + 返回
             RowLayout {
                 Layout.fillWidth: true; Layout.topMargin: 16; Layout.leftMargin: 20; Layout.rightMargin: 20
-                Text { id: backBtn; text: "← 返回"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textTertiary
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.goBack() } }
+                BackButton { onClicked: root.goBack() }
                 Item { Layout.fillWidth: true }
             }
 

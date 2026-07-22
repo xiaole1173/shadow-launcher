@@ -195,44 +195,19 @@ Rectangle {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
 
             // Back button — InstallPage style
-            Rectangle {
-                id: backBtnRect
-                width: backLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                color: backMouse.containsMouse ? "#1a2440" : "transparent"
-                Behavior on color { ColorAnimation { duration: 150 } }
-
-                property real _eScale: 1.0
-                scale: _eScale
-                Timer { id: backRestoreTimer; interval: 120
-                    onTriggered: { backBtnRect._eScale = 1.0 }
-                }
-                Behavior on _eScale {
-                    SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 }
-                }
-
-                Text {
-                    id: backLabel; anchors.centerIn: parent
-                    text: "\u2190 \u8fd4\u56de"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium
-                    color: backMouse.containsMouse ? "#6080e8" : "#a0a8c0"
-                }
-                MouseArea {
-                    id: backMouse; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        backBtnRect._eScale = 0.92
-                        backRestoreTimer.restart()
-
-                        var stack = modNavStack || []
-                        if (stack.length > 0) {
-                            var prev = stack.pop()
-                            modNavStack = stack
-                            modDetailSlug = prev.slug
-                            modDetailTitle = prev.title
-                            modDetailDesc = prev.desc || ""
-                            modDetailIcon = prev.icon || ""
-                        } else {
-                            root.goBack()
-                        }
+            BackButton {
+                id: backBtn
+                onClicked: {
+                    var stack = modNavStack || []
+                    if (stack.length > 0) {
+                        var prev = stack.pop()
+                        modNavStack = stack
+                        modDetailSlug = prev.slug
+                        modDetailTitle = prev.title
+                        modDetailDesc = prev.desc || ""
+                        modDetailIcon = prev.icon || ""
+                    } else {
+                        root.goBack()
                     }
                 }
             }
@@ -248,7 +223,7 @@ Rectangle {
             }
 
             Item { Layout.fillWidth: true }
-            Item { width: backLabel.implicitWidth + 20 } // spacer for symmetry
+            Item { width: backBtn.width } // spacer for symmetry
         }
     }
 
