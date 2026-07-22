@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
+import QtQuick.Layouts
 
 // SearchBox — 统一下载页/设置页搜索框组件
 //

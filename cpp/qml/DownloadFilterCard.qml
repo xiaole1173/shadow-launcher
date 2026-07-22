@@ -30,6 +30,7 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
+    default property alias content: contentArea.children
 
     Layout.fillWidth: true
     implicitHeight: mainCol.implicitHeight + 24
@@ -40,7 +41,6 @@ Rectangle {
     // ── 公开 API ──
     property alias searchText: searchBox.text
     property alias searchPlaceholder: searchBox.placeholderText
-    property alias content: contentArea
     property alias searchBox: searchBox
 
     property bool showPreRelease: false
