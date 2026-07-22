@@ -654,7 +654,6 @@ Window {
                             item.backend = backend
                             item.toastManager = toastManager
                             item.confirmDialog = confirmDialog
-                            item.appWindow = appWindow
                         }
                         onVisibleChanged: {
                             if (!visible && !showVersionSettings) {

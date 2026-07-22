@@ -47,7 +47,6 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         onClicked: {
-            console.log("[BackButton] clicked, emitting signal")
             root.clicked()
         }
     }

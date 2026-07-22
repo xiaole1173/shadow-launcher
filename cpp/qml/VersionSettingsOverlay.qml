@@ -13,7 +13,6 @@ Rectangle {
     property var backend: null
     property var toastManager: null
     property var confirmDialog: null
-    property var appWindow: null
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
 
     // Export progress state
@@ -113,6 +112,7 @@ Rectangle {
         }
     }
 
+
     ColumnLayout {
         id: overlayContent
         anchors.fill: parent; anchors.margins: 16; spacing: 0
@@ -132,7 +132,7 @@ Rectangle {
 
                 // Back button
                 BackButton {
-                    onClicked: appWindow.showVersionSettings = false
+                    onClicked: { showVersionSettings = false }
                 }
 
                 // Version label
@@ -198,8 +198,26 @@ Rectangle {
                     MouseArea { id: topLaunchHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (!backend) return
-                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            backend.launch(currentSelectedVersion)
+                            if (!currentSelectedVersion) {
+                                toastManager.show("请先选择版本")
+                                return
+                            }
+                            // Offline mode: use stored username or default
+                            if (loginMode === 1) {
+                                var name = backend.offlineUsername || "Player"
+                                backend.offlineLogin(name)
+                            }
+                            // Premium mode: must be logged in
+                            if (loginMode === 0 && !backend.username) {
+                                toastManager.show("请先完成正版登录")
+                                return
+                            }
+                            // Yggdrasil mode: must be logged in
+                            if (loginMode === 2 && !backend.yggdrasil.loggedIn) {
+                                toastManager.show("请先完成外置登录")
+                                return
+                            }
+                            backend.launch(currentSelectedVersion, loginMode === 0 || loginMode === 2)
                         }
                     }
                 }

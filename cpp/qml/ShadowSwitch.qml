@@ -26,9 +26,12 @@ import QtQuick.Controls.Basic
 Switch {
     id: control
 
-    // 消除默认内边距，让 indicator 自然居中
+    // 消除默认内边距，让 indicator 尺寸精确
     topPadding: 0
     bottomPadding: 0
+    leftPadding: 0
+    rightPadding: 0
+    implicitWidth: 40
     implicitHeight: 22
 
     // ── 自定义 indicator 样式 ──

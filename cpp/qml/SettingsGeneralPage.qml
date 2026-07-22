@@ -144,7 +144,7 @@ Rectangle {
                             id: versionSwitch
                             Layout.preferredWidth: 44
                             Layout.preferredHeight: 24
-                            Layout.alignment: Qt.AlignVCenter
+                            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
                             radius: StyleTokens.radiusXl
                             color: d.versionIsolation ? root.colorAccent : root.colorQuaternary
 
