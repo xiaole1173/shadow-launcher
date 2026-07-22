@@ -612,22 +612,22 @@ Rectangle {
                                 width: modGrid.cellWidth - 12
                                 height: 128
                                 radius: StyleTokens.radiusLg
-                                color: cardHover.hovered ? StyleTokens.bgCard : "#10131c"
+                                color: cardHover.hovered ? "#121620" : "#0e1018"
                                 border { width: 1; color: cardHover.hovered ? StyleTokens.accent : "#1e2430" }
 
-                                Behavior on color { ColorAnimation { duration: 200 } }
-                                Behavior on border.color { ColorAnimation { duration: 200 } }
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
 
-                                // ── Staggered entrance animation ──
-                                property int _entranceDelay: index * 60
-                                opacity: 0
-                                Component.onCompleted: entranceTimer.start()
-                                Timer {
-                                    id: entranceTimer
-                                    interval: card._entranceDelay
-                                    onTriggered: card.opacity = 1
+                                Rectangle {
+                                    anchors.fill: parent; radius: StyleTokens.radiusLg
+                                    color: StyleTokens.accentLight
+                                    opacity: cardHover.hovered ? 0.06 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                 }
-                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+                                opacity: 0
+                                Component.onCompleted: opacity = 1
+                                Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                                 RowLayout {
                                     anchors { fill: parent; margins: 10 }
@@ -893,22 +893,22 @@ Rectangle {
                                 width: rpGrid.cellWidth - 12
                                 height: 128
                                 radius: StyleTokens.radiusLg
-                                color: rpCardHover.hovered ? StyleTokens.bgCard : "#10131c"
+                                color: rpCardHover.hovered ? "#121620" : "#0e1018"
                                 border { width: 1; color: rpCardHover.hovered ? StyleTokens.accent : "#1e2430" }
 
-                                Behavior on color { ColorAnimation { duration: 200 } }
-                                Behavior on border.color { ColorAnimation { duration: 200 } }
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
 
-                                // ── Staggered entrance animation ──
-                                property int _entranceDelay: index * 60
-                                opacity: 0
-                                Component.onCompleted: entranceTimer.start()
-                                Timer {
-                                    id: entranceTimer
-                                    interval: rpCard._entranceDelay
-                                    onTriggered: rpCard.opacity = 1
+                                Rectangle {
+                                    anchors.fill: parent; radius: StyleTokens.radiusLg
+                                    color: StyleTokens.accentLight
+                                    opacity: rpCardHover.hovered ? 0.06 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                 }
-                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+                                opacity: 0
+                                Component.onCompleted: opacity = 1
+                                Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                                 RowLayout {
                                     anchors { fill: parent; margins: 10 }
