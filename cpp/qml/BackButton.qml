@@ -46,6 +46,9 @@ Rectangle {
         id: mouseArea
         anchors.fill: parent
         hoverEnabled: true
-        onClicked: root.clicked()
+        onClicked: {
+            console.log("[BackButton] clicked, emitting signal")
+            root.clicked()
+        }
     }
 }

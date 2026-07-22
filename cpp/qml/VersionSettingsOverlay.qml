@@ -13,6 +13,7 @@ Rectangle {
     property var backend: null
     property var toastManager: null
     property var confirmDialog: null
+    property var appWindow: null
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
 
     // Export progress state
@@ -131,7 +132,7 @@ Rectangle {
 
                 // Back button
                 BackButton {
-                    onClicked: overlay.goBack()
+                    onClicked: appWindow.showVersionSettings = false
                 }
 
                 // Version label

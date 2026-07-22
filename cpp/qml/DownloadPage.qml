@@ -487,31 +487,14 @@ Rectangle {
                 }
             }
 
-            // ── 刷新按钮 ──
-            Rectangle {
-                width: 30; height: 30; radius: StyleTokens.radiusMd
-                color: refreshHover.hovered ? "#222a3a" : "#141820"
-                border.color: StyleTokens.bgHover
-                border.width: 1
-                scale: refreshHover.hovered ? 1.08 : 1.0
-                Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
+            RefreshButton {
                 visible: page.currentTab === 0
-                Image {
-                    anchors.centerIn: parent
-                    source: "icons/lucide/refresh-cw.svg"
-                    width: 16; height: 16
-                }
-                HoverHandler { id: refreshHover }
-                ToolTip { visible: refreshHover.hovered; text: qsTr("刷新版本列表"); delay: 500 }
-                MouseArea {
-                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (backend) {
-                            toastManager.show("正在刷新...")
-                            appWindow.pageLoading = true
-                            versionModel.clear()
-                            backend.refreshVersionList()
-                        }
+                onClicked: {
+                    if (backend) {
+                        toastManager.show("正在刷新...")
+                        appWindow.pageLoading = true
+                        versionModel.clear()
+                        backend.refreshVersionList()
                     }
                 }
             }
