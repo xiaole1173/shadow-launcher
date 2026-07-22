@@ -12,15 +12,15 @@ Rectangle {
     signal goBack()
 
     // ── Color Palette ──
-    readonly property string colorBg:          "#1A1D24"
+    readonly property color colorBg:          StyleTokens.surfaceLight
     readonly property string colorBorder:      "#2A2F3A"
     readonly property string colorPrimary:     "#F1F3F6"
     readonly property string colorSecondary:   "#B4BAC6"
     readonly property string colorTertiary:    "#7E8596"
     readonly property string colorQuaternary:  "#5A6173"
-    readonly property string colorAccent:      "#3B82F6"
+    readonly property color colorAccent:      StyleTokens.accent
     readonly property string colorAccentHover: "#2563EB"
-    readonly property string colorError:       "#EF4444"
+    readonly property color colorError:       StyleTokens.error
     readonly property string colorSuccess:     "#10B981"
     readonly property string colorWarning:     "#F59E0B"
     readonly property int    radius: StyleTokens.radiusLg
