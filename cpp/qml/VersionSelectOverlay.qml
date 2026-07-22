@@ -8,7 +8,7 @@ import QtQuick.Layouts
 Rectangle {
     id: versionSelectOverlay
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
-    anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"; z: 5
+    anchors.fill: parent; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 5
     property int activeGameDirIndex: 0
     property var backend: null
     property var toastManager: null
@@ -83,7 +83,7 @@ Rectangle {
                             id: dirItem
                             width: gameDirList.width
                             height: 36; radius: StyleTokens.radiusMd
-                            color: dirMouse.containsMouse ? "#1a1f2e" : (versionSelectOverlay.activeGameDirIndex === index ? "#0e131a" : "transparent")
+                            color: dirMouse.containsMouse ? StyleTokens.bgCard : (versionSelectOverlay.activeGameDirIndex === index ? "#0e131a" : "transparent")
                             border.color: versionSelectOverlay.activeGameDirIndex === index ? "#2a4eb8" : "transparent"
                             scale: dirMouse.containsMouse ? 1.02 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -193,7 +193,7 @@ Rectangle {
                     Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
                     Rectangle { anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter
                         width: 14; height: 14; radius: StyleTokens.radiusMd
-                        color: backend && backend.diskPercent > 90 ? "#c05050" : (backend && backend.diskPercent > 70 ? "#e0a040" : "#4bc870")
+                        color: backend && backend.diskPercent > 90 ? "#c05050" : (backend && backend.diskPercent > 70 ? "#e0a040" : StyleTokens.success)
                     }
                     Text {
                         anchors.left: parent.left; anchors.leftMargin: 30; anchors.verticalCenter: parent.verticalCenter
@@ -226,8 +226,8 @@ Rectangle {
                     Rectangle {
                         id: verRefreshBtn
                         width: verRefreshText.implicitWidth + 16; height: 28; radius: StyleTokens.radiusSm
-                        color: verRefreshHover.hovered ? "#1a2848" : "#0d1018"
-                        border.color: verRefreshHover.hovered ? "#5068c8" : "#1a1f2e"
+                        color: verRefreshHover.hovered ? StyleTokens.accentSubtle : "#0d1018"
+                        border.color: verRefreshHover.hovered ? StyleTokens.accentHover : StyleTokens.bgCard
                         border.width: 1
                         scale: versionRightPanel.verRefreshPressed ? 0.88 : (verRefreshHover.hovered ? 1.06 : 1.0)
                         Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -256,7 +256,7 @@ Rectangle {
                     }
                     Rectangle {
                         Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm; color: StyleTokens.bgPrimary
-                        border.color: searchField.activeFocus ? "#5068c8" : "#1a1f2e"
+                        border.color: searchField.activeFocus ? StyleTokens.accentHover : StyleTokens.bgCard
                         TextInput {
                             id: searchField; anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                             color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm
@@ -271,7 +271,7 @@ Rectangle {
                     }
                     // Install button — shortcut to download new versions
                     Rectangle {
-                        width: 28; height: 28; radius: StyleTokens.radiusSm; color: installBtnHover.hovered ? "#2553a8" : "#3a4eb8"
+                        width: 28; height: 28; radius: StyleTokens.radiusSm; color: installBtnHover.hovered ? "#2553a8" : StyleTokens.accent
                         scale: versionRightPanel.installBtnPressed ? 0.9 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         Text { anchors.centerIn: parent; text: "+"; font.pixelSize: StyleTokens.fontSizeXl; font.weight: Font.Bold; color: StyleTokens.textPrimary }
@@ -286,8 +286,8 @@ Rectangle {
                     // Sort button
                     Rectangle {
                         id: sortBtn
-                        width: 70; height: 28; radius: StyleTokens.radiusSm; color: sortHover.hovered ? "#1a2848" : "#0d1018"
-                        border.color: sortHover.hovered ? "#5068c8" : "#1a1f2e"
+                        width: 70; height: 28; radius: StyleTokens.radiusSm; color: sortHover.hovered ? StyleTokens.accentSubtle : "#0d1018"
+                        border.color: sortHover.hovered ? StyleTokens.accentHover : StyleTokens.bgCard
                         scale: sortPressed ? 0.92 : (sortHover.hovered ? 1.03 : 1.0)
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         property int versionSortIndex: 0
@@ -311,8 +311,8 @@ Rectangle {
                     // Loader filter
                     Rectangle {
                         id: loaderFilter
-                        width: 80; height: 28; radius: StyleTokens.radiusSm; color: loaderFiltHover.hovered ? "#1a2848" : "#0d1018"
-                        border.color: loaderFiltHover.hovered ? "#5068c8" : "#1a1f2e"
+                        width: 80; height: 28; radius: StyleTokens.radiusSm; color: loaderFiltHover.hovered ? StyleTokens.accentSubtle : "#0d1018"
+                        border.color: loaderFiltHover.hovered ? StyleTokens.accentHover : StyleTokens.bgCard
                         scale: loadFiltPressed ? 0.92 : (loaderFiltHover.hovered ? 1.03 : 1.0)
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         property int loaderFilterIndex: 0  // 0=全部 1=原版 2=Forge 3=Fabric 4=NeoForge 5=Quilt

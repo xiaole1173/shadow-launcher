@@ -113,14 +113,14 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 40; radius: StyleTokens.radiusMd
                         color: allocMode === 0 ? "#181F30" : "#0f111a"
-                        border.color: allocMode === 0 ? "#4A8FE7" : "#1a1f2a"
+                        border.color: allocMode === 0 ? "#4A8FE7" : StyleTokens.bgInput
                         border.width: allocMode === 0 ? 1.5 : 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
                             Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 0 ? "#4A8FE7" : "#2a2f3a" }
-                            Text { text: qsTr("跟随全局设置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 0 ? "#e8ecf8" : "#8890a0"; Layout.fillWidth: true }
+                            Text { text: qsTr("跟随全局设置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 0 ? StyleTokens.textPrimary : "#8890a0"; Layout.fillWidth: true }
                             Text { font.pixelSize: StyleTokens.fontSizeXs; color: "#5A6173"; text: globalAuto ? qsTr("自动") : globalMaxMB + " MB" }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: { allocMode = 0; if (allocMode === 0) refreshAll() } }
@@ -131,14 +131,14 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 40; radius: StyleTokens.radiusMd
                         color: allocMode === 1 ? "#181F30" : "#0f111a"
-                        border.color: allocMode === 1 ? "#4A8FE7" : "#1a1f2a"
+                        border.color: allocMode === 1 ? "#4A8FE7" : StyleTokens.bgInput
                         border.width: allocMode === 1 ? 1.5 : 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
                             Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 1 ? "#4A8FE7" : "#2a2f3a" }
-                            Text { text: qsTr("自动配置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 1 ? "#e8ecf8" : "#8890a0"; Layout.fillWidth: true }
+                            Text { text: qsTr("自动配置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 1 ? StyleTokens.textPrimary : "#8890a0"; Layout.fillWidth: true }
                             Text { text: qsTr("启动时动态分配"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: { allocMode = 1; if (backend) backend.setAutoMemoryEnabled(true) } }
@@ -150,7 +150,7 @@ Rectangle {
                         id: customRow
                         Layout.fillWidth: true; Layout.preferredHeight: allocMode === 2 ? 78 : 40; radius: StyleTokens.radiusMd
                         color: allocMode === 2 ? "#181F30" : "#0f111a"
-                        border.color: allocMode === 2 ? "#4A8FE7" : "#1a1f2a"
+                        border.color: allocMode === 2 ? "#4A8FE7" : StyleTokens.bgInput
                         border.width: allocMode === 2 ? 1.5 : 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -165,7 +165,7 @@ Rectangle {
 
                             RowLayout { spacing: 8
                                 Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 2 ? "#4A8FE7" : "#2a2f3a" }
-                                Text { text: qsTr("自定义"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 2 ? "#e8ecf8" : "#8890a0" }
+                                Text { text: qsTr("自定义"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 2 ? StyleTokens.textPrimary : "#8890a0" }
                                 Item { Layout.fillWidth: true }
                                 Text { visible: allocMode === 2; text: customMB + " MB"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.accentLink }
                             }

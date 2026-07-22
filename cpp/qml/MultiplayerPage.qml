@@ -81,7 +81,7 @@ Rectangle {
                     Rectangle {
                         width: 10; height: 10; radius: StyleTokens.radiusSm
                         color: mp && (mp.state === 5 || mp.state === 6) ? "#4ade80" :
-                               mp && mp.state === 7 ? "#ef4444" : "#f59e0b"
+                               mp && mp.state === 7 ? StyleTokens.error : "#f59e0b"
                     }
                     Text {
                         Layout.fillWidth: true
@@ -115,7 +115,7 @@ Rectangle {
                     }
                     Rectangle {
                         Layout.preferredWidth: 80; Layout.preferredHeight: 34; radius: StyleTokens.radiusMd
-                        color: "transparent"; border.color: "#3a4eb8"; border.width: 1.5
+                        color: "transparent"; border.color: StyleTokens.accent; border.width: 1.5
                         scale: copyBtnHover.pressed ? 0.95 : 1
                         Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
                         Text { anchors.centerIn: parent; text: "复制"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.accentLight }
@@ -224,7 +224,7 @@ Rectangle {
                                             var lat = modelData.latency || 0
                                             if (lat < 50) return "#60c060"
                                             if (lat < 150) return "#f59e0b"
-                                            return "#ef4444"
+                                            return StyleTokens.error
                                         }
                                     }
                                 }
@@ -265,7 +265,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.preferredWidth: 200; Layout.preferredHeight: 42; radius: StyleTokens.radiusLg
-                    color: "#3a4eb8"
+                    color: StyleTokens.accent
                     scale: createClick.pressed ? 0.95 : 1
                     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
                     Text {
@@ -281,7 +281,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.preferredWidth: 200; Layout.preferredHeight: 42; radius: StyleTokens.radiusLg
-                    color: "#3a4eb8"
+                    color: StyleTokens.accent
                     scale: joinClick.pressed ? 0.95 : 1
                     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
                     Text {
@@ -391,7 +391,7 @@ Rectangle {
                 }
                 Rectangle {
                     Layout.preferredWidth: 150; Layout.preferredHeight: 44; radius: StyleTokens.radiusLg
-                    color: "#3a4eb8"
+                    color: StyleTokens.accent
                     Text {
                         anchors.centerIn: parent
                         text: "加入"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textPrimary

@@ -88,12 +88,12 @@ Rectangle {
                         ]
                         Rectangle {
                             width: Math.min(srcBtn.implicitWidth + 20, 160); height: 36; radius: StyleTokens.radiusMd
-                            color: root.sourceIndex === modelData.key ? "#5068d8" : "#1a1f2e"
+                            color: root.sourceIndex === modelData.key ? "#5068d8" : StyleTokens.bgCard
                             border.color: root.sourceIndex === modelData.key ? "#5d6fe0" : "#252835"
                             clip: true
                             ColumnLayout {
                                 anchors.centerIn: parent; spacing: 0
-                                Text { id: srcBtn; text: modelData.label; color: root.sourceIndex === modelData.key ? "#ffffff" : "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: root.sourceIndex === modelData.key ? Font.DemiBold : Font.Normal }
+                                Text { id: srcBtn; text: modelData.label; color: root.sourceIndex === modelData.key ? StyleTokens.textInverse : "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: root.sourceIndex === modelData.key ? Font.DemiBold : Font.Normal }
                             }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sourceIndex = modelData.key }
                         }
@@ -123,11 +123,11 @@ Rectangle {
 
             // ── Action buttons ──
             RowLayout { spacing: 10; Layout.alignment: Qt.AlignRight
-                Rectangle { width: 80; height: 34; radius: StyleTokens.radiusMd; color: cancelMouse.containsMouse ? "#1a1f2e" : "transparent"
+                Rectangle { width: 80; height: 34; radius: StyleTokens.radiusMd; color: cancelMouse.containsMouse ? StyleTokens.bgCard : "transparent"
                     scale: cancelMouse.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     border.color: cancelMouse.containsMouse ? "#5d6fe0" : "#3a4050"; border.width: 1
-                    Text { anchors.centerIn: parent; text: qsTr("取消"); color: cancelMouse.containsMouse ? "#ffffff" : "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd }
+                    Text { anchors.centerIn: parent; text: qsTr("取消"); color: cancelMouse.containsMouse ? StyleTokens.textInverse : "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd }
                     MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.hide() }
                 }
                 Rectangle { width: 120; height: 36; radius: StyleTokens.radiusMd; color: installMouse.containsMouse ? "#6d7de8" : "#5068d8"

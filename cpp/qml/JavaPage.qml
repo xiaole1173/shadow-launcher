@@ -179,7 +179,7 @@ Item {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 width: parent.width * 0
-                color: "#3a4eb8"
+                color: StyleTokens.accent
                 radius: StyleTokens.radiusSm
                 Behavior on width { SmoothedAnimation { duration: 300 } }
             }
@@ -229,7 +229,7 @@ Item {
         Timer {
             id: hideTimer
             interval: 3000
-            onTriggered: { progressBar.visible = false; progressFill.color = "#3a4eb8" }
+            onTriggered: { progressBar.visible = false; progressFill.color = StyleTokens.accent }
         }
 
         Item { Layout.fillHeight: true } // spacer
@@ -248,7 +248,7 @@ Item {
                 progressPct = 0
                 progressSpeedText = "准备下载..."
                 progressFill.width = 0
-                progressFill.color = "#3a4eb8"
+                progressFill.color = StyleTokens.accent
 
                 // Toast
                 if (toastManager) {
@@ -488,7 +488,7 @@ Item {
                 background: Rectangle {
                     radius: StyleTokens.radiusMd
                     color: root.enabled ? (combo.hovered ? "#252a38" : "#161a24") : "#10131c"
-                    border.color: root.enabled ? (combo.hovered ? "#3a4eb8" : "#1e2230") : "#181c24"
+                    border.color: root.enabled ? (combo.hovered ? StyleTokens.accent : StyleTokens.border) : "#181c24"
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 200 } }
                     Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -633,7 +633,7 @@ Item {
         id: card
         width: 220; height: 80; radius: StyleTokens.radiusLg
         color: StyleTokens.surfaceOverlay
-        border.color: cardMouse.containsMouse ? "#3a4eb8" : "#1e2230"
+        border.color: cardMouse.containsMouse ? StyleTokens.accent : StyleTokens.border
         border.width: 1
 
         property var fileInfo: ({})

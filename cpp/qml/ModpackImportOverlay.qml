@@ -198,7 +198,7 @@ Rectangle {
                             Rectangle {
                                 Layout.alignment: Qt.AlignHCenter
                                 width: 180; height: 36; radius: StyleTokens.radiusLg
-                                color: pickArea.containsMouse ? StyleTokens.borderLight : "#1e2230"
+                                color: pickArea.containsMouse ? StyleTokens.borderLight : StyleTokens.border
                                 border.color: StyleTokens.borderLight; border.width: 1
                                 Text {
                                     anchors.centerIn: parent
@@ -329,7 +329,7 @@ Rectangle {
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
                         width: 100; height: 32; radius: StyleTokens.radiusLg
-                        color: finishBtn.containsMouse ? StyleTokens.borderLight : "#1e2230"
+                        color: finishBtn.containsMouse ? StyleTokens.borderLight : StyleTokens.border
                         Text {
                             anchors.centerIn: parent
                             text: qsTr("关闭"); color: StyleTokens.accentLink; font.pixelSize: StyleTokens.fontSizeCaption

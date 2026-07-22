@@ -14,7 +14,7 @@ Rectangle {
     id: root
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
 
     // ── 入场动画：从右侧滑入 ──
     x: 60
@@ -189,7 +189,7 @@ Rectangle {
     Rectangle {
         id: topBar
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-        height: 44; color: hasBg ? "transparent" : "#0c0f16"; z: 10
+        height: 44; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 10
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
@@ -303,8 +303,8 @@ Rectangle {
                     Rectangle {
                         id: testToggleBtn
                         width: testBtn.implicitWidth + 14; height: 22; radius: StyleTokens.radiusSm
-                        color: showTestVersions ? "#1a3a68" : "#11141c"
-                        border.color: (testHov.containsMouse || showTestVersions) ? "#3a5ed0" : "#2a3040"
+                        color: showTestVersions ? "#1a3a68" : StyleTokens.bgSecondary
+                        border.color: (testHov.containsMouse || showTestVersions) ? "#3a5ed0" : StyleTokens.borderLight
                         border.width: (testHov.containsMouse || showTestVersions) ? 1.5 : 1
 
                         property real _eScale: 1.0
@@ -321,7 +321,7 @@ Rectangle {
                         Text {
                             id: testBtn; anchors.centerIn: parent; font.pixelSize: StyleTokens.fontSizeXs
                             text: showTestVersions ? "隐藏测试版" : "显示测试版"
-                            color: showTestVersions ? "#8aaeff" : "#505468"
+                            color: showTestVersions ? StyleTokens.accentLink : StyleTokens.textMuted
                         }
                         MouseArea {
                             id: testHov; anchors.fill: parent; hoverEnabled: true
@@ -553,7 +553,7 @@ Rectangle {
                                     var d = getVersionDetail(modelData)
                                     if (d && d.loaders) {
                                         for (var li = 0; li < d.loaders.length; li++) {
-                                            result.push({text: d.loaders[li], color: StyleTokens.accentLink, bg: "#1a2848"})
+                                            result.push({text: d.loaders[li], color: StyleTokens.accentLink, bg: StyleTokens.accentSubtle})
                                         }
                                     }
                                     var gvClean = d ? (d.gameVersion || "") : ""

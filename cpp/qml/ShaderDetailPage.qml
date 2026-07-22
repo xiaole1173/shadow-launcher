@@ -14,7 +14,7 @@ Rectangle {
     id: root
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
 
     opacity: 0
     Component.onCompleted: opacity = 1
@@ -125,7 +125,7 @@ Rectangle {
     Rectangle {
         id: topBar
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-        height: 44; color: hasBg ? "transparent" : "#0c0f16"; z: 10
+        height: 44; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 10
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
@@ -294,7 +294,7 @@ Rectangle {
                                 var d = getVersionDetail(modelData)
                                 if (d && d.loaders) {
                                     for (var li = 0; li < d.loaders.length; li++) {
-                                        result.push({text: root.capLoader(d.loaders[li]), color: StyleTokens.accentLink, bg: "#1a2848"})
+                                        result.push({text: root.capLoader(d.loaders[li]), color: StyleTokens.accentLink, bg: StyleTokens.accentSubtle})
                                     }
                                 }
                                 var pr = preReleaseTag(modelData)

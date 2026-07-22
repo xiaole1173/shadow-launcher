@@ -9,7 +9,7 @@ import QtQuick.Dialogs
 // ========== VERSION SETTINGS OVERLAY ==========
 Rectangle {
     id: versionSettingsOverlay
-    anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"; z: 5
+    anchors.fill: parent; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 5
     property var backend: null
     property var toastManager: null
     property var confirmDialog: null
@@ -190,7 +190,7 @@ Rectangle {
                 Rectangle {
                     id: topLaunchBtn
                     width: 100; height: 32; radius: StyleTokens.radiusMd
-                    color: topLaunchHover.containsMouse ? (topLaunchHover.pressed ? "#2a3a90" : "#4a5ec8") : "#3a4eb8"
+                    color: topLaunchHover.containsMouse ? (topLaunchHover.pressed ? "#2a3a90" : "#4a5ec8") : StyleTokens.accent
                     scale: topLaunchHover.containsMouse ? (topLaunchHover.pressed ? 0.93 : 1.05) : 1.0
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -266,7 +266,7 @@ Rectangle {
                         }
                         return false
                     }
-                    color: ListView.isCurrentItem ? "#162040" : (mouseArea2.containsMouse ? "#11141c" : "transparent")
+                    color: ListView.isCurrentItem ? "#162040" : (mouseArea2.containsMouse ? StyleTokens.bgSecondary : "transparent")
                     scale: mouseArea2.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 3; color: ListView.isCurrentItem ? "#5080e8" : "transparent" }
@@ -316,7 +316,7 @@ Rectangle {
                         Rectangle { width: 1; height: 32; color: StyleTokens.bgCard }
                         ColumnLayout { Layout.fillWidth: true; spacing: 2
                             Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
-                            Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? "#4bc870" : "#707088" }
+                            Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? StyleTokens.success : "#707088" }
                         }
                     }
                 }
@@ -574,7 +574,7 @@ Rectangle {
                     // Search
                     Rectangle {
                         Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
-                        border.color: modSearchField.activeFocus ? "#5068c8" : "#1a1f2e"
+                        border.color: modSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.bgCard
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: modSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
@@ -612,8 +612,8 @@ Rectangle {
                                 width: modGrid.cellWidth - 12
                                 height: 128
                                 radius: StyleTokens.radiusLg
-                                color: cardHover.hovered ? "#1a1f2e" : "#10131c"
-                                border { width: 1; color: cardHover.hovered ? "#3a4eb8" : "#1e2430" }
+                                color: cardHover.hovered ? StyleTokens.bgCard : "#10131c"
+                                border { width: 1; color: cardHover.hovered ? StyleTokens.accent : "#1e2430" }
 
                                 Behavior on color { ColorAnimation { duration: 200 } }
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -855,7 +855,7 @@ Rectangle {
                     // Search
                     Rectangle {
                         Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
-                        border.color: rpSearchField.activeFocus ? "#5068c8" : "#1a1f2e"
+                        border.color: rpSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.bgCard
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: rpSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
@@ -893,8 +893,8 @@ Rectangle {
                                 width: rpGrid.cellWidth - 12
                                 height: 128
                                 radius: StyleTokens.radiusLg
-                                color: rpCardHover.hovered ? "#1a1f2e" : "#10131c"
-                                border { width: 1; color: rpCardHover.hovered ? "#3a4eb8" : "#1e2430" }
+                                color: rpCardHover.hovered ? StyleTokens.bgCard : "#10131c"
+                                border { width: 1; color: rpCardHover.hovered ? StyleTokens.accent : "#1e2430" }
 
                                 Behavior on color { ColorAnimation { duration: 200 } }
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -1105,7 +1105,7 @@ Rectangle {
                     clip: true; spacing: 4
                     delegate: Rectangle {
                         id: saveRow
-                        width: saveListView.width; height: 36; radius: StyleTokens.radiusSm; color: saveRowHover.hovered ? "#11141c" : "transparent"
+                        width: saveListView.width; height: 36; radius: StyleTokens.radiusSm; color: saveRowHover.hovered ? StyleTokens.bgSecondary : "transparent"
 
                         // ── Staggered entrance animation ──
                         property int _entranceDelay: index * 50
@@ -1153,7 +1153,7 @@ Rectangle {
                 // Start button
                 Rectangle {
                     width: 140; height: 36; radius: StyleTokens.radiusMd
-                    color: versionSettingsOverlay._verifyRunning ? "#2a3040" : (verifyBtnMouse.containsMouse ? "#2563EB" : "#3a4eb8")
+                    color: versionSettingsOverlay._verifyRunning ? StyleTokens.borderLight : (verifyBtnMouse.containsMouse ? "#2563EB" : StyleTokens.accent)
                     scale: verifyBtnMouse.containsMouse && !versionSettingsOverlay._verifyRunning ? 1.04 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1175,7 +1175,7 @@ Rectangle {
                         Rectangle {
                             height: 8; radius: StyleTokens.radiusSm
                             width: versionSettingsOverlay._verifyProgressTotal > 0 ? parent.width * (versionSettingsOverlay._verifyProgressDone / versionSettingsOverlay._verifyProgressTotal) : 0
-                            color: versionSettingsOverlay._verifyRunning ? "#6080e8" : (versionSettingsOverlay._verifyProgressDone === versionSettingsOverlay._verifyProgressTotal ? "#4bc870" : "#c05050")
+                            color: versionSettingsOverlay._verifyRunning ? "#6080e8" : (versionSettingsOverlay._verifyProgressDone === versionSettingsOverlay._verifyProgressTotal ? StyleTokens.success : "#c05050")
                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         }
                     }
@@ -1269,7 +1269,7 @@ Rectangle {
                     Layout.fillWidth: true; spacing: 8
 
                     // Clone
-                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: cloneHover.hovered ? "#1a2848" : "#0d1018"; border.color: StyleTokens.bgCard
+                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: cloneHover.hovered ? StyleTokens.accentSubtle : "#0d1018"; border.color: StyleTokens.bgCard
                         Text { anchors.centerIn: parent; text: qsTr("克隆版本"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         HoverHandler { id: cloneHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1288,7 +1288,7 @@ Rectangle {
                     }
 
                     // Rename
-                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: renameHover.hovered ? "#1a2848" : "#0d1018"; border.color: StyleTokens.bgCard
+                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: renameHover.hovered ? StyleTokens.accentSubtle : "#0d1018"; border.color: StyleTokens.bgCard
                         Text { anchors.centerIn: parent; text: qsTr("重命名版本"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         HoverHandler { id: renameHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1313,8 +1313,8 @@ Rectangle {
                             id: exportBtn
                             visible: !isExporting
                             width: 110; height: 32; radius: StyleTokens.radiusSm
-                            color: exportHover.containsMouse ? "#1a2848" : "#0d1018"
-                            border.color: exportHover.containsMouse ? "#7c3aed" : "#1a1f2e"
+                            color: exportHover.containsMouse ? StyleTokens.accentSubtle : "#0d1018"
+                            border.color: exportHover.containsMouse ? "#7c3aed" : StyleTokens.bgCard
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                             scale: exportHover.containsMouse ? 1.05 : 1.0
@@ -1435,7 +1435,7 @@ function _showToast(msg) {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom; anchors.bottomMargin: 24
             width: _toastLabel.implicitWidth + 32; height: 36; radius: StyleTokens.radiusLg
-            color: "#222840"; border.color: "#3a4eb8"; border.width: 1
+            color: "#222840"; border.color: StyleTokens.accent; border.width: 1
             opacity: _toastVisible ? 1 : 0; z: 100
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -1543,7 +1543,7 @@ function _showToast(msg) {
                             Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _renameVisible = false }
                         }
-                        Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: "#3a4eb8"
+                        Rectangle { width: 80; height: 32; radius: StyleTokens.radiusSm; color: StyleTokens.accent
                             Text { anchors.centerIn: parent; text: "确认"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: {

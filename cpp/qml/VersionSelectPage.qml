@@ -45,7 +45,7 @@ Rectangle {
                 id: backText
                 anchors.centerIn: parent
                 text: qsTr("← 启动")
-                color: backArea.containsMouse ? "#3B82F6" : "#B4BAC6"
+                color: backArea.containsMouse ? StyleTokens.accent : "#B4BAC6"
                 font.pixelSize: StyleTokens.fontSizeMd
                 Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
             }
@@ -61,7 +61,7 @@ Rectangle {
         // 刷新按钮 — 紧挨"← 启动"  [DIAGNOSTIC: pink bg for visibility]
         Rectangle {
             width: refreshLabel.implicitWidth + 24; height: 32; radius: StyleTokens.radiusMd
-            color: refreshHover.hovered ? "#3B82F6" : "#2a3040"
+            color: refreshHover.hovered ? StyleTokens.accent : StyleTokens.borderLight
             border.color: refreshHover.hovered ? "#60A5FA" : "#3a4050"
             border.width: 1
             scale: refreshMa.pressed ? 0.88 : (refreshHover.hovered ? 1.08 : 1.0)
@@ -175,7 +175,7 @@ Rectangle {
                     Layout.fillWidth: true
                     height: 36; radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: addArea.containsMouse ? "#3B82F6" : "#2A2F3A"
+                    border.color: addArea.containsMouse ? StyleTokens.accent : "#2A2F3A"
                     border.width: 1
                     scale: addArea.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -183,7 +183,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("[添加] 添加文件夹")
-                        color: addArea.containsMouse ? "#3B82F6" : "#B4BAC6"
+                        color: addArea.containsMouse ? StyleTokens.accent : "#B4BAC6"
                         font.pixelSize: StyleTokens.fontSizeMd
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
@@ -203,7 +203,7 @@ Rectangle {
                     Layout.fillWidth: true
                     height: 36; radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: importArea.containsMouse ? "#3B82F6" : "#2A2F3A"
+                    border.color: importArea.containsMouse ? StyleTokens.accent : "#2A2F3A"
                     border.width: 1
                     scale: importArea.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -211,7 +211,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("[下载] 导入整合包")
-                        color: importArea.containsMouse ? "#3B82F6" : "#B4BAC6"
+                        color: importArea.containsMouse ? StyleTokens.accent : "#B4BAC6"
                         font.pixelSize: StyleTokens.fontSizeMd
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
@@ -254,8 +254,8 @@ Rectangle {
                     Rectangle {
                         height: 30; radius: 15
                         width: pillText.implicitWidth + 24
-                        color: activeFilter === modelData ? "#3B82F6" : "#1A1D24"
-                        border.color: activeFilter === modelData ? "#3B82F6" : "#2A2F3A"
+                        color: activeFilter === modelData ? StyleTokens.accent : "#1A1D24"
+                        border.color: activeFilter === modelData ? StyleTokens.accent : "#2A2F3A"
                         border.width: 1
                         scale: pillMouse.containsMouse ? 1.04 : 1.0
                         Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -265,7 +265,7 @@ Rectangle {
                             id: pillText
                             anchors.centerIn: parent
                             text: modelData
-                            color: activeFilter === modelData ? "#FFFFFF" : "#B4BAC6"
+                            color: activeFilter === modelData ? StyleTokens.textInverse : "#B4BAC6"
                             font.pixelSize: StyleTokens.fontSizeSm
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
@@ -365,7 +365,7 @@ Rectangle {
                         width: ListView.view.width
                         radius: StyleTokens.radiusMd
                         color: cardArea.containsMouse ? "#1E212A" : "transparent"
-                        border.color: selectedVersionId === model.versionId ? "#3B82F6" : "transparent"
+                        border.color: selectedVersionId === model.versionId ? StyleTokens.accent : "transparent"
                         border.width: 1
                         opacity: 0
                         scale: cardArea.containsMouse ? 1.01 : 1.0
@@ -424,7 +424,7 @@ Rectangle {
                 anchors.margins: 12
                 height: 42
                 radius: StyleTokens.radiusLg
-                color: selectArea.containsMouse ? "#2563EB" : (selectedVersionId !== "" ? "#3B82F6" : "#2A2F3A")
+                color: selectArea.containsMouse ? "#2563EB" : (selectedVersionId !== "" ? StyleTokens.accent : "#2A2F3A")
                 opacity: selectedVersionId !== "" ? 1.0 : 0.5
                 scale: selectArea.containsMouse ? 1.03 : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }

@@ -117,7 +117,7 @@ Item {
                                 id: statusLabel
                                 anchors.centerIn: parent
                                 text: backend && backend.javaInstalled ? "已检测" : "未检测到"
-                                color: backend && backend.javaInstalled ? "#4bc870" : "#e05050"
+                                color: backend && backend.javaInstalled ? StyleTokens.success : "#e05050"
                                 font.pixelSize: StyleTokens.fontSizeSm
                             }
                         }
@@ -164,7 +164,7 @@ Item {
 
                             background: Rectangle {
                                 radius: StyleTokens.radiusMd; color: StyleTokens.surfaceLight
-                                border.color: javaListCombo.hovered ? "#3B82F6" : "#2a2f3a"
+                                border.color: javaListCombo.hovered ? StyleTokens.accent : "#2a2f3a"
                             }
                             contentItem: Text {
                                 text: {
@@ -188,7 +188,7 @@ Item {
                                 contentItem: RowLayout {
                                     Text {
                                         text: modelData.label; font.pixelSize: StyleTokens.fontSizeSm
-                                        color: highlighted ? "#e8ecf8" : "#B4BAC6"
+                                        color: highlighted ? StyleTokens.textPrimary : "#B4BAC6"
                                         Layout.fillWidth: true
                                     }
                                     Text {
@@ -236,7 +236,7 @@ Item {
                         Rectangle {
                             id: refreshBtn
                             width: 34; height: 34; radius: StyleTokens.radiusMd
-                            color: refreshHover.hovered ? "#1a2848" : "transparent"
+                            color: refreshHover.hovered ? StyleTokens.accentSubtle : "transparent"
                             border.color: StyleTokens.bgHover
                             scale: refreshMa.pressed ? 0.88 : 1.0
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -275,7 +275,7 @@ Item {
                         Layout.fillWidth: true; spacing: 10
                         Rectangle {
                             width: browseLabel.implicitWidth + 24; height: 34; radius: StyleTokens.radiusMd
-                            color: browseHover.hovered ? "#1a1f2e" : "transparent"
+                            color: browseHover.hovered ? StyleTokens.bgCard : "transparent"
                             scale: browseMa.pressed ? 0.92 : 1.0
                             border.color: browseHover.hovered ? "#6d7de8" : "#4a5ec8"; border.width: 1.5
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -284,7 +284,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: qsTr("手动选择")
                                 font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium
-                                color: browseHover.hovered ? "#ffffff" : "#b0b8e0"
+                                color: browseHover.hovered ? StyleTokens.textInverse : "#b0b8e0"
                             }
                             HoverHandler { id: browseHover }
                             MouseArea {
@@ -312,7 +312,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 120
                 radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary
-                border.color: root._jvmFocused ? "#5068d8" : "#1a1f2a"
+                border.color: root._jvmFocused ? "#5068d8" : StyleTokens.bgInput
                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
                 TextEdit {
@@ -363,7 +363,7 @@ Item {
                     ]
                     Rectangle {
                         implicitWidth: gcLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                        color: gcHover.hovered || gcFlash.running ? "#1a2848" : "#1A1D24"
+                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : "#1A1D24"
                         border.color: StyleTokens.bgHover
                         scale: gcMa.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -388,7 +388,7 @@ Item {
                         SequentialAnimation on color {
                             id: gcFlash; running: false
                             ColorAnimation { to: "#305080"; duration: 80 }
-                            ColorAnimation { to: "#1a2848"; duration: 300 }
+                            ColorAnimation { to: StyleTokens.accentSubtle; duration: 300 }
                             ColorAnimation { to: "#1A1D24"; duration: 200 }
                         }
                     }
@@ -398,7 +398,7 @@ Item {
             // 恢复默认
             Rectangle {
                 width: 120; height: 28; radius: StyleTokens.radiusMd
-                color: resHover.hovered ? "#1a1f2e" : "transparent"; border.color: StyleTokens.bgHover
+                color: resHover.hovered ? StyleTokens.bgCard : "transparent"; border.color: StyleTokens.bgHover
                 scale: resMa.pressed ? 0.92 : 1.0
                 Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 120 } }

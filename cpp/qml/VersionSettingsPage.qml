@@ -121,7 +121,7 @@ Rectangle {
                     Text {
                         text: "←"
                         font.pixelSize: StyleTokens.fontSizeLg
-                        color: backMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
+                        color: backMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                     Text {
@@ -129,7 +129,7 @@ Rectangle {
                         text: qsTr("启动")
                         font.pixelSize: StyleTokens.fontSizeMd
                         font.weight: Font.Medium
-                        color: backMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
+                        color: backMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                 }
@@ -195,7 +195,7 @@ Rectangle {
                             anchors.margins: 5
                             width: 3
                             radius: StyleTokens.radiusXs
-                            color: page.currentSection === section ? "#3B82F6" : "transparent"
+                            color: page.currentSection === section ? StyleTokens.accent : "transparent"
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
@@ -275,7 +275,7 @@ Rectangle {
                                     height: 42
                                     radius: StyleTokens.radiusLg
                                     color: "transparent"
-                                    border.color: shortcutMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
+                                    border.color: shortcutMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
                                     border.width: 1
                                     scale: shortcutMouse.containsMouse ? 1.04 : 1.0
 
@@ -289,7 +289,7 @@ Rectangle {
                                         Text {
                                             text: modelData.label
                                             font.pixelSize: StyleTokens.fontSizeMd
-                                            color: shortcutMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
+                                            color: shortcutMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
                                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                         }
                                     }
@@ -320,7 +320,7 @@ Rectangle {
                             height: 40
                             radius: StyleTokens.radiusLg
                             color: "transparent"
-                            border.color: deleteBtnMouse.containsMouse ? "#EF4444" : "#2A2F3A"
+                            border.color: deleteBtnMouse.containsMouse ? StyleTokens.error : "#2A2F3A"
                             border.width: 1
                             scale: deleteBtnMouse.containsMouse ? 1.04 : 1.0
 
@@ -333,13 +333,13 @@ Rectangle {
                                 Text {
                                     text: "[删除]"
                                     font.pixelSize: StyleTokens.fontSizeLg
-                                    color: deleteBtnMouse.containsMouse ? "#EF4444" : "#B4BAC6"
+                                    color: deleteBtnMouse.containsMouse ? StyleTokens.error : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                                 Text {
                                     text: qsTr("删除此版本")
                                     font.pixelSize: StyleTokens.fontSizeMd
-                                    color: deleteBtnMouse.containsMouse ? "#EF4444" : "#B4BAC6"
+                                    color: deleteBtnMouse.containsMouse ? StyleTokens.error : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                             }
@@ -401,7 +401,7 @@ Rectangle {
                                 height: 36
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: authComboHover.containsMouse ? "#3B82F6" : "#2A2F3A"
+                                border.color: authComboHover.containsMouse ? StyleTokens.accent : "#2A2F3A"
                                 border.width: 1
 
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -500,7 +500,7 @@ Rectangle {
                             background: Rectangle {
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: authlibUrlField.activeFocus ? "#3B82F6" : "#2A2F3A"
+                                border.color: authlibUrlField.activeFocus ? StyleTokens.accent : "#2A2F3A"
                                 border.width: 1
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                             }
@@ -526,7 +526,7 @@ Rectangle {
                             background: Rectangle {
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: customUrlField.activeFocus ? "#3B82F6" : "#2A2F3A"
+                                border.color: customUrlField.activeFocus ? StyleTokens.accent : "#2A2F3A"
                                 border.width: 1
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                             }
@@ -541,7 +541,7 @@ Rectangle {
                             width: 80
                             height: 34
                             radius: StyleTokens.radiusLg
-                            color: applyAuthMouse.containsMouse ? "#2563EB" : "#3B82F6"
+                            color: applyAuthMouse.containsMouse ? "#2563EB" : StyleTokens.accent
                             scale: applyAuthMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -610,7 +610,7 @@ Rectangle {
                             Layout.preferredWidth: 140
                             height: 40
                             radius: StyleTokens.radiusLg
-                            color: integrityBtnMouse.containsMouse ? "#2563EB" : "#3B82F6"
+                            color: integrityBtnMouse.containsMouse ? "#2563EB" : StyleTokens.accent
                             scale: integrityBtnMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -712,7 +712,7 @@ Rectangle {
                                 text: (backend && backend.verifyResultText) ? backend.verifyResultText : "暂无校验结果"
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 color: (backend && backend.verifyFinished !== undefined && backend.verifyFinished && backend.verifyResultText)
-                                    ? "#4bc870" : "#7E8596"
+                                    ? StyleTokens.success : "#7E8596"
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
@@ -873,7 +873,7 @@ Rectangle {
                                 height: 36
                                 radius: StyleTokens.radiusLg
                                 color: "transparent"
-                                border.color: openFolderMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
+                                border.color: openFolderMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
                                 border.width: 1
                                 scale: openFolderMouse.containsMouse ? 1.04 : 1.0
 
@@ -884,7 +884,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     text: qsTr("[打开] 打开文件夹")
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: openFolderMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
+                                    color: openFolderMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
 
@@ -902,7 +902,7 @@ Rectangle {
                                 height: 36
                                 radius: StyleTokens.radiusLg
                                 color: "transparent"
-                                border.color: addPackMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
+                                border.color: addPackMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
                                 border.width: 1
                                 scale: addPackMouse.containsMouse ? 1.04 : 1.0
 
@@ -913,7 +913,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     text: qsTr("[添加] 添加资源包")
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: addPackMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
+                                    color: addPackMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
 
@@ -1066,7 +1066,7 @@ Rectangle {
                     height: 36
                     radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: cancelDelMouse.containsMouse ? "#3B82F6" : "#2A2F3A"
+                    border.color: cancelDelMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
                     border.width: 1
                     scale: cancelDelMouse.containsMouse ? 1.04 : 1.0
 
@@ -1077,7 +1077,7 @@ Rectangle {
                         anchors.centerIn: parent
                         text: qsTr("取消")
                         font.pixelSize: StyleTokens.fontSizeMd
-                        color: cancelDelMouse.containsMouse ? "#3B82F6" : "#B4BAC6"
+                        color: cancelDelMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
 
@@ -1096,7 +1096,7 @@ Rectangle {
                     height: 36
                     radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: confirmDelMouse.containsMouse ? "#DC2626" : "#EF4444"
+                    border.color: confirmDelMouse.containsMouse ? "#DC2626" : StyleTokens.error
                     border.width: 1
                     scale: confirmDelMouse.containsMouse ? 1.04 : 1.0
 
@@ -1108,7 +1108,7 @@ Rectangle {
                         text: qsTr("确认删除")
                         font.pixelSize: StyleTokens.fontSizeMd
                         font.weight: Font.DemiBold
-                        color: confirmDelMouse.containsMouse ? "#FCA5A5" : "#EF4444"
+                        color: confirmDelMouse.containsMouse ? "#FCA5A5" : StyleTokens.error
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
 

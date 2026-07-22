@@ -9,7 +9,7 @@ import QtQuick.Dialogs
 Rectangle {
     id: page
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
 
     Timer {
         id: javaInitTimer
@@ -356,8 +356,8 @@ Rectangle {
                 Layout.preferredWidth: 84
                 Layout.fillHeight: true
                 radius: StyleTokens.radiusMd
-                color: page.currentTab === index ? "#1a1f2e" : "transparent"
-                border.color: page.currentTab === index ? "#3a4eb8" : "transparent"
+                color: page.currentTab === index ? StyleTokens.bgCard : "transparent"
+                border.color: page.currentTab === index ? StyleTokens.accent : "transparent"
                 border.width: page.currentTab === index ? 1 : 0
                 Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                 Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
@@ -442,8 +442,8 @@ Rectangle {
                     height: 30; radius: 15
                     Layout.preferredWidth: Math.max(70, Math.min(pillRow.implicitWidth + 24, 160))
                     Layout.minimumWidth: 70
-                    color: page.currentFilter === modelData.key ? "#3a4eb8" : "#11141c"
-                    border.color: page.currentFilter === modelData.key ? "#3a4eb8" : "#1e2230"
+                    color: page.currentFilter === modelData.key ? StyleTokens.accent : StyleTokens.bgSecondary
+                    border.color: page.currentFilter === modelData.key ? StyleTokens.accent : StyleTokens.border
                     border.width: 1
                     clip: true
                     scale: pillMouse.containsMouse ? 1.04 : 1.0
@@ -461,14 +461,14 @@ Rectangle {
                         Text {
                             id: pillLabel
                             text: modelData.label
-                            color: page.currentFilter === modelData.key ? "#e8ecf8" : "#9094a8"
+                            color: page.currentFilter === modelData.key ? StyleTokens.textPrimary : "#9094a8"
                             font.pixelSize: StyleTokens.fontSizeMd
                             elide: Text.ElideRight
                         }
                         Text {
                             id: pillCount
                             text: "(" + modelData.countFn() + ")"
-                            color: page.currentFilter === modelData.key ? "#93acf0" : "#505468"
+                            color: page.currentFilter === modelData.key ? "#93acf0" : StyleTokens.textMuted
                             font.pixelSize: StyleTokens.fontSizeSm
                         }
                     }
@@ -490,8 +490,8 @@ Rectangle {
             // ── 刷新按钮 ──
             Rectangle {
                 width: 28; height: 28; radius: StyleTokens.radiusSm
-                color: refreshHover.hovered ? "#1a2848" : "transparent"
-                border.color: refreshHover.hovered ? "#5068d8" : "#1e2230"
+                color: refreshHover.hovered ? StyleTokens.accentSubtle : "transparent"
+                border.color: refreshHover.hovered ? "#5068d8" : StyleTokens.border
                 border.width: 1
                 scale: refreshHover.hovered ? 1.08 : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -546,7 +546,7 @@ Rectangle {
 
                     Text {
                         text: "最新正式版"
-                        color: "#3a4eb8"
+                        color: StyleTokens.accent
                         font.pixelSize: StyleTokens.fontSizeSm
                         font.bold: true
                         font.letterSpacing: 1
@@ -618,7 +618,7 @@ Rectangle {
                     height: 42
                     color: "transparent"
                     radius: StyleTokens.radiusMd
-                    border.color: page.selectedVersionId === model.versionId ? "#3a4eb8" : "transparent"
+                    border.color: page.selectedVersionId === model.versionId ? StyleTokens.accent : "transparent"
                     border.width: page.selectedVersionId === model.versionId ? 1 : 0
 
                     // Entrance animation
@@ -713,7 +713,7 @@ Rectangle {
                                 text: installBtn.text
                                 color: installBtn.isDownloadQueued ? "#e0a040" :
                                        (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#6080e8" :
-                                       (installBtn.hovered && installBtn.enabled ? "#ffffff" : "#707888"))
+                                       (installBtn.hovered && installBtn.enabled ? StyleTokens.textInverse : "#707888"))
                                 font.pixelSize: StyleTokens.fontSizeXs; font.weight: Font.Medium
                                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                             }
@@ -724,7 +724,7 @@ Rectangle {
                                        (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent"))
                                 border.color: installBtn.isDownloadQueued ? "#3a3000" :
                                               (installBtn.isDownloadActive ? "#1a2840" :
-                                              (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : "#1e2230"))
+                                              (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : StyleTokens.border))
                                 border.width: 1
                             }
                             onClicked: {
@@ -893,7 +893,7 @@ Rectangle {
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
                             color: modInput.activeFocus ? "#0f131c" : "#0c0e14"
-                            border.color: modInput.activeFocus ? "#5068c8" : "#2a3040"
+                            border.color: modInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -914,7 +914,7 @@ Rectangle {
 
                         Rectangle {
                             width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: modSearchBtn2.hovered ? "#5a78e0" : "#5068c8"
+                            color: modSearchBtn2.hovered ? "#5a78e0" : StyleTokens.accentHover
                             scale: modSearchBtn2.pressed ? 0.92 : (modSearchBtn2.hovered ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
@@ -957,7 +957,7 @@ Rectangle {
                             id: modLdrPill2
                             Layout.preferredWidth: 120; height: 28; radius: StyleTokens.radiusSm
                             color: (modLdrHov2.containsMouse || modLdrMenu2.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (modLdrHov2.containsMouse || modLdrMenu2.visible || page.modLoader) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (modLdrHov2.containsMouse || modLdrMenu2.visible || page.modLoader) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -967,7 +967,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modLoaderLabels[page.modLoader] || "全部"
-                                    color: page.modLoader ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: page.modLoader ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1004,10 +1004,10 @@ Rectangle {
 
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: !page.modLoader ? "#1a2848" : "transparent"
+                                            color: !page.modLoader ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: qsTr("全部")
-                                                color: !page.modLoader ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                color: !page.modLoader ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                 font.weight: !page.modLoader ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
@@ -1020,11 +1020,11 @@ Rectangle {
                                             model: ["fabric", "forge", "quilt", "neoforge", "rift", "liteloader"]
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                color: modelData === page.modLoader ? "#1a2848" : "transparent"
+                                                color: modelData === page.modLoader ? StyleTokens.accentSubtle : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: page.modLoaderLabels[modelData] || modelData
-                                                    color: modelData === page.modLoader ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                    color: modelData === page.modLoader ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                     font.weight: modelData === page.modLoader ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
@@ -1044,7 +1044,7 @@ Rectangle {
                             id: modVerPill2
                             Layout.preferredWidth: 120; height: 28; radius: StyleTokens.radiusSm
                             color: (modVerHov2.containsMouse || modVerMenu2.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (modVerHov2.containsMouse || modVerMenu2.visible || page.modGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (modVerHov2.containsMouse || modVerMenu2.visible || page.modGameVersion) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -1054,7 +1054,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modGameVersion ? ("MC " + page.modGameVersion) : "全部"
-                                    color: page.modGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: page.modGameVersion ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1091,10 +1091,10 @@ Rectangle {
 
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: !page.modGameVersion ? "#1a2848" : "transparent"
+                                            color: !page.modGameVersion ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: qsTr("全部")
-                                                color: !page.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                color: !page.modGameVersion ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                 font.weight: !page.modGameVersion ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
@@ -1122,10 +1122,10 @@ Rectangle {
                                             }
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                color: modelData === page.modGameVersion ? "#1a2848" : "transparent"
+                                                color: modelData === page.modGameVersion ? StyleTokens.accentSubtle : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent; text: "MC " + modelData
-                                                    color: modelData === page.modGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                    color: modelData === page.modGameVersion ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                     font.weight: modelData === page.modGameVersion ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
@@ -1145,7 +1145,7 @@ Rectangle {
                             id: modCatPill2
                             Layout.preferredWidth: 115; height: 28; radius: StyleTokens.radiusSm
                             color: (modCatHov2.containsMouse || modCatMenu2.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (modCatHov2.containsMouse || modCatMenu2.visible || page.modCategory) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (modCatHov2.containsMouse || modCatMenu2.visible || page.modCategory) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -1155,7 +1155,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modCatLabels[page.modCategory] || "全部"
-                                    color: page.modCategory ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: page.modCategory ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1192,10 +1192,10 @@ Rectangle {
 
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: !page.modCategory ? "#1a2848" : "transparent"
+                                            color: !page.modCategory ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: qsTr("全部")
-                                                color: !page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                color: !page.modCategory ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                 font.weight: !page.modCategory ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
@@ -1208,11 +1208,11 @@ Rectangle {
                                             model: Object.keys(page.modCatLabels)
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                color: modelData === page.modCategory ? "#1a2848" : "transparent"
+                                                color: modelData === page.modCategory ? StyleTokens.accentSubtle : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: page.modCatLabels[modelData] || modelData
-                                                    color: modelData === page.modCategory ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                    color: modelData === page.modCategory ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                     font.weight: modelData === page.modCategory ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
@@ -1232,7 +1232,7 @@ Rectangle {
                             id: modEnvPill2
                             Layout.preferredWidth: 95; height: 28; radius: StyleTokens.radiusSm
                             color: (modEnvHov2.containsMouse || modEnvMenu2.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (modEnvHov2.containsMouse || modEnvMenu2.visible || page.modEnvironment) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (modEnvHov2.containsMouse || modEnvMenu2.visible || page.modEnvironment) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -1242,7 +1242,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.modEnvironment ? page.modEnvLabels[page.modEnvironment] || page.modEnvironment : "全部"
-                                    color: page.modEnvironment ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: page.modEnvironment ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1279,10 +1279,10 @@ Rectangle {
 
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: !page.modEnvironment ? "#1a2848" : "transparent"
+                                            color: !page.modEnvironment ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: qsTr("全部")
-                                                color: !page.modEnvironment ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                color: !page.modEnvironment ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                 font.weight: !page.modEnvironment ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
@@ -1295,11 +1295,11 @@ Rectangle {
                                             model: ["client", "server"]
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                color: modelData === page.modEnvironment ? "#1a2848" : "transparent"
+                                                color: modelData === page.modEnvironment ? StyleTokens.accentSubtle : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: page.modEnvLabels[modelData] || modelData
-                                                    color: modelData === page.modEnvironment ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                    color: modelData === page.modEnvironment ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                     font.weight: modelData === page.modEnvironment ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
@@ -1320,7 +1320,7 @@ Rectangle {
                         Rectangle {
                             width: modPreTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
                             color: modPreTogHov.containsMouse ? (page.modShowPreReleases ? "#282040" : "#1a1e28") : (page.modShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.modShowPreReleases ? "#504080" : "#2a3040"; border.width: 1
+                            border.color: page.modShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
                                 id: modPreTogText
@@ -1364,7 +1364,7 @@ Rectangle {
                         id: modCard2
                         width: modListView2.width - 8; height: 64; radius: StyleTokens.radiusLg
                         color: modCardHov2.hovered ? "#121620" : "#0e1018"
-                        border.color: modCardHov2.hovered ? "#5068c8" : "#1a1f2a"; border.width: 1
+                        border.color: modCardHov2.hovered ? StyleTokens.accentHover : StyleTokens.bgInput; border.width: 1
                         scale: modCardHov2.hovered ? 1.01 : 1.0
 
                         opacity: 0
@@ -1614,7 +1614,7 @@ Rectangle {
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
                             color: shaderInput.activeFocus ? "#0f131c" : "#0c0e14"
-                            border.color: shaderInput.activeFocus ? "#5068c8" : "#2a3040"; border.width: 1
+                            border.color: shaderInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                             TextInput {
@@ -1631,7 +1631,7 @@ Rectangle {
                         }
                         Rectangle {
                             width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: sBtnHov.containsMouse ? "#5a78e0" : "#5068c8"
+                            color: sBtnHov.containsMouse ? "#5a78e0" : StyleTokens.accentHover
                             scale: sBtnHov.pressed ? 0.92 : (sBtnHov.containsMouse ? 1.06 : 1.0)
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
@@ -1664,7 +1664,7 @@ Rectangle {
                         Rectangle {
                             id: sCatPill; Layout.preferredWidth: 90; height: 28; radius: StyleTokens.radiusSm
                             color: (sCatHov.containsMouse || sCatMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (sCatHov.containsMouse || sCatMenu.visible || shaderTab.shaderCategory) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (sCatHov.containsMouse || sCatMenu.visible || shaderTab.shaderCategory) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             RowLayout {
@@ -1672,7 +1672,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: shaderTab.ddLabel(shaderTab.shaderCats, shaderTab.shaderCategory)
-                                    color: shaderTab.shaderCategory ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: shaderTab.shaderCategory ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1720,7 +1720,7 @@ Rectangle {
                         Rectangle {
                             id: sFeatPill; Layout.preferredWidth: 110; height: 28; radius: StyleTokens.radiusSm
                             color: (sFeatHov.containsMouse || sFeatMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (sFeatHov.containsMouse || sFeatMenu.visible || shaderTab.shaderFeature) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (sFeatHov.containsMouse || sFeatMenu.visible || shaderTab.shaderFeature) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             RowLayout {
@@ -1728,7 +1728,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: shaderTab.ddLabel(shaderTab.shaderFeatures, shaderTab.shaderFeature)
-                                    color: shaderTab.shaderFeature ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: shaderTab.shaderFeature ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1776,7 +1776,7 @@ Rectangle {
                         Rectangle {
                             id: sPerfPill; Layout.preferredWidth: 80; height: 28; radius: StyleTokens.radiusSm
                             color: (sPerfHov.containsMouse || sPerfMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (sPerfHov.containsMouse || sPerfMenu.visible || shaderTab.shaderPerformance) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (sPerfHov.containsMouse || sPerfMenu.visible || shaderTab.shaderPerformance) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             RowLayout {
@@ -1784,7 +1784,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: shaderTab.ddLabel(shaderTab.shaderPerfs, shaderTab.shaderPerformance)
-                                    color: shaderTab.shaderPerformance ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: shaderTab.shaderPerformance ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1832,7 +1832,7 @@ Rectangle {
                         Rectangle {
                             id: sLdrPill; Layout.preferredWidth: 90; height: 28; radius: StyleTokens.radiusSm
                             color: (sLdrHov.containsMouse || sLdrMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (sLdrHov.containsMouse || sLdrMenu.visible || shaderTab.shaderLoader) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (sLdrHov.containsMouse || sLdrMenu.visible || shaderTab.shaderLoader) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             RowLayout {
@@ -1840,7 +1840,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: shaderTab.ddLabel(shaderTab.shaderLoaders, shaderTab.shaderLoader)
-                                    color: shaderTab.shaderLoader ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: shaderTab.shaderLoader ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1894,7 +1894,7 @@ Rectangle {
                         Rectangle {
                             id: sVerPill; Layout.preferredWidth: 100; height: 28; radius: StyleTokens.radiusSm
                             color: (sVerHov.containsMouse || sVerMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (sVerHov.containsMouse || sVerMenu.visible || page.shaderGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (sVerHov.containsMouse || sVerMenu.visible || page.shaderGameVersion) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                             RowLayout {
@@ -1902,7 +1902,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.shaderGameVersion ? ("MC " + page.shaderGameVersion) : "全部"
-                                    color: page.shaderGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: page.shaderGameVersion ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "\u25BE"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -1937,11 +1937,11 @@ Rectangle {
                                         
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: !page.shaderGameVersion ? "#1a2848" : "transparent"
+                                            color: !page.shaderGameVersion ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: qsTr("全部")
-                                                color: !page.shaderGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                color: !page.shaderGameVersion ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                 font.weight: !page.shaderGameVersion ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
@@ -1964,11 +1964,11 @@ Rectangle {
                                             }
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                color: modelData === page.shaderGameVersion ? "#1a2848" : "transparent"
+                                                color: modelData === page.shaderGameVersion ? StyleTokens.accentSubtle : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "MC " + modelData
-                                                    color: modelData === page.shaderGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                    color: modelData === page.shaderGameVersion ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                     font.weight: modelData === page.shaderGameVersion ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
@@ -1986,7 +1986,7 @@ Rectangle {
                         Rectangle {
                             width: preTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
                             color: preTogHov.containsMouse ? (page.shaderShowPreReleases ? "#282040" : "#1a1e28") : (page.shaderShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.shaderShowPreReleases ? "#504080" : "#2a3040"; border.width: 1
+                            border.color: page.shaderShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
                                 id: preTogText
@@ -2193,7 +2193,7 @@ Rectangle {
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
                             color: rpSearchInput.activeFocus ? "#0f131c" : "#0c0e14"
-                            border.color: rpSearchInput.activeFocus ? "#5068c8" : "#2a3040"
+                            border.color: rpSearchInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -2218,7 +2218,7 @@ Rectangle {
                             id: rpSourcePill
                             Layout.preferredWidth: 140; height: 28; radius: StyleTokens.radiusSm
                             color: (rpSrcHov.containsMouse || rpSourceMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (rpSrcHov.containsMouse || rpSourceMenu.visible) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (rpSrcHov.containsMouse || rpSourceMenu.visible) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2252,7 +2252,7 @@ Rectangle {
                                         ]
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: mouse2.hovered ? "#1a2848" : "transparent"
+                                            color: mouse2.hovered ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: modelData.label
                                                 color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
@@ -2283,7 +2283,7 @@ Rectangle {
                             id: rpVerPill
                             Layout.preferredWidth: 120; height: 28; radius: StyleTokens.radiusSm
                             color: (rpVerHov.containsMouse || rpVersionMenu.visible) ? "#1e3260" : "#0c0e14"
-                            border.color: (rpVerHov.containsMouse || rpVersionMenu.visible || page.rpGameVersion) ? "#5078e0" : "#2a3040"; border.width: 1
+                            border.color: (rpVerHov.containsMouse || rpVersionMenu.visible || page.rpGameVersion) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2293,7 +2293,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: page.rpGameVersion ? ("MC " + page.rpGameVersion) : "全部"
-                                    color: page.rpGameVersion ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                    color: page.rpGameVersion ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                     elide: Text.ElideRight
                                 }
                                 Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -2323,10 +2323,10 @@ Rectangle {
 
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                            color: !page.rpGameVersion ? "#1a2848" : "transparent"
+                                            color: !page.rpGameVersion ? StyleTokens.accentSubtle : "transparent"
                                             Text {
                                                 anchors.centerIn: parent; text: qsTr("全部")
-                                                color: !page.rpGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                color: !page.rpGameVersion ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                 font.weight: !page.rpGameVersion ? Font.Bold : Font.Normal
                                             }
                                             MouseArea {
@@ -2355,10 +2355,10 @@ Rectangle {
                                             }
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                color: modelData === page.rpGameVersion ? "#1a2848" : "transparent"
+                                                color: modelData === page.rpGameVersion ? StyleTokens.accentSubtle : "transparent"
                                                 Text {
                                                     anchors.centerIn: parent; text: modelData
-                                                    color: modelData === page.rpGameVersion ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                    color: modelData === page.rpGameVersion ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                     font.weight: modelData === page.rpGameVersion ? Font.Bold : Font.Normal
                                                 }
                                                 MouseArea {
@@ -2385,7 +2385,7 @@ Rectangle {
                                 id: rpCatPill
                                 Layout.preferredWidth: 95; height: 28; radius: StyleTokens.radiusSm
                                 color: (rpCatHov.containsMouse || rpCatMenu.visible) ? "#1e3260" : "#0c0e14"
-                                border.color: (rpCatHov.containsMouse || rpCatMenu.visible || page.rpCategoryFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+                                border.color: (rpCatHov.containsMouse || rpCatMenu.visible || page.rpCategoryFilter) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2405,7 +2405,7 @@ Rectangle {
                                                 "dark": "暗色", "light": "亮色", "clean": "简洁" }
                                             return m[k] || (k || "类别")
                                         }
-                                        color: page.rpCategoryFilter ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                        color: page.rpCategoryFilter ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                         elide: Text.ElideRight
                                     }
                                     Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -2459,10 +2459,10 @@ Rectangle {
                                                 ]
                                                 Rectangle {
                                                     Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                    color: page.rpCategoryFilter === modelData.key ? "#1a2848" : "transparent"
+                                                    color: page.rpCategoryFilter === modelData.key ? StyleTokens.accentSubtle : "transparent"
                                                     Text {
                                                         anchors.centerIn: parent; text: modelData.label
-                                                        color: page.rpCategoryFilter === modelData.key ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                        color: page.rpCategoryFilter === modelData.key ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                         font.weight: page.rpCategoryFilter === modelData.key ? Font.Bold : Font.Normal
                                                     }
                                                     MouseArea {
@@ -2481,7 +2481,7 @@ Rectangle {
                                 id: rpFeatPill
                                 Layout.preferredWidth: 95; height: 28; radius: StyleTokens.radiusSm
                                 color: (rpFeatHov.containsMouse || rpFeatMenu.visible) ? "#1e3260" : "#0c0e14"
-                                border.color: (rpFeatHov.containsMouse || rpFeatMenu.visible || page.rpFeatureFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+                                border.color: (rpFeatHov.containsMouse || rpFeatMenu.visible || page.rpFeatureFilter) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2497,7 +2497,7 @@ Rectangle {
                                                 "locale": "本地化", "models": "模型", "minecraft": "Minecraft" }
                                             return k ? (m[k] || k) : "功能"
                                         }
-                                        color: page.rpFeatureFilter ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                        color: page.rpFeatureFilter ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                         elide: Text.ElideRight
                                     }
                                     Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -2538,10 +2538,10 @@ Rectangle {
                                                 ]
                                                 Rectangle {
                                                     Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                    color: page.rpFeatureFilter === modelData.key ? "#1a2848" : "transparent"
+                                                    color: page.rpFeatureFilter === modelData.key ? StyleTokens.accentSubtle : "transparent"
                                                     Text {
                                                         anchors.centerIn: parent; text: modelData.label
-                                                        color: page.rpFeatureFilter === modelData.key ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                        color: page.rpFeatureFilter === modelData.key ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                         font.weight: page.rpFeatureFilter === modelData.key ? Font.Bold : Font.Normal
                                                     }
                                                     MouseArea {
@@ -2560,7 +2560,7 @@ Rectangle {
                                 id: rpResPill
                                 Layout.preferredWidth: 95; height: 28; radius: StyleTokens.radiusSm
                                 color: (rpResHov.containsMouse || rpResMenu.visible) ? "#1e3260" : "#0c0e14"
-                                border.color: (rpResHov.containsMouse || rpResMenu.visible || page.rpResolutionFilter) ? "#5078e0" : "#2a3040"; border.width: 1
+                                border.color: (rpResHov.containsMouse || rpResMenu.visible || page.rpResolutionFilter) ? "#5078e0" : StyleTokens.borderLight; border.width: 1
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -2569,7 +2569,7 @@ Rectangle {
                                     Text {
                                         Layout.fillWidth: true
                                         text: page.rpResolutionFilter || "分辨率"
-                                        color: page.rpResolutionFilter ? "#8aaeff" : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
+                                        color: page.rpResolutionFilter ? StyleTokens.accentLink : "#788090"; font.pixelSize: StyleTokens.fontSizeSm
                                         elide: Text.ElideRight
                                     }
                                     Text { text: "▾"; color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs }
@@ -2605,10 +2605,10 @@ Rectangle {
                                                 ]
                                                 Rectangle {
                                                     Layout.fillWidth: true; height: 26; radius: StyleTokens.radiusSm
-                                                    color: page.rpResolutionFilter === modelData.key ? "#1a2848" : "transparent"
+                                                    color: page.rpResolutionFilter === modelData.key ? StyleTokens.accentSubtle : "transparent"
                                                     Text {
                                                         anchors.centerIn: parent; text: modelData.label
-                                                        color: page.rpResolutionFilter === modelData.key ? "#5068c8" : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
+                                                        color: page.rpResolutionFilter === modelData.key ? StyleTokens.accentHover : "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
                                                         font.weight: page.rpResolutionFilter === modelData.key ? Font.Bold : Font.Normal
                                                     }
                                                     MouseArea {
@@ -2630,7 +2630,7 @@ Rectangle {
                         Rectangle {
                             width: rpPreTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
                             color: rpPreTogHov.containsMouse ? (page.rpShowPreReleases ? "#282040" : "#1a1e28") : (page.rpShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.rpShowPreReleases ? "#504080" : "#2a3040"; border.width: 1
+                            border.color: page.rpShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
                                 id: rpPreTogText
@@ -2730,7 +2730,7 @@ Rectangle {
                         id: rpCard
                         width: rpListView.width - 8; height: 130; clip: true
                         color: rpCardHov.hovered ? "#121620" : "#0e1018"
-                        radius: StyleTokens.radiusLg; border.color: rpCardHov.hovered ? "#5068c8" : "#1a1f2a"; border.width: 1
+                        radius: StyleTokens.radiusLg; border.color: rpCardHov.hovered ? StyleTokens.accentHover : StyleTokens.bgInput; border.width: 1
                         scale: rpCardHov.hovered ? 1.01 : 1.0
 
                         opacity: 0
@@ -3254,7 +3254,7 @@ Rectangle {
     Rectangle {
         id: rpDetailOverlay
         anchors.fill: parent
-        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
         z: 10
         opacity: page._showRpDetail ? 1 : 0
         visible: page._showRpDetail
@@ -3321,7 +3321,7 @@ Rectangle {
     Rectangle {
         id: modDetailOverlay
         anchors.fill: parent
-        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
         z: 10
         opacity: page._showModDetail ? 1 : 0
         visible: page._showModDetail
@@ -3384,7 +3384,7 @@ Rectangle {
     Rectangle {
         id: shaderDetailOverlay
         anchors.fill: parent
-        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : "#0c0f16"
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
         z: 10
         opacity: page._showShaderDetail ? 1 : 0
         visible: page._showShaderDetail

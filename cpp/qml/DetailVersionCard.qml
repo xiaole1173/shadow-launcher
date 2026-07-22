@@ -15,8 +15,8 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: Math.max(52, contentLayout.implicitHeight + 20 + (card.showExpand && card.expanded ? l3Container.implicitHeight + 16 : 0))
     radius: StyleTokens.radiusLg
-    color: card.cardHovered ? "#161a26" : "#11141c"
-    border.color: card.cardHovered ? "#4068c8" : "#1e2230"
+    color: card.cardHovered ? "#161a26" : StyleTokens.bgSecondary
+    border.color: card.cardHovered ? "#4068c8" : StyleTokens.border
     border.width: card.cardHovered ? 1.5 : 1
 
     // ── Opacity fade-in entrance ──
@@ -118,12 +118,12 @@ Rectangle {
                     model: card.tags
                     delegate: Rectangle {
                         width: tagText.implicitWidth + 8; height: 16
-                        radius: StyleTokens.radiusXs; color: modelData.bg || "#1a2848"
+                        radius: StyleTokens.radiusXs; color: modelData.bg || StyleTokens.accentSubtle
                         Text {
                             id: tagText
                             anchors.centerIn: parent
                             text: modelData.text
-                            color: modelData.color || "#8aaeff"
+                            color: modelData.color || StyleTokens.accentLink
                             font.pixelSize: StyleTokens.fontSizeXs
                         }
                     }

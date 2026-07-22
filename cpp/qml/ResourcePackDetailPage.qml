@@ -15,7 +15,7 @@ Rectangle {
     id: root
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
 
     // Entrance fade-in (self-contained, no interference with parent overlay)
     opacity: 0
@@ -111,7 +111,7 @@ Rectangle {
     Rectangle {
         id: topBar
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-        height: 44; color: hasBg ? "transparent" : "#0c0f16"; z: 10
+        height: 44; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 10
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10

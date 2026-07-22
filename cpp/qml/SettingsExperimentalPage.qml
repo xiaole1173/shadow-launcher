@@ -73,7 +73,7 @@ Flickable {
                         // ── Custom dark style ──
                         background: Rectangle {
                             radius: StyleTokens.radiusMd; color: langCombo.hovered ? "#252a38" : "#161a24"
-                            border.color: langCombo.hovered ? "#3a4eb8" : "#1e2230"
+                            border.color: langCombo.hovered ? StyleTokens.accent : StyleTokens.border
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -168,7 +168,7 @@ Flickable {
 
                         background: Rectangle {
                             radius: StyleTokens.radiusMd; color: langModeCombo.hovered ? "#252a38" : "#161a24"
-                            border.color: langModeCombo.hovered ? "#3a4eb8" : "#1e2230"
+                            border.color: langModeCombo.hovered ? StyleTokens.accent : StyleTokens.border
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -323,7 +323,7 @@ Flickable {
                                     y: sidebarSPSlider.topPadding + sidebarSPSlider.availableHeight / 2 - height / 2
                                     width: sidebarSPSlider.availableWidth; height: 4; radius: StyleTokens.radiusXs; color: StyleTokens.bgHover
                                     Rectangle {
-                                        width: sidebarSPSlider.visualPosition * parent.width; height: 4; radius: StyleTokens.radiusXs; color: "#3a4eb8"
+                                        width: sidebarSPSlider.visualPosition * parent.width; height: 4; radius: StyleTokens.radiusXs; color: StyleTokens.accent
                                     }
                                 }
                                 handle: Rectangle {
@@ -352,7 +352,7 @@ Flickable {
                                     y: contentSPSlider.topPadding + contentSPSlider.availableHeight / 2 - height / 2
                                     width: contentSPSlider.availableWidth; height: 4; radius: StyleTokens.radiusXs; color: StyleTokens.bgHover
                                     Rectangle {
-                                        width: contentSPSlider.visualPosition * parent.width; height: 4; radius: StyleTokens.radiusXs; color: "#3a4eb8"
+                                        width: contentSPSlider.visualPosition * parent.width; height: 4; radius: StyleTokens.radiusXs; color: StyleTokens.accent
                                     }
                                 }
                                 handle: Rectangle {

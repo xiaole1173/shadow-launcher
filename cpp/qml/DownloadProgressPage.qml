@@ -10,7 +10,7 @@ Rectangle {
     id: root
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent
-    color: hasBg ? "transparent" : "#0c0f16"
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
     property var backend: null
     onBackendChanged: {
         if (backend && backend.installCardsModel)
@@ -42,7 +42,7 @@ Rectangle {
 
     // ── empty state ──
     Rectangle {
-        anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"
+        anchors.fill: parent; color: hasBg ? "transparent" : StyleTokens.bgPrimary
         visible: backend.installCardsModel.count === 0
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
@@ -120,7 +120,7 @@ Rectangle {
                         Layout.fillWidth: true
                         text: model.name || "--"
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold
-                        color: model.failed ? "#c06050" : "#e8ecf8"
+                        color: model.failed ? "#c06050" : StyleTokens.textPrimary
                         elide: Text.ElideRight
                     }
                     // Speed
@@ -187,9 +187,9 @@ Rectangle {
                                     }
                                     border.color: {
                                         var s = (modelData && modelData.status) ? modelData.status : "pending"
-                                        if (s === "completed") return "#4bc870"
+                                        if (s === "completed") return StyleTokens.success
                                         if (s === "active") return "#5d6fe0"
-                                        if (s === "failed") return "#e06060"
+                                        if (s === "failed") return StyleTokens.errorLight
                                         return "#2a2a3a"
                                     }
                                     border.width: 1
@@ -301,7 +301,7 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         width: 260; height: 44; radius: StyleTokens.radiusLg
         color: cancelHover.containsMouse ? "#2a1820" : "#1a1420"
-        border.color: cancelHover.containsMouse ? "#e06060" : "#a04040"
+        border.color: cancelHover.containsMouse ? StyleTokens.errorLight : "#a04040"
         border.width: 1
 
         // Static initial — off-screen. Animation explicitly controls position
@@ -442,7 +442,7 @@ Rectangle {
 
     // ── done state (all cards gone, install finished) ──
     Rectangle {
-        anchors.fill: parent; color: hasBg ? "transparent" : "#0c0f16"
+        anchors.fill: parent; color: hasBg ? "transparent" : StyleTokens.bgPrimary
         visible: backend && backend.installPhase === "done" && !cardsView.count
         ColumnLayout {
             anchors.centerIn: parent; spacing: 12
