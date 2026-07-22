@@ -255,16 +255,16 @@ Rectangle {
                         }
                     }
                     Rectangle {
-                        Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm; color: StyleTokens.bgPrimary
-                        border.color: searchField.activeFocus ? StyleTokens.accentHover : StyleTokens.bgCard
+                        Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm; color: StyleTokens.bgInput
+                        border.color: searchField.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                         TextInput {
                             id: searchField; anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
-                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeSm
+                            color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm
                             verticalAlignment: TextInput.AlignVCenter
                             Text {
                                 anchors.left: parent.left; anchors.leftMargin: 10
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("搜索版本..."); color: "#9ca0b4"; font.pixelSize: StyleTokens.fontSizeSm
+                                text: qsTr("搜索版本..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                                 visible: !searchField.text
                             }
                         }

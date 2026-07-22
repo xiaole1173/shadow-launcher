@@ -489,9 +489,9 @@ Rectangle {
 
             // ── 刷新按钮 ──
             Rectangle {
-                width: 28; height: 28; radius: StyleTokens.radiusSm
-                color: refreshHover.hovered ? StyleTokens.accentSubtle : "transparent"
-                border.color: refreshHover.hovered ? "#5068d8" : StyleTokens.border
+                width: 30; height: 30; radius: StyleTokens.radiusMd
+                color: refreshHover.hovered ? "#222a3a" : "#141820"
+                border.color: StyleTokens.bgHover
                 border.width: 1
                 scale: refreshHover.hovered ? 1.08 : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -892,7 +892,7 @@ Rectangle {
 
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
-                            color: modInput.activeFocus ? "#0f131c" : "#0c0e14"
+                            color: StyleTokens.bgInput
                             border.color: modInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
@@ -901,7 +901,7 @@ Rectangle {
                             TextInput {
                                 id: modInput
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
+                                color: StyleTokens.textPrimary; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
                                 Keys.onReturnPressed: modTab.doModSearch()
 
                                 Text {
@@ -1613,14 +1613,14 @@ Rectangle {
                         Text { text: qsTr("搜索"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
-                            color: shaderInput.activeFocus ? "#0f131c" : "#0c0e14"
+                            color: StyleTokens.bgInput
                             border.color: shaderInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                             TextInput {
                                 id: shaderInput
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
+                                color: StyleTokens.textPrimary; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
                                 Keys.onReturnPressed: shaderTab.doSearch()
                                 Text {
                                     anchors.fill: parent; verticalAlignment: Text.AlignVCenter
@@ -2192,7 +2192,7 @@ Rectangle {
 
                         Rectangle {
                             Layout.fillWidth: true; height: 28; radius: StyleTokens.radiusSm
-                            color: rpSearchInput.activeFocus ? "#0f131c" : "#0c0e14"
+                            color: StyleTokens.bgInput
                             border.color: rpSearchInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 200 } }
@@ -2201,7 +2201,7 @@ Rectangle {
                             TextInput {
                                 id: rpSearchInput
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: "#d0d4e0"; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
+                                color: StyleTokens.textPrimary; verticalAlignment: TextInput.AlignVCenter; font.pixelSize: StyleTokens.fontSizeSm
                                 // REMOVED onAccepted trigger — search only on button click (Fix 1)
 
                                 Text {
