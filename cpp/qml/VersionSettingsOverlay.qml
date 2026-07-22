@@ -565,22 +565,8 @@ Rectangle {
                         }
 
                         // Refresh button
-                        Rectangle {
-                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: modRefreshBtnH.hovered ? "#222a3a" : "#141820"
-                            border.color: StyleTokens.bgHover
-                            scale: modRefreshBtnM.pressed ? 0.88 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Image {
-                                anchors.centerIn: parent
-                                source: "icons/lucide/refresh-cw.svg"
-                                width: 14; height: 14
-                            }
-                            MouseArea {
-                                id: modRefreshBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                onClicked: { modSection.refreshModList(); toastManager.show("Mod 列表已刷新") }
-                            }
-                            HoverHandler { id: modRefreshBtnH }
+                        RefreshButton {
+                            onClicked: { modSection.refreshModList(); toastManager.show("Mod 列表已刷新") }
                         }
                     }
 
@@ -846,22 +832,8 @@ Rectangle {
                         }
 
                         // Refresh button
-                        Rectangle {
-                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: rpRefreshBtnH.hovered ? "#222a3a" : "#141820"
-                            border.color: StyleTokens.bgHover
-                            scale: rpRefreshBtnM.pressed ? 0.88 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Image {
-                                anchors.centerIn: parent
-                                source: "icons/lucide/refresh-cw.svg"
-                                width: 14; height: 14
-                            }
-                            MouseArea {
-                                id: rpRefreshBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                onClicked: { rpSection.refreshRPList(); toastManager.show("资源包列表已刷新") }
-                            }
-                            HoverHandler { id: rpRefreshBtnH }
+                        RefreshButton {
+                            onClicked: { rpSection.refreshRPList(); toastManager.show("资源包列表已刷新") }
                         }
                     }
 
@@ -1085,29 +1057,15 @@ Rectangle {
                     }
 
                     // Refresh button
-                    Rectangle {
-                        width: 30; height: 30; radius: StyleTokens.radiusMd; color: saveRefreshBtnH.hovered ? "#222a3a" : "#141820"
-                        border.color: StyleTokens.bgHover
-                        scale: saveRefreshBtnM.pressed ? 0.88 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Behavior on color { ColorAnimation { duration: 200 } }
-                        Image {
-                            anchors.centerIn: parent
-                            source: "icons/lucide/refresh-cw.svg"
-                            width: 14; height: 14
-                        }
-                        MouseArea {
-                            id: saveRefreshBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                            onClicked: {
-                                saveListModel.clear()
-                                if (backend) {
-                                    var s = backend.listSaves(currentSelectedVersion)
-                                    for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
-                                }
-                                toastManager.show("存档列表已刷新")
+                    RefreshButton {
+                        onClicked: {
+                            saveListModel.clear()
+                            if (backend) {
+                                var s = backend.listSaves(currentSelectedVersion)
+                                for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
                             }
+                            toastManager.show("存档列表已刷新")
                         }
-                        HoverHandler { id: saveRefreshBtnH }
                     }
                 }
 

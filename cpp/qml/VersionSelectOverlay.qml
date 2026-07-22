@@ -212,40 +212,15 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 12; spacing: 6
 
                 // Header row: title + refresh + search + sort
-                property bool verRefreshPressed: false
                 property bool installBtnPressed: false
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
                     Text { text: qsTr("已安装版本"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
-                    // Refresh installed versions button
-                    Rectangle {
-                        id: verRefreshBtn
-                        width: verRefreshText.implicitWidth + 16; height: 28; radius: StyleTokens.radiusSm
-                        color: verRefreshHover.hovered ? StyleTokens.accentSubtle : "#0d1018"
-                        border.color: verRefreshHover.hovered ? StyleTokens.accentHover : StyleTokens.bgCard
-                        border.width: 1
-                        scale: versionRightPanel.verRefreshPressed ? 0.88 : (verRefreshHover.hovered ? 1.06 : 1.0)
-                        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text {
-                            id: verRefreshText
-                            anchors.centerIn: parent
-                            text: qsTr("⟳ 刷新"); font.pixelSize: StyleTokens.fontSizeSm
-                            color: verRefreshHover.hovered ? "#8aa8f0" : "#7e8596"
-                        }
-                        HoverHandler { id: verRefreshHover }
-                        ToolTip { visible: verRefreshHover.hovered; text: qsTr("重新扫描已安装版本"); delay: 500 }
-                        MouseArea {
-                            anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onPressed: versionRightPanel.verRefreshPressed = true
-                            onReleased: versionRightPanel.verRefreshPressed = false
-                            onClicked: {
-                                if (backend) {
-                                    backend.refreshVersionDetails()
-                                    toastManager.show("正在扫描版本...")
-                                }
+                    RefreshButton {
+                        onClicked: {
+                            if (backend) {
+                                backend.refreshVersionDetails()
+                                toastManager.show("正在扫描版本...")
                             }
                         }
                     }

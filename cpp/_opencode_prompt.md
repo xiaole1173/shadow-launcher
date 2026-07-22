@@ -1,56 +1,95 @@
-## 任务：替换 Settings 页面残留 ComboBox 为 ShadowDropdown + ShadowDropdown 增强
+## 任务：将所有内联刷新按钮替换为统一 RefreshButton 组件
 
 ### 具体问题
 
-**一、ShadowDropdown.qml 需要补充两个功能（之前被回滚了）**
+项目已有 `qml/RefreshButton.qml` 统一刷新按钮组件（30×30，SVG refresh-cw 图标，`#141820`→`#222a3a` 悬停），但以下页面仍在使用各自内联的刷新按钮：
 
-1. 添加 `property bool enabled: true` — 在 `placeholderText` 属性后面
-2. 在列表项文字渲染处（约第 190 行），当 `root._itemValue(modelData) === ""` 时显示 `root.placeholderText` 而不是空白
+### 需要替换的内联刷新按钮
 
-**二、SettingsJavaPage.qml ComboBox 替换**
+**1. `qml/SettingsJavaPage.qml`** 第 182 行附近
+```
+Rectangle {
+    id: refreshBtn
+    width: 28; height: 28; radius: StyleTokens.radiusMd
+    color: refreshHover.hovered ? StyleTokens.accentSubtle : "transparent"
+    border.color: StyleTokens.bgHover
+    ...
+    Text { text: "↻" }  ← 文本图标，不是 SVG
+}
+```
+→ 替换为 `RefreshButton { onClicked: { ... } }`
+- `onClicked` 内容保持原样（扫描 Java 环境）
+- 原 `enabled: root._mode === 1`（如果有）要保留，但 RefreshButton 没有 enabled 属性，所以去掉 enabled 条件
 
-第 140 行附近：`ComboBox { id: javaListCombo` — 替换为 ShadowDropdown
-- 替换后保持 `Layout.fillWidth: true`
-- 去掉 `textRole`/`valueRole`，使用 `valueKey: "path"`、`labelKey: "label"`
-- model 保持不变（对象数组含 label/path/major）
-- `currentValue` 绑定改为：`root._selectedJavaIndex >= 0 && root._javaList ? root._javaList[root._selectedJavaIndex].path : ""`
-- `onValueSelected` 处理 `__browse__` 路径的逻辑
-- 去掉旧的 background/contentItem/indicator/delegate/popup 块
-- 去掉旧的 `onCurrentIndexChanged` 处理
-- 同步调整右侧刷新按钮尺寸从 34x34 改为 28x28
+**2. `qml/VersionLaunchSection.qml`** 第 425 行附近
+```
+Rectangle {
+    id: refreshBtn
+    width: 30; height: 30; radius: StyleTokens.radiusMd
+    color: refreshJavaHover.hovered ? "#222a3a" : "#141820"
+    ...
+    Image { source: "icons/lucide/refresh-cw.svg"; width: 16; height: 16 }
+    ...
+    enabled: root._mode === 1
+}
+```
+→ 替换为 `RefreshButton { onClicked: { ... } }`
+- 保留 onClicked 内容（重新扫描 Java）
+- RefreshButton 没有 `enabled` 属性，去掉 `enabled: root._mode === 1`
 
-**三、SettingsExperimentalPage.qml 两个 ComboBox 替换**
+**3. `qml/VersionSettingsOverlay.qml`** 第 567 行、第 848 行、第 1087 行附近（3处）
+```
+Rectangle {
+    width: 30; height: 30; radius: StyleTokens.radiusMd
+    color: X.hovered ? "#222a3a" : "#141820"
+    ...
+    Image { source: "icons/lucide/refresh-cw.svg"; width: 16; height: 16 }
+    ...
+}
+```
+→ 替换为 `RefreshButton { onClicked: { ... } }`
 
-1. 第 75 行附近：`ComboBox { id: langCombo`（语言选择）
-   - model 是字符串数组，直接传入
-   - 用 `onValueSelected` 替换 `onActivated`
-   - 去掉所有旧样式代码
+**4. `qml/VersionSelectOverlay.qml`** 第 220 行附近
+```
+Rectangle {
+    id: verRefreshBtn
+    width: 30; height: 30; radius: StyleTokens.radiusMd
+    ...
+    Image { source: "icons/lucide/refresh-cw.svg"; width: 16; height: 16 }
+    ...
+    property bool _syncVerRefresh: false  ← 自定义属性
+    ...
+}
+```
+→ 替换为 `RefreshButton { onClicked: { ... } }`
+- 注意保留 `verRefreshPressed` 逻辑（如果有）
 
-2. 第 170 行附近：`ComboBox { id: langModeCombo`（游戏语言自动调整）
-   - 同上处理
+**5. `qml/HomePage.qml`** 第 1037 行附近（皮肤刷新按钮）
+```
+Rectangle {
+    Layout.fillWidth: true; Layout.preferredHeight: 34
+    ...
+    Text { text: "刷新皮肤" }
+    ...
+}
+```
+→ 这是一整行按钮，不是图标按钮，检查是否需要替换。如果只是文字按钮"刷新皮肤"，保留原样不改。
 
-**四、SettingsGeneralPage.qml 检查**
-
-已有 2 个 ShadowDropdown，确认样式一致即可，不需大改。
-
-### 参考样式规范
-
-所有替换的 ShadowDropdown 使用默认样式（不需要传 labelFn、placeholderText 等额外属性，除非需要）。样式统一为 ShadowDropdown 标准：
-- 背景 `#0c0e14` / 悬停 `#1e3260`
-- 边框 `borderLight` / 悬停 `#5078e0`
-- 文字选中 `accentLink` / 未选中 `#788090`
-
-### 安全规则
-- 只改 qml/ 目录下的 .qml 文件
-- 不动 CMakeLists.txt、C++、token、密码
+### 替换规范
+- `RefreshButton` 标准用法：`RefreshButton { onClicked: ... }`
+- 替换后去掉旧的：id、background Rectangle、border、Image(source=refresh-cw.svg)、HoverHandler、MouseArea、Behavior on color/scale
+- `onClicked` 内容直接放到 RefreshButton 的 `onClicked` 信号
+- 如果原有 `Behavior on scale` 或 `Behavior on color`，全部去掉（RefreshButton 自带）
+- 原有的 `id: refreshBtn` 如果有其他地方引用，需要同步处理
 
 ### 完成后自行检查
 - git diff --stat
-- 检查语法错误、旧引用、死代码
-- 确保 `onValueSelected` 信号正确绑定
-- 删除旧的 background/contentItem/delegate/popup 代码
+- 检查语法错误
+- 确保所有 RefreshButton 的 `onClicked` 正确绑定
+- 确保无残旧代码（旧的 Rectangle、Image refresh-cw.svg、HoverHandler、MouseArea）
+- 检查 `Import` 是否有 `import QtQuick.Controls.Basic`（RefreshButton.qml 内自带 import，使用方不需要额外 import）
 
-### 输出清单（必须）
+### 输出清单
 - 修改了哪些文件
-- 每个文件改了什么
+- 每个文件改了多少处
 - 行数统计
