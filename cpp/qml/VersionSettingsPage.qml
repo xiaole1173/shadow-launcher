@@ -206,7 +206,7 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             text: label
                             font.pixelSize: StyleTokens.fontSizeMd
-                            font.weight: page.currentSection === section ? Font.SemiBold : Font.Normal
+                            font.weight: page.currentSection === section ? Font.DemiBold : Font.Normal
                             color: page.currentSection === section ? "#F1F3F6" : "#B4BAC6"
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -251,7 +251,7 @@ Rectangle {
                         Text {
                             text: qsTr("快捷方式")
                             font.pixelSize: StyleTokens.fontSizeMd
-                            font.weight: Font.SemiBold
+                            font.weight: Font.DemiBold
                             color: "#7E8596"
                             Layout.leftMargin: 4
                             Layout.topMargin: 8
@@ -309,7 +309,7 @@ Rectangle {
                         Text {
                             text: qsTr("高级管理")
                             font.pixelSize: StyleTokens.fontSizeMd
-                            font.weight: Font.SemiBold
+                            font.weight: Font.DemiBold
                             color: "#7E8596"
                             Layout.leftMargin: 4
                             Layout.topMargin: 8
@@ -357,7 +357,7 @@ Rectangle {
                         Text {
                             text: qsTr("特殊登录选项")
                             font.pixelSize: StyleTokens.fontSizeMd
-                            font.weight: Font.SemiBold
+                            font.weight: Font.DemiBold
                             color: "#7E8596"
                             Layout.leftMargin: 4
                             Layout.topMargin: 8
@@ -370,7 +370,7 @@ Rectangle {
                             Text {
                                 text: qsTr("第三方登录")
                                 font.pixelSize: StyleTokens.fontSizeSm
-                                font.weight: Font.SemiBold
+                                font.weight: Font.DemiBold
                                 color: "#7E8596"
                             }
 
@@ -551,7 +551,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: qsTr("应用")
                                 font.pixelSize: StyleTokens.fontSizeMd
-                                font.weight: Font.SemiBold
+                                font.weight: Font.DemiBold
                                 color: StyleTokens.textInverse
                             }
 
@@ -592,7 +592,7 @@ Rectangle {
                         Text {
                             text: qsTr("游戏完整性校验")
                             font.pixelSize: StyleTokens.fontSizeLg
-                            font.weight: Font.SemiBold
+                            font.weight: Font.DemiBold
                             color: StyleTokens.textPrimary
                         }
 
@@ -620,7 +620,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: qsTr("开始校验")
                                 font.pixelSize: StyleTokens.fontSizeMd
-                                font.weight: Font.SemiBold
+                                font.weight: Font.DemiBold
                                 color: StyleTokens.textInverse
                             }
 
@@ -704,7 +704,7 @@ Rectangle {
                             Text {
                                 text: qsTr("校验结果")
                                 font.pixelSize: StyleTokens.fontSizeMd
-                                font.weight: Font.SemiBold
+                                font.weight: Font.DemiBold
                                 color: "#B4BAC6"
                             }
 
@@ -851,7 +851,7 @@ Rectangle {
                         Text {
                             text: qsTr("资源包管理")
                             font.pixelSize: StyleTokens.fontSizeLg
-                            font.weight: Font.SemiBold
+                            font.weight: Font.DemiBold
                             color: StyleTokens.textPrimary
                         }
 
@@ -935,7 +935,7 @@ Rectangle {
                             Text {
                                 text: qsTr("已安装的资源包")
                                 font.pixelSize: StyleTokens.fontSizeMd
-                                font.weight: Font.SemiBold
+                                font.weight: Font.DemiBold
                                 color: "#B4BAC6"
                             }
 
@@ -1042,7 +1042,7 @@ Rectangle {
             Text {
                 text: qsTr("确认删除？")
                 font.pixelSize: StyleTokens.fontSizeLg
-                font.weight: Font.SemiBold
+                font.weight: Font.DemiBold
                 color: StyleTokens.textPrimary
                 Layout.alignment: Qt.AlignHCenter
             }
@@ -1107,7 +1107,7 @@ Rectangle {
                         anchors.centerIn: parent
                         text: qsTr("确认删除")
                         font.pixelSize: StyleTokens.fontSizeMd
-                        font.weight: Font.SemiBold
+                        font.weight: Font.DemiBold
                         color: confirmDelMouse.containsMouse ? "#FCA5A5" : "#EF4444"
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }

@@ -110,6 +110,7 @@ QtObject {
     // 字号（较默认+1px 提升可读性）
     readonly property int fontSizeXs:   11  // 最小辅助文字
     readonly property int fontSizeSm:   12  // 次要文字 / toast
+    readonly property int fontSizeCaption: 13  // 标注/选项卡文字
     readonly property int fontSizeMd:   14  // 正文
     readonly property int fontSizeLg:   16  // 小标题
     readonly property int fontSizeXl:   19  // 大标题
