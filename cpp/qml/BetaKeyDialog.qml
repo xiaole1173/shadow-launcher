@@ -13,110 +13,115 @@ Window {
     color: "transparent"
     title: "Shadow Launcher 内测版"
 
-    // Background — explicit solid rect for FramelessWindowHint
+    // Solid background (Window.color doesn't render on FramelessWindowHint)
     Rectangle {
         anchors.fill: parent
-        radius: StyleTokens.radiusXl
         color: StyleTokens.bgCard
+        radius: StyleTokens.radiusXl
         border.color: StyleTokens.bgHover
         border.width: 1
         clip: true
 
-        // Window drag handler — transparent over title area
+        // Drag handle for frameless window
         MouseArea {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
             height: 36
-            drag.target: root
-            drag.axis: Drag.XAndYAxis
-            cursorShape: Qt.SizeAllCursor
-        }
-    }
-
-    ColumnLayout {
-        anchors.centerIn: parent
-        spacing: 20
-
-        // Logo / title
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: "Shadow Launcher"
-            font.pixelSize: StyleTokens.fontSize2xl
-            font.bold: true
-            color: "#7ec8e3"
-        }
-
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: "内测版本 · 请输入密钥"
-            font.pixelSize: StyleTokens.fontSizeMd
-            color: StyleTokens.textTertiary
-        }
-
-        // Input
-        Rectangle {
-            Layout.preferredWidth: 320
-            Layout.preferredHeight: 44
-            Layout.alignment: Qt.AlignHCenter
-            color: StyleTokens.bgPrimary
-            radius: StyleTokens.radiusLg
-            border.color: keyInput.activeFocus ? "#7ec8e3" : "#2a2a4a"
-            border.width: 1
-
-            TextInput {
-                id: keyInput
-                anchors.fill: parent
-                anchors.margins: 12
-                verticalAlignment: TextInput.AlignVCenter
-                font.pixelSize: StyleTokens.fontSizeMd
-                color: StyleTokens.textSecondary
-                clip: true
-                focus: true
-                maximumLength: 50
-
-                Text {
-                    anchors.fill: parent
-                    verticalAlignment: Text.AlignVCenter
-                    text: "输入内测密钥..."
-                    color: StyleTokens.textMuted
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    visible: !keyInput.text
+            property point clickPos: Qt.point(0, 0)
+            onPressed: (mouse) => { clickPos = Qt.point(mouse.x, mouse.y) }
+            onPositionChanged: (mouse) => {
+                if (mouse.buttons & Qt.LeftButton) {
+                    root.x += mouse.x - clickPos.x
+                    root.y += mouse.y - clickPos.y
                 }
-
-                Keys.onReturnPressed: submit()
             }
         }
 
-        // Status
-        Text {
-            id: statusText
-            Layout.alignment: Qt.AlignHCenter
-            font.pixelSize: StyleTokens.fontSizeSm
-            visible: false
-        }
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 20
 
-        // Submit button
-        Rectangle {
-            Layout.preferredWidth: 320
-            Layout.preferredHeight: 42
-            Layout.alignment: Qt.AlignHCenter
-            radius: StyleTokens.radiusLg
-            color: verifyBtn.pressed ? "#3a7aa5" : "#4a9ac5"
+            // Logo / title
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Shadow Launcher"
+                font.pixelSize: StyleTokens.fontSize2xl
+                font.bold: true
+                color: "#7ec8e3"
+            }
 
             Text {
-                anchors.centerIn: parent
-                text: "验证"
-                font.pixelSize: StyleTokens.fontSizeLg
-                font.bold: true
-                color: StyleTokens.textInverse
+                Layout.alignment: Qt.AlignHCenter
+                text: "内测版本 · 请输入密钥"
+                font.pixelSize: StyleTokens.fontSizeMd
+                color: StyleTokens.textTertiary
             }
 
-            MouseArea {
-                id: verifyBtn
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: submit()
+            // Input
+            Rectangle {
+                Layout.preferredWidth: 320
+                Layout.preferredHeight: 44
+                Layout.alignment: Qt.AlignHCenter
+                color: StyleTokens.bgPrimary
+                radius: StyleTokens.radiusLg
+                border.color: keyInput.activeFocus ? "#7ec8e3" : "#2a2a4a"
+                border.width: 1
+
+                TextInput {
+                    id: keyInput
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    verticalAlignment: TextInput.AlignVCenter
+                    font.pixelSize: StyleTokens.fontSizeMd
+                    color: StyleTokens.textSecondary
+                    clip: true
+                    focus: true
+                    maximumLength: 50
+
+                    Text {
+                        anchors.fill: parent
+                        verticalAlignment: Text.AlignVCenter
+                        text: "输入内测密钥..."
+                        color: StyleTokens.textMuted
+                        font.pixelSize: StyleTokens.fontSizeMd
+                        visible: !keyInput.text
+                    }
+
+                    Keys.onReturnPressed: submit()
+                }
+            }
+
+            // Status
+            Text {
+                id: statusText
+                Layout.alignment: Qt.AlignHCenter
+                font.pixelSize: StyleTokens.fontSizeSm
+                visible: false
+            }
+
+            // Submit button
+            Rectangle {
+                Layout.preferredWidth: 320
+                Layout.preferredHeight: 42
+                Layout.alignment: Qt.AlignHCenter
+                radius: StyleTokens.radiusLg
+                color: verifyBtn.pressed ? "#3a7aa5" : "#4a9ac5"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "验证"
+                    font.pixelSize: StyleTokens.fontSizeLg
+                    font.bold: true
+                    color: StyleTokens.textInverse
+                }
+
+                MouseArea {
+                    id: verifyBtn
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: submit()
+                }
             }
         }
     }
