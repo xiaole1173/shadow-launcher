@@ -1,80 +1,61 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Layouts
 
-/// 外置登录多角色选择弹窗 — 独立组件
 Item {
     id: root
     anchors.fill: parent
 
-    // ── 公开 API ──
     property bool opened: false
     property var backend
 
-    // ── 信号 ──
     signal accepted(int profileIndex)
     signal cancelled()
 
-    // ── 遮罩（z=100 保证覆盖其他内容）──
     Rectangle {
-        anchors.fill: parent
-        z: 100
+        anchors.fill: parent; z: 100
         color: "#80000000"
         opacity: root.opened ? 1 : 0
         visible: root.opened || opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-        // 仅拦截事件防止穿透，不处理点击（只有 X 能关闭）
         MouseArea { anchors.fill: parent }
     }
 
-    // ── 卡片 ──
     Rectangle {
-        id: card
-        z: 101
+        id: card; z: 101
         width: 360
-        height: Math.min(48 + 1 + 12 + Math.max(contentCol.implicitHeight + 16, 160), parent ? parent.height - 80 : 600)
+        height: Math.min(48 + 1 + 8 + Math.max(col.implicitHeight + 8, 140), parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
-        radius: StyleTokens.radiusLg
-        color: StyleTokens.bgSecondary
-        border { color: StyleTokens.border; width: 1 }
+        radius: 12
+        color: "#11141c"
+        border { color: "#2a3040"; width: 1 }
 
         scale: root.opened ? 1 : 0.9
         opacity: root.opened ? 1 : 0
         Behavior on scale { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
-        // ── Header ──
         Rectangle {
-            id: header
             width: parent.width; height: 48
             color: "transparent"
 
             Text {
-                text: qsTr("选择角色")
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                color: StyleTokens.textPrimary
-                font { pixelSize: StyleTokens.fontSizeLg; weight: Font.DemiBold }
+                text: qsTr("选择角色")
+                color: "#e8ecf8"
+                font { pixelSize: 16; weight: Font.DemiBold }
             }
 
-            // 关闭按钮（X），跟披风选择弹窗统一风格
             Rectangle {
-                id: closeBtn
                 anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                width: 32; height: 32; radius: StyleTokens.radiusSm
-                color: closeArea.containsMouse ? StyleTokens.bgHover : "transparent"
+                width: 32; height: 32; radius: 6
+                color: xarea.containsMouse ? "#2a3040" : "transparent"
                 Behavior on color { ColorAnimation { duration: 120 } }
-
-                Image {
-                    source: "icons/lucide/x.svg"
-                    width: 16; height: 16
+                Text {
                     anchors.centerIn: parent
-                    sourceSize: Qt.size(16, 16)
+                    text: "\u2715"; color: "#8088a0"; font.pixelSize: 16
                 }
-
                 MouseArea {
-                    id: closeArea
+                    id: xarea
                     anchors.fill: parent; hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.cancelled()
@@ -82,92 +63,74 @@ Item {
             }
         }
 
-        // ── 分割线 ──
         Rectangle {
+            anchors.top: parent.top; anchors.topMargin: 48
             width: parent.width; height: 1
-            anchors.top: header.bottom
-            color: StyleTokens.borderLight
+            color: "#2a3040"
         }
 
-        // ── 可滚动内容（Flickable，跟披风弹窗一致）──
-        Flickable {
-            id: flick
-            width: parent.width
-            anchors { top: header.bottom; topMargin: 1; bottom: parent.bottom }
-            contentHeight: contentCol.implicitHeight + 16
+        Item {
+            id: clipArea
+            anchors { top: parent.top; topMargin: 48 + 1 + 8; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 8 }
             clip: true
-            boundsBehavior: Flickable.StopAtBounds
 
-            ColumnLayout {
-                id: contentCol
-                width: parent.width - 16
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 8
-                spacing: 4
+            Column {
+                id: col
+                width: parent.width
+                spacing: 2
+                topPadding: 0
+                bottomPadding: 0
 
                 Repeater {
-                    id: profileRep
+                    id: profRep
                     model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
 
                     delegate: Rectangle {
-                        required property int index
-                        required property var modelData
-
-                        Layout.fillWidth: true
+                        width: parent ? parent.width : 360
                         height: 44
-                        radius: StyleTokens.radiusSm
+                        radius: 6
 
                         color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                               ? StyleTokens.accentSubtle
-                               : (rowArea.containsMouse ? StyleTokens.bgHover : "transparent")
-                        Behavior on color { ColorAnimation { duration: 120 } }
+                               ? "#1a2848" : (ma.containsMouse ? "#2a3040" : "transparent")
+                        Behavior on color { ColorAnimation { duration: 100 } }
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
+                            anchors.leftMargin: 12; anchors.rightMargin: 12
                             spacing: 10
 
-                            // 头像占位
                             Rectangle {
-                                Layout.preferredWidth: 28
-                                Layout.preferredHeight: 28
-                                radius: StyleTokens.radiusSm
-                                color: StyleTokens.bgCard
-                                border { color: StyleTokens.borderLight; width: 1 }
-
+                                Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
+                                color: "#1a1f2e"; border { color: "#2a3040"; width: 1 }
                                 Text {
                                     anchors.centerIn: parent
-                                    text: modelData.name ? modelData.name.charAt(0).toUpperCase() : "?"
-                                    color: StyleTokens.textTertiary
-                                    font { pixelSize: StyleTokens.fontSizeMd; weight: Font.Bold }
+                                    text: (typeof modelData !== "undefined" && modelData && modelData.name)
+                                          ? modelData.name.charAt(0).toUpperCase() : "?"
+                                    color: "#a8b0c0"
+                                    font { pixelSize: 14; weight: Font.Bold }
                                 }
                             }
 
-                            // 角色名
                             Text {
-                                text: modelData.name || ""
+                                text: (typeof modelData !== "undefined" && modelData && modelData.name)
+                                      ? modelData.name : ""
                                 color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                       ? StyleTokens.accentLight : StyleTokens.textPrimary
-                                font.pixelSize: StyleTokens.fontSizeMd
+                                       ? "#6080e8" : "#e8ecf8"
+                                font.pixelSize: 14
                                 font.weight: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
                                              ? Font.DemiBold : Font.Normal
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
+                                Layout.fillWidth: true; elide: Text.ElideRight
                             }
 
-                            // 选中指示
                             Rectangle {
                                 width: 8; height: 8; radius: 4
                                 visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                color: StyleTokens.accent
+                                color: "#3b82f6"
                             }
                         }
 
                         MouseArea {
-                            id: rowArea
-                            anchors.fill: parent
-                            hoverEnabled: true
+                            id: ma; anchors.fill: parent; hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (backend && backend.yggdrasil) {
@@ -181,5 +144,4 @@ Item {
             }
         }
     }
-
 }
