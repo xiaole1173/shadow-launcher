@@ -89,10 +89,23 @@ Item {
                     height: 44
                     radius: 6
 
-                    color: ma.containsMouse ? StyleTokens.bgHover : StyleTokens.bgCard
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    color: {
+                        var sel = (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
+                        if (sel) return StyleTokens.accentSubtle
+                        return ma.containsMouse ? StyleTokens.bgHover : StyleTokens.bgCard
+                    }
+                    Behavior on color { ColorAnimation { duration: 120 } }
                     border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                             ? StyleTokens.accent : "transparent"; width: 1 }
+                             ? StyleTokens.accentLight : "transparent"; width: 1 }
+
+                    // 选中左边条
+                    Rectangle {
+                        width: 3; height: parent.height - 8
+                        anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
+                        radius: 2
+                        visible: (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
+                        color: StyleTokens.accent
+                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -118,9 +131,14 @@ Item {
                         }
 
                         Rectangle {
-                            width: 8; height: 8; radius: 4
+                            width: 18; height: 18; radius: 9
                             visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
                             color: StyleTokens.accent
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2713"; color: StyleTokens.textInverse
+                                font { pixelSize: 11; weight: Font.Bold }
+                            }
                         }
                     }
 
