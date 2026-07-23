@@ -86,7 +86,7 @@ Item {
                     color: {
                         var sel = (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
                         if (sel) return StyleTokens.accentSubtle
-                        return ma.containsMouse ? StyleTokens.bgHover : StyleTokens.bgCard
+                        return ma.containsMouse ? StyleTokens.bgHover : "transparent"
                     }
                     Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -137,18 +137,7 @@ Item {
                                 }
                             }
 
-                            // 加载进度指示
-                            Rectangle {
-                                anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
-                                width: 6; height: 6; radius: 3
-                                color: {
-                                    var img = parent.children[0]
-                                    if (img.source && img.status === Image.Loading) return StyleTokens.warning
-                                    if (img.source && img.status === Image.Ready) return StyleTokens.success
-                                    return "transparent"
-                                }
-                                visible: parent.children[0].source ? true : false
-                            }
+
                         }
 
                         // ── 名字 ──
