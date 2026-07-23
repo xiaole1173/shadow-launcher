@@ -198,21 +198,40 @@ Rectangle {
             delegate: Rectangle {
                 required property var modelData
                 width: historyList.width; height: root._historyItemH
-                color: rowMouse.containsMouse ? "#1a2840" : "transparent"
-                Behavior on color { ColorAnimation { duration: 100 } }
 
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 12; anchors.rightMargin: 6
                     spacing: 4
 
-                    Text {
+                    // 可点击的姓名行（选中历史记录）
+                    Rectangle {
+                        id: selectArea
                         Layout.fillWidth: true
-                        text: modelData
-                        color: StyleTokens.textSecondary
-                        font.pixelSize: StyleTokens.fontSizeMd
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
+                        Layout.fillHeight: true
+                        radius: StyleTokens.radiusSm
+                        color: selectAreaMouse.containsMouse ? "#1a2840" : "transparent"
+                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                        Text {
+                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                            text: modelData
+                            color: StyleTokens.textSecondary
+                            font.pixelSize: StyleTokens.fontSizeMd
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+
+                        MouseArea {
+                            id: selectAreaMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                textInput.text = modelData
+                                _historyOpen = false
+                            }
+                        }
                     }
 
                     // 删除按钮
@@ -240,19 +259,6 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.historyItemDeleted(modelData)
                         }
-                    }
-                }
-
-                MouseArea {
-                    id: rowMouse
-                    anchors.left: parent.left
-                    anchors.right: delBtn.left
-                    anchors.top: parent.top; anchors.bottom: parent.bottom
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        textInput.text = modelData
-                        _historyOpen = false
                     }
                 }
             }
