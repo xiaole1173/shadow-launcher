@@ -356,24 +356,11 @@ Rectangle {
                 Layout.alignment: Qt.AlignHCenter
                 text: "加入联机房间"; font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.accentLight
             }
-            Rectangle {
-                Layout.preferredWidth: parent.width; Layout.preferredHeight: 44
-                color: StyleTokens.bgInput; radius: StyleTokens.radiusLg
-                border.color: StyleTokens.borderLight; border.width: 1
-                TextInput {
-                    id: joinInput
-                    anchors.fill: parent; anchors.margins: 12
-                    verticalAlignment: TextInput.AlignVCenter
-                    font.pixelSize: StyleTokens.fontSizeLg; font.family: StyleTokens.fontFamilyMono
-                    color: StyleTokens.textSecondary; clip: true
-                    Text {
-                        anchors.centerIn: parent
-                        text: "粘贴房间码 (U/XXXX-...)"
-                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeLg
-                        font.family: StyleTokens.fontFamilyMono
-                        visible: !joinInput.text
-                    }
-                }
+            InputBox {
+                id: joinInput
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                placeholderText: "粘贴房间码 (U/XXXX-...)"
             }
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter; spacing: 12
