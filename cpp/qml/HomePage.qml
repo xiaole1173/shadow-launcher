@@ -1308,101 +1308,18 @@ Rectangle {
         }
     }
 
-    // ── 多角色选择弹窗（GenericPopup 变种）──
-    GenericPopup {
+    // ── 多角色选择弹窗（独立组件）──
+    ProfileSelectPopup {
         id: profileSelectPopup
-        title: qsTr("选择角色")
-        subtitle: qsTr("请选择一个角色进入游戏")
-        cardWidth: 340
         opened: showProfilePopup
-        onClosed: showProfilePopup = false
-        onRejected: {
+        backend: backend
+        onAccepted: {
+            showProfilePopup = false
+        }
+        onCancelled: {
+            showProfilePopup = false
             if (backend && backend.yggdrasil)
                 backend.yggdrasil.cancelLogin()
-        }
-
-        // 内容区：显式设定 Layout 来避免 ScrollView 内布局混乱
-        Column {
-            id: profileCol
-            width: parent ? parent.width : 320
-            spacing: 4
-            topPadding: 4
-            bottomPadding: 4
-
-            Repeater {
-                id: profileRepeater
-                model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
-
-                // 头像 + 名称，每行固定高
-                delegate: Rectangle {
-                    required property int index
-                    required property var modelData
-
-                    width: parent ? parent.width : 320
-                    height: 44
-                    radius: 8
-
-                    // 选中/悬停高亮
-                    color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                           ? "#1a3a68" : (rowMarea.containsMouse ? "#ffffff12" : "transparent")
-                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 10
-
-                        // 头像占位：白底圆圈 + 名字首字
-                        Rectangle {
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 28
-                            radius: 6
-                            color: "#1a2a48"
-
-                            Text {
-                                anchors.centerIn: parent
-                                color: "#c0c8e0"
-                                font.pixelSize: 13
-                                font.bold: true
-                                text: modelData.name ? modelData.name.charAt(0).toUpperCase() : "?"
-                            }
-                        }
-
-                        // 角色名
-                        Text {
-                            text: modelData.name || ""
-                            color: "#d0d4e0"
-                            font.pixelSize: 13
-                            font.weight: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                        ? Font.DemiBold : Font.Normal
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                        }
-
-                        // 选中指示器
-                        Rectangle {
-                            width: 8; height: 8; radius: 4
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                            color: "#6080e8"
-                        }
-                    }
-
-                    MouseArea {
-                        id: rowMarea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (backend && backend.yggdrasil) {
-                                backend.yggdrasil.selectProfile(index)
-                                showProfilePopup = false
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 
