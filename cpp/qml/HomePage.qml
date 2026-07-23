@@ -598,7 +598,7 @@ Rectangle {
                     // 服务器地址
                     InputBox {
                         id: yggServerAddrInput
-                        Layout.fillWidth: true
+                        width: parent.width
                         placeholderText: qsTr("服务器地址（如 mc.example.com:25565）")
                         text: backend.yggdrasil ? backend.yggdrasil.serverAddress : ""
 
@@ -631,7 +631,7 @@ Rectangle {
                     // 服务器名称
                     InputBox {
                         id: yggServerNameInput
-                        Layout.fillWidth: true
+                        width: parent.width
                         placeholderText: qsTr("服务器名称（可选，仅用于显示）")
                         text: backend.yggdrasil ? backend.yggdrasil.serverName : ""
                         onAccepted: {
