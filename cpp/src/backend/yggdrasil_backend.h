@@ -37,6 +37,15 @@ class YggdrasilBackend : public QObject {
     Q_PROPERTY(bool autoJoinServer READ autoJoinServer WRITE setAutoJoinServer NOTIFY autoJoinServerChanged)
     Q_PROPERTY(QObject* skinFetcher READ skinFetcherObj CONSTANT)
 
+    // 预加载全部角色的头像（用于多角色选择弹窗）
+    Q_PROPERTY(QStringList profileHeadUrls READ profileHeadUrls NOTIFY profileHeadsChanged)
+    Q_INVOKABLE void preloadProfileSkins();
+    /// 返回指定索引角色的头像 URL（未缓存返回空串）
+    QStringList profileHeadUrls() const;
+
+private:
+    void preloadNextSkin();
+
 public:
     explicit YggdrasilBackend(QObject *parent = nullptr);
 
@@ -94,12 +103,14 @@ signals:
     void serverAddressChanged();
     void serverNameChanged();
     void autoJoinServerChanged();
+    void profileHeadsChanged();
 
 private slots:
     void onMetaReply();
     void onAuthenticateReply();
     void onRefreshReply();
     void onLogoutReply();
+    void onSkinPreloaded();
 
 private:
     void setStatus(const QString &msg);
@@ -115,6 +126,7 @@ private:
     bool m_loggingOut = false;
     bool m_pendingProfile = false;   // 登录成功等待选角色
     bool m_hadSavedSession = false;  // session.json 是否存在过
+    int m_preloadIdx = -1;           // 头像预加载队列索引
     YggdrasilSkinFetcher *m_skinFetcher = nullptr;
 };
 
