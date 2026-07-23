@@ -104,7 +104,7 @@ Rectangle {
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 14; spacing: 12
                     ColumnLayout {
-                        Layout.fillWidth: true; spacing: 2
+                        spacing: 2
                         Text { text: "房间码"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle }
                         Text {
                             text: mp ? mp.roomCode : ""
@@ -113,6 +113,7 @@ Rectangle {
                             font.family: StyleTokens.fontFamilyMono
                         }
                     }
+                    Item { Layout.fillWidth: true }
                     ShadowButton {
                         Layout.preferredWidth: 90; Layout.preferredHeight: 34
                         text: "复制"
