@@ -37,7 +37,7 @@ static QString renderHead(const QString &fullSkinPath)
 
     // Face: 8×8 从 (8,8) 开始
     QImage face = skin.copy(8, 8, 8, 8);
-    face = face.scaled(FACE_SZ, FACE_SZ, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+    face = face.scaled(FACE_SZ, FACE_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation)
                .convertToFormat(QImage::Format_ARGB32_Premultiplied);
 
     QImage out(CANVAS, CANVAS, QImage::Format_ARGB32_Premultiplied);
@@ -49,7 +49,7 @@ static QString renderHead(const QString &fullSkinPath)
 
     // Hat/overlay: 8×8 从 (40,8) 开始
     QImage hat = skin.copy(40, 8, 8, 8);
-    hat = hat.scaled(HAT_SZ, HAT_SZ, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+    hat = hat.scaled(HAT_SZ, HAT_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation)
              .convertToFormat(QImage::Format_ARGB32_Premultiplied);
     p.drawImage((CANVAS - HAT_SZ) / 2, (CANVAS - HAT_SZ) / 2, hat);
     p.end();

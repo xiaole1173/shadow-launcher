@@ -76,20 +76,6 @@ Item {
         Item {
             anchors { top: parent.top; topMargin: 48 + 1 + 10; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 10 }
             clip: true
-
-            // 诊断
-            Rectangle {
-                width: parent.width; height: 20
-                color: "#2a3040"; radius: 4
-                visible: true
-                Text {
-                    anchors.centerIn: parent
-                    color: "#ffaa00"; font.pixelSize: 10; font.family: "monospace"
-                    text: "[D] bk=" + (typeof backend != "undefined" && backend ? "1" : "0")
-                          + " yg=" + (backend && backend.yggdrasil ? "1" : "0")
-                          + " pr=" + (typeof backend != "undefined" && backend && backend.yggdrasil
-                                      ? backend.yggdrasil.profiles.length : "?")
-                }
             }
 
             // 角色列表 — 手动 y 定位
@@ -99,7 +85,7 @@ Item {
 
                 delegate: Rectangle {
                     x: 0
-                    y: 20 + 4 + index * 46
+                    y: index * 46
                     width: parent ? parent.width : 360
                     height: 44
                     radius: 6
