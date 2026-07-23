@@ -296,45 +296,45 @@ void YggdrasilBackend::loadSession()
         if (!m_session.profiles.isEmpty())
             emit profilesChanged();
 
-        // 启动时验证 token 有效性，无效则尝试刷新
-        QNetworkReply *valReply = m_auth.validate(m_session.apiRoot, m_session.accessToken);
-        QEventLoop loop;
-        QObject::connect(valReply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-        loop.exec();
-
-        if (valReply->error() != QNetworkReply::NoError) {
-            // token 可能过期，尝试刷新
-            qCDebug(logYggBackend) << "Token validation failed, attempting refresh...";
-            QNetworkReply *refReply = m_auth.refresh(
-                m_session.apiRoot, m_session.accessToken, m_session.clientToken);
-            QEventLoop loop2;
-            QObject::connect(refReply, &QNetworkReply::finished, &loop2, &QEventLoop::quit);
-            loop2.exec();
-
-            if (refReply->error() == QNetworkReply::NoError) {
-                QByteArray refData = refReply->readAll();
-                QString refError;
-                YggdrasilSession refreshed = YggdrasilAuth::parseRefresh(
-                    refData, m_session.apiRoot, m_session.email, refError);
-                if (refError.isEmpty()) {
-                    // 保留 profiles 和 index
-                    refreshed.profiles = m_session.profiles;
-                    refreshed.selectedProfileIndex = m_session.selectedProfileIndex;
-                    m_session = refreshed;
-                    saveSession();
-                    qCDebug(logYggBackend) << "Token refreshed successfully";
-                    emit stateChanged();
-                }
-            } else {
-                qCWarning(logYggBackend) << "Token refresh failed, clearing session";
-                m_session.clear();
-                deleteSavedSession();
-                emit stateChanged();
-            }
-            refReply->deleteLater();
-        }
-        valReply->deleteLater();
+        // 先加载缓存皮肤，让 UI 立即显示
         fetchSkin();
+
+        // 异步验证 token，不阻塞构造
+        QTimer::singleShot(0, this, [this]() {
+            QNetworkReply *valReply = m_auth.validate(m_session.apiRoot, m_session.accessToken);
+            connect(valReply, &QNetworkReply::finished, this, [this, valReply]() {
+                valReply->deleteLater();
+
+                if (valReply->error() != QNetworkReply::NoError) {
+                    qCDebug(logYggBackend) << "Token validation failed, attempting refresh...";
+                    QNetworkReply *refReply = m_auth.refresh(
+                        m_session.apiRoot, m_session.accessToken, m_session.clientToken);
+                    connect(refReply, &QNetworkReply::finished, this, [this, refReply]() {
+                        refReply->deleteLater();
+
+                        if (refReply->error() == QNetworkReply::NoError) {
+                            QByteArray refData = refReply->readAll();
+                            QString refError;
+                            YggdrasilSession refreshed = YggdrasilAuth::parseRefresh(
+                                refData, m_session.apiRoot, m_session.email, refError);
+                            if (refError.isEmpty()) {
+                                refreshed.profiles = m_session.profiles;
+                                refreshed.selectedProfileIndex = m_session.selectedProfileIndex;
+                                m_session = refreshed;
+                                saveSession();
+                                qCDebug(logYggBackend) << "Token refreshed successfully";
+                                emit stateChanged();
+                            }
+                        } else {
+                            qCWarning(logYggBackend) << "Token refresh failed, clearing session";
+                            m_session.clear();
+                            deleteSavedSession();
+                            emit stateChanged();
+                        }
+                    });
+                }
+            });
+        });
     }
 }
 
