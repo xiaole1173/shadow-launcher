@@ -26,6 +26,9 @@ public:
     /// 流程如 PCL McSkinGetAddress → McSkinDownload
     Q_INVOKABLE void fetchSkin(const QString &apiRoot, const QString &uuid);
 
+    /// 缓存目录（供外部构造头像 URL 使用）
+    static QString cacheDir();
+
 signals:
     void skinChanged();
     void skinReady();
@@ -36,7 +39,6 @@ private slots:
     void onDownloadReply();
 
 private:
-    static QString cacheDir();
     QString m_skinPath;
     int m_skinVariant = 0;  // 0=classic/steve, 1=slim/alex
     QNetworkAccessManager *m_nam = nullptr;
