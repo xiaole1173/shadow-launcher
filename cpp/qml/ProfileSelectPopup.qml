@@ -76,7 +76,6 @@ Item {
         Item {
             anchors { top: parent.top; topMargin: 48 + 1 + 10; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 10 }
             clip: true
-            }
 
             // 角色列表 — 手动 y 定位
             Repeater {
