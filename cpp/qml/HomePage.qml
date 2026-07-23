@@ -497,10 +497,25 @@ Rectangle {
                 }
             }
 
-            // 登出
+            // 登出 + 角色列表
             RowLayout {
-                Layout.alignment: Qt.AlignHCenter; spacing: 12
+                Layout.alignment: Qt.AlignHCenter; spacing: 8
                 Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
+
+                Rectangle {
+                    width: 72; height: 24; radius: StyleTokens.radiusSm
+                    color: "transparent"; border.color: StyleTokens.surfaceLight
+                    Row {
+                        anchors.centerIn: parent; spacing: 4
+                        Image { source: "icons/lucide/list.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: qsTr("角色"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.showProfilePopup = true
+                    }
+                }
+
                 Rectangle {
                     width: 60; height: 24; radius: StyleTokens.radiusSm
                     color: "transparent"; border.color: StyleTokens.surfaceLight
