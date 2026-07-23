@@ -581,7 +581,7 @@ Rectangle {
             anchors.bottomMargin: 8
             clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
-            Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
+            Component.onCompleted: contentItem.flickDeceleration = 250
             
 
             ListView {
@@ -762,7 +762,7 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
+                Component.onCompleted: contentItem.flickDeceleration = 250
                 
 
                 ListView {
@@ -971,7 +971,7 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
+                Component.onCompleted: contentItem.flickDeceleration = 250
 
                 ListView {
                     id: shaderCardView
@@ -1089,7 +1089,7 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
+                Component.onCompleted: contentItem.flickDeceleration = 250
                 
 
                 ListView {
