@@ -1321,80 +1321,82 @@ Rectangle {
                 backend.yggdrasil.cancelLogin()
         }
 
-        // 使用 Column + Repeater 避免 ListView 在 ScrollView 内的循环高度依赖
+        // 内容区：显式设定 Layout 来避免 ScrollView 内布局混乱
         Column {
             id: profileCol
             width: parent ? parent.width : 320
-            spacing: 2
+            spacing: 4
             topPadding: 4
             bottomPadding: 4
-
-            // ══ 诊断：profiles 计数（调试完后移除）══
-            Rectangle {
-                width: parent.width; height: 20
-                color: "#222222"
-                radius: 4
-                visible: true
-                Text {
-                    anchors.centerIn: parent
-                    color: "#ffaa00"
-                    font.pixelSize: 11; font.family: "monospace"
-                    text: {
-                        var n = (profileRepeater ? profileRepeater.model.length : -1)
-                        var r = (profileRepeater ? profileRepeater.count : -1)
-                        return "[D] model=" + n + " delegates=" + r
-                    }
-                }
-            }
 
             Repeater {
                 id: profileRepeater
                 model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
 
+                // 头像 + 名称，每行固定高
                 delegate: Rectangle {
                     required property int index
                     required property var modelData
-                    width: profileCol.width; height: 44
-                    radius: StyleTokens.radiusSm
-                    color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (delegateMouse.containsMouse ? StyleTokens.bgCard : "transparent")
-                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    width: parent ? parent.width : 320
+                    height: 44
+                    radius: 8
+
+                    // 选中/悬停高亮
+                    color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
+                           ? "#1a3a68" : (rowMarea.containsMouse ? "#ffffff12" : "transparent")
+                    Behavior on color { ColorAnimation { duration: 100 } }
 
                     RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
                         spacing: 10
 
-                        // 头像
-                        MinecraftHead2D {
-                            Layout.preferredWidth: 28; Layout.preferredHeight: 28
-                            skinSource: ""
-                            showSpinner: false
+                        // 头像占位：白底圆圈 + 名字首字
+                        Rectangle {
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 28
+                            radius: 6
+                            color: "#1a2a48"
+
+                            Text {
+                                anchors.centerIn: parent
+                                color: "#c0c8e0"
+                                font.pixelSize: 13
+                                font.bold: true
+                                text: modelData.name ? modelData.name.charAt(0).toUpperCase() : "?"
+                            }
                         }
 
                         // 角色名
                         Text {
                             text: modelData.name || ""
-                            color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.textSecondary : "#9498a8"
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
+                            color: "#d0d4e0"
+                            font.pixelSize: 13
+                            font.weight: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
+                                        ? Font.DemiBold : Font.Normal
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
 
-                        // 选中指示
+                        // 选中指示器
                         Rectangle {
                             width: 8; height: 8; radius: 4
                             anchors.verticalCenter: parent.verticalCenter
-                            visible: model.index === backend.yggdrasil.profileIndex
-                            color: StyleTokens.accentLight
+                            visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
+                            color: "#6080e8"
                         }
                     }
 
                     MouseArea {
-                        id: delegateMouse; anchors.fill: parent; hoverEnabled: true
+                        id: rowMarea
+                        anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (backend && backend.yggdrasil) {
-                                backend.yggdrasil.selectProfile(model.index)
+                                backend.yggdrasil.selectProfile(index)
                                 showProfilePopup = false
                             }
                         }
