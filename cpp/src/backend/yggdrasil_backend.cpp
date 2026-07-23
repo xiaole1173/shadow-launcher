@@ -36,6 +36,8 @@ YggdrasilBackend::YggdrasilBackend(QObject *parent)
 
     connect(m_skinFetcher, &YggdrasilSkinFetcher::skinReady,
             this, &YggdrasilBackend::onSkinPreloaded);
+    connect(m_skinFetcher, &YggdrasilSkinFetcher::skinFailed,
+            this, &YggdrasilBackend::onSkinPreloaded);
 }
 
 QVariantList YggdrasilBackend::profiles() const
@@ -168,6 +170,7 @@ void YggdrasilBackend::preloadProfileSkins()
 
 void YggdrasilBackend::onSkinPreloaded()
 {
+    m_headSeq++;
     emit profileHeadsChanged();
     preloadNextSkin();
 }
@@ -184,6 +187,7 @@ void YggdrasilBackend::preloadNextSkin()
     QString headPath = YggdrasilSkinFetcher::cacheDir()
                        + QStringLiteral("/") + p.id + QStringLiteral("_head.png");
     if (QFile::exists(headPath)) {
+        m_headSeq++;
         emit profileHeadsChanged();
         QTimer::singleShot(0, this, &YggdrasilBackend::preloadNextSkin);
         return;
@@ -197,10 +201,12 @@ QStringList YggdrasilBackend::profileHeadUrls() const
     for (const auto &p : m_session.profiles) {
         QString headPath = YggdrasilSkinFetcher::cacheDir()
                            + QStringLiteral("/") + p.id + QStringLiteral("_head.png");
-        if (QFile::exists(headPath))
-            urls.append(QUrl::fromLocalFile(headPath).toString());
-        else
+        if (QFile::exists(headPath)) {
+            QString url = QUrl::fromLocalFile(headPath).toString();
+            urls.append(url + QStringLiteral("?seq=%1").arg(m_headSeq));
+        } else {
             urls.append(QString());
+        }
     }
     return urls;
 }

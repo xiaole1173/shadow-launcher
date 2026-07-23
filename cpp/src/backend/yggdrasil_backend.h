@@ -124,7 +124,8 @@ private:
     QString m_pendingPassword;  // 登录过程中记录密码（仅用于 signout）
     bool m_loggingOut = false;
     bool m_pendingProfile = false;   // 登录成功等待选角色
-    int m_preloadIdx = -1;           // 头像预加载索引
+    int m_preloadIdx = -1;
+    int m_headSeq = 0;           // 头像预加载索引
     bool m_hadSavedSession = false;  // session.json 是否存在过
     YggdrasilSkinFetcher *m_skinFetcher = nullptr;
 };
