@@ -16,6 +16,13 @@ Q_LOGGING_CATEGORY(logYggSkin, "shadow.yggdrasil.skin")
 
 namespace ShadowLauncher {
 
+// ── 辅助：文件路径转 QML 可用的 URL ──
+static QString toImageUrl(const QString& filePath)
+{
+    if (filePath.isEmpty()) return {};
+    return QUrl::fromLocalFile(filePath).toString();
+}
+
 // ── 缓存目录 ──
 
 QString YggdrasilSkinFetcher::cacheDir()
@@ -46,18 +53,8 @@ void YggdrasilSkinFetcher::fetchSkin(const QString &apiRoot, const QString &uuid
         return;
     }
 
-    // 先检查 PNG 缓存（PCL McSkinDownload 的 SyncLock 缓存检查）
-    QString cachedPath = cacheDir() + QStringLiteral("/") + uuid + QStringLiteral(".png");
-    if (QFile::exists(cachedPath)) {
-        m_skinPath = cachedPath;
-        m_skinVariant = m_pendingVariant;
-        emit skinChanged();
-        emit skinReady();
-        qCDebug(logYggSkin) << "Cache hit:" << cachedPath;
-        return;
-    }
-
     // PCL McSkinGetAddress: GET {apiRoot}/sessionserver/session/minecraft/profile/{uuid}
+    // (variant 信息在 profile 返回中，所以先不查缓存，等 onProfileReply 里再查): GET {apiRoot}/sessionserver/session/minecraft/profile/{uuid}
     m_pendingUuid = uuid;
     m_pendingVariant = 0;
 
@@ -131,7 +128,7 @@ void YggdrasilSkinFetcher::onProfileReply()
     // 再查一次缓存（第一次查时 variant 还未解析）
     QString cachedPath = cacheDir() + QStringLiteral("/") + m_pendingUuid + QStringLiteral(".png");
     if (QFile::exists(cachedPath)) {
-        m_skinPath = cachedPath;
+        m_skinPath = toImageUrl(cachedPath);
         m_skinVariant = variant;
         emit skinChanged();
         emit skinReady();
@@ -170,7 +167,7 @@ void YggdrasilSkinFetcher::onDownloadReply()
         file.close();
         QFile::remove(cachedPath);
         QFile::rename(tmpPath, cachedPath);
-        m_skinPath = cachedPath;
+        m_skinPath = toImageUrl(cachedPath);
         m_skinVariant = m_pendingVariant;
         qCDebug(logYggSkin) << "Skin cached:" << cachedPath;
     } else {
