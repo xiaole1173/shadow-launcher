@@ -198,7 +198,6 @@ Rectangle {
             delegate: Rectangle {
                 required property var modelData
                 width: historyList.width; height: root._historyItemH
-                color: selectMouse.containsMouse ? StyleTokens.bgElevated : "transparent"
 
                 RowLayout {
                     anchors.fill: parent
