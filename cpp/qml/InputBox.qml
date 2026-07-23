@@ -198,9 +198,8 @@ Rectangle {
             delegate: Rectangle {
                 required property var modelData
                 width: historyList.width; height: root._historyItemH
-                color: "transparent"
+                color: selectMouse.containsMouse ? StyleTokens.bgElevated : "transparent"
 
-                // 内容行
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 12; anchors.rightMargin: 6
@@ -216,7 +215,6 @@ Rectangle {
                         elide: Text.ElideRight
                     }
 
-                    // 删除按钮
                     Rectangle {
                         id: delBtn
                         width: 22; height: 22
@@ -244,18 +242,6 @@ Rectangle {
                     }
                 }
 
-                // 悬停遮罩（全高覆盖，透明度动画避免闪烁）
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.leftMargin: 4; anchors.rightMargin: 4
-                    radius: 0
-                    color: "#1a2840"
-                    opacity: selectMouse.containsMouse ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-                    z: 0
-                }
-
-                // 选中区域 MouseArea（固定外边距，避免跨布局锚定问题）
                 MouseArea {
                     id: selectMouse
                     anchors.left: parent.left; anchors.leftMargin: 4
