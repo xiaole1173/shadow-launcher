@@ -104,7 +104,7 @@ Rectangle {
     property string rpCategoryFilter: ""   // 类别 filter: combat, realistic, etc.
     property string rpFeatureFilter: ""    // 功能 filter: audio, blocks, etc.
     property string rpResolutionFilter: "" // 分辨率 filter: 16x, 32x, etc.
-    property string rpSource: "modrinth" // 来源: modrinth / modrinth-direct
+
 
     // Feature translation map for resource pack detail display
     property var rpFeatureMap: ({
@@ -1218,15 +1218,12 @@ Rectangle {
                 rpCategory: page.rpCategoryFilter
                 rpFeature: page.rpFeatureFilter
                 rpResolution: page.rpResolutionFilter
-                rpSource: page.rpSource || "modrinth"
-
                 Component.onCompleted: { mcVersion = page.rpGameVersion }
                 onPreReleaseToggled: { page.rpShowPreReleases = showPreReleases }
                 onMcVersionChanged: page.rpGameVersion = mcVersion
                 onRpCategoryChanged: page.rpCategoryFilter = rpCategory
                 onRpFeatureChanged: page.rpFeatureFilter = rpFeature
                 onRpResolutionChanged: page.rpResolutionFilter = rpResolution
-                onRpSourceChanged: page.rpSource = rpSource
                 onSearchClicked: loadRpFirstPage()
                 onResetClicked: {
                     rpCategory = ""; rpFeature = ""; rpResolution = ""
@@ -1235,10 +1232,7 @@ Rectangle {
                 }
             }
 
-            Text {
-                text: qsTr("资源包 | 来源: MCIM (mcimirror.top) | ") + (rpTotalHits || rpResultsModel.count || 0) + " 个结果"
-                color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-            }
+
             // ── Results: vertical full-width cards ──
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true

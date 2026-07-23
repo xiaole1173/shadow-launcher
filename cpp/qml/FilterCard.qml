@@ -44,7 +44,6 @@ Rectangle {
     property string shaderLoader: ""
 
     // RP
-    property string rpSource: "modrinth"
     property string rpCategory: ""
     property string rpFeature: ""
     property string rpResolution: ""
@@ -117,24 +116,6 @@ Rectangle {
                 placeholderText: root.searchPlaceholder
                 Layout.fillWidth: true
                 Layout.minimumWidth: 100
-            }
-
-            // 来源 (仅资源包)
-            Text {
-                text: "来源"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm
-                Layout.preferredWidth: 28
-                visible: root.cardType === "resourcepack"
-            }
-            ShadowDropdown {
-                id: rpSrcDropdown
-                Layout.preferredWidth: 140
-                model: [
-                    { value: "modrinth", label: "Modrinth (MCIM镜像)" },
-                    { value: "modrinth-direct", label: "Modrinth (直连)" }
-                ]
-                currentValue: root.rpSource
-                onValueSelected: function(v) { root.rpSource = v }
-                visible: root.cardType === "resourcepack"
             }
 
             Text { text: "版本"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }

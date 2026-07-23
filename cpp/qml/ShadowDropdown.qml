@@ -208,7 +208,8 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 var val = root._itemValue(modelData)
-                                root.currentValue = val
+                                // 不赋值 currentValue — 防止断开外部绑定
+                                // valueSelected 会更新外部属性，再由绑定传回 currentValue
                                 root.valueSelected(val)
                                 popupMenu.close()
                             }
