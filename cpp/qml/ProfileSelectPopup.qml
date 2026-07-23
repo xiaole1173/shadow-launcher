@@ -112,14 +112,28 @@ Item {
                         anchors.leftMargin: 12; anchors.rightMargin: 12
                         spacing: 10
 
-                        Rectangle {
-                            Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
-                            color: "#0e1018"; border { color: "#2a3040"; width: 1 }
-                            Text {
-                                anchors.centerIn: parent
-                                text: (typeof modelData != "undefined" && modelData && modelData.name)
-                                      ? modelData.name.charAt(0).toUpperCase() : "?"
-                                color: StyleTokens.textTertiary; font { pixelSize: 14; weight: Font.Bold }
+                        Item {
+                            Layout.preferredWidth: 28; Layout.preferredHeight: 28
+
+                            Image {
+                                id: headImg
+                                anchors.fill: parent; visible: status === Image.Ready
+                                source: backend && backend.yggdrasil ? backend.yggdrasil.profileHeadUrls[index] : ""
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true; cache: true; smooth: false; mipmap: false
+                            }
+
+                            // fallback：首字母
+                            Rectangle {
+                                anchors.fill: parent; radius: 6
+                                visible: headImg.status !== Image.Ready
+                                color: "#0e1018"; border { color: "#2a3040"; width: 1 }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: (typeof modelData != "undefined" && modelData && modelData.name)
+                                          ? modelData.name.charAt(0).toUpperCase() : "?"
+                                    color: StyleTokens.textTertiary; font { pixelSize: 14; weight: Font.Bold }
+                                }
                             }
                         }
 
@@ -158,5 +172,10 @@ Item {
 
         // ── 计算 profiles 数量（用于高度） ──
         readonly property int profilesCount: backend && backend.yggdrasil ? backend.yggdrasil.profiles.length : 0
+
+        onOpenedChanged: {
+            if (opened && backend && backend.yggdrasil)
+                backend.yggdrasil.preloadProfileSkins()
+        }
     }
 }
