@@ -1433,9 +1433,9 @@ Rectangle {
         }
 
         function onShowProfileSelection() {
-            // 确保弹窗能正常打开（不依赖历史 state）
+            // 确保弹窗 binding 完整（X 不再直接写 root.opened）
+            // Qt.callLater 延迟一帧确保 profiles 数据已到位
             showProfilePopup = false
-            // 使用下一帧确保前一次动画完成
             Qt.callLater(function() {
                 showProfilePopup = true
             })

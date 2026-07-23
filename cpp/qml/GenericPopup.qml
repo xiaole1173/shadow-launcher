@@ -64,7 +64,6 @@ Item {
         MouseArea {
             anchors.fill: parent
             onClicked: {
-                root.opened = false
                 root.closed()
             }
         }
@@ -132,7 +131,6 @@ Item {
                     sourceWidth: 14; sourceHeight: 14
                     type: "close"
                     onClicked: {
-                        root.opened = false
                         root.closed()
                         root.rejected()
                     }
@@ -166,7 +164,6 @@ Item {
     // ── Esc 键关闭 ──
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape && root.opened) {
-            root.opened = false
             root.closed()
             root.rejected()
             event.accepted = true
