@@ -286,11 +286,9 @@ Rectangle {
                 ShadowButton {
                     Layout.preferredWidth: 200; Layout.preferredHeight: 42
                     text: mp && mp.state <= 3 ? "取消" : "断开连接"
-                    outlined: true
                     bold: true
                     accentColor: StyleTokens.error
                     btnRadius: StyleTokens.radiusLg
-                    hoverFillAlpha: 1.0
                     onClicked: { if (mp) mp.leaveRoom() }
                 }
             }
