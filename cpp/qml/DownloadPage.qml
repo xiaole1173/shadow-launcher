@@ -728,7 +728,7 @@ Rectangle {
                 id: modFilterCard
                 Layout.fillWidth: true
                 cardType: "mod"
-                searchPlaceholder: "搜索..."
+                searchPlaceholder: qsTr("输入Mod名称...（仅支持英文搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.modShowPreReleases
                 onPreReleaseToggled: { page.modShowPreReleases = showPreReleases; modTab.doModSearch() }
@@ -944,7 +944,7 @@ Rectangle {
                 id: shaderFilterCard
                 Layout.fillWidth: true
                 cardType: "shader"
-                searchPlaceholder: qsTr("输入光影名称...")
+                searchPlaceholder: qsTr("输入光影名称...（仅支持英文搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.shaderShowPreReleases
                 shaderCategory: shaderTab.shaderCategory
@@ -1064,7 +1064,7 @@ Rectangle {
                 id: rpFilterCard
                 Layout.fillWidth: true
                 cardType: "resourcepack"
-                searchPlaceholder: qsTr("输入资源包名称...")
+                searchPlaceholder: qsTr("输入资源包名称...（仅支持英文搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.rpShowPreReleases
                 rpCategory: page.rpCategoryFilter
