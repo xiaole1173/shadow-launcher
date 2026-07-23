@@ -6,7 +6,6 @@ Item {
     anchors.fill: parent
 
     property bool opened: false
-
     signal accepted(int profileIndex)
     signal cancelled()
 
@@ -22,7 +21,10 @@ Item {
     Rectangle {
         id: card; z: 101
         width: 360
-        height: Math.min(48 + 1 + 8 + Math.max(col.implicitHeight + 8, 140), parent ? parent.height - 80 : 600)
+
+        // Height = title bar(48) + separator(1) + pad(8) + max(content, 140) + bottomPad(8)
+        property real _contentH: Math.max(140, (profilesCount > 0 ? profilesCount * 46 - 2 : 0))
+        height: Math.min(48 + 1 + 8 + _contentH + 8, parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
         radius: 12
         color: "#11141c"
@@ -33,6 +35,7 @@ Item {
         Behavior on scale { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
+        // ── 标题栏 ──
         Rectangle {
             width: parent.width; height: 48
             color: "transparent"
@@ -62,98 +65,95 @@ Item {
             }
         }
 
+        // ── 分割线 ──
         Rectangle {
             anchors.top: parent.top; anchors.topMargin: 48
             width: parent.width; height: 1
             color: "#2a3040"
         }
 
+        // ── 内容区域 ──
         Item {
-            id: clipArea
-            anchors { top: parent.top; topMargin: 48 + 1 + 8; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 8 }
+            anchors { top: parent.top; topMargin: 48 + 1 + 10; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 10 }
             clip: true
 
-            Column {
-                id: col
-                width: parent.width
-                spacing: 2
-                topPadding: 4
-                bottomPadding: 4
-
-                // 诊断
-                Rectangle {
-                    width: parent.width; height: 20
-                    color: "#2a3040"; radius: 4
-                    Text {
-                        anchors.centerIn: parent
-                        color: "#ffaa00"
-                        font.pixelSize: 10; font.family: "monospace"
-                        text: "[D] bk=" + (typeof backend != "undefined" && backend ? "1" : "0")
-                              + " yg=" + (backend && backend.yggdrasil ? "1" : "0")
-                              + " pr=" + (backend && backend.yggdrasil ? backend.yggdrasil.profiles.length : "?")
-                    }
+            // 诊断
+            Rectangle {
+                width: parent.width; height: 20
+                color: "#2a3040"; radius: 4
+                visible: true
+                Text {
+                    anchors.centerIn: parent
+                    color: "#ffaa00"; font.pixelSize: 10; font.family: "monospace"
+                    text: "[D] bk=" + (typeof backend != "undefined" && backend ? "1" : "0")
+                          + " yg=" + (backend && backend.yggdrasil ? "1" : "0")
+                          + " pr=" + (typeof backend != "undefined" && backend && backend.yggdrasil
+                                      ? backend.yggdrasil.profiles.length : "?")
                 }
+            }
 
-                Repeater {
-                    id: profRep
-                    model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
+            // 角色列表 — 手动 y 定位
+            Repeater {
+                id: profRep
+                model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
 
-                    delegate: Rectangle {
-                        width: parent ? parent.width : 360
-                        height: 44
-                        radius: 6
+                delegate: Rectangle {
+                    x: 0
+                    y: 20 + 4 + index * 46
+                    width: parent ? parent.width : 360
+                    height: 44
+                    radius: 6
 
-                        // 默认可见底色
-                        color: ma.containsMouse ? "#2a3040" : "#1a1f2e"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                        border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                 ? "#3b82f6" : "transparent"; width: 1 }
+                    color: ma.containsMouse ? "#2a3040" : "#1a1f2e"
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                    border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
+                             ? "#3b82f6" : "transparent"; width: 1 }
 
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12; anchors.rightMargin: 12
-                            spacing: 10
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12; anchors.rightMargin: 12
+                        spacing: 10
 
-                            Rectangle {
-                                Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
-                                color: "#0e1018"; border { color: "#2a3040"; width: 1 }
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: (typeof modelData != "undefined" && modelData && modelData.name)
-                                          ? modelData.name.charAt(0).toUpperCase() : "?"
-                                    color: "#a8b0c0"
-                                    font { pixelSize: 14; weight: Font.Bold }
-                                }
-                            }
-
+                        Rectangle {
+                            Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
+                            color: "#0e1018"; border { color: "#2a3040"; width: 1 }
                             Text {
+                                anchors.centerIn: parent
                                 text: (typeof modelData != "undefined" && modelData && modelData.name)
-                                      ? modelData.name : ""
-                                color: "#e8ecf8"
-                                font.pixelSize: 14
-                                Layout.fillWidth: true; elide: Text.ElideRight
-                            }
-
-                            Rectangle {
-                                width: 8; height: 8; radius: 4
-                                visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                color: "#3b82f6"
+                                      ? modelData.name.charAt(0).toUpperCase() : "?"
+                                color: "#a8b0c0"; font { pixelSize: 14; weight: Font.Bold }
                             }
                         }
 
-                        MouseArea {
-                            id: ma; anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (backend && backend.yggdrasil) {
-                                    backend.yggdrasil.selectProfile(index)
-                                    root.accepted(index)
-                                }
+                        Text {
+                            text: (typeof modelData != "undefined" && modelData && modelData.name)
+                                  ? modelData.name : ""
+                            color: "#e8ecf8"; font.pixelSize: 14
+                            Layout.fillWidth: true; elide: Text.ElideRight
+                        }
+
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
+                            color: "#3b82f6"
+                        }
+                    }
+
+                    MouseArea {
+                        id: ma; anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (backend && backend.yggdrasil) {
+                                backend.yggdrasil.selectProfile(index)
+                                root.accepted(index)
                             }
                         }
                     }
                 }
             }
         }
+
+        // ── 计算 profiles 数量（用于高度） ──
+        readonly property int profilesCount: backend && backend.yggdrasil ? backend.yggdrasil.profiles.length : 0
     }
 }
