@@ -444,7 +444,8 @@ Rectangle {
                 MinecraftHead2D {
                     Layout.alignment: Qt.AlignVCenter
                     width: 48; height: 48
-                    skinSource: (backend && backend.skinPath) ? backend.skinPath : ""
+                    skinSource: (backend && backend.yggdrasil && backend.yggdrasil.skinPath)
+                        ? backend.yggdrasil.skinPath : ""
                 }
                 Text { text: backend.yggdrasil.username; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
             }

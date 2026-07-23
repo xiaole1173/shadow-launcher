@@ -35,6 +35,10 @@ class YggdrasilBackend : public QObject {
     Q_PROPERTY(QString serverName READ serverName WRITE setServerName NOTIFY serverNameChanged)
     Q_PROPERTY(bool autoJoinServer READ autoJoinServer WRITE setAutoJoinServer NOTIFY autoJoinServerChanged)
 
+    // ══ 皮肤/披风属性 ══
+    Q_PROPERTY(QString skinPath READ skinPath NOTIFY skinChanged)
+    Q_PROPERTY(int skinVariant READ skinVariant NOTIFY skinChanged)
+
 public:
     explicit YggdrasilBackend(QObject *parent = nullptr);
 
@@ -62,6 +66,9 @@ public:
     Q_INVOKABLE void saveSession();
     Q_INVOKABLE void loadSession();
     Q_INVOKABLE void deleteSavedSession();
+    Q_INVOKABLE void fetchSkin();
+    QString skinPath() const { return m_skinPath; }
+    int m_skinVariant = 0;  // 0=classic, 1=slim
     bool hadSavedSession() const { return m_hadSavedSession; }
     QString sessionFilePath() const;
 
@@ -87,14 +94,21 @@ signals:
     void serverNameChanged();
     void autoJoinServerChanged();
 
+    // ══ 皮肤信号 ══
+    void skinChanged();
+    void skinReady();
+    void skinFailed(const QString &error);
+
 private slots:
     void onMetaReply();
     void onAuthenticateReply();
     void onRefreshReply();
     void onLogoutReply();
-
+    void onSkinProfileReply();
+    void onSkinDownloadReply();
 private:
     void setStatus(const QString &msg);
+    static QString skinCacheDir();
 
     QNetworkAccessManager *m_nam = nullptr;
     YggdrasilAuth m_auth;
@@ -105,7 +119,9 @@ private:
     QString m_pendingEmail;     // 登录过程中记录邮箱
     QString m_pendingPassword;  // 登录过程中记录密码（仅用于 signout）
     bool m_loggingOut = false;
-    bool m_hadSavedSession = false;  // session.json 是否存在过
+    bool m_hadSavedSession = false;  // session.json
+    QString m_skinPath;
+    int m_skinVariant = 0;
 };
 
 } // namespace ShadowLauncher
