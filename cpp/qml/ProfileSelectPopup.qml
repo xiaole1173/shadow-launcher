@@ -171,10 +171,11 @@ Item {
                             width: 22; height: 22; radius: 11
                             visible: (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
                             color: StyleTokens.accent
-                            Text {
+                            Image {
                                 anchors.centerIn: parent
-                                text: "\u2713"; color: StyleTokens.textInverse
-                                font { pixelSize: 12; weight: Font.Bold }
+                                source: "icons/lucide/check.svg"
+                                width: 16; height: 16
+                                sourceSize { width: 16; height: 16 }
                             }
                         }
                     }
