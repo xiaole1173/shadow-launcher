@@ -186,7 +186,8 @@ Rectangle {
         anchors.left: parent.left; anchors.right: parent.right
         height: _historyOpen ? _historyListH : 0
         color: "transparent"
-        clip: true  // 仅 clip 下拉列表，不涉及边框
+        clip: true
+        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         ListView {
             id: historyList
