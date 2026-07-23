@@ -132,7 +132,19 @@ void YggdrasilBackend::selectProfile(int index)
     emit profilesChanged();
     emit stateChanged();
     saveSession();
+    if (m_pendingProfile) {
+        m_pendingProfile = false;
+        emit loginSuccess();
+    }
     fetchSkin();
+}
+
+void YggdrasilBackend::cancelLogin()
+{
+    if (!m_pendingProfile) return;
+    m_pendingProfile = false;
+    m_session.clear();
+    emit stateChanged();
 }
 
 void YggdrasilBackend::fetchSkin()
@@ -443,18 +455,39 @@ void YggdrasilBackend::onAuthenticateReply()
         return;
     }
 
-    // 成功！
+    // 登录成功 — 待选择角色（多角色）或直接完成（单角色）
     m_session = session;
     m_pendingPassword.clear();
     setStatus(QString());
-    saveSession();
+    // 暂不保存 session、不发射 loginSuccess、不获取皮肤
 
-    qCDebug(logYggBackend) << "Yggdrasil login success:" << m_session.username;
-    emit loginSuccess();
-    emit stateChanged();
-    if (!m_session.profiles.isEmpty())
+    qCDebug(logYggBackend) << "Yggdrasil login success, profiles=" << m_session.profiles.size();
+
+    if (m_session.profiles.isEmpty()) {
+        emit loginFailed(QStringLiteral("该账号下没有可用角色"));
+        return;
+    }
+
+    if (m_session.profiles.size() == 1) {
+        // 单一角色直接完成
+        m_session.selectedProfileIndex = 0;
+        m_session.username = m_session.profiles[0].name;
+        m_session.uuid = m_session.profiles[0].id;
+        saveSession();
+        emit loginSuccess();
+        emit stateChanged();
         emit profilesChanged();
-    fetchSkin();
+        fetchSkin();
+    } else {
+        // 多角色：等待用户选择
+        m_pendingProfile = true;
+        m_session.selectedProfileIndex = -1;  // 未选择
+        m_session.username.clear();
+        m_session.uuid.clear();
+        emit stateChanged();
+        emit profilesChanged();
+        emit showProfileSelection();
+    }
 }
 
 void YggdrasilBackend::onRefreshReply()

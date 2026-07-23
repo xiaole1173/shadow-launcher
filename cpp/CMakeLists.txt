@@ -241,6 +241,7 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/RefreshButton.qml
         qml/SearchBox.qml
         qml/SelectionPopup.qml
+        qml/GenericPopup.qml
         qml/ShadowDropdown.qml
         qml/ShadowIconButton.qml
         qml/VersionCard.qml

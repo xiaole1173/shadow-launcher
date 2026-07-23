@@ -59,6 +59,8 @@ public:
     Q_INVOKABLE void refreshToken();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void selectProfile(int index);
+    /// 取消登录流程（用户关闭多角色弹窗时调用）
+    Q_INVOKABLE void cancelLogin();
     Q_INVOKABLE void fetchSkin();
 
     // 持久化 session
@@ -84,6 +86,8 @@ signals:
     void metaFailed(const QString &error);
     void loginSuccess();
     void loginFailed(const QString &error);
+    /// 登录成功后需要选择角色时触发（让 QML 弹出多角色选择弹窗）
+    void showProfileSelection();
     void stateChanged();
     void profilesChanged();
     void statusMessageChanged();
@@ -109,6 +113,7 @@ private:
     QString m_pendingEmail;     // 登录过程中记录邮箱
     QString m_pendingPassword;  // 登录过程中记录密码（仅用于 signout）
     bool m_loggingOut = false;
+    bool m_pendingProfile = false;   // 登录成功等待选角色
     bool m_hadSavedSession = false;  // session.json 是否存在过
     YggdrasilSkinFetcher *m_skinFetcher = nullptr;
 };

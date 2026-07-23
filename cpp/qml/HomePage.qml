@@ -1308,13 +1308,17 @@ Rectangle {
         }
     }
 
-    // ── 多角色弹窗（复用 SelectionPopup）──
-    SelectionPopup {
+    // ── 多角色选择弹窗（GenericPopup 变种）──
+    GenericPopup {
         id: profileSelectPopup
         title: qsTr("选择角色")
         cardWidth: 340
         opened: showProfilePopup
         onClosed: showProfilePopup = false
+        onRejected: {
+            if (backend && backend.yggdrasil)
+                backend.yggdrasil.cancelLogin()
+        }
 
         ListView {
             id: profileList
@@ -1406,13 +1410,8 @@ Rectangle {
             if (toastManager) toastManager.show("外置登录失败: " + error)
         }
 
-        function onProfilesChanged() {
-            if (backend && backend.yggdrasil && backend.yggdrasil.profiles.length > 1) {
-                // 仅当尚未选择角色时弹出（避免会话恢复后重复弹窗）
-                var idx = backend.yggdrasil.profileIndex
-                if (idx < 0 || idx >= backend.yggdrasil.profiles.length)
-                    showProfilePopup = true
-            }
+        function onShowProfileSelection() {
+            showProfilePopup = true
         }
 
         function onMetaReady() {
