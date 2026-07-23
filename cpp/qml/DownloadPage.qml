@@ -104,6 +104,7 @@ Rectangle {
     property string rpCategoryFilter: ""   // 类别 filter: combat, realistic, etc.
     property string rpFeatureFilter: ""    // 功能 filter: audio, blocks, etc.
     property string rpResolutionFilter: "" // 分辨率 filter: 16x, 32x, etc.
+    property string rpSource: "modrinth" // 来源: modrinth / modrinth-direct
 
     // Feature translation map for resource pack detail display
     property var rpFeatureMap: ({
@@ -129,14 +130,12 @@ Rectangle {
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
         }
-        var q = rpSearchInput.text || ""
+        var q = rpFilterCard.searchText || ""
         var ver = page.rpGameVersion || ""
-        // Collect all 3 filter dimensions for backend facets
         var cats = []
         if (page.rpCategoryFilter) cats.push(page.rpCategoryFilter)
         if (page.rpFeatureFilter) cats.push(page.rpFeatureFilter)
         if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
-        console.log("[RP-DEBUG]", page.rpDebugSeq, "FIRSTPAGE gv=", ver, "q=", q, "cats=", cats)
         backend.searchResourcepacks(q, ver, 0, cats)
     }
 
@@ -146,9 +145,8 @@ Rectangle {
         rpLoadingMore = true
         page.rpPage++
         var offset = page.rpPage * 20
-        var q = rpSearchInput.text || ""
+        var q = rpFilterCard.searchText || ""
         var ver = page.rpGameVersion || ""
-        console.log("[RP-DEBUG] loadNextPage p=", page.rpPage, "offset=", offset)
         backend.searchResourcepacks(q, ver, offset)
     }
 
@@ -868,11 +866,12 @@ Rectangle {
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.modShowPreReleases
                 onPreReleaseToggled: { page.modShowPreReleases = showPreReleases; modTab.doModSearch() }
-                modLoaderModel: [""].concat(Object.keys(page.modLoaderLabels))
+                // modLoaderLabels 含 "": "全部" 所以只加一次
+                modLoaderModel: [""].concat(Object.keys(page.modLoaderLabels).filter(function(k) { return k !== "" }))
                 modLoaderLabels: page.modLoaderLabels
                 modCatModel: [""].concat(Object.keys(page.modCatLabels))
                 modCatLabels: page.modCatLabels
-                modEnvModel: page.modEnvModel
+                modEnvModel: ["", "client", "server"]
                 modEnvLabels: page.modEnvLabels
 
                 Component.onCompleted: {
@@ -1021,7 +1020,7 @@ Rectangle {
             var c = shaderPerformance ? [shaderPerformance] : []
             var d = shaderLoader ? [shaderLoader] : []
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderInput.text.trim(), ver, a.concat(b,c,d), [], [], 0, 50)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], 0, 50)
         }
         function loadMore() {
             if (!backend || shaderSearching || !hasMoreShaders) return
@@ -1031,11 +1030,11 @@ Rectangle {
             var c = shaderPerformance ? [shaderPerformance] : []
             var d = shaderLoader ? [shaderLoader] : []
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderInput.text.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, 50)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, 50)
         }
         function resetFilters() {
             shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
-            page.shaderGameVersion = ""; shaderInput.text = ""
+            page.shaderGameVersion = ""; shaderFilterCard.searchText = ""
             doSearch()
         }
 
@@ -1073,144 +1072,30 @@ Rectangle {
             anchors.fill: parent; anchors.margins: 12; spacing: 8
 
             // ── Filter Card ──
-            Rectangle {
-                Layout.fillWidth: true; height: 130; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 8
+            FilterCard {
+                id: shaderFilterCard
+                Layout.fillWidth: true
+                cardType: "shader"
+                searchPlaceholder: qsTr("输入光影名称...")
+                rawVersionIds: backend ? backend.versionIds : []
+                showPreReleases: page.shaderShowPreReleases
+                shaderCategory: shaderTab.shaderCategory
+                shaderFeature: shaderTab.shaderFeature
+                shaderPerformance: shaderTab.shaderPerformance
+                shaderLoader: shaderTab.shaderLoader
 
-                    // Row 1: search + buttons
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-                        Text { text: qsTr("搜索"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-                        SearchBox {
-                            id: shaderInput
-                            placeholderText: qsTr("输入光影名称...")
-                            onAccepted: shaderTab.doSearch()
-                        }
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: sBtnHov.containsMouse ? "#5a78e0" : StyleTokens.accentHover
-                            scale: sBtnHov.pressed ? 0.92 : (sBtnHov.containsMouse ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
-                            MouseArea {
-                                id: sBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: shaderTab.doSearch()
-                            }
-                        }
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: rBtnHov.containsMouse ? "#2a2030" : "#1a1420"
-                            border.color: "#3a2840"; border.width: 1
-                            scale: rBtnHov.pressed ? 0.92 : (rBtnHov.containsMouse ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#b090c8"; font.pixelSize: StyleTokens.fontSizeXs }
-                            MouseArea {
-                                id: rBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: shaderTab.resetFilters()
-                            }
-                        }
-                    }
-
-                    // Row 2: 风格 + 特性 + 性能 + 加载器 (all in one row)
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-
-                        Text { text: qsTr("风格"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
-                        ShadowDropdown {
-                            id: sCatDropdown
-
-                            Layout.preferredWidth: 90
-                            model: shaderTab.shaderCats
-                            valueKey: "slug"
-                            currentValue: shaderTab.shaderCategory
-                            onValueSelected: function(v) { shaderTab.shaderCategory = v }
-                        }
-
-                        Text { text: qsTr("特性"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
-                        ShadowDropdown {
-                            id: sFeatDropdown
-
-                            Layout.preferredWidth: 110
-                            model: shaderTab.shaderFeatures
-                            valueKey: "slug"
-                            currentValue: shaderTab.shaderFeature
-                            onValueSelected: function(v) { shaderTab.shaderFeature = v }
-                        }
-
-                        Text { text: qsTr("性能"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
-                        ShadowDropdown {
-                            id: sPerfDropdown
-
-                            Layout.preferredWidth: 80
-                            model: shaderTab.shaderPerfs
-                            valueKey: "slug"
-                            currentValue: shaderTab.shaderPerformance
-                            onValueSelected: function(v) { shaderTab.shaderPerformance = v }
-                        }
-
-                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-                        ShadowDropdown {
-                            id: sLdrDropdown
-
-                            Layout.preferredWidth: 90
-                            model: shaderTab.shaderLoaders
-                            valueKey: "slug"
-                            currentValue: shaderTab.shaderLoader
-                            onValueSelected: function(v) { shaderTab.shaderLoader = v }
-                        }
-                    }
-
-                    // Row 3: 版本 + toggle
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-
-                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
-
-                        ShadowDropdown {
-                            id: sVerDropdown
-
-                            Layout.preferredWidth: 100
-                            model: {
-            if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
-            var seen = new Set(); var groups = []
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i]
-                if (!page.shaderShowPreReleases && !/^[0-9.]+$/.test(v)) continue
-                var major = v.split(/[.\-]/).slice(0,2).join(".")
-                if (!seen.has(major)) { seen.add(major); groups.push(major) }
-                if (groups.length >= 30) break
-            }
-            return [""].concat(groups)
-        }
-                            labelFn: function(v) { return v ? "MC " + v : "全部" }
-                            currentValue: page.shaderGameVersion
-                            onValueSelected: function(v) { page.shaderGameVersion = v }
-                        }
-
-                        // Show/hide pre-release toggle
-                        Rectangle {
-                            width: preTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                            color: preTogHov.containsMouse ? (page.shaderShowPreReleases ? "#282040" : "#1a1e28") : (page.shaderShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.shaderShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: preTogText
-                                anchors.centerIn: parent
-                                text: page.shaderShowPreReleases ? qsTr("隐藏测试版") : qsTr("显示测试版")
-                                color: page.shaderShowPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                            }
-                            MouseArea {
-                                id: preTogHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.shaderShowPreReleases = !page.shaderShowPreReleases }
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-                    }
+                Component.onCompleted: { mcVersion = page.shaderGameVersion }
+                onPreReleaseToggled: { page.shaderShowPreReleases = showPreReleases }
+                onMcVersionChanged: page.shaderGameVersion = mcVersion
+                onShaderCategoryChanged: shaderTab.shaderCategory = shaderCategory
+                onShaderFeatureChanged: shaderTab.shaderFeature = shaderFeature
+                onShaderPerformanceChanged: shaderTab.shaderPerformance = shaderPerformance
+                onShaderLoaderChanged: shaderTab.shaderLoader = shaderLoader
+                onSearchClicked: shaderTab.doSearch()
+                onResetClicked: {
+                    shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
+                    mcVersion = ""; searchText = ""
+                    shaderTab.doSearch()
                 }
             }
 
@@ -1323,242 +1208,30 @@ Rectangle {
             spacing: 8
 
             // ── Filter Card ──
-            Rectangle {
-                Layout.fillWidth: true; height: 150; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
+            FilterCard {
+                id: rpFilterCard
+                Layout.fillWidth: true
+                cardType: "resourcepack"
+                searchPlaceholder: qsTr("输入资源包名称...")
+                rawVersionIds: backend ? backend.versionIds : []
+                showPreReleases: page.rpShowPreReleases
+                rpCategory: page.rpCategoryFilter
+                rpFeature: page.rpFeatureFilter
+                rpResolution: page.rpResolutionFilter
+                rpSource: page.rpSource || "modrinth"
 
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 8
-
-                    // Row 1: 名称 + 来源
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-
-                        Text { text: qsTr("名称"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        SearchBox {
-                            id: rpSearchInput
-                            placeholderText: qsTr("输入资源包名称...")
-                        }
-
-                        Text { text: qsTr("来源"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: rpSourceDropdown
-
-                            Layout.preferredWidth: 140
-                            model: [
-            { value: "modrinth", label: "Modrinth (MCIM镜像)" },
-            { value: "modrinth-direct", label: "Modrinth (直连)" }
-        ]
-                            displayText: "Modrinth (MCIM)"
-                            currentValue: "modrinth"
-                            onValueSelected: function(v) { /* no action */ }
-                        }
-                    }
-
-                    // Row 2: 版本 + 类型
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-
-                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: rpVerDropdown
-
-                            Layout.preferredWidth: 120
-                            model: {
-            if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
-            var seen = new Set()
-            var groups = []
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i]
-                if (!page.rpShowPreReleases && !/^[0-9.]+$/.test(v)) continue
-                var major = v.split(/[.\-]/).slice(0, 2).join(".")
-                if (!seen.has(major)) {
-                    seen.add(major)
-                    groups.push(major)
-                }
-                if (groups.length >= 30) break
-            }
-            return [""].concat(groups)
-        }
-                            labelFn: function(v) { return v ? "MC " + v : "全部" }
-                            currentValue: page.rpGameVersion
-                            onValueSelected: function(v) { page.rpGameVersion = v }
-                        }
-
-                        Text { text: qsTr("筛选"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        // Three filter dropdowns: Category | Feature | Resolution
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 6
-
-                            // ── Category dropdown ──
-                        ShadowDropdown {
-                            id: rpCatDropdown
-
-                            Layout.preferredWidth: 95
-                            model: [
-            {key:"", label:"全部"},
-            {key:"combat", label:"战斗"},
-            {key:"cursed", label:"猎奇"},
-            {key:"decoration", label:"装饰"},
-            {key:"modded", label:"模组适配"},
-            {key:"realistic", label:"写实"},
-            {key:"simplistic", label:"简约"},
-            {key:"themed", label:"主题"},
-            {key:"tweaks", label:"微调"},
-            {key:"utility", label:"实用"},
-            {key:"vanilla-like", label:"原版"},
-            {key:"fantasy", label:"幻想"},
-            {key:"modern", label:"现代"},
-            {key:"medieval", label:"中世纪"},
-            {key:"futuristic", label:"未来"},
-            {key:"cartoon", label:"卡通"},
-            {key:"pvp", label:"PVP"},
-            {key:"minigame", label:"小游戏"},
-            {key:"gui", label:"界面"},
-            {key:"font", label:"字体"},
-            {key:"hd", label:"高清"},
-            {key:"photorealism", label:"照片"},
-            {key:"cute", label:"可爱"},
-            {key:"dark", label:"暗色"},
-            {key:"light", label:"亮色"},
-            {key:"clean", label:"简洁"}
-        ]
-                            valueKey: "key"
-                            displayText: {
-            var k = page.rpCategoryFilter
-            var m = { "": "类别", "combat": "战斗", "cursed": "猎奇", "decoration": "装饰",
-                "modded": "模组适配", "realistic": "写实", "simplistic": "简约",
-                "themed": "主题", "tweaks": "微调", "utility": "实用",
-                "vanilla-like": "原版", "fantasy": "幻想", "modern": "现代",
-                "medieval": "中世纪", "futuristic": "未来", "cartoon": "卡通",
-                "pvp": "PVP", "minigame": "小游戏", "gui": "界面", "font": "字体",
-                "hd": "高清", "photorealism": "照片", "cute": "可爱",
-                "dark": "暗色", "light": "亮色", "clean": "简洁" }
-            return m[k] || (k || "类别")
-        }
-                            currentValue: page.rpCategoryFilter
-                            onValueSelected: function(v) { page.rpCategoryFilter = v }
-                        }
-
-                            // ── Feature dropdown ──
-                        ShadowDropdown {
-                            id: rpFeatDropdown
-
-                            Layout.preferredWidth: 95
-                            model: [
-            {key:"", label:"全部"},
-            {key:"audio", label:"音频"},
-            {key:"blocks", label:"方块"},
-            {key:"core-shaders", label:"核心着色器"},
-            {key:"entities", label:"实体"},
-            {key:"environment", label:"环境"},
-            {key:"equipment", label:"装备"},
-            {key:"fonts", label:"字体"},
-            {key:"gui", label:"图形界面"},
-            {key:"items", label:"物品"},
-            {key:"locale", label:"本地化"},
-            {key:"models", label:"模型"},
-            {key:"minecraft", label:"Minecraft"}
-        ]
-                            valueKey: "key"
-                            displayText: {
-            var k = page.rpFeatureFilter
-            var m = { "audio": "音频", "blocks": "方块", "core-shaders": "核心着色器",
-                "entities": "实体", "environment": "环境", "equipment": "装备",
-                "fonts": "字体", "gui": "图形界面", "items": "物品",
-                "locale": "本地化", "models": "模型", "minecraft": "Minecraft" }
-            return k ? (m[k] || k) : "功能"
-        }
-                            currentValue: page.rpFeatureFilter
-                            onValueSelected: function(v) { page.rpFeatureFilter = v }
-                        }
-
-                            // ── Resolution dropdown ──
-                        ShadowDropdown {
-                            id: rpResDropdown
-
-                            Layout.preferredWidth: 95
-                            model: [
-            {key:"", label:"全部"},
-            {key:"8x", label:"8x"},
-            {key:"16x", label:"16x"},
-            {key:"32x", label:"32x"},
-            {key:"64x", label:"64x"},
-            {key:"128x", label:"128x"},
-            {key:"256x", label:"256x"},
-            {key:"512x", label:"512x"}
-        ]
-                            valueKey: "key"
-                            displayText: page.rpResolutionFilter || "分辨率"
-                            currentValue: page.rpResolutionFilter
-                            onValueSelected: function(v) { page.rpResolutionFilter = v }
-                        }
-                        }
-                    }
-
-                    // Row 2.5: Pre-release toggle — FIX 3: moved below version/type row, left-aligned
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Rectangle {
-                            width: rpPreTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                            color: rpPreTogHov.containsMouse ? (page.rpShowPreReleases ? "#282040" : "#1a1e28") : (page.rpShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.rpShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: rpPreTogText
-                                anchors.centerIn: parent
-                                text: page.rpShowPreReleases ? qsTr("隐藏测试版") : qsTr("显示测试版")
-                                color: page.rpShowPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                            }
-                            MouseArea {
-                                id: rpPreTogHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.rpShowPreReleases = !page.rpShowPreReleases }
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    // Row 3: Buttons
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Item { Layout.fillWidth: true }
-
-                        Rectangle {
-                            width: 72; height: 28; radius: StyleTokens.radiusSm
-                            color: StyleTokens.accentHover
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm }
-                            MouseArea {
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                // FIX 1: Search button — the ONLY trigger for loadRpFirstPage() from filter changes
-                                onClicked: loadRpFirstPage()
-                            }
-                        }
-
-                        Rectangle {
-                            width: 72; height: 28; radius: StyleTokens.radiusSm
-                            color: rpResetHov.hovered ? "#252a38" : "#151922"
-                            border.color: StyleTokens.bgHover; border.width: 1
-                            visible: page.rpCategoryFilter || page.rpFeatureFilter || page.rpResolutionFilter || page.rpGameVersion || rpSearchInput.text
-                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm }
-                            MouseArea {
-                                id: rpResetHov; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    page.rpCategoryFilter = ""
-                                    page.rpFeatureFilter = ""
-                                    page.rpResolutionFilter = ""
-                                    page.rpGameVersion = ""
-                                    rpSearchInput.text = ""
-                                    // FIX 1: Clear all filters, then trigger search
-                                    loadRpFirstPage()
-                                }
-                            }
-                        }
-                    }
+                Component.onCompleted: { mcVersion = page.rpGameVersion }
+                onPreReleaseToggled: { page.rpShowPreReleases = showPreReleases }
+                onMcVersionChanged: page.rpGameVersion = mcVersion
+                onRpCategoryChanged: page.rpCategoryFilter = rpCategory
+                onRpFeatureChanged: page.rpFeatureFilter = rpFeature
+                onRpResolutionChanged: page.rpResolutionFilter = rpResolution
+                onRpSourceChanged: page.rpSource = rpSource
+                onSearchClicked: loadRpFirstPage()
+                onResetClicked: {
+                    rpCategory = ""; rpFeature = ""; rpResolution = ""
+                    mcVersion = ""; searchText = ""
+                    loadRpFirstPage()
                 }
             }
 
