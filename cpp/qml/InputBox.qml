@@ -48,18 +48,9 @@ Rectangle {
     height: 40 + (_historyOpen ? _historyListH + 1 : 0)
     radius: StyleTokens.radiusLg
     color: StyleTokens.bgSecondary
-    clip: true
+    clip: true  // 根容器 clip 用于下拉展开动画，边框由 borderOverlay 独立绘制
 
     Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-    // 边框动画
-    border.color: {
-        if (hasError) return "#cc5555"
-        if (textInput.activeFocus) return StyleTokens.accent
-        return StyleTokens.bgElevated
-    }
-    border.width: 1
-    Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
     // ── 初始默认值 ──
     Component.onCompleted: {
@@ -260,6 +251,20 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // ── 边框叠加层（独立于根容器绘制，避免 clip 影响边框渲染）──
+    Rectangle {
+        anchors.fill: parent
+        radius: StyleTokens.radiusLg
+        color: "transparent"
+        border.color: {
+            if (root.hasError) return "#cc5555"
+            if (textInput.activeFocus) return StyleTokens.borderFocus
+            return StyleTokens.bgElevated
+        }
+        border.width: 1
+        Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }
 
     // ── 错误提示 ──
