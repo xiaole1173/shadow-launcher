@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -59,6 +59,10 @@ Item {
 
     // ── Opacity sync ──
     visible: root.opened || root.opacity > 0
+    opacity: root.opened ? 1 : 0
+    Behavior on opacity {
+        NumberAnimation { duration: root.animDuration; easing.type: Easing.OutCubic }
+    }
 
     // ── Dim overlay ──
     Rectangle {
@@ -208,5 +212,6 @@ Item {
         anchors.fill: parent
         z: -1
         propagateComposedEvents: false
+        enabled: root.opened
     }
 }
