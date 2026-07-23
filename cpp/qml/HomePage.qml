@@ -1312,7 +1312,6 @@ Rectangle {
     ProfileSelectPopup {
         id: profileSelectPopup
         opened: showProfilePopup
-        backend: backend
         onAccepted: {
             showProfilePopup = false
         }

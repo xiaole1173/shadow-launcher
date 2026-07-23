@@ -6,7 +6,6 @@ Item {
     anchors.fill: parent
 
     property bool opened: false
-    property var backend
 
     signal accepted(int profileIndex)
     signal cancelled()
