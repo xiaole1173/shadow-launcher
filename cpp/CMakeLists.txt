@@ -227,7 +227,6 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/ModpackImportOverlay.qml
         qml/StyleTokens.qml
         qml/JavaPage.qml
-        qml/ShaderDropdown.qml
         qml/SettingsMemorySection.qml
         qml/DebugPanel.qml
         qml/DebugWindow.qml
