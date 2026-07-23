@@ -1329,7 +1329,26 @@ Rectangle {
             topPadding: 4
             bottomPadding: 4
 
+            // ══ 诊断：profiles 计数（调试完后移除）══
+            Rectangle {
+                width: parent.width; height: 20
+                color: "#222222"
+                radius: 4
+                visible: true
+                Text {
+                    anchors.centerIn: parent
+                    color: "#ffaa00"
+                    font.pixelSize: 11; font.family: "monospace"
+                    text: {
+                        var n = (profileRepeater ? profileRepeater.model.length : -1)
+                        var r = (profileRepeater ? profileRepeater.count : -1)
+                        return "[D] model=" + n + " delegates=" + r
+                    }
+                }
+            }
+
             Repeater {
+                id: profileRepeater
                 model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
 
                 delegate: Rectangle {
