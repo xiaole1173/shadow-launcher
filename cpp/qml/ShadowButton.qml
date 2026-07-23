@@ -61,6 +61,7 @@ Button {
             }
 
             Text {
+                anchors.verticalCenter: parent.verticalCenter
                 text: shadowBtn.text
                 font: shadowBtn.font
                 color: !shadowBtn.enabled ? StyleTokens.textMuted : shadowBtn.textColor
