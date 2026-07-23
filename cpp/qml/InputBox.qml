@@ -47,7 +47,7 @@ Rectangle {
     height: 40 + (_historyOpen ? _historyListH + 1 : 0)
     radius: StyleTokens.radiusLg
     color: StyleTokens.bgSecondary
-    clip: true  // clip 下拉子项到圆角边界，避免尖角溢出边框
+    // 根 Rectangle 不设置 clip！边框直接画在根上
     border.width: 1
     border.color: {
         if (root.hasError) return "#cc5555"
