@@ -78,8 +78,22 @@ Item {
                 id: col
                 width: parent.width
                 spacing: 2
-                topPadding: 0
-                bottomPadding: 0
+                topPadding: 4
+                bottomPadding: 4
+
+                // 诊断
+                Rectangle {
+                    width: parent.width; height: 20
+                    color: "#2a3040"; radius: 4
+                    Text {
+                        anchors.centerIn: parent
+                        color: "#ffaa00"
+                        font.pixelSize: 10; font.family: "monospace"
+                        text: "[D] bk=" + (typeof backend != "undefined" && backend ? "1" : "0")
+                              + " yg=" + (backend && backend.yggdrasil ? "1" : "0")
+                              + " pr=" + (backend && backend.yggdrasil ? backend.yggdrasil.profiles.length : "?")
+                    }
+                }
 
                 Repeater {
                     id: profRep
@@ -90,9 +104,11 @@ Item {
                         height: 44
                         radius: 6
 
-                        color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                               ? "#1a2848" : (ma.containsMouse ? "#2a3040" : "transparent")
+                        // 默认可见底色
+                        color: ma.containsMouse ? "#2a3040" : "#1a1f2e"
                         Behavior on color { ColorAnimation { duration: 100 } }
+                        border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
+                                 ? "#3b82f6" : "transparent"; width: 1 }
 
                         RowLayout {
                             anchors.fill: parent
@@ -101,10 +117,10 @@ Item {
 
                             Rectangle {
                                 Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
-                                color: "#1a1f2e"; border { color: "#2a3040"; width: 1 }
+                                color: "#0e1018"; border { color: "#2a3040"; width: 1 }
                                 Text {
                                     anchors.centerIn: parent
-                                    text: (typeof modelData !== "undefined" && modelData && modelData.name)
+                                    text: (typeof modelData != "undefined" && modelData && modelData.name)
                                           ? modelData.name.charAt(0).toUpperCase() : "?"
                                     color: "#a8b0c0"
                                     font { pixelSize: 14; weight: Font.Bold }
@@ -112,13 +128,10 @@ Item {
                             }
 
                             Text {
-                                text: (typeof modelData !== "undefined" && modelData && modelData.name)
+                                text: (typeof modelData != "undefined" && modelData && modelData.name)
                                       ? modelData.name : ""
-                                color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                       ? "#6080e8" : "#e8ecf8"
+                                color: "#e8ecf8"
                                 font.pixelSize: 14
-                                font.weight: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                                             ? Font.DemiBold : Font.Normal
                                 Layout.fillWidth: true; elide: Text.ElideRight
                             }
 
