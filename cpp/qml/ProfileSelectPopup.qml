@@ -151,12 +151,12 @@ Item {
                             Rectangle {
                                 width: parent.width; height: 3
                                 anchors.centerIn: parent
-                                color: Qt.rgba(0,0,0,0.2); radius: 1
+                                color: "#33000000"; radius: 1
                             }
                             Rectangle {
                                 width: 3; height: parent.height
                                 anchors.centerIn: parent
-                                color: Qt.rgba(0,0,0,0.15); radius: 1
+                                color: "#26000000"; radius: 1
                             }
 
                             Text {
@@ -184,7 +184,7 @@ Item {
                                     var sel = (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
                                     return sel ? StyleTokens.accentLight : StyleTokens.textPrimary
                                 }
-                                font { pixelSize: 14; weight: Font.Medium }
+                                font { pixelSize: 14; weight: Font.Normal }
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
