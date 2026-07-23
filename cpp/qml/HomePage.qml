@@ -531,7 +531,6 @@ Rectangle {
         width: 340; color: "transparent"
         visible: loginMode === 2 && backend && backend.yggdrasil && backend.yggdrasil.loggedIn
         height: yggServerColumn.height
-        clip: true
 
         Column {
             id: yggServerColumn

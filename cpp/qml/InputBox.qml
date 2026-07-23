@@ -7,8 +7,9 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-Item {
+Rectangle {
     id: root
+    color: "transparent"
 
     // ── 通用属性 ──
     property alias text: textInput.text
