@@ -111,31 +111,13 @@ Rectangle {
     }
 
     // ── Close button (matches main launcher style) ──
-    Rectangle {
+    ShadowIconButton {
         id: closeBtn
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 12
-        width: 28; height: 28
-        radius: StyleTokens.radiusLg
-        color: closeMA.containsMouse ? (closeMA.pressed ? StyleTokens.errorLight : "#c05050") : "transparent"
-        scale: closeMA.pressed ? 0.85 : (closeMA.containsMouse ? 1.12 : 1.0)
-        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-        Text {
-            anchors.centerIn: parent
-            text: "\u2715"
-            color: closeMA.containsMouse ? "#fff" : "#505568"
-            font.pixelSize: StyleTokens.fontSizeSm
-            font.weight: Font.Bold
-        }
-        MouseArea {
-            id: closeMA
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: Qt.quit()
-        }
+        icon: "\u2715"; type: "close"
+        onClicked: Qt.quit()
     }
 
     // ── Main content ──

@@ -333,25 +333,9 @@ Rectangle {
             Item { Layout.fillWidth: true }
             Text { text: mcVersion || "???"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
             Item { Layout.fillWidth: true }
-            Rectangle {
-                width: 28; height: 28; radius: StyleTokens.radiusXl
-                color: minHov.containsMouse ? (minHov.pressed ? "#3a4050" : "#252a35") : "transparent"
-                scale: minHov.pressed ? 0.85 : (minHov.containsMouse ? 1.12 : 1.0)
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on scale { NumberAnimation { duration: 150 } }
-                Text { anchors.centerIn: parent; text: "\u2014"; color: minHov.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold }
-                MouseArea { id: minHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.requestMinimize() } }
-            }
+            ShadowIconButton { icon: "\u2014"; type: "normal"; onClicked: { root.requestMinimize() } }
             Item { width: 6 }
-            Rectangle {
-                width: 28; height: 28; radius: StyleTokens.radiusXl
-                color: closeHov.containsMouse ? (closeHov.pressed ? StyleTokens.errorLight : "#c05050") : "transparent"
-                scale: closeHov.pressed ? 0.85 : (closeHov.containsMouse ? 1.12 : 1.0)
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on scale { NumberAnimation { duration: 150 } }
-                Text { anchors.centerIn: parent; text: "\u2715"; color: closeHov.containsMouse ? "#fff" : "#505568"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Bold }
-                MouseArea { id: closeHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.requestClose() } }
-            }
+            ShadowIconButton { icon: "\u2715"; type: "close"; onClicked: { root.requestClose() } }
         }
     }
 

@@ -483,25 +483,9 @@ Window {
                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
                         spacing: 0
                         Item { Layout.fillWidth: true }
-                        Rectangle {
-                            width: 28; height: 28; radius: StyleTokens.radiusLg
-                            color: hdrMin.containsMouse ? (hdrMin.pressed ? "#3a4050" : "#252a35") : "transparent"
-                            scale: hdrMin.pressed ? 0.85 : (hdrMin.containsMouse ? 1.12 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Text { anchors.centerIn: parent; text: "\u2014"; color: hdrMin.containsMouse ? "#d0d4e0" : "#505568"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold }
-                            MouseArea { id: hdrMin; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.showMinimized() }
-                        }
+                        ShadowIconButton { icon: "\u2014"; type: "normal"; onClicked: appWindow.showMinimized() }
                         Item { width: 6 }
-                        Rectangle {
-                            width: 28; height: 28; radius: StyleTokens.radiusLg
-                            color: hdrClose.containsMouse ? (hdrClose.pressed ? StyleTokens.errorLight : "#c05050") : "transparent"
-                            scale: hdrClose.pressed ? 0.85 : (hdrClose.containsMouse ? 1.12 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            Text { anchors.centerIn: parent; text: "\u2715"; color: hdrClose.containsMouse ? "#fff" : "#505568"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Bold }
-                            MouseArea { id: hdrClose; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: appWindow.close() }
-                        }
+                        ShadowIconButton { icon: "\u2715"; type: "close"; onClicked: appWindow.close() }
                     }
                 }
 

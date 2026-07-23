@@ -699,29 +699,18 @@ Rectangle {
                                             Item { Layout.fillWidth: true }
 
                                             // Delete button (visible on hover)
-                                            Rectangle {
-                                                width: 24; height: 24; radius: StyleTokens.radiusSm
-                                                color: delBtnH.hovered ? "#401818" : "transparent"
+                                            ShadowIconButton {
+                                                width: 24; height: 24; icon: "\u2715"; type: "close"
                                                 opacity: cardHover.hovered ? 1.0 : 0.0
                                                 Behavior on opacity { NumberAnimation { duration: 200 } }
-                                                Behavior on color { ColorAnimation { duration: 200 } }
-                                                Image {
-                                                    anchors.centerIn: parent
-                                                    source: "icons/lucide/trash-2.svg"
-                                                    width: 13; height: 13
-                                                }
-                                                MouseArea {
-                                                    id: delBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                                    onClicked: {
-                                                        if (backend) {
-                                                            var fn = model.fileName || ""
-                                                            backend.deleteMod(fn, currentSelectedVersion)
-                                                            modListModel.remove(index)
-                                                            toastManager.show("已删除: " + fn)
-                                                        }
+                                                onClicked: {
+                                                    if (backend) {
+                                                        var fn = model.fileName || ""
+                                                        backend.deleteMod(fn, currentSelectedVersion)
+                                                        modListModel.remove(index)
+                                                        toastManager.show("已删除: " + fn)
                                                     }
                                                 }
-                                                HoverHandler { id: delBtnH }
                                             }
                                         }
                                     }
@@ -954,29 +943,18 @@ Rectangle {
                                             Item { Layout.fillWidth: true }
 
                                             // Delete button (visible on hover)
-                                            Rectangle {
-                                                width: 24; height: 24; radius: StyleTokens.radiusSm
-                                                color: rpDelBtnH.hovered ? "#401818" : "transparent"
+                                            ShadowIconButton {
+                                                width: 24; height: 24; icon: "\u2715"; type: "close"
                                                 opacity: rpCardHover.hovered ? 1.0 : 0.0
                                                 Behavior on opacity { NumberAnimation { duration: 200 } }
-                                                Behavior on color { ColorAnimation { duration: 200 } }
-                                                Image {
-                                                    anchors.centerIn: parent
-                                                    source: "icons/lucide/trash-2.svg"
-                                                    width: 13; height: 13
-                                                }
-                                                MouseArea {
-                                                    id: rpDelBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                                    onClicked: {
-                                                        if (backend) {
-                                                            var fn = model.fileName || ""
-                                                            backend.deleteResourcePack(fn, currentSelectedVersion)
-                                                            rpListModel.remove(index)
-                                                            toastManager.show("已删除: " + fn)
-                                                        }
+                                                onClicked: {
+                                                    if (backend) {
+                                                        var fn = model.fileName || ""
+                                                        backend.deleteResourcePack(fn, currentSelectedVersion)
+                                                        rpListModel.remove(index)
+                                                        toastManager.show("已删除: " + fn)
                                                     }
                                                 }
-                                                HoverHandler { id: rpDelBtnH }
                                             }
                                         }
                                     }

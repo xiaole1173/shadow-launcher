@@ -187,7 +187,15 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left: parent.left
                             anchors.leftMargin: 10
-                            text: root._itemValue(modelData) === "" ? root.placeholderText : root._itemLabel(modelData)
+                            text: {
+                                if (root._itemValue(modelData) === "")
+                                    return root.placeholderText
+                                if (root.labelFn && typeof root.labelFn === "function") {
+                                    var lbl = root.labelFn(root._itemValue(modelData))
+                                    if (lbl) return lbl
+                                }
+                                return root._itemLabel(modelData)
+                            }
                             color: root._itemValue(modelData) === root.currentValue ? StyleTokens.accentHover : "#9094a8"
                             font.pixelSize: StyleTokens.fontSizeSm
                             font.weight: root._itemValue(modelData) === root.currentValue ? Font.DemiBold : Font.Normal

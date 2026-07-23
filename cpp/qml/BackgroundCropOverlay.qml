@@ -96,15 +96,7 @@ Rectangle {
                 font.pixelSize: StyleTokens.fontSizeSm; color: "#606480"
             }
             Item { Layout.fillWidth: true }
-            Rectangle {
-                width: 32; height: 32; radius: StyleTokens.radiusWindow; color: closeHov.hovered ? "#282838" : "transparent"
-                Text { anchors.centerIn: parent; text: "\u2715"; font.pixelSize: StyleTokens.fontSizeLg; color: StyleTokens.textTertiary }
-                MouseArea {
-                    id: closeHov; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: { root.opacity = 0; closeTimer.start() }
-                }
-            }
+            ShadowIconButton { icon: "\u2715"; type: "close"; width: 32; height: 32; defaultColor: "transparent"; hoverColor: "#282838"; onClicked: { root.opacity = 0; closeTimer.start() } }
         }
     }
 
@@ -237,31 +229,13 @@ Rectangle {
             }
 
             // Zoom controls
-            Rectangle {
-                width: 28; height: 28; radius: StyleTokens.radiusMd
-                color: zoomOutHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
-                Text { anchors.centerIn: parent; text: "−"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textTertiary }
-                MouseArea {
-                    id: zoomOutHov; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root._zoom = Math.max(0.5, root._zoom - 0.25)
-                }
-            }
+            ShadowIconButton { icon: "-"; type: "normal"; defaultColor: "#161a24"; hoverColor: "#252a38"; onClicked: root._zoom = Math.max(0.5, root._zoom - 0.25) }
             Text {
                 text: Math.round(root._zoom * 100) + "%"
                 font.pixelSize: StyleTokens.fontSizeSm; color: "#707890"
                 Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
             }
-            Rectangle {
-                width: 28; height: 28; radius: StyleTokens.radiusMd
-                color: zoomInHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
-                Text { anchors.centerIn: parent; text: "+"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textTertiary }
-                MouseArea {
-                    id: zoomInHov; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root._zoom = Math.min(3.0, root._zoom + 0.25)
-                }
-            }
+            ShadowIconButton { icon: "+"; type: "normal"; defaultColor: "#161a24"; hoverColor: "#252a38"; onClicked: root._zoom = Math.min(3.0, root._zoom + 0.25) }
 
             // Cancel button
             Rectangle {

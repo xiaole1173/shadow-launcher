@@ -783,7 +783,7 @@ Rectangle {
             if (!backend) return
             page.modSearching = true
             modResultsModel.clear()
-            var q = modInput.text ? modInput.text.trim() : ""
+            var q = modFilterCard.searchText ? modFilterCard.searchText.trim() : ""
             console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", 0, 30)
@@ -860,150 +860,37 @@ Rectangle {
             spacing: 8
 
             // Filter Card
-            Rectangle {
-                Layout.fillWidth: true; height: 130; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
+            FilterCard {
+                id: modFilterCard
+                Layout.fillWidth: true
+                cardType: "mod"
+                searchPlaceholder: "搜索..."
+                rawVersionIds: backend ? backend.versionIds : []
+                showPreReleases: page.modShowPreReleases
+                onPreReleaseToggled: { page.modShowPreReleases = showPreReleases; modTab.doModSearch() }
+                modLoaderModel: [""].concat(Object.keys(page.modLoaderLabels))
+                modLoaderLabels: page.modLoaderLabels
+                modCatModel: [""].concat(Object.keys(page.modCatLabels))
+                modCatLabels: page.modCatLabels
+                modEnvModel: page.modEnvModel
+                modEnvLabels: page.modEnvLabels
 
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 12; spacing: 8
-
-                    // Row 1: search + buttons
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-
-                        Text { text: qsTr("搜索"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        SearchBox {
-                            id: modInput
-                            placeholderText: qsTr("输入 Mod 名称...")
-                            onAccepted: modTab.doModSearch()
-                        }
-
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: modSearchBtn2.hovered ? "#5a78e0" : StyleTokens.accentHover
-                            scale: modSearchBtn2.pressed ? 0.92 : (modSearchBtn2.hovered ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("搜索"); color: StyleTokens.textInverse; font.pixelSize: StyleTokens.fontSizeXs; font.bold: true }
-                            MouseArea {
-                                id: modSearchBtn2; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: modTab.doModSearch()
-                            }
-                        }
-
-                        Rectangle {
-                            width: 50; height: 28; radius: StyleTokens.radiusSm
-                            color: modResetBtn2.hovered ? "#2a2030" : "#1a1420"
-                            border.color: "#3a2840"; border.width: 1
-                            scale: modResetBtn2.pressed ? 0.92 : (modResetBtn2.hovered ? 1.06 : 1.0)
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                            Text { anchors.centerIn: parent; text: qsTr("重置"); color: "#b090c8"; font.pixelSize: StyleTokens.fontSizeXs }
-                            MouseArea {
-                                id: modResetBtn2; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    page.modLoader = ""; page.modGameVersion = ""
-                                    page.modCategory = ""; page.modEnvironment = ""
-                                    modInput.text = ""; modResultsModel.clear()
-                                    modTab.doModSearch()
-                                }
-                            }
-                        }
-                    }
-
-                    // Row 2: loader + version + environment
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-
-                        Text { text: qsTr("加载器"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: modLdrDropdown
-
-                            Layout.preferredWidth: 120
-                            model: ["", "fabric", "forge", "quilt", "neoforge", "rift", "liteloader"]
-                            labelFn: function(v) { return page.modLoaderLabels[v] || "全部" }
-                            currentValue: page.modLoader
-                            onValueSelected: function(v) { page.modLoader = v }
-                        }
-
-                        Text { text: qsTr("版本"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: modVerDropdown
-
-                            Layout.preferredWidth: 120
-                            model: {
-            if (!backend || !backend.versionIds) return ["1.21.10","1.20.6"]
-            var seen = new Set()
-            var groups = []
-            for (var i = 0; i < backend.versionIds.length; i++) {
-                var v = backend.versionIds[i]
-                if (!page.modShowPreReleases && !/^[0-9.]+$/.test(v)) continue
-                var major = v.split(/[.\-]/).slice(0, 2).join(".")
-                if (!seen.has(major)) {
-                    seen.add(major)
-                    groups.push(major)
+                Component.onCompleted: {
+                    modLoader = page.modLoader
+                    modCategory = page.modCategory
+                    modEnvironment = page.modEnvironment
+                    mcVersion = page.modGameVersion
                 }
-                if (groups.length >= 30) break
-            }
-            return [""].concat(groups)
-        }
-                            labelFn: function(v) { return v ? "MC " + v : "全部" }
-                            currentValue: page.modGameVersion
-                            onValueSelected: function(v) { page.modGameVersion = v }
-                        }
-
-                        Text { text: qsTr("类别"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: modCatDropdown
-
-                            Layout.preferredWidth: 115
-                            model: [""].concat(Object.keys(page.modCatLabels))
-                            labelFn: function(v) { return page.modCatLabels[v] || "全部" }
-                            currentValue: page.modCategory
-                            onValueSelected: function(v) { page.modCategory = v }
-                        }
-
-                        Text { text: qsTr("环境"); color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
-
-                        ShadowDropdown {
-                            id: modEnvDropdown
-
-                            Layout.preferredWidth: 95
-                            model: ["", "client", "server"]
-                            labelFn: function(v) { return page.modEnvLabels[v] || v || "全部" }
-                            currentValue: page.modEnvironment
-                            onValueSelected: function(v) { page.modEnvironment = v }
-                        }
-                    }
-
-                    // Row 3: pre-release toggle
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Rectangle {
-                            width: modPreTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                            color: modPreTogHov.containsMouse ? (page.modShowPreReleases ? "#282040" : "#1a1e28") : (page.modShowPreReleases ? "#1e1838" : "#12151c")
-                            border.color: page.modShowPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                id: modPreTogText
-                                anchors.centerIn: parent
-                                text: page.modShowPreReleases ? qsTr("隐藏测试版") : qsTr("显示测试版")
-                                color: page.modShowPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
-                            }
-                            MouseArea {
-                                id: modPreTogHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { page.modShowPreReleases = !page.modShowPreReleases; modTab.doModSearch() }
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
+                onSearchClicked: modTab.doModSearch()
+                onResetClicked: {
+                    modLoader = ""; modCategory = ""; modEnvironment = ""; mcVersion = ""
+                    searchText = ""; modResultsModel.clear()
+                    modTab.doModSearch()
                 }
+                onModLoaderChanged: page.modLoader = modLoader
+                onModCategoryChanged: page.modCategory = modCategory
+                onModEnvironmentChanged: page.modEnvironment = modEnvironment
+                onMcVersionChanged: page.modGameVersion = mcVersion
             }
 
             // Results
