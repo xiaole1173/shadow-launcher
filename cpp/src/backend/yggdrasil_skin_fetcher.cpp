@@ -13,6 +13,7 @@
 #include <QLoggingCategory>
 #include <QImage>
 #include <QPainter>
+#include "account_backend.h"
 
 Q_LOGGING_CATEGORY(logYggSkin, "shadow.yggdrasil.skin")
 
@@ -23,42 +24,6 @@ static QString toImageUrl(const QString& filePath)
 {
     if (filePath.isEmpty()) return {};
     return QUrl::fromLocalFile(filePath).toString();
-}
-
-// ── 头部渲染：从完整皮肤裁剪出 8×8 面部 + 8×8 帽子 ──
-static QString renderHead(const QString &fullSkinPath)
-{
-    QImage skin(fullSkinPath);
-    if (skin.isNull()) return {};
-
-    constexpr int CANVAS = 128;
-    constexpr int FACE_SZ = CANVAS * 3 / 4;   // 96
-    constexpr int HAT_SZ  = CANVAS * 7 / 8;   // 112
-
-    // Face: 8×8 从 (8,8) 开始
-    QImage face = skin.copy(8, 8, 8, 8);
-    face = face.scaled(FACE_SZ, FACE_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation)
-               .convertToFormat(QImage::Format_ARGB32_Premultiplied);
-
-    QImage out(CANVAS, CANVAS, QImage::Format_ARGB32_Premultiplied);
-    out.fill(Qt::transparent);
-
-    QPainter p(&out);
-    p.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    p.drawImage((CANVAS - FACE_SZ) / 2, (CANVAS - FACE_SZ) / 2, face);
-
-    // Hat/overlay: 8×8 从 (40,8) 开始
-    QImage hat = skin.copy(40, 8, 8, 8);
-    hat = hat.scaled(HAT_SZ, HAT_SZ, Qt::IgnoreAspectRatio, Qt::FastTransformation)
-             .convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    p.drawImage((CANVAS - HAT_SZ) / 2, (CANVAS - HAT_SZ) / 2, hat);
-    p.end();
-
-    QString headPath = fullSkinPath.left(fullSkinPath.length() - 4)
-                       + QStringLiteral("_head.png");
-    if (out.save(headPath, "PNG"))
-        return headPath;
-    return {};
 }
 
 // ── 缓存目录 ──
@@ -168,7 +133,7 @@ void YggdrasilSkinFetcher::onProfileReply()
     if (QFile::exists(cachedPath)) {
         QString headPath = cachedPath.left(cachedPath.length() - 4) + QStringLiteral("_head.png");
         if (!QFile::exists(headPath))
-            headPath = renderHead(cachedPath);
+            headPath = AccountBackend::renderHead3D(cachedPath);
         if (headPath.isEmpty())
             headPath = cachedPath;  // fallback: 用完整皮肤
         m_skinPath = toImageUrl(headPath);
@@ -211,7 +176,7 @@ void YggdrasilSkinFetcher::onDownloadReply()
         QFile::remove(cachedPath);
         QFile::rename(tmpPath, cachedPath);
         // 生成头部裁剪
-        QString headPath = renderHead(cachedPath);
+        QString headPath = AccountBackend::renderHead3D(cachedPath);
         if (!headPath.isEmpty())
             m_skinPath = toImageUrl(headPath);
         else

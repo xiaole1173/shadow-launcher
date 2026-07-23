@@ -109,7 +109,9 @@ private:
     void downloadSkin(const QString &username);
     void downloadOnlineSkin(bool forceRefresh = false);
     void setFallbackSkin();
-    QString renderHead3D(const QString& skinPath);
+public:
+    static QString renderHead3D(const QString& skinPath);
+private:
     static QString toImageUrl(const QString& filePath);
     void loadOfflineHistory();
     void saveOfflineHistory();
