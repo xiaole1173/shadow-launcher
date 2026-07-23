@@ -11,6 +11,7 @@
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QRegularExpression>
+#include "yggdrasil_skin_fetcher.h"
 
 Q_LOGGING_CATEGORY(logYggBackend, "shadow.yggdrasil.backend")
 
@@ -28,6 +29,7 @@ YggdrasilBackend::YggdrasilBackend(QObject *parent)
     : QObject(parent)
     , m_nam(new QNetworkAccessManager(this))
     , m_auth(m_nam)
+    , m_skinFetcher(new YggdrasilSkinFetcher(this))
 {
     loadSession();
 }
@@ -130,6 +132,14 @@ void YggdrasilBackend::selectProfile(int index)
     emit profilesChanged();
     emit stateChanged();
     saveSession();
+    fetchSkin();
+}
+
+void YggdrasilBackend::fetchSkin()
+{
+    if (!m_session.isValid() || m_session.apiRoot.isEmpty() || m_session.uuid.isEmpty())
+        return;
+    m_skinFetcher->fetchSkin(m_session.apiRoot, m_session.uuid);
 }
 
 QString YggdrasilBackend::sessionFilePath() const
@@ -255,6 +265,7 @@ void YggdrasilBackend::loadSession()
             refReply->deleteLater();
         }
         valReply->deleteLater();
+        fetchSkin();
     }
 }
 
@@ -443,6 +454,7 @@ void YggdrasilBackend::onAuthenticateReply()
     emit stateChanged();
     if (!m_session.profiles.isEmpty())
         emit profilesChanged();
+    fetchSkin();
 }
 
 void YggdrasilBackend::onRefreshReply()

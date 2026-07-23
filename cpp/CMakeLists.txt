@@ -79,6 +79,7 @@ set(SOURCES
     src/backend/app_backend.cpp
     src/backend/settings_backend.cpp
     src/backend/yggdrasil_backend.cpp
+    src/backend/yggdrasil_skin_fetcher.cpp
     src/backend/account_backend.cpp
     src/backend/version_backend.cpp
     src/backend/launch_backend.cpp
@@ -119,6 +120,7 @@ set(HEADERS
     src/backend/app_backend.h
     src/backend/settings_backend.h
     src/backend/yggdrasil_backend.h
+    src/backend/yggdrasil_skin_fetcher.h
     src/backend/account_backend.h
     src/backend/version_backend.h
     src/backend/launch_backend.h
