@@ -47,6 +47,7 @@ Rectangle {
     property bool capeExpanded: false
     property bool _skinRefreshPending: false
     property bool showCapePopup: false
+    property bool showProfilePopup: false
     property bool yggServerExpanded: false
 
     function doModifySkin() {
@@ -1307,6 +1308,91 @@ Rectangle {
         }
     }
 
+    // ── 多角色弹窗 ──
+    Rectangle {
+        id: profilePopupOverlay
+        anchors.fill: parent
+        z: 100
+        color: "#80000000"
+        opacity: showProfilePopup ? 1 : 0
+        visible: showProfilePopup || opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: showProfilePopup = false
+        }
+
+        Rectangle {
+            id: profilePopupCard
+            width: 340
+            height: Math.min(profileList.count * 36 + 68, parent.height - 80)
+            anchors.centerIn: parent
+            radius: StyleTokens.radiusLg
+            color: StyleTokens.bgSecondary
+            border.color: StyleTokens.border; border.width: 1
+
+            scale: showProfilePopup ? 1 : 0.9
+            opacity: showProfilePopup ? 1 : 0
+            Behavior on scale { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 4; spacing: 2
+
+                Text {
+                    text: qsTr("选择角色")
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    color: StyleTokens.textPrimary
+                    font.pixelSize: StyleTokens.fontSizeLg
+                    font.weight: Font.DemiBold
+                    Layout.topMargin: 12; Layout.bottomMargin: 8
+                }
+
+                ListView {
+                    id: profileList
+                    Layout.fillWidth: true; Layout.preferredHeight: Math.min(count, 5) * 36
+                    model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
+                    spacing: 2
+                    clip: true
+
+                    delegate: Rectangle {
+                        width: ListView.view.width; height: 34
+                        radius: StyleTokens.radiusSm
+                        color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (pMouse.containsMouse ? StyleTokens.bgCard : "transparent")
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 12; spacing: 8
+                            Rectangle {
+                                width: 8; height: 8; radius: 4
+                                color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.accentLight : "transparent"
+                            }
+                            Text {
+                                text: modelData.name || ""
+                                color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.textSecondary : "#9498a8"
+                                font.pixelSize: StyleTokens.fontSizeMd
+                                font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        MouseArea {
+                            id: pMouse; anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (backend && backend.yggdrasil) {
+                                    backend.yggdrasil.selectProfile(model.index)
+                                    showProfilePopup = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ── 信号处理 ──
     Connections {
         target: backend && backend.account ? backend.account : null
@@ -1352,6 +1438,15 @@ Rectangle {
         function onLoginFailed(error) {
             _yggStatusText = ""
             if (toastManager) toastManager.show("外置登录失败: " + error)
+        }
+
+        function onProfilesChanged() {
+            if (backend && backend.yggdrasil && backend.yggdrasil.profiles.length > 1) {
+                // 仅当尚未选择角色时弹出（避免会话恢复后重复弹窗）
+                var idx = backend.yggdrasil.profileIndex
+                if (idx < 0 || idx >= backend.yggdrasil.profiles.length)
+                    showProfilePopup = true
+            }
         }
 
         function onMetaReady() {
