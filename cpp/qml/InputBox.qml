@@ -200,39 +200,20 @@ Rectangle {
                 width: historyList.width; height: root._historyItemH
                 color: "transparent"
 
+                // 内容行
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 12; anchors.rightMargin: 6
                     spacing: 4
 
-                    // 可点击的姓名行（选中历史记录）
-                    Rectangle {
-                        id: selectArea
+                    Text {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: StyleTokens.radiusSm
-                        color: selectAreaMouse.containsMouse ? "#1a2840" : "transparent"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                        Text {
-                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: modelData
-                            color: StyleTokens.textSecondary
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            elide: Text.ElideRight
-                            width: parent.width
-                        }
-
-                        MouseArea {
-                            id: selectAreaMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                textInput.text = modelData
-                                _historyOpen = false
-                            }
-                        }
+                        verticalAlignment: Text.AlignVCenter
+                        text: modelData
+                        color: StyleTokens.textSecondary
+                        font.pixelSize: StyleTokens.fontSizeMd
+                        elide: Text.ElideRight
                     }
 
                     // 删除按钮
@@ -260,6 +241,31 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.historyItemDeleted(modelData)
                         }
+                    }
+                }
+
+                // 悬停遮罩（全高覆盖，透明度动画避免闪烁）
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.leftMargin: 4; anchors.rightMargin: 4
+                    radius: 0
+                    color: "#1a2840"
+                    opacity: selectMouse.containsMouse ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                    z: 0
+                }
+
+                // 选中区域 MouseArea（固定外边距，避免跨布局锚定问题）
+                MouseArea {
+                    id: selectMouse
+                    anchors.left: parent.left; anchors.leftMargin: 4
+                    anchors.right: parent.right; anchors.rightMargin: 32
+                    anchors.top: parent.top; anchors.bottom: parent.bottom
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        textInput.text = modelData
+                        _historyOpen = false
                     }
                 }
             }
