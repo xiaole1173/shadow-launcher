@@ -19,6 +19,9 @@ Button {
     property real pressScale: 0.94
     property real hoverFillAlpha: 0.10
     property real btnWidth: 0
+    // ── 图标 ──
+    property string iconSource: ""
+    property int iconSize: 16
 
     flat: true
     font.pixelSize: StyleTokens.fontSizeMd
@@ -40,13 +43,32 @@ Button {
         else scale = 1.0
     }
 
-    contentItem: Text {
-        text: shadowBtn.text
-        font: shadowBtn.font
-        color: !shadowBtn.enabled ? StyleTokens.textMuted : shadowBtn.textColor
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+    contentItem: Item {
+        implicitWidth: row.implicitWidth; implicitHeight: row.implicitHeight
+
+        Row {
+            id: row
+            anchors.centerIn: parent
+            spacing: shadowBtn.iconSource.length > 0 ? 6 : 0
+
+            Image {
+                anchors.verticalCenter: parent.verticalCenter
+                source: shadowBtn.iconSource
+                visible: shadowBtn.iconSource.length > 0
+                width: shadowBtn.iconSize; height: shadowBtn.iconSize
+                sourceSize.width: shadowBtn.iconSize * 2; sourceSize.height: shadowBtn.iconSize * 2
+                fillMode: Image.PreserveAspectFit
+            }
+
+            Text {
+                text: shadowBtn.text
+                font: shadowBtn.font
+                color: !shadowBtn.enabled ? StyleTokens.textMuted : shadowBtn.textColor
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+            }
+        }
     }
 
     background: Rectangle {

@@ -114,11 +114,11 @@ Rectangle {
                         }
                     }
                     ShadowButton {
-                        Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                        Layout.preferredWidth: 90; Layout.preferredHeight: 34
                         text: "复制"
-                        outlined: true
                         btnRadius: StyleTokens.radiusMd
                         font.pixelSize: StyleTokens.fontSizeMd
+                        iconSource: "icons/lucide/copy.svg"
                         onClicked: {
                             if (mp) {
                                 mp.copyRoomCode()
@@ -260,18 +260,20 @@ Rectangle {
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                 ShadowButton {
-                    Layout.preferredWidth: 200; Layout.preferredHeight: 42
+                    Layout.preferredWidth: 220; Layout.preferredHeight: 42
                     text: "创建房间"
                     bold: true
                     btnRadius: StyleTokens.radiusLg
+                    iconSource: "icons/lucide/gamepad-2.svg"
                     onClicked: { if (mp) mp.createRoom() }
                 }
 
                 ShadowButton {
-                    Layout.preferredWidth: 200; Layout.preferredHeight: 42
+                    Layout.preferredWidth: 220; Layout.preferredHeight: 42
                     text: "加入房间"
                     bold: true
                     btnRadius: StyleTokens.radiusLg
+                    iconSource: "icons/lucide/log-in.svg"
                     onClicked: joinDialog.open()
                 }
             }
@@ -284,11 +286,12 @@ Rectangle {
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                 ShadowButton {
-                    Layout.preferredWidth: 200; Layout.preferredHeight: 42
+                    Layout.preferredWidth: 220; Layout.preferredHeight: 42
                     text: mp && mp.state <= 3 ? "取消" : "断开连接"
                     bold: true
                     accentColor: StyleTokens.error
                     btnRadius: StyleTokens.radiusLg
+                    iconSource: "icons/lucide/log-out.svg"
                     onClicked: { if (mp) mp.leaveRoom() }
                 }
             }
@@ -330,11 +333,11 @@ Rectangle {
                 ShadowButton {
                     Layout.preferredWidth: 150; Layout.preferredHeight: 44
                     text: "返回"
-                    outlined: true
                     bold: true
                     accentColor: StyleTokens.textTertiary
                     btnRadius: StyleTokens.radiusLg
                     font.pixelSize: StyleTokens.fontSizeLg
+                    iconSource: "icons/lucide/arrow-left.svg"
                     onClicked: joinDialog.close()
                 }
                 ShadowButton {
@@ -343,6 +346,7 @@ Rectangle {
                     bold: true
                     btnRadius: StyleTokens.radiusLg
                     font.pixelSize: StyleTokens.fontSizeLg
+                    iconSource: "icons/lucide/log-in.svg"
                     onClicked: {
                         if (joinInput.text && mp) {
                             joinDialog.close()
