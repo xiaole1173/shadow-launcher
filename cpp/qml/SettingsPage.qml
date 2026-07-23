@@ -198,80 +198,30 @@ Rectangle {
 
                 // ── 文件下载源 ──
                 Text { text: qsTr("文件下载源"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                Rectangle {
-                    id: fileSrcCard
+                ShadowDropdown {
                     Layout.fillWidth: true
-                    implicitHeight: fileSrcCard._open ? 148 : 40
-                    radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; clip: true
-                    border.color: fileSrcCard._open ? "#5068d8" : StyleTokens.bgInput; border.width: 1
-
-                    Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                    Behavior on border.color { ColorAnimation { duration: 200 } }
-
-                    property bool _open: false
-                    property var items: [{t:qsTr("尽量使用镜像源"),v:0},{t:qsTr("尽量使用官方源"),v:1},{t:qsTr("尽量使用官方源，速度过慢切换镜像源"),v:2}]
-                    property int _sel: (backend) ? backend.fileDownloadSource : 0
-                    property string _label: _sel===0 ? items[0].t : (_sel===1 ? items[1].t : items[2].t)
-
-                    Rectangle { width: parent.width; height: 40; color: "#0d1016"; radius: StyleTokens.radiusMd
-                        RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
-                            Text { Layout.fillWidth: true; text: fileSrcCard._label; color: "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeMd; elide: Text.ElideRight }
-                            Text { text: fileSrcCard._open ? "▲" : "▼"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs }
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: fileSrcCard._open = !fileSrcCard._open }
-                    }
-
-                    Column {
-                        id: listCol; width: parent.width; y: 40
-                        Repeater { model: fileSrcCard.items
-                            delegate: Rectangle { width: listCol.width; height: 36; radius: StyleTokens.radiusSm
-                                color: modelData.v===fileSrcCard._sel?"#5068d8":(m1.containsMouse?"#1e2540":"transparent")
-                                Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 16; text: modelData.t; color: modelData.v===fileSrcCard._sel?"#fff":"#b8c0d0"; font.pixelSize: StyleTokens.fontSizeSm }
-                                MouseArea { id: m1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                    onClicked: { fileSrcCard._sel=modelData.v; if(backend) backend.fileDownloadSource=modelData.v; fileSrcCard._open=false }
-                                }
-                            }
-                        }
-                    }
+                    model: [
+                        { text: qsTr("尽量使用镜像源"), value: 0 },
+                        { text: qsTr("尽量使用官方源"), value: 1 },
+                        { text: qsTr("尽量使用官方源，速度过慢切换镜像源"), value: 2 }
+                    ]
+                    labelKey: "text"
+                    currentValue: (backend) ? backend.fileDownloadSource : 0
+                    onValueSelected: function(v) { if (backend) backend.fileDownloadSource = v }
                 }
 
                 // ── 版本列表源 ──
                 Text { text: qsTr("版本列表源"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; Layout.topMargin: 8 }
-                Rectangle {
-                    id: listSrcCard
+                ShadowDropdown {
                     Layout.fillWidth: true
-                    implicitHeight: listSrcCard._open2 ? 148 : 40
-                    radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; clip: true
-                    border.color: listSrcCard._open2 ? "#5068d8" : StyleTokens.bgInput; border.width: 1
-
-                    Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                    Behavior on border.color { ColorAnimation { duration: 200 } }
-
-                    property bool _open2: false
-                    property var items: [{t:qsTr("尽量使用镜像源"),v:0},{t:qsTr("尽量使用官方源"),v:1},{t:qsTr("尽量使用官方源，速度过慢切换镜像源"),v:2}]
-                    property int _sel: (backend) ? backend.listDownloadSource : 0
-                    property string _label: _sel===0 ? items[0].t : (_sel===1 ? items[1].t : items[2].t)
-
-                    Rectangle { width: parent.width; height: 40; color: "#0d1016"; radius: StyleTokens.radiusMd
-                        RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 6
-                            Text { Layout.fillWidth: true; text: listSrcCard._label; color: "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeMd; elide: Text.ElideRight }
-                            Text { text: listSrcCard._open2 ? "▲" : "▼"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs }
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: listSrcCard._open2 = !listSrcCard._open2 }
-                    }
-
-                    Column {
-                        id: listCol2; width: parent.width; y: 40
-                        Repeater { model: listSrcCard.items
-                            delegate: Rectangle { width: listCol2.width; height: 36; radius: StyleTokens.radiusSm
-                                color: modelData.v===listSrcCard._sel?"#5068d8":(m2.containsMouse?"#1e2540":"transparent")
-                                Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 16; text: modelData.t; color: modelData.v===listSrcCard._sel?"#fff":"#b8c0d0"; font.pixelSize: StyleTokens.fontSizeSm }
-                                MouseArea { id: m2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                                    onClicked: { listSrcCard._sel=modelData.v; if(backend) backend.listDownloadSource=modelData.v; listSrcCard._open2=false }
-                                }
-                            }
-                        }
-                    }
+                    model: [
+                        { text: qsTr("尽量使用镜像源"), value: 0 },
+                        { text: qsTr("尽量使用官方源"), value: 1 },
+                        { text: qsTr("尽量使用官方源，速度过慢切换镜像源"), value: 2 }
+                    ]
+                    labelKey: "text"
+                    currentValue: (backend) ? backend.listDownloadSource : 0
+                    onValueSelected: function(v) { if (backend) backend.listDownloadSource = v }
                 }
 
                 // ── 最大线程数 ──
