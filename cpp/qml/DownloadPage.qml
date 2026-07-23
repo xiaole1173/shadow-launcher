@@ -581,7 +581,7 @@ Rectangle {
             anchors.bottomMargin: 8
             clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
-            ScrollBar.vertical.stepSize: 0.5
+            Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
             
 
             ListView {
@@ -762,7 +762,7 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                ScrollBar.vertical.stepSize: 0.5
+                Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
                 
 
                 ListView {
@@ -971,7 +971,7 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                ScrollBar.vertical.stepSize: 0.5
+                Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
 
                 ListView {
                     id: shaderCardView
@@ -1089,7 +1089,7 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                ScrollBar.vertical.stepSize: 0.5
+                Component.onCompleted: if (flickable) flickable.flickDeceleration = 50
                 
 
                 ListView {
@@ -1100,7 +1100,7 @@ Rectangle {
 
                     header: LoadStatus {
                         width: rpListView.width
-                        loading: false // RP 暂无独立 loading 状态
+                        loading: page.rpSearching
                         emptyText: qsTr("搜索资源包")
                         count: rpResultsModel.count
                     }
