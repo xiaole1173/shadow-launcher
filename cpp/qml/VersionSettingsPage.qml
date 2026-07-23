@@ -396,89 +396,16 @@ Rectangle {
                                 Layout.preferredWidth: 70
                             }
 
-                            Rectangle {
+                            ShadowDropdown {
                                 Layout.preferredWidth: 200
-                                height: 36
-                                radius: StyleTokens.radiusLg
-                                color: StyleTokens.surfaceLight
-                                border.color: authComboHover.containsMouse ? StyleTokens.accent : "#2A2F3A"
-                                border.width: 1
-
-                                Behavior on border.color { ColorAnimation { duration: 200 } }
-
-                                ComboBox {
-                                    id: authModeCombo
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    model: ["无", "Authlib-Injector", "自定义"]
-                                    currentIndex: 0
-                                    flat: true
-
-                                    background: Item {}
-                                    contentItem: Text {
-                                        leftPadding: 10
-                                        text: authModeCombo.displayText
-                                        font.pixelSize: StyleTokens.fontSizeMd
-                                        color: "#B4BAC6"
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    indicator: Text {
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: 10
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "▼"
-                                        font.pixelSize: StyleTokens.fontSizeXs
-                                        color: "#7E8596"
-                                    }
-
-                                    delegate: ItemDelegate {
-                                        width: authModeCombo.width
-                                        height: 36
-                                        contentItem: Text {
-                                            text: modelData
-                                            font.pixelSize: StyleTokens.fontSizeMd
-                                            color: hovered ? "#F1F3F6" : "#B4BAC6"
-                                            verticalAlignment: Text.AlignVCenter
-                                            leftPadding: 10
-                                        }
-                                        background: Rectangle {
-                                            color: hovered ? "#252A35" : "#1A1D24"
-                                            radius: StyleTokens.radiusSm
-                                        }
-                                    }
-
-                                    popup: Popup {
-                                        y: authModeCombo.height
-                                        width: authModeCombo.width
-                                        height: implicitHeight
-                                        padding: 4
-                                        background: Rectangle {
-                                            color: StyleTokens.surfaceLight
-                                            radius: StyleTokens.radiusLg
-                                            border.color: StyleTokens.bgHover
-                                        }
-                                        contentItem: ListView {
-                                            clip: true
-                                            implicitHeight: contentHeight
-                                            model: authModeCombo.popup.visible ? authModeCombo.delegateModel : null
-                                            currentIndex: authModeCombo.highlightedIndex
-                                        }
-                                    }
-
-                                    onCurrentIndexChanged: {
-                                        if (currentIndex === 0) page._authlibMode = "none"
-                                        else if (currentIndex === 1) page._authlibMode = "authlib"
-                                        else page._authlibMode = "custom"
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: authComboHover
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    hoverEnabled: true
-                                    acceptedButtons: Qt.NoButton
-                                }
+                                model: [
+                                    {value: "none", label: "无"},
+                                    {value: "authlib", label: "Authlib-Injector"},
+                                    {value: "custom", label: "自定义"}
+                                ]
+                                valueKey: "value"
+                                currentValue: page._authlibMode
+                                onValueSelected: function(v) { page._authlibMode = v }
                             }
                         }
 

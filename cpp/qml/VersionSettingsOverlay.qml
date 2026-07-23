@@ -573,25 +573,12 @@ Rectangle {
                     Text { text: qsTr("管理已安装的 Mod，拖拽 JAR 文件到此区域快捷导入。内置支持 Fabric/NeoForge/Forge 元数据识别。\n"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                     // Search
-                    Rectangle {
-                        Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgInput
-                        border.color: modSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
-                        Behavior on border.color { ColorAnimation { duration: 200 } }
-                        TextInput {
-                            id: modSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
-                            color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
-                            onTextChanged: modSection.filterModList()
-                        }
-                        Image {
-                            source: "icons/lucide/search.svg"
-                            width: 14; height: 14
-                            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                        }
-                        Text {
-                            anchors { left: parent.left; leftMargin: 32; verticalCenter: parent.verticalCenter }
-                            text: qsTr("搜索 Mod 名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-                            visible: !modSearchField.text
-                        }
+                    SearchBox {
+                        id: modSearchField
+                        Layout.fillWidth: true
+                        showIcon: true
+                        placeholderText: qsTr("搜索 Mod 名称...")
+                        onTextChanged: modSection.filterModList()
                     }
 
                     // Grid of mod cards
@@ -829,25 +816,12 @@ Rectangle {
                     Text { text: qsTr("管理已安装的资源包和材质包。支持 pack.mcmeta 元数据解析和 pack.png 图标提取。\n"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
                     // Search
-                    Rectangle {
-                        Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: StyleTokens.bgInput
-                        border.color: rpSearchField.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
-                        Behavior on border.color { ColorAnimation { duration: 200 } }
-                        TextInput {
-                            id: rpSearchField; anchors.fill: parent; anchors.leftMargin: 32; anchors.rightMargin: 10
-                            color: StyleTokens.textPrimary; font.pixelSize: StyleTokens.fontSizeSm; verticalAlignment: TextInput.AlignVCenter
-                            onTextChanged: rpSection.filterRPList()
-                        }
-                        Image {
-                            source: "icons/lucide/search.svg"
-                            width: 14; height: 14
-                            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                        }
-                        Text {
-                            anchors { left: parent.left; leftMargin: 32; verticalCenter: parent.verticalCenter }
-                            text: qsTr("搜索资源包名称..."); color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
-                            visible: !rpSearchField.text
-                        }
+                    SearchBox {
+                        id: rpSearchField
+                        Layout.fillWidth: true
+                        showIcon: true
+                        placeholderText: qsTr("搜索资源包名称...")
+                        onTextChanged: rpSection.filterRPList()
                     }
 
                     // Grid of resource pack cards

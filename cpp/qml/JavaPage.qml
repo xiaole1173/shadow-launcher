@@ -464,101 +464,13 @@ Item {
         RowLayout {
             spacing: 8
 
-            // Wrapper so overlay MouseArea can sit on top of disabled ComboBox
-            Item {
+            ShadowDropdown {
                 Layout.preferredWidth: 280
-                Layout.preferredHeight: 34
-
-                ComboBox {
-                    id: combo
-                    anchors.fill: parent
-                    enabled: root.enabled
-
                 model: root.model
-                currentIndex: root.currentValue ? root.model.indexOf(root.currentValue) : -1
-
-                onCurrentValueChanged: {
-                    // Force clear when parent selection resets
-                    if (!currentValue || currentValue === "") combo.currentIndex = -1
-                }
-
-                // ── Same dark style as SettingsPage ──
-
-                // ── Dark style, grayed when disabled ──
-                background: Rectangle {
-                    radius: StyleTokens.radiusMd
-                    color: root.enabled ? (combo.hovered ? "#252a38" : "#161a24") : "#10131c"
-                    border.color: root.enabled ? (combo.hovered ? StyleTokens.accent : StyleTokens.border) : "#181c24"
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                    Behavior on border.color { ColorAnimation { duration: 200 } }
-                }
-                contentItem: Text {
-                    leftPadding: 12
-                    verticalAlignment: Text.AlignVCenter
-                    text: root.currentValue ? root.currentValue : "请选择"
-                    color: root.enabled ? "#d0d4e0" : "#525868"
-                    font.pixelSize: StyleTokens.fontSizeSm
-                    elide: Text.ElideRight
-                }
-                indicator: Canvas {
-                    width: 12; height: 12
-                    anchors.right: parent.right
-                    anchors.rightMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.strokeStyle = combo.hovered ? "#8088f0" : "#606478"
-                        ctx.lineWidth = 1.5
-                        ctx.beginPath(); ctx.moveTo(0, 3); ctx.lineTo(6, 9); ctx.lineTo(12, 3); ctx.stroke()
-                    }
-                }
-
-                delegate: ItemDelegate {
-                    width: combo.popup.width
-                    contentItem: Text {
-                        text: modelData
-                        color: "#d0d4e0"
-                        font.pixelSize: StyleTokens.fontSizeSm
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 12
-                    }
-                    background: Rectangle {
-                        color: highlighted ? "#252a38" : "transparent"
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-                    highlighted: combo.highlightedIndex === index
-                }
-
-                popup: Popup {
-                    y: combo.height + 4
-                    width: combo.width
-                    implicitHeight: contentItem.implicitHeight + 8
-                    padding: 4
-
-                    enter: Transition {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 150; easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "y"; from: combo.height - 2; to: combo.height + 4; duration: 200; easing.type: Easing.OutCubic }
-                    }
-                    exit: Transition {
-                        NumberAnimation { property: "opacity"; to: 0; duration: 100 }
-                    }
-
-                    contentItem: ListView {
-                        clip: true
-                        implicitHeight: contentHeight
-                        model: combo.popup.visible ? combo.delegateModel : null
-                        currentIndex: combo.highlightedIndex
-                    }
-                    background: Rectangle {
-                        radius: StyleTokens.radiusMd
-                        color: StyleTokens.surfaceOverlay
-                        border.color: StyleTokens.bgElevated
-                    }
-                }
-
-                onActivated: root.selected(root.model[currentIndex])
-            }
+                currentValue: root.currentValue
+                placeholderText: "请选择"
+                enabled: root.enabled
+                onValueSelected: function(v) { root.selected(v) }
             }
 
             // Blue spinner + loading text (wrap for animated entry/exit)

@@ -18,6 +18,7 @@ Item {
     // ── Java mode: 0 = auto, 1 = version folder, 2 = specified ──
     property int _javaMode: 0
     property int _selectedJavaIndex: -1
+    property string _selectedJavaPath: ""
     property string _jvmWarning: ""
 
     // ── Cached values ──
@@ -56,13 +57,13 @@ Item {
     }
 
     function _updateJavaIndex() {
-        if (!backend || _javaMode !== 2) { _selectedJavaIndex = -1; return }
+        if (!backend || _javaMode !== 2) { _selectedJavaIndex = -1; _selectedJavaPath = ""; return }
         var path = backend.javaPath
         var list = _javaList || []
         for (var i = 0; i < list.length; i++) {
-            if (list[i].path === path) { _selectedJavaIndex = i; return }
+            if (list[i].path === path) { _selectedJavaIndex = i; _selectedJavaPath = path; return }
         }
-        _selectedJavaIndex = -1
+        _selectedJavaIndex = -1; _selectedJavaPath = ""
     }
 
     property string _defaultJvmArgs: "-XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=20 -XX:MaxGCPauseMillis=50"
@@ -238,66 +239,23 @@ Item {
                     Layout.preferredWidth: 40
                 }
 
-                ComboBox {
-                    id: javaModeCombo
+                ShadowDropdown {
+                    id: javaModeDropdown
                     Layout.fillWidth: true
-                    model: [qsTr("自动选择"), qsTr("使用版本文件夹中的 Java"), qsTr("使用指定的 Java")]
-                    currentIndex: root._javaMode
+                    model: [
+                        {value: 0, label: qsTr("自动选择")},
+                        {value: 1, label: qsTr("使用版本文件夹中的 Java")},
+                        {value: 2, label: qsTr("使用指定的 Java")}
+                    ]
+                    valueKey: "value"
+                    currentValue: root._javaMode
                     enabled: root._mode === 1
                     opacity: root._mode === 0 ? 0.6 : 1.0
-                    implicitHeight: 34
-
-                    background: Rectangle {
-                        radius: StyleTokens.radiusMd
-                        color: StyleTokens.bgPrimary
-                        border.color: javaModeCombo.hovered ? "#3a5ab8" : StyleTokens.bgCard
-                    }
-                    contentItem: Text {
-                        text: javaModeCombo.displayText
-                        font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 10
-                    }
-                    indicator: Text {
-                        text: "▼"
-                        font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
-                        anchors.right: parent.right; anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    delegate: ItemDelegate {
-                        width: javaModeCombo.width
-                        contentItem: Text {
-                            text: modelData
-                            font.pixelSize: StyleTokens.fontSizeSm
-                            color: highlighted ? StyleTokens.textPrimary : "#b0b8c8"
-                        }
-                        background: Rectangle {
-                            color: highlighted ? "#253555" : "#0d1018"
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                        }
-                        highlighted: javaModeCombo.highlightedIndex === index
-                    }
-
-                    popup: Popup {
-                        y: javaModeCombo.height
-                        width: javaModeCombo.width
-                        padding: 2
-                        topMargin: 4
-                        enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
-                        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80 } }
-                        contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
-                            model: javaModeCombo.popup.visible ? javaModeCombo.delegateModel : null
-                            currentIndex: javaModeCombo.highlightedIndex
-                        }
-                        background: Rectangle { radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary; border.color: StyleTokens.bgCard }
-                    }
-
-                    onCurrentIndexChanged: {
-                        if (currentIndex === root._javaMode) return
-                        root._javaMode = currentIndex
-                        if (backend) backend.setVersionJavaMode(currentSelectedVersion, currentIndex)
+                    onValueSelected: function(v) {
+                        var newMode = Number(v)
+                        if (newMode === root._javaMode) return
+                        root._javaMode = newMode
+                        if (backend) backend.setVersionJavaMode(currentSelectedVersion, newMode)
                         root._updateJavaIndex()
                     }
                 }
@@ -321,12 +279,9 @@ Item {
                     Layout.preferredWidth: 40
                 }
 
-                ComboBox {
-                    id: javaListCombo
+                ShadowDropdown {
+                    id: javaListDropdown
                     Layout.fillWidth: true
-                    textRole: "label"
-                    valueRole: "path"
-                    implicitHeight: 34
                     model: {
                         var items = []
                         var list = root._javaList || []
@@ -340,84 +295,24 @@ Item {
                         items.push({ label: qsTr("导入电脑中已有的 Java"), path: "__browse__", major: 0 })
                         return items
                     }
-                    currentIndex: root._selectedJavaIndex
+                    valueKey: "path"
+                    labelKey: "label"
+                    currentValue: root._selectedJavaPath
                     enabled: root._mode === 1
-
-                    background: Rectangle {
-                        radius: StyleTokens.radiusMd
-                        color: "#0d1018"
-                        border.color: javaListCombo.hovered ? "#3a5ab8" : StyleTokens.bgCard
-                    }
-                    contentItem: Text {
-                        text: {
-                            var idx = javaListCombo.currentIndex
-                            if (idx < 0) return qsTr("点击选择 Java...")
-                            var m = javaListCombo.model
-                            if (m && idx < m.length) return m[idx].label
-                            return qsTr("点击选择 Java...")
-                        }
-                        font.pixelSize: StyleTokens.fontSizeSm
-                        color: javaListCombo.currentIndex < 0 ? "#808aa0" : "#b0b8c8"
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 10
-                    }
-                    indicator: Text {
-                        text: "▼"
-                        font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
-                        anchors.right: parent.right; anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    delegate: ItemDelegate {
-                        width: javaListCombo.width
-                        contentItem: RowLayout {
-                            Text {
-                                text: modelData.label
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                color: highlighted ? StyleTokens.textPrimary : "#b0b8c8"
-                                Layout.fillWidth: true
-                            }
-                            Text {
-                                text: modelData.major > 0 ? qsTr("推荐") : ""
-                                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.success
-                                visible: modelData.major > 0
-                            }
-                        }
-                        background: Rectangle {
-                            color: highlighted ? "#253555" : "#0d1018"
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                        }
-                        highlighted: javaListCombo.highlightedIndex === index
-                    }
-
-                    popup: Popup {
-                        y: javaListCombo.height
-                        width: javaListCombo.width
-                        padding: 2
-                        topMargin: 4
-                        enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
-                        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 80 } }
-                        contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
-                            model: javaListCombo.popup.visible ? javaListCombo.delegateModel : null
-                            currentIndex: javaListCombo.highlightedIndex
-                        }
-                        background: Rectangle { radius: StyleTokens.radiusMd; color: "#0d1018"; border.color: StyleTokens.bgCard }
-                    }
-
-                    onCurrentIndexChanged: {
-                        if (currentIndex < 0) return
-                        var m = model
-                        if (!m || currentIndex >= m.length) return
-                        var item = m[currentIndex]
-                        if (item.path === "__browse__") {
+                    placeholderText: qsTr("点击选择 Java...")
+                    onValueSelected: function(path) {
+                        if (path === "__browse__") {
                             if (backend) backend.pickJava()
-                            javaListCombo.currentIndex = root._selectedJavaIndex // restore
                             return
                         }
-                        root._selectedJavaIndex = currentIndex
-                        if (backend && currentIndex < (root._javaList || []).length) {
-                            backend.selectJavaByIndex(currentIndex)
+                        var list = root._javaList || []
+                        for (var i = 0; i < list.length; i++) {
+                            if (list[i].path === path) {
+                                root._selectedJavaIndex = i
+                                root._selectedJavaPath = path
+                                if (backend) backend.selectJavaByIndex(i)
+                                break
+                            }
                         }
                     }
                 }
