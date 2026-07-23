@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -114,18 +114,22 @@ Rectangle {
         "locale": "本地化", "models": "模型", "minecraft": "Minecraft"
     })
     property int rpPage: 0  // current page offset for pagination
-    property bool rpLoadingMore: false
+    property bool rpSearching: false
     property bool rpShowPreReleases: false
     property bool rpHasMore: true
     property int rpTotalHits: 0
+    readonly property int rpPageSize: 20
 
-    // Fresh search (reset page + clear)
-    function loadRpFirstPage() {
+    property int modCurrentPage: 0
+    property bool modHasMore: false
+    readonly property int modPageSize: 30
+
+    // Search resource packs with page number
+    function searchRpPage(pageNum) {
         if (!backend) return
-        page.rpDebugSeq++
-        page.rpPage = 0
-        page.rpLoadingMore = false
-        page.rpHasMore = true
+        pageNum = (pageNum !== undefined) ? pageNum : 0
+        page.rpSearching = true
+        page.rpPage = pageNum
         rpResultsModel.clear()
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
@@ -136,26 +140,17 @@ Rectangle {
         if (page.rpCategoryFilter) cats.push(page.rpCategoryFilter)
         if (page.rpFeatureFilter) cats.push(page.rpFeatureFilter)
         if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
-        backend.searchResourcepacks(q, ver, 0, cats)
-    }
-
-    // Load next page of resource packs
-    function loadNextRpPage() {
-        if (!backend || rpLoadingMore || !rpHasMore) return
-        rpLoadingMore = true
-        page.rpPage++
-        var offset = page.rpPage * 20
-        var q = rpFilterCard.searchText || ""
-        var ver = page.rpGameVersion || ""
-        backend.searchResourcepacks(q, ver, offset)
+        var offset = pageNum * page.rpPageSize
+        console.log("[RP-DEBUG] searchRpPage page=", pageNum, "offset=", offset, "q=", q)
+        backend.searchResourcepacks(q, ver, offset, cats)
     }
 
     function filterRpResults() {
-        loadRpFirstPage()
+        searchRpPage(0)
     }
 
     function loadResourcepackResults() {
-        loadRpFirstPage()
+        searchRpPage(0)
     }
 
     signal goBack()
@@ -586,6 +581,8 @@ Rectangle {
             anchors.bottomMargin: 8
             clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
+            ScrollBar.vertical.stepSize: 0.5
+            
 
             ListView {
                 id: versionList
@@ -642,14 +639,17 @@ Rectangle {
         enabled: page.currentTab === 1
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
-        function doModSearch() {
+        function doModSearch(pageNum) {
             if (!backend) return
+            pageNum = (pageNum !== undefined) ? pageNum : 0
+            page.modCurrentPage = pageNum
             page.modSearching = true
             modResultsModel.clear()
             var q = modFilterCard.searchText ? modFilterCard.searchText.trim() : ""
-            console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab)
+            console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab + " page=" + pageNum)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
-            backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", 0, 30)
+            var offset = pageNum * page.modPageSize
+            backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize)
         }
 
         function fmtVersionRange(vs) {
@@ -711,6 +711,7 @@ Rectangle {
                     if (r.loadersList && r.loadersList.length > 0) console.log("[MOD-QML] slug=" + (r.slug||"?") + " loadersList=" + JSON.stringify(r.loadersList))
                 }
                 page.modSearching = false
+                page.modHasMore = !!(results && results.length >= page.modPageSize)
                 if (urlsToCache.length > 0 && backend) {
                     backend.cacheIconBatchAsync(urlsToCache)
                 }
@@ -761,6 +762,8 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                ScrollBar.vertical.stepSize: 0.5
+                
 
                 ListView {
                     id: modListView2
@@ -768,15 +771,19 @@ Rectangle {
                     model: modResultsModel
                     cacheBuffer: 200
 
-                    header: Item {
+                    header: LoadStatus {
                         width: modListView2.width
-                        height: modResultsModel.count > 0 ? 0 : 200
-                        visible: modResultsModel.count === 0
-                        Text {
-                            anchors.centerIn: parent
-                            text: page.modSearching ? qsTr("搜索中…") : qsTr("输入关键词搜索 Mod")
-                            color: "#606478"; font.pixelSize: StyleTokens.fontSizeSm
-                        }
+                        loading: page.modSearching
+                        emptyText: qsTr("输入关键词搜索 Mod")
+                        count: modResultsModel.count
+                    }
+                    footer: PaginationFooter {
+                        currentPage: page.modCurrentPage
+                        hasNext: page.modHasMore
+                        loading: page.modSearching
+                        onFirstClicked: modTab.doModSearch(0)
+                        onPrevClicked: modTab.doModSearch(page.modCurrentPage - 1)
+                        onNextClicked: modTab.doModSearch(page.modCurrentPage + 1)
                     }
 
                     delegate: DownloadCard {
@@ -821,6 +828,8 @@ Rectangle {
 
         property bool shaderSearching: false
         property int shaderOffset: 0
+        property int shaderCurrentPage: 0
+        readonly property int shaderPageSize: 50
         property bool hasMoreShaders: false
 
         property string shaderCategory: ""
@@ -877,25 +886,19 @@ Rectangle {
             return minVer === maxVer ? minVer : minVer + "-" + maxVer
         }
 
-        function doSearch() {
+        function doSearch(pageNum) {
             if (!backend) return
-            shaderSearching = true; shaderOffset = 0; shaderResultsModel.clear()
+            pageNum = (pageNum !== undefined) ? pageNum : 0
+            shaderSearching = true
+            shaderCurrentPage = pageNum
+            shaderOffset = pageNum * shaderPageSize
+            shaderResultsModel.clear()
             var a = shaderCategory ? [shaderCategory] : []
             var b = shaderFeature ? [shaderFeature] : []
             var c = shaderPerformance ? [shaderPerformance] : []
             var d = shaderLoader ? [shaderLoader] : []
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], 0, 50)
-        }
-        function loadMore() {
-            if (!backend || shaderSearching || !hasMoreShaders) return
-            shaderSearching = true; shaderOffset += 50
-            var a = shaderCategory ? [shaderCategory] : []
-            var b = shaderFeature ? [shaderFeature] : []
-            var c = shaderPerformance ? [shaderPerformance] : []
-            var d = shaderLoader ? [shaderLoader] : []
-            var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, 50)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, shaderPageSize)
         }
         function resetFilters() {
             shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
@@ -929,7 +932,7 @@ Rectangle {
                         backend.cacheShaderIconBatchAsync(urlsToCache)
                     }
                 }
-                shaderTab.hasMoreShaders = (results && results.length >= 50)
+                shaderTab.hasMoreShaders = (results && results.length >= shaderTab.shaderPageSize)
             }
         }
 
@@ -965,75 +968,59 @@ Rectangle {
             }
 
             // ── Card Grid ──
-            ListView {
-                id: shaderCardView
-                Layout.fillWidth: true; Layout.fillHeight: true
-                model: shaderResultsModel
-                spacing: 6; cacheBuffer: 200
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                ScrollBar.vertical.stepSize: 0.5
 
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                    contentItem: Rectangle { implicitWidth: 4; radius: StyleTokens.radiusXs; color: StyleTokens.textMuted }
-                }
+                ListView {
+                    id: shaderCardView
+                    anchors.fill: parent
+                    model: shaderResultsModel
+                    spacing: 6; cacheBuffer: 200
+                    clip: true
 
-                header: Item {
-                    width: shaderCardView.width
-                    height: shaderResultsModel.count > 0 ? 0 : 200
-                    visible: shaderResultsModel.count === 0
-                    Text {
-                        anchors.centerIn: parent
-                        text: shaderTab.shaderSearching ? qsTr("搜索中\u2026") : qsTr("输入关键词搜索光影")
-                        color: "#606478"; font.pixelSize: StyleTokens.fontSizeSm
+                    header: LoadStatus {
+                        width: shaderCardView.width
+                        loading: shaderTab.shaderSearching
+                        emptyText: qsTr("输入关键词搜索光影")
+                        count: shaderResultsModel.count
                     }
-                }
 
-                footer: Item {
-                    width: shaderCardView.width
-                    height: shaderTab.hasMoreShaders ? 36 : 0
-                    visible: shaderTab.hasMoreShaders
-                    Text {
-                        anchors.centerIn: parent
-                        text: shaderTab.shaderSearching ? qsTr("加载中...") : qsTr("加载更多")
-                        color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeSm
+                    footer: PaginationFooter {
+                        currentPage: shaderTab.shaderCurrentPage
+                        hasNext: shaderTab.hasMoreShaders
+                        loading: shaderTab.shaderSearching
+                        onFirstClicked: shaderTab.doSearch(0)
+                        onPrevClicked: shaderTab.doSearch(shaderTab.shaderCurrentPage - 1)
+                        onNextClicked: shaderTab.doSearch(shaderTab.shaderCurrentPage + 1)
                     }
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: { if (!shaderTab.shaderSearching && shaderTab.hasMoreShaders) shaderTab.loadMore() }
-                    }
-                }
 
-                onContentYChanged: {
-                    if (!shaderTab.shaderSearching && shaderTab.hasMoreShaders && shaderCardView.count > 0) {
-                        var bottomEdge = contentHeight - height
-                        if (contentY >= bottomEdge - 100) shaderTab.loadMore()
-                    }
-                }
-
-                delegate: DownloadCard {
-                    width: shaderCardView.width
-                    title: model.title || ""
-                    description: model.desc || ""
-                    iconUrl: model.icon || ""
-                    slug: model.slug || ""
-                    downloads: model.downloads || 0
-                    source: "Modrinth"
-                    gameVersions: model.versions || ""
-                    dateModified: model.dateModified || ""
-                    onClicked: {
-                        page._shaderDetailSlug = model.slug
-                        page._shaderDetailTitle = model.title || ""
-                        page._shaderDetailDesc = model.desc || ""
-                        page._shaderDetailIcon = model.icon || ""
-                        page._showShaderDetail = true
-                        console.info("[UI] 打开 光影详情 slug=" + model.slug)
+                    delegate: DownloadCard {
+                        width: shaderCardView.width
+                        title: model.title || ""
+                        description: model.desc || ""
+                        iconUrl: model.icon || ""
+                        slug: model.slug || ""
+                        downloads: model.downloads || 0
+                        source: "Modrinth"
+                        gameVersions: model.versions || ""
+                        dateModified: model.dateModified || ""
+                        onClicked: {
+                            page._shaderDetailSlug = model.slug
+                            page._shaderDetailTitle = model.title || ""
+                            page._shaderDetailDesc = model.desc || ""
+                            page._shaderDetailIcon = model.icon || ""
+                            page._showShaderDetail = true
+                            console.info("[UI] 打开 光影详情 slug=" + model.slug)
+                        }
                     }
                 }
             }
         }
     }
 
+    // TAB 3: 资源包
     // TAB 3: 资源包
     // ════════════════════════════════════════════
     Item {
@@ -1089,11 +1076,11 @@ Rectangle {
                 onRpCategoryChanged: page.rpCategoryFilter = rpCategory
                 onRpFeatureChanged: page.rpFeatureFilter = rpFeature
                 onRpResolutionChanged: page.rpResolutionFilter = rpResolution
-                onSearchClicked: loadRpFirstPage()
+                onSearchClicked: searchRpPage(0)
                 onResetClicked: {
                     rpCategory = ""; rpFeature = ""; rpResolution = ""
                     mcVersion = ""; searchText = ""
-                    loadRpFirstPage()
+                    searchRpPage(0)
                 }
             }
 
@@ -1102,6 +1089,8 @@ Rectangle {
             ScrollView {
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                ScrollBar.vertical.stepSize: 0.5
+                
 
                 ListView {
                     id: rpListView
@@ -1109,29 +1098,19 @@ Rectangle {
                     model: rpResultsModel
                     cacheBuffer: 200
 
-                    // Footer: load more indicator
-                    footer: Rectangle {
-                        width: rpListView.width; height: rpHasMore ? 40 : 0
-                        color: "transparent"; visible: rpHasMore
-                        Text {
-                            anchors.centerIn: parent
-                            text: rpLoadingMore ? "加载中..." : "加载更多"
-                            color: StyleTokens.accentHover; font.pixelSize: StyleTokens.fontSizeSm
-                        }
-                        MouseArea {
-                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!rpLoadingMore && rpHasMore) loadNextRpPage() }
-                        }
+                    header: LoadStatus {
+                        width: rpListView.width
+                        loading: false // RP 暂无独立 loading 状态
+                        emptyText: qsTr("搜索资源包")
+                        count: rpResultsModel.count
                     }
-
-                    // Auto-load when scrolled near bottom
-                    onContentYChanged: {
-                        if (!rpLoadingMore && rpHasMore && rpListView.count > 0) {
-                            var bottomEdge = contentHeight - height
-                            if (contentY >= bottomEdge - 100) {
-                                loadNextRpPage()
-                            }
-                        }
+                    footer: PaginationFooter {
+                        currentPage: page.rpPage
+                        hasNext: page.rpHasMore
+                        loading: page.rpSearching
+                        onFirstClicked: searchRpPage(0)
+                        onPrevClicked: searchRpPage(page.rpPage - 1)
+                        onNextClicked: searchRpPage(page.rpPage + 1)
                     }
 
                     delegate: DownloadCard {
@@ -1210,17 +1189,12 @@ Rectangle {
                 return
             }
             page.rpTotalHits = totalHits
-            page.rpLoadingMore = false
+            page.rpSearching = false
 
-            var isFirstPage = (page.rpPage === 0)
-            if (isFirstPage) {
-                rpResultsModel.clear()
-                page.rpHasMore = (totalHits > 20)
-                if (page.mainWindow && page.mainWindow.loadingBar) {
-                    page.mainWindow.loadingBar.opacity = 0
-                }
-            } else {
-                page.rpHasMore = ((page.rpPage + 1) * 20 < totalHits)
+            rpResultsModel.clear()
+            page.rpHasMore = ((page.rpPage + 1) * page.rpPageSize < totalHits)
+            if (page.mainWindow && page.mainWindow.loadingBar) {
+                page.mainWindow.loadingBar.opacity = 0
             }
 
             var slugs = []
@@ -1284,7 +1258,7 @@ Rectangle {
             if (backend && slugs.length > 0) {
                 backend.fetchResourcepackVersions(slugs)
             }
-        } catch(e) { console.log('[RP-DEBUG] searchCompleted ERROR:', e.message); page.rpLoadingMore = false }
+        } catch(e) { console.log('[RP-DEBUG] searchCompleted ERROR:', e.message) }
         }
 
         function onResourcepackSearchFailed(error) {
