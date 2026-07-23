@@ -117,7 +117,6 @@ set(HEADERS
     src/core/yggdrasil_auth.h
     src/core/crash_detector.h
     src/core/screenshot_server.h
-    src/core/render_head_util.h
     src/backend/app_backend.h
     src/backend/settings_backend.h
     src/backend/yggdrasil_backend.h

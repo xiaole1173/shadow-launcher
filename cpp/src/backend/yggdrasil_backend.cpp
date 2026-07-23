@@ -11,7 +11,6 @@
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QRegularExpression>
-#include <QTimer>
 #include "yggdrasil_skin_fetcher.h"
 
 Q_LOGGING_CATEGORY(logYggBackend, "shadow.yggdrasil.backend")
@@ -33,9 +32,6 @@ YggdrasilBackend::YggdrasilBackend(QObject *parent)
     , m_skinFetcher(new YggdrasilSkinFetcher(this))
 {
     loadSession();
-
-    connect(m_skinFetcher, &YggdrasilSkinFetcher::skinReady,
-            this, &YggdrasilBackend::onSkinPreloaded);
 }
 
 QVariantList YggdrasilBackend::profiles() const
@@ -157,53 +153,6 @@ void YggdrasilBackend::fetchSkin()
     if (!m_session.isValid() || m_session.apiRoot.isEmpty() || m_session.uuid.isEmpty())
         return;
     m_skinFetcher->fetchSkin(m_session.apiRoot, m_session.uuid);
-}
-
-void YggdrasilBackend::preloadProfileSkins()
-{
-    if (m_session.profiles.isEmpty() || m_session.apiRoot.isEmpty()) return;
-    m_preloadIdx = 0;
-    preloadNextSkin();
-}
-
-void YggdrasilBackend::onSkinPreloaded()
-{
-    qCDebug(logYggBackend) << "onSkinPreloaded fired, idx:" << m_preloadIdx;
-    emit profileHeadsChanged();
-    preloadNextSkin();
-}
-
-void YggdrasilBackend::preloadNextSkin()
-{
-    if (m_preloadIdx < 0 || m_preloadIdx >= m_session.profiles.size()) {
-        m_preloadIdx = -1;
-        return;
-    }
-    const auto &p = m_session.profiles[m_preloadIdx];
-    m_preloadIdx++;
-
-    QString headPath = YggdrasilSkinFetcher::cacheDir()
-                       + QStringLiteral("/") + p.id + QStringLiteral("_head.png");
-    if (QFile::exists(headPath)) {
-        emit profileHeadsChanged();
-        QTimer::singleShot(0, this, &YggdrasilBackend::preloadNextSkin);
-        return;
-    }
-    m_skinFetcher->fetchSkin(m_session.apiRoot, p.id);
-}
-
-QStringList YggdrasilBackend::profileHeadUrls() const
-{
-    QStringList urls;
-    for (const auto &p : m_session.profiles) {
-        QString headPath = YggdrasilSkinFetcher::cacheDir()
-                           + QStringLiteral("/") + p.id + QStringLiteral("_head.png");
-        if (QFile::exists(headPath))
-            urls.append(QUrl::fromLocalFile(headPath).toString());
-        else
-            urls.append(QString());
-    }
-    return urls;
 }
 
 QString YggdrasilBackend::sessionFilePath() const

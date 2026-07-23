@@ -27,8 +27,8 @@ Item {
         height: Math.min(48 + 1 + 8 + _contentH + 8, parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
         radius: 12
-        color: StyleTokens.bgSecondary
-        border { color: StyleTokens.borderLight; width: 1 }
+        color: "#11141c"
+        border { color: "#2a3040"; width: 1 }
 
         scale: root.opened ? 1 : 0.9
         opacity: root.opened ? 1 : 0
@@ -43,18 +43,18 @@ Item {
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 text: qsTr("选择角色")
-                color: StyleTokens.textPrimary
+                color: "#e8ecf8"
                 font { pixelSize: 16; weight: Font.DemiBold }
             }
 
             Rectangle {
                 anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
                 width: 32; height: 32; radius: 6
-                color: xarea.containsMouse ? StyleTokens.bgHover : "transparent"
+                color: xarea.containsMouse ? "#2a3040" : "transparent"
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Text {
                     anchors.centerIn: parent
-                    text: "\u2715"; color: StyleTokens.textSubtle; font.pixelSize: 16
+                    text: "\u2715"; color: "#8088a0"; font.pixelSize: 16
                 }
                 MouseArea {
                     id: xarea
@@ -69,7 +69,7 @@ Item {
         Rectangle {
             anchors.top: parent.top; anchors.topMargin: 48
             width: parent.width; height: 1
-            color: StyleTokens.borderLight
+            color: "#2a3040"
         }
 
         // ── 内容区域 ──
@@ -89,70 +89,38 @@ Item {
                     height: 44
                     radius: 6
 
-                    color: {
-                        var sel = (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
-                        if (sel) return StyleTokens.accentSubtle
-                        return ma.containsMouse ? StyleTokens.bgHover : StyleTokens.bgCard
-                    }
-                    Behavior on color { ColorAnimation { duration: 120 } }
+                    color: ma.containsMouse ? "#2a3040" : "#1a1f2e"
+                    Behavior on color { ColorAnimation { duration: 100 } }
                     border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                             ? StyleTokens.accentLight : "transparent"; width: 1 }
-
-                    // 选中左边条
-                    Rectangle {
-                        width: 3; height: parent.height - 8
-                        anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
-                        radius: 2
-                        visible: (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
-                        color: StyleTokens.accent
-                    }
+                             ? "#3b82f6" : "transparent"; width: 1 }
 
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 12; anchors.rightMargin: 12
                         spacing: 10
 
-                        Item {
-                            Layout.preferredWidth: 28; Layout.preferredHeight: 28
-
-                            Image {
-                                id: headImg
-                                anchors.fill: parent; visible: status === Image.Ready
-                                source: backend && backend.yggdrasil ? backend.yggdrasil.profileHeadUrls[index] : ""
-                                fillMode: Image.PreserveAspectFit
-                                asynchronous: true; cache: true; smooth: false; mipmap: false
-                            }
-
-                            // fallback：首字母
-                            Rectangle {
-                                anchors.fill: parent; radius: 6
-                                visible: headImg.status !== Image.Ready
-                                color: "#0e1018"; border { color: "#2a3040"; width: 1 }
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: (typeof modelData != "undefined" && modelData && modelData.name)
-                                          ? modelData.name.charAt(0).toUpperCase() : "?"
-                                    color: StyleTokens.textTertiary; font { pixelSize: 14; weight: Font.Bold }
-                                }
+                        Rectangle {
+                            Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
+                            color: "#0e1018"; border { color: "#2a3040"; width: 1 }
+                            Text {
+                                anchors.centerIn: parent
+                                text: (typeof modelData != "undefined" && modelData && modelData.name)
+                                      ? modelData.name.charAt(0).toUpperCase() : "?"
+                                color: "#a8b0c0"; font { pixelSize: 14; weight: Font.Bold }
                             }
                         }
 
                         Text {
                             text: (typeof modelData != "undefined" && modelData && modelData.name)
                                   ? modelData.name : ""
-                            color: StyleTokens.textPrimary; font.pixelSize: 14
+                            color: "#e8ecf8"; font.pixelSize: 14
                             Layout.fillWidth: true; elide: Text.ElideRight
                         }
 
                         Rectangle {
-                            width: 18; height: 18; radius: 9
+                            width: 8; height: 8; radius: 4
                             visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                            color: StyleTokens.accent
-                            Text {
-                                anchors.centerIn: parent
-                                text: "\u2713"; color: StyleTokens.textInverse
-                                font { pixelSize: 11; weight: Font.Bold }
-                            }
+                            color: "#3b82f6"
                         }
                     }
 
@@ -172,10 +140,5 @@ Item {
 
         // ── 计算 profiles 数量（用于高度） ──
         readonly property int profilesCount: backend && backend.yggdrasil ? backend.yggdrasil.profiles.length : 0
-
-        onOpenedChanged: {
-            if (opened && backend && backend.yggdrasil)
-                backend.yggdrasil.preloadProfileSkins()
-        }
     }
 }
