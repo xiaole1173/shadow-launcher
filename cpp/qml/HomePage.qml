@@ -291,153 +291,17 @@ Rectangle {
                 skinSource: (backend && backend.offlineSkinPath) ? backend.offlineSkinPath : ""
             }
 
-            // Name input + dropdown (merged)
-            Item {
-                id: nameInputContainer
-                property bool popupOpen: false
+            // Name input + dropdown (merged) — InputBox 统一组件
+            InputBox {
+                id: offlineNameInput
                 Layout.fillWidth: true
-                height: 40 + (popupOpen ? 1 + Math.min(backend ? backend.offlineUsernames.length * 32 : 0, 160) : 0)
-                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-                // Unified dark background
-                Rectangle {
-                    anchors.fill: parent
-                    color: StyleTokens.bgSecondary
-                    border.color: StyleTokens.bgElevated
-                    border.width: 1
-                    radius: StyleTokens.radiusLg
-                    clip: true
-                }
-
-                // Input area
-                Rectangle {
-                    id: nameInputBox
-                    anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-                    height: 40
-                    color: "transparent"
-
-                    TextInput {
-                        id: offlineNameInput
-                        anchors.left: parent.left; anchors.right: dropdownBtn.left
-                        anchors.leftMargin: 12; anchors.rightMargin: 4
-                        height: parent.height
-                        color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
-                        verticalAlignment: TextInput.AlignVCenter
-                        onTextChanged: {
-                            if (backend) backend.updateOfflineSkin(text)
-                        }
-                    }
-                    Text {
-                        anchors.left: parent.left; anchors.leftMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("输入用户名"); color: StyleTokens.textTertiary
-                        font.pixelSize: StyleTokens.fontSizeMd
-                        visible: !offlineNameInput.text
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: !offlineNameInput.activeFocus
-                        onClicked: offlineNameInput.forceActiveFocus()
-                    }
-                }
-
-                // Dropdown arrow button
-                Rectangle {
-                    id: dropdownBtn
-                    anchors.right: parent.right; anchors.verticalCenter: nameInputBox.verticalCenter
-                    anchors.rightMargin: 4
-                    width: 28; height: 32; radius: StyleTokens.radiusSm
-                    color: nameInputContainer.popupOpen ? "#1e2840" : "transparent"
-                    Text {
-                        anchors.centerIn: parent
-                        text: nameInputContainer.popupOpen ? "▲" : "▼"
-                        color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeXs
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: { nameInputContainer.popupOpen = !nameInputContainer.popupOpen }
-                    }
-                }
-
-                // Separator line
-                Rectangle {
-                    id: popupSeparator
-                    anchors.top: nameInputBox.bottom
-                    anchors.left: parent.left; anchors.right: parent.right
-                    anchors.leftMargin: 8; anchors.rightMargin: 8
-                    height: 1
-                    color: StyleTokens.bgElevated
-                    visible: nameInputContainer.popupOpen
-                }
-
-                // History dropdown (attached directly below input)
-                Rectangle {
-                    id: offlineHistoryPopup
-                    anchors.top: popupSeparator.bottom
-                    anchors.left: parent.left; anchors.right: parent.right
-                    height: Math.min(backend ? backend.offlineUsernames.length * 32 : 0, 160)
-                    visible: nameInputContainer.popupOpen
-                    color: "transparent"
-                    clip: true
-
-                    ListView {
-                        id: historyList
-                        anchors.fill: parent
-                        model: backend ? backend.offlineUsernames : []
-                        delegate: Rectangle {
-                            width: historyList.width; height: 32
-                            color: rowMouse.containsMouse ? "#1a2840" : "transparent"
-
-                            Text {
-                                anchors.left: parent.left; anchors.leftMargin: 12
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData; color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
-                            }
-
-                            // Delete button (×)
-                            Rectangle {
-                                id: delBtn
-                                anchors.right: parent.right; anchors.rightMargin: 6
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 22; height: 22; radius: StyleTokens.radiusSm
-                                color: delMouse.containsMouse ? (delMouse.pressed ? "#882020" : "#551818") : "transparent"
-                                scale: delMouse.pressed ? 0.85 : 1.0
-                                Behavior on color { ColorAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-
-                                Image {
-                                    anchors.centerIn: parent
-                                    source: "icons/lucide/x.svg"
-                                    width: 12; height: 12
-                                    sourceSize.width: 12; sourceSize.height: 12
-                                    opacity: delMouse.containsMouse ? 1.0 : 0.6
-                                }
-                                MouseArea {
-                                    id: delMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        var deletedName = modelData
-                                        backend.removeOfflineUsername(deletedName)
-                                        toastManager.show("玩家名\u201C" + deletedName + "\u201D已删除")
-                                    }
-                                }
-                            }
-
-                            MouseArea {
-                                id: rowMouse
-                                anchors.left: parent.left
-                                anchors.right: delBtn.left
-                                anchors.top: parent.top; anchors.bottom: parent.bottom
-                                hoverEnabled: true
-                                onClicked: {
-                                    offlineNameInput.text = modelData
-                                    nameInputContainer.popupOpen = false
-                                }
-                            }
-                        }
-                    }
+                placeholderText: qsTr("输入用户名")
+                historyEnabled: true
+                historyModel: backend ? backend.offlineUsernames : []
+                onTextEdited: { if (backend) backend.updateOfflineSkin(text) }
+                onHistoryItemDeleted: function(item) {
+                    backend.removeOfflineUsername(item)
+                    toastManager.show("玩家名\u201C" + item + "\u201D已删除")
                 }
             }
 
@@ -471,62 +335,26 @@ Rectangle {
             width: parent.width; spacing: 10
 
             // 认证服务器地址
-            Rectangle {
-                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: yggApiRootInput.activeFocus ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
-                TextInput {
-                    id: yggApiRootInput
-                    anchors.fill: parent; anchors.leftMargin: 12
-                    color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
-                    verticalAlignment: TextInput.AlignVCenter
-                    text: qsTr("https://littleskin.cn/api/yggdrasil")
-                }
-                Text {
-                    anchors.left: parent.left; anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("认证服务器地址"); color: StyleTokens.textTertiary
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    visible: !yggApiRootInput.text
-                }
+            InputBox {
+                id: yggApiRootInput
+                Layout.fillWidth: true
+                placeholderText: qsTr("认证服务器地址")
+                defaultText: "https://littleskin.cn/api/yggdrasil"
             }
 
             // 邮箱/用户名
-            Rectangle {
-                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: yggEmailInput.activeFocus ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
-                TextInput {
-                    id: yggEmailInput
-                    anchors.fill: parent; anchors.leftMargin: 12
-                    color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
-                    verticalAlignment: TextInput.AlignVCenter
-                }
-                Text {
-                    anchors.left: parent.left; anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("邮箱 / 用户名"); color: StyleTokens.textTertiary
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    visible: !yggEmailInput.text
-                }
+            InputBox {
+                id: yggEmailInput
+                Layout.fillWidth: true
+                placeholderText: qsTr("邮箱 / 用户名")
             }
 
             // 密码
-            Rectangle {
-                Layout.fillWidth: true; height: 40; radius: StyleTokens.radiusLg
-                color: StyleTokens.bgSecondary; border.color: yggPasswordInput.activeFocus ? StyleTokens.accent : StyleTokens.bgElevated; border.width: 1
-                TextInput {
-                    id: yggPasswordInput
-                    anchors.fill: parent; anchors.leftMargin: 12
-                    color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
-                    verticalAlignment: TextInput.AlignVCenter
-                    echoMode: TextInput.Password
-                }
-                Text {
-                    anchors.left: parent.left; anchors.leftMargin: 12
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("密码"); color: StyleTokens.textTertiary
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    visible: !yggPasswordInput.text
-                }
+            InputBox {
+                id: yggPasswordInput
+                Layout.fillWidth: true
+                placeholderText: qsTr("密码")
+                passwordMode: true
             }
 
             // 操作按钮
@@ -768,85 +596,47 @@ Rectangle {
                     width: parent.width; spacing: 8
 
                     // 服务器地址
-                    Rectangle {
-                        width: parent.width; height: 40; radius: StyleTokens.radiusLg
-                        color: StyleTokens.bgSecondary
-                        readonly property bool addrValid: yggServerAddrInput.addrValid
-                        border.color: {
-                            if (yggServerAddrInput.activeFocus) return StyleTokens.borderFocus
-                            if (!addrValid && yggServerAddrInput.text) return "#cc5555"
-                            return StyleTokens.bgElevated
-                        }
-                        border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    InputBox {
+                        id: yggServerAddrInput
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("服务器地址（如 mc.example.com:25565）")
+                        text: backend.yggdrasil ? backend.yggdrasil.serverAddress : ""
 
-                        TextInput {
-                            id: yggServerAddrInput
-                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                            color: addrValid || !text ? StyleTokens.textSecondary : "#ff9999"
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            verticalAlignment: TextInput.AlignVCenter
-                            text: backend.yggdrasil ? backend.yggdrasil.serverAddress : ""
+                        // 实时地址格式校验（镜像 C++ 规则）
+                        property bool _addrValid: true
+                        hasError: !_addrValid && text !== ""
 
-                            // 实时地址格式校验（镜像 C++ 规则）
-                            property bool addrValid: true
-                            onTextChanged: {
-                                var t = text
-                                if (!t) { addrValid = true; return }
-                                if (/[\s\x00-\x1f]/.test(t)) { addrValid = false; return }
-                                if (!/^[a-zA-Z0-9.\-:]+$/.test(t)) { addrValid = false; return }
-                                if ((t.match(/:/g)||[]).length > 1) { addrValid = false; return }
-                                var parts = t.split(':')
-                                var host = parts[0]
-                                if (!host || host.length > 253) { addrValid = false; return }
-                                if (/^[.\-]|[.\-]$/.test(host)) { addrValid = false; return }
-                                if (parts.length === 2) {
-                                    var port = parseInt(parts[1], 10)
-                                    if (isNaN(port) || port < 1 || port > 65535) { addrValid = false; return }
-                                }
-                                addrValid = true
+                        onTextEdited: {
+                            var t = text
+                            if (!t) { _addrValid = true; return }
+                            if (/[\s\x00-\x1f]/.test(t)) { _addrValid = false; return }
+                            if (!/^[a-zA-Z0-9.\-:]+$/.test(t)) { _addrValid = false; return }
+                            if ((t.match(/:/g)||[]).length > 1) { _addrValid = false; return }
+                            var parts = t.split(':')
+                            var host = parts[0]
+                            if (!host || host.length > 253) { _addrValid = false; return }
+                            if (/^[.\-]|[.\-]$/.test(host)) { _addrValid = false; return }
+                            if (parts.length === 2) {
+                                var port = parseInt(parts[1], 10)
+                                if (isNaN(port) || port < 1 || port > 65535) { _addrValid = false; return }
                             }
-                            onEditingFinished: {
-                                if (addrValid && backend && backend.yggdrasil)
-                                    backend.yggdrasil.serverAddress = text
-                            }
+                            _addrValid = true
                         }
-                        Text {
-                            anchors.left: parent.left; anchors.leftMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("服务器地址（如 mc.example.com:25565）")
-                            color: StyleTokens.textTertiary
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            visible: !yggServerAddrInput.text && !yggServerAddrInput.activeFocus
+                        onAccepted: {
+                            if (_addrValid && backend && backend.yggdrasil)
+                                backend.yggdrasil.serverAddress = text
                         }
                     }
 
                     // 服务器名称
-                    Rectangle {
-                        width: parent.width; height: 40; radius: StyleTokens.radiusLg
-                        color: StyleTokens.bgSecondary
-                        border.color: yggServerNameInput.activeFocus ? StyleTokens.borderFocus : StyleTokens.bgElevated
-                        border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                        TextInput {
-                            id: yggServerNameInput
-                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                            color: StyleTokens.textSecondary; font.pixelSize: StyleTokens.fontSizeMd
-                            verticalAlignment: TextInput.AlignVCenter
-                            text: backend.yggdrasil ? backend.yggdrasil.serverName : ""
-                            onEditingFinished: {
-                                if (backend && backend.yggdrasil)
-                                    backend.yggdrasil.serverName = text
-                            }
-                        }
-                        Text {
-                            anchors.left: parent.left; anchors.leftMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("服务器名称（可选，仅用于显示）")
-                            color: StyleTokens.textTertiary
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            visible: !yggServerNameInput.text && !yggServerNameInput.activeFocus
+                    InputBox {
+                        id: yggServerNameInput
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("服务器名称（可选，仅用于显示）")
+                        text: backend.yggdrasil ? backend.yggdrasil.serverName : ""
+                        onAccepted: {
+                            if (backend && backend.yggdrasil)
+                                backend.yggdrasil.serverName = text
                         }
                     }
 
