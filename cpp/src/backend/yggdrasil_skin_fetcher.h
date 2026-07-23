@@ -26,7 +26,7 @@ public:
     /// 流程如 PCL McSkinGetAddress → McSkinDownload
     Q_INVOKABLE void fetchSkin(const QString &apiRoot, const QString &uuid);
 
-    /// 缓存目录（公开，供预加载使用）
+    /// 缓存目录（供外部构造头像 URL 使用）
     static QString cacheDir();
 
 signals:

@@ -12,7 +12,6 @@
 #include <QSettings>
 #include <QRegularExpression>
 #include <QTimer>
-#include <QUrl>
 #include "yggdrasil_skin_fetcher.h"
 
 Q_LOGGING_CATEGORY(logYggBackend, "shadow.yggdrasil.backend")
@@ -163,9 +162,33 @@ void YggdrasilBackend::fetchSkin()
 void YggdrasilBackend::preloadProfileSkins()
 {
     if (m_session.profiles.isEmpty() || m_session.apiRoot.isEmpty()) return;
-    qCDebug(logYggBackend) << "Preloading" << m_session.profiles.size() << "profile skins";
     m_preloadIdx = 0;
     preloadNextSkin();
+}
+
+void YggdrasilBackend::onSkinPreloaded()
+{
+    emit profileHeadsChanged();
+    preloadNextSkin();
+}
+
+void YggdrasilBackend::preloadNextSkin()
+{
+    if (m_preloadIdx < 0 || m_preloadIdx >= m_session.profiles.size()) {
+        m_preloadIdx = -1;
+        return;
+    }
+    const auto &p = m_session.profiles[m_preloadIdx];
+    m_preloadIdx++;
+
+    QString headPath = YggdrasilSkinFetcher::cacheDir()
+                       + QStringLiteral("/") + p.id + QStringLiteral("_head.png");
+    if (QFile::exists(headPath)) {
+        emit profileHeadsChanged();
+        QTimer::singleShot(0, this, &YggdrasilBackend::preloadNextSkin);
+        return;
+    }
+    m_skinFetcher->fetchSkin(m_session.apiRoot, p.id);
 }
 
 QStringList YggdrasilBackend::profileHeadUrls() const
@@ -180,37 +203,6 @@ QStringList YggdrasilBackend::profileHeadUrls() const
             urls.append(QString());
     }
     return urls;
-}
-
-void YggdrasilBackend::onSkinPreloaded()
-{
-    emit profileHeadsChanged();
-    preloadNextSkin();
-}
-
-void YggdrasilBackend::preloadNextSkin()
-{
-    if (m_preloadIdx < 0 || m_preloadIdx >= m_session.profiles.size()) {
-        m_preloadIdx = -1;
-        qCDebug(logYggBackend) << "All profile skins preloaded";
-        return;
-    }
-    const auto &p = m_session.profiles[m_preloadIdx];
-    m_preloadIdx++;
-
-    // 跳过已缓存的
-    QString headPath = YggdrasilSkinFetcher::cacheDir()
-                       + QStringLiteral("/") + p.id + QStringLiteral("_head.png");
-    if (QFile::exists(headPath)) {
-        qCDebug(logYggBackend) << "Skin cached, skip" << p.name;
-        emit profileHeadsChanged();
-        // 立即处理下一个
-        QTimer::singleShot(0, this, &YggdrasilBackend::preloadNextSkin);
-        return;
-    }
-
-    qCDebug(logYggBackend) << "Preloading skin for" << p.name;
-    m_skinFetcher->fetchSkin(m_session.apiRoot, p.id);
 }
 
 QString YggdrasilBackend::sessionFilePath() const
