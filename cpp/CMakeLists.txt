@@ -230,6 +230,17 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/SettingsMemorySection.qml
         qml/DebugPanel.qml
         qml/DebugWindow.qml
+        qml/BackButton.qml
+        qml/DownloadCard.qml
+        qml/DownloadCardTagRow.qml
+        qml/FilterCard.qml
+        qml/LoadStatus.qml
+        qml/PaginationFooter.qml
+        qml/RefreshButton.qml
+        qml/SearchBox.qml
+        qml/ShadowDropdown.qml
+        qml/ShadowIconButton.qml
+        qml/VersionCard.qml
         qml/animation_tokens.json
         qml/qmldir
 )
