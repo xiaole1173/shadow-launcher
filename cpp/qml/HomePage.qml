@@ -512,7 +512,7 @@ Rectangle {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.showProfilePopup = true
+                        onClicked: showProfilePopup = true
                     }
                 }
 
