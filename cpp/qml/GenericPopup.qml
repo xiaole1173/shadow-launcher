@@ -73,7 +73,7 @@ Item {
     Rectangle {
         id: card
         width: root.cardWidth
-        height: Math.min(contentColumn.implicitHeight + 16, parent ? parent.height - 80 : 600)
+        height: Math.min(Math.max(contentColumn.implicitHeight + 16, 200), parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
 
         radius: StyleTokens.radiusLg
