@@ -238,6 +238,7 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/PaginationFooter.qml
         qml/RefreshButton.qml
         qml/SearchBox.qml
+        qml/SelectionPopup.qml
         qml/ShadowDropdown.qml
         qml/ShadowIconButton.qml
         qml/VersionCard.qml
