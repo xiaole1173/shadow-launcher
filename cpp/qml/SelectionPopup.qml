@@ -52,6 +52,7 @@ Item {
 
     // ── Signals ──
     signal closed()
+    signal accepted()
 
     // ── Content area — default property ──
     default property alias content: contentContainer.children
@@ -115,7 +116,7 @@ Item {
             Rectangle {
                 id: headerBar
                 Layout.fillWidth: true
-                Layout.preferredHeight: 48
+                Layout.preferredHeight: root.subtitle.length > 0 ? 56 : 48
                 color: "transparent"
 
                 // Title
@@ -129,15 +130,16 @@ Item {
                     elide: Text.ElideRight
                 }
 
-                // Subtitle (if any)
+                // Subtitle (if any, below title)
                 Text {
                     anchors.left: parent.left; anchors.leftMargin: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 16
+                    anchors.top: parent.top; anchors.topMargin: 28
                     visible: root.subtitle.length > 0
                     text: root.subtitle
                     color: StyleTokens.textTertiary
                     font.pixelSize: StyleTokens.fontSizeXs
+                    elide: Text.ElideRight
+                    width: parent.width - 80
                 }
 
                 // Close button
@@ -194,13 +196,14 @@ Item {
     }
 
     // ── Focus management ──
+    focus: true
     onOpenedChanged: {
         if (root.opened) {
             forceActiveFocus()
         }
     }
 
-    // Prevent event leakage
+    // Prevent event leakage (capture all clicks beneath the overlay)
     MouseArea {
         anchors.fill: parent
         z: -1
