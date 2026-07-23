@@ -198,6 +198,7 @@ Rectangle {
             delegate: Rectangle {
                 required property var modelData
                 width: historyList.width; height: root._historyItemH
+                color: "transparent"
 
                 RowLayout {
                     anchors.fill: parent
