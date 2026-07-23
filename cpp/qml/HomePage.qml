@@ -592,7 +592,8 @@ Rectangle {
 
                 Column {
                     id: yggServerContentColumn
-                    width: parent.width; spacing: 8
+                    x: 1
+                    width: parent.width - 2; spacing: 8
 
                     // 服务器地址
                     InputBox {
