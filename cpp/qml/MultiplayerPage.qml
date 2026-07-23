@@ -93,7 +93,7 @@ Rectangle {
 
             // ── Room code card (host only) ──
             Rectangle {
-                Layout.fillWidth: true; Layout.preferredHeight: 64
+                Layout.fillWidth: true; Layout.preferredHeight: 72
                 color: "transparent"
                 border.color: StyleTokens.bgElevated; border.width: 1
                 radius: StyleTokens.radiusLg
@@ -102,7 +102,7 @@ Rectangle {
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                 RowLayout {
-                    anchors.fill: parent; anchors.margins: 16; spacing: 12
+                    anchors.fill: parent; anchors.margins: 14; spacing: 12
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 2
                         Text { text: "房间码"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle }

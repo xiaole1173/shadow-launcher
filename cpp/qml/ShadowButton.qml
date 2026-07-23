@@ -56,7 +56,6 @@ Button {
                 source: shadowBtn.iconSource
                 visible: shadowBtn.iconSource.length > 0
                 width: shadowBtn.iconSize; height: shadowBtn.iconSize
-                sourceSize.width: shadowBtn.iconSize * 2; sourceSize.height: shadowBtn.iconSize * 2
                 fillMode: Image.PreserveAspectFit
             }
 
