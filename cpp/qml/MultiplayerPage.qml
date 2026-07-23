@@ -113,21 +113,17 @@ Rectangle {
                             font.family: StyleTokens.fontFamilyMono
                         }
                     }
-                    Rectangle {
-                        Layout.preferredWidth: 80; Layout.preferredHeight: 34; radius: StyleTokens.radiusMd
-                        color: "transparent"; border.color: StyleTokens.accent; border.width: 1.5
-                        scale: copyBtnHover.pressed ? 0.95 : 1
-                        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
-                        Text { anchors.centerIn: parent; text: "复制"; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.accentLight }
-                        MouseArea {
-                            id: copyBtnHover
-                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (mp) {
-                                    mp.copyRoomCode()
-                                    if (root.toastManager)
-                                        root.toastManager.show("房间码已复制到剪贴板")
-                                }
+                    ShadowButton {
+                        Layout.preferredWidth: 80; Layout.preferredHeight: 34
+                        text: "复制"
+                        outlined: true
+                        btnRadius: StyleTokens.radiusMd
+                        font.pixelSize: StyleTokens.fontSizeMd
+                        onClicked: {
+                            if (mp) {
+                                mp.copyRoomCode()
+                                if (root.toastManager)
+                                    root.toastManager.show("房间码已复制到剪贴板")
                             }
                         }
                     }
@@ -263,36 +259,20 @@ Rectangle {
                 opacity: visible ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
-                Rectangle {
-                    Layout.preferredWidth: 200; Layout.preferredHeight: 42; radius: StyleTokens.radiusLg
-                    color: StyleTokens.accent
-                    scale: createClick.pressed ? 0.95 : 1
-                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "创建房间"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold; color: StyleTokens.textPrimary
-                    }
-                    MouseArea {
-                        id: createClick
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: { if (mp) mp.createRoom() }
-                    }
+                ShadowButton {
+                    Layout.preferredWidth: 200; Layout.preferredHeight: 42
+                    text: "创建房间"
+                    bold: true
+                    btnRadius: StyleTokens.radiusLg
+                    onClicked: { if (mp) mp.createRoom() }
                 }
 
-                Rectangle {
-                    Layout.preferredWidth: 200; Layout.preferredHeight: 42; radius: StyleTokens.radiusLg
-                    color: StyleTokens.accent
-                    scale: joinClick.pressed ? 0.95 : 1
-                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "加入房间"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold; color: StyleTokens.textPrimary
-                    }
-                    MouseArea {
-                        id: joinClick
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: joinDialog.open()
-                    }
+                ShadowButton {
+                    Layout.preferredWidth: 200; Layout.preferredHeight: 42
+                    text: "加入房间"
+                    bold: true
+                    btnRadius: StyleTokens.radiusLg
+                    onClicked: joinDialog.open()
                 }
             }
 
@@ -303,30 +283,15 @@ Rectangle {
                 opacity: visible ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
-                Rectangle {
-                    Layout.preferredWidth: 200; Layout.preferredHeight: 42; radius: StyleTokens.radiusLg
-                    color: "transparent"; border.color: StyleTokens.error; border.width: 1.5
-                    scale: dcPress.pressed ? 0.95 : 1
-                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
-
-                    Rectangle {
-                        anchors.fill: parent; radius: StyleTokens.radiusLg
-                        color: StyleTokens.error
-                        opacity: dcPress.containsMouse ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 200 } }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: mp && mp.state <= 3 ? "取消" : "断开连接"
-                        font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Bold; color: StyleTokens.error
-                    }
-                    MouseArea {
-                        id: dcPress
-                        anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: { if (mp) mp.leaveRoom() }
-                    }
+                ShadowButton {
+                    Layout.preferredWidth: 200; Layout.preferredHeight: 42
+                    text: mp && mp.state <= 3 ? "取消" : "断开连接"
+                    outlined: true
+                    bold: true
+                    accentColor: StyleTokens.error
+                    btnRadius: StyleTokens.radiusLg
+                    hoverFillAlpha: 1.0
+                    onClicked: { if (mp) mp.leaveRoom() }
                 }
             }
 
@@ -364,33 +329,27 @@ Rectangle {
             }
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter; spacing: 12
-                Rectangle {
-                    Layout.preferredWidth: 150; Layout.preferredHeight: 44; radius: StyleTokens.radiusLg
-                    color: "transparent"; border.color: StyleTokens.borderLight; border.width: 1.5
-                    Text {
-                        anchors.centerIn: parent
-                        text: "返回"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textTertiary
-                    }
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: joinDialog.close()
-                    }
+                ShadowButton {
+                    Layout.preferredWidth: 150; Layout.preferredHeight: 44
+                    text: "返回"
+                    outlined: true
+                    bold: true
+                    accentColor: StyleTokens.textTertiary
+                    btnRadius: StyleTokens.radiusLg
+                    font.pixelSize: StyleTokens.fontSizeLg
+                    onClicked: joinDialog.close()
                 }
-                Rectangle {
-                    Layout.preferredWidth: 150; Layout.preferredHeight: 44; radius: StyleTokens.radiusLg
-                    color: StyleTokens.accent
-                    Text {
-                        anchors.centerIn: parent
-                        text: "加入"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textPrimary
-                    }
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (joinInput.text && mp) {
-                                joinDialog.close()
-                                mp.joinRoom(joinInput.text.trim())
-                                joinInput.text = ""
-                            }
+                ShadowButton {
+                    Layout.preferredWidth: 150; Layout.preferredHeight: 44
+                    text: "加入"
+                    bold: true
+                    btnRadius: StyleTokens.radiusLg
+                    font.pixelSize: StyleTokens.fontSizeLg
+                    onClicked: {
+                        if (joinInput.text && mp) {
+                            joinDialog.close()
+                            mp.joinRoom(joinInput.text.trim())
+                            joinInput.text = ""
                         }
                     }
                 }

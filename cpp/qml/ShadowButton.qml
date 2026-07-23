@@ -20,8 +20,7 @@ Button {
     property bool bold: false            // 加粗文字
     property int btnRadius: StyleTokens.radiusMd  // 圆角
     property real btnWidth: 0            // 0=自适应, >0 固定宽度
-
-    // ── 交互属性 ──
+    property real hoverFillAlpha: 0.10    // 描边模式 hover 填色透明度 (1.0=全填)
     property real hoverScale: 1.04
     property real pressScale: 0.94
 
@@ -63,7 +62,12 @@ Button {
         font: shadowBtn.font
         color: {
             if (!shadowBtn.enabled) return StyleTokens.textMuted
-            if (shadowBtn.outlined) return shadowBtn.accentColor
+            if (shadowBtn.outlined) {
+                // 填充较重时切换浅色文字保持可读
+                if (shadowBtn.hovered && shadowBtn.hoverFillAlpha > 0.3)
+                    return StyleTokens.textInverse
+                return shadowBtn.accentColor
+            }
             return shadowBtn.textColor
         }
         horizontalAlignment: Text.AlignHCenter
@@ -83,7 +87,7 @@ Button {
             if (!shadowBtn.enabled) return shadowBtn.outlined ? "transparent" : Qt.rgba(bgRect._c.r, bgRect._c.g, bgRect._c.b, 0.4)
             if (shadowBtn.outlined) {
                 if (shadowBtn.hovered) {
-                    return Qt.rgba(bgRect._c.r, bgRect._c.g, bgRect._c.b, 0.10)
+                    return Qt.rgba(bgRect._c.r, bgRect._c.g, bgRect._c.b, shadowBtn.hoverFillAlpha)
                 }
                 return "transparent"
             }
