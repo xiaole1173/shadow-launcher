@@ -1312,6 +1312,7 @@ Rectangle {
     GenericPopup {
         id: profileSelectPopup
         title: qsTr("选择角色")
+        subtitle: qsTr("请选择一个角色进入游戏")
         cardWidth: 340
         opened: showProfilePopup
         onClosed: showProfilePopup = false
@@ -1320,42 +1321,63 @@ Rectangle {
                 backend.yggdrasil.cancelLogin()
         }
 
-        ListView {
-            id: profileList
-            anchors.fill: parent
-            model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
+        // 使用 Column + Repeater 避免 ListView 在 ScrollView 内的循环高度依赖
+        Column {
+            id: profileCol
+            width: parent ? parent.width : 320
             spacing: 2
-            clip: true
+            topPadding: 4
+            bottomPadding: 4
 
-            delegate: Rectangle {
-                width: profileList.width; height: 40
-                radius: StyleTokens.radiusSm
-                color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (delegateMouse.containsMouse ? StyleTokens.bgCard : "transparent")
-                Behavior on color { ColorAnimation { duration: 120 } }
+            Repeater {
+                model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
 
-                RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 12; spacing: 8
-                    Rectangle {
-                        width: 8; height: 8; radius: 4
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.accentLight : "transparent"
+                delegate: Rectangle {
+                    required property int index
+                    required property var modelData
+                    width: profileCol.width; height: 44
+                    radius: StyleTokens.radiusSm
+                    color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (delegateMouse.containsMouse ? StyleTokens.bgCard : "transparent")
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    RowLayout {
+                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                        spacing: 10
+
+                        // 头像
+                        MinecraftHead2D {
+                            Layout.preferredWidth: 28; Layout.preferredHeight: 28
+                            skinSource: ""
+                            showSpinner: false
+                        }
+
+                        // 角色名
+                        Text {
+                            text: modelData.name || ""
+                            color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.textSecondary : "#9498a8"
+                            font.pixelSize: StyleTokens.fontSizeMd
+                            font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+
+                        // 选中指示
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: model.index === backend.yggdrasil.profileIndex
+                            color: StyleTokens.accentLight
+                        }
                     }
-                    Text {
-                        text: modelData.name || ""
-                        color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.textSecondary : "#9498a8"
-                        font.pixelSize: StyleTokens.fontSizeMd
-                        font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
-                    }
-                    Item { Layout.fillWidth: true }
-                }
 
-                MouseArea {
-                    id: delegateMouse; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (backend && backend.yggdrasil) {
-                            backend.yggdrasil.selectProfile(model.index)
-                            showProfilePopup = false
+                    MouseArea {
+                        id: delegateMouse; anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (backend && backend.yggdrasil) {
+                                backend.yggdrasil.selectProfile(model.index)
+                                showProfilePopup = false
+                            }
                         }
                     }
                 }
@@ -1411,7 +1433,12 @@ Rectangle {
         }
 
         function onShowProfileSelection() {
-            showProfilePopup = true
+            // 确保弹窗能正常打开（不依赖历史 state）
+            showProfilePopup = false
+            // 使用下一帧确保前一次动画完成
+            Qt.callLater(function() {
+                showProfilePopup = true
+            })
         }
 
         function onMetaReady() {

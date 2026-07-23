@@ -143,6 +143,7 @@ void YggdrasilBackend::cancelLogin()
 {
     if (!m_pendingProfile) return;
     m_pendingProfile = false;
+    m_pendingPassword.clear();
     m_session.clear();
     emit stateChanged();
 }
