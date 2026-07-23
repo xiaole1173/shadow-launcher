@@ -168,6 +168,7 @@ void YggdrasilBackend::preloadProfileSkins()
 
 void YggdrasilBackend::onSkinPreloaded()
 {
+    qCDebug(logYggBackend) << "onSkinPreloaded fired, idx:" << m_preloadIdx;
     emit profileHeadsChanged();
     preloadNextSkin();
 }
