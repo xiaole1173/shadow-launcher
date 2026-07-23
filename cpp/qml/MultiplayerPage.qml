@@ -50,7 +50,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: infoLabel.implicitHeight + 36
                 color: StyleTokens.bgPrimary
-                border.color: "#2a2a4a"; border.width: 1
+                border.color: StyleTokens.bgElevated; border.width: 1
                 radius: StyleTokens.radiusLg
 
                 Text {
@@ -70,7 +70,7 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true; Layout.preferredHeight: 56
                 color: "transparent"
-                border.color: "#2a2a4a"; border.width: 1
+                border.color: StyleTokens.bgElevated; border.width: 1
                 radius: StyleTokens.radiusLg
                 visible: mp ? mp.state !== 0 : false
                 opacity: visible ? 1 : 0
@@ -80,8 +80,8 @@ Rectangle {
                     anchors.fill: parent; anchors.margins: 16; spacing: 12
                     Rectangle {
                         width: 10; height: 10; radius: StyleTokens.radiusSm
-                        color: mp && (mp.state === 5 || mp.state === 6) ? "#4ade80" :
-                               mp && mp.state === 7 ? StyleTokens.error : "#f59e0b"
+                        color: mp && (mp.state === 5 || mp.state === 6) ? StyleTokens.success :
+                               mp && mp.state === 7 ? StyleTokens.error : StyleTokens.warning
                     }
                     Text {
                         Layout.fillWidth: true
@@ -95,7 +95,7 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true; Layout.preferredHeight: 64
                 color: "transparent"
-                border.color: "#2a2a4a"; border.width: 1
+                border.color: StyleTokens.bgElevated; border.width: 1
                 radius: StyleTokens.radiusLg
                 visible: mp ? (mp.role === 1 && mp.roomCode !== "") : false
                 opacity: visible ? 1 : 0
@@ -105,11 +105,11 @@ Rectangle {
                     anchors.fill: parent; anchors.margins: 16; spacing: 12
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 2
-                        Text { text: "房间码"; font.pixelSize: StyleTokens.fontSizeSm; color: "#666" }
+                        Text { text: "房间码"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle }
                         Text {
                             text: mp ? mp.roomCode : ""
                             font.pixelSize: StyleTokens.fontSizeXl; font.bold: true
-                            color: "#7ec8e3"
+                            color: StyleTokens.accentLight
                             font.family: StyleTokens.fontFamilyMono
                         }
                     }
@@ -140,7 +140,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: playerCol.implicitHeight + 44
                 color: StyleTokens.bgPrimary
-                border.color: "#2a2a4a"; border.width: 1
+                border.color: StyleTokens.bgElevated; border.width: 1
                 radius: StyleTokens.radiusLg
                 visible: mp ? (mp.players && mp.players.length > 0) : false
                 opacity: visible ? 1 : 0
@@ -340,7 +340,7 @@ Rectangle {
         id: joinDialog
         anchors.centerIn: parent; width: 400; height: 260
         modal: true; closePolicy: Popup.CloseOnEscape
-        background: Rectangle { color: "#1a1a2e"; radius: StyleTokens.radiusXl; border.color: "#333"; border.width: 1 }
+        background: Rectangle { color: StyleTokens.bgPrimary; radius: StyleTokens.radiusXl; border.color: StyleTokens.bgElevated; border.width: 1 }
 
         enter: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
@@ -354,22 +354,22 @@ Rectangle {
             anchors.fill: parent; anchors.margins: 24; spacing: 16
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: "加入联机房间"; font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: "#7ec8e3"
+                text: "加入联机房间"; font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.accentLight
             }
             Rectangle {
                 Layout.preferredWidth: parent.width; Layout.preferredHeight: 44
-                color: "#0d0d1a"; radius: StyleTokens.radiusLg
-                border.color: "#2a2a4a"; border.width: 1
+                color: StyleTokens.bgInput; radius: StyleTokens.radiusLg
+                border.color: StyleTokens.borderLight; border.width: 1
                 TextInput {
                     id: joinInput
                     anchors.fill: parent; anchors.margins: 12
                     verticalAlignment: TextInput.AlignVCenter
                     font.pixelSize: StyleTokens.fontSizeLg; font.family: StyleTokens.fontFamilyMono
-                    color: "#e0e0e0"; clip: true
+                    color: StyleTokens.textSecondary; clip: true
                     Text {
                         anchors.centerIn: parent
                         text: "粘贴房间码 (U/XXXX-...)"
-                        color: "#555"; font.pixelSize: StyleTokens.fontSizeLg
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeLg
                         font.family: StyleTokens.fontFamilyMono
                         visible: !joinInput.text
                     }
@@ -379,7 +379,7 @@ Rectangle {
                 Layout.alignment: Qt.AlignHCenter; spacing: 12
                 Rectangle {
                     Layout.preferredWidth: 150; Layout.preferredHeight: 44; radius: StyleTokens.radiusLg
-                    color: "transparent"; border.color: "#555"; border.width: 1.5
+                    color: "transparent"; border.color: StyleTokens.borderLight; border.width: 1.5
                     Text {
                         anchors.centerIn: parent
                         text: "返回"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textTertiary
