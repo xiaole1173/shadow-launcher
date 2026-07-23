@@ -25,16 +25,14 @@ Button {
     // ── 按钮基础 ──
     flat: true
     font.pixelSize: StyleTokens.fontSizeMd
-    font.bold: shadowBtn.bold
+    font.bold: bold
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
-
-    implicitWidth: btnWidth > 0 ? btnWidth : undefined
 
     // ── 弹性缩放 ──
     scale: 1.0
     Behavior on scale {
-        SmoothedAnimation { duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.15 }
+        NumberAnimation { duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.15 }
     }
 
     onHoveredChanged: updateScale()
