@@ -593,155 +593,20 @@ Rectangle {
                 model: versionModel
                 spacing: 2
 
-                delegate: Rectangle {
-                    id: versionRow
+                delegate: VersionCard {
                     width: versionList.width
-                    height: 42
-                    color: "transparent"
-                    radius: StyleTokens.radiusMd
-                    border.color: page.selectedVersionId === model.versionId ? StyleTokens.accent : "transparent"
-                    border.width: page.selectedVersionId === model.versionId ? 1 : 0
-
-                    // Entrance animation
-                    opacity: 0
-                    scale: 1.0
-                    Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
-                    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                    Component.onCompleted: {
-                        opacity = 1
-                    }
-
-                    // Row bounce animation for download feedback
-                    SequentialAnimation {
-                        id: rowBounceAnim
-                        NumberAnimation { target: versionRow; property: "scale"; from: 1.0; to: 1.04; duration: 150; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: versionRow; property: "scale"; from: 1.04; to: 1.0; duration: 150; easing.type: Easing.InCubic }
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 10
-
-                        Text {
-                            text: model.versionId
-                            color: "#d0d4e0"
-                            font.pixelSize: StyleTokens.fontSizeMd
-                            font.weight: Font.Medium
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                        }
-
-                        Item { Layout.preferredWidth: 8 }
-
-                        Rectangle {
-                            radius: StyleTokens.radiusXs
-                            height: 18
-                            width: typeTag.implicitWidth + 12
-                            color: model.vtype === "release" ? "#104830" :
-                                   (model.vtype === "snapshot" ? "#403010" :
-                                   (model.vtype === "april_fools" ? "#403020" : "#282828"))
-
-                            Text {
-                                id: typeTag
-                                anchors.centerIn: parent
-                                text: model.vtype === "release" ? "正式版" :
-                                      (model.vtype === "snapshot" ? "快照" :
-                                      (model.vtype === "april_fools" ? "愚人节" : "旧版"))
-                                color: model.vtype === "release" ? "#4a8" :
-                                       (model.vtype === "snapshot" ? "#b84" :
-                                       (model.vtype === "april_fools" ? "#e9a" : "#999"))
-                                font.pixelSize: StyleTokens.fontSizeXs
-                                font.family: StyleTokens.fontFamilyMono
-                            }
-                        }
-
-                        // ── Status text (replaces progress bar) ──
-                        Text {
-                            visible: backend && backend.installing && backend.installVersionId === model.versionId
-                                     && backend.installPhase !== "done"
-                            text: qsTr("正在下载")
-                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLight
-                        }
-
-                        // Install button — hidden (moved to InstallPage)
-                        Button {
-                            id: installBtn
-                            visible: false
-                            property bool isInstallingThis: backend && backend.installing && backend.installPhase !== "done" && (backend.installVersionId === model.versionId || page.clickedVersionId === model.versionId)
-                            property bool isDownloadQueued: {
-                                if (!backend || !backend.downloadQueue) return false
-                                for (var i = 0; i < backend.downloadQueue.length; i++) {
-                                    if (backend.downloadQueue[i].versionId === model.versionId) return true
-                                }
-                                return false
-                            }
-                            property bool isDownloadActive: {
-                                if (!backend || !backend.activeDownloads) return false
-                                for (var i = 0; i < backend.activeDownloads.length; i++) {
-                                    if (backend.activeDownloads[i].versionId === model.versionId) return true
-                                }
-                                return false
-                            }
-                            text: (isInstallingThis || isDownloadActive) ? "下载中…" : (isDownloadQueued ? "排队中" : "安装")
-                            implicitWidth: isDownloadQueued ? 56 : (isInstallingThis || isDownloadActive ? 56 : 48); implicitHeight: 24
-                            font.pixelSize: StyleTokens.fontSizeXs; font.weight: Font.Medium
-                            z: 10
-                            flat: true
-                            enabled: !isDownloadQueued && !isDownloadActive && page.clickedVersionId !== model.versionId
-                            contentItem: Text {
-                                text: installBtn.text
-                                color: installBtn.isDownloadQueued ? "#e0a040" :
-                                       (installBtn.isInstallingThis || installBtn.isDownloadActive ? "#6080e8" :
-                                       (installBtn.hovered && installBtn.enabled ? StyleTokens.textInverse : "#707888"))
-                                font.pixelSize: StyleTokens.fontSizeXs; font.weight: Font.Medium
-                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                radius: StyleTokens.radiusSm
-                                color: installBtn.isDownloadQueued ? "#1a1800" :
-                                       (installBtn.isDownloadActive ? "#0a1020" :
-                                       (installBtn.hovered && installBtn.enabled ? "#5068d8" : "transparent"))
-                                border.color: installBtn.isDownloadQueued ? "#3a3000" :
-                                              (installBtn.isDownloadActive ? "#1a2840" :
-                                              (installBtn.hovered && installBtn.enabled ? "#5d6fe0" : StyleTokens.border))
-                                border.width: 1
-                            }
-                            onClicked: {
-                                console.log("[DownloadPage] Install clicked for " + model.versionId)
-                                if (backend) {
-                                    // Log pre-install state
-                                    console.log("[download-ui] pre-install: version=" + model.versionId + " installing=" + backend.installing + " versionId=" + backend.installVersionId + " phase=" + backend.installPhase)
-                                    // Immediately mark this version as clicked so UI updates before page destruction
-                                    page.clickedVersionId = model.versionId
-                                    backend.installVersion(model.versionId)
-                                    // Row bounce animation
-                                    rowBounceAnim.start()
-                                    // Show download nav + trigger flying ball via signal (qrc-safe)
-                                    if (page.mainWindow) {
-                                        page.mainWindow.showDownloadNavSilent()
-                                        var gp = installBtn.mapToItem(null, installBtn.width / 2, installBtn.height / 2)
-                                        page.triggerDownloadBall(gp.x, gp.y)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: itemHover
-                        anchors.fill: parent
-                        z: -1  // below Button
-                        onClicked: {
-                            if (model.versionId) {
-                                page.selectedVersionId = model.versionId
-                                if (backend) backend.logMessage("[download-ui] card clicked: " + model.versionId + " -> InstallPage")
-                                console.info("[UI] 安装版本 vid=" + model.versionId)
-                                if (page.mainWindow) {
-                                    page.mainWindow.installMcVersion = model.versionId
-                                    page.mainWindow.showInstallPage = true
-                                }
+                    versionId: model.versionId
+                    versionType: model.vtype
+                    isSelected: page.selectedVersionId === model.versionId
+                    transparent: page.hasBg
+                    onClicked: {
+                        if (model.versionId) {
+                            page.selectedVersionId = model.versionId
+                            if (backend) backend.logMessage("[download-ui] card clicked: " + model.versionId + " -> InstallPage")
+                            console.info("[UI] 安装版本 vid=" + model.versionId)
+                            if (page.mainWindow) {
+                                page.mainWindow.installMcVersion = model.versionId
+                                page.mainWindow.showInstallPage = true
                             }
                         }
                     }
