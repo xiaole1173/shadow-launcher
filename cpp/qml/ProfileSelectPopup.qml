@@ -9,6 +9,13 @@ Item {
     signal accepted(int profileIndex)
     signal cancelled()
 
+    // ── 触发头像预加载 ──
+    onOpenedChanged: {
+        if (opened && backend && backend.yggdrasil)
+            backend.yggdrasil.preloadProfileSkins()
+    }
+
+    // ── 遮罩 ──
     Rectangle {
         anchors.fill: parent; z: 100
         color: "#80000000"
@@ -18,17 +25,16 @@ Item {
         MouseArea { anchors.fill: parent }
     }
 
+    // ── 主卡片 ──
     Rectangle {
         id: card; z: 101
-        width: 360
-
-        // Height = title bar(48) + separator(1) + pad(8) + max(content, 140) + bottomPad(8)
-        property real _contentH: Math.max(140, (profilesCount > 0 ? profilesCount * 46 - 2 : 0))
+        width: 380
+        property real _contentH: Math.max(140, (profilesCount > 0 ? profilesCount * 56 - 4 : 0))
         height: Math.min(48 + 1 + 8 + _contentH + 8, parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
-        radius: 12
-        color: "#11141c"
-        border { color: "#2a3040"; width: 1 }
+        radius: StyleTokens.radiusLg
+        color: StyleTokens.bgSecondary
+        border { color: StyleTokens.bgElevated; width: 1 }
 
         scale: root.opened ? 1 : 0.9
         opacity: root.opened ? 1 : 0
@@ -43,25 +49,14 @@ Item {
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 text: qsTr("选择角色")
-                color: "#e8ecf8"
+                color: StyleTokens.textPrimary
                 font { pixelSize: 16; weight: Font.DemiBold }
             }
 
-            Rectangle {
+            ShadowIconButton {
                 anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                width: 32; height: 32; radius: 6
-                color: xarea.containsMouse ? "#2a3040" : "transparent"
-                Behavior on color { ColorAnimation { duration: 120 } }
-                Text {
-                    anchors.centerIn: parent
-                    text: "\u2715"; color: "#8088a0"; font.pixelSize: 16
-                }
-                MouseArea {
-                    id: xarea
-                    anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.cancelled()
-                }
+                icon: "\u2715"; type: "close"
+                onClicked: root.cancelled()
             }
         }
 
@@ -69,58 +64,129 @@ Item {
         Rectangle {
             anchors.top: parent.top; anchors.topMargin: 48
             width: parent.width; height: 1
-            color: "#2a3040"
+            color: StyleTokens.border
         }
 
         // ── 内容区域 ──
         Item {
-            anchors { top: parent.top; topMargin: 48 + 1 + 10; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 10 }
+            anchors { top: parent.top; topMargin: 48 + 1 + 8; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 8 }
             clip: true
 
-            // 角色列表 — 手动 y 定位
             Repeater {
-                id: profRep
                 model: backend && backend.yggdrasil ? backend.yggdrasil.profiles : []
 
                 delegate: Rectangle {
-                    x: 0
-                    y: index * 46
-                    width: parent ? parent.width : 360
-                    height: 44
-                    radius: 6
+                    x: 4
+                    y: 4 + index * 56
+                    width: parent ? parent.width - 8 : 372
+                    height: 52
+                    radius: StyleTokens.radiusMd
 
-                    color: ma.containsMouse ? "#2a3040" : "#1a1f2e"
-                    Behavior on color { ColorAnimation { duration: 100 } }
-                    border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                             ? "#3b82f6" : "transparent"; width: 1 }
+                    // 选中 ＋ 悬停 底色
+                    color: {
+                        var sel = (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
+                        if (sel) return StyleTokens.accentSubtle
+                        return ma.containsMouse ? StyleTokens.bgHover : StyleTokens.bgCard
+                    }
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    // 选中左边条
+                    Rectangle {
+                        width: 3; height: parent.height - 10
+                        anchors { left: parent.left; leftMargin: 5; verticalCenter: parent.verticalCenter }
+                        radius: 2
+                        visible: (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
+                        color: StyleTokens.accent
+                    }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 12; anchors.rightMargin: 12
-                        spacing: 10
+                        anchors.leftMargin: 14; anchors.rightMargin: 12
+                        spacing: 12
 
-                        Rectangle {
-                            Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
-                            color: "#0e1018"; border { color: "#2a3040"; width: 1 }
-                            Text {
-                                anchors.centerIn: parent
-                                text: (typeof modelData != "undefined" && modelData && modelData.name)
-                                      ? modelData.name.charAt(0).toUpperCase() : "?"
-                                color: "#a8b0c0"; font { pixelSize: 14; weight: Font.Bold }
+                        // ── 头像 ──
+                        Item {
+                            Layout.preferredWidth: 34; Layout.preferredHeight: 34
+
+                            Image {
+                                anchors.fill: parent
+                                source: backend && backend.yggdrasil
+                                       ? backend.yggdrasil.profileHeadUrls[index] : ""
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true; cache: true; smooth: false
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent; radius: StyleTokens.radiusSm
+                                color: "#0e1018"
+                                border { color: StyleTokens.borderLight; width: 1 }
+                                visible: {
+                                    var img = parent.children[0]
+                                    return !img.source
+                                           || img.status === Image.Null
+                                           || img.status === Image.Error
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: {
+                                        if (typeof modelData == "undefined" || !modelData || !modelData.name) return "?"
+                                        return modelData.name.charAt(0).toUpperCase()
+                                    }
+                                    color: StyleTokens.textTertiary
+                                    font { pixelSize: 16; weight: Font.Bold }
+                                }
+                            }
+
+                            // 加载进度指示
+                            Rectangle {
+                                anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
+                                width: 6; height: 6; radius: 3
+                                color: {
+                                    var img = parent.children[0]
+                                    if (img.source && img.status === Image.Loading) return StyleTokens.warning
+                                    if (img.source && img.status === Image.Ready) return StyleTokens.success
+                                    return "transparent"
+                                }
+                                visible: parent.children[0].source ? true : false
                             }
                         }
 
-                        Text {
-                            text: (typeof modelData != "undefined" && modelData && modelData.name)
-                                  ? modelData.name : ""
-                            color: "#e8ecf8"; font.pixelSize: 14
-                            Layout.fillWidth: true; elide: Text.ElideRight
+                        // ── 名字 ──
+                        ColumnLayout {
+                            spacing: 2
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Text {
+                                text: (typeof modelData != "undefined" && modelData && modelData.name)
+                                      ? modelData.name : ""
+                                color: {
+                                    var sel = (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
+                                    return sel ? StyleTokens.accentLight : StyleTokens.textPrimary
+                                }
+                                font { pixelSize: 14; weight: Font.Medium }
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: qsTr("角色 #%1").arg(index + 1)
+                                color: StyleTokens.textSubtle
+                                font.pixelSize: 11
+                                visible: typeof modelData != "undefined" && modelData && modelData.name
+                            }
                         }
 
+                        // ── 选中标记 ──
                         Rectangle {
-                            width: 8; height: 8; radius: 4
-                            visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                            color: "#3b82f6"
+                            width: 22; height: 22; radius: 11
+                            visible: (backend && backend.yggdrasil) && index === backend.yggdrasil.profileIndex
+                            color: StyleTokens.accent
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2713"; color: StyleTokens.textInverse
+                                font { pixelSize: 12; weight: Font.Bold }
+                            }
                         }
                     }
 
@@ -136,9 +202,17 @@ Item {
                     }
                 }
             }
+
+            // 空状态
+            Text {
+                anchors.centerIn: parent
+                text: qsTr("暂无可用角色")
+                color: StyleTokens.textSubtle; font.pixelSize: 14
+                visible: (typeof backend != "undefined" && backend && backend.yggdrasil
+                         && backend.yggdrasil.profiles.length === 0)
+            }
         }
 
-        // ── 计算 profiles 数量（用于高度） ──
         readonly property int profilesCount: backend && backend.yggdrasil ? backend.yggdrasil.profiles.length : 0
     }
 }
