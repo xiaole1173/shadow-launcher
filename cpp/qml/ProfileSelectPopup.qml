@@ -27,8 +27,8 @@ Item {
         height: Math.min(48 + 1 + 8 + _contentH + 8, parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
         radius: 12
-        color: "#11141c"
-        border { color: "#2a3040"; width: 1 }
+        color: StyleTokens.bgSecondary
+        border { color: StyleTokens.borderLight; width: 1 }
 
         scale: root.opened ? 1 : 0.9
         opacity: root.opened ? 1 : 0
@@ -43,18 +43,18 @@ Item {
             Text {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 text: qsTr("选择角色")
-                color: "#e8ecf8"
+                color: StyleTokens.textPrimary
                 font { pixelSize: 16; weight: Font.DemiBold }
             }
 
             Rectangle {
                 anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
                 width: 32; height: 32; radius: 6
-                color: xarea.containsMouse ? "#2a3040" : "transparent"
+                color: xarea.containsMouse ? StyleTokens.bgHover : "transparent"
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Text {
                     anchors.centerIn: parent
-                    text: "\u2715"; color: "#8088a0"; font.pixelSize: 16
+                    text: "\u2715"; color: StyleTokens.textSubtle; font.pixelSize: 16
                 }
                 MouseArea {
                     id: xarea
@@ -69,7 +69,7 @@ Item {
         Rectangle {
             anchors.top: parent.top; anchors.topMargin: 48
             width: parent.width; height: 1
-            color: "#2a3040"
+            color: StyleTokens.borderLight
         }
 
         // ── 内容区域 ──
@@ -89,10 +89,10 @@ Item {
                     height: 44
                     radius: 6
 
-                    color: ma.containsMouse ? "#2a3040" : "#1a1f2e"
+                    color: ma.containsMouse ? StyleTokens.bgHover : StyleTokens.bgCard
                     Behavior on color { ColorAnimation { duration: 100 } }
                     border { color: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                             ? "#3b82f6" : "transparent"; width: 1 }
+                             ? StyleTokens.accent : "transparent"; width: 1 }
 
                     RowLayout {
                         anchors.fill: parent
@@ -106,21 +106,21 @@ Item {
                                 anchors.centerIn: parent
                                 text: (typeof modelData != "undefined" && modelData && modelData.name)
                                       ? modelData.name.charAt(0).toUpperCase() : "?"
-                                color: "#a8b0c0"; font { pixelSize: 14; weight: Font.Bold }
+                                color: StyleTokens.textTertiary; font { pixelSize: 14; weight: Font.Bold }
                             }
                         }
 
                         Text {
                             text: (typeof modelData != "undefined" && modelData && modelData.name)
                                   ? modelData.name : ""
-                            color: "#e8ecf8"; font.pixelSize: 14
+                            color: StyleTokens.textPrimary; font.pixelSize: 14
                             Layout.fillWidth: true; elide: Text.ElideRight
                         }
 
                         Rectangle {
                             width: 8; height: 8; radius: 4
                             visible: index === (backend && backend.yggdrasil ? backend.yggdrasil.profileIndex : -1)
-                            color: "#3b82f6"
+                            color: StyleTokens.accent
                         }
                     }
 
