@@ -3201,7 +3201,8 @@ void VersionBackend::setInstalling(bool v)
 
     }
 
-    rebuildInstallCards();
+    // 不再调用 rebuildInstallCards()——安装状态变化不需要重建卡片列表
+    // (卡片 phase 由 setInstallPhase 独立精准更新, 进度/速度由节流器处理)
 
 }
 
@@ -3211,16 +3212,44 @@ void VersionBackend::setInstallPhase(const QString& phase)
 
 {
 
-    if (m_installPhase != phase) {
+    if (m_installPhase == phase) return;
 
-        m_installPhase = phase;
+    m_installPhase = phase;
 
-        emit installPhaseChanged(phase);
+    emit installPhaseChanged(phase);
 
+    // ── 精准更新: 仅更新活跃 mod_loader 卡片的 PhaseRole ──
+    if (m_installCardsModel && m_installCardsModel->count() > 0) {
+        bool updated = false;
+        // 尝试用 m_modLoaderInstallId 查找 (session key)
+        if (!m_modLoaderInstallId.isEmpty()) {
+            int row = m_installCardsModel->findRowByIid(m_modLoaderInstallId);
+            if (row >= 0) {
+                auto idx = m_installCardsModel->index(row, 0);
+                QString t = m_installCardsModel->data(idx, InstallCardModel::TypeRole).toString();
+                if (t == QStringLiteral("mod_loader")) {
+                    m_installCardsModel->updatePhase(row, phase);
+                    updated = true;
+                }
+            }
+        }
+        // 兜底: 遍历所有卡片, 更新非失败非等待的 mod_loader 类型
+        if (!updated) {
+            for (int i = 0; i < m_installCardsModel->count(); ++i) {
+                auto idx = m_installCardsModel->index(i);
+                QString t = m_installCardsModel->data(idx, InstallCardModel::TypeRole).toString();
+                bool failed = m_installCardsModel->data(idx, InstallCardModel::FailedRole).toBool();
+                if (t == QStringLiteral("mod_loader") && !failed) {
+                    QString ph = m_installCardsModel->data(idx, InstallCardModel::PhaseRole).toString();
+                    if (!ph.startsWith(QStringLiteral("等待原版")))
+                        m_installCardsModel->updatePhase(i, phase);
+                }
+            }
+        }
+    } else {
+        // 首次调用: 卡片尚未创建 → 全量重建以创建初始卡片
         rebuildInstallCards();
-
     }
-
 }
 
 
@@ -7880,6 +7909,14 @@ bool InstallCardModel::updateStepList(int row, const QVariantList& newSteps) {
     }
 
     return changed;
+}
+
+void InstallCardModel::updatePhase(int row, const QString& phase) {
+    if (row < 0 || row >= m_cards.size()) return;
+    if (m_cards[row].phase == phase) return;
+    m_cards[row].phase = phase;
+    QModelIndex idx = index(row);
+    emit dataChanged(idx, idx, {PhaseRole});
 }
 
 QVariantList InstallCardModel::stepsAt(int row) const {
