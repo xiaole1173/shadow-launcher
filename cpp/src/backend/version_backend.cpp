@@ -1208,6 +1208,31 @@ void VersionBackend::installVersion(const QString& versionId)
 
     m_dlStates[versionId].phase = tr("正在获取 %1 版本信息...").arg(versionId);
 
+
+    // ── Populate initial steps for the download card ──
+    // (rebuildSteps() is only called for merged MC+modloader installs;
+    //  pure MC installs need steps set here so updateCardFromSession()
+    //  copies non-empty steps and updateStep() can update them)
+    {
+        auto* ds = ensureSession(versionId);
+        if (ds) {
+            QVariantList steps;
+            auto addStep = [&](const QString& name) {
+                steps.append(QVariantMap{
+                    {"name", name},
+                    {"status", QStringLiteral("pending")},
+                    {"percentage", 0},
+                    {"show", true}
+                });
+            };
+            addStep(tr("下载版本JSON"));
+            addStep(tr("下载支持库"));
+            addStep(tr("下载资源文件"));
+            addStep(tr("校验游戏资源完整性"));
+            ds->steps = steps;
+        }
+    }
+
     qCDebug(logLaunch) << "[DOWNLOAD] state-set=" << versionId
 
                         << "active=" << m_activeCount << "/" << MAX_CONCURRENT;
@@ -7029,6 +7054,10 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     if (!ds || !m_installCardsModel) return;
 
+    // Merged installs are managed by doRebuildInstallCards() — skip to avoid
+    // card type flip-flop (version ↔ mod_loader) that causes QML flicker
+    if (ds->isMerged()) return;
+
     InstallCard card = ds->toCard(installId, name, type);
 
     // ── Patch phase from ds->steps (fallback when pipeline phase empty) ──
@@ -7854,7 +7883,7 @@ auto* ds = dlSession(it.key());
 
         c.name = cardId;
 
-        c.progress = mlPending ? 0.0 : qBound(0.0, ds->smoothProgress, 1.0);
+        c.progress = qBound(0.0, ds->smoothProgress, 1.0); // Show real progress even while MC downloads
 
         // Speed: sum MC + loader when both are downloading in parallel
 
@@ -7884,7 +7913,7 @@ auto* ds = dlSession(it.key());
 
         c.remaining = mlPending ? 0 : installRemainingSteps(sid);
 
-        c.steps = mlPending ? QVariantList{} : ds->steps;
+        c.steps = ds->steps; // ds->steps is populated by rebuildSteps() for merged installs
 
         c.failed = mlFailed;
 
@@ -7941,6 +7970,10 @@ auto* ds = dlSession(it.key());
     for (const QString& vid : m_activeIds) {
 
         if (seen.contains(vid)) continue;
+
+        // Skip if managed by updateCardFromSession (has an active DownloadSession)
+        // Section 2 would overwrite cards that updateCardFromSession already manages
+        if (m_downloadSessions.contains(vid)) continue;
 
         seen.insert(vid);
 

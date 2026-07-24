@@ -139,7 +139,9 @@ Rectangle {
         anchors.left: parent.left; anchors.leftMargin: 16
         anchors.right: parent.right; anchors.rightMargin: 12
         spacing: 3
-        visible: model.steps && model.steps.length > 0 && model.progress < 1.0 && !model.failed
+        // Only show sub-steps during active download, not when done/failed
+        visible: model.progress < 1.0 && !model.failed
+        // steps content auto-hides when the array is empty (Repeater yields no delegates)
 
         Repeater {
             model: model.steps || []
