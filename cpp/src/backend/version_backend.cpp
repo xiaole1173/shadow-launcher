@@ -3594,7 +3594,7 @@ void VersionBackend::showStep(const QString& installId, int index) {
     step["status"] = QStringLiteral("active");
     step["percentage"] = 0;
     s.steps[index] = step;
-    rebuildInstallCards();
+    updateCardFromSession(installId);
 }
 
 void VersionBackend::hideStep(const QString& installId, int index) {
@@ -3603,7 +3603,7 @@ void VersionBackend::hideStep(const QString& installId, int index) {
     QVariantMap step = s.steps[index].toMap();
     step["show"] = false;
     s.steps[index] = step;
-    rebuildInstallCards();
+    updateCardFromSession(installId);
 }
 
 void VersionBackend::updateStep(const QString& installId, int index, const QString& status, int percentage,
