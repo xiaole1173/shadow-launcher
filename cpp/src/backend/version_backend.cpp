@@ -2075,6 +2075,15 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
     syncPrimaryProgress();
 
+    // ── Update DownloadSession for immediate card feedback ──
+    // rebuildInstallCards() skips versions managed by updateCardFromSession (pure MC),
+    // so we push the cancelled state directly into the DownloadSession.
+    auto* cancelDs = dlSession(resolvedId);
+    if (cancelDs && !cancelDs->isMerged()) {
+        cancelDs->markFailed(tr("已取消"));
+        updateCardFromSession(resolvedId, versionId, QStringLiteral("version"));
+    }
+
     rebuildInstallCards();
 
 
@@ -7092,15 +7101,55 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
     int row = m_installCardsModel->findRowByIid(installId);
 
     if (row >= 0) {
-        // Preserve existing steps to avoid QML Repeater recreation
-        // (toCard() creates a fresh QVariantList every call)
-        card.steps = m_installCardsModel->stepsAt(row);
+        // ── In-place sync: copy ds->steps field values into existing model steps ──
+        // This preserves the QVariantList identity, avoiding QML Repeater rebuild.
+        QVariantList modelSteps = m_installCardsModel->stepsAt(row);
+        const QVariantList& newSteps = ds->steps;
+
+        if (modelSteps.size() == newSteps.size()) {
+            // Same size: copy only fields that changed in-place
+            for (int i = 0; i < modelSteps.size(); ++i) {
+                QVariantMap oldMap = modelSteps[i].toMap();
+                const QVariantMap newMap = newSteps[i].toMap();
+
+                // ── Always sync byte progress (high churn) ──
+                oldMap["bytesReceived"] = newMap.value("bytesReceived");
+                oldMap["bytesTotal"] = newMap.value("bytesTotal");
+
+                // ── Conditionally sync status / percentage / show (lower churn) ──
+                if (oldMap.value("status").toString() != newMap.value("status").toString())
+                    oldMap["status"] = newMap.value("status");
+                if (oldMap.value("percentage").toInt() != newMap.value("percentage").toInt())
+                    oldMap["percentage"] = newMap.value("percentage");
+                if (oldMap.value("show").toBool() != newMap.value("show").toBool())
+                    oldMap["show"] = newMap.value("show");
+
+                modelSteps[i] = oldMap;
+            }
+            card.steps = modelSteps;
+        } else {
+            // Size mismatch — structural change, accept rebuild
+            card.steps = newSteps;
+        }
+
+        // ── Restore name/type from model when caller omitted them ──
+        if (card.name.isEmpty()) {
+            auto idx = m_installCardsModel->index(row, 0);
+            QVariant existingName = m_installCardsModel->data(idx, InstallCardModel::NameRole);
+            if (existingName.isValid() && !existingName.toString().isEmpty())
+                card.name = existingName.toString();
+        }
+        if (card.type.isEmpty()) {
+            auto idx = m_installCardsModel->index(row, 0);
+            QVariant existingType = m_installCardsModel->data(idx, InstallCardModel::TypeRole);
+            if (existingType.isValid() && !existingType.toString().isEmpty())
+                card.type = existingType.toString();
+        }
+
         m_installCardsModel->updateRow(row, card);
 
     } else {
-
         m_installCardsModel->appendRow(card);
-
     }
 
 }
