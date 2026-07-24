@@ -30,9 +30,6 @@ Rectangle {
                  : model.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.accent
             width: parent.width * Math.min(model.progress || 0, 1.0)
-            Behavior on width {
-                SmoothedAnimation { velocity: 0.5; duration: 300 }
-            }
         }
     }
 
@@ -85,28 +82,13 @@ Rectangle {
         }
     }
 
-    // ── 第三行：状态文本 + 速度/完成标记 ──
+    // ── 第三行：速度/完成标记 ──
     RowLayout {
         id: infoRow
         anchors.top: progressTrack.bottom; anchors.topMargin: 6
         anchors.left: parent.left; anchors.leftMargin: 12
         anchors.right: parent.right; anchors.rightMargin: 12
         spacing: 4
-
-        Text {
-            id: phaseText
-            text: {
-                if (model.failed) return "失败"
-                if (model.progress >= 1.0) return "完成"
-                return model.phase || ""
-            }
-            font.pixelSize: StyleTokens.fontSizeXs
-            color: model.failed ? StyleTokens.errorLight
-                 : model.progress >= 1.0 ? "#3fb950"
-                 : StyleTokens.textMuted
-            elide: Text.ElideRight
-            Layout.fillWidth: true
-        }
 
         Text {
             text: {
