@@ -35,6 +35,7 @@ Item {
         model: backend ? backend.installCardsModel : null
         delegate: DownloadQueueCard {
             width: cardsView.width - 32
+            compact: false
         }
 
         // ── 无任务占位 ──

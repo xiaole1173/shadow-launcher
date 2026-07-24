@@ -10,18 +10,38 @@ import QtQuick.Layouts
 Rectangle {
     id: root
 
+    property bool compact: true  // 紧凑模式（侧边栏），false 为大卡片（全屏页）
+
+    // 字号映射
+    readonly property real _titleSize: compact ? StyleTokens.fontSizeCaption : StyleTokens.fontSizeMd
+    readonly property real _bodySize: compact ? StyleTokens.fontSizeXs : StyleTokens.fontSizeSm
+    readonly property real _stepSize: compact ? StyleTokens.fontSizeXs : StyleTokens.fontSizeXs
+    // 间距映射
+    readonly property real _padT: compact ? 10 : 16
+    readonly property real _padH: compact ? 12 : 20
+    readonly property real _progressHeight: compact ? 4 : 6
+    readonly property real _progressTop: compact ? 32 : 40
+    readonly property real _spacingMd: compact ? 6 : 10
+    readonly property real _spacingSm: compact ? 4 : 6
+    readonly property real _spacingStep: compact ? 3 : 5
+    readonly property real _stepHeight: compact ? 16 : 20
+    readonly property real _cancelBtnSize: compact ? 20 : 28
+    readonly property real _cancelIconSize: compact ? 12 : 16
+    readonly property real _stepDotSize: compact ? 6 : 8
+    readonly property real _doneIconSize: compact ? 14 : 18
+
     implicitWidth: parent ? parent.width : 300
-    implicitHeight: (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height) + 12
+    implicitHeight: (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height) + _padT
     radius: StyleTokens.radiusLg
     color: "#141a24"
 
     // ── 进度条 (4px) ──
     Rectangle {
         id: progressTrack
-        anchors.top: parent.top; anchors.topMargin: 32
-        anchors.left: parent.left; anchors.leftMargin: 12
-        anchors.right: parent.right; anchors.rightMargin: 12
-        height: 4; radius: 2
+        anchors.top: parent.top; anchors.topMargin: _progressTop
+        anchors.left: parent.left; anchors.leftMargin: _padH
+        anchors.right: parent.right; anchors.rightMargin: _padH
+        height: _progressHeight; radius: 2
         color: "#1e2a3a"
 
         Rectangle {
@@ -39,20 +59,20 @@ Rectangle {
     // ── 第一行：名称 + 取消按钮 ──
     Item {
         id: nameRow
-        anchors.top: parent.top; anchors.topMargin: 10
-        anchors.left: parent.left; anchors.leftMargin: 12
-        anchors.right: parent.right; anchors.rightMargin: 12
-        height: 18
+        anchors.top: parent.top; anchors.topMargin: _padT
+        anchors.left: parent.left; anchors.leftMargin: _padH
+        anchors.right: parent.right; anchors.rightMargin: _padH
+        height: _cancelBtnSize > 20 ? _cancelBtnSize : 18  // 按取消按钮大小自适应行高
 
         Text {
             id: nameText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             text: model.name || ""
-            font.pixelSize: StyleTokens.fontSizeCaption
+            font.pixelSize: _titleSize
             color: StyleTokens.textPrimary
             elide: Text.ElideRight
-            width: parent.width - 30  // leave space for cancel button
+            width: parent.width - _cancelBtnSize - 8
         }
 
         // ── 取消按钮 (Lucide x.svg) ──
@@ -60,7 +80,7 @@ Rectangle {
             id: cancelBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            width: 20; height: 20; radius: 10
+            width: _cancelBtnSize; height: _cancelBtnSize; radius: _cancelBtnSize / 2
             visible: model.canCancel !== false
             color: cancelMouse.containsMouse ? "#4a1a1a" : "transparent"
 
@@ -69,8 +89,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "icons/lucide/x.svg"
-                width: 12; height: 12
-                sourceSize.width: 12; sourceSize.height: 12
+                width: _cancelIconSize; height: _cancelIconSize
+                sourceSize.width: _cancelIconSize; sourceSize.height: _cancelIconSize
             }
 
             MouseArea {
@@ -88,10 +108,10 @@ Rectangle {
     // ── 第三行：速度/完成标记 ──
     RowLayout {
         id: infoRow
-        anchors.top: progressTrack.bottom; anchors.topMargin: 6
-        anchors.left: parent.left; anchors.leftMargin: 12
-        anchors.right: parent.right; anchors.rightMargin: 12
-        spacing: 4
+        anchors.top: progressTrack.bottom; anchors.topMargin: _spacingMd
+        anchors.left: parent.left; anchors.leftMargin: _padH
+        anchors.right: parent.right; anchors.rightMargin: _padH
+        spacing: _spacingSm
 
         Text {
             text: {
@@ -99,7 +119,7 @@ Rectangle {
                 if (model.progress >= 1.0) return " "  // placeholder, icon replaces
                 return fmtSpeed(model.speed || 0)
             }
-            font.pixelSize: StyleTokens.fontSizeXs
+            font.pixelSize: _bodySize
             color: model.failed ? StyleTokens.errorLight
                  : model.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textMuted
@@ -114,18 +134,18 @@ Rectangle {
         Image {
             visible: !model.failed && model.progress >= 1.0
             source: "icons/lucide/check-circle.svg"
-            width: 14; height: 14
-            sourceSize.width: 14; sourceSize.height: 14
+            width: _doneIconSize; height: _doneIconSize
+            sourceSize.width: _doneIconSize; sourceSize.height: _doneIconSize
         }
     }
 
     // ── 子步骤列表 ──
     Column {
         id: stepsList
-        anchors.top: infoRow.bottom; anchors.topMargin: 6
-        anchors.left: parent.left; anchors.leftMargin: 16
-        anchors.right: parent.right; anchors.rightMargin: 12
-        spacing: 3
+        anchors.top: infoRow.bottom; anchors.topMargin: _spacingMd
+        anchors.left: parent.left; anchors.leftMargin: _padH + 4
+        anchors.right: parent.right; anchors.rightMargin: _padH
+        spacing: _spacingStep
         // Only show sub-steps during active download, not when done/failed
         visible: model.progress < 1.0 && !model.failed
         // Capture steps BEFORE the Repeater shadows the 'model' identifier
@@ -135,13 +155,13 @@ Rectangle {
             model: stepsList.__steps
             delegate: RowLayout {
                 width: parent.width
-                spacing: 4
+                spacing: _spacingSm
                 visible: modelData && modelData.show !== false
-                height: 16
+                height: _stepHeight
 
                 // ── 状态指示器 (圆点) ──
                 Rectangle {
-                    width: 6; height: 6; radius: 3
+                    width: _stepDotSize; height: _stepDotSize; radius: _stepDotSize / 2
                     anchors.verticalCenter: parent.verticalCenter
                     color: {
                         var s = modelData.status || "pending"
@@ -155,7 +175,7 @@ Rectangle {
                 // ── 步骤名 ──
                 Text {
                     text: modelData.name || ""
-                    font.pixelSize: StyleTokens.fontSizeXs
+                    font.pixelSize: _stepSize
                     color: StyleTokens.textSecondary
                     elide: Text.ElideRight
                     Layout.fillWidth: true
@@ -164,7 +184,7 @@ Rectangle {
                 // ── 活跃步骤的百分比 (仅 active) ──
                 Text {
                     text: modelData.status === "active" ? (modelData.percentage + "%") : ""
-                    font.pixelSize: StyleTokens.fontSizeXs
+                    font.pixelSize: _stepSize
                     color: StyleTokens.textMuted
                     visible: modelData.status === "active"
                 }
