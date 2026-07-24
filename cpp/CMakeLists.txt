@@ -75,6 +75,8 @@ set(SOURCES
     src/core/download_coordinator.cpp
     src/core/crash_detector.cpp
     src/core/screenshot_server.cpp
+    src/core/step_node.cpp
+    src/core/step_pipeline.cpp
     # Backend (Phase 3 鈥?added progressively)
     src/backend/app_backend.cpp
     src/backend/settings_backend.cpp
@@ -105,6 +107,8 @@ set(HEADERS
     src/core/file_downloader.h
     src/core/download_coordinator.h
     src/core/version_downloader.h
+    src/core/step_node.h
+    src/core/step_pipeline.h
     src/core/progress_tracker.h
     src/core/launcher.h
     src/core/mc_language.h
