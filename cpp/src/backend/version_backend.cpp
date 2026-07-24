@@ -140,7 +140,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
     // Throttle incremental card updates (100ms — avoid UI freeze from rapid progress signals)
     m_cardUpdateThrottle.setSingleShot(true);
-    m_cardUpdateThrottle.setInterval(100);
+    m_cardUpdateThrottle.setInterval(200);
     connect(&m_cardUpdateThrottle, &QTimer::timeout, this, [this]() {
         for (const auto& id : m_pendingCardUpdates)
             updateCardFromSession(id);
