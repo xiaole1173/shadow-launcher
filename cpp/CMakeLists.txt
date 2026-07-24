@@ -84,6 +84,7 @@ set(SOURCES
     src/backend/yggdrasil_skin_fetcher.cpp
     src/backend/account_backend.cpp
     src/backend/version_backend.cpp
+    src/session/download_session.cpp
     src/backend/launch_backend.cpp
     src/backend/resource_backend.cpp
     src/backend/stats_backend.cpp

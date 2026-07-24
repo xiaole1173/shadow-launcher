@@ -128,4 +128,26 @@ struct AppSettings {
     static AppSettings fromJson(const QJsonObject& obj);
 };
 
+
+// ============================================================
+// InstallCard — 下载卡片数据 (用于 InstallCardModel)
+// ============================================================
+
+struct InstallCard {
+    QString iid;
+    QString name;
+    QString type;
+    qreal progress = 0.0;
+    qint64 speed = 0;
+    QString phase;
+    int remaining = 0;
+    QVariantList steps;
+    bool failed = false;
+    QString error;
+    bool totalProgressVisible = true;
+    bool hasUserDataImport = false;
+    bool canCancel = true;
+    qint64 importFailedAtMs = 0;
+};
+
 } // namespace ShadowLauncher

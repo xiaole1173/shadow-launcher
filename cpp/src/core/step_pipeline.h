@@ -73,6 +73,8 @@ public:
     StepNode* step(const QString& key);
     int indexOf(const QString& key) const;
     int totalSteps() const { return m_model->stepCount(); }
+    int currentStepIndex() const { return m_currentIndex; }
+    StepNode* currentStep() const { return m_currentIndex >= 0 ? m_model->stepAt(m_currentIndex) : nullptr; }
 
     // ── 进度 ──
     qreal weightedProgress() const;

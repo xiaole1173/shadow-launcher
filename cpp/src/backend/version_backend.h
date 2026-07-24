@@ -22,22 +22,7 @@
 namespace ShadowLauncher {
 
 // --- InstallCard: per-card data struct ---
-struct InstallCard {
-    QString iid;
-    QString name;
-    QString type;
-    qreal progress = 0.0;
-    qint64 speed = 0;
-    QString phase;
-    int remaining = 0;
-    QVariantList steps;
-    bool failed = false;
-    QString error;
-    bool totalProgressVisible = true;  // show total bar only during download phase
-    bool hasUserDataImport = false;    // has pending user data to import after install
-    bool canCancel = true;             // false during user data import phase
-    qint64 importFailedAtMs = 0;        // timestamp when import failed (for 60s countdown)
-};
+
 
 // --- InstallSession: per-install isolated state (supports concurrent merged installs) ---
 struct InstallSession {

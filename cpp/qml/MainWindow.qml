@@ -785,7 +785,11 @@ Window {
                     item.goBack.connect(function() { showInstallPage = false })
                     item.navigateToProgress.connect(function() {
                         showInstallPage = false
-                        // Download panel auto-shows — no nav navigation needed
+                        // Pulse FAB to draw attention to download panel
+                        if (downloadFab) {
+                            downloadFab.scale = 1.2
+                            fabBounceBack.restart()
+                        }
                     })
                     item.requestMinimize.connect(function() { appWindow.showMinimized() })
                     item.requestClose.connect(function() { appWindow.close() })
@@ -1129,7 +1133,7 @@ Window {
             anchors.fill: parent; hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                downloadPanel._expanded = !downloadPanel._expanded
+                downloadPanel.expanded = !downloadPanel.expanded
                 // Panel visibility is auto-managed by _cardCount > 0 — never set .visible directly
             }
         }
