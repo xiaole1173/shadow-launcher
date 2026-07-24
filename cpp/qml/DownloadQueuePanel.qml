@@ -151,7 +151,32 @@ Rectangle {
             }
 
             // 底部留白
-            footer: Item { height: 8 }
+            footer: ColumnLayout {
+                width: parent.width; spacing: 0
+                Rectangle {
+                    Layout.fillWidth: true; height: 1
+                    color: "#1a202c"
+                }
+                Item { height: 4 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 12; Layout.rightMargin: 8; spacing: 4
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: "清空已完成"
+                        font.pixelSize: StyleTokens.fontSizeXs
+                        color: clearMouse.containsMouse ? StyleTokens.textSecondary : StyleTokens.textMuted
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        MouseArea {
+                            id: clearMouse
+                            anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (backendRef) backendRef.dismissAllCompleted() }
+                        }
+                    }
+                }
+                Item { height: 8 }
+            }
         }
     }
 

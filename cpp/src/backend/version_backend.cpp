@@ -4235,6 +4235,20 @@ void VersionBackend::dismissCard(const QString& installId)
     if (m_activeCount > 0) m_activeCount--;
     rebuildInstallCards();
 }
+void VersionBackend::dismissAllCompleted()
+{
+    QStringList toDismiss;
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        const auto& ses = it.value();
+        if (ses.failed || (ses.totalProgress >= 1.0 && !ses.hasPendingLoader)) {
+            toDismiss.append(it.key());
+        }
+    }
+    for (const auto& id : toDismiss) {
+        dismissCard(id);
+    }
+}
+
 
 void VersionBackend::startUserDataImport(const QString& installId)
 {

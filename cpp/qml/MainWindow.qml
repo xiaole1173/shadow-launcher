@@ -1120,7 +1120,7 @@ Window {
             anchors.topMargin: -4; anchors.rightMargin: -4
             width: 20; height: 20; radius: 10
             color: StyleTokens.accent
-            visible: backend && backend.installCardsModel && backend.installCardsModel.count > 1
+            visible: backend && backend.installCardsModel && backend.installCardsModel.count > 0
             Text {
                 anchors.centerIn: parent
                 text: backend ? (backend.installCardsModel ? backend.installCardsModel.count : "") : ""

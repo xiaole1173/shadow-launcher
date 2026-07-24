@@ -235,7 +235,8 @@ public:
     // User data import integration
     Q_INVOKABLE void setPendingUserDataImport(const QString& installId, const QString& archivePath);
     Q_INVOKABLE void cancelPendingUserDataImport(const QString& installId);
-    Q_INVOKABLE void dismissCard(const QString& installId);  // remove card from progress page
+    Q_INVOKABLE void dismissCard(const QString& installId);
+    Q_INVOKABLE void dismissAllCompleted();  // remove card from progress page
 
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
                                        const QString& loaderVersion, const QString& installName,
