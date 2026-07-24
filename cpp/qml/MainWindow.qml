@@ -814,8 +814,8 @@ Window {
                     item.goBack.connect(function() { showInstallPage = false })
                     item.navigateToProgress.connect(function() {
                         showInstallPage = false
-                        // 跳转到全屏进度页
-                        navListIndex = 5
+                        // 下一帧再跳转，避免与 overlay 关闭动画竞争导致卡顿
+                        Qt.callLater(function() { navListIndex = 5 })
                     })
                     item.requestMinimize.connect(function() { appWindow.showMinimized() })
                     item.requestClose.connect(function() { appWindow.close() })
