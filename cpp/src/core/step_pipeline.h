@@ -71,6 +71,7 @@ public:
 
     // ── 步骤访问 ──
     StepNode* step(const QString& key);
+    StepNode* stepNode(int index) const { return (index >=0 && index < m_model->stepCount()) ? m_model->stepAt(index) : nullptr; }
     int indexOf(const QString& key) const;
     int totalSteps() const { return m_model->stepCount(); }
     int currentStepIndex() const { return m_currentIndex; }

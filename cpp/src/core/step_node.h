@@ -42,6 +42,7 @@ public:
     StepStatus status() const { return m_status; }
     int statusInt() const { return static_cast<int>(m_status); }
     void setStatus(StepStatus s);
+    void setStatus(const QString& s);  // convenience: "pending"|"active"|"completed"|"failed"
 
     void setActive() { setStatus(StepStatus::Active); }
     void setCompleted() { setStatus(StepStatus::Completed); if (m_percentage < 100) setPercentage(100); }

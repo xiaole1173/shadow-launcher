@@ -13,6 +13,14 @@ StepNode::StepNode(const QString& key, const QString& displayName,
 {
 }
 
+void StepNode::setStatus(const QString& s) {
+    if (s == QStringLiteral("active")) setActive();
+    else if (s == QStringLiteral("completed")) setCompleted();
+    else if (s == QStringLiteral("failed")) setFailed();
+    else if (s == QStringLiteral("skipped")) setSkipped();
+    else setStatus(StepStatus::Pending);
+}
+
 void StepNode::setStatus(StepStatus s) {
     if (m_status == s) return;
     m_status = s;
