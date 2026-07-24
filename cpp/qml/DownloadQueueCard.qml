@@ -111,7 +111,7 @@ Rectangle {
         Text {
             text: {
                 if (model.failed) return ""
-                if (model.progress >= 1.0) return "✓"
+                if (model.progress >= 1.0) return " "  // placeholder, icon replaces
                 var speed = model.speed || 0
                 if (speed <= 0) return ""
                 return fmtSpeed(speed)
@@ -121,6 +121,14 @@ Rectangle {
                  : model.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textMuted
             visible: text !== ""
+        }
+
+        // ── 完成图标 (Lucide check-circle.svg) ──
+        Image {
+            visible: !model.failed && model.progress >= 1.0
+            source: "icons/lucide/check-circle.svg"
+            width: 14; height: 14
+            sourceSize.width: 14; sourceSize.height: 14
         }
     }
 

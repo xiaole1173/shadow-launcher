@@ -1130,10 +1130,7 @@ Window {
             cursorShape: Qt.PointingHandCursor
             onClicked: {
                 downloadPanel._expanded = !downloadPanel._expanded
-                if (downloadPanel._expanded) {
-                    // Ensure visible
-                    downloadPanel.visible = true
-                }
+                // Panel visibility is auto-managed by _cardCount > 0 — never set .visible directly
             }
         }
 
@@ -1149,7 +1146,7 @@ Window {
     DownloadQueuePanel {
         id: downloadPanel
         backendRef: backend
-        visible: false
+        // visible 由面板内部的 _cardCount > 0 控制
     }
 
     } // ── end rounded Rectangle
