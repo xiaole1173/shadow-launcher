@@ -23,8 +23,14 @@ Item {
         anchors.fill: parent
         anchors.topMargin: 16
         clip: true
-        ScrollBar.vertical.policy: ScrollBar.AsNeeded
-        ScrollBar.vertical.interactive: true
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+            contentItem: Rectangle {
+                implicitWidth: 4
+                radius: StyleTokens.radiusXs
+                color: StyleTokens.textMuted
+            }
+        }
 
         // 使用 ListView 而非 Column+Repeater
         // ListView 原生支持滚动 + 复用委托，与侧边栏一致
