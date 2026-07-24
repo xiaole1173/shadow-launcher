@@ -286,8 +286,6 @@ VersionBackend::VersionBackend(QObject* parent)
 
                 ds->smoothProgress = ds->smoothProgress * 0.3 + raw * 0.7;
 
-                                    rebuildInstallCards();
-
         }
 
     });
@@ -679,7 +677,6 @@ VersionBackend::VersionBackend(QObject* parent)
 
             }
 
-                                    rebuildInstallCards();
 
         } else {
 
@@ -702,8 +699,6 @@ VersionBackend::VersionBackend(QObject* parent)
                 else
 
                     ds->smoothProgress = ds->smoothProgress * 0.7 + raw * 0.3;
-
-                                                rebuildInstallCards();
 
             }
 
@@ -3527,9 +3522,6 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         }
 
 
-
-        rebuildInstallCards();
-
     }
 
 }
@@ -5786,8 +5778,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                                         }
 
-                                        rebuildInstallCards();
-
                                         return;
 
                                     }
@@ -5869,8 +5859,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                 if (auto* ds = dlSession(installName)) ds->markFailed(reply->errorString());
 
                             }
-
-                            rebuildInstallCards();
 
                             return;
 
@@ -6066,8 +6054,6 @@ auto* ds = dlSession(installName);
                     updateStep(installName, 1, QStringLiteral("error"), 0);
 
                     if (auto* ds = dlSession(installName)) ds->markFailed(reply->errorString());
-
-                    rebuildInstallCards();
 
                 } else {
 
@@ -6395,8 +6381,6 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
         if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 网络不可达"));
 
-        rebuildInstallCards();
-
         setInstalling(false);
 
     });
@@ -6506,8 +6490,6 @@ void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QStrin
                             updateStep(installName, 3, QStringLiteral("failed"), 0);
 
                             if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
-
-                            rebuildInstallCards();
 
                             setInstalling(false);
 
@@ -6732,8 +6714,6 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                             updateStep(installName, 3, QStringLiteral("failed"), 0);
 
                             if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
-
-                            rebuildInstallCards();
 
                             setInstalling(false);
 
@@ -7270,7 +7250,7 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
 
 
-    rebuildInstallCards();
+    updateCardFromSession(installId);
 
     }
 
