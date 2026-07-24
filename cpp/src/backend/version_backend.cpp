@@ -3334,35 +3334,24 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     qint64 delta = db - st.bytesDl;
 
 
-    // ── Per-State speed: per-delta instantaneous estimate (no 3s window needed) ──
-    //    VersionDownloader::progressChanged fires ONCE when all cached files are
-    //    discovered (db=567MB). The old 3-second sliding window would have only
-    //    1 sample in that case, producing 0 speed.
-    //
-    //    Instead: use last-delta time & bytes for instantaneous speed, and a
-    //    session average for the initial estimate when the window is fresh.
+    // ── Per-State speed: instantaneous from real network deltas only ──
+    //    First progressChanged carries ALL cached bytes (short elapsed → huge speed).
+    //    Skip it. Only compute speed when we have a real delta/time window.
+    //    Formula: speed = delta_bytes / (nowMs - speedLastTimeMs) * 1000
+    //    No qMax — speed always reflects most recent window, avoids stuck-at-peak.
 
     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
 
     if (delta > 0) {
         qint64 dt = st.speedLastTimeMs > 0 ? (nowMs - st.speedLastTimeMs) : 0;
         if (dt > 0) {
-            // Instantaneous: delta / dt
-            st.speed = qMax(st.speed, (delta * 1000) / dt);
-        } else if (st.bytesDl == 0) {
-            // First real data: use session average from a second reference
-            // (startDownload epoch, set when install begins)
-            qint64 sessionElapsed = nowMs - m_installStartEpoch;
-            if (sessionElapsed > 500)
-                if (m_installStartEpoch > 0)
-                    st.speed = (db * 1000) / sessionElapsed;
+            // Real data: instantaneous speed = delta / elapsed_ms
+            st.speed = (delta * 1000) / dt;
         }
+        // Always update timestamp — even on first pulse (dt==0) we need
+        // a reference for the NEXT delta's elapsed time.
         st.speedLastTimeMs = nowMs;
-        // Speed never decays to 0 — the card shows last measured value until
-        // a new delta arrives. This is intentional: when a file finishes and
-        // the next hasn't started yet, the user still sees their previous speed.
     } else if (st.speed > 0 && st.speedLastTimeMs > 0 && (nowMs - st.speedLastTimeMs) > 30000) {
-        // Only reset to 0 after 30 seconds of complete inactivity
         st.speed = 0;
     }
 
