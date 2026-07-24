@@ -51,6 +51,9 @@ void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
             m_speed = (dBytes * 1000) / dt;  // bytes per second
             if (m_speed < 0) m_speed = 0;
         }
+    } else if (m_speedWindow.size() == 1 && now > 200) {
+        // 窗口未满时（前 3 秒）用起始至今的均值做即时估算
+        m_speed = (m_speedWindow.first().bytes * 1000) / now;
     }
 
     emit progressUpdated();
