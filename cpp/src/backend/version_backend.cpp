@@ -138,6 +138,16 @@ VersionBackend::VersionBackend(QObject* parent)
 
 
 
+    // Throttle incremental card updates (100ms — avoid UI freeze from rapid progress signals)
+    m_cardUpdateThrottle.setSingleShot(true);
+    m_cardUpdateThrottle.setInterval(100);
+    connect(&m_cardUpdateThrottle, &QTimer::timeout, this, [this]() {
+        for (const auto& id : m_pendingCardUpdates)
+            updateCardFromSession(id);
+        m_pendingCardUpdates.clear();
+    });
+
+
     // ── VersionManager: fetch + cache version manifest ──
 
     m_versionMgr = new VersionManager(this);
@@ -6991,7 +7001,10 @@ DownloadSession* VersionBackend::ensureSession(const QString& installId) {
     auto* ds = new DownloadSession(installId, this);
     m_downloadSessions[installId] = ds;
     QObject::connect(ds, &DownloadSession::progressUpdated, this, [this, installId]() {
-        updateCardFromSession(installId);
+        // Deferred update via throttle to avoid hammering QML at 60+ updates/sec
+        if (!m_pendingCardUpdates.contains(installId))
+            m_pendingCardUpdates.append(installId);
+        m_cardUpdateThrottle.start();
     });
     return ds;
 }

@@ -1,8 +1,0 @@
-P2+P3: rebuildSteps 启动 pipeline + 清理 setSpeed 死代码
-
-核心修复:
-- rebuildSteps() 末尾加 pipeline->start() 调用（带 guard）
-  → toCard() 的 pipeline phase 推导现在有 actual data source
-- DownloadSession::startPipeline() 增加 currentStepIndex() < 0 防护
-  → 同一 session 多次 rebuild 不会误重置
-- 删除 setSpeed() 死代码（全项目零引用，recordBytes 已完全替代）

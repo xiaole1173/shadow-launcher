@@ -299,6 +299,10 @@ private:
     bool m_cardsRebuildPending = false;
     QElapsedTimer m_cardsTimer;
 
+    // Throttle incremental card updates (100ms — avoid UI freeze from rapid progress signals)
+    QTimer m_cardUpdateThrottle;
+    QStringList m_pendingCardUpdates;
+
     InstallCardModel* m_installCardsModel = nullptr;
 
     void rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights = {},
