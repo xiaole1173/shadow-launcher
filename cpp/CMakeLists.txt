@@ -58,7 +58,6 @@ set(SOURCES
     src/core/parallel_downloader.cpp
     src/core/file_downloader.cpp
     src/core/version_downloader.cpp
-    src/core/progress_tracker.cpp
     src/core/launcher.cpp
     src/core/mc_language.cpp
     src/core/geoip_service.cpp
@@ -110,7 +109,6 @@ set(HEADERS
     src/core/version_downloader.h
     src/core/step_node.h
     src/core/step_pipeline.h
-    src/core/progress_tracker.h
     src/core/launcher.h
     src/core/mc_language.h
     src/core/geoip_service.h

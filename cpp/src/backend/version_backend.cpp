@@ -57,15 +57,6 @@ VersionBackend::VersionBackend(QObject* parent)
 
     m_installCardsModel = new InstallCardModel(this);
 
-    // ProgressTracker — unified speed/progress engine (200ms tick)
-    m_progressTracker = new ProgressTracker(this);
-    // Speed changes trigger card rebuild (throttled)
-    connect(m_progressTracker, &ProgressTracker::speedChanged, this, [this](qint64) {
-        rebuildInstallCards();
-    });
-    connect(m_progressTracker, &ProgressTracker::progressChanged, this, [this](qreal) {
-        rebuildInstallCards();
-    });
 
     // Throttle activeInstallsChanged to 300ms intervals (avoid flicker)
     m_cardsRebuildThrottle.setSingleShot(true);
@@ -181,7 +172,6 @@ VersionBackend::VersionBackend(QObject* parent)
                 }
             }
             if (allDone) {
-                if (m_progressTracker) m_progressTracker->reset();
                 emit logMessage(tr("[完成] 所有版本安装完成！"));
             }
 
@@ -303,13 +293,6 @@ VersionBackend::VersionBackend(QObject* parent)
                 // Speed: feed bytes to ProgressTracker (200ms timer handles EWMA)
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
-        if (m_progressTracker && received > ses.mlSpeedLastBytes) {
-            // Restart tracker if MC download reset it (e.g. merged installs)
-            if (m_progressTracker->phase() != ProgressTracker::Download) {
-                m_progressTracker->setPhase(ProgressTracker::Download);
-            }
-            m_progressTracker->addBytes(received - ses.mlSpeedLastBytes);
-        }
         ses.mlSpeedLastBytes = received;
         ses.mlSpeedLastTimeMs = QDateTime::currentMSecsSinceEpoch();
         ses.mlRawSpeed = speed;  // raw download speed for card display
@@ -697,9 +680,6 @@ void VersionBackend::installVersion(const QString& versionId)
                                 st.catBytesTotal[ci] = ct;
                         }
                         bool firstPulse = (st.bytesDl == 0 && db > 0);
-                        if (firstPulse && m_progressTracker) {
-                            m_progressTracker->setPhase(ProgressTracker::Download);
-                        }
                         // Also inject into session for merged install mod_loader card
                         for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
                             if (sit.value().isMerged && sit.value().mcVersion == versionId) {
@@ -1232,7 +1212,6 @@ void VersionBackend::onVersionDownloadFinished(bool success,
         if (!anyMergedLaunched) {
             setInstalling(false);
             setInstallPhase(tr("完成"));
-            if (m_progressTracker) m_progressTracker->reset();
             emit logMessage(tr("[完成] 所有版本安装完成！"));
         }
         // When anyMergedLaunched is true, the OptiFine installer is still running
@@ -1602,7 +1581,6 @@ void VersionBackend::syncPrimaryProgress()
         // No active download
         m_installBytesDl = 0;
         m_installBytesTotal = 0;
-        if (m_progressTracker) m_progressTracker->reset();
         setInstallPhase(tr("空闲"));
                                 emit installStateChanged();
         return;
@@ -1639,7 +1617,6 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     // Feed delta to unified ProgressTracker (200ms timer handles speed)
     qint64 delta = db - st.bytesDl;
-    if (delta > 0 && m_progressTracker) m_progressTracker->addBytes(delta);
 
     // ── Per-State speed (sliding window 3s) ──
     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -4030,7 +4007,8 @@ void VersionBackend::doRebuildInstallCards() {
             if (verifying || c.progress >= 1.0) {
                 c.speed = 0;
             } else {
-                c.speed = st.speed;
+                auto* ds = dlSession(c.iid);
+                c.speed = ds ? ds->currentSpeed() : st.speed;
             }
             c.phase = st.phase;
 

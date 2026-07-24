@@ -18,7 +18,6 @@
 
 #include "../utils/types.h"
 #include "../session/download_session.h"
-#include "../core/progress_tracker.h"
 
 namespace ShadowLauncher {
 
@@ -347,8 +346,6 @@ private:
     qint64 m_installBytesTotal = 0;
     QString m_installPhase = "idle";
 
-    // Unified speed/progress tracker (replaces per-session EWMA instances)
-    ProgressTracker *m_progressTracker = nullptr;
 
     // Per-install state (keyed by installId, supports concurrent merged installs)
     QMap<QString, InstallSession> m_sessions;
