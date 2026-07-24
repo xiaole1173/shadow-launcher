@@ -70,6 +70,8 @@ public:
     QVariantList steps;
 
     // ── 进度 (raw, 非计算值) ──
+    qreal m_rawTotalProgress = 0.0;
+
     // ── MC 下载状态 ──
     bool mcDownloadDone = false;
     qint64 mcStepDone[3] = {};

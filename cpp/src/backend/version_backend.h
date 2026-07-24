@@ -26,8 +26,6 @@ namespace ShadowLauncher {
 
 // --- InstallSession: per-install isolated state (supports concurrent merged installs) ---
 struct InstallSession {
-    QVariantList steps;
-    qreal totalProgress = 0.0;
     bool loaderDownloadReady = false; // Loader file downloaded + verified
     QByteArray loaderDownloadData;    // Cached loader file bytes
     int loaderVerifyStep = -1;         // Step index for verify (5 for forge)
@@ -174,7 +172,7 @@ public:
             names.append(m_modLoaderInstallId);
         for (auto it = m_sessions.constBegin(); it != m_sessions.constEnd(); ++it) {
             if (auto* ds = dlSession(it.key())) {
-                if (ds->hasPendingLoader && !it.value().pendingLoaderName.isEmpty()
+                if (ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty()
                     && !names.contains(it.value().pendingLoaderName))
                     names.append(it.value().pendingLoaderName);
             }

@@ -131,6 +131,7 @@ void DownloadSession::reset() {
     smoothProgress = 0.0;
     mcVersion.clear();
     steps.clear();
+    m_rawTotalProgress = 0.0;
 
     hasImportPending = false;
     importArchivePath.clear();
