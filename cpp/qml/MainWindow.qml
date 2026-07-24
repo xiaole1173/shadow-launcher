@@ -115,12 +115,9 @@ Window {
 
     Connections {
         target: backend; enabled: backend !== null
-        function onInstallStateChanged() {
-            console.log("[main] installStateChanged: installing=", backend.installing, "activeCount=", backend.activeCount)
-            if (backend.activeCount > 0 || backend.installing) {
-                // 下载进行中 → 自动跳转到全屏进度页
-                navListIndex = 5
-            }
+        function onInstallingChanged() {
+            console.log("[main] onInstallingChanged: installing=", backend.installing)
+            // No explicit nav manipulation needed — navigateToProgress handles it
         }
         function onSelectedVersionClearedAfterDelete() {
             // Binding auto-updates — no explicit assignment needed
@@ -559,6 +556,7 @@ Window {
                                 source: "InstallProgressPage.qml"
                                 onLoaded: {
                                     item.mainWindow = appWindow
+                                    item.backend = backend
                                 }
                             }
                         }
@@ -816,11 +814,8 @@ Window {
                     item.goBack.connect(function() { showInstallPage = false })
                     item.navigateToProgress.connect(function() {
                         showInstallPage = false
-                        // Pulse FAB to draw attention to download panel
-                        if (downloadFab) {
-                            downloadFab.scale = 1.2
-                            fabBounceBack.restart()
-                        }
+                        // 跳转到全屏进度页
+                        navListIndex = 5
                     })
                     item.requestMinimize.connect(function() { appWindow.showMinimized() })
                     item.requestClose.connect(function() { appWindow.close() })

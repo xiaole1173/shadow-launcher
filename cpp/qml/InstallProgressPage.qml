@@ -11,6 +11,7 @@ Item {
     id: root
 
     property var mainWindow: null
+    property var backend: null
 
     // ── 简单背景 ──
     Rectangle {
