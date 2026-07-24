@@ -2487,7 +2487,19 @@ auto* ds = dlSession(it.key());
 
                 } else if (ds->loaderDownloadReady) {
 
-                    proceedToLoaderInstall(it.key());
+                    // 如果数据已下载但 ML installer 未启动，现在传进去
+                    if (!ds->loaderDownloadData.isEmpty() && !m_mlInstaller->isRunning()) {
+                        qDebug() << "[install] MC done, starting deferred loader install for" << it.key();
+                        m_mlInstaller->setGameDir(m_gameDir);
+                        if (ds->loaderType == QStringLiteral("neoforge")) {
+                            emit logMessage(QStringLiteral("[加载器] MC下载完成，开始安装NeoForge..."));
+                            m_mlInstaller->installNeoForgeFromData(ds->loaderDownloadData, ds->mcVersion, ds->loaderVer, it.key());
+                        } else {
+                            m_mlInstaller->installForgeFromData(ds->loaderDownloadData, ds->mcVersion, ds->loaderVer, it.key());
+                        }
+                    } else {
+                        proceedToLoaderInstall(it.key());
+                    }
 
                 } else if (ds->loaderFinishedWaitingMC) {
 
@@ -5944,19 +5956,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                     updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
 
                                     ds->loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
+                                    ds->loaderDownloadReady = true;
 
-                                    m_mlInstaller->setGameDir(m_gameDir);
-
-                                    if (loaderType == QStringLiteral("neoforge")) {
-
-                                        emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-
-                                        m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-
+                                    // 如果 MC 还在下载，等 MC 结束后再安装
+                                    if (m_activeIds.contains(mcVersion)) {
+                                        qDebug() << "[install] Loader downloaded for" << mcVersion << ", waiting for MC...";
                                     } else {
-
-                                        m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-
+                                        m_mlInstaller->setGameDir(m_gameDir);
+                                        if (loaderType == QStringLiteral("neoforge")) {
+                                            emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
+                                            m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                                        } else {
+                                            m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                                        }
                                     }
 
                                 });
@@ -6026,19 +6038,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
 
                         ds->loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
+                        ds->loaderDownloadReady = true;
 
-                        m_mlInstaller->setGameDir(m_gameDir);
-
-                        if (loaderType == QStringLiteral("neoforge")) {
-
-                            emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-
-                            m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-
+                        // 如果 MC 还在下载，等 MC 结束后再安装
+                        if (m_activeIds.contains(mcVersion)) {
+                            qDebug() << "[install] Loader downloaded for" << mcVersion << ", waiting for MC...";
                         } else {
-
-                            m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-
+                            m_mlInstaller->setGameDir(m_gameDir);
+                            if (loaderType == QStringLiteral("neoforge")) {
+                                emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
+                                m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                            } else {
+                                m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                            }
                         }
 
                     });
