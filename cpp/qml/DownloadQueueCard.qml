@@ -141,12 +141,11 @@ Rectangle {
         spacing: 3
         // Only show sub-steps during active download, not when done/failed
         visible: model.progress < 1.0 && !model.failed
-        // steps content auto-hides when the array is empty (Repeater yields no delegates)
+        // Capture steps BEFORE the Repeater shadows the 'model' identifier
+        property var __steps: model && model.steps ? model.steps : []
 
         Repeater {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            model: model.steps || []
+            model: stepsList.__steps
             delegate: RowLayout {
                 width: parent.width
                 spacing: 4
