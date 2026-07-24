@@ -30,6 +30,9 @@ Rectangle {
                  : model.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.accent
             width: parent.width * Math.min(model.progress || 0, 1.0)
+            Behavior on width {
+                SmoothedAnimation { velocity: 0.5; duration: 300 }
+            }
         }
     }
 
