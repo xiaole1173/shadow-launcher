@@ -140,6 +140,21 @@ Rectangle {
                 visible: modelData && modelData.show !== false
                 height: 16
 
+                // ── 步骤进度平滑动画 ──
+                // 原始值来自 modelData.percentage，但 C++ 端可能一次跳 30%+
+                // 这里用 SmoothedAnimation 在 QML 层做插值过渡
+                property real stepRawPct: modelData.percentage || 0
+                property real stepSmoothPct: stepRawPct
+
+                onStepRawPctChanged: stepSmoothPct = stepRawPct
+
+                Behavior on stepSmoothPct {
+                    SmoothedAnimation {
+                        duration: 400
+                        velocity: 5
+                    }
+                }
+
                 // ── 状态指示器 (圆点) ──
                 Rectangle {
                     width: 6; height: 6; radius: 3
@@ -162,9 +177,9 @@ Rectangle {
                     Layout.fillWidth: true
                 }
 
-                // ── 活跃步骤的百分比 (仅 active) ──
+                // ── 活跃步骤的百分比 (平滑插值) ──
                 Text {
-                    text: modelData.status === "active" ? (modelData.percentage + "%") : ""
+                    text: modelData.status === "active" ? (Math.round(stepSmoothPct) + "%") : ""
                     font.pixelSize: StyleTokens.fontSizeXs
                     color: StyleTokens.textMuted
                     visible: modelData.status === "active"

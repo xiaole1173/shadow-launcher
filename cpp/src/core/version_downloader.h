@@ -87,6 +87,8 @@ public:
 
     // Per-category total bytes (pre-computed from task list)
     qint64 categoryTotalBytes(int cat) const { return m_categoryTotalBytes[cat]; }
+    // Per-file category for savePath. Returns -1 if unknown (not in task list).
+    int fileCategory(const QString& savePath) const { return m_fileCategory.value(savePath, -1); }
 
 signals:
     void progressChanged(int completedFiles, int totalFiles,
@@ -171,6 +173,10 @@ private:
 
     // Per-category total bytes (pre-computed from all tasks)
     qint64 m_categoryTotalBytes[3] = {0, 0, 0};
+    // Per-file category mapping (savePath → cat). Populated by collectTasks().
+    // Used by VersionBackend::updateDownloadFile() to classify files by task group
+    // instead of runtime path matching (which can mismatch with task-group totals).
+    QMap<QString, int> m_fileCategory;
 
     // Async verify worker (thread-based, replaces QTimer batching)
     class AsyncVerifyWorker;

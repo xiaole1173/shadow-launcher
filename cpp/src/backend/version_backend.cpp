@@ -3437,7 +3437,10 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
                 if (ds->mcStepTotal[ci] > 0) {
 
-                    int pct = (int)(ds->mcStepDone[ci] * 100 / ds->mcStepTotal[ci]);
+                    // Cap at 100% — mcStepDone (from per-file accounting) may exceed
+                    // mcStepTotal (from downloader category totals) when asset counts
+                    // differ (discovered after initial task planning).
+                    int pct = qMin((int)(ds->mcStepDone[ci] * 100 / ds->mcStepTotal[ci]), 100);
 
                     QString st = (pct >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
 
@@ -3684,23 +3687,15 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
 
 
-    // ── Determine category for merged-install step routing ──
+    // ── Determine category from downloader's task-group mapping ──
+    //    VersionDownloader::collectTasks() populates m_fileCategory[savePath] = cat
+    //    for every file in the download task list. Files downloaded outside the task
+    //    list (e.g. asset index via HttpClient) have no mapping → cat=-1 → ignored.
+    //    This ensures numerator and denominator come from the same task grouping.
 
     int cat = -1;
-
-    // Category 0: version JSON (downloaded via HTTP race in installVersion, not by downloader)
-
-    // Category 1: client.jar + libraries (/version/, /versions/, /libraries/, /maven/)
-
-    // Category 2: assets (/assets/)
-
-    // NOTE: Must NOT use fileName.endsWith(".jar") — library files also end with .jar!
-
-    if (savePath.contains(QStringLiteral("/versions/")) || savePath.contains(QStringLiteral("/version/"))
-
-        || savePath.contains(QStringLiteral("/libraries/")) || savePath.contains(QStringLiteral("/maven/"))) cat = 1;
-
-    else if (savePath.contains(QStringLiteral("/assets/"))) cat = 2;
+    if (auto* dl = m_downloaders.value(versionId))
+        cat = dl->fileCategory(savePath);
 
 
 

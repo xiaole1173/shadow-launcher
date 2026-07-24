@@ -155,6 +155,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     m_currentVersionJson = versionJson;
     m_assetObjects.clear();
     m_taskDestPaths.clear();
+    m_fileCategory.clear();
 
     m_completedFiles.storeRelaxed(0);
     m_totalFiles.storeRelaxed(0);
@@ -613,11 +614,16 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         // Category 2: assets (/assets/)
         // NOTE: Must NOT use t.name.endsWith(".jar") — library files also end with .jar!
         // Classify by savePath (stable regardless of mirror), not by URL (mirror-dependent)
+        int cat = -1;
         if (t.savePath.contains(QStringLiteral("/versions/")) || t.savePath.contains(QStringLiteral("/libraries/"))
             || t.savePath.contains(QStringLiteral("/maven/")))
-            m_categoryTotalBytes[1] += t.totalBytes;
+            cat = 1;
         else if (t.savePath.contains(QStringLiteral("/assets/")))
-            m_categoryTotalBytes[2] += t.totalBytes;
+            cat = 2;
+        if (cat >= 0) {
+            m_categoryTotalBytes[cat] += t.totalBytes;
+            m_fileCategory[t.savePath] = cat;
+        }
     }
 }
 
