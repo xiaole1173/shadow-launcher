@@ -4,7 +4,6 @@
 
 #include <QObject>
 #include <QString>
-#include <QVector>
 #include <QSet>
 #include <QByteArray>
 #include <QElapsedTimer>
@@ -39,7 +38,7 @@ public:
     bool isMerged() const { return m_isMerged; }
     void setMerged(bool v) { m_isMerged = v; }
 
-    // ── 进度 (3 秒滑动窗口) ──
+    // ── 进度 (瞬时速度) ──
     qreal totalProgress() const;        // weighted pipeline progress
     qint64 currentSpeed() const { return m_speed; }
     void recordBytes(qint64 bytesRecv, qint64 bytesTotal);
@@ -140,10 +139,9 @@ private:
 
     qint64 m_speed = 0;
 
-    // 3 秒滑动窗口速度跟踪
-    struct SpeedSample { qint64 timeMs; qint64 bytes; };
-    QVector<SpeedSample> m_speedWindow;
-    static constexpr qint64 kSpeedWindowMs = 1500;
+    // 瞬时速度跟踪 (依赖 FileDownloader 100ms 定时器)
+    qint64 m_lastRecvBytes = 0;
+    qint64 m_lastRecvTime = 0;
 
     StepPipeline* m_pipeline = nullptr;
     QElapsedTimer m_sessionTimer;

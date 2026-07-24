@@ -32,36 +32,27 @@ qreal DownloadSession::totalProgress() const {
 void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
     qint64 now = m_sessionTimer.elapsed();
 
-    // Update speed window
-    m_speedWindow.append({now, bytesRecv});
+    // ── 瞬时速度: delta / elapsed ──
+    qint64 deltaBytes = bytesRecv - m_lastRecvBytes;
+    qint64 deltaMs = now - m_lastRecvTime;
+    m_lastRecvBytes = bytesRecv;
+    m_lastRecvTime = now;
 
-    // Remove samples older than window
-    qint64 cutoff = now - kSpeedWindowMs;
-    while (!m_speedWindow.isEmpty() && m_speedWindow.first().timeMs < cutoff) {
-        m_speedWindow.removeFirst();
+    if (deltaBytes > 0 && deltaMs > 0) {
+        m_speed = qMax<qint64>(m_speed, (deltaBytes * 1000) / deltaMs);
+    } else if (deltaBytes == 0 && deltaMs > 30000) {
+        // 30 秒无数据 → 速度归零
+        m_speed = 0;
     }
-
-    // Calculate speed from window
-    if (m_speedWindow.size() >= 2) {
-        const auto& first = m_speedWindow.first();
-        const auto& last = m_speedWindow.last();
-        qint64 dt = last.timeMs - first.timeMs;
-        if (dt > 0) {
-            qint64 dBytes = last.bytes - first.bytes;
-            m_speed = (dBytes * 1000) / dt;  // bytes per second
-            if (m_speed < 0) m_speed = 0;
-        }
-    } else if (m_speedWindow.size() == 1 && now > 200) {
-        // 窗口未满时（前 3 秒）用起始至今的均值做即时估算
-        m_speed = (m_speedWindow.first().bytes * 1000) / now;
-    }
+    // deltaBytes == 0 && within 30s: 保持上次速度不变
 
     emit progressUpdated();
 }
 
 void DownloadSession::resetSpeed() {
     m_speed = 0;
-    m_speedWindow.clear();
+    m_lastRecvBytes = 0;
+    m_lastRecvTime = 0;
 }
 
 // ══════════════════════════════════════════════
@@ -80,7 +71,8 @@ void DownloadSession::cancel() {
     }
     m_failed = false;
     m_speed = 0;
-    m_speedWindow.clear();
+    m_lastRecvBytes = 0;
+    m_lastRecvTime = 0;
 }
 
 void DownloadSession::markFailed(const QString& err) {
@@ -93,7 +85,8 @@ void DownloadSession::reset() {
     m_failed = false;
     m_error.clear();
     m_speed = 0;
-    m_speedWindow.clear();
+    m_lastRecvBytes = 0;
+    m_lastRecvTime = 0;
     m_isMerged = false;
 
     // Reset old struct fields

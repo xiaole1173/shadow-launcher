@@ -342,10 +342,12 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             sourceOk = true;
             QByteArray data = reply->readAll();
             qint64 contentLen = reply->rawHeader("Content-Length").toLongLong();
-            // Validate: if server advertised Content-Length but returned less, treat as incomplete
-            if (contentLen > 0 && data.size() < contentLen) {
-                qCWarning(logDownload) << QStringLiteral("下载数据不完整 URL=%1 预期=%2 实际=%3")
-                    .arg(url).arg(contentLen).arg(data.size());
+            // Validate data size against expected file size (from version JSON)
+            // Catches truncation even when CDN uses chunked encoding (no Content-Length):
+            qint64 expectedSize = (file->fileSize > 0) ? file->fileSize : contentLen;
+            if (expectedSize > 0 && data.size() < expectedSize) {
+                qCWarning(logDownload) << QStringLiteral("下载数据不完整 URL=%1 预期=%2 实际=%3 (fileSize=%4)")
+                    .arg(url).arg(expectedSize).arg(data.size()).arg(file->fileSize);
                 sourceOk = false;
                 reply->deleteLater();
                 continue;
@@ -467,9 +469,10 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 if (dlHash == file->expectedSha1) {
                     qCInfo(logDownload) << QStringLiteral("最终兜底: SHA1匹配成功 URL=%1").arg(url);
                 } else {
-                    qCWarning(logDownload) << QStringLiteral("最终兜底SHA1不匹配 URL=%1 预期=%2 实际=%3 大小=%4")
+                    qCWarning(logDownload) << QStringLiteral("最终兜底SHA1不匹配 URL=%1 预期=%2 实际=%3 大小=%4 fileSize=%5")
                         .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
-                        .arg(data.size());
+                        .arg(data.size())
+                        .arg(file->fileSize);
                     // Last resort: if size matches expected, trust the mirror's data.
                     // The mirror may serve a functionally identical but differently-hashed
                     // version (stale manifest SHA1), which is still usable.
