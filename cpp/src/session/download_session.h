@@ -111,6 +111,10 @@ public:
     qint64 mlBytesAll = 0;
     qint64 mlBytesDone = 0;
     qint64 mlFileTotal = 0;
+    qint64 mlSpeed = 0;          // ML 下载瞬时速度 (bytes/s)
+    qint64 fabSpeed = 0;         // Fabric API 下载速度 (bytes/s, delta/200ms)
+    qint64 fabSpeedLastBytes = 0; // 上次 Fabric API 接收字节
+    qint64 fabSpeedLastMs = 0;    // 上次 Fabric API 速度时间戳
 
     // ── 用户数据导入 ──
     bool hasImportPending = false;

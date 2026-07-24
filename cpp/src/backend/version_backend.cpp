@@ -647,6 +647,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
 
 
+            ds->mlSpeed = speed;  // store ML download speed
             ds->mlBytesDl = ds->mlBytesDone + received;
 
             // Push byte progress to the active ML step
@@ -5676,6 +5677,30 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                     updateStep(installName, 7, QStringLiteral("active"), pct);
 
+                    // Track Fabric API download speed
+
+                    auto* ds = dlSession(installName);
+
+                    if (ds) {
+
+                        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+
+                        qint64 delta = recv - ds->fabSpeedLastBytes;
+
+                        qint64 timeDelta = nowMs - ds->fabSpeedLastMs;
+
+                        if (delta > 0 && timeDelta >= 200) {
+
+                            ds->fabSpeed = delta * 1000 / timeDelta;
+
+                            ds->fabSpeedLastBytes = recv;
+
+                            ds->fabSpeedLastMs = nowMs;
+
+                        }
+
+                    }
+
                 });
 
 
@@ -7192,12 +7217,15 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         QString effectiveName = name.isEmpty() ? installId : name;
         QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
         InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
-        // Use network speed from m_dlStates (matches doRebuildInstallCards calc)
-        // Only during active download — clear to 0 when MC is done to avoid stale decay value
+        // Speed: MC + ML installer + Fabric API (aggregated)
+        qint64 ts = 0;
         if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
-            mergedCard.speed = m_dlStates[ds->mcVersion].speed;
-        else
-            mergedCard.speed = 0;
+            ts += m_dlStates[ds->mcVersion].speed;
+        if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+            ts += ds->mlSpeed;
+        if (ds->fabricApiPending && ds->fabSpeed > 0)
+            ts += ds->fabSpeed;
+        mergedCard.speed = ts;
         int mrow = m_installCardsModel->findRowByIid(installId);
         if (mrow >= 0) {
             // Keep Section 1 type (mod_loader), not toCard default
@@ -8084,7 +8112,7 @@ auto* ds = dlSession(it.key());
 
         c.progress = qBound(0.0, ds->smoothProgress, 1.0); // Show real progress even while MC downloads
 
-        // Speed: sum MC + loader when both are downloading in parallel
+        // Speed: aggregate MC + ML installer + Fabric API
 
         {
 
@@ -8094,11 +8122,23 @@ auto* ds = dlSession(it.key());
 
                 bool mcActive = m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone;
 
-                bool mlActive = m_mlInstaller && m_mlInstaller->isRunning();
-
                 if (mcActive)  s += m_dlStates[ds->mcVersion].speed;
 
             }
+
+            // Add ML installer download speed (while actively running)
+
+            bool mlActive = m_mlInstaller && m_mlInstaller->isRunning();
+
+            if (mlActive && ds->mlSpeed > 0)
+
+                s += ds->mlSpeed;
+
+            // Add Fabric API download speed (while pending)
+
+            if (ds->fabricApiPending && ds->fabSpeed > 0)
+
+                s += ds->fabSpeed;
 
             c.speed = s;
 
