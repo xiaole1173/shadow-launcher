@@ -105,6 +105,9 @@ Rectangle {
             visible: text !== ""
         }
 
+        // ── 弹簧：将完成图标推到最右侧 ──
+        Item { Layout.fillWidth: true }
+
         // ── 完成图标 (Lucide check-circle.svg) ──
         Image {
             visible: !model.failed && model.progress >= 1.0

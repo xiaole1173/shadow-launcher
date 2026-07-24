@@ -139,7 +139,7 @@ private:
     // 3 秒滑动窗口速度跟踪
     struct SpeedSample { qint64 timeMs; qint64 bytes; };
     QVector<SpeedSample> m_speedWindow;
-    static constexpr qint64 kSpeedWindowMs = 3000;
+    static constexpr qint64 kSpeedWindowMs = 1500;
 
     StepPipeline* m_pipeline = nullptr;
     QElapsedTimer m_sessionTimer;
