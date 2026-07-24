@@ -61,6 +61,7 @@ public:
     void appendRow(const InstallCard& card);
     void removeRow(int row);
     int findRowByIid(const QString& iid) const;
+    QVariantList stepsAt(int row) const;  // preserve steps on incremental update
 
     int count() const { return m_cards.size(); }
     int generation() const { return m_generation; }

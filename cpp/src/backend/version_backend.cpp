@@ -7063,7 +7063,9 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
     int row = m_installCardsModel->findRowByIid(installId);
 
     if (row >= 0) {
-
+        // Preserve existing steps to avoid QML Repeater recreation
+        // (toCard() creates a fresh QVariantList every call)
+        card.steps = m_installCardsModel->stepsAt(row);
         m_installCardsModel->updateRow(row, card);
 
     } else {
@@ -7488,6 +7490,11 @@ void InstallCardModel::updateRow(int row, const InstallCard& card) {
 
     emit cardUpdated(row);
 
+}
+
+QVariantList InstallCardModel::stepsAt(int row) const {
+    if (row < 0 || row >= m_cards.size()) return {};
+    return m_cards[row].steps;
 }
 
 
