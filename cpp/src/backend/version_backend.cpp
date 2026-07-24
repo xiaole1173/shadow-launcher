@@ -3526,6 +3526,11 @@ InstallSession& VersionBackend::session(const QString& installId) {
     if (!m_downloadSessions.contains(installId)) {
         auto* ds = new DownloadSession(installId, this);
         m_downloadSessions[installId] = ds;
+        // Wire pipeline progress → incremental card update
+        QObject::connect(ds, &DownloadSession::progressUpdated, this, [this, installId]() {
+            updateCardFromSession(installId);
+            syncPipelineToStruct(installId);
+        });
     }
     return m_sessions[installId];
 }
