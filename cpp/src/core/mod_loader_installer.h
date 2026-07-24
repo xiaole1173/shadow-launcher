@@ -93,6 +93,9 @@ private:
     void copyRecursive(const QString& srcDir, const QString& dstDir);
 
     // Forge/NeoForge
+    /// Resolve a version ID to its actual directory path (handles name mismatch)
+    QString findVersionDir(const QString& versionId) const;
+
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
     void neoStep1_downloadInstaller();

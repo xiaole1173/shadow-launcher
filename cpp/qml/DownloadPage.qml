@@ -1333,8 +1333,16 @@ Rectangle {
         function onResourceDownloadProgress(completed, total, fileName) {
             if (page.installingRpName) {
                 var pct = total > 0 ? Math.round(completed / total * 100) : 0
-                console.log("[resourcepack] download progress:", page.installingRpName, completed, "/", total, "(" + pct + "%)")
-                toastManager.show("下载中 " + page.installingRpName + ": " + pct + "%")
+                var speedStr = ""
+                var spd = backend.resourceDownloadSpeed || 0
+                if (spd > 0) {
+                    var speedUnits = ["B/s", "KB/s", "MB/s"]
+                    var su = 0
+                    var sv = spd
+                    while (sv >= 1024 && su < 2) { sv /= 1024; su++ }
+                    speedStr = su === 0 ? sv.toFixed(0) + " " + speedUnits[su] : sv.toFixed(1) + " " + speedUnits[su]
+                }
+                if (toastManager) toastManager.show("下载中 " + page.installingRpName + ": " + pct + "%" + (speedStr ? " (" + speedStr + ")" : ""))
                 if (page.mainWindow && page.mainWindow.loadingBar) {
                     page.mainWindow.loadingBar.opacity = (completed < total) ? 1 : 0
                 }

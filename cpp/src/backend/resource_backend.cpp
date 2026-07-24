@@ -5,6 +5,7 @@
 #include "core/http_client.h"
 #include "utils/logger.h"
 
+#include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -453,6 +454,20 @@ void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHi
 
 void ResourceBackend::onDownloadProgress(const QString& name, qint64 received, qint64 total)
 {
+    // ── Speed tracking (instantaneous delta / elapsed) ──
+    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    qint64 delta = received - m_dlLastBytes;
+    qint64 dt = m_dlLastMs > 0 ? (nowMs - m_dlLastMs) : 0;
+    if (delta > 0 && dt > 0) {
+        m_dlSpeed = static_cast<int>((delta * 1000) / dt);
+    } else if (delta > 0 && dt == 0) {
+        // First pulse: record timestamp, don't compute speed yet
+    } else if (dt > 30000) {
+        m_dlSpeed = 0;
+    }
+    m_dlLastBytes = received;
+    m_dlLastMs = nowMs;
+
     m_dlProgress = static_cast<int>(received);
     m_dlTotal    = static_cast<int>(total);
     m_dlFile     = name;
@@ -465,6 +480,9 @@ void ResourceBackend::onDownloadFinished(const QString& slug, bool success,
     m_downloading = false;
     m_dlProgress  = 0;
     m_dlTotal     = 0;
+    m_dlSpeed     = 0;
+    m_dlLastBytes = 0;
+    m_dlLastMs    = 0;
     m_dlFile.clear();
     emit downloadStateChanged();
 

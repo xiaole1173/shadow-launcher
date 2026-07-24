@@ -14,6 +14,7 @@ class ResourceBackend : public QObject {
     Q_PROPERTY(bool downloading READ isDownloading NOTIFY downloadStateChanged)
     Q_PROPERTY(int dlProgress READ dlProgress NOTIFY downloadProgressChanged)
     Q_PROPERTY(int dlTotal READ dlTotal NOTIFY downloadProgressChanged)
+    Q_PROPERTY(int dlSpeed READ dlSpeed NOTIFY downloadProgressChanged)
     Q_PROPERTY(QString dlFile READ dlFile NOTIFY downloadProgressChanged)
 
 public:
@@ -25,6 +26,7 @@ public:
     bool isDownloading() const { return m_downloading; }
     int dlProgress() const { return m_dlProgress; }
     int dlTotal() const { return m_dlTotal; }
+    int dlSpeed() const { return m_dlSpeed; }
     QString dlFile() const { return m_dlFile; }
 
     // Slots
@@ -105,6 +107,9 @@ private:
     bool m_downloading = false;
     int m_dlProgress = 0;
     int m_dlTotal = 0;
+    int m_dlSpeed = 0;
+    qint64 m_dlLastBytes = 0;
+    qint64 m_dlLastMs = 0;
     QString m_dlFile;
     QString m_minecraftDir;
     SearchKind m_searchKind = SearchKind::Mod;

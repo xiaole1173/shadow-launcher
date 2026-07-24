@@ -122,12 +122,13 @@ VersionBackend::VersionBackend(QObject* parent)
 
 
     // Throttle incremental card updates (100ms — avoid UI freeze from rapid progress signals)
-    m_cardUpdateThrottle.setSingleShot(true);
+    m_cardUpdateThrottle.setSingleShot(false);
     m_cardUpdateThrottle.setInterval(200);
     connect(&m_cardUpdateThrottle, &QTimer::timeout, this, [this]() {
         for (const auto& id : m_pendingCardUpdates)
             updateCardFromSession(id);
         m_pendingCardUpdates.clear();
+        m_cardUpdateThrottle.stop();
     });
 
 
@@ -2094,12 +2095,17 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
     syncPrimaryProgress();
 
+    // ── Clean up partial files ──
+    if (!m_gameDir.isEmpty())
+        cleanupCanceledVersion(resolvedId, m_gameDir);
+    else
+        qCDebug(logVersion) << "[cancelInstall] 无法清理: 无游戏目录";
+
     // ── Update DownloadSession for immediate card feedback ──
-    // rebuildInstallCards() skips versions managed by updateCardFromSession (pure MC),
-    // so we push the cancelled state directly into the DownloadSession.
     auto* cancelDs = dlSession(resolvedId);
     if (cancelDs && !cancelDs->isMerged()) {
         cancelDs->markFailed(tr("已取消"));
+        cancelDs->resetSpeed();
         updateCardFromSession(resolvedId, versionId, QStringLiteral("version"));
     }
 
@@ -3547,7 +3553,11 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                     } else {
                         st1 = (st2.catBytesDl[1] >= st2.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active");
                     }
-                    int pct1 = st2.catBytesTotal[1] > 0 ? qMin((int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]), 100) : (st2.bytesDl > 0 ? 100 : 0);
+                    int raw1 = st2.catBytesTotal[1] > 0 ? (int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]) : (st2.bytesDl > 0 ? 100 : 0);
+                    if (raw1 > 100)
+                        qCWarning(logVersion) << QStringLiteral("[pctOverflow] ver=%1 step=1 rawPct=%2 dl=%3KB total=%4KB")
+                            .arg(versionId).arg(raw1).arg(st2.catBytesDl[1]/1024).arg(st2.catBytesTotal[1]/1024);
+                    int pct1 = qMin(raw1, 100);
                     updateStep(versionId, 1, st1, pct1, st2.catBytesDl[1], st2.catBytesTotal[1]);
                 }
                 // Step 2 (assets): category index 2
@@ -3558,7 +3568,11 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                     } else {
                         st2s = (st2.catBytesDl[2] >= st2.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active");
                     }
-                    int pct2 = st2.catBytesTotal[2] > 0 ? qMin((int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]), 100) : (st2.bytesDl > 0 ? 100 : 0);
+                    int raw2 = st2.catBytesTotal[2] > 0 ? (int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]) : (st2.bytesDl > 0 ? 100 : 0);
+                    if (raw2 > 100)
+                        qCWarning(logVersion) << QStringLiteral("[pctOverflow] ver=%1 step=2 rawPct=%2 dl=%3KB total=%4KB")
+                            .arg(versionId).arg(raw2).arg(st2.catBytesDl[2]/1024).arg(st2.catBytesTotal[2]/1024);
+                    int pct2 = qMin(raw2, 100);
                     updateStep(versionId, 2, st2s, pct2, st2.catBytesDl[2], st2.catBytesTotal[2]);
                 }
             }
@@ -3620,16 +3634,22 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                         QString s1 = (mst.catBytesTotal[1] <= 0)
                             ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
                             : ((mst.catBytesDl[1] >= mst.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active"));
-                        updateStep(mergedSessionId, 1, s1,
-                            mst.catBytesTotal[1] > 0 ? qMin((int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]), 100) : (mst.bytesDl > 0 ? 100 : 0),
+                        int mraw1 = mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : (mst.bytesDl > 0 ? 100 : 0);
+                        if (mraw1 > 100)
+                            qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=1 rawPct=%2 dl=%3KB total=%4KB")
+                                .arg(mergedSessionId).arg(mraw1).arg(mst.catBytesDl[1]/1024).arg(mst.catBytesTotal[1]/1024);
+                        updateStep(mergedSessionId, 1, s1, qMin(mraw1, 100),
                             mst.catBytesDl[1], mst.catBytesTotal[1]);
                     }
                     {
                         QString s2 = (mst.catBytesTotal[2] <= 0)
                             ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
                             : ((mst.catBytesDl[2] >= mst.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active"));
-                        updateStep(mergedSessionId, 2, s2,
-                            mst.catBytesTotal[2] > 0 ? qMin((int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]), 100) : (mst.bytesDl > 0 ? 100 : 0),
+                        int mraw2 = mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : (mst.bytesDl > 0 ? 100 : 0);
+                        if (mraw2 > 100)
+                            qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=2 rawPct=%2 dl=%3KB total=%4KB")
+                                .arg(mergedSessionId).arg(mraw2).arg(mst.catBytesDl[2]/1024).arg(mst.catBytesTotal[2]/1024);
+                        updateStep(mergedSessionId, 2, s2, qMin(mraw2, 100),
                             mst.catBytesDl[2], mst.catBytesTotal[2]);
                     }
                 }
@@ -3753,9 +3773,14 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
         // Use max() so in-flight progress during download completion doesn't get
         // overwritten by a later fileProgress with smaller received (DEDUP or stale signal).
-        // But cap at catBytesTotal to prevent >100% display overflow.
-        qint64 capped = qMin(catDone, st.catBytesTotal[cat] > 0 ? st.catBytesTotal[cat] : catDone);
-        st.catBytesDl[cat] = qMax(st.catBytesDl[cat], capped);
+        // Clamp at catBytesTotal to prevent >100% overflow, with WARN when mismatch.
+        if (st.catBytesTotal[cat] > 0 && catDone > st.catBytesTotal[cat]) {
+            qCWarning(logVersion) << QStringLiteral("[catOverflow] ver=%1 cat=%2 dl=%3KB > total=%4KB file=%5 dedup=%6")
+                .arg(versionId).arg(cat).arg(catDone/1024).arg(st.catBytesTotal[cat]/1024).arg(fileName)
+                .arg(st.catBytesCountedPaths.contains(savePath));
+            catDone = st.catBytesTotal[cat];
+        }
+        st.catBytesDl[cat] = qMax(st.catBytesDl[cat], catDone);
 
 
 
@@ -7181,7 +7206,8 @@ DownloadSession* VersionBackend::ensureSession(const QString& installId) {
         // Deferred update via throttle to avoid hammering QML at 60+ updates/sec
         if (!m_pendingCardUpdates.contains(installId))
             m_pendingCardUpdates.append(installId);
-        m_cardUpdateThrottle.start();
+        if (!m_cardUpdateThrottle.isActive())
+            m_cardUpdateThrottle.start();
     });
     return ds;
 }
@@ -7239,6 +7265,18 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
     }
 
     InstallCard card = ds->toCard(installId, name, type);
+
+    // ── Speed from DlState (correct instantaneous delta, not broken qMax) ──
+    // DownloadSession::m_speed uses qMax which never let speed decrease.
+    // DlState.speed uses proper delta/elapsed with no qMax.
+    if (!ds->isMerged() && m_dlStates.contains(installId)) {
+        card.speed = m_dlStates[installId].speed;
+    }
+
+    // ── Only show cancel button during active download ──
+    if (card.failed || card.progress >= 1.0) {
+        card.canCancel = false;
+    }
 
     // ── Patch phase from ds->steps (fallback when pipeline phase empty) ──
     if (card.phase.isEmpty() && !ds->steps.isEmpty()) {
@@ -7522,7 +7560,8 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
     // would flood the main thread (QNetworkReply fires 60+ events/sec during downloads).
     if (!m_pendingCardUpdates.contains(installId))
         m_pendingCardUpdates.append(installId);
-    m_cardUpdateThrottle.start();
+    if (!m_cardUpdateThrottle.isActive())
+        m_cardUpdateThrottle.start();
 
     }
 

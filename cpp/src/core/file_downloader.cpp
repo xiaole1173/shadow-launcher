@@ -296,7 +296,10 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);
 
-            if (!file->isUnknownSize) {
+            // Range header only for multi-threaded (split) downloads.
+            // No-split files always request the full file — Range would cause
+            // retries to resume from a stale offset after CDN truncation.
+            if (!file->isUnknownSize && !file->isNoSplit) {
                 qint64 start = th->downloadStart + th->downloadDone;
                 qint64 end = th->downloadEnd - 1;
                 req.setRawHeader("Range", QString("bytes=%1-%2").arg(start).arg(end).toUtf8());
@@ -321,9 +324,16 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     th->downloadDone = received;
                 }
                 th->lastReceiveTime = getElapsedMs();
+                // Throttle progress signals to 150ms intervals (avoids QML UI freeze)
+                static qint64 s_lastProgressEmitMs = 0;
+                qint64 now = getElapsedMs();
+                if (now - s_lastProgressEmitMs >= 150) {
+                    s_lastProgressEmitMs = now;
+                    emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
+                                          m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
+                }
+                // fileProgress is needed for per-file detail but throttle it too
                 emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
-                emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
-                                      m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
             });
 
             loop.exec();
@@ -336,6 +346,8 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 reply->deleteLater();
                 // Connection failures: give up after 3 attempts
                 if (attempt >= 2) break;
+                // No-split files start fresh on retry (stale Range offset = truncated file)
+                th->downloadDone = 0;
                 continue;
             }
 
@@ -350,6 +362,7 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     .arg(url).arg(expectedSize).arg(data.size()).arg(file->fileSize);
                 sourceOk = false;
                 reply->deleteLater();
+                th->downloadDone = 0;
                 continue;
             }
             reply->deleteLater();
@@ -445,9 +458,16 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     th->downloadDone = received;
                 }
                 th->lastReceiveTime = getElapsedMs();
+                // Throttle progress signals to 150ms intervals (avoids QML UI freeze)
+                static qint64 s_lastProgressEmitMs = 0;
+                qint64 now = getElapsedMs();
+                if (now - s_lastProgressEmitMs >= 150) {
+                    s_lastProgressEmitMs = now;
+                    emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
+                                          m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
+                }
+                // fileProgress is needed for per-file detail but throttle it too
                 emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
-                emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
-                                      m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
             });
 
             loop.exec();

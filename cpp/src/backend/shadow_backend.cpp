@@ -424,6 +424,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 if (!downloading) {
                     m_resourceDlProgress = 0;
                     m_resourceDlTotal = 0;
+                    m_resourceDlSpeed = 0;
                     m_resourceDlFile.clear();
                     emit resourceDownloadProgress(0, 0, QString());
                     if (m_version) m_version->removeResourceCard(QStringLiteral("resource"));
@@ -440,6 +441,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, [this](int completed, int total, const QString& fileName) {
                 m_resourceDlProgress = completed;
                 m_resourceDlTotal = total;
+                m_resourceDlSpeed = m_resource->dlSpeed();
                 m_resourceDlFile = fileName;
                 qCInfo(logLaunch) << QStringLiteral("[资源包下载] 进度 %1/%2 %3").arg(completed).arg(total).arg(fileName);
                 emit resourceDownloadProgress(completed, total, fileName);
@@ -1715,6 +1717,10 @@ void ShadowBackend::cancelInstall() {
 
 void ShadowBackend::cancelVersionInstall(const QString& versionId) {
     if (m_version) m_version->cancelVersionInstall(versionId);
+}
+
+void ShadowBackend::dismissCard(const QString& installId) {
+    if (m_version) m_version->dismissCard(installId);
 }
 
 void ShadowBackend::cancelQueuedDownload(const QString& versionId) {

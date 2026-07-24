@@ -6,7 +6,7 @@ import QtQuick.Layouts
 
 // DownloadQueueCard — 下载队列面板中的单张卡片
 // 紧凑布局：名称行 + 进度条 + 信息行
-// 取消按钮始终可见，使用 Lucide x.svg 图标
+// 取消按钮在可取消时显示 x.svg，完成后自动 3s 消失
 
 Rectangle {
     id: root
@@ -15,6 +15,21 @@ Rectangle {
     implicitHeight: (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height) + 12
     radius: StyleTokens.radiusLg
     color: "#141a24"
+
+    // ── 自动消失计时器（完成后 3s 自动关闭卡片） ──
+    // 只触发一次，触发后由 running 绑定控制不再重复
+    Timer {
+        id: dismissTimer
+        interval: 3000
+        repeat: false
+        running: !_dismissed && (model.failed || model.progress >= 1.0)
+        property bool _dismissed: false
+        onTriggered: {
+            _dismissed = true
+            if (backend && model.iid)
+                backend.dismissCard(model.iid)
+        }
+    }
 
     // ── 进度条 (4px) ──
     Rectangle {
@@ -37,7 +52,7 @@ Rectangle {
         }
     }
 
-    // ── 第一行：名称 + 取消按钮 ──
+    // ── 第一行：名称 + 取消/关闭按钮 ──
     Item {
         id: nameRow
         anchors.top: parent.top; anchors.topMargin: 10
@@ -49,21 +64,26 @@ Rectangle {
             id: nameText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: model.name || ""
+            text: model.failed ? (model.name || "") + " — " + (model.error || "失败")
+                  : (model.name || "")
             font.pixelSize: StyleTokens.fontSizeCaption
-            color: StyleTokens.textPrimary
+            color: model.failed ? StyleTokens.errorLight
+                 : model.progress >= 1.0 ? "#3fb950"
+                 : StyleTokens.textPrimary
             elide: Text.ElideRight
-            width: parent.width - 30  // leave space for cancel button
+            width: parent.width - 30
         }
 
-        // ── 取消按钮 (Lucide x.svg) ──
+        // ── 操作按钮 ──
+        // 失败/完成后：关闭图标 (x.svg)，取消后或已终态：关闭
+        // 活跃下载中：如果可取消则显示 x.svg 取消按钮
         Rectangle {
-            id: cancelBtn
+            id: actionBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 20; height: 20; radius: 10
-            visible: model.canCancel !== false
-            color: cancelMouse.containsMouse ? "#4a1a1a" : "transparent"
+            visible: model.canCancel !== false || model.failed || model.progress >= 1.0
+            color: actionMouse.containsMouse ? "#4a1a1a" : "transparent"
 
             Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -75,12 +95,19 @@ Rectangle {
             }
 
             MouseArea {
-                id: cancelMouse
+                id: actionMouse
                 anchors.fill: parent; hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (backend && model.iid)
-                        backend.cancelVersionInstall(model.iid)
+                    if (model.failed || model.progress >= 1.0) {
+                        // 完成态：关闭卡片
+                        if (backend && model.iid)
+                            backend.dismissCard(model.iid)
+                    } else {
+                        // 下载中：取消任务
+                        if (backend && model.iid)
+                            backend.cancelVersionInstall(model.iid)
+                    }
                 }
             }
         }
@@ -96,19 +123,17 @@ Rectangle {
 
         Text {
             text: {
-                if (model.failed) return ""
-                if (model.progress >= 1.0) return " "  // placeholder, icon replaces
+                if (model.failed) return model.error || "失败"
+                if (model.progress >= 1.0) return "完成 ✓"
                 return fmtSpeed(model.speed || 0)
             }
             font.pixelSize: StyleTokens.fontSizeXs
             color: model.failed ? StyleTokens.errorLight
                  : model.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textMuted
-            // 始终可见 — 防止子步骤因速度消失而抖动
             visible: true
         }
 
-        // ── 弹簧：将完成图标推到最右侧 ──
         Item { Layout.fillWidth: true }
 
         // ── 完成图标 (Lucide check-circle.svg) ──
@@ -127,9 +152,7 @@ Rectangle {
         anchors.left: parent.left; anchors.leftMargin: 16
         anchors.right: parent.right; anchors.rightMargin: 12
         spacing: 3
-        // Only show sub-steps during active download, not when done/failed
         visible: model.progress < 1.0 && !model.failed
-        // Capture steps BEFORE the Repeater shadows the 'model' identifier
         property var __steps: model && model.steps ? model.steps : []
 
         Repeater {
@@ -140,9 +163,6 @@ Rectangle {
                 visible: modelData && modelData.show !== false
                 height: 16
 
-                // ── 步骤进度平滑动画 ──
-                // 原始值来自 modelData.percentage，但 C++ 端可能一次跳 30%+
-                // 这里用 SmoothedAnimation 在 QML 层做插值过渡
                 property real stepRawPct: modelData.percentage || 0
                 property real stepSmoothPct: stepRawPct
 
@@ -155,7 +175,6 @@ Rectangle {
                     }
                 }
 
-                // ── 状态指示器 (圆点) ──
                 Rectangle {
                     width: 6; height: 6; radius: 3
                     anchors.verticalCenter: parent.verticalCenter
@@ -168,7 +187,6 @@ Rectangle {
                     }
                 }
 
-                // ── 步骤名 ──
                 Text {
                     text: modelData.name || ""
                     font.pixelSize: StyleTokens.fontSizeXs
@@ -177,7 +195,6 @@ Rectangle {
                     Layout.fillWidth: true
                 }
 
-                // ── 活跃步骤的百分比 (平滑插值) ──
                 Text {
                     text: modelData.status === "active" ? (Math.round(stepSmoothPct) + "%") : ""
                     font.pixelSize: StyleTokens.fontSizeXs
@@ -188,7 +205,7 @@ Rectangle {
         }
     }
 
-    // ── 辅助函数 (从 DownloadProgressPage 移植) ──
+    // ── 辅助函数 ──
     function fmtSize(bytes) {
         if (!bytes || bytes < 0) return "0 B"
         var units = ["B", "KB", "MB", "GB"]

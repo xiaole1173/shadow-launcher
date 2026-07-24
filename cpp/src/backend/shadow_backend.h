@@ -91,6 +91,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(bool downloading READ isResourceDownloading NOTIFY resourceDownloadStateChanged)
     Q_PROPERTY(int resourceDownloadProgress READ resourceDownloadProgress NOTIFY resourceDownloadProgress)
     Q_PROPERTY(int resourceDownloadTotal READ resourceDownloadTotal NOTIFY resourceDownloadProgress)
+    Q_PROPERTY(int resourceDownloadSpeed READ resourceDownloadSpeed NOTIFY resourceDownloadProgress)
     Q_PROPERTY(QString resourceDownloadFile READ resourceDownloadFile NOTIFY resourceDownloadProgress)
 
     Q_PROPERTY(QObject* modManager READ modManager CONSTANT)
@@ -255,6 +256,7 @@ public:
     bool isResourceDownloading() const;
     int resourceDownloadProgress() const { return m_resourceDlProgress; }
     int resourceDownloadTotal() const { return m_resourceDlTotal; }
+    int resourceDownloadSpeed() const { return m_resourceDlSpeed; }
     QString resourceDownloadFile() const { return m_resourceDlFile; }
 
     // ── App getters ──
@@ -339,6 +341,7 @@ public:
     Q_INVOKABLE void installVersion(const QString& versionId);
     Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void cancelVersionInstall(const QString& versionId);
+    Q_INVOKABLE void dismissCard(const QString& installId);
     Q_INVOKABLE void launch(const QString& versionId, bool online);
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();
@@ -725,6 +728,7 @@ private:
     // ── Resource download progress tracking ──
     int m_resourceDlProgress = 0;
     int m_resourceDlTotal = 0;
+    int m_resourceDlSpeed = 0;
     QString m_resourceDlFile;
     QMap<int, QString> m_modDownloadCards;  // dlId → cardId for mod file cards
 

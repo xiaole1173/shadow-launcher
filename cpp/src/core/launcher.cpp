@@ -209,6 +209,8 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         m_process->setProcessEnvironment(env);
     }
 
+    qCInfo(logLaunch) << QStringLiteral("JVM args: %1").arg(args.join(QLatin1Char(' ')));
+
     m_process->start(javaPath, args);
 }
 
@@ -271,6 +273,7 @@ void Launcher::onReadyReadStderr()
     QByteArray data = m_process->readAllStandardError();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
+        qCInfo(logLaunch) << QStringLiteral("[JVM stderr] %1").arg(text);
         emit launchProgress(text);
     }
 }
@@ -515,6 +518,35 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
     QStringList versionStack;  // JSON chain, youngest first
     QJsonObject currentJson = versionJson;
     QString currentId = versionId;
+
+    // Helper: find actual version JSON path given an ID (may differ from directory name)
+    auto resolveJsonPath = [&](const QString& id) -> QString {
+        QString path = gameDir + QStringLiteral("/versions/") + id
+                     + QStringLiteral("/") + id + QStringLiteral(".json");
+        if (QFileInfo::exists(path))
+            return path;
+        // Fallback: scan all version directories for a JSON whose "id" matches
+        QDir versionsDir(gameDir + QStringLiteral("/versions"));
+        const QStringList dirs = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& dir : dirs) {
+            QDir vdir(versionsDir.absoluteFilePath(dir));
+            const QStringList jsonFiles = vdir.entryList({QStringLiteral("*.json")}, QDir::Files);
+            for (const QString& jsonFile : jsonFiles) {
+                QString fp = vdir.absoluteFilePath(jsonFile);
+                QFile f(fp);
+                if (!f.open(QIODevice::ReadOnly)) continue;
+                QJsonParseError pe;
+                QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
+                f.close();
+                if (pe.error == QJsonParseError::NoError && doc.isObject()) {
+                    if (doc.object()[QStringLiteral("id")].toString() == id)
+                        return fp;
+                }
+            }
+        }
+        return QString();
+    };
+
     while (true) {
         // Add libraries from current JSON
         QJsonArray libraries = currentJson[QStringLiteral("libraries")].toArray();
@@ -525,7 +557,6 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
             QString libPath = resolveLibraryPath(lib, libsDir);
             if (!libPath.isEmpty() && QFileInfo::exists(libPath)) {
                 // Skip JARs whose group:artifact is on the module path (NeoForge -p flag)
-                // Uses prefix match to exclude ALL versions, not just exact JAR paths
                 QString relativePath = libPath.mid(libsDir.length() + 1);
                 bool isModuleJar = false;
                 for (const QString& prefix : moduleExcludePaths) {
@@ -538,7 +569,6 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
                     qDebug() << "[Launch] Skipping module-path JAR:" << relativePath;
                     continue;
                 }
-                // Deduplicate: same JAR may appear in both Forge and base JSON
                 if (!seenLibs.contains(libPath)) {
                     seenLibs.insert(libPath);
                     cp.append(libPath);
@@ -546,16 +576,25 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
             }
         }
 
-        // Walk up inheritsFrom chain
+        // Also add the parent version's JAR to classpath (Forge needs MC classes)
         QString parentId = currentJson[QStringLiteral("inheritsFrom")].toString();
         if (parentId.isEmpty() || parentId == currentId) break;
-        // Prevent infinite loops
         if (versionStack.contains(parentId)) break;
         versionStack.append(parentId);
 
-        QString parentPath = gameDir + QStringLiteral("/versions/") + parentId
-                           + QStringLiteral("/") + parentId + QStringLiteral(".json");
-        QFile pf(parentPath);
+        QString parentJsonPath = resolveJsonPath(parentId);
+        if (parentJsonPath.isEmpty()) break;
+
+        // Add parent version JAR to classpath
+        QFileInfo pji(parentJsonPath);
+        QString parentJar = pji.absolutePath() + QStringLiteral("/") + pji.completeBaseName() + QStringLiteral(".jar");
+        if (QFileInfo::exists(parentJar) && !seenLibs.contains(parentJar)) {
+            seenLibs.insert(parentJar);
+            cp.append(parentJar);
+            qCInfo(logLaunch) << QStringLiteral("添加父版本 JAR: %1").arg(parentJar);
+        }
+
+        QFile pf(parentJsonPath);
         if (!pf.open(QIODevice::ReadOnly)) break;
         QJsonParseError parseErr;
         QJsonDocument parentDoc = QJsonDocument::fromJson(pf.readAll(), &parseErr);
@@ -650,22 +689,16 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << QString::fromLatin1(arg);
     }
 
-    // LWJGL 2 (pre-1.13) with Java 9+ needs --add-opens for reflection access
+    // Java 9+ needs --add-opens for reflective access (ModLauncher, Forge, LWJGL 2, etc.)
     // Java 8 doesn't support --add-opens (unrecognized option → crash)
     if (m_javaMajorVersion >= 9) {
-        static const QRegularExpression lwjgl2Ver(QStringLiteral(R"(^1\.(\d+))"));
-        QRegularExpressionMatch verMatch = lwjgl2Ver.match(versionId);
-        if (verMatch.hasMatch()) {
-            bool ok = false;
-            int minor = verMatch.captured(1).toInt(&ok);
-            if (ok && minor < 13) {
-                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.lang=ALL-UNNAMED");
-                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.util=ALL-UNNAMED");
-                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.lang.reflect=ALL-UNNAMED");
-                args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.text=ALL-UNNAMED");
-                args << QStringLiteral("--add-opens") << QStringLiteral("java.desktop/java.awt=ALL-UNNAMED");
-            }
-        }
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.lang=ALL-UNNAMED");
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.util=ALL-UNNAMED");
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.lang.reflect=ALL-UNNAMED");
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.text=ALL-UNNAMED");
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.desktop/java.awt=ALL-UNNAMED");
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.net=ALL-UNNAMED");
+        args << QStringLiteral("--add-opens") << QStringLiteral("java.base/java.nio=ALL-UNNAMED");
     }
 
     // Append user-provided custom JVM args (space-separated, may override defaults)

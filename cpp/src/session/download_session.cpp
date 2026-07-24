@@ -39,7 +39,8 @@ void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
     m_lastRecvTime = now;
 
     if (deltaBytes > 0 && deltaMs > 0) {
-        m_speed = qMax<qint64>(m_speed, (deltaBytes * 1000) / deltaMs);
+        // 瞬时速度: 不用 qMax — 速度可以自然升降
+        m_speed = (deltaBytes * 1000) / deltaMs;
     } else if (deltaBytes == 0 && deltaMs > 30000) {
         // 30 秒无数据 → 速度归零
         m_speed = 0;
