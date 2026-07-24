@@ -2334,8 +2334,18 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
 
 
-        refreshInstalled();
 
+        // ── Pure MC: mark verify step as completed ──
+        auto* pureFinishDs = dlSession(finishedId);
+        if (pureFinishDs && !pureFinishDs->isMerged()) {
+            int verifyIdx = 3;
+            if (verifyIdx < pureFinishDs->steps.size())
+                updateStep(finishedId, verifyIdx, QStringLiteral("completed"), 100);
+        }
+
+
+
+        refreshInstalled();
     } else if (m_userCancelledIds.remove(finishedId)) {
 
         // User cancelled — delete entire version folder, skip installFinished to avoid "失败" toast
