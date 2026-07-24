@@ -1543,15 +1543,11 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         }
 
-                        // Sync primary + ensure cards rebuild for standalone downloads
+                        // Sync primary progress for the download page indicator
 
-                        // (merged install path already triggers rebuild via showStep/updateStep above;
-
-                        //  pure MC path uses updateCardFromSession via updateStep)
+                        // (cards already updated via showStep/updateStep → updateCardFromSession above)
 
                         syncPrimaryProgress();
-
-                        rebuildInstallCards();
 
                     });
 
@@ -2108,8 +2104,6 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         cancelDs->resetSpeed();
         updateCardFromSession(resolvedId, versionId, QStringLiteral("version"));
     }
-
-    rebuildInstallCards();
 
 
 
@@ -7648,27 +7642,24 @@ int VersionBackend::installRemainingSteps(const QString& sessionId) const {
 void VersionBackend::addResourceCard(const QString& cardId, const QString& displayName) {
 
     QVariantMap c;
-
     c["installId"] = cardId;
-
     c["installType"] = QStringLiteral("resource");
-
     c["displayName"] = displayName;
-
     c["totalProgress"] = 0.0;
-
     c["speed"] = QVariant::fromValue<qint64>(0);
-
     c["installPhase"] = QString();
-
     c["remainingSteps"] = 0;
-
     c["steps"] = QVariantList{};
-
     m_extraCards[cardId] = c;
 
-    rebuildInstallCards();
-
+    // ── 精准插入而非全量重建 ──
+    if (m_installCardsModel && m_installCardsModel->findRowByIid(cardId) < 0) {
+        InstallCard card;
+        card.iid = cardId;
+        card.name = displayName;
+        card.type = QStringLiteral("resource");
+        m_installCardsModel->appendRow(card);
+    }
 }
 
 
@@ -7678,15 +7669,19 @@ void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, c
     if (!m_extraCards.contains(cardId)) return;
 
     QVariantMap c = m_extraCards[cardId];
-
     c["totalProgress"] = progress;
-
     if (!status.isEmpty()) c["installPhase"] = status;
-
     m_extraCards[cardId] = c;
 
-    rebuildInstallCards();
-
+    // ── 精准更新进度+阶段，而非全量重建 ──
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0) {
+            m_installCardsModel->updateProgressAndSpeed(row, progress, 0);
+            if (!status.isEmpty())
+                m_installCardsModel->updatePhase(row, status);
+        }
+    }
 }
 
 
@@ -7695,8 +7690,12 @@ void VersionBackend::removeResourceCard(const QString& cardId) {
 
     m_extraCards.remove(cardId);
 
-    rebuildInstallCards();
-
+    // ── 精准移除而非全量重建 ──
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->removeRow(row);
+    }
 }
 
 
@@ -8636,7 +8635,8 @@ void VersionBackend::setPendingUserDataImport(const QString& installId, const QS
 
     qCInfo(logVersion) << QStringLiteral("用户数据导入已标记 版本=%1 归档=%2").arg(installId, archivePath);
 
-    rebuildInstallCards();
+    // ── 精准更新卡片 (导入步骤已追加到 ds->steps) ──
+    updateCardFromSession(installId);
 
 }
 
@@ -8678,7 +8678,8 @@ void VersionBackend::cancelPendingUserDataImport(const QString& installId)
 
     qCInfo(logVersion) << QStringLiteral("用户数据导入已取消 版本=%1").arg(installId);
 
-    rebuildInstallCards();
+    // ── 精准更新卡片 (导入步骤已从 ds->steps 移除) ──
+    updateCardFromSession(installId);
 
 }
 
@@ -8706,7 +8707,12 @@ void VersionBackend::dismissCard(const QString& installId)
 
     if (m_activeCount > 0) m_activeCount--;
 
-    rebuildInstallCards();
+    // ── 精准移除卡片而非全量重建 ──
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(installId);
+        if (row >= 0)
+            m_installCardsModel->removeRow(row);
+    }
 
 }
 
