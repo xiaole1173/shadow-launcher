@@ -330,7 +330,7 @@ Window {
                         ListElement { label: "联机"; pageKey: "multiplayer"; icon: "globe" }
                         ListElement { label: "统计"; pageKey: "stats"; icon: "bar-chart-3" }
                         ListElement { label: "设置"; pageKey: "settings"; icon: "settings" }
-                        ListElement { label: "下载进度"; pageKey: "installProgress"; icon: "download" }
+                        ListElement { label: qsTr("下载进度"); pageKey: "download_progress"; icon: "download" }
                     }
 
                     Repeater {

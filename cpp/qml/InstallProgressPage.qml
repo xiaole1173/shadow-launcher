@@ -13,10 +13,17 @@ Item {
 
     property var mainWindow: null
 
-    // ── 背景 ──
+    // ── 顶部渐变装饰 ──
     Rectangle {
-        anchors.fill: parent
-        color: StyleTokens.bgPrimary
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 120
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+            GradientStop { position: 0.0; color: Qt.rgba(0.4, 0.6, 1.0, 0.08) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
     }
 
     // ── 顶部标题栏 ──
@@ -25,25 +32,69 @@ Item {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 52
-        color: StyleTokens.bgSecondary
+        height: 56
+        color: "transparent"
 
-        Text {
-            anchors.left: parent.left; anchors.leftMargin: 20
+        // 左侧标题区
+        RowLayout {
+            anchors.left: parent.left; anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("下载进度")
-            font.pixelSize: StyleTokens.fontSizeLg
-            font.bold: true
-            color: StyleTokens.textPrimary
+            spacing: 12
+
+            // 图标背景
+            Rectangle {
+                width: 32; height: 32; radius: 8
+                color: Qt.rgba(0.4, 0.6, 1.0, 0.15)
+                Image {
+                    anchors.centerIn: parent
+                    source: "icons/lucide/download-cloud.svg"
+                    width: 18; height: 18
+                    sourceSize.width: 18; sourceSize.height: 18
+                }
+            }
+
+            Text {
+                text: qsTr("下载进度")
+                font.pixelSize: StyleTokens.fontSizeLg
+                font.bold: true
+                color: StyleTokens.textPrimary
+            }
+
+            // 任务计数
+            Rectangle {
+                visible: backend && backend.activeCount > 0
+                height: 20
+                radius: 10
+                color: Qt.rgba(0.4, 0.6, 1.0, 0.2)
+                Layout.alignment: Qt.AlignVCenter
+
+                Text {
+                    anchors.centerIn: parent
+                    anchors.leftMargin: 8; anchors.rightMargin: 8
+                    text: backend ? backend.activeCount + " " + qsTr("个任务") : ""
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.accent
+                    padding: 4
+                }
+            }
         }
 
-        // ── 提示：侧边栏可同步查看 ──
+        // 右侧提示
         Text {
-            anchors.right: parent.right; anchors.rightMargin: 20
+            anchors.right: parent.right; anchors.rightMargin: 24
             anchors.verticalCenter: parent.verticalCenter
             text: qsTr("右下角 FAB 可收起/展开侧边面板")
             font.pixelSize: StyleTokens.fontSizeXs
             color: StyleTokens.textMuted
+        }
+
+        // 底部细线
+        Rectangle {
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left; anchors.leftMargin: 24
+            anchors.right: parent.right; anchors.rightMargin: 24
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.06)
         }
     }
 
@@ -56,41 +107,43 @@ Item {
         anchors.topMargin: 8
         clip: true
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ScrollBar.vertical.interactive: true
 
         Column {
             id: cardColumn
             anchors.left: parent.left
             anchors.right: parent.right
             spacing: 8
-            padding: 12
+            padding: 16
+            bottomPadding: 32
 
             // ── 下载中任务 ──
             Repeater {
+                id: cardsRepeater
                 model: backend ? backend.installCardsModel : null
 
                 delegate: DownloadQueueCard {
                     width: cardColumn.width - cardColumn.padding * 2
                     anchors.horizontalCenter: undefined
-                    // centerIn parent — anchors.horizontalCenter is set by parent Column
                 }
             }
 
             // ── 无任务占位 ──
             Item {
                 width: parent.width - parent.padding * 2
-                height: parent.height > 0 ? Math.max(parent.height - 80, 0) : 200
+                height: parent.height > 0 ? Math.max(parent.height - 80, 0) : 250
                 visible: !backend || !backend.installing
 
                 Column {
                     anchors.centerIn: parent
-                    spacing: 12
+                    spacing: 16
 
                     Image {
                         anchors.horizontalCenter: parent.horizontalCenter
                         source: "icons/lucide/download-cloud.svg"
-                        width: 48; height: 48
-                        sourceSize.width: 48; sourceSize.height: 48
-                        opacity: 0.4
+                        width: 64; height: 64
+                        sourceSize.width: 64; sourceSize.height: 64
+                        opacity: 0.3
                     }
 
                     Text {
@@ -98,17 +151,17 @@ Item {
                         text: qsTr("暂无下载任务")
                         font.pixelSize: StyleTokens.fontSizeMd
                         color: StyleTokens.textMuted
+                        opacity: 0.6
                     }
                 }
             }
         }
     }
 
-    // ── 页面过渡动画 ──
+    // ── 页面进入动画 ──
     opacity: 0
-    Behavior on opacity { NumberAnimation { duration: 200 } }
+    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
-    // 当页面变为当前页时淡入
     states: State {
         name: "visible"
         when: root.visible
