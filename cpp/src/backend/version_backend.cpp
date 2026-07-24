@@ -1209,9 +1209,17 @@ void VersionBackend::installVersion(const QString& versionId)
     m_dlStates[versionId].phase = tr("正在获取 %1 版本信息...").arg(versionId);
 
 
-    // ── Build step pipeline for pure MC download ──
+    // ── Build step pipeline for pure MC download (skipped if part of merged install) ──
     {
-        auto* ds = ensureSession(versionId);
+        bool isMergedMc = false;
+        for (auto mit = m_downloadSessions.constBegin(); mit != m_downloadSessions.constEnd(); ++mit) {
+            if (mit.value() && mit.value()->isMerged() && mit.value()->mcVersion == versionId) {
+                isMergedMc = true;
+                break;
+            }
+        }
+        if (!isMergedMc) {
+            auto* ds = ensureSession(versionId);
         if (ds) {
             rebuildSteps(versionId,
                 {tr("下载版本JSON"), tr("下载支持库"), tr("下载资源文件"), tr("校验游戏资源完整性")},
@@ -1220,6 +1228,7 @@ void VersionBackend::installVersion(const QString& versionId)
             );
             // Show card immediately — don't wait for first HTTP byte (progressUpdated signal)
             updateCardFromSession(versionId, versionId, QStringLiteral("version"));
+        }
         }
     }
 
@@ -2476,6 +2485,11 @@ auto* ds = dlSession(it.key());
                 }
 
                 ds->mcDownloadDone = true;
+                // Reveal loader download step (index 4) now that MC phase is complete
+                if (ds->steps.size() >= 5) {
+                    showStep(it.key(), 4);
+                    updateStep(it.key(), 4, QStringLiteral("pending"), 0);
+                }
 
                 // For parallel OptiFine: check if JAR is also done
 
@@ -5579,7 +5593,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
             }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
 
-             {true, true, true, false, true, false, false});
+             {true, true, true, false, false, false, false});
 
         }
 
