@@ -1144,6 +1144,16 @@ Window {
             target: downloadFab; property: "scale"; to: 1.0
             duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2.0
         }
+
+        // FAB 脉冲循环动画 (面板折叠时持续吸引注意力)
+        SequentialAnimation {
+            id: fabPulse
+            loops: Animation.Infinite
+            running: parent.visible && !downloadPanel.expanded
+            NumberAnimation { target: downloadFab; property: "scale"; to: 1.08; duration: 800; easing.type: Easing.InOutSine }
+            NumberAnimation { target: downloadFab; property: "scale"; to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+            PauseAnimation { duration: 2000 }
+        }
     }
 
     // ═══ 下载队列面板 ═══
