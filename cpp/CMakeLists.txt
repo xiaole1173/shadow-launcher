@@ -197,7 +197,6 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/DetailInfoCard.qml
         qml/DetailVersionCard.qml
         qml/DownloadPage.qml
-        qml/DownloadProgressPage.qml
         qml/ExpandableGroupCard.qml
         qml/HomePage.qml
         qml/InlineToast.qml
