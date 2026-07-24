@@ -8087,264 +8087,45 @@ auto* ds = dlSession(it.key());
 
 
 
-    // 2. Version cards
+    // 2. Version cards — from DownloadSession for pure MC installs
 
-    for (const QString& vid : m_activeIds) {
+    for (auto sit = m_downloadSessions.constBegin(); sit != m_downloadSessions.constEnd(); ++sit) {
 
-        if (seen.contains(vid)) continue;
+        const QString& sid = sit.key();
 
-        // Skip if managed by updateCardFromSession (has an active DownloadSession)
-        // Section 2 would overwrite cards that updateCardFromSession already manages
-        if (m_downloadSessions.contains(vid)) continue;
+        if (seen.contains(sid)) continue;
 
-        seen.insert(vid);
+        auto* ds = dlSession(sid);
+
+        if (!ds) continue;
+
+        // Skip merged sessions (already built by Section 1)
+
+        if (ds->isMerged()) continue;
+
+        // Skip sessions with pending loader (shown as loader card in Section 1)
+
+        if (ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty()) continue;
 
 
 
-        InstallCard c;
+        seen.insert(sid);
 
-        c.iid = vid;
+
+
+        // Build card from DownloadSession data
+
+        InstallCard c = ds->toCard(sid, sid, QStringLiteral("version"));
+
+        // Ensure consistent name/type
+
+        c.name = sid;
 
         c.type = QStringLiteral("version");
-
-        c.name = vid;
-
-        c.remaining = 0;
-
-        c.steps = QVariantList{};
-
-        c.totalProgressVisible = true;
-
-
-
-        // Always build 4-step template (even before first progress event)
-
-        QVariantList vSteps;
-
-        auto addVStep = [&](const QString& name, const QString& status, int pct, qint64 dl, qint64 tot) {
-
-            vSteps.append(QVariantMap{{"name", name}, {"status", status}, {"percentage", pct}, {"show", true}});
-
-        };
-
-
-
-        if (m_dlStates.contains(vid)) {
-
-            // Non-const: we update lastProgress for monotonic guard below
-
-            DlState& st = m_dlStates[vid];
-
-            bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
-
-            bool done = st.downloadsDone && verifying;  // all downloads complete, in verify
-
-            if (verifying) {
-
-                c.progress = (st.verifyTotal > 0) ? (qreal)st.verifyChecked / st.verifyTotal : 0.0;
-
-                c.totalProgressVisible = false;
-
-            } else {
-
-                // Weighted: cat1 (libraries+client) 50%, cat2 (assets) 50%.
-
-                // Each category internally uses its own byte progress.
-
-                qreal pct1 = st.catBytesTotal[1] > 0 ? (qreal)st.catBytesDl[1] / st.catBytesTotal[1] : 0.0;
-
-                qreal pct2 = st.catBytesTotal[2] > 0 ? (qreal)st.catBytesDl[2] / st.catBytesTotal[2] : 0.0;
-
-                c.progress = qMin(1.0, 0.5 * pct1 + 0.5 * pct2);
-
-            }
-
-            // Monotonic guard: card progress never goes backward
-
-            if (c.progress < st.lastCardProgress)
-
-                c.progress = st.lastCardProgress;
-
-            st.lastCardProgress = c.progress;
-
-            // Speed: 0 during verify, 0 after 100%, else per-state speed
-
-            if (verifying || c.progress >= 1.0) {
-
-                c.speed = 0;
-
-            } else {
-
-                auto* ds = dlSession(c.iid);
-
-                c.speed = ds ? ds->currentSpeed() : st.speed;
-
-            }
-
-            c.phase = st.phase;
-
-
-
-            // DEBUG: when 3 sub-categories claim done but speed still flowing
-
-            if (!verifying && st.speed > 0) {
-
-                bool allThreeDone = true;
-
-                for (int ci = 0; ci < 3; ci++) {
-
-                    if (st.catBytesTotal[ci] > 0 && st.catBytesDl[ci] < st.catBytesTotal[ci])
-
-                        allThreeDone = false;
-
-                }
-
-                if (allThreeDone) {
-
-                    qCDebug(logVersion).noquote()
-
-                        << QString("[SPEED-GHOST] %1: speed=%2 catBytes=[%3/%4 %5/%6 %7/%8] catFiles=[%9/%10 %11/%12 %13/%14] cf=%15/%16 bytes=%17/%18 url=%19")
-
-                           .arg(vid)
-
-                           .arg(st.speed)
-
-                           .arg(st.catBytesDl[0]).arg(st.catBytesTotal[0])
-
-                           .arg(st.catBytesDl[1]).arg(st.catBytesTotal[1])
-
-                           .arg(st.catBytesDl[2]).arg(st.catBytesTotal[2])
-
-                           .arg(st.catFilesDone[0]).arg(st.catFilesTotal[0])
-
-                           .arg(st.catFilesDone[1]).arg(st.catFilesTotal[1])
-
-                           .arg(st.catFilesDone[2]).arg(st.catFilesTotal[2])
-
-                           .arg(st.progress).arg(st.total)
-
-                           .arg(st.bytesDl).arg(st.bytesTotal)
-
-                           .arg(st.file);
-
-                }
-
-            }
-
-
-
-            // Always build 4 steps (3 download + 1 verify) — verify stays pending until phase transitions
-
-            // When all download files are processed but verify hasn't started yet,
-
-            // proactively show the verify step as active (bridges the gap).
-
-            // Use file-count progress (st.progress/st.total) instead of byte progress
-
-            // because cached/skipped files contribute to file count but not byte count.
-
-            bool catsDone = !verifying && st.bytesDl > 0 && st.total > 0 && st.progress >= st.total;
-
-            // Sticky: once verified phase is reached, downloads are irrevocably done
-
-            if (!catsDone && st.downloadsDone)
-
-                catsDone = true;
-
-            // Also check per-category file counts if populated
-
-            int totalCatFiles = st.catFilesTotal[0] + st.catFilesTotal[1] + st.catFilesTotal[2];
-
-            if (!catsDone && totalCatFiles > 0) {
-
-                int doneCatFiles = st.catFilesDone[0] + st.catFilesDone[1] + st.catFilesDone[2];
-
-                catsDone = (doneCatFiles >= totalCatFiles);
-
-            }
-
-
-
-            auto catStatus = [&](int ci) {
-
-                if (verifying || catsDone) return QStringLiteral("completed");  // download steps done
-
-                if (st.catBytesTotal[ci] > 0 && st.catBytesDl[ci] >= st.catBytesTotal[ci])
-
-                    return QStringLiteral("completed");
-
-                if (st.catBytesTotal[ci] <= 0)
-
-                    // Empty category: completed once ANY download activity has started
-
-                    return (st.bytesDl > 0) ? QStringLiteral("completed") : QStringLiteral("pending");
-
-                return QStringLiteral("active");
-
-            };
-
-            auto catDl = [&](int ci) { return st.catBytesDl[ci]; };
-
-            auto catTot = [&](int ci) { return st.catBytesTotal[ci]; };
-
-
-
-            // JSON downloaded separately before parallel start: completed once download begins
-
-            addVStep(tr("下载版本JSON"),
-
-                     verifying ? QStringLiteral("completed")
-
-                               : (st.bytesDl > 0 ? QStringLiteral("completed") : catStatus(0)),
-
-                     verifying ? 100 : (st.bytesDl > 0 ? 100
-
-                         : ((st.catBytesTotal[0] > 0) ? (int)(st.catBytesDl[0] * 100 / st.catBytesTotal[0]) : 0)),
-
-                     catDl(0), catTot(0));
-
-            addVStep(tr("下载支持库"), verifying ? QStringLiteral("completed") : catStatus(1),
-
-                     (st.catBytesTotal[1] > 0) ? (int)(st.catBytesDl[1] * 100 / st.catBytesTotal[1]) : (st.bytesDl > 0 ? 100 : 0), catDl(1), catTot(1));
-
-            addVStep(tr("下载资源文件"), verifying ? QStringLiteral("completed") : catStatus(2),
-
-                     (st.catBytesTotal[2] > 0) ? (int)(st.catBytesDl[2] * 100 / st.catBytesTotal[2]) : (st.bytesDl > 0 ? 100 : 0), catDl(2), catTot(2));
-
-            addVStep(tr("校验游戏资源完整性"),
-
-                     (verifying || catsDone || st.catsFullyDone) ? QStringLiteral("active") : QStringLiteral("pending"),
-
-                     (verifying || catsDone || st.catsFullyDone) ? (st.verifyTotal > 0 ? (int)(st.verifyChecked * 100 / st.verifyTotal) : 0) : 0,
-
-                     (verifying || catsDone || st.catsFullyDone) ? st.verifyChecked : qint64(0),
-
-                     (verifying || catsDone || st.catsFullyDone) ? st.verifyTotal : qint64(0));
-
-            c.remaining = verifying ? 1 : 0;
-
-            c.steps = vSteps;
-
-        } else {
-
-            // DlState not created yet (no progress signal) — build pending template
-
-            addVStep(tr("下载版本JSON"), QStringLiteral("pending"), 0, 0, 0);
-
-            addVStep(tr("下载支持库"), QStringLiteral("pending"), 0, 0, 0);
-
-            addVStep(tr("下载资源文件"), QStringLiteral("pending"), 0, 0, 0);
-
-            addVStep(tr("校验游戏资源完整性"), QStringLiteral("pending"), 0, 0, 0);
-
-            c.steps = vSteps;
-
-        }
 
         cards.append(c);
 
     }
-
 
 
     // 3. Resource cards (from m_extraCards)
