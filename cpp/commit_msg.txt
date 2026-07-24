@@ -1,0 +1,5 @@
+Step A: fix phase & speed display (P0)
+
+- Add DownloadSession::setSpeed() — direct setter for speed sync
+- updateDownloadProgress(): sync speed from DlState to DownloadSession on every progress event
+- updateCardFromSession(): patch card.phase from ds->steps as temporary fix (pipeline not yet populated)

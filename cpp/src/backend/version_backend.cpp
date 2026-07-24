@@ -3299,7 +3299,18 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     st.bytesTotal = tb;
 
-
+    // ── Sync speed from DlState → DownloadSession (for mod_loader cards) ──
+    if (auto* ds = dlSession(versionId)) {
+        ds->setSpeed(st.speed);
+    }
+    // Also sync to merged install sessions keyed by loader session id
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+        auto* d = dlSession(it.key());
+        if (d && d->isMerged() && d->mcVersion == versionId) {
+            d->setSpeed(st.speed);
+            break;
+        }
+    }
 
     if (st.phase != tr("校验中...")) {
 
@@ -7026,6 +7037,35 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
     if (!ds || !m_installCardsModel) return;
 
     InstallCard card = ds->toCard(installId, name, type);
+
+    // ── Patch phase from ds->steps (temporary: pipeline not yet populated) ──
+    QString derivedPhase;
+    bool allDone = true;
+    bool anyActive = false;
+    bool anyFailed = false;
+    for (const QVariant& vs : ds->steps) {
+        QVariantMap s = vs.toMap();
+        QString st = s.value("status").toString();
+        if (st == "active") {
+            if (!anyActive) derivedPhase = s.value("name").toString();
+            anyActive = true;
+            allDone = false;
+        } else if (st == "pending" || st == "skipped") {
+            allDone = false;
+        } else if (st == "failed") {
+            anyFailed = true;
+        }
+    }
+    if (anyFailed) {
+        card.phase = QStringLiteral("失败");
+    } else if (allDone && ds->steps.size() > 0) {
+        QString lastName = ds->steps.last().toMap().value("name").toString();
+        card.phase = lastName + QStringLiteral(" - 完成");
+    } else if (anyActive) {
+        card.phase = derivedPhase;
+    } else {
+        card.phase = QString{};
+    }
 
     int row = m_installCardsModel->findRowByIid(installId);
 
