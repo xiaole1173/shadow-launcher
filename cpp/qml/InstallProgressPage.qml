@@ -33,9 +33,16 @@ Item {
         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
 
         model: backend ? backend.installCardsModel : null
-        delegate: DownloadQueueCard {
+        delegate: Item {
             width: cardsView.width - 32
-            compact: false
+            height: cardItem.implicitHeight * 1.2
+
+            DownloadQueueCard {
+                id: cardItem
+                width: parent.width / 1.2
+                scale: 1.2
+                transformOrigin: Item.TopLeft
+            }
         }
 
         // ── 无任务占位 ──
