@@ -7187,15 +7187,25 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     if (!ds || !m_installCardsModel) return;
 
-    // Merged installs: ONLY create on first call, updates handled by doRebuildInstallCards
+    // Merged installs: in-place update with m_dlStates network speed
     if (ds->isMerged()) {
+        QString effectiveName = name.isEmpty() ? installId : name;
+        QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
+        InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
+        // Use network speed from m_dlStates (matches doRebuildInstallCards calc)
+        if (m_dlStates.contains(ds->mcVersion))
+            mergedCard.speed = m_dlStates[ds->mcVersion].speed;
         int mrow = m_installCardsModel->findRowByIid(installId);
-        if (mrow < 0) {
-            InstallCard newCard = ds->toCard(installId,
-                name.isEmpty() ? installId : name,
-                type.isEmpty() ? QStringLiteral("mod_loader") : type);
-            newCard.type = QStringLiteral("mod_loader");
-            m_installCardsModel->appendRow(newCard);
+        if (mrow >= 0) {
+            // Keep Section 1 type (mod_loader), not toCard default
+            QVariant existingType = m_installCardsModel->data(
+                m_installCardsModel->index(mrow, 0), InstallCardModel::TypeRole);
+            if (existingType.isValid())
+                mergedCard.type = existingType.toString();
+            m_installCardsModel->updateRow(mrow, mergedCard);
+        } else {
+            mergedCard.type = effectiveType;
+            m_installCardsModel->appendRow(mergedCard);
         }
         return;
     }
