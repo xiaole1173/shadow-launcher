@@ -3331,6 +3331,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     qint64 delta = db - st.bytesDl;
 
+    // Record download session start epoch (for instant speed estimate)
+    if (st.speedSessionStart == 0 && db > 0)
+        st.speedSessionStart = QDateTime::currentMSecsSinceEpoch();
 
 
     // ── Per-State speed (sliding window 3s) ──
@@ -3363,9 +3366,13 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
                     st.speed = (st.speedWindow.back().bytes - st.speedWindow.front().bytes) * 1000 / winMs;
 
-            } else if (st.speedWindow.size() == 1 && nowMs > 200) {
+            } else if (st.speedWindow.size() == 1) {
 
-                st.speed = (st.speedWindow.back().bytes * 1000) / nowMs;
+                qint64 elapsedMs = nowMs - st.speedSessionStart;
+
+                if (elapsedMs > 200)
+
+                    st.speed = (st.speedWindow.back().bytes * 1000) / elapsedMs;
 
             }
 
