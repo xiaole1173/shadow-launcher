@@ -24,56 +24,6 @@ namespace ShadowLauncher {
 // --- InstallCard: per-card data struct ---
 
 
-// --- InstallSession: per-install isolated state (supports concurrent merged installs) ---
-struct InstallSession {
-    bool loaderDownloadReady = false; // Loader file downloaded + verified
-    QByteArray loaderDownloadData;    // Cached loader file bytes
-    int loaderVerifyStep = -1;         // Step index for verify (5 for forge)
-    int loaderStepIdx = -1;            // Active ML step index for byteProgress update
-    QString loaderType;
-    QString loaderVer;
-    QString pendingLoaderName;
-    QString pendingLoaderVer;
-    qreal pendingLoaderWeight = 0.0;
-    QString pendingLoaderMc;       // MC version waiting for pending loader
-    QString pendingLoaderType;     // "optifine" / "forge" / etc for pending loader
-    int loadedStep = 0;  // which step is currently active
-    bool fabricApiPending = false; // Fabric API download in progress (parallel)
-    bool optifineJarParallel = false; // OptiFine JAR downloading in parallel with MC
-    bool optifineJarDone = false;     // OptiFine JAR download complete
-    QByteArray optifineJarData;       // Cached OptiFine JAR from parallel download
-    QString bmclType;                  // BMCLAPI type field for URL construction
-    QString bmclPatch;                 // BMCLAPI patch field for URL construction
-    
-    // Per-install MC download byte tracking (was global singletons)
-    qint64 mcStepDone[3] = {};
-    qint64 mcStepTotal[3] = {};
-    QSet<QString> mcFileAdded;
-    qint64 mcBytesDl = 0;
-    qint64 mcBytesAll = 0;
-    
-    // Per-install ML download byte tracking
-    qint64 mlBytesDl = 0;
-    qint64 mlBytesAll = 0;
-    qint64 mlBytesDone = 0;
-    
-    // EWMA speed tracking for ML byte progress
-    
-    // Current ML file total for file-transition detection
-    qint64 mlFileTotal = 0;
-    
-    // Pending loader params (persisted for auto-start after MC completes)
-    QString forgeInstallerSha1;
-    QString fabricApiVersion;
-    QString fabricApiUrl;
-    QString fabricApiSavePath;
-    QString fabricApiFinalPath;      // final mods/ path (API downloaded to temp, moved here on success)
-
-    // User data import
-    QString importArchivePath;         // ZIP path for pending user data import
-    qint64 importFailedAtMs = 0;        // timestamp when import failed
-};
-
 // --- InstallCardModel: QAbstractListModel with explicit role names ---
 class InstallCardModel : public QAbstractListModel {
     Q_OBJECT
@@ -170,12 +120,11 @@ public:
         }
         if (!m_modLoaderInstallId.isEmpty() && !names.contains(m_modLoaderInstallId))
             names.append(m_modLoaderInstallId);
-        for (auto it = m_sessions.constBegin(); it != m_sessions.constEnd(); ++it) {
-            if (auto* ds = dlSession(it.key())) {
-                if (ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty()
-                    && !names.contains(it.value().pendingLoaderName))
-                    names.append(it.value().pendingLoaderName);
-            }
+        for (const auto& key : m_downloadSessions.keys()) {
+            auto* ds = m_downloadSessions[key];
+            if (ds && ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty()
+                && !names.contains(ds->pendingLoaderName))
+                names.append(ds->pendingLoaderName);
         }
         return names;
     }
@@ -336,14 +285,11 @@ private:
     QString m_installPhase = "idle";
 
 
-    // Per-install state (keyed by installId, supports concurrent merged installs)
-    QMap<QString, InstallSession> m_sessions;
     QMap<QString, DownloadSession*> m_downloadSessions;
     QMap<QString, QString> m_pendingImports;  // installId → archivePath
     QMap<QString, QVariantMap> m_extraCards;
 
-    InstallSession& session(const QString& installId);
-    InstallSession& activeSession();
+    DownloadSession* ensureSession(const QString& installId);
     DownloadSession* dlSession(const QString& installId) const;
     void updateCardFromSession(const QString& installId, const QString& name = QString(), const QString& type = QString());
 
@@ -362,7 +308,7 @@ private:
     void rebuildInstallCards();
     void doRebuildInstallCards();
     void activateVerifyOnDownloadsDone(const QString& versionId);
-    void syncPipelineToStruct(const QString& installId);
+
 
     // User data import step
     void startUserDataImport(const QString& installId);

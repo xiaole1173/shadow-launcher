@@ -198,7 +198,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
         if (mlId.isEmpty()) return;
 
-        auto& ses = session(mlId);
+        ensureSession(mlId);
 
         auto* ds = dlSession(mlId);        // Merged: MC steps 0-2, MC verify step 3, loader steps 4+ (offset=4)
 
@@ -250,7 +250,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
         if (mlId.isEmpty()) return;
 
-        auto& ses = session(mlId);
+        ensureSession(mlId);
 
         auto* ds = dlSession(mlId);
 
@@ -298,10 +298,10 @@ VersionBackend::VersionBackend(QObject* parent)
 
         const QString mlId = m_modLoaderInstallId;
 
-        auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
+        auto* ses = ensureSession(mlId);
         auto* ds = mlId.isEmpty() ? nullptr : dlSession(mlId);
 
-        if (!mlId.isEmpty() && !m_sessions.contains(mlId))
+        if (!mlId.isEmpty() && !m_downloadSessions.contains(mlId))
 
             return;
 
@@ -337,7 +337,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
             bool allDone = true;
 
-            for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+            for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
                 auto* ds2 = dlSession(it.key());
                 if (ds2->hasPendingLoader || (ds->optifineJarParallel && ds2->isMerged())) {
                     allDone = false; break;
@@ -388,7 +388,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
                 bool otherUsingSameMC = false;
 
-                for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+                for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
                     auto* d = dlSession(it.key());
 
@@ -466,7 +466,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
                 bool otherUsingSameMC = false;
 
-                for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+                for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
                     auto* d = dlSession(it.key());
 
@@ -524,7 +524,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
             // Ensure version isolation for new OptiFine versions
 
-            auto& ses = session(mlId);
+            ensureSession(mlId);
 
             auto* ds = dlSession(mlId);
 
@@ -552,7 +552,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
         // being stable across async boundaries.
 
-        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
             auto& ses = it.value();
 
@@ -592,7 +592,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
         const QString mlId = m_modLoaderInstallId;
 
-        auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
+        auto* ses = ensureSession(mlId);
         auto* ds = mlId.isEmpty() ? nullptr : dlSession(mlId);
 
 
@@ -781,7 +781,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
         if (!mlId.isEmpty()) {
 
-            auto& ses = session(mlId);
+            ensureSession(mlId);
 
             auto* ds = dlSession(mlId);
 
@@ -817,7 +817,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
         if (!mlId.isEmpty()) {
 
-            auto& ses = session(mlId);
+            ensureSession(mlId);
 
             auto* ds = dlSession(mlId);
 
@@ -1371,7 +1371,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         // Also inject into session for merged install mod_loader card
 
-                        for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
+                        for (auto sit = m_downloadSessions.begin(); sit != m_downloadSessions.end(); ++sit) {
 
                             auto* d = dlSession(sit.key());
 
@@ -1459,7 +1459,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         // Activate MC verify step for merged installs
 
-                        for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
+                        for (auto sit = m_downloadSessions.begin(); sit != m_downloadSessions.end(); ++sit) {
 
                             auto* d = dlSession(sit.key());
 
@@ -1651,7 +1651,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
                             m_dlStates[versionId].phase = phaseText;
 
-                        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+                        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
                             auto* d = dlSession(it.key());
 
@@ -1661,7 +1661,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         }
 
-                        if (auto* ds2 = dlSession(versionId); m_sessions.contains(versionId) && ds2 && !ds2->steps.isEmpty())
+                        if (auto* ds2 = dlSession(versionId); m_downloadSessions.contains(versionId) && ds2 && !ds2->steps.isEmpty())
 
                             updateStep(versionId, 0, QStringLiteral("active"), pct, recv, total);
 
@@ -1917,7 +1917,7 @@ void VersionBackend::cancelActiveDownload(const QString& versionId)
 
         bool anyMergedPending = false;
 
-        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
             auto* ds = dlSession(it.key());
 
@@ -1959,7 +1959,7 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
     QString resolvedId = versionId;
 
-    if (!m_downloaders.contains(versionId) && m_sessions.contains(versionId)) {
+    if (!m_downloaders.contains(versionId) && m_downloadSessions.contains(versionId)) {
 
         // This is a merged-install session id — cancel the MC downloader
 
@@ -2373,7 +2373,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         bool anyMergedLaunched = false;
 
-        for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
             auto& ses = it.value();
 auto* ds = dlSession(it.key());
@@ -2552,7 +2552,7 @@ auto* ds = dlSession(it.key());
 
     // Check ALL sessions for pending loaders waiting for this MC version
 
-    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
         auto& ses = it.value();
 auto* ds = dlSession(it.key());
@@ -2961,9 +2961,9 @@ void VersionBackend::updateInstalledList()
 
 void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
-    if (!m_mlInstaller || !m_sessions.contains(installId)) return;
+    if (!m_mlInstaller || !m_downloadSessions.contains(installId)) return;
 
-    auto& ses = session(installId);
+    ensureSession(installId);
 
     auto* ds = dlSession(installId);    qDebug() << "[install] Both downloads complete, starting" << ds->loaderType << "verify/install";
 
@@ -3009,7 +3009,7 @@ void VersionBackend::finishInstall(const QString& installName)
 
     }
 
-    auto& ses = session(installName);
+    ensureSession(installName);
 
     auto* ds = dlSession(installName);
 
@@ -3315,7 +3315,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     QString mergedSessionId;
 
-    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
         auto* d = dlSession(it.key());
 
@@ -3331,7 +3331,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     if (!mergedSessionId.isEmpty()) {
 
-        auto& mSes = m_sessions[mergedSessionId];
+        auto* mSes = m_downloadSessions[mergedSessionId];
         auto* ds = dlSession(mergedSessionId);
 
         // Both numerator and denominator come from per-category accounting,
@@ -3466,9 +3466,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
         if (!mergedSessionId.isEmpty()) {
 
-            qint64 grandTotal = session(mergedSessionId).mcBytesAll + session(mergedSessionId).mlBytesAll;
-
-            qint64 grandDone = session(mergedSessionId).mcBytesDl + session(mergedSessionId).mlBytesDl;
+            auto* ds3 = ensureSession(mergedSessionId);
+            qint64 grandTotal = (ds3 ? ds3->mcBytesAll : 0) + (ds3 ? ds3->mlBytesAll : 0);
+            qint64 grandDone = (ds3 ? ds3->mcBytesDl : 0) + (ds3 ? ds3->mlBytesDl : 0);
 
             rawTotalProgress = (grandTotal > 0)
 
@@ -3488,7 +3488,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
         if (!mergedSessionId.isEmpty()) {
 
-            auto& mSes = m_sessions[mergedSessionId];
+            auto* mSes = m_downloadSessions[mergedSessionId];
             auto* ds = dlSession(mergedSessionId);
 
             ds->m_rawTotalProgress = rawTotalProgress;
@@ -3615,7 +3615,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
     QString mergedSessionId;
 
-    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
         auto* d = dlSession(it.key());
 
@@ -3635,7 +3635,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
         if (cat >= 0 && cat <= 2) {
 
-            auto& ses = session(mergedSessionId);
+            ensureSession(mergedSessionId);
 
             auto* ds = dlSession(mergedSessionId);            // Use per-category partial-progress accounting (includes in-flight file),
 
@@ -5315,7 +5315,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
     m_modLoaderInstallId = installName;
 
-    auto& ses = session(installName);
+    ensureSession(installName);
     auto* ds = dlSession(installName);
     if (ds) ds->clearFailure();
 
@@ -5463,13 +5463,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
             if (!fabricApiUrl.isEmpty()) {
 
-                auto& ses2 = session(installName);
+                auto* ds2 = ensureSession(installName);
 
-                ses2.fabricApiPending = true;
+                ds2->fabricApiPending = true;
 
                 // Save original final path, use temp for download
 
-                ses2.fabricApiFinalPath = fabricApiSavePath;
+                ds2->fabricApiFinalPath = fabricApiSavePath;
 
                 QString tempDir = QDir::tempPath() + QStringLiteral("/shadow-fabric-api");
 
@@ -5477,7 +5477,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                 QString tempApiPath = tempDir + QStringLiteral("/") + QFileInfo(fabricApiSavePath).fileName();
 
-                ses2.fabricApiSavePath = tempApiPath;
+                ds2->fabricApiSavePath = tempApiPath;
 
 
 
@@ -5515,7 +5515,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                     apiNam->deleteLater();
 
-                    auto& ses = session(installName);
+                    ensureSession(installName);
 
                     auto* ds = dlSession(installName);
 
@@ -5643,7 +5643,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                             qint64 instant = delta * 1000 / timeDelta;
 
-                            auto& ses = session(installName);
+                            ensureSession(installName);
 
                             auto* ds = dlSession(installName);
 
@@ -5717,7 +5717,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                                         qint64 instant = delta * 1000 / timeDelta;
 
-                                        auto& ses = session(installName);
+                                        ensureSession(installName);
 
                                         auto* ds = dlSession(installName);
 
@@ -5767,9 +5767,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                                         if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
 
-                                        if (m_sessions.contains(installName)) {
+                                        if (m_downloadSessions.contains(installName)) {
 
-                                            auto& ses = session(installName);
+                                            ensureSession(installName);
 
                                             if (auto* ds = dlSession(installName)) ds->markFailed(r2->errorString());
 
@@ -5787,9 +5787,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                                     nam->deleteLater();
 
-                                    if (!m_sessions.contains(installName)) return;
+                                    if (!m_downloadSessions.contains(installName)) return;
 
-                                    auto& ses = session(installName);
+                                    ensureSession(installName);
 
                                     auto* ds = dlSession(installName);
 
@@ -5851,9 +5851,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                             if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
 
-                            if (m_sessions.contains(installName)) {
+                            if (m_downloadSessions.contains(installName)) {
 
-                                auto& ses = session(installName);
+                                ensureSession(installName);
 
                                 if (auto* ds = dlSession(installName)) ds->markFailed(reply->errorString());
 
@@ -5871,9 +5871,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                         nam->deleteLater();
 
-                        if (!m_sessions.contains(installName)) return;
+                        if (!m_downloadSessions.contains(installName)) return;
 
-                        auto& ses = session(installName);
+                        ensureSession(installName);
 
                         auto* ds = dlSession(installName);
 
@@ -6045,7 +6045,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                 nam->deleteLater();
 
-                auto& ses = session(installName);
+                ensureSession(installName);
 auto* ds = dlSession(installName);
 
                 if (reply->error() != QNetworkReply::NoError) {
@@ -6204,7 +6204,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
     m_modLoaderInstallId = installName;
 
-    auto& ses = session(installName);
+    ensureSession(installName);
     auto* ds = dlSession(installName);
     if (ds) ds->clearFailure();
 
@@ -6380,7 +6380,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
         emit logMessage(tr("[失败] OptiFine 连通性测试失败: %1").arg(reason));
 
-        auto& ses = session(installName);
+        ensureSession(installName);
 
         if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 网络不可达"));
 
@@ -6402,7 +6402,7 @@ void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QStrin
 
     // MC steps 0-2 done. Download OptiFine JAR (step 3), then delegate to ModLoaderInstaller (step 4).
 
-    auto& ses = session(installName);
+    ensureSession(installName);
 
     auto* ds = dlSession(installName);
 
@@ -6534,7 +6534,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
                                               const QByteArray& jarData) {
 
-    auto& ses = session(installName);
+    ensureSession(installName);
 
     auto* ds = dlSession(installName);
 
@@ -6626,7 +6626,7 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
 
     // Download OptiFine JAR in parallel with MC download
 
-    auto& ses = session(installName);
+    ensureSession(installName);
 
     auto* ds = dlSession(installName);
 
@@ -6758,7 +6758,7 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
 
 void VersionBackend::onParallelOptifineDone(const QString& installName, const QByteArray& jarData) {
 
-    auto& ses = session(installName);
+    ensureSession(installName);
 
     auto* ds = dlSession(installName);
 
@@ -6958,7 +6958,7 @@ void VersionBackend::cancelModLoaderInstall() {
 
     // Clean up session state
 
-    if (!m_modLoaderInstallId.isEmpty() && m_sessions.contains(m_modLoaderInstallId)) {
+    if (!m_modLoaderInstallId.isEmpty() && m_downloadSessions.contains(m_modLoaderInstallId)) {
 
         if (auto* ds = dlSession(m_modLoaderInstallId)) ds->markFailed(tr("已取消"));
 
@@ -6994,57 +6994,20 @@ bool VersionBackend::isModLoaderInstalling() const {
 
 
 
-InstallSession& VersionBackend::session(const QString& installId) {
-
-    if (!m_sessions.contains(installId)) {
-
-        m_sessions[installId] = InstallSession{};
-
-    }
-
-    // Auto-create DownloadSession alongside old struct for gradual migration
-
-    if (!m_downloadSessions.contains(installId)) {
-
-        auto* ds = new DownloadSession(installId, this);
-
-        m_downloadSessions[installId] = ds;
-
-        // Wire pipeline progress → incremental card update
-
-        QObject::connect(ds, &DownloadSession::progressUpdated, this, [this, installId]() {
-
-            updateCardFromSession(installId);
-
-            syncPipelineToStruct(installId);
-
-        });
-
-    }
-
-    // ── Sync DownloadSession → struct (gradual migration bridge) ──
-
-    auto& ses = m_sessions[installId];
-
-    // DownloadSession owns failed/error state (migrated from struct)
-
-    return ses;
-
+DownloadSession* VersionBackend::ensureSession(const QString& installId) {
+    if (m_downloadSessions.contains(installId))
+        return m_downloadSessions[installId];
+    auto* ds = new DownloadSession(installId, this);
+    m_downloadSessions[installId] = ds;
+    QObject::connect(ds, &DownloadSession::progressUpdated, this, [this, installId]() {
+        updateCardFromSession(installId);
+    });
+    return ds;
 }
 
 
 
-InstallSession& VersionBackend::activeSession() {
 
-    // Return first active session (for backward-compat access)
-
-    static InstallSession s_empty;
-
-    if (m_sessions.isEmpty()) return s_empty;
-
-    return m_sessions.first();
-
-}
 
 
 
@@ -7080,17 +7043,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
 
 
-void VersionBackend::syncPipelineToStruct(const QString& installId) {
 
-    auto* ds = dlSession(installId);
-
-    if (!ds) return;
-
-    auto& s = m_sessions[installId];
-
-    ds->m_rawTotalProgress = ds->totalProgress();
-
-}
 
 
 
@@ -7098,7 +7051,7 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
 
                                    const QVector<bool>& showFlags) {
 
-    auto& ses = session(installId);
+    ensureSession(installId);
 
     auto* ds = dlSession(installId);
 
@@ -7182,7 +7135,7 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
 
 void VersionBackend::showStep(const QString& installId, int index) {
 
-    auto& s = session(installId);
+    ensureSession(installId);
     auto* ds = dlSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
@@ -7205,7 +7158,7 @@ void VersionBackend::showStep(const QString& installId, int index) {
 
 void VersionBackend::hideStep(const QString& installId, int index) {
 
-    auto& s = session(installId);
+    ensureSession(installId);
     auto* ds = dlSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
@@ -7226,7 +7179,7 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
                                  qint64 bytesRecv, qint64 bytesTotal) {
 
-    auto& s = session(installId);
+    ensureSession(installId);
     auto* ds = dlSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
@@ -7285,7 +7238,7 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
 int VersionBackend::installRemainingSteps(const QString& sessionId) const {
 
-    if (sessionId.isEmpty() || !m_sessions.contains(sessionId)) return 0;
+    if (sessionId.isEmpty() || !m_downloadSessions.contains(sessionId)) return 0;
 
     int n = 0;
 
@@ -7678,7 +7631,7 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
     // Check merged install sessions
 
-    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
         auto* d = dlSession(it.key());
 
@@ -7808,7 +7761,7 @@ void VersionBackend::doRebuildInstallCards() {
 
     }
 
-    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
         auto& ses = it.value();
 auto* ds = dlSession(it.key());
@@ -7825,11 +7778,9 @@ auto* ds = dlSession(it.key());
 
     // 1. Iterate sessions: build mod_loader cards from session state
 
-    for (auto sit = m_sessions.constBegin(); sit != m_sessions.constEnd(); ++sit) {
+    for (auto sit = m_downloadSessions.constBegin(); sit != m_downloadSessions.constEnd(); ++sit) {
 
         const QString& sid = sit.key();
-
-        const InstallSession& ses = sit.value();
 
         auto* ds = dlSession(sid);
 
@@ -8353,9 +8304,9 @@ void VersionBackend::setPendingUserDataImport(const QString& installId, const QS
 
     // Also set on existing session if it exists
 
-    if (m_sessions.contains(installId)) {
+    if (m_downloadSessions.contains(installId)) {
 
-        auto& ses = session(installId);
+        ensureSession(installId);
 
         auto* ds = dlSession(installId);
 
@@ -8419,9 +8370,9 @@ void VersionBackend::cancelPendingUserDataImport(const QString& installId)
 
     m_pendingImports.remove(installId);
 
-    if (m_sessions.contains(installId)) {
+    if (m_downloadSessions.contains(installId)) {
 
-        auto& ses = session(installId);
+        ensureSession(installId);
 
         auto* ds = dlSession(installId);
 
@@ -8459,7 +8410,7 @@ void VersionBackend::dismissCard(const QString& installId)
 
 {
 
-    m_sessions.remove(installId);
+    m_downloadSessions.remove(installId);
 
     m_pendingImports.remove(installId);
 
@@ -8487,7 +8438,7 @@ void VersionBackend::dismissAllCompleted()
 
     QStringList toDismiss;
 
-    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
         const auto& ses = it.value();
 
@@ -8517,9 +8468,9 @@ void VersionBackend::startUserDataImport(const QString& installId)
 
 {
 
-    if (!m_sessions.contains(installId)) return;
+    if (!m_downloadSessions.contains(installId)) return;
 
-    auto& ses = session(installId);
+    ensureSession(installId);
 
     auto* ds = dlSession(installId);
 
