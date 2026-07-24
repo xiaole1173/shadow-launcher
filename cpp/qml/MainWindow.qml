@@ -552,7 +552,7 @@ Window {
                                 id: installProgressPageLoader
                                 asynchronous: true
                                 anchors.fill: parent
-                                active: navListIndex === 5 || _installProgressFadeOut
+                                active: true  // 预加载避免切换卡顿
                                 source: "InstallProgressPage.qml"
                                 onLoaded: {
                                     item.mainWindow = appWindow
