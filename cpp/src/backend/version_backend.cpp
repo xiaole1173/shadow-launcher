@@ -3522,6 +3522,11 @@ InstallSession& VersionBackend::session(const QString& installId) {
     if (!m_sessions.contains(installId)) {
         m_sessions[installId] = InstallSession{};
     }
+    // Auto-create DownloadSession alongside old struct for gradual migration
+    if (!m_downloadSessions.contains(installId)) {
+        auto* ds = new DownloadSession(installId, this);
+        m_downloadSessions[installId] = ds;
+    }
     return m_sessions[installId];
 }
 
@@ -3530,6 +3535,19 @@ InstallSession& VersionBackend::activeSession() {
     static InstallSession s_empty;
     if (m_sessions.isEmpty()) return s_empty;
     return m_sessions.first();
+}
+
+DownloadSession* VersionBackend::dlSession(const QString& installId) const {
+    return m_downloadSessions.value(installId, nullptr);
+}
+
+void VersionBackend::syncPipelineToStruct(const QString& installId) {
+    auto* ds = dlSession(installId);
+    if (!ds) return;
+    auto& s = m_sessions[installId];
+    s.totalProgress = ds->totalProgress();
+    s.failed = ds->isFailed();
+    s.error = ds->errorMessage();
 }
 
 void VersionBackend::rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights,

@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "../utils/types.h"
+#include "../session/download_session.h"
 #include "../core/progress_tracker.h"
 
 namespace ShadowLauncher {
@@ -342,11 +343,13 @@ private:
 
     // Per-install state (keyed by installId, supports concurrent merged installs)
     QMap<QString, InstallSession> m_sessions;
+    QMap<QString, DownloadSession*> m_downloadSessions;
     QMap<QString, QString> m_pendingImports;  // installId → archivePath
     QMap<QString, QVariantMap> m_extraCards;
 
     InstallSession& session(const QString& installId);
     InstallSession& activeSession();
+    DownloadSession* dlSession(const QString& installId) const;
 
     // Throttle card rebuilds (300ms interval to avoid flicker)
     QTimer m_cardsRebuildThrottle;
@@ -363,6 +366,7 @@ private:
     void rebuildInstallCards();
     void doRebuildInstallCards();
     void activateVerifyOnDownloadsDone(const QString& versionId);
+    void syncPipelineToStruct(const QString& installId);
 
     // User data import step
     void startUserDataImport(const QString& installId);
