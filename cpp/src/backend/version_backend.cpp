@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 
@@ -1191,6 +1191,8 @@ void VersionBackend::installVersion(const QString& versionId)
     // Sync pure-MC card phase so it shows progress (not stuck at "处理本地文件")
 
     m_dlStates[versionId].phase = tr("正在获取 %1 版本信息...").arg(versionId);
+    // Reset per-file dedup set for a fresh download
+    m_dlStates[versionId].catBytesCountedPaths.clear();
 
 
     // ── Build step pipeline for pure MC download (skipped if part of merged install) ──
@@ -3696,7 +3698,8 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
     int cat = -1;
     if (auto* dl = m_downloaders.value(versionId))
         cat = dl->fileCategory(savePath);
-
+    if (cat < 0)
+        qCInfo(logVersion) << QStringLiteral("[catNoMap] ver=%1 path=%2").arg(versionId).arg(savePath);
 
 
     if (versionId == primaryVersionId()) {
@@ -3711,17 +3714,40 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
     if (cat >= 0 && cat <= 2) {
 
+        // ── Ensure catBytesTotal is set (from downloader task-group totals) ──
+        //    progressChanged may fire later; set it here ASAP so numerator/denominator match.
+        if (st.catBytesTotal[cat] <= 0) {
+            if (auto* dl = m_downloaders.value(versionId)) {
+                qint64 ct = dl->categoryTotalBytes(cat);
+                if (ct > 0)
+                    st.catBytesTotal[cat] = ct;
+            }
+        }
+
         qint64 catDone = st.catBytesDoneBase[cat] + received;
 
         if (received >= total && total > 0) {
 
-            st.catBytesDoneBase[cat] += total;
+            // ── Dedup: only count each file once ──
+            //    The downloader may emit fileProgress with received==total multiple times
+            //    for the same file (chunked downloads, retries). Track by savePath.
+            bool firstTime = !st.catBytesCountedPaths.contains(savePath);
+
+            if (firstTime) {
+                st.catBytesDoneBase[cat] += total;
+                st.catBytesCountedPaths.insert(savePath);
+            }
 
             catDone = st.catBytesDoneBase[cat];
 
-            // Log completed file
-
+            // Log completed file (always, even on dedup, for debugging)
             emit logMessage(QStringLiteral("[下载] ") + fileName + QStringLiteral(" (%1 KB)").arg(total/1024));
+
+            // DEBUG: check category accumulation
+
+            qCInfo(logVersion) << QStringLiteral("[catDbg] ver=%1 cat=%2 file=%3 catBytesDl=%4KB catBytesTotal=%5KB%6")
+                .arg(versionId).arg(cat).arg(fileName).arg(catDone/1024).arg(st.catBytesTotal[cat]/1024)
+                .arg(firstTime ? QString() : QStringLiteral(" DEDUP"));
 
         }
 

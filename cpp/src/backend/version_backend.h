@@ -12,6 +12,7 @@
 #include <QThread>
 #include <QAtomicInt>
 #include <QMap>
+#include <QSet>
 #include <QVector>
 #include <QAbstractListModel>
 #include <memory>
@@ -269,6 +270,7 @@ private:
         qint64 catBytesDoneBase[3] = {};
         int catFilesDone[3] = {};    // per-category completed file count
         int catFilesTotal[3] = {};   // per-category total file count
+        QSet<QString> catBytesCountedPaths; // savePaths already counted in catBytesDoneBase
         bool catsFullyDone = false;  // set by fileProgress when all categories complete
         bool downloadsDone = false;  // sticky: set once when downloads finish, stays true through verify
         qreal lastCardProgress = -1.0;  // monotonic guard: card progress never goes backward
