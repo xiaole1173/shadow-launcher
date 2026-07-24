@@ -5605,6 +5605,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         }
 
         updateStep(installName, 0, QStringLiteral("active"), 0);
+        // Show card immediately — don't wait for first progress signal
+        updateCardFromSession(installName, installName, QStringLiteral("mod_loader"));
 
         ds->loadedStep = 1;
 
@@ -7187,15 +7189,22 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     // Merged installs: in-place incremental update (preserve Section 1 card type)
     if (ds->isMerged()) {
+        QString effectiveName = name.isEmpty() ? installId : name;
+        QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
         int mrow = m_installCardsModel->findRowByIid(installId);
         if (mrow >= 0) {
-            InstallCard mergedCard = ds->toCard(installId, name, type);
-            // Keep Section 1 type (mod_loader), not toCard default (version)
+            InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
+            // Keep Section 1 type (mod_loader), not toCard default
             QVariant existingType = m_installCardsModel->data(
                 m_installCardsModel->index(mrow, 0), InstallCardModel::TypeRole);
             if (existingType.isValid())
                 mergedCard.type = existingType.toString();
             m_installCardsModel->updateRow(mrow, mergedCard);
+        } else {
+            // Card not in model yet — create via appendRow (no flicker)
+            InstallCard newCard = ds->toCard(installId, effectiveName, effectiveType);
+            newCard.type = effectiveType;
+            m_installCardsModel->appendRow(newCard);
         }
         return;
     }
@@ -8226,11 +8235,31 @@ auto* ds = dlSession(it.key());
 
 
 
-    LOG_CARDS() << "  total cards built:" << cards.size();
+    LOG_CARDS() << "  total cards built:" << cards.size() << " (incremental)";
 
-    m_installCardsModel->rebuild(cards);
-
-    // Cards rebuilt silently
+    // Incremental update: avoid full rebuild which causes QML flicker
+    // 1. Remove cards no longer present
+    for (int i = m_installCardsModel->count() - 1; i >= 0; --i) {
+        QModelIndex mi = m_installCardsModel->index(i, 0);
+        QVariant existingIid = m_installCardsModel->data(mi, InstallCardModel::IidRole);
+        bool found = false;
+        for (const auto& c : cards) {
+            if (c.iid == existingIid.toString()) { found = true; break; }
+        }
+        if (!found) {
+            m_installCardsModel->removeRow(i);
+        }
+    }
+    // 2. Add or update cards
+    for (const auto& c : cards) {
+        int row = m_installCardsModel->findRowByIid(c.iid);
+        if (row >= 0) {
+            m_installCardsModel->updateRow(row, c);
+        } else {
+            m_installCardsModel->appendRow(c);
+        }
+    }
+    // Cards rebuilt silently (incremental, no flicker)
 
 }
 
