@@ -126,7 +126,7 @@ VersionBackend::VersionBackend(QObject* parent)
     m_cardUpdateThrottle.setInterval(200);
     connect(&m_cardUpdateThrottle, &QTimer::timeout, this, [this]() {
         for (const auto& id : m_pendingCardUpdates)
-            updateCardFromSession(id);
+            updateCardFromSession(id);  // 全量（内部已优化：steps 未变时仅发射 progress+speed）
         m_pendingCardUpdates.clear();
         m_cardUpdateThrottle.stop();
     });
@@ -7226,6 +7226,32 @@ DownloadSession* VersionBackend::dlSession(const QString& installId) const {
 
 
 
+// ── 轻量更新：仅取 progress + speed，不改 steps/name/phase ──
+// 用于下载进度热路径（每 200ms），避免触发 QML 全部绑定重新评估
+void VersionBackend::updateCardProgressSpeed(const QString& installId) {
+    auto* ds = dlSession(installId);
+    if (!ds || !m_installCardsModel) return;
+
+    int row = m_installCardsModel->findRowByIid(installId);
+    if (row < 0) return;  // 卡片尚未创建，跳过
+
+    qreal newProgress = qBound(0.0, ds->smoothProgress, 1.0);
+    qint64 newSpeed = 0;
+
+    if (ds->isMerged()) {
+        if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
+            newSpeed += m_dlStates[ds->mcVersion].speed;
+        if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+            newSpeed += ds->mlSpeed;
+        if (ds->fabricApiPending && ds->fabSpeed > 0)
+            newSpeed += ds->fabSpeed;
+    } else if (m_dlStates.contains(installId)) {
+        newSpeed = m_dlStates[installId].speed;
+    }
+
+    m_installCardsModel->updateProgressAndSpeed(row, newProgress, newSpeed);
+}
+
 void VersionBackend::updateCardFromSession(const QString& installId, const QString& name, const QString& type) {
 
     auto* ds = dlSession(installId);
@@ -7234,51 +7260,93 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     // Merged installs: in-place update with m_dlStates network speed
     if (ds->isMerged()) {
-        QString effectiveName = name.isEmpty() ? installId : name;
-        QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
-        InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
-        // Speed: MC + ML installer + Fabric API (aggregated)
-        qint64 ts = 0;
-        if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
-            ts += m_dlStates[ds->mcVersion].speed;
-        if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
-            ts += ds->mlSpeed;
-        if (ds->fabricApiPending && ds->fabSpeed > 0)
-            ts += ds->fabSpeed;
-        mergedCard.speed = ts;
-        // Use same progress source as doRebuildInstallCards Section 1
-        // (smoothProgress) to avoid dual-path progress oscillation
-        mergedCard.progress = qBound(0.0, ds->smoothProgress, 1.0);
         int mrow = m_installCardsModel->findRowByIid(installId);
-        if (mrow >= 0) {
-            // Keep Section 1 type (mod_loader), not toCard default
-            QVariant existingType = m_installCardsModel->data(
-                m_installCardsModel->index(mrow, 0), InstallCardModel::TypeRole);
-            if (existingType.isValid())
-                mergedCard.type = existingType.toString();
-            m_installCardsModel->updateRow(mrow, mergedCard);
-        } else {
+        if (mrow < 0) {
+            QString effectiveName = name.isEmpty() ? installId : name;
+            QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
+            InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
             mergedCard.type = effectiveType;
+            qint64 ts = 0;
+            if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
+                ts += m_dlStates[ds->mcVersion].speed;
+            if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+                ts += ds->mlSpeed;
+            if (ds->fabricApiPending && ds->fabSpeed > 0)
+                ts += ds->fabSpeed;
+            mergedCard.speed = ts;
+            mergedCard.progress = qBound(0.0, ds->smoothProgress, 1.0);
             m_installCardsModel->appendRow(mergedCard);
+        } else {
+            // Existing merged card: only progress+speed change → targeted update
+            qreal p = qBound(0.0, ds->smoothProgress, 1.0);
+            qint64 s = 0;
+            if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
+                s += m_dlStates[ds->mcVersion].speed;
+            if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+                s += ds->mlSpeed;
+            if (ds->fabricApiPending && ds->fabSpeed > 0)
+                s += ds->fabSpeed;
+            m_installCardsModel->updateProgressAndSpeed(mrow, p, s);
         }
         return;
     }
 
+    int row = m_installCardsModel->findRowByIid(installId);
+
+    if (row < 0) {
+        // New card — create full card via toCard
+        InstallCard card = ds->toCard(installId,
+            name.isEmpty() ? installId : name,
+            type.isEmpty() ? QStringLiteral("version") : type);
+        if (!ds->isMerged() && m_dlStates.contains(installId))
+            card.speed = m_dlStates[installId].speed;
+        m_installCardsModel->appendRow(card);
+        return;
+    }
+
+    // ── Existing card: detect if steps changed since last update ──
+    const InstallCard* existing = m_installCardsModel->cardAt(row);
+    bool stepsChanged = false;
+    if (existing) {
+        stepsChanged = (existing->steps.size() != ds->steps.size());
+        if (!stepsChanged) {
+            for (int i = 0; i < ds->steps.size(); ++i) {
+                QVariantMap oldS = existing->steps[i].toMap();
+                QVariantMap newS = ds->steps[i].toMap();
+                if (oldS.value("status") != newS.value("status") ||
+                    oldS.value("percentage").toInt() != newS.value("percentage").toInt() ||
+                    oldS.value("show").toBool() != newS.value("show").toBool()) {
+                    stepsChanged = true;
+                    break;
+                }
+            }
+        }
+    } else {
+        stepsChanged = true;
+    }
+
+    // ── Fast path: only progress & speed changed, steps/phase/name unchanged ──
+    // This is the 99% case during active download — avoids QML binding re-eval for all roles.
+    if (!stepsChanged && !ds->isFailed() && ds->smoothProgress < 1.0) {
+        qreal newP = qBound(0.0, ds->smoothProgress, 1.0);
+        qint64 newS = 0;
+        if (!ds->isMerged() && m_dlStates.contains(installId))
+            newS = m_dlStates[installId].speed;
+        m_installCardsModel->updateProgressAndSpeed(row, newP, newS);
+        return;
+    }
+
+    // ── Slow path: steps/status changed (structural update) ──
     InstallCard card = ds->toCard(installId, name, type);
 
-    // ── Speed from DlState (correct instantaneous delta, not broken qMax) ──
-    // DownloadSession::m_speed uses qMax which never let speed decrease.
-    // DlState.speed uses proper delta/elapsed with no qMax.
     if (!ds->isMerged() && m_dlStates.contains(installId)) {
         card.speed = m_dlStates[installId].speed;
     }
 
-    // ── Only show cancel button during active download ──
     if (card.failed || card.progress >= 1.0) {
         card.canCancel = false;
     }
 
-    // ── Patch phase from ds->steps (fallback when pipeline phase empty) ──
     if (card.phase.isEmpty() && !ds->steps.isEmpty()) {
         QString derivedPhase;
         bool allDone = true;
@@ -7307,59 +7375,44 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         }
     }
 
-    int row = m_installCardsModel->findRowByIid(installId);
+    // ── In-place sync: copy ds->steps field values into existing model steps ──
+    // Preserves QVariantList identity, avoiding QML Repeater rebuild
+    QVariantList modelSteps = m_installCardsModel->stepsAt(row);
+    const QVariantList& newSteps = ds->steps;
 
-    if (row >= 0) {
-        // ── In-place sync: copy ds->steps field values into existing model steps ──
-        // This preserves the QVariantList identity, avoiding QML Repeater rebuild.
-        QVariantList modelSteps = m_installCardsModel->stepsAt(row);
-        const QVariantList& newSteps = ds->steps;
-
-        if (modelSteps.size() == newSteps.size()) {
-            // Same size: copy only fields that changed in-place
-            for (int i = 0; i < modelSteps.size(); ++i) {
-                QVariantMap oldMap = modelSteps[i].toMap();
-                const QVariantMap newMap = newSteps[i].toMap();
-
-                // ── Always sync byte progress (high churn) ──
-                oldMap["bytesReceived"] = newMap.value("bytesReceived");
-                oldMap["bytesTotal"] = newMap.value("bytesTotal");
-
-                // ── Conditionally sync status / percentage / show (lower churn) ──
-                if (oldMap.value("status").toString() != newMap.value("status").toString())
-                    oldMap["status"] = newMap.value("status");
-                if (oldMap.value("percentage").toInt() != newMap.value("percentage").toInt())
-                    oldMap["percentage"] = newMap.value("percentage");
-                if (oldMap.value("show").toBool() != newMap.value("show").toBool())
-                    oldMap["show"] = newMap.value("show");
-
-                modelSteps[i] = oldMap;
-            }
-            card.steps = modelSteps;
-        } else {
-            // Size mismatch — structural change, accept rebuild
-            card.steps = newSteps;
+    if (modelSteps.size() == newSteps.size()) {
+        for (int i = 0; i < modelSteps.size(); ++i) {
+            QVariantMap oldMap = modelSteps[i].toMap();
+            const QVariantMap newMap = newSteps[i].toMap();
+            oldMap["bytesReceived"] = newMap.value("bytesReceived");
+            oldMap["bytesTotal"] = newMap.value("bytesTotal");
+            if (oldMap.value("status").toString() != newMap.value("status").toString())
+                oldMap["status"] = newMap.value("status");
+            if (oldMap.value("percentage").toInt() != newMap.value("percentage").toInt())
+                oldMap["percentage"] = newMap.value("percentage");
+            if (oldMap.value("show").toBool() != newMap.value("show").toBool())
+                oldMap["show"] = newMap.value("show");
+            modelSteps[i] = oldMap;
         }
-
-        // ── Restore name/type from model when caller omitted them ──
-        if (card.name.isEmpty()) {
-            auto idx = m_installCardsModel->index(row, 0);
-            QVariant existingName = m_installCardsModel->data(idx, InstallCardModel::NameRole);
-            if (existingName.isValid() && !existingName.toString().isEmpty())
-                card.name = existingName.toString();
-        }
-        if (card.type.isEmpty()) {
-            auto idx = m_installCardsModel->index(row, 0);
-            QVariant existingType = m_installCardsModel->data(idx, InstallCardModel::TypeRole);
-            if (existingType.isValid() && !existingType.toString().isEmpty())
-                card.type = existingType.toString();
-        }
-
-        m_installCardsModel->updateRow(row, card);
-
+        card.steps = modelSteps;
     } else {
-        m_installCardsModel->appendRow(card);
+        card.steps = newSteps;
     }
+
+    if (card.name.isEmpty()) {
+        auto idx = m_installCardsModel->index(row, 0);
+        QVariant existingName = m_installCardsModel->data(idx, InstallCardModel::NameRole);
+        if (existingName.isValid() && !existingName.toString().isEmpty())
+            card.name = existingName.toString();
+    }
+    if (card.type.isEmpty()) {
+        auto idx = m_installCardsModel->index(row, 0);
+        QVariant existingType = m_installCardsModel->data(idx, InstallCardModel::TypeRole);
+        if (existingType.isValid() && !existingType.toString().isEmpty())
+            card.type = existingType.toString();
+    }
+
+    m_installCardsModel->updateRow(row, card);
 
 }
 
@@ -7769,6 +7822,30 @@ QHash<int, QByteArray> InstallCardModel::roleNames() const {
 }
 
 
+
+void InstallCardModel::updateProgressAndSpeed(int row, qreal progress, qint64 speed) {
+    if (row < 0 || row >= m_cards.size()) return;
+
+    bool pc = !qFuzzyCompare(m_cards[row].progress, progress);
+    bool sc = (m_cards[row].speed != speed);
+
+    if (!pc && !sc) return;  // 无变化，跳过 (避免无意义的 QML 绑定重新评估)
+
+    if (pc) m_cards[row].progress = progress;
+    if (sc) m_cards[row].speed = speed;
+
+    QVector<int> roles;
+    if (pc) roles << ProgressRole;
+    if (sc) roles << SpeedRole;
+
+    QModelIndex idx = index(row);
+    emit dataChanged(idx, idx, roles);
+}
+
+const InstallCard* InstallCardModel::cardAt(int row) const {
+    if (row < 0 || row >= m_cards.size()) return nullptr;
+    return &m_cards[row];
+}
 
 void InstallCardModel::updateRow(int row, const InstallCard& card) {
 

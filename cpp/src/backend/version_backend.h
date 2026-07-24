@@ -58,11 +58,13 @@ public:
 
     // ── 增量更新接口 (避免全量 rebuild) ──
     void updateRow(int row, const InstallCard& card);
+    void updateProgressAndSpeed(int row, qreal progress, qint64 speed);  // 仅触发 ProgressRole + SpeedRole
     void insertRow(int row, const InstallCard& card);
     void appendRow(const InstallCard& card);
     void removeRow(int row);
     int findRowByIid(const QString& iid) const;
     QVariantList stepsAt(int row) const;  // preserve steps on incremental update
+    const InstallCard* cardAt(int row) const;  // read-only peek
 
     int count() const { return m_cards.size(); }
     int generation() const { return m_generation; }
@@ -292,6 +294,7 @@ private:
     DownloadSession* ensureSession(const QString& installId);
     DownloadSession* dlSession(const QString& installId) const;
     void updateCardFromSession(const QString& installId, const QString& name = QString(), const QString& type = QString());
+    void updateCardProgressSpeed(const QString& installId);  // 轻量：仅 progress + speed
 
     bool m_cardsRebuildPending = false;
     QElapsedTimer m_cardsTimer;
