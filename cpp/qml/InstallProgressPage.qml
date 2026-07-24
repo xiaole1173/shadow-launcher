@@ -5,133 +5,49 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 // InstallProgressPage — 全屏下载进度页
-// 复用侧边栏的 installCardsModel + DownloadQueueCard 组件
-// 数据与浮动面板完全同源，专为内测查看多任务进度提供完整视图
+// 简洁风格，与启动器其他页面一致
 
 Item {
     id: root
 
     property var mainWindow: null
 
-    // ── 顶部渐变装饰 ──
+    // ── 简单背景 ──
     Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 120
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: Qt.rgba(0.4, 0.6, 1.0, 0.08) }
-            GradientStop { position: 1.0; color: "transparent" }
-        }
-    }
-
-    // ── 顶部标题栏 ──
-    Rectangle {
-        id: header
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 56
-        color: "transparent"
-
-        // 左侧标题区
-        RowLayout {
-            anchors.left: parent.left; anchors.leftMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 12
-
-            // 图标背景
-            Rectangle {
-                width: 32; height: 32; radius: 8
-                color: Qt.rgba(0.4, 0.6, 1.0, 0.15)
-                Image {
-                    anchors.centerIn: parent
-                    source: "icons/lucide/download-cloud.svg"
-                    width: 18; height: 18
-                    sourceSize.width: 18; sourceSize.height: 18
-                }
-            }
-
-            Text {
-                text: qsTr("下载进度")
-                font.pixelSize: StyleTokens.fontSizeLg
-                font.bold: true
-                color: StyleTokens.textPrimary
-            }
-
-            // 任务计数
-            Rectangle {
-                visible: backend && backend.activeCount > 0
-                height: 20
-                radius: 10
-                color: Qt.rgba(0.4, 0.6, 1.0, 0.2)
-                Layout.alignment: Qt.AlignVCenter
-
-                Text {
-                    anchors.centerIn: parent
-                    anchors.leftMargin: 8; anchors.rightMargin: 8
-                    text: backend ? backend.activeCount + " " + qsTr("个任务") : ""
-                    font.pixelSize: StyleTokens.fontSizeXs
-                    color: StyleTokens.accent
-                    padding: 4
-                }
-            }
-        }
-
-        // 右侧提示
-        Text {
-            anchors.right: parent.right; anchors.rightMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("右下角 FAB 可收起/展开侧边面板")
-            font.pixelSize: StyleTokens.fontSizeXs
-            color: StyleTokens.textMuted
-        }
-
-        // 底部细线
-        Rectangle {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left; anchors.leftMargin: 24
-            anchors.right: parent.right; anchors.rightMargin: 24
-            height: 1
-            color: Qt.rgba(1, 1, 1, 0.06)
-        }
+        anchors.fill: parent
+        color: StyleTokens.bgPrimary
     }
 
     // ── 卡片列表 ──
     ScrollView {
-        anchors.top: header.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.topMargin: 8
+        anchors.fill: parent
+        anchors.topMargin: 16
         clip: true
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         ScrollBar.vertical.interactive: true
 
-        Column {
-            id: cardColumn
-            anchors.left: parent.left
-            anchors.right: parent.right
+        // 使用 ListView 而非 Column+Repeater
+        // ListView 原生支持滚动 + 复用委托，与侧边栏一致
+        ListView {
+            id: cardsView
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
             spacing: 8
-            padding: 16
-            bottomPadding: 32
 
-            // ── 下载中任务 ──
-            Repeater {
-                id: cardsRepeater
-                model: backend ? backend.installCardsModel : null
-
-                delegate: DownloadQueueCard {
-                    width: cardColumn.width - cardColumn.padding * 2
-                    anchors.horizontalCenter: undefined
-                }
+            model: backend ? backend.installCardsModel : null
+            delegate: DownloadQueueCard {
+                width: cardsView.width - 32
             }
 
+            // ── 顶部留白 ──
+            headerPositioning: ListView.OverlayHeader
+            header: Item { width: 1; height: 4 }
+
             // ── 无任务占位 ──
-            Item {
-                width: parent.width - parent.padding * 2
-                height: parent.height > 0 ? Math.max(parent.height - 80, 0) : 250
+            footer: Item {
+                width: ListView.view.width
+                height: ListView.view.height > 0 ? Math.max(ListView.view.height - 60, 0) : 250
                 visible: !backend || !backend.installing
 
                 Column {
@@ -151,7 +67,6 @@ Item {
                         text: qsTr("暂无下载任务")
                         font.pixelSize: StyleTokens.fontSizeMd
                         color: StyleTokens.textMuted
-                        opacity: 0.6
                     }
                 }
             }
