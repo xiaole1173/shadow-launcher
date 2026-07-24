@@ -103,9 +103,6 @@ public:
     qint64 mlBytesDl = 0;
     qint64 mlBytesAll = 0;
     qint64 mlBytesDone = 0;
-    qint64 mlSpeedLastBytes = 0;
-    qint64 mlSpeedLastTimeMs = 0;
-    qint64 mlRawSpeed = 0;
     qint64 mlFileTotal = 0;
 
     // ── 用户数据导入 ──

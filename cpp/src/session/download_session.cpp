@@ -125,7 +125,7 @@ void DownloadSession::reset() {
     bmclPatch.clear();
 
     mlBytesDl = mlBytesAll = mlBytesDone = 0;
-    mlSpeedLastBytes = mlSpeedLastTimeMs = mlRawSpeed = 0;
+    
     mlFileTotal = 0;
 
     hasImportPending = false;
