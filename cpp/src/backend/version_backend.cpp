@@ -4248,6 +4248,10 @@ void VersionBackend::dismissCard(const QString& installId)
 {
     m_sessions.remove(installId);
     m_pendingImports.remove(installId);
+    // Clean up DownloadSession if present
+    if (auto* ds = m_downloadSessions.take(installId)) {
+        ds->deleteLater();
+    }
     // Remove from active ids if present
     m_activeIds.removeAll(installId);
     if (m_activeCount > 0) m_activeCount--;
