@@ -33,7 +33,7 @@ Item {
 
         model: backend ? backend.installCardsModel : null
         delegate: DownloadQueueCard {
-            width: cardsView.width - 32
+            width: cardsView.width
         }
 
         footer: Item {
@@ -63,12 +63,5 @@ Item {
         }
     }
 
-    opacity: 0
-    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-
-    states: State {
-        name: "visible"
-        when: root.visible
-        PropertyChanges { root.opacity: 1 }
-    }
+    // 过渡动画由 MainWindow 的 Rectangle 淡入处理，页面自身不额外动画
 }
