@@ -293,9 +293,7 @@ VersionBackend::VersionBackend(QObject* parent)
                 // Speed: feed bytes to ProgressTracker (200ms timer handles EWMA)
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
-        ses.mlSpeedLastBytes = received;
-        ses.mlSpeedLastTimeMs = QDateTime::currentMSecsSinceEpoch();
-        ses.mlRawSpeed = speed;  // raw download speed for card display
+
                 // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
         if (ses.isMerged) {
             // Detect file transition: total changes → previous file completed
@@ -2809,11 +2807,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         if (timeDelta >= 200 && speedState->second > 0 && delta > 0) {
                             qint64 instant = delta * 1000 / timeDelta;
                             auto& ses = session(installName);
-                            if (ses.mlRawSpeed == 0)
-                                ses.mlRawSpeed = instant;
-                            else
-                                ses.mlRawSpeed = (ses.mlRawSpeed * 7 + instant * 3) / 10;
-                            ses.mlSpeedLastTimeMs = nowMs;
                         }
                         speedState->first = recv;
                         speedState->second = nowMs;
@@ -2850,11 +2843,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                     if (timeDelta >= 200 && speedState2->second > 0 && delta > 0) {
                                         qint64 instant = delta * 1000 / timeDelta;
                                         auto& ses = session(installName);
-                                        if (ses.mlRawSpeed == 0)
-                                            ses.mlRawSpeed = instant;
-                                        else
-                                            ses.mlRawSpeed = (ses.mlRawSpeed * 7 + instant * 3) / 10;
-                                        ses.mlSpeedLastTimeMs = nowMs;
                                     }
                                     speedState2->first = recv;
                                     speedState2->second = nowMs;
@@ -3899,10 +3887,6 @@ void VersionBackend::doRebuildInstallCards() {
     }
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         auto& ses = it.value();
-        if (ses.mlRawSpeed > 0 && nowMs - ses.mlSpeedLastTimeMs > 1000) {
-            ses.mlRawSpeed /= 2;
-            if (ses.mlRawSpeed < 1024) ses.mlRawSpeed = 0;
-        }
     }
 
     QVector<InstallCard> cards;
@@ -3931,7 +3915,6 @@ void VersionBackend::doRebuildInstallCards() {
                 bool mcActive = m_dlStates.contains(ses.mcVersion) && !ses.mcDownloadDone;
                 bool mlActive = m_mlInstaller && m_mlInstaller->isRunning();
                 if (mcActive)  s += m_dlStates[ses.mcVersion].speed;
-                if (mlActive)  s += ses.mlRawSpeed;
             }
             c.speed = s;
         }

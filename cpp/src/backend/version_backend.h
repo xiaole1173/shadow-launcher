@@ -68,9 +68,6 @@ struct InstallSession {
     qint64 mlBytesDone = 0;
     
     // EWMA speed tracking for ML byte progress
-    qint64 mlSpeedLastBytes = 0;
-    qint64 mlSpeedLastTimeMs = 0;
-    qint64 mlRawSpeed = 0;  // raw download speed from byteProgress signal
     
     // Current ML file total for file-transition detection
     qint64 mlFileTotal = 0;
