@@ -20,10 +20,16 @@ Item {
     }
 
     // ── 卡片列表 ──
-    ScrollView {
+    // 注意：不套 ScrollView，ListView 自带滚动
+    ListView {
+        id: cardsView
         anchors.fill: parent
         anchors.topMargin: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        spacing: 8
         clip: true
+
         ScrollBar.vertical: ScrollBar {
             policy: ScrollBar.AsNeeded
             contentItem: Rectangle {
@@ -33,48 +39,34 @@ Item {
             }
         }
 
-        // 使用 ListView 而非 Column+Repeater
-        // ListView 原生支持滚动 + 复用委托，与侧边栏一致
-        ListView {
-            id: cardsView
-            anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 8
+        model: backend ? backend.installCardsModel : null
+        delegate: DownloadQueueCard {
+            width: cardsView.width - 32
+        }
 
-            model: backend ? backend.installCardsModel : null
-            delegate: DownloadQueueCard {
-                width: cardsView.width - 32
-            }
+        // ── 无任务占位 ──
+        footer: Item {
+            width: ListView.view.width
+            height: ListView.view.height > 0 ? Math.max(ListView.view.height - 60, 0) : 250
+            visible: !backend || !backend.installing
 
-            // ── 顶部留白 ──
-            headerPositioning: ListView.OverlayHeader
-            header: Item { width: 1; height: 4 }
+            Column {
+                anchors.centerIn: parent
+                spacing: 16
 
-            // ── 无任务占位 ──
-            footer: Item {
-                width: ListView.view.width
-                height: ListView.view.height > 0 ? Math.max(ListView.view.height - 60, 0) : 250
-                visible: !backend || !backend.installing
+                Image {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    source: "icons/lucide/download-cloud.svg"
+                    width: 64; height: 64
+                    sourceSize.width: 64; sourceSize.height: 64
+                    opacity: 0.3
+                }
 
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 16
-
-                    Image {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        source: "icons/lucide/download-cloud.svg"
-                        width: 64; height: 64
-                        sourceSize.width: 64; sourceSize.height: 64
-                        opacity: 0.3
-                    }
-
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: qsTr("暂无下载任务")
-                        font.pixelSize: StyleTokens.fontSizeMd
-                        color: StyleTokens.textMuted
-                    }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("暂无下载任务")
+                    font.pixelSize: StyleTokens.fontSizeMd
+                    color: StyleTokens.textMuted
                 }
             }
         }
