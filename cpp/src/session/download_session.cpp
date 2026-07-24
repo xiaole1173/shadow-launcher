@@ -66,7 +66,7 @@ void DownloadSession::resetSpeed() {
 // ══════════════════════════════════════════════
 
 void DownloadSession::startPipeline() {
-    if (m_pipeline) {
+    if (m_pipeline && m_pipeline->currentStepIndex() < 0) {
         m_pipeline->start();
     }
 }

@@ -7138,6 +7138,10 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
 
     }
 
+    // 首次启动 pipeline（同一 session 多次 rebuild 不会重复 start）
+    if (ds->pipeline() && ds->pipeline()->currentStepIndex() < 0)
+        ds->pipeline()->start();
+
 }
 
 

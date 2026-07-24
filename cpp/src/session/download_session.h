@@ -42,7 +42,6 @@ public:
     // ── 进度 (3 秒滑动窗口) ──
     qreal totalProgress() const;        // weighted pipeline progress
     qint64 currentSpeed() const { return m_speed; }
-    void setSpeed(qint64 speed) { m_speed = speed; emit progressUpdated(); }
     void recordBytes(qint64 bytesRecv, qint64 bytesTotal);
     void resetSpeed();
 
