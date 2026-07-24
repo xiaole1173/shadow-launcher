@@ -1209,27 +1209,15 @@ void VersionBackend::installVersion(const QString& versionId)
     m_dlStates[versionId].phase = tr("正在获取 %1 版本信息...").arg(versionId);
 
 
-    // ── Populate initial steps for the download card ──
-    // (rebuildSteps() is only called for merged MC+modloader installs;
-    //  pure MC installs need steps set here so updateCardFromSession()
-    //  copies non-empty steps and updateStep() can update them)
+    // ── Build step pipeline for pure MC download ──
     {
         auto* ds = ensureSession(versionId);
         if (ds) {
-            QVariantList steps;
-            auto addStep = [&](const QString& name) {
-                steps.append(QVariantMap{
-                    {"name", name},
-                    {"status", QStringLiteral("pending")},
-                    {"percentage", 0},
-                    {"show", true}
-                });
-            };
-            addStep(tr("下载版本JSON"));
-            addStep(tr("下载支持库"));
-            addStep(tr("下载资源文件"));
-            addStep(tr("校验游戏资源完整性"));
-            ds->steps = steps;
+            rebuildSteps(versionId,
+                {tr("下载版本JSON"), tr("下载支持库"), tr("下载资源文件"), tr("校验游戏资源完整性")},
+                {1.0, 3.0, 5.0, 1.0},  // weights
+                {false, true, true, true}  // JSON step hidden before download, others visible
+            );
             // Show card immediately — don't wait for first HTTP byte (progressUpdated signal)
             updateCardFromSession(versionId, versionId, QStringLiteral("version"));
         }
