@@ -3541,6 +3541,18 @@ DownloadSession* VersionBackend::dlSession(const QString& installId) const {
     return m_downloadSessions.value(installId, nullptr);
 }
 
+void VersionBackend::updateCardFromSession(const QString& installId, const QString& name, const QString& type) {
+    auto* ds = dlSession(installId);
+    if (!ds || !m_installCardsModel) return;
+    InstallCard card = ds->toCard(installId, name, type);
+    int row = m_installCardsModel->findRowByIid(installId);
+    if (row >= 0) {
+        m_installCardsModel->updateRow(row, card);
+    } else {
+        m_installCardsModel->appendRow(card);
+    }
+}
+
 void VersionBackend::syncPipelineToStruct(const QString& installId) {
     auto* ds = dlSession(installId);
     if (!ds) return;
@@ -3739,6 +3751,41 @@ QHash<int, QByteArray> InstallCardModel::roleNames() const {
         {CanCancelRole, "canCancel"},
         {ImportFailedAtMsRole, "importFailedAtMs"}
     };
+}
+
+void InstallCardModel::updateRow(int row, const InstallCard& card) {
+    if (row < 0 || row >= m_cards.size()) return;
+    m_cards[row] = card;
+    QModelIndex idx = index(row);
+    emit dataChanged(idx, idx);
+    emit cardUpdated(row);
+}
+
+void InstallCardModel::insertRow(int row, const InstallCard& card) {
+    if (row < 0 || row > m_cards.size()) return;
+    beginInsertRows(QModelIndex(), row, row);
+    m_cards.insert(row, card);
+    endInsertRows();
+    emit generationChanged();
+}
+
+void InstallCardModel::appendRow(const InstallCard& card) {
+    insertRow(m_cards.size(), card);
+}
+
+void InstallCardModel::removeRow(int row) {
+    if (row < 0 || row >= m_cards.size()) return;
+    beginRemoveRows(QModelIndex(), row, row);
+    m_cards.removeAt(row);
+    endRemoveRows();
+    emit generationChanged();
+}
+
+int InstallCardModel::findRowByIid(const QString& iid) const {
+    for (int i = 0; i < m_cards.size(); ++i) {
+        if (m_cards[i].iid == iid) return i;
+    }
+    return -1;
 }
 
 void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {

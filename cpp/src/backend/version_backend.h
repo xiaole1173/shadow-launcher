@@ -119,11 +119,20 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void rebuild(const QVector<InstallCard>& cards);
+
+    // ── 增量更新接口 (避免全量 rebuild) ──
+    void updateRow(int row, const InstallCard& card);
+    void insertRow(int row, const InstallCard& card);
+    void appendRow(const InstallCard& card);
+    void removeRow(int row);
+    int findRowByIid(const QString& iid) const;
+
     int count() const { return m_cards.size(); }
     int generation() const { return m_generation; }
 
 signals:
     void generationChanged();
+    void cardUpdated(int row);       // 单行更新信号 (QML 可监听)
 
 private:
     QVector<InstallCard> m_cards;
@@ -350,6 +359,7 @@ private:
     InstallSession& session(const QString& installId);
     InstallSession& activeSession();
     DownloadSession* dlSession(const QString& installId) const;
+    void updateCardFromSession(const QString& installId, const QString& name = QString(), const QString& type = QString());
 
     // Throttle card rebuilds (300ms interval to avoid flicker)
     QTimer m_cardsRebuildThrottle;
