@@ -11,7 +11,7 @@ Rectangle {
     id: root
 
     implicitWidth: parent ? parent.width : 300
-    implicitHeight: infoRow.y + infoRow.height + 12
+    implicitHeight: (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height) + 12
     radius: StyleTokens.radiusLg
     color: "#141a24"
 
@@ -129,6 +129,56 @@ Rectangle {
             source: "icons/lucide/check-circle.svg"
             width: 14; height: 14
             sourceSize.width: 14; sourceSize.height: 14
+        }
+    }
+
+    // ── 子步骤列表 ──
+    Column {
+        id: stepsList
+        anchors.top: infoRow.bottom; anchors.topMargin: 6
+        anchors.left: parent.left; anchors.leftMargin: 16
+        anchors.right: parent.right; anchors.rightMargin: 12
+        spacing: 3
+        visible: model.steps && model.steps.length > 0 && model.progress < 1.0 && !model.failed
+
+        Repeater {
+            model: model.steps || []
+            delegate: RowLayout {
+                width: parent.width
+                spacing: 4
+                visible: modelData && modelData.show !== false
+                height: 16
+
+                // ── 状态指示器 (圆点) ──
+                Rectangle {
+                    width: 6; height: 6; radius: 3
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: {
+                        var s = modelData.status || "pending"
+                        if (s === "completed") return "#3fb950"
+                        if (s === "active") return StyleTokens.accent
+                        if (s === "failed") return StyleTokens.errorLight
+                        return "#2a3a4a"
+                    }
+                }
+
+                // ── 步骤名 ──
+                Text {
+                    text: modelData.name || ""
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textSecondary
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+
+                // ── 活跃步骤的百分比 (仅 active) ──
+                Text {
+                    text: modelData.status === "active" ? (modelData.percentage + "%") : ""
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted
+                    visible: modelData.status === "active"
+                }
+            }
         }
     }
 
