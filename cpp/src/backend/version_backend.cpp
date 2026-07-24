@@ -7168,9 +7168,11 @@ void VersionBackend::showStep(const QString& installId, int index) {
 
     if (index < 0 || index >= ds->steps.size()) return;
 
-    // ── Update StepNode ──
-    if (auto* node = ds->pipeline()->stepNode(index))
+    // ── Update StepNode: unhide + activate ──
+    if (auto* node = ds->pipeline()->stepNode(index)) {
         node->setHidden(false);
+        node->setActive();
+    }
 
     // ── Sync to old QVariantList ──
     QVariantMap step = ds->steps[index].toMap();
@@ -7225,6 +7227,8 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
             node->setFailed();
         } else if (status == "pending") {
             node->setStatus(StepStatus::Pending);
+        } else if (status == "error") {
+            node->setFailed();
         } else if (status == "skipped") {
             node->setSkipped();
         }
