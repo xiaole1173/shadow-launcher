@@ -3363,6 +3363,10 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
                     st.speed = (st.speedWindow.back().bytes - st.speedWindow.front().bytes) * 1000 / winMs;
 
+            } else if (st.speedWindow.size() == 1 && nowMs > 200) {
+
+                st.speed = (st.speedWindow.back().bytes * 1000) / nowMs;
+
             }
 
         }
