@@ -115,10 +115,10 @@ Window {
 
     Connections {
         target: backend; enabled: backend !== null
-        function onInstallingChanged() {
-            console.log("[main] onInstallingChanged: installing=", backend.installing)
-            if (backend.installing) {
-                // 下载开始 → 自动跳转到全屏进度页
+        function onInstallStateChanged() {
+            console.log("[main] installStateChanged: installing=", backend.installing, "activeCount=", backend.activeCount)
+            if (backend.activeCount > 0 || backend.installing) {
+                // 下载进行中 → 自动跳转到全屏进度页
                 navListIndex = 5
             }
         }
