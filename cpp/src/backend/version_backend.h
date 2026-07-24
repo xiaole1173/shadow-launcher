@@ -295,8 +295,6 @@ private:
     DownloadSession* dlSession(const QString& installId) const;
     void updateCardFromSession(const QString& installId, const QString& name = QString(), const QString& type = QString());
 
-    // Throttle card rebuilds (300ms interval to avoid flicker)
-    QTimer m_cardsRebuildThrottle;
     bool m_cardsRebuildPending = false;
     QElapsedTimer m_cardsTimer;
 

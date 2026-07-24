@@ -118,23 +118,6 @@ VersionBackend::VersionBackend(QObject* parent)
 
 
 
-    // Throttle activeInstallsChanged to 300ms intervals (avoid flicker)
-
-    m_cardsRebuildThrottle.setSingleShot(true);
-
-    m_cardsRebuildThrottle.setInterval(300);
-
-    connect(&m_cardsRebuildThrottle, &QTimer::timeout, this, [this]() {
-
-        if (m_cardsRebuildPending) {
-
-            m_cardsRebuildPending = false;
-
-            rebuildInstallCards();
-
-        }
-
-    });
 
 
 
