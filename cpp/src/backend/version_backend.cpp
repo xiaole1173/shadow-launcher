@@ -3497,7 +3497,13 @@ InstallSession& VersionBackend::session(const QString& installId) {
             syncPipelineToStruct(installId);
         });
     }
-    return m_sessions[installId];
+    // ── Sync DownloadSession → struct (gradual migration bridge) ──
+    auto& ses = m_sessions[installId];
+    if (auto* ds = m_downloadSessions.value(installId)) {
+        ses.failed = ds->isFailed();
+        ses.error = ds->errorMessage();
+    }
+    return ses;
 }
 
 InstallSession& VersionBackend::activeSession() {
