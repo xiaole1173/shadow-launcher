@@ -53,6 +53,7 @@ public:
 
     // ── 错误处理 ──
     void setError(const QString& err) { m_error = err; }
+    void clearFailure() { m_failed = false; m_error.clear(); emit progressUpdated(); }
     void appendError(const QString& err);
 
     // ── 卡片数据导出 (适配旧 InstallCardModel) ──
@@ -65,6 +66,10 @@ signals:
     // 旧 struct 字段 — 逐步迁移中
     // ═══════════════════════════════════════════════
 public:
+    // ── 步骤 (从 struct 迁入) ──
+    QVariantList steps;
+
+    // ── 进度 (raw, 非计算值) ──
     // ── MC 下载状态 ──
     bool mcDownloadDone = false;
     qint64 mcStepDone[3] = {};
@@ -112,6 +117,13 @@ public:
 
     // ── 步骤跟踪 (旧) ──
     int loadedStep = 0;
+
+    // ── 平滑进度 (EWMA) ──
+    qreal smoothProgress = 0.0;
+    void setSmoothProgress(qreal v) { smoothProgress = v; }
+
+    // ── MC 版本 (从 struct 迁入) ──
+    QString mcVersion;
 
 private:
     QString m_versionId;

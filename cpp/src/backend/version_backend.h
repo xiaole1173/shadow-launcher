@@ -28,27 +28,19 @@ namespace ShadowLauncher {
 struct InstallSession {
     QVariantList steps;
     qreal totalProgress = 0.0;
-    qreal smoothProgress = 0.0;
-    bool isMerged = false;
-    bool mcDownloadDone = false;      // MC download + verify phase complete
     bool loaderDownloadReady = false; // Loader file downloaded + verified
     QByteArray loaderDownloadData;    // Cached loader file bytes
     int loaderVerifyStep = -1;         // Step index for verify (5 for forge)
     int loaderStepIdx = -1;            // Active ML step index for byteProgress update
-    QString mcVersion;
     QString loaderType;
     QString loaderVer;
-    bool failed = false;
-    bool hasPendingLoader = false;
     QString pendingLoaderName;
     QString pendingLoaderVer;
     qreal pendingLoaderWeight = 0.0;
     QString pendingLoaderMc;       // MC version waiting for pending loader
     QString pendingLoaderType;     // "optifine" / "forge" / etc for pending loader
-    QString error;                 // Install error message on failure
     int loadedStep = 0;  // which step is currently active
     bool fabricApiPending = false; // Fabric API download in progress (parallel)
-    bool loaderFinishedWaitingMC = false; // Loader done but MC still downloading (merged Fabric)
     bool optifineJarParallel = false; // OptiFine JAR downloading in parallel with MC
     bool optifineJarDone = false;     // OptiFine JAR download complete
     QByteArray optifineJarData;       // Cached OptiFine JAR from parallel download
@@ -80,7 +72,6 @@ struct InstallSession {
     QString fabricApiFinalPath;      // final mods/ path (API downloaded to temp, moved here on success)
 
     // User data import
-    bool hasImportPending = false;
     QString importArchivePath;         // ZIP path for pending user data import
     qint64 importFailedAtMs = 0;        // timestamp when import failed
 };
@@ -182,9 +173,11 @@ public:
         if (!m_modLoaderInstallId.isEmpty() && !names.contains(m_modLoaderInstallId))
             names.append(m_modLoaderInstallId);
         for (auto it = m_sessions.constBegin(); it != m_sessions.constEnd(); ++it) {
-            if (it.value().hasPendingLoader && !it.value().pendingLoaderName.isEmpty()
-                && !names.contains(it.value().pendingLoaderName))
-                names.append(it.value().pendingLoaderName);
+            if (auto* ds = dlSession(it.key())) {
+                if (ds->hasPendingLoader && !it.value().pendingLoaderName.isEmpty()
+                    && !names.contains(it.value().pendingLoaderName))
+                    names.append(it.value().pendingLoaderName);
+            }
         }
         return names;
     }

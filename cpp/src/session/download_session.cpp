@@ -128,6 +128,10 @@ void DownloadSession::reset() {
     
     mlFileTotal = 0;
 
+    smoothProgress = 0.0;
+    mcVersion.clear();
+    steps.clear();
+
     hasImportPending = false;
     importArchivePath.clear();
     importFailedAtMs = 0;
@@ -158,6 +162,7 @@ InstallCard DownloadSession::toCard(const QString& iid, const QString& name, con
     card.error = m_error;
     card.canCancel = true;
     card.totalProgressVisible = true;
+    card.steps = steps;
     card.phase = m_pipeline && m_pipeline->currentStepIndex() >= 0
                      ? (m_pipeline->currentStep() ? m_pipeline->currentStep()->name() : QString{})
                      : QString{};
