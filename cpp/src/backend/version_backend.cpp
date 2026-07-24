@@ -290,7 +290,7 @@ VersionBackend::VersionBackend(QObject* parent)
     // Byte-level download progress → update current active step
     connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
             [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
-                // Speed: feed bytes to ProgressTracker (200ms timer handles EWMA)
+                
         const QString mlId = m_modLoaderInstallId;
         auto& ses = mlId.isEmpty() ? activeSession() : session(mlId);
 
@@ -1587,7 +1587,7 @@ void VersionBackend::syncPrimaryProgress()
     const auto& st = m_dlStates[pid];
     m_installBytesDl = st.bytesDl;
     m_installBytesTotal = st.bytesTotal;
-    // m_installSpeed removed — using ProgressTracker;
+    // speed comes from DownloadSession
 
     // Two-segment progress: download 0-90%, verify 90-100%
     bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
@@ -1613,7 +1613,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     st.progress = cf;
     st.total = tf;
 
-    // Feed delta to unified ProgressTracker (200ms timer handles speed)
+    
     qint64 delta = db - st.bytesDl;
 
     // ── Per-State speed (sliding window 3s) ──
@@ -1713,7 +1713,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     if (versionId == primaryVersionId()) {
         m_installBytesDl = db;
         m_installBytesTotal = tb;
-        // m_installSpeed removed — using ProgressTracker;
+        // speed comes from DownloadSession
 
         // Byte-weighted total progress ── raw ──
         // Find merged session for grand-total calculation
@@ -2191,7 +2191,7 @@ void VersionBackend::cleanCorruptVersion(const QString& versionId)
 }
 
 // ============================================================
-// Inline repair pipeline: download & verify each failed file without jumping to DownloadProgressPage
+// Inline repair pipeline: download & verify each failed file
 // ============================================================
 void VersionBackend::repairVersion(const QString& versionId)
 {
