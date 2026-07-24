@@ -7336,83 +7336,52 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         return;
     }
 
-    // ── Slow path: steps/status changed (structural update) ──
-    InstallCard card = ds->toCard(installId, name, type);
+    // ── Slow path: steps/status changed ──
+    // 1. 原地更新 steps (保持 QVariantList 身份 → Repeater 不重建)
+    m_installCardsModel->updateStepList(row, ds->steps);
 
-    if (!ds->isMerged() && m_dlStates.contains(installId)) {
-        card.speed = m_dlStates[installId].speed;
-    }
-
-    if (card.failed || card.progress >= 1.0) {
-        card.canCancel = false;
-    }
-
-    if (card.phase.isEmpty() && !ds->steps.isEmpty()) {
-        QString derivedPhase;
-        bool allDone = true;
-        bool anyActive = false;
-        bool anyFailed = false;
+    // 2. 推导 phase
+    QString newPhase;
+    {
+        bool allDone = true, anyActive = false, anyFailed = false;
         for (const QVariant& vs : ds->steps) {
             QVariantMap s = vs.toMap();
             QString st = s.value("status").toString();
-            if (st == "active") {
-                if (!anyActive) derivedPhase = s.value("name").toString();
-                anyActive = true;
-                allDone = false;
-            } else if (st == "pending" || st == "skipped") {
-                allDone = false;
-            } else if (st == "failed") {
-                anyFailed = true;
-            }
+            if (st == "active") { if (!anyActive) newPhase = s.value("name").toString(); anyActive = true; allDone = false; }
+            else if (st == "pending" || st == "skipped") { allDone = false; }
+            else if (st == "failed") { anyFailed = true; }
         }
-        if (anyFailed) {
-            card.phase = QStringLiteral("失败");
-        } else if (allDone) {
-            QString lastName = ds->steps.last().toMap().value("name").toString();
-            card.phase = lastName + QStringLiteral(" - 完成");
-        } else if (anyActive) {
-            card.phase = derivedPhase;
+        if (anyFailed) newPhase = QStringLiteral("失败");
+        else if (allDone) newPhase = ds->steps.last().toMap().value("name").toString() + QStringLiteral(" - 完成");
+    }
+
+    // 3. 检查是否有步骤以外的字段需要更新 (phase / failed / completed)
+    const InstallCard* cur = m_installCardsModel->cardAt(row);
+    bool needFull = false;
+
+    if (cur) {
+        // Phase changed?
+        if (!newPhase.isEmpty() && cur->phase != newPhase) needFull = true;
+        // Failed?
+        if (ds->isFailed() && !cur->failed) needFull = true;
+        // Completed? (progress hit 1.0)
+        if (ds->smoothProgress >= 1.0 && cur->progress < 1.0) needFull = true;
+    }
+
+    if (needFull) {
+        // 仅当有 steps 以外的变更时走完整 updateRow
+        // (失败/完成只触发一次，开销可接受)
+        InstallCard patch = *cur;
+        if (!newPhase.isEmpty()) patch.phase = newPhase;
+        if (ds->isFailed()) {
+            patch.failed = true;
+            patch.error = ds->errorMessage();
+            patch.canCancel = false;
         }
+        if (ds->smoothProgress >= 1.0) patch.canCancel = false;
+        m_installCardsModel->updateRow(row, patch);
     }
-
-    // ── In-place sync: copy ds->steps field values into existing model steps ──
-    // Preserves QVariantList identity, avoiding QML Repeater rebuild
-    QVariantList modelSteps = m_installCardsModel->stepsAt(row);
-    const QVariantList& newSteps = ds->steps;
-
-    if (modelSteps.size() == newSteps.size()) {
-        for (int i = 0; i < modelSteps.size(); ++i) {
-            QVariantMap oldMap = modelSteps[i].toMap();
-            const QVariantMap newMap = newSteps[i].toMap();
-            oldMap["bytesReceived"] = newMap.value("bytesReceived");
-            oldMap["bytesTotal"] = newMap.value("bytesTotal");
-            if (oldMap.value("status").toString() != newMap.value("status").toString())
-                oldMap["status"] = newMap.value("status");
-            if (oldMap.value("percentage").toInt() != newMap.value("percentage").toInt())
-                oldMap["percentage"] = newMap.value("percentage");
-            if (oldMap.value("show").toBool() != newMap.value("show").toBool())
-                oldMap["show"] = newMap.value("show");
-            modelSteps[i] = oldMap;
-        }
-        card.steps = modelSteps;
-    } else {
-        card.steps = newSteps;
-    }
-
-    if (card.name.isEmpty()) {
-        auto idx = m_installCardsModel->index(row, 0);
-        QVariant existingName = m_installCardsModel->data(idx, InstallCardModel::NameRole);
-        if (existingName.isValid() && !existingName.toString().isEmpty())
-            card.name = existingName.toString();
-    }
-    if (card.type.isEmpty()) {
-        auto idx = m_installCardsModel->index(row, 0);
-        QVariant existingType = m_installCardsModel->data(idx, InstallCardModel::TypeRole);
-        if (existingType.isValid() && !existingType.toString().isEmpty())
-            card.type = existingType.toString();
-    }
-
-    m_installCardsModel->updateRow(row, card);
+    // else: 仅 steps 变化 → updateStepList 已处理
 
 }
 
@@ -7859,6 +7828,58 @@ void InstallCardModel::updateRow(int row, const InstallCard& card) {
 
     emit cardUpdated(row);
 
+}
+
+// ── 原地更新步骤列表，保持 QVariantList 身份不变 ──
+// QML Repeater 不会重建 delegate（因为 model 引用未变）
+// 返回是否实际修改了任何字段
+bool InstallCardModel::updateStepList(int row, const QVariantList& newSteps) {
+    if (row < 0 || row >= m_cards.size()) return false;
+
+    QVariantList& steps = m_cards[row].steps;
+
+    // 大小不同 → 必须整体替换 (同时需要 full dataChanged)
+    if (steps.size() != newSteps.size()) {
+        steps = newSteps;
+        QModelIndex idx = index(row);
+        emit dataChanged(idx, idx, {StepsRole});
+        return true;
+    }
+
+    // 大小相同 → 逐字段比较，仅改变动的
+    bool changed = false;
+    for (int i = 0; i < steps.size(); ++i) {
+        QVariantMap oldMap = steps[i].toMap();
+        const QVariantMap newMap = newSteps[i].toMap();
+
+        bool itemChanged = false;
+
+        auto maybeSet = [&](const char* key, const QVariant& newVal) {
+            if (oldMap.value(key) != newVal) {
+                oldMap[key] = newVal;
+                itemChanged = true;
+            }
+        };
+        maybeSet("status", newMap.value("status"));
+        maybeSet("percentage", newMap.value("percentage"));
+        maybeSet("show", newMap.value("show"));
+        maybeSet("bytesReceived", newMap.value("bytesReceived"));
+        maybeSet("bytesTotal", newMap.value("bytesTotal"));
+
+        if (itemChanged) {
+            steps[i] = oldMap;
+            changed = true;
+        }
+    }
+
+    // 只发 StepsRole —— QML 仅重新评估 model.steps 绑定
+    // 因为 QVariantList 身份未变，Repeater 不会重建
+    if (changed) {
+        QModelIndex idx = index(row);
+        emit dataChanged(idx, idx, {StepsRole});
+    }
+
+    return changed;
 }
 
 QVariantList InstallCardModel::stepsAt(int row) const {
