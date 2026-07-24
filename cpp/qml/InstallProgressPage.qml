@@ -4,81 +4,65 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// InstallProgressPage — 全屏下载进度页
-// 简洁风格，与启动器其他页面一致
-
 Item {
     id: root
 
     property var mainWindow: null
     property var backend: null
 
-    // ── 简单背景 ──
     Rectangle {
         anchors.fill: parent
         color: StyleTokens.bgPrimary
     }
 
-    // ── 卡片列表 ──
-    ScrollView {
-        id: scrollView
+    ListView {
+        id: cardsView
         anchors.fill: parent
         anchors.topMargin: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        spacing: 8
         clip: true
-        background: Rectangle { color: "transparent" }
 
-        // 自定义滚动条（与启动器其他页面一致）
+        // 彻底消除所有滚动条痕迹
         ScrollBar.vertical: ScrollBar {
-            policy: ScrollBar.AsNeeded
-            contentItem: Rectangle {
-                implicitWidth: 4
-                radius: StyleTokens.radiusXs
-                color: StyleTokens.textMuted
-            }
+            policy: ScrollBar.AlwaysOff
+            contentItem: Rectangle { implicitWidth: 0; color: "transparent" }
+            background: Rectangle { implicitWidth: 0; color: "transparent" }
         }
 
-        ListView {
-            id: cardsView
-            anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 8
+        model: backend ? backend.installCardsModel : null
+        delegate: DownloadQueueCard {
+            width: cardsView.width - 32
+        }
 
-            model: backend ? backend.installCardsModel : null
-            delegate: DownloadQueueCard {
-                width: cardsView.width - 32
-            }
+        footer: Item {
+            width: ListView.view.width
+            height: ListView.view.height > 0 ? Math.max(ListView.view.height - 60, 0) : 250
+            visible: !backend || !backend.installing
 
-            // ── 无任务占位 ──
-            footer: Item {
-                width: ListView.view.width
-                height: ListView.view.height > 0 ? Math.max(ListView.view.height - 60, 0) : 250
-                visible: !backend || !backend.installing
+            Column {
+                anchors.centerIn: parent
+                spacing: 16
 
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 16
+                Image {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    source: "icons/lucide/download-cloud.svg"
+                    width: 64; height: 64
+                    sourceSize.width: 64; sourceSize.height: 64
+                    opacity: 0.3
+                }
 
-                    Image {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        source: "icons/lucide/download-cloud.svg"
-                        width: 64; height: 64
-                        sourceSize.width: 64; sourceSize.height: 64
-                        opacity: 0.3
-                    }
-
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: qsTr("暂无下载任务")
-                        font.pixelSize: StyleTokens.fontSizeMd
-                        color: StyleTokens.textMuted
-                    }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("暂无下载任务")
+                    font.pixelSize: StyleTokens.fontSizeMd
+                    color: StyleTokens.textMuted
                 }
             }
         }
     }
 
-    // ── 页面进入动画 ──
     opacity: 0
     Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
