@@ -27,7 +27,10 @@ Rectangle {
 
     width: root.expanded ? 320 : 0
     clip: true
-    visible: _cardCount > 0
+    // Always in render tree — hiding via width+opacity animation, NOT visible binding.
+    // Using visible: _cardCount > 0 would cause invisible→visible jump (black flash)
+    // when the first card appears, because the render tree needs a frame to populate content.
+    visible: true
 
     Behavior on width {
         NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
@@ -47,10 +50,13 @@ Rectangle {
     function syncCardCount() {
         var m = backendRef ? backendRef.installCardsModel : null
         _cardCount = m ? m.count : 0
-        // 首次有卡片时自动展开
         if (_cardCount > 0 && !_autoExpandedOnce) {
+            // 首次有卡片时自动展开
             root.expanded = true
             _autoExpandedOnce = true
+        } else if (_cardCount === 0) {
+            // 无卡片时折叠面板（保持 visible:true, 只用动画隐藏）
+            root.expanded = false
         }
     }
 
