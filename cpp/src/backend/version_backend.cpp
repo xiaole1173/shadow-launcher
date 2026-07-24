@@ -3547,7 +3547,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                     } else {
                         st1 = (st2.catBytesDl[1] >= st2.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active");
                     }
-                    int pct1 = st2.catBytesTotal[1] > 0 ? (int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]) : (st2.bytesDl > 0 ? 100 : 0);
+                    int pct1 = st2.catBytesTotal[1] > 0 ? qMin((int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]), 100) : (st2.bytesDl > 0 ? 100 : 0);
                     updateStep(versionId, 1, st1, pct1, st2.catBytesDl[1], st2.catBytesTotal[1]);
                 }
                 // Step 2 (assets): category index 2
@@ -3558,7 +3558,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                     } else {
                         st2s = (st2.catBytesDl[2] >= st2.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active");
                     }
-                    int pct2 = st2.catBytesTotal[2] > 0 ? (int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]) : (st2.bytesDl > 0 ? 100 : 0);
+                    int pct2 = st2.catBytesTotal[2] > 0 ? qMin((int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]), 100) : (st2.bytesDl > 0 ? 100 : 0);
                     updateStep(versionId, 2, st2s, pct2, st2.catBytesDl[2], st2.catBytesTotal[2]);
                 }
             }
@@ -3621,7 +3621,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                             ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
                             : ((mst.catBytesDl[1] >= mst.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active"));
                         updateStep(mergedSessionId, 1, s1,
-                            mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : (mst.bytesDl > 0 ? 100 : 0),
+                            mst.catBytesTotal[1] > 0 ? qMin((int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]), 100) : (mst.bytesDl > 0 ? 100 : 0),
                             mst.catBytesDl[1], mst.catBytesTotal[1]);
                     }
                     {
@@ -3629,7 +3629,7 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                             ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
                             : ((mst.catBytesDl[2] >= mst.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active"));
                         updateStep(mergedSessionId, 2, s2,
-                            mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : (mst.bytesDl > 0 ? 100 : 0),
+                            mst.catBytesTotal[2] > 0 ? qMin((int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]), 100) : (mst.bytesDl > 0 ? 100 : 0),
                             mst.catBytesDl[2], mst.catBytesTotal[2]);
                     }
                 }
@@ -3751,7 +3751,11 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
         }
 
-        st.catBytesDl[cat] = catDone;
+        // Use max() so in-flight progress during download completion doesn't get
+        // overwritten by a later fileProgress with smaller received (DEDUP or stale signal).
+        // But cap at catBytesTotal to prevent >100% display overflow.
+        qint64 capped = qMin(catDone, st.catBytesTotal[cat] > 0 ? st.catBytesTotal[cat] : catDone);
+        st.catBytesDl[cat] = qMax(st.catBytesDl[cat], capped);
 
 
 
