@@ -5543,7 +5543,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
             QVector<qreal> weights = {3.0, 8.0, 5.0, 0.5, 0.1, 2.0, 0.5};
 
-            QVector<bool> shows = {true, true, true, false, true, true, true};
+            QVector<bool> shows = {true, true, true, true, true, true, true};
 
             if (!fabricApiUrl.isEmpty()) {
 
@@ -5579,7 +5579,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
             }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
 
-             {true, true, true, false, true, false, false});
+             {true, true, true, true, true, true, true});
 
         }
 
