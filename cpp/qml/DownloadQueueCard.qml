@@ -144,6 +144,8 @@ Rectangle {
         // steps content auto-hides when the array is empty (Repeater yields no delegates)
 
         Repeater {
+            anchors.left: parent.left
+            anchors.right: parent.right
             model: model.steps || []
             delegate: RowLayout {
                 width: parent.width
