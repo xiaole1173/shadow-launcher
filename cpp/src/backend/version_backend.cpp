@@ -1477,7 +1477,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         st.downloadsDone = true;  // sticky: downloads are complete
 
-                        // Activate MC verify step for merged installs
+                        // ── Activate MC verify step for merged installs ──
 
                         for (auto sit = m_downloadSessions.begin(); sit != m_downloadSessions.end(); ++sit) {
 
@@ -1515,11 +1515,43 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         }
 
+                        // ── Pure MC: route verify progress into ds->steps ──
+
+                        auto* pureVerifyDs = dlSession(versionId);
+
+                        if (pureVerifyDs && !pureVerifyDs->isMerged() && pureVerifyDs->steps.size() >= 4) {
+
+                            // Mark download steps (0-2) as completed
+
+                            for (int i = 0; i < 3 && i < pureVerifyDs->steps.size(); i++) {
+
+                                updateStep(versionId, i, QStringLiteral("completed"), 100);
+
+                            }
+
+                            // Show and update verify step (index 3)
+
+                            int verifyIdx = 3;
+
+                            if (verifyIdx < pureVerifyDs->steps.size()) {
+
+                                showStep(versionId, verifyIdx);
+
+                                int pct = total > 0 ? (checked * 100 / total) : 0;
+
+                                updateStep(versionId, verifyIdx, QStringLiteral("active"), pct, checked, total);
+
+                            }
+
+                            qCInfo(logVersion) << QStringLiteral("纯MC下载 验证步骤已启动 版本=%1").arg(versionId);
+
+                        }
+
                         // Sync primary + ensure cards rebuild for standalone downloads
 
-                        // (merged install path already triggers rebuild via showStep/updateStep above,
+                        // (merged install path already triggers rebuild via showStep/updateStep above;
 
-                        // but standalone downloads have no session entry, so they never hit that path)
+                        //  pure MC path uses updateCardFromSession via updateStep)
 
                         syncPrimaryProgress();
 
