@@ -92,12 +92,6 @@ Window {
         onTriggered: pageLoading = false
     }
 
-    Timer {
-        id: hideDownloadNavTimer
-        interval: 2000
-        onTriggered: hideDownloadNav()
-    }
-
     // 自动检测游戏文件变化（每30秒）
     Timer {
         id: fileChangeTimer
@@ -109,66 +103,20 @@ Window {
         }
     }
 
-    // Download progress nav item management ===
-    property bool downloadNavVisible: false
-
-    function showDownloadNav() {
-        console.log("[main] showDownloadNav called: downloadNavVisible=" + downloadNavVisible + " navModel.count=" + navModel.count)
-        // Always show nav AND auto-switch (silent may pre-add the nav item)
-        if (!downloadNavVisible) {
-            downloadNavVisible = true
-            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
-            console.log("[main] showDownloadNav: appended nav, new count=" + navModel.count)
-        }
-        // Always auto-switch — critical: must not be blocked by silent pre-add
-        console.log("[main] showDownloadNav: switching to page " + (navModel.count - 1))
-        switchPage(navModel.count - 1)
-    }
-
-    function showDownloadNavSilent() {
-        // Add nav item without auto-switching (for ball animation flow)
-        if (!downloadNavVisible) {
-            downloadNavVisible = true
-            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
-        }
-    }
-
-    function hideDownloadNav() {
-        if (downloadNavVisible) {
-            downloadNavVisible = false
-            // Remove last item if it's download_progress
-            for (var i = navModel.count - 1; i >= 0; i--) {
-                if (navModel.get(i).pageKey === "download_progress") {
-                    navModel.remove(i)
-                    break
-                }
-            }
-            // If we're currently on that page, switch to home
-            if (navListIndex >= navModel.count) {
-                switchPage(0)
-            }
-        }
-    }
-
+    // ═══ Download panel: replaced old nav-item management ═══
+    // Floating FAB + side panel replaced the old full-page DownloadProgressPage
+    // showModDownloadProgress kept as stub for external callers (ModDetailPage etc.)
     function showModDownloadProgress() {
-        // Show download nav item for mod downloads too
-        if (!downloadNavVisible) {
-            downloadNavVisible = true
-            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
-        }
-        switchPage(navModel.count - 1)
+        // Panel auto-shows — no explicit navigation needed
+        console.log("[main] showModDownloadProgress: download panel handles visibility")
     }
 
     Connections {
         target: backend; enabled: backend !== null
         function onInstallingChanged() {
-            console.log("[main] onInstallingChanged: installing=", backend.installing, "downloadNavVisible=", downloadNavVisible)
-            if (backend.installing) {
-                showDownloadNav()
-            } else if (downloadNavVisible) {
-                // All installs complete — keep nav visible briefly then hide
-                hideDownloadNavTimer.restart()
-            }
+            console.log("[main] onInstallingChanged: installing=", backend.installing)
+            // Download panel auto-shows/hides based on CardModel count
+            // No explicit nav manipulation needed
         }
         function onSelectedVersionClearedAfterDelete() {
             // Binding auto-updates — no explicit assignment needed
@@ -187,9 +135,7 @@ Window {
         }
         function onResourceDownloadStateChanged() {
             console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)
-            if (backend && backend.isResourceDownloading) {
-                if (!downloadNavVisible) showDownloadNav()
-            }
+            // Download panel auto-shows — no nav manipulation needed
         }
         function onLaunchBlocked(reason) {
             if (toastManager) toastManager.show(reason)
@@ -587,15 +533,6 @@ Window {
                             }
                         } }
 
-                    // ========== DOWNLOAD PROGRESS PAGE ==========
-                    Rectangle {
-                        anchors.fill: parent; color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
-                        opacity: navListIndex >= 4 && navModel.get(navListIndex).pageKey === "download_progress" ? 1 : 0
-                        visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.InOutCubic } }
-                        Loader { id: progressLoader; asynchronous: true; anchors.fill: parent; active: navListIndex >= 4; source: active ? "DownloadProgressPage.qml" : ""; onLoaded: { progressLoader.item.backend = backend; progressLoader.item.toastManager = toastManager } }
-                    }
-
                     // ========== VERSION SELECT OVERLAY ==========
                     Loader {
                         id: versionSelectLoader
@@ -848,11 +785,7 @@ Window {
                     item.goBack.connect(function() { showInstallPage = false })
                     item.navigateToProgress.connect(function() {
                         showInstallPage = false
-                        if (!downloadNavVisible) {
-                            downloadNavVisible = true
-                            navModel.append({ label: "下载进度", pageKey: "download_progress", icon: "package" })
-                        }
-                        switchPage(navModel.count - 1)
+                        // Download panel auto-shows — no nav navigation needed
                     })
                     item.requestMinimize.connect(function() { appWindow.showMinimized() })
                     item.requestClose.connect(function() { appWindow.close() })
@@ -972,19 +905,9 @@ Window {
     }
 
     function animateDownloadBall(sourceX, sourceY) {
-        // Find the download progress nav item (last in navModel)
-        var idx = downloadNavVisible ? navModel.count - 1 : -1
-        if (idx < 0) { return }
-
-        var targetX, targetY
-        var delegate = navRepeater.itemAt(idx)
-        if (delegate) {
-            var pt = delegate.mapToItem(null, delegate.width / 2, delegate.height / 2)
-            targetX = pt.x; targetY = pt.y
-        } else {
-            targetX = 108
-            targetY = 46 + 8 + 48 + idx * 46 + 22
-        }
+        // Target the FAB button at bottom-right
+        var targetX = parent.width - 16 - 22  // rightMargin 16 + half width 22
+        var targetY = parent.height - 16 - 22  // bottomMargin 16 + half height 22
 
         // Diagnostic: write trace to file
         if (backend) backend.logMessage("[flyBall] (" + sourceX.toFixed(0) + "," + sourceY.toFixed(0) + ") → (" + targetX.toFixed(0) + "," + targetY.toFixed(0) + ")")
@@ -1003,13 +926,11 @@ Window {
         flyBallAnim.endY = targetY
         flyBallAnim.restart()
 
-        // Nav overlay bounce
-        navBounceOverlay.y = targetY - 20
-        navBounceOverlay.opacity = 0.3
-        navBounceOverlay.scale = 0.9
-        navBounceOverlay.visible = true
-        navOverlayFade.restart()
-        navOverlayScale.restart()
+        // FAB overlay bounce indicator
+        if (downloadFab) {
+            downloadFab.scale = 1.2
+            fabBounceBack.restart()
+        }
     }
 
     Connections {
@@ -1161,6 +1082,74 @@ Window {
         active: backend ? !backend.agreementAccepted : false
         source: "AgreementOverlay.qml"
         asynchronous: false
+    }
+
+    // ═══ FAB 下载按钮 (右下角浮动圆形) ═══
+    Rectangle {
+        id: downloadFab
+        z: 50
+        width: 44; height: 44; radius: 22
+        color: fabMouse.containsMouse ? "#253545" : "#1a2838"
+        border.color: fabMouse.containsMouse ? "#3a5060" : "#2a3a4a"
+        anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.rightMargin: 16; anchors.bottomMargin: 16
+        visible: backend && backend.installCardsModel && backend.installCardsModel.count > 0
+        opacity: visible ? 1 : 0
+        scale: visible ? 1 : 0.8
+
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Behavior on scale { NumberAnimation { duration: 200 } }
+        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on border.color { ColorAnimation { duration: 150 } }
+
+        // 下载图标 (Lucide)
+        Image {
+            anchors.centerIn: parent
+            source: "icons/lucide/download.svg"
+            width: 20; height: 20
+            sourceSize.width: 20; sourceSize.height: 20
+        }
+
+        // 数量徽章 (仅 >1 时显示)
+        Rectangle {
+            anchors.top: parent.top; anchors.right: parent.right
+            anchors.topMargin: -4; anchors.rightMargin: -4
+            width: 20; height: 20; radius: 10
+            color: StyleTokens.accent
+            visible: backend && backend.installCardsModel && backend.installCardsModel.count > 1
+            Text {
+                anchors.centerIn: parent
+                text: backend ? (backend.installCardsModel ? backend.installCardsModel.count : "") : ""
+                font.pixelSize: 11; color: "#ffffff"
+            }
+        }
+
+        MouseArea {
+            id: fabMouse
+            anchors.fill: parent; hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                downloadPanel._expanded = !downloadPanel._expanded
+                if (downloadPanel._expanded) {
+                    // Ensure visible
+                    downloadPanel.visible = true
+                }
+            }
+        }
+
+        // FAB 弹跳回弹动画 (由 animateDownloadBall 触发)
+        NumberAnimation {
+            id: fabBounceBack
+            target: downloadFab; property: "scale"; to: 1.0
+            duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2.0
+        }
+    }
+
+    // ═══ 下载队列面板 ═══
+    DownloadQueuePanel {
+        id: downloadPanel
+        backendRef: backend
+        visible: false
     }
 
     } // ── end rounded Rectangle
