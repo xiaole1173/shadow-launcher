@@ -3299,15 +3299,15 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     st.bytesTotal = tb;
 
-    // ── Sync speed from DlState → DownloadSession (for mod_loader cards) ──
+    // ── Speed: let DownloadSession compute its own from raw bytes ──
     if (auto* ds = dlSession(versionId)) {
-        ds->setSpeed(st.speed);
+        ds->recordBytes(db, tb);
     }
-    // Also sync to merged install sessions keyed by loader session id
+    // Also route to merged install sessions keyed by loader session id
     for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
         auto* d = dlSession(it.key());
         if (d && d->isMerged() && d->mcVersion == versionId) {
-            d->setSpeed(st.speed);
+            d->recordBytes(db, tb);
             break;
         }
     }

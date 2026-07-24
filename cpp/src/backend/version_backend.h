@@ -261,7 +261,8 @@ private:
         qint64 speed = 0;
         QString file;
         QString phase = QStringLiteral("idle");
-        // Sliding-window speed tracking (3s window)
+        // [DEPRECATED] 旧滑动窗口速度跟踪 — 有 DownloadSession 的卡片改用 recordBytes()
+        // 此处保留以供纯版本卡片（无 session）回退使用
         static constexpr qint64 kSpeedWindowMs = 3000;
         struct SpeedSample { qint64 timeMs; qint64 bytes; };
         QVector<SpeedSample> speedWindow;
