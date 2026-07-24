@@ -3518,7 +3518,48 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
 
 
-    // ── If this is the primary download, sync to main properties ──
+
+    // ── Pure MC: route category progress into ds->steps via updateStep ──
+    if (mergedSessionId.isEmpty()) {
+        auto* pureDs = dlSession(versionId);
+        if (pureDs && !pureDs->isMerged() && pureDs->steps.size() >= 4) {
+            auto& st2 = m_dlStates[versionId];
+            bool verifying = (st2.phase == tr("校验中..."));
+            if (!verifying) {
+                // Step 0 (JSON): mark completed once any bytes flow
+                if (st2.bytesDl > 0) {
+                    QVariantMap step0 = pureDs->steps[0].toMap();
+                    if (step0["status"].toString() != QStringLiteral("completed")) {
+                        updateStep(versionId, 0, QStringLiteral("completed"), 100, st2.catBytesDl[0], st2.catBytesTotal[0]);
+                    }
+                }
+                // Step 1 (libraries): category index 1
+                {
+                    QString st1;
+                    if (st2.catBytesTotal[1] <= 0) {
+                        st1 = st2.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending");
+                    } else {
+                        st1 = (st2.catBytesDl[1] >= st2.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active");
+                    }
+                    int pct1 = st2.catBytesTotal[1] > 0 ? (int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]) : (st2.bytesDl > 0 ? 100 : 0);
+                    updateStep(versionId, 1, st1, pct1, st2.catBytesDl[1], st2.catBytesTotal[1]);
+                }
+                // Step 2 (assets): category index 2
+                {
+                    QString st2s;
+                    if (st2.catBytesTotal[2] <= 0) {
+                        st2s = st2.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending");
+                    } else {
+                        st2s = (st2.catBytesDl[2] >= st2.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active");
+                    }
+                    int pct2 = st2.catBytesTotal[2] > 0 ? (int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]) : (st2.bytesDl > 0 ? 100 : 0);
+                    updateStep(versionId, 2, st2s, pct2, st2.catBytesDl[2], st2.catBytesTotal[2]);
+                }
+            }
+        }
+    }
+
+
 
     if (versionId == primaryVersionId()) {
 
