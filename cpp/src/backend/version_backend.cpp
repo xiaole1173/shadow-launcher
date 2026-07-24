@@ -1230,6 +1230,8 @@ void VersionBackend::installVersion(const QString& versionId)
             addStep(tr("下载资源文件"));
             addStep(tr("校验游戏资源完整性"));
             ds->steps = steps;
+            // Show card immediately — don't wait for first HTTP byte (progressUpdated signal)
+            updateCardFromSession(versionId, versionId, QStringLiteral("version"));
         }
     }
 
