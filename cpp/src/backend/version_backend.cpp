@@ -7420,7 +7420,11 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
 
 
-    updateCardFromSession(installId);
+    // Use throttled card update — direct updateCardFromSession on every progress event
+    // would flood the main thread (QNetworkReply fires 60+ events/sec during downloads).
+    if (!m_pendingCardUpdates.contains(installId))
+        m_pendingCardUpdates.append(installId);
+    m_cardUpdateThrottle.start();
 
     }
 
