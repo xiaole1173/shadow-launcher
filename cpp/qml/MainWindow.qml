@@ -26,6 +26,7 @@ Window {
     property var offlineHistory: []
     property bool pageLoading: false
     property bool _settingsFadeOut: false
+    property bool _installProgressFadeOut: false
     property bool _dlFadeOut: false
     property var runningListModel: []
 
@@ -76,6 +77,7 @@ Window {
     function switchPage(index) {
         if (navListIndex === 4 && index !== 4) _settingsFadeOut = true
         if (navListIndex === 1 && index !== 1) _dlFadeOut = true
+        if (navListIndex === 5 && index !== 5) _installProgressFadeOut = true
         navListIndex = index
         showVersionSelect = false
         showVersionSettings = false
@@ -328,6 +330,7 @@ Window {
                         ListElement { label: "联机"; pageKey: "multiplayer"; icon: "globe" }
                         ListElement { label: "统计"; pageKey: "stats"; icon: "bar-chart-3" }
                         ListElement { label: "设置"; pageKey: "settings"; icon: "settings" }
+                        ListElement { label: "下载进度"; pageKey: "installProgress"; icon: "download" }
                     }
 
                     Repeater {
@@ -532,6 +535,32 @@ Window {
                                     item._initLangModeIdx = backend.diagAutoLangComboIdx()
                             }
                         } }
+
+                    // ── Install progress page ──
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: navListIndex === 5 || _installProgressFadeOut
+                        color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
+
+                        Rectangle {
+                            anchors.fill: parent
+                            color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
+                            opacity: navListIndex === 5 ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            onOpacityChanged: { if (opacity === 0) _installProgressFadeOut = false }
+
+                            Loader {
+                                id: installProgressPageLoader
+                                asynchronous: true
+                                anchors.fill: parent
+                                active: navListIndex === 5 || _installProgressFadeOut
+                                source: "InstallProgressPage.qml"
+                                onLoaded: {
+                                    item.mainWindow = appWindow
+                                }
+                            }
+                        }
+                    }
 
                     // ========== VERSION SELECT OVERLAY ==========
                     Loader {
