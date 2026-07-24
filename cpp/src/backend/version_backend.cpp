@@ -3607,9 +3607,37 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
 
 
-        // Update session total/smooth progress for THIS session (not activeSession which may be wrong)
-
+        // ── Route MC step progress to merged session pipeline ──
         if (!mergedSessionId.isEmpty()) {
+            if (auto* mDs = dlSession(mergedSessionId)) {
+                auto& mst = m_dlStates[versionId];
+                bool mVerifying = (mst.phase == tr("校验中..."));
+                if (!mVerifying && !mDs->isFailed() && mDs->steps.size() >= 4) {
+                    if (mst.bytesDl > 0) {
+                        auto step0map = mDs->steps[0].toMap();
+                        if (step0map["status"].toString() != QStringLiteral("completed")) {
+                            updateStep(mergedSessionId, 0, QStringLiteral("completed"), 100,
+                                       mst.catBytesDl[0], mst.catBytesTotal[0]);
+                        }
+                    }
+                    {
+                        QString s1 = (mst.catBytesTotal[1] <= 0)
+                            ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
+                            : ((mst.catBytesDl[1] >= mst.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active"));
+                        updateStep(mergedSessionId, 1, s1,
+                            mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : (mst.bytesDl > 0 ? 100 : 0),
+                            mst.catBytesDl[1], mst.catBytesTotal[1]);
+                    }
+                    {
+                        QString s2 = (mst.catBytesTotal[2] <= 0)
+                            ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
+                            : ((mst.catBytesDl[2] >= mst.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active"));
+                        updateStep(mergedSessionId, 2, s2,
+                            mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : (mst.bytesDl > 0 ? 100 : 0),
+                            mst.catBytesDl[2], mst.catBytesTotal[2]);
+                    }
+                }
+            }
 
             auto* mSes = m_downloadSessions[mergedSessionId];
             auto* ds = dlSession(mergedSessionId);
