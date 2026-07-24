@@ -50,11 +50,8 @@ Rectangle {
     function syncCardCount() {
         var m = backendRef ? backendRef.installCardsModel : null
         _cardCount = m ? m.count : 0
-        if (_cardCount > 0 && !_autoExpandedOnce) {
-            // 首次有卡片时自动展开
-            root.expanded = true
-            _autoExpandedOnce = true
-        } else if (_cardCount === 0) {
+        // 不再自动展开 — 下载开始后直接跳转到全屏进度页
+        if (_cardCount === 0) {
             // 无卡片时折叠面板（保持 visible:true, 只用动画隐藏）
             root.expanded = false
         }

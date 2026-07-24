@@ -117,8 +117,10 @@ Window {
         target: backend; enabled: backend !== null
         function onInstallingChanged() {
             console.log("[main] onInstallingChanged: installing=", backend.installing)
-            // Download panel auto-shows/hides based on CardModel count
-            // No explicit nav manipulation needed
+            if (backend.installing) {
+                // 下载开始 → 自动跳转到全屏进度页
+                navListIndex = 5
+            }
         }
         function onSelectedVersionClearedAfterDelete() {
             // Binding auto-updates — no explicit assignment needed
