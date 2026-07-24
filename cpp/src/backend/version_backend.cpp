@@ -7226,6 +7226,9 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         if (ds->fabricApiPending && ds->fabSpeed > 0)
             ts += ds->fabSpeed;
         mergedCard.speed = ts;
+        // Use same progress source as doRebuildInstallCards Section 1
+        // (smoothProgress) to avoid dual-path progress oscillation
+        mergedCard.progress = qBound(0.0, ds->smoothProgress, 1.0);
         int mrow = m_installCardsModel->findRowByIid(installId);
         if (mrow >= 0) {
             // Keep Section 1 type (mod_loader), not toCard default
