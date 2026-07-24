@@ -68,6 +68,7 @@ public:
     StepNode* insertAfter(const QString& afterKey, const QString& key,
                           const QString& name, qreal weight = 1.0);
     void removeStep(const QString& key);
+    void clearSteps();
 
     // ── 步骤访问 ──
     StepNode* step(const QString& key);

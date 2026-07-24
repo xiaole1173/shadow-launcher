@@ -155,6 +155,13 @@ void StepPipeline::removeStep(const QString& key) {
     }
 }
 
+void StepPipeline::clearSteps() {
+    m_keyIndex.clear();
+    m_currentIndex = -1;
+    while (m_model->stepCount() > 0)
+        m_model->removeStep(0);
+}
+
 StepNode* StepPipeline::step(const QString& key) {
     auto it = m_keyIndex.constFind(key);
     if (it == m_keyIndex.constEnd()) return nullptr;

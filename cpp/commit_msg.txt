@@ -1,5 +1,7 @@
-Step A: fix phase & speed display (P0)
+Step B: pipeline integration — StepNode in rebuildSteps/updateStep/showStep/hideStep (P1)
 
-- Add DownloadSession::setSpeed() — direct setter for speed sync
-- updateDownloadProgress(): sync speed from DlState to DownloadSession on every progress event
-- updateCardFromSession(): patch card.phase from ds->steps as temporary fix (pipeline not yet populated)
+- Add StepPipeline::clearSteps() to clear all steps from pipeline
+- rebuildSteps(): create StepNode via pipeline->addStep() for each step
+- updateStep(): update StepNode status/percentage/bytes alongside QVariantList
+- showStep()/hideStep(): set StepNode::setHidden() alongside QVariantList flag
+- updateCardFromSession(): fallback phase from ds->steps when pipeline phase is empty

@@ -7038,33 +7038,33 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     InstallCard card = ds->toCard(installId, name, type);
 
-    // ── Patch phase from ds->steps (temporary: pipeline not yet populated) ──
-    QString derivedPhase;
-    bool allDone = true;
-    bool anyActive = false;
-    bool anyFailed = false;
-    for (const QVariant& vs : ds->steps) {
-        QVariantMap s = vs.toMap();
-        QString st = s.value("status").toString();
-        if (st == "active") {
-            if (!anyActive) derivedPhase = s.value("name").toString();
-            anyActive = true;
-            allDone = false;
-        } else if (st == "pending" || st == "skipped") {
-            allDone = false;
-        } else if (st == "failed") {
-            anyFailed = true;
+    // ── Patch phase from ds->steps (fallback when pipeline phase empty) ──
+    if (card.phase.isEmpty() && !ds->steps.isEmpty()) {
+        QString derivedPhase;
+        bool allDone = true;
+        bool anyActive = false;
+        bool anyFailed = false;
+        for (const QVariant& vs : ds->steps) {
+            QVariantMap s = vs.toMap();
+            QString st = s.value("status").toString();
+            if (st == "active") {
+                if (!anyActive) derivedPhase = s.value("name").toString();
+                anyActive = true;
+                allDone = false;
+            } else if (st == "pending" || st == "skipped") {
+                allDone = false;
+            } else if (st == "failed") {
+                anyFailed = true;
+            }
         }
-    }
-    if (anyFailed) {
-        card.phase = QStringLiteral("失败");
-    } else if (allDone && ds->steps.size() > 0) {
-        QString lastName = ds->steps.last().toMap().value("name").toString();
-        card.phase = lastName + QStringLiteral(" - 完成");
-    } else if (anyActive) {
-        card.phase = derivedPhase;
-    } else {
-        card.phase = QString{};
+        if (anyFailed) {
+            card.phase = QStringLiteral("失败");
+        } else if (allDone) {
+            QString lastName = ds->steps.last().toMap().value("name").toString();
+            card.phase = lastName + QStringLiteral(" - 完成");
+        } else if (anyActive) {
+            card.phase = derivedPhase;
+        }
     }
 
     int row = m_installCardsModel->findRowByIid(installId);
@@ -7091,78 +7091,67 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
 
                                    const QVector<bool>& showFlags) {
 
-    ensureSession(installId);
-
-    auto* ds = dlSession(installId);
+    auto* ds = ensureSession(installId);
 
     ds->steps.clear();
+    ds->pipeline()->clearSteps();
 
     for (int i = 0; i < names.size(); i++) {
 
+        qreal w = (i < weights.size()) ? weights[i] : 1.0;
+        bool show = (i < showFlags.size()) ? showFlags[i] : true;
+
+        // ── Create StepNode via pipeline ──
+        auto* node = ds->pipeline()->addStep(
+            QString::number(i), names[i], w
+        );
+        if (node) node->setHidden(!show);
+
+        // ── Sync back to old QVariantList ──
         QVariantMap step;
-
         step["name"] = names[i];
-
         step["status"] = QStringLiteral("pending");
-
         step["percentage"] = 0;
-
         step["bytesReceived"] = QVariant::fromValue<qint64>(0);
-
         step["bytesTotal"] = QVariant::fromValue<qint64>(0);
-
-        step["weight"] = (i < weights.size()) ? weights[i] : 1.0;
-
-        step["show"] = (i < showFlags.size()) ? showFlags[i] : true;
-
+        step["weight"] = w;
+        step["show"] = show;
         ds->steps.append(step);
 
     }
 
     ds->m_rawTotalProgress = 0.0;
-
     ds->smoothProgress = 0.0;
 
 
-
     // If this session has a pending user data import, append the import step
-
     // (only if not already present to avoid duplicates on rebuild)
-
     if (ds->hasImportPending) {
 
         bool alreadyHasImport = false;
-
         for (const auto& st : ds->steps) {
-
             if (st.toMap().value("name").toString().contains("导入用户数据")) {
-
                 alreadyHasImport = true;
-
                 break;
-
             }
-
         }
-
         if (!alreadyHasImport) {
 
+            // ── Create import StepNode ──
+            int idx = ds->steps.size();
+            auto* node = ds->pipeline()->addStep(
+                QString::number(idx), tr("导入用户数据"), 0.03
+            );
+            if (node) node->setHidden(false);
+
             QVariantMap importStep;
-
             importStep["name"] = tr("导入用户数据");
-
             importStep["status"] = QStringLiteral("pending");
-
             importStep["percentage"] = 0;
-
             importStep["bytesReceived"] = QVariant::fromValue<qint64>(0);
-
             importStep["bytesTotal"] = QVariant::fromValue<qint64>(0);
-
             importStep["weight"] = 0.03;
-
             importStep["show"] = true;
-
             ds->steps.append(importStep);
 
         }
@@ -7175,19 +7164,19 @@ void VersionBackend::rebuildSteps(const QString& installId, const QStringList& n
 
 void VersionBackend::showStep(const QString& installId, int index) {
 
-    ensureSession(installId);
-    auto* ds = dlSession(installId);
+    auto* ds = ensureSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
 
+    // ── Update StepNode ──
+    if (auto* node = ds->pipeline()->stepNode(index))
+        node->setHidden(false);
+
+    // ── Sync to old QVariantList ──
     QVariantMap step = ds->steps[index].toMap();
-
     step["show"] = true;
-
     step["status"] = QStringLiteral("active");
-
     step["percentage"] = 0;
-
     ds->steps[index] = step;
 
     updateCardFromSession(installId);
@@ -7198,15 +7187,17 @@ void VersionBackend::showStep(const QString& installId, int index) {
 
 void VersionBackend::hideStep(const QString& installId, int index) {
 
-    ensureSession(installId);
-    auto* ds = dlSession(installId);
+    auto* ds = ensureSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
 
+    // ── Update StepNode ──
+    if (auto* node = ds->pipeline()->stepNode(index))
+        node->setHidden(true);
+
+    // ── Sync to old QVariantList ──
     QVariantMap step = ds->steps[index].toMap();
-
     step["show"] = false;
-
     ds->steps[index] = step;
 
     updateCardFromSession(installId);
@@ -7219,33 +7210,42 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
                                  qint64 bytesRecv, qint64 bytesTotal) {
 
-    ensureSession(installId);
-    auto* ds = dlSession(installId);
+    auto* ds = ensureSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
 
-    QVariantMap step = ds->steps[index].toMap();
-
-
-
-    // Auto-compute percentage from bytes if provided and no explicit percentage given
-
-    if (percentage == 0 && bytesRecv > 0 && bytesTotal > 0) {
-
-        percentage = (int)((bytesRecv * 100) / bytesTotal);
-
+    // ── Update StepNode ──
+    auto* node = ds->pipeline()->stepNode(index);
+    if (node) {
+        if (status == "active") {
+            node->setActive();
+        } else if (status == "completed") {
+            node->setCompleted();
+        } else if (status == "failed") {
+            node->setFailed();
+        } else if (status == "pending") {
+            node->setStatus(StepStatus::Pending);
+        } else if (status == "skipped") {
+            node->setSkipped();
+        }
+        if (percentage > 0)
+            node->setPercentage(percentage);
+        if (bytesRecv > 0 && bytesTotal > 0)
+            node->setByteProgress(bytesRecv, bytesTotal);
     }
 
+    // ── Sync to old QVariantList ──
+    QVariantMap step = ds->steps[index].toMap();
 
+    // Auto-compute percentage from bytes if provided and no explicit percentage given
+    if (percentage == 0 && bytesRecv > 0 && bytesTotal > 0) {
+        percentage = (int)((bytesRecv * 100) / bytesTotal);
+    }
 
     step["status"] = status;
-
     step["percentage"] = percentage;
-
     step["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
-
     step["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
-
     ds->steps[index] = step;
 
 
