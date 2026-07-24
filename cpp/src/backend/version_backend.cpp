@@ -7193,8 +7193,11 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
         InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
         // Use network speed from m_dlStates (matches doRebuildInstallCards calc)
-        if (m_dlStates.contains(ds->mcVersion))
+        // Only during active download — clear to 0 when MC is done to avoid stale decay value
+        if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
             mergedCard.speed = m_dlStates[ds->mcVersion].speed;
+        else
+            mergedCard.speed = 0;
         int mrow = m_installCardsModel->findRowByIid(installId);
         if (mrow >= 0) {
             // Keep Section 1 type (mod_loader), not toCard default
