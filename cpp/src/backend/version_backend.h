@@ -262,13 +262,7 @@ private:
         qint64 speed = 0;
         QString file;
         QString phase = QStringLiteral("idle");
-        // [DEPRECATED] 旧滑动窗口速度跟踪 — 有 DownloadSession 的卡片改用 recordBytes()
-        // 此处保留以供纯版本卡片（无 session）回退使用
-        static constexpr qint64 kSpeedWindowMs = 3000;
-        struct SpeedSample { qint64 timeMs; qint64 bytes; };
-        QVector<SpeedSample> speedWindow;
         qint64 speedLastTimeMs = 0;
-        qint64 speedSessionStart = 0;
         // Per-category byte tracking (0=versions, 1=libraries, 2=assets)
         qint64 catBytesDl[3] = {};
         qint64 catBytesTotal[3] = {};
@@ -285,6 +279,7 @@ private:
     bool m_initialFetchDone = false;
     qint64 m_installBytesDl = 0;
     qint64 m_installBytesTotal = 0;
+    qint64 m_installStartEpoch = 0;
     QString m_installPhase = "idle";
 
 

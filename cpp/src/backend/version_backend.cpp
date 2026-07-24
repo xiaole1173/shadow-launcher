@@ -1624,6 +1624,8 @@ void VersionBackend::installVersion(const QString& versionId)
 
 
 
+            m_installStartEpoch = QDateTime::currentMSecsSinceEpoch();
+
             emit logMessage(QStringLiteral("[下载] 开始下载版本 %1").arg(versionId));
 
             downloader->downloadVersion(versionJson, versionId);
@@ -3331,53 +3333,37 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     qint64 delta = db - st.bytesDl;
 
-    // Record download session start epoch (for instant speed estimate)
-    if (st.speedSessionStart == 0 && db > 0)
-        st.speedSessionStart = QDateTime::currentMSecsSinceEpoch();
 
-
-    // ── Per-State speed (sliding window 3s) ──
+    // ── Per-State speed: per-delta instantaneous estimate (no 3s window needed) ──
+    //    VersionDownloader::progressChanged fires ONCE when all cached files are
+    //    discovered (db=567MB). The old 3-second sliding window would have only
+    //    1 sample in that case, producing 0 speed.
+    //
+    //    Instead: use last-delta time & bytes for instantaneous speed, and a
+    //    session average for the initial estimate when the window is fresh.
 
     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
 
-    // During verification, don't update speed window (keep speed at 0)
-
-    bool verifying = (st.phase == tr("校验中..."));
-
-    if (!verifying) {
-
-        st.speedLastTimeMs = nowMs;
-
-        if (delta > 0) {
-
-            qint64 totalBytes = st.bytesDl + delta;
-
-            st.speedWindow.append({nowMs, totalBytes});
-
-            while (!st.speedWindow.isEmpty() && (nowMs - st.speedWindow.first().timeMs) > st.kSpeedWindowMs)
-
-                st.speedWindow.removeFirst();
-
-            if (st.speedWindow.size() >= 2) {
-
-                qint64 winMs = st.speedWindow.back().timeMs - st.speedWindow.front().timeMs;
-
-                if (winMs > 0)
-
-                    st.speed = (st.speedWindow.back().bytes - st.speedWindow.front().bytes) * 1000 / winMs;
-
-            } else if (st.speedWindow.size() == 1) {
-
-                qint64 elapsedMs = nowMs - st.speedSessionStart;
-
-                if (elapsedMs > 200)
-
-                    st.speed = (st.speedWindow.back().bytes * 1000) / elapsedMs;
-
-            }
-
+    if (delta > 0) {
+        qint64 dt = st.speedLastTimeMs > 0 ? (nowMs - st.speedLastTimeMs) : 0;
+        if (dt > 0) {
+            // Instantaneous: delta / dt
+            st.speed = qMax(st.speed, (delta * 1000) / dt);
+        } else if (st.bytesDl == 0) {
+            // First real data: use session average from a second reference
+            // (startDownload epoch, set when install begins)
+            qint64 sessionElapsed = nowMs - m_installStartEpoch;
+            if (sessionElapsed > 500)
+                if (m_installStartEpoch > 0)
+                    st.speed = (db * 1000) / sessionElapsed;
         }
-
+        st.speedLastTimeMs = nowMs;
+        // Speed never decays to 0 — the card shows last measured value until
+        // a new delta arrives. This is intentional: when a file finishes and
+        // the next hasn't started yet, the user still sees their previous speed.
+    } else if (st.speed > 0 && st.speedLastTimeMs > 0 && (nowMs - st.speedLastTimeMs) > 30000) {
+        // Only reset to 0 after 30 seconds of complete inactivity
+        st.speed = 0;
     }
 
 
@@ -8046,21 +8032,7 @@ void VersionBackend::doRebuildInstallCards() {
 
 
 
-    // ── Speed decay: if no data for >1s, halve each tick (natural fade to 0) ──
 
-    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-
-    for (auto& st : m_dlStates) {
-
-        if (st.speed > 0 && nowMs - st.speedLastTimeMs > 1000) {
-
-            st.speed /= 2;
-
-            if (st.speed < 1024) st.speed = 0;
-
-        }
-
-    }
 
     for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
