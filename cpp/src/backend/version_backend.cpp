@@ -8068,10 +8068,6 @@ auto* ds = dlSession(it.key());
 
 
 
-        // Skip merged sessions that already have a card — incremental
-        // updates (throttle -> updateCardFromSession) handle them without flicker
-        if (mlMerged && m_installCardsModel->findRowByIid(sid) >= 0) continue;
-
         QString cardId = mlPending ? ds->pendingLoaderName : sid;
 
         InstallCard c;
