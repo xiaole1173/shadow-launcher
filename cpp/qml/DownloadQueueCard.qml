@@ -97,15 +97,14 @@ Rectangle {
             text: {
                 if (model.failed) return ""
                 if (model.progress >= 1.0) return " "  // placeholder, icon replaces
-                var speed = model.speed || 0
-                if (speed <= 0) return ""
-                return fmtSpeed(speed)
+                return fmtSpeed(model.speed || 0)
             }
             font.pixelSize: StyleTokens.fontSizeXs
             color: model.failed ? StyleTokens.errorLight
                  : model.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textMuted
-            visible: text !== ""
+            // 始终可见 — 防止子步骤因速度消失而抖动
+            visible: true
         }
 
         // ── 弹簧：将完成图标推到最右侧 ──

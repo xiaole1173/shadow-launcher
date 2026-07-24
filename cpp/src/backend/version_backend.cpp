@@ -7187,23 +7187,14 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     if (!ds || !m_installCardsModel) return;
 
-    // Merged installs: in-place incremental update (preserve Section 1 card type)
+    // Merged installs: ONLY create on first call, updates handled by doRebuildInstallCards
     if (ds->isMerged()) {
-        QString effectiveName = name.isEmpty() ? installId : name;
-        QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
         int mrow = m_installCardsModel->findRowByIid(installId);
-        if (mrow >= 0) {
-            InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
-            // Keep Section 1 type (mod_loader), not toCard default
-            QVariant existingType = m_installCardsModel->data(
-                m_installCardsModel->index(mrow, 0), InstallCardModel::TypeRole);
-            if (existingType.isValid())
-                mergedCard.type = existingType.toString();
-            m_installCardsModel->updateRow(mrow, mergedCard);
-        } else {
-            // Card not in model yet — create via appendRow (no flicker)
-            InstallCard newCard = ds->toCard(installId, effectiveName, effectiveType);
-            newCard.type = effectiveType;
+        if (mrow < 0) {
+            InstallCard newCard = ds->toCard(installId,
+                name.isEmpty() ? installId : name,
+                type.isEmpty() ? QStringLiteral("mod_loader") : type);
+            newCard.type = QStringLiteral("mod_loader");
             m_installCardsModel->appendRow(newCard);
         }
         return;
