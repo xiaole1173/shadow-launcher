@@ -7164,9 +7164,20 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     if (!ds || !m_installCardsModel) return;
 
-    // Merged installs are managed by doRebuildInstallCards() — skip to avoid
-    // card type flip-flop (version ↔ mod_loader) that causes QML flicker
-    if (ds->isMerged()) return;
+    // Merged installs: in-place incremental update (preserve Section 1 card type)
+    if (ds->isMerged()) {
+        int mrow = m_installCardsModel->findRowByIid(installId);
+        if (mrow >= 0) {
+            InstallCard mergedCard = ds->toCard(installId, name, type);
+            // Keep Section 1 type (mod_loader), not toCard default (version)
+            QVariant existingType = m_installCardsModel->data(
+                m_installCardsModel->index(mrow, 0), InstallCardModel::TypeRole);
+            if (existingType.isValid())
+                mergedCard.type = existingType.toString();
+            m_installCardsModel->updateRow(mrow, mergedCard);
+        }
+        return;
+    }
 
     InstallCard card = ds->toCard(installId, name, type);
 
