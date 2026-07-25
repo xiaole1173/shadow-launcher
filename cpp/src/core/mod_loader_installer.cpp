@@ -1046,11 +1046,8 @@ static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child)
 void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 2）..."));
 
-    // Pre-1.13 forge uses "mc-forge-mc" Maven naming (e.g. 1.7.10-10.13.4.1614-1.7.10)
-    auto parts = m_mcVersion.split('.');
-    int major = parts.value(0).toInt();
-    int minor = parts.value(1).toInt();
-    const QString ver = (major < 1 || (major == 1 && minor <= 12))
+    // Only 1.7.10 and 1.8.9 use "mc-forge-mc" Maven naming
+    const QString ver = (m_mcVersion == QStringLiteral("1.7.10") || m_mcVersion == QStringLiteral("1.8.9"))
         ? m_mcVersion + QStringLiteral("-") + m_loaderVersion + QStringLiteral("-") + m_mcVersion
         : m_mcVersion + QStringLiteral("-") + m_loaderVersion;
     const QString groupPath = QStringLiteral("net/minecraftforge/forge");

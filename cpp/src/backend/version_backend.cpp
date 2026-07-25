@@ -6008,11 +6008,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             if (loaderType == QStringLiteral("forge")) {
 
                                 QString verArg = mcVersion + "-" + loaderVersion;
-                                // Pre-1.13 forge needs "mc-forge-mc" naming
-                                auto parts = mcVersion.split('.');
-                                int major = parts.value(0).toInt();
-                                int minor = parts.value(1).toInt();
-                                QString dv = (major < 1 || (major == 1 && minor <= 12))
+                                // Only 1.7.10 and 1.8.9 use "mc-forge-mc" naming
+                                QString dv = (mcVersion == QStringLiteral("1.7.10") || mcVersion == QStringLiteral("1.8.9"))
                                     ? verArg + "-" + mcVersion : verArg;
                                 fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
 
