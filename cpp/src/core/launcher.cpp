@@ -918,7 +918,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         if (forgeDir.exists()) {
             const QStringList versions = forgeDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
             for (const QString& fv : versions) {
-                if (fv.contains(QStringLiteral("-1.16.")) || fv.contains(QStringLiteral("-1.17."))) {
+                // Directory name is <mcVersion>-<forgeVersion>, e.g. "1.16.5-36.2.42"
+                    if (fv.startsWith(QStringLiteral("1.16.")) || fv.startsWith(QStringLiteral("1.17."))) {
                     QString universal = forgeGroupPath + QStringLiteral("/") + fv
                                       + QStringLiteral("/forge-") + fv + QStringLiteral("-universal.jar");
                     if (QFileInfo::exists(universal) && !cp.contains(universal)) {
@@ -930,6 +931,21 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             }
         }
     }
+
+    // ── Diagnostics: log classpath composition ──
+    qCInfo(logLaunch) << "[DIAG] classpath条目数=" << cp.size();
+    bool cpHasForgeUniversal = false;
+    for (const QString& entry : cp) {
+        if (entry.contains(QStringLiteral("-universal"))) {
+            cpHasForgeUniversal = true;
+            qCInfo(logLaunch) << "[DIAG] classpath找到forge universal:" << entry;
+            break;
+        }
+    }
+    if (!cpHasForgeUniversal && (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge")))) {
+        qCWarning(logLaunch) << "[DIAG] 警告: forge版本但classpath上未找到universal jar!";
+    }
+
     QString cpJoined;
     if (!cp.isEmpty()) {
 #ifdef Q_OS_WIN
