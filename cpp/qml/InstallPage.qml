@@ -99,7 +99,15 @@ Rectangle {
         var typeOrder = { release: 0, beta: 1, snapshot: 2, preview: 3, alpha: 4 }
         result.sort(function(a, b) {
             if (typeOrder[a.type] !== typeOrder[b.type]) return typeOrder[a.type] - typeOrder[b.type]
-            return String(b.version).localeCompare(String(a.version))
+            // 数字版本比较（修复 localeCompare 字符串比较导致 36.2.4 > 36.2.34 的错误）
+            var ap = String(a.version).split('.').map(function(x) { return parseInt(x, 10) || 0 })
+            var bp = String(b.version).split('.').map(function(x) { return parseInt(x, 10) || 0 })
+            for (var k = 0; k < Math.max(ap.length, bp.length); k++) {
+                var an = k < ap.length ? ap[k] : 0
+                var bn = k < bp.length ? bp[k] : 0
+                if (an !== bn) return bn - an  // 降序
+            }
+            return 0
         })
         var foundLatest = false
         for (var j = 0; j < result.length; j++) {

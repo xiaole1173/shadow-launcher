@@ -100,29 +100,26 @@ private:
     void forgeStep2_verify(const QByteArray& jarData);
     void neoStep1_downloadInstaller();
     void neoStep2_verify(const QByteArray& jarData);
-    // Extract version.json → download libraries → write config
+    // Extract & install — three-way branch (Legacy2 / Legacy1 / Bootstrapper)
     void forgeStep3_install(const QByteArray& jarData);
-    void forgeStep3_manualFinalize(QByteArray jarData, QJsonObject versionJson);
-    /// Run binarypatcher asynchronously (QProcess signal-driven, no main thread blocking)
-    void forgeStep3_runBinaryPatcherAsync(const QByteArray& lzmaData,
-        std::function<void(QByteArray)> onDone);
-    /// Continue forge installation after obtaining the client JAR
-    void forgeStep3_finishInstallation(QByteArray clientJarBytes,
-        const QByteArray& jarData, const QJsonObject& versionJson,
-        const QString& groupPath, const QString& ver, const QString& filePrefix);
-    /// Write JAR + copy to libs + merge version JSON + emit finished
-    void forgeStep3_writeJarAndFinish(QByteArray clientJarBytes,
-        const QByteArray& jarData, const QJsonObject& versionJson,
-        const QString& groupPath, const QString& ver, const QString& filePrefix,
-        const QString& jarDst);
+    // Legacy 2: has "install" field → universal JAR + inheritsFrom JSON
+    void installLegacy2(const QByteArray& jarData, const QJsonObject& profile);
+    // Legacy 1: has "json" field, no install, no processors → maven/ + version JSON
+    void installLegacy1(const QByteArray& jarData, const QJsonObject& profile);
+    // Method A: Bootstrapper (processors / spec≥1 / NeoForge)
+    void runBootstrapperProcess(const QByteArray& jarData);
+
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
     void neoForgeStep3_buildVersion(const QByteArray& jarData);
     void neoManualFinalize(const QJsonObject& versionJson);
-    void runInstallerProcess(const QByteArray& jarData);
     void writeNeoForgeVersion(const QJsonObject& versionInfo);
     void renameVersionFolder(const QString& oldName, const QString& newName);
     void cleanupAfterInstall(const QStringList& dirsToClean);
+    /// Extract the embedded forge-install-bootstrapper.jar to temp, return path
+    static QString extractBootstrapperPath();
+    /// Find a usable Java 8+ on PATH or common install dirs
+    QString findJavaPath();
 
     // Fabric
     void fabricStep1_downloadProfile();
@@ -150,7 +147,6 @@ private:
     bool m_running = false;
     QString m_expectedForgeSha1;   // cached from Forge version list (skip SHA1 network request)
     bool m_cancelled = false;
-    bool m_usedFallback = false;
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
     bool m_parallelMode = false;  // Fabric: don't auto-advance to write phase

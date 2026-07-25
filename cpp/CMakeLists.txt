@@ -364,6 +364,13 @@ qt6_add_resources(ShadowLauncher "agreement_resources"
         qml/agreements/privacy_policy.html
 )
 
+# ── Bootstrap tools (embedded installer helper JARs) ──
+qt6_add_resources(ShadowLauncher "tools_resources"
+    PREFIX "/tools"
+    FILES
+        resources/tools/forge-install-bootstrapper.jar
+)
+
 # Cape textures (Wardrobe)
 qt6_add_resources(ShadowLauncher "cape_resources"
     PREFIX "/qt/qml/ShadowLauncher/resources/capes"
