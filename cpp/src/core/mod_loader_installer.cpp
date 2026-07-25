@@ -1723,9 +1723,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                                     QString javaSrc = classDir + QStringLiteral("/ProGuardToTSRG.java");
                                     QString classFile = classDir + QStringLiteral("/ProGuardToTSRG.class");
 
-                                    // 6. Compile Java converter if not already compiled
-                                    if (!QFile::exists(classFile) || QFileInfo(classFile).lastModified()
-                                        < QFileInfo(javaSrc).lastModified()) {
+                                    // 6. Compile Java converter (always recompile to avoid Java version mismatch)
+                                    {
                                         QFile sf(javaSrc);
                                         if (sf.open(QIODevice::WriteOnly)) {
                                             sf.write(QByteArray(

@@ -2546,47 +2546,39 @@ auto* ds = dlSession(it.key());
                         qDebug() << "[install] MC done, loader previously failed — finalizing as vanilla" << it.key();
                         ds->loaderFinishedWaitingMC = false;
                         finishInstall(it.key());
-                    // 如果数据已下载但 ML installer 未启动，现在传进去
-                    } else if (!ds->loaderDownloadData.isEmpty() && !m_mlInstaller->isRunning()) {
-                        qDebug() << "[install] MC done, starting deferred loader install for" << it.key();
-                        m_mlInstaller->setGameDir(m_gameDir);
-                        if (ds->loaderType == QStringLiteral("neoforge")) {
-                            emit logMessage(QStringLiteral("[加载器] MC下载完成，开始安装NeoForge..."));
-                            m_mlInstaller->installNeoForgeFromData(ds->loaderDownloadData, ds->mcVersion, ds->loaderVer, it.key());
-                        } else {
-                            m_mlInstaller->installForgeFromData(ds->loaderDownloadData, ds->mcVersion, ds->loaderVer, it.key());
+                    // Forge already finished (ran in parallel while MC was downloading)
+                    } else if (ds->loaderFinishedWaitingMC) {
+
+                        ds->loaderFinishedWaitingMC = false;
+
+                        qDebug() << "[install] MC done, loader already finished — finalizing";
+
+                        // Forge already ran (including Legacy 2 flatten) — clean up vanilla folder now
+                        // (mlInstaller::finished returned early because MC wasn't done at that point)
+                        if (ds->isMerged() && !ds->mcVersion.isEmpty()) {
+                            bool cleanupOk = true;
+                            for (auto it2 = m_downloadSessions.begin(); it2 != m_downloadSessions.end(); ++it2) {
+                                auto* d = dlSession(it2.key());
+                                if (it2.key() != it.key() && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+                                    cleanupOk = false; break;
+                                }
+                            }
+                            if (cleanupOk) {
+                                QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
+                                QDir vd(vanillaVerDir);
+                                if (vd.exists()) {
+                                    vd.removeRecursively();
+                                    emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                                }
+                            }
                         }
-                    } else {
+
+                        finishInstall(it.key());
+
+                    // Data downloaded, forge not yet started — start now
+                    } else if (!ds->loaderDownloadData.isEmpty() && !m_mlInstaller->isRunning()) {
                         proceedToLoaderInstall(it.key());
                     }
-
-                } else if (ds->loaderFinishedWaitingMC) {
-
-                    qDebug() << "[install] MC done, loader was already finished — triggering installFinalize";
-
-                    ds->loaderFinishedWaitingMC = false;
-
-                    // Forge already ran (including Legacy 2 flatten) — clean up vanilla folder now
-                    // (mlInstaller::finished returned early because MC wasn't done at that point)
-                    if (ds->isMerged() && !ds->mcVersion.isEmpty()) {
-                        bool cleanupOk = true;
-                        for (auto it2 = m_downloadSessions.begin(); it2 != m_downloadSessions.end(); ++it2) {
-                            auto* d = dlSession(it2.key());
-                            if (it2.key() != it.key() && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
-                                cleanupOk = false; break;
-                            }
-                        }
-                        if (cleanupOk) {
-                            QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
-                            QDir vd(vanillaVerDir);
-                            if (vd.exists()) {
-                                vd.removeRecursively();
-                                emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
-                            }
-                        }
-                    }
-
-                    finishInstall(it.key());
 
                 } else {
 
