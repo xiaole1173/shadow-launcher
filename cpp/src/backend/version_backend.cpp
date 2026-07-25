@@ -2566,6 +2566,26 @@ auto* ds = dlSession(it.key());
 
                     ds->loaderFinishedWaitingMC = false;
 
+                    // Forge already ran (including Legacy 2 flatten) — clean up vanilla folder now
+                    // (mlInstaller::finished returned early because MC wasn't done at that point)
+                    if (ds->isMerged() && !ds->mcVersion.isEmpty()) {
+                        bool cleanupOk = true;
+                        for (auto it2 = m_downloadSessions.begin(); it2 != m_downloadSessions.end(); ++it2) {
+                            auto* d = dlSession(it2.key());
+                            if (it2.key() != it.key() && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+                                cleanupOk = false; break;
+                            }
+                        }
+                        if (cleanupOk) {
+                            QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
+                            QDir vd(vanillaVerDir);
+                            if (vd.exists()) {
+                                vd.removeRecursively();
+                                emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                            }
+                        }
+                    }
+
                     finishInstall(it.key());
 
                 } else {
@@ -6108,17 +6128,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                         updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
                                     }
 
-                                    // 如果 MC 还在下载，等 MC 结束后再安装
-                                    if (m_activeIds.contains(mcVersion)) {
-                                        qDebug() << "[install] Loader downloaded for" << mcVersion << ", waiting for MC...";
+                                    // Start forge install immediately (parallell with ongoing MC download)
+                                    // If forge finishes first, loaderFinishedWaitingMC flag handles the handover
+                                    m_mlInstaller->setGameDir(m_gameDir);
+                                    if (loaderType == QStringLiteral("neoforge")) {
+                                        emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
+                                        m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                     } else {
-                                        m_mlInstaller->setGameDir(m_gameDir);
-                                        if (loaderType == QStringLiteral("neoforge")) {
-                                            emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-                                            m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                                        } else {
-                                            m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                                        }
+                                        m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                     }
 
                                 });
@@ -6198,17 +6215,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
                         }
 
-                        // 如果 MC 还在下载，等 MC 结束后再安装
-                        if (m_activeIds.contains(mcVersion)) {
-                            qDebug() << "[install] Loader downloaded for" << mcVersion << ", waiting for MC...";
+                        // Start forge install immediately (parallel with ongoing MC download)
+                        // If forge finishes first, loaderFinishedWaitingMC flag handles the handover
+                        m_mlInstaller->setGameDir(m_gameDir);
+                        if (loaderType == QStringLiteral("neoforge")) {
+                            emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
+                            m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                         } else {
-                            m_mlInstaller->setGameDir(m_gameDir);
-                            if (loaderType == QStringLiteral("neoforge")) {
-                                emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-                                m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                            } else {
-                                m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                            }
+                            m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                         }
 
                     });
