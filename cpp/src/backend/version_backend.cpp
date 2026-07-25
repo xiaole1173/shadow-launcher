@@ -5871,13 +5871,25 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
 
         QString verArg = mcVersion + "-" + loaderVersion;
+        // Pre-1.13 forge uses "mc-forge-mc" naming in Maven (e.g. 1.7.10-10.13.4.1614-1.7.10)
+        // Post-1.13 uses "mc-forge" (e.g. 1.20.1-47.3.0)
+        QString forgeMavenVer;
+        {
+            auto parts = mcVersion.split('.');
+            int major = parts.value(0).toInt();
+            int minor = parts.value(1).toInt();
+            if (major < 1 || (major == 1 && minor <= 12)) {
+                forgeMavenVer = verArg + "-" + mcVersion;
+            } else {
+                forgeMavenVer = verArg;
+            }
+        }
 
         QString loaderDlUrl;
 
         if (loaderType == QStringLiteral("forge")) {
-            // Use /forge/download API (same as standalone installer) — handles all versions
-            // The Maven mirror path doesn't work for pre-1.13 forge due to different naming
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
+            // Use BMCLAPI Maven mirror (mirrors maven.minecraftforge.net)
+            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(forgeMavenVer);
 
         } else if (loaderType == QStringLiteral("neoforge")) {
 
@@ -5910,6 +5922,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
 
                     req.setTransferTimeout(300000);
+
+                    req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
 
                     QNetworkReply* reply = nam->get(req);
 
@@ -5968,8 +5982,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             if (loaderType == QStringLiteral("forge")) {
 
                                 QString verArg = mcVersion + "-" + loaderVersion;
-
-                                fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+                                // Pre-1.13 forge needs "mc-forge-mc" naming
+                                auto parts = mcVersion.split('.');
+                                int major = parts.value(0).toInt();
+                                int minor = parts.value(1).toInt();
+                                QString dv = (major < 1 || (major == 1 && minor <= 12))
+                                    ? verArg + "-" + mcVersion : verArg;
+                                fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
 
                             } else if (loaderType == QStringLiteral("neoforge")) {
 
