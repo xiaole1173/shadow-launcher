@@ -1166,6 +1166,35 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         }
     }
 
+    // ── OptiFine + Forge/LiteLoader tweakClass 顺序修复 ──
+    // OptiFineForgeTweaker 必须在 --tweakClass 链的末尾，否则 Forge 找不到
+    // 同时修复常见的错误名称: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker
+    // 参考: 主流启动器 McLaunchArgumentsGame OptiFineForge 处理
+    {
+        auto hasTweakClass = [&](const QString& name) -> int {
+            for (int j = 0; j < args.size(); ++j) {
+                if (args[j] == QStringLiteral("--tweakClass") && j + 1 < args.size()
+                    && args[j + 1] == name)
+                    return j;
+            }
+            return -1;
+        };
+        // 修复错误的 OptiFineTweaker 名称
+        int wrongIdx = hasTweakClass(QStringLiteral("optifine.OptiFineTweaker"));
+        if (wrongIdx >= 0) {
+            args[wrongIdx + 1] = QStringLiteral("optifine.OptiFineForgeTweaker");
+            qCInfo(logLaunch) << QStringLiteral("修正 tweakClass: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker");
+        }
+        // 将 OptiFineForgeTweaker 移到 --tweakClass 链末尾
+        int forgeIdx = hasTweakClass(QStringLiteral("optifine.OptiFineForgeTweaker"));
+        if (forgeIdx >= 0) {
+            QString tweakClass = args.takeAt(forgeIdx);     // --tweakClass
+            QString className = args.takeAt(forgeIdx);       // optifine.OptiFineForgeTweaker
+            args << tweakClass << className;
+            qCInfo(logLaunch) << QStringLiteral("OptiFineForgeTweaker 已移至参数末尾");
+        }
+    }
+
     // Ensure game directory exists (could be game/ or version root for scattered structure)
     QDir().mkpath(m_versionGameDir);
 
@@ -1397,6 +1426,14 @@ QString Launcher::findVersionJson(const QString& verDir, const QString& dirName)
 void Launcher::ensureOptionsTxt()
 {
     if (m_versionGameDir.isEmpty()) return;
+
+    // ── Yosbr Mod 兼容：yoabr 允许整合包作者预设配置 ──
+    // 参考 主流启动器: 如果 config/yosbr/options.txt 存在，使用它而不是根目录的
+    QString optionsDir = m_versionGameDir;
+    if (QFileInfo::exists(m_versionGameDir + QStringLiteral("/config/yosbr/options.txt"))) {
+        optionsDir = m_versionGameDir + QStringLiteral("/config/yosbr");
+        qCInfo(logLaunch) << QStringLiteral("检测到 Yosbr Mod config/yosbr/options.txt");
+    }
     QString mcLang;
     if (m_autoLangMode == 2 && !m_detectedRegion.isEmpty()) {
         mcLang = mc_language::regionToMinecraftLang(m_detectedRegion);
@@ -1419,7 +1456,7 @@ void Launcher::ensureOptionsTxt()
         }
     }
 
-    mc_language::writeOptionsTxt(m_versionGameDir, mcLang);
+    mc_language::writeOptionsTxt(optionsDir, mcLang);
 }
 
 bool Launcher::evaluateRule(const QJsonObject& rule)
