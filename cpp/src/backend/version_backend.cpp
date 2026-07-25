@@ -6093,6 +6093,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                     ds->loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
                                     ds->loaderDownloadReady = true;
 
+                                    // Activate the verify step in the pipeline so the QML shows it
+                                    if (ds->steps.size() > ds->loaderVerifyStep) {
+                                        showStep(installName, ds->loaderVerifyStep);
+                                        updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
+                                    }
+
                                     // 如果 MC 还在下载，等 MC 结束后再安装
                                     if (m_activeIds.contains(mcVersion)) {
                                         qDebug() << "[install] Loader downloaded for" << mcVersion << ", waiting for MC...";
@@ -6174,6 +6180,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                         ds->loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
                         ds->loaderDownloadReady = true;
+
+                        // Activate the verify step in the pipeline so the QML shows it
+                        if (ds->steps.size() > ds->loaderVerifyStep) {
+                            showStep(installName, ds->loaderVerifyStep);
+                            updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
+                        }
 
                         // 如果 MC 还在下载，等 MC 结束后再安装
                         if (m_activeIds.contains(mcVersion)) {
