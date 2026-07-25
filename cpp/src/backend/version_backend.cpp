@@ -5661,7 +5661,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     } else {
                         emit logMessage(QStringLiteral("[映射] ⚠ 下载失败: %1").arg(r->errorString()));
                     }
-                    r->deleteLater();
                 }
             }
         }
@@ -6543,7 +6542,6 @@ auto* ds = dlSession(installName);
                     } else {
                         emit logMessage(QStringLiteral("[映射] ⚠ 下载失败: %1").arg(r->errorString()));
                     }
-                    r->deleteLater();
                 } else {
                     emit logMessage(QStringLiteral("[映射] client_mappings 已存在，跳过"));
                 }
