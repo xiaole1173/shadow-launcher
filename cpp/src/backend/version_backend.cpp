@@ -1424,9 +1424,11 @@ void VersionBackend::installVersion(const QString& versionId)
 
                     [this, versionId, downloader](int cf, int tf, qint64 db, qint64 tb) {
 
-                        // Set per-category totals once (pre-computed from task list, stable).
+                        // Set per-category totals (update when downloader discovers more files).
 
-                        // Re-assigning on every progressChanged can cause percentage to drift backwards.
+                        // The downloader may discover additional files after initial task planning
+
+                        // (especially for assets/indices), so totals can grow over time.
 
                         auto& st = m_dlStates[versionId];
 
@@ -1434,7 +1436,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
                             qint64 ct = downloader->categoryTotalBytes(ci);
 
-                            if (ct > 0 && st.catBytesTotal[ci] <= 0)
+                            if (ct > st.catBytesTotal[ci])
 
                                 st.catBytesTotal[ci] = ct;
 
@@ -1461,19 +1463,15 @@ void VersionBackend::installVersion(const QString& versionId)
 
                             if (d && d->isMerged() && d->mcVersion == versionId) {
 
-                                // Set step totals ONCE (prevent percentage regression)
+                                // Update step totals when downloader discovers more files
 
                                 for (int ci = 0; ci < 3; ci++) {
 
-                                    if (d->mcStepTotal[ci] <= 0) {
+                                    qint64 ct = downloader->categoryTotalBytes(ci);
 
-                                        qint64 ct = downloader->categoryTotalBytes(ci);
+                                    if (ct > d->mcStepTotal[ci])
 
-                                        if (ct > 0)
-
-                                            d->mcStepTotal[ci] = ct;
-
-                                    }
+                                        d->mcStepTotal[ci] = ct;
 
                                 }
 
