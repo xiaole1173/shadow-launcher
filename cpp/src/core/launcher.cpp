@@ -936,48 +936,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
 
     // Collect game args from version JSON chain (declared before forge block for early prepend)
     QJsonArray gameArgs;
-
-    if (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge"))) {
-        // Parse forge group/version from the JSON if available
-        bool isForge = false;
-        QString forgeGroup, forgeVersion, mcVersion;
-        QJsonObject root = versionJson;
-        QString chainId = versionId;
-        while (true) {
-            QJsonObject argsObj = root[QStringLiteral("arguments")].toObject();
-            QJsonArray game = argsObj[QStringLiteral("game")].toArray();
-            for (int i = 0; i + 1 < game.size(); ++i) {
-                QString a = game[i].toString();
-                if (a == QStringLiteral("--fml.forgeGroup") && forgeGroup.isEmpty())
-                    forgeGroup = game[i + 1].toString();
-                if (a == QStringLiteral("--fml.forgeVersion") && forgeVersion.isEmpty())
-                    forgeVersion = game[i + 1].toString();
-                if (a == QStringLiteral("--fml.mcVersion") && mcVersion.isEmpty())
-                    mcVersion = game[i + 1].toString();
-            }
-            // Walk inheritsFrom chain
-            QString parentId = root[QStringLiteral("inheritsFrom")].toString();
-            if (parentId.isEmpty()) break;
-            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
-            QString parentJsonPath = findVersionJson(parentPath, parentId);
-            if (parentJsonPath.isEmpty() || !QFileInfo::exists(parentJsonPath)) break;
-            QFile pf(parentJsonPath);
-            if (!pf.open(QIODevice::ReadOnly)) break;
-            root = QJsonDocument::fromJson(pf.readAll()).object();
-            pf.close();
-        }
-        if (!forgeGroup.isEmpty() && !forgeVersion.isEmpty() && !mcVersion.isEmpty()) {
-            QString universalMod = forgeGroup + QStringLiteral(":forge:universal:") + mcVersion + QStringLiteral("-") + forgeVersion;
-            // Add as raw args (not --fml. prefix) so ModLauncher's unified jopt-simple parser passes them to FMLServiceProvider
-            gameArgs.prepend(QStringLiteral("--mavenRoots"));
-            gameArgs.prepend(QStringLiteral("libraries"));
-            gameArgs.prepend(QStringLiteral("--mods"));
-            gameArgs.prepend(universalMod);
-            qCInfo(logLaunch) << "[ForgeCompat] Injected mavenRoots+mods:" << universalMod;
-        }
-    }
     {
-        // Collect args from version JSON chain (reuse gameArgs declared above)
+        // Collect args from version JSON chain
         QJsonArray chainArgs;  // root-args ... child-args (will reverse)
         QJsonObject chainJson = versionJson;
         QString chainId = versionId;
@@ -1047,6 +1007,56 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         // Child args (--launchTarget forge_client) come first, parent args follow
         // No reverse needed — this is the correct order for modlauncher
         gameArgs = chainArgs;
+    }
+
+    // ── Forge/NeoForge 1.16.5+ safety net: inject --mavenRoots --mods ──
+    // Reference: 主流启动器 McLaunchArgumentsGame Forge safety net
+    // FMLClientLaunchProvider.setup() should add these, but if setup() fails silently
+    // MavenDirectoryLocator gets empty modCoords and forge mod won't register.
+    if (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge"))) {
+        // Check if gameArgs already has --mavenRoots (JSON chain provided them)
+        bool hasMavenRoots = false;
+        for (int i = 0; i < gameArgs.size(); ++i) {
+            if (gameArgs[i].toString() == QStringLiteral("--mavenRoots")) {
+                hasMavenRoots = true;
+                break;
+            }
+        }
+        if (!hasMavenRoots) {
+            // Parse forge group/version from the JSON chain
+            QString forgeGroup, forgeVersion, mcVersion;
+            QJsonObject root = versionJson;
+            while (true) {
+                QJsonObject argsObj = root[QStringLiteral("arguments")].toObject();
+                QJsonArray game = argsObj[QStringLiteral("game")].toArray();
+                for (int i = 0; i + 1 < game.size(); ++i) {
+                    QString a = game[i].toString();
+                    if (a == QStringLiteral("--fml.forgeGroup") && forgeGroup.isEmpty())
+                        forgeGroup = game[i + 1].toString();
+                    if (a == QStringLiteral("--fml.forgeVersion") && forgeVersion.isEmpty())
+                        forgeVersion = game[i + 1].toString();
+                    if (a == QStringLiteral("--fml.mcVersion") && mcVersion.isEmpty())
+                        mcVersion = game[i + 1].toString();
+                }
+                QString parentId = root[QStringLiteral("inheritsFrom")].toString();
+                if (parentId.isEmpty()) break;
+                QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
+                QString pj = findVersionJson(parentPath, parentId);
+                if (pj.isEmpty() || !QFileInfo::exists(pj)) break;
+                QFile pf(pj); if (!pf.open(QIODevice::ReadOnly)) break;
+                root = QJsonDocument::fromJson(pf.readAll()).object();
+                pf.close();
+            }
+            if (!forgeGroup.isEmpty() && !forgeVersion.isEmpty() && !mcVersion.isEmpty()) {
+                QString universalMod = forgeGroup + QStringLiteral(":forge:universal:")
+                                     + mcVersion + QStringLiteral("-") + forgeVersion;
+                gameArgs.prepend(QStringLiteral("libraries"));
+                gameArgs.prepend(QStringLiteral("--mavenRoots"));
+                gameArgs.prepend(universalMod);
+                gameArgs.prepend(QStringLiteral("--mods"));
+                qCInfo(logLaunch) << "[ForgeCompat] Injected --mods --mavenRoots:" << universalMod;
+            }
+        }
     }
 
     // Read asset index ID from version JSON chain (not just the leaf JSON)
