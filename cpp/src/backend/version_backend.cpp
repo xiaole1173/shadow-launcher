@@ -2541,8 +2541,13 @@ auto* ds = dlSession(it.key());
 
                 } else if (ds->loaderDownloadReady) {
 
+                    // Forge/NeoForge download failed — skip to vanilla finalize
+                    if (ds->isFailed()) {
+                        qDebug() << "[install] MC done, loader previously failed — finalizing as vanilla" << it.key();
+                        ds->loaderFinishedWaitingMC = false;
+                        finishInstall(it.key());
                     // 如果数据已下载但 ML installer 未启动，现在传进去
-                    if (!ds->loaderDownloadData.isEmpty() && !m_mlInstaller->isRunning()) {
+                    } else if (!ds->loaderDownloadData.isEmpty() && !m_mlInstaller->isRunning()) {
                         qDebug() << "[install] MC done, starting deferred loader install for" << it.key();
                         m_mlInstaller->setGameDir(m_gameDir);
                         if (ds->loaderType == QStringLiteral("neoforge")) {
@@ -6065,9 +6070,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                         if (m_downloadSessions.contains(installName)) {
 
                                             ensureSession(installName);
-
-                                            if (auto* ds = dlSession(installName)) ds->markFailed(r2->errorString());
-
+                                            auto* ds = dlSession(installName);
+                                            if (ds) {
+                                                ds->loaderDownloadReady = true;  // prevent MC completion from waiting forever
+                                                ds->markFailed(r2->errorString());
+                                                // If MC already done, finalize as vanilla immediately
+                                                if (ds->mcDownloadDone) finishInstall(installName);
+                                            }
                                         }
 
                                         return;
@@ -6133,9 +6142,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             if (m_downloadSessions.contains(installName)) {
 
                                 ensureSession(installName);
-
-                                if (auto* ds = dlSession(installName)) ds->markFailed(reply->errorString());
-
+                                auto* ds = dlSession(installName);
+                                if (ds) {
+                                    ds->loaderDownloadReady = true;  // prevent MC completion from waiting forever
+                                    ds->markFailed(reply->errorString());
+                                    // If MC already done, finalize as vanilla immediately
+                                    if (ds->mcDownloadDone) finishInstall(installName);
+                                }
                             }
 
                             return;
@@ -6153,7 +6166,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             emit logMessage(tr(" %1 下载的文件异常小(%2字节)，可能源站不可用").arg(loaderType).arg(data.size()));
                             updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
                             if (m_downloadSessions.contains(installName)) {
-                                if (auto* ds2 = dlSession(installName)) ds2->markFailed(tr("下载文件异常"));
+                                auto* ds2 = dlSession(installName);
+                                if (ds2) {
+                                    ds2->loaderDownloadReady = true;
+                                    ds2->markFailed(tr("下载文件异常"));
+                                    if (ds2->mcDownloadDone) finishInstall(installName);
+                                }
                             }
                             nam->deleteLater();
                             return;
