@@ -76,7 +76,8 @@ void LaunchBackend::clearYggdrasilMode()
 void LaunchBackend::launch(const QString& versionId, const QString& username,
                            const QString& javaPath, int maxMemoryMB,
                            const QString& jvmArgs, const QString& gameArgs,
-                           bool highPerfGpu)
+                           bool highPerfGpu,
+                           int windowWidth, int windowHeight)
 {
     if (m_launching) {
         emit logMessage(tr("已在启动中"));
@@ -105,6 +106,8 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     m_pendingJvmArgs = jvmArgs;
     m_pendingGameArgs = gameArgs;
     m_pendingHighPerfGpu = highPerfGpu;
+    m_windowWidth = windowWidth;
+    m_windowHeight = windowHeight;
     m_checkStep = 0;
 
     if (!m_checkTimer) {
@@ -715,6 +718,7 @@ void LaunchBackend::runNextCheck()
         launcher->setAutoLangMode(m_autoLangMode);
         launcher->setDetectedRegion(m_detectedRegion);
         launcher->setVersionGameDir(m_versionGameDir);
+        launcher->setResolution(m_windowWidth, m_windowHeight);
         launcher->setProperty("launchVersion", m_pendingVersionId);
         // Connect signals
         m_activeLauncher = launcher;  // only this launcher's progress feeds the overlay

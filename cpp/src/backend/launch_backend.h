@@ -35,7 +35,8 @@ public:
     Q_INVOKABLE void launch(const QString& versionId, const QString& username,
                             const QString& javaPath, int maxMemoryMB,
                             const QString& jvmArgs = {}, const QString& gameArgs = {},
-                            bool highPerfGpu = false);
+                            bool highPerfGpu = false,
+                            int windowWidth = 854, int windowHeight = 480);
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();  // kill ALL running games
     Q_INVOKABLE void killGameByPid(qint64 pid);  // kill one game by PID
@@ -135,6 +136,8 @@ private:
     QString m_pendingJvmArgs;
     QString m_pendingGameArgs;
     bool m_pendingHighPerfGpu = false;
+    int m_windowWidth = 854;
+    int m_windowHeight = 480;
 };
 
 } // namespace ShadowLauncher
