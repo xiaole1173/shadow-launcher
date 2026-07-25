@@ -5875,8 +5875,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         QString loaderDlUrl;
 
         if (loaderType == QStringLiteral("forge")) {
-
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+            // Use /forge/download API (same as standalone installer) — handles all versions
+            // The Maven mirror path doesn't work for pre-1.13 forge due to different naming
+            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
 
         } else if (loaderType == QStringLiteral("neoforge")) {
 
@@ -6165,6 +6166,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         QByteArray data = reply->readAll();
 
                         qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
+
+                        // Reject obviously invalid responses (error pages, empty body, etc.)
+                        // Forge/NeoForge installer JARs are at least several MB
+                        if (data.size() < 102400) {  // < 100KB is definitely not a real installer
+                            qWarning() << "[Coordinator] Loader download too small (" << data.size() << "bytes), likely error page";
+                            emit logMessage(tr(" %1 下载的文件异常小(%2字节)，可能源站不可用").arg(loaderType).arg(data.size()));
+                            updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
+                            if (m_downloadSessions.contains(installName)) {
+                                if (auto* ds2 = dlSession(installName)) ds2->markFailed(tr("下载文件异常"));
+                            }
+                            nam->deleteLater();
+                            return;
+                        }
 
                         nam->deleteLater();
 
