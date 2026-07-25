@@ -6055,34 +6055,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                         qWarning() << "[Coordinator] Loader download FAILED:" << r2->errorString();
 
                                         emit logMessage(QStringLiteral(" %1 \u4e0b\u8f7d\u5931\u8d25: %2").arg(loaderType).arg(r2->errorString()));
+                                        emit logMessage(tr("⚠ %1 \u4e0b\u8f7d\u5931\u8d25\uff0c\u5c06\u4ee5\u539f\u7248\u5b89\u88c5").arg(loaderType));
 
                                         nam->deleteLater();
 
-                                        for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
-
-                                            if (it.key() == mcVersion) {
-
-                                                it.value()->cancel();
-
-                                                it.value()->disconnect();
-
-                                                it.value()->deleteLater();
-
-                                                m_downloaders.erase(it);
-
-                                                break;
-
-                                            }
-
-                                        }
-
-                                        m_dlStates.remove(mcVersion);
-
-                                        m_activeIds.removeAll(mcVersion);
-
-                                        if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
-
-                                        // Mark step as failed so UI updates immediately
+                                        // Mark forge step as failed, but let MC download continue as vanilla
                                         updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
 
                                         if (m_downloadSessions.contains(installName)) {
@@ -6146,34 +6123,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             qWarning() << "[Coordinator] Loader download FAILED (no fallback):" << reply->errorString();
 
                             emit logMessage(QStringLiteral(" %1 \u4e0b\u8f7d\u5931\u8d25: %2").arg(loaderType).arg(reply->errorString()));
+                            emit logMessage(tr("⚠ %1 \u4e0b\u8f7d\u5931\u8d25\uff0c\u5c06\u4ee5\u539f\u7248\u5b89\u88c5").arg(loaderType));
 
                             nam->deleteLater();
 
-                            for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
-
-                                if (it.key() == mcVersion) {
-
-                                    it.value()->cancel();
-
-                                    it.value()->disconnect();
-
-                                    it.value()->deleteLater();
-
-                                    m_downloaders.erase(it);
-
-                                    break;
-
-                                }
-
-                            }
-
-                            m_dlStates.remove(mcVersion);
-
-                            m_activeIds.removeAll(mcVersion);
-
-                            if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
-
-                            // Mark step as failed so UI updates immediately
+                            // Mark forge step as failed, but let MC download continue as vanilla
                             updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
 
                             if (m_downloadSessions.contains(installName)) {
