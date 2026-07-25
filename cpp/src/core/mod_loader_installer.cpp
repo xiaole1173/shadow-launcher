@@ -1230,9 +1230,9 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
             reader.close();
         }
         if (!hasMarker) {
-            qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 不含 .forge_patched_minecraft 标记（不影响功能），直接写入");
+            qCInfo(logLoader) << QStringLiteral("客户端 JAR 不含 .forge_patched_minecraft 标记（不影响功能），直接写入");
         } else {
-            qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 已含 .forge_patched_minecraft 标记，跳过重打包");
+            qCInfo(logLoader) << QStringLiteral("客户端 JAR 已含 .forge_patched_minecraft 标记，跳过重打包");
         }
     }
 
