@@ -6297,7 +6297,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         if (loaderType == "forge") {
 
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+            // Pre-1.13 forge uses "mc-forge-mc" naming in Maven
+            auto parts = mcVersion.split('.');
+            int major = parts.value(0).toInt();
+            int minor = parts.value(1).toInt();
+            QString dv = (major < 1 || (major == 1 && minor <= 12))
+                ? verArg + "-" + mcVersion : verArg;
+            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
 
         } else if (loaderType == "neoforge") {
 
