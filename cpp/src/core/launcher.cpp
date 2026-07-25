@@ -782,30 +782,6 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << arg;
     }
 
-    // ── Forge 1.16.x: 关闭 FML early progress window ──
-    // Forge 1.16.x 使用 GLFW 的原生进度窗口在某些 GPU/驱动组合下
-    // 会触发 EXCEPTION_ACCESS_VIOLATION (0xc0000005)，野指针崩溃。
-    // 参考：主流启动器 McLaunch -Dfml.earlyprogresswindow=false
-    // 注意：此 flag 仅禁用渲染窗口，不影响 forge mod 加载流程。
-    if ((versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge")))
-        && (versionId.contains(QStringLiteral("1.16")) || versionId.contains(QStringLiteral("1.17")))) {
-        bool hasFmlWindowFlag = false;
-        for (const QString& a : chainJvmArgs) {
-            if (a.contains(QStringLiteral("fml.earlyprogresswindow"))) {
-                hasFmlWindowFlag = true;
-                break;
-            }
-        }
-        if (!hasFmlWindowFlag) {
-            args << QStringLiteral("-Dfml.earlyprogresswindow=false");
-            qCInfo(logLaunch) << "[ForgeCompat] 已注入 -Dfml.earlyprogresswindow=false";
-        }
-        // ── Forge diagnostic logging ──
-        args << QStringLiteral("-Dforge.logging.mojang.level=debug");
-        args << QStringLiteral("-Dfml.log.level=debug");
-        qCInfo(logLaunch) << "[ForgeCompat] 已启用 forge DEBUG 日志";
-    }
-
     // Always apply default optimized flags (non-GC)
     for (const char* arg : DEFAULT_JVM_ARGS) {
         args << QString::fromLatin1(arg);
@@ -938,26 +914,9 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                                   + fv + QStringLiteral("/forge-") + fv + QStringLiteral("-universal.jar");
                 if (QFileInfo::exists(universal) && !cp.contains(universal)) {
                     cp.append(universal);
-                    qCInfo(logLaunch) << "[ForgeCompat] 已添加 universal jar 到 classpath:" << universal;
-                } else {
-                    qCWarning(logLaunch) << "[ForgeCompat] universal jar 不存在或已存在:" << universal;
                 }
             }
         }
-    }
-
-    // ── Diagnostics: log classpath composition ──
-    qCInfo(logLaunch) << "[DIAG] classpath条目数=" << cp.size();
-    bool cpHasForgeUniversal = false;
-    for (const QString& entry : cp) {
-        if (entry.contains(QStringLiteral("-universal"))) {
-            cpHasForgeUniversal = true;
-            qCInfo(logLaunch) << "[DIAG] classpath找到forge universal:" << entry;
-            break;
-        }
-    }
-    if (!cpHasForgeUniversal && (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge")))) {
-        qCWarning(logLaunch) << "[DIAG] 警告: forge版本但classpath上未找到universal jar!";
     }
 
     QString cpJoined;
