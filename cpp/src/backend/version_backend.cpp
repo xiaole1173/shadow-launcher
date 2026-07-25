@@ -6442,6 +6442,58 @@ auto* ds = dlSession(installName);
 
     qDebug() << "[install] installModLoader calling install" << loaderType << ", m_running before:" << m_mlInstaller->isRunning();
 
+    // Ensure client_mappings is downloaded before Forge install (needed by bootstrapper for JAR remapping)
+    if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
+        const QString vmPath = m_gameDir + QStringLiteral("/versions/") + mcVersion
+            + QStringLiteral("/") + mcVersion + QStringLiteral(".json");
+        QFile vf(vmPath);
+        if (vf.open(QIODevice::ReadOnly)) {
+            QJsonDocument vd = QJsonDocument::fromJson(vf.readAll());
+            vf.close();
+            QJsonObject cm = vd.object().value(QStringLiteral("downloads")).toObject()
+                .value(QStringLiteral("client_mappings")).toObject();
+            QString cmUrl = cm.value(QStringLiteral("url")).toString();
+            if (!cmUrl.isEmpty()) {
+                // Build Maven timestamp path from version manifest
+                QString mavenVer = mcVersion;
+                QVector<McVersion> vers = m_versionMgr->cachedVersions();
+                for (const auto& v : vers) {
+                    if (v.id == mcVersion && v.releaseTime.isValid()) {
+                        mavenVer = mcVersion + QStringLiteral("-")
+                            + v.releaseTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
+                        break;
+                    }
+                }
+                const QString savePath = m_gameDir
+                    + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
+                    + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
+                if (!QFileInfo::exists(savePath)) {
+                    qDebug() << "[install] Downloading missing client_mappings:" << mavenVer;
+                    emit logMessage(tr(" 下载客户端映射文件..."));
+                    QNetworkAccessManager nm;
+                    QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
+                    r->setReadBufferSize(0);
+                    QEventLoop loop;
+                    connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    loop.exec();
+                    if (r->error() == QNetworkReply::NoError) {
+                        QByteArray data = r->readAll();
+                        QDir().mkpath(QFileInfo(savePath).absolutePath());
+                        QFile out(savePath);
+                        if (out.open(QIODevice::WriteOnly)) {
+                            out.write(data);
+                            out.close();
+                            qDebug() << "[install] client_mappings saved:" << savePath << data.size() << "bytes";
+                        }
+                    } else {
+                        qWarning() << "[install] client_mappings download failed:" << r->errorString();
+                    }
+                    r->deleteLater();
+                }
+            }
+        }
+    }
+
     if (loaderType == QStringLiteral("forge")) {
 
         m_mlInstaller->setForgeBranch(forgeInstallerBranch);
