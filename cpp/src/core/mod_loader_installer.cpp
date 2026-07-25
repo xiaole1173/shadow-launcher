@@ -978,29 +978,35 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
                 if (m_forgeMcReleaseTime.isValid()) {
                     mavenVer = m_mcVersion + QStringLiteral("-")
                         + m_forgeMcReleaseTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
+                } else {
+                    // Without releaseTime we can't build the Maven timestamp path;
+                    // downloading to the wrong path would waste bandwidth.
+                    qCWarning(logLoader) << QStringLiteral("缺少 MC releaseTime，无法下载 client_mappings");
                 }
-                const QString savePath = m_gameDir
-                    + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
-                    + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
-                if (!QFileInfo::exists(savePath)) {
-                    qCInfo(logLoader) << QStringLiteral("下载缺失的 client_mappings: %1").arg(mavenVer);
-                    QNetworkAccessManager nm;
-                    QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
-                    QEventLoop loop;
-                    connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                    loop.exec();
-                    if (r->error() == QNetworkReply::NoError) {
-                        QByteArray data = r->readAll();
-                        QDir().mkpath(QFileInfo(savePath).absolutePath());
-                        QFile out(savePath);
-                        if (out.open(QIODevice::WriteOnly)) {
-                            out.write(data);
-                            out.close();
-                            qCInfo(logLoader) << QStringLiteral("client_mappings 已保存: %1 (%2 KB)")
-                                .arg(savePath).arg(data.size() / 1024);
+                if (m_forgeMcReleaseTime.isValid()) {
+                    const QString savePath = m_gameDir
+                        + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
+                        + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
+                    if (!QFileInfo::exists(savePath)) {
+                        qCInfo(logLoader) << QStringLiteral("下载缺失的 client_mappings: %1").arg(mavenVer);
+                        QNetworkAccessManager nm;
+                        QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
+                        QEventLoop loop;
+                        connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                        loop.exec();
+                        if (r->error() == QNetworkReply::NoError) {
+                            QByteArray data = r->readAll();
+                            QDir().mkpath(QFileInfo(savePath).absolutePath());
+                            QFile out(savePath);
+                            if (out.open(QIODevice::WriteOnly)) {
+                                out.write(data);
+                                out.close();
+                                qCInfo(logLoader) << QStringLiteral("client_mappings 已保存: %1 (%2 KB)")
+                                    .arg(savePath).arg(data.size() / 1024);
+                            }
+                        } else {
+                            qCWarning(logLoader) << QStringLiteral("client_mappings 下载失败: %1").arg(r->errorString());
                         }
-                    } else {
-                        qCWarning(logLoader) << QStringLiteral("client_mappings 下载失败: %1").arg(r->errorString());
                     }
                 }
             }
