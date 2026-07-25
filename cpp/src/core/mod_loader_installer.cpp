@@ -1097,6 +1097,66 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
         }
     }
 
+    // Pre-download forge-specific libraries (same as Legacy 1)
+    {
+        QJsonArray libs = vInfo.value(QStringLiteral("libraries")).toArray();
+        if (!libs.isEmpty()) {
+            QNetworkAccessManager* nam = HttpClient::instance().manager();
+            int downloaded = 0;
+            for (const auto& lv : libs) {
+                if (!lv.isObject()) continue;
+                QJsonObject libObj = lv.toObject();
+                QString name = libObj.value(QStringLiteral("name")).toString();
+                if (name.isEmpty()) continue;
+                QStringList parts = name.split(QLatin1Char(':'));
+                if (parts.size() < 3) continue;
+                QString group = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+                QString artifact = parts[1];
+                QString version = parts[2];
+                QString ext = QStringLiteral("jar");
+                if (version.contains(QLatin1Char('@'))) {
+                    int atIdx = version.indexOf(QLatin1Char('@'));
+                    ext = version.mid(atIdx + 1);
+                    version = version.left(atIdx);
+                }
+                QString libDir = m_gameDir + QStringLiteral("/libraries/") + group
+                    + QStringLiteral("/") + artifact + QStringLiteral("/") + version;
+                QString libFile = libDir + QStringLiteral("/") + artifact
+                    + QStringLiteral("-") + version + QStringLiteral(".") + ext;
+                if (QFile::exists(libFile)) continue;
+                QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.%4")
+                    .arg(group, artifact, version, ext);
+                QDir().mkpath(libDir);
+                QNetworkRequest req;
+                req.setUrl(QUrl(url));
+                QNetworkReply* reply = nam->get(req);
+                QEventLoop loop;
+                QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                QTimer timer;
+                timer.setSingleShot(true);
+                QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                timer.start(30000);
+                loop.exec();
+                if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+                    timer.stop();
+                    QFile f(libFile);
+                    if (f.open(QIODevice::WriteOnly)) {
+                        f.write(reply->readAll());
+                        f.close();
+                        downloaded++;
+                    }
+                } else {
+                    qCWarning(logLoader) << QStringLiteral("Legacy 2 库下载失败: %1 %2")
+                        .arg(url, reply->errorString());
+                    QFile::remove(libFile);
+                }
+                reply->deleteLater();
+            }
+            if (downloaded > 0)
+                qCInfo(logLoader) << QStringLiteral("已为 Legacy 2 预下载 %1 个 Forge 库").arg(downloaded);
+        }
+    }
+
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile jf2(jsonPath);
     if (jf2.open(QIODevice::WriteOnly)) {
