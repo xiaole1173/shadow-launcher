@@ -1140,18 +1140,32 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(QByteArray jarData, QJsonObje
 
     // ── Path 1: 搜索安装程序中的预合并 JAR（同步） ──
     // 优先走此路径：所有带预合并 JAR 的版本都跳过 binarypatcher
-    {
-        const QStringList jarCandidates = {
-            QStringLiteral("maven/%1/%2/%3-%2-client.jar").arg(groupPath, ver, filePrefix),
-            QStringLiteral("maven/%1/%2/%3-%2-universal.jar").arg(groupPath, ver, filePrefix),
-            QStringLiteral("maven/%1/%2/%3-%2.jar").arg(groupPath, ver, filePrefix),
-        };
-        for (const QString& candidate : jarCandidates) {
-            clientJarBytes = reader.fileData(candidate);
-            if (!clientJarBytes.isEmpty()) {
-                qCInfo(logLoader) << QStringLiteral("从安装程序找到客户端 JAR: %1 大小=%2 字节").arg(candidate).arg(clientJarBytes.size());
-                break;
+    const QStringList jarCandidates = {
+        QStringLiteral("maven/%1/%2/%3-%2-client.jar").arg(groupPath, ver, filePrefix),
+        QStringLiteral("maven/%1/%2/%3-%2-universal.jar").arg(groupPath, ver, filePrefix),
+        QStringLiteral("maven/%1/%2/%3-%2.jar").arg(groupPath, ver, filePrefix),
+    };
+    for (const QString& candidate : jarCandidates) {
+        clientJarBytes = reader.fileData(candidate);
+        if (!clientJarBytes.isEmpty()) {
+            qCInfo(logLoader) << QStringLiteral("从安装程序找到 JAR: %1 大小=%2 字节").arg(candidate).arg(clientJarBytes.size());
+
+            // ── 检测 universal JAR（非预合并）→ 走 binarypatcher ──
+            // Universal JAR 只包含 Forge API 代码，不包含 Minecraft 游戏类。
+            // 若安装程序同时包含 data/client.lzma，则需用 binarypatcher 合并原版 MC JAR。
+            // 此规律适用于 Forge 1.13~1.16.x（McLauncherAPI spec 0）。
+            // 仅当匹配的是 -universal.jar 时触发，不误伤预合并 -client.jar。
+            if (candidate.contains(QStringLiteral("-universal.jar"))
+                && m_loaderType == QStringLiteral("forge"))
+            {
+                QByteArray lzmaCheck = reader.fileData(QStringLiteral("data/client.lzma"));
+                if (!lzmaCheck.isEmpty()) {
+                    qCInfo(logLoader) << QStringLiteral("data/client.lzma 存在，使用 binarypatcher 替代直接使用 -universal.jar");
+                    clientJarBytes.clear();  // 清除，由下方 binarypatcher 路径处理
+                    break;
+                }
             }
+            break;
         }
     }
 
