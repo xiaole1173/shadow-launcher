@@ -1747,8 +1747,12 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                                             sf.close();
                                         }
 
-                                        QString javacPath = QFileInfo(javaPath).dir().absolutePath()
-                                            + QStringLiteral("/javac");
+                                        // Resolve javac (same Java as bootstrapper — not system PATH which may differ)
+                                        QString javacPath = QStandardPaths::findExecutable(
+                                            QStringLiteral("javac"),
+                                            {QFileInfo(javaPath).absolutePath()});
+                                        if (javacPath.isEmpty())
+                                            javacPath = QStandardPaths::findExecutable(QStringLiteral("javac"));
                                         QProcess javacProc;
                                         QStringList javacArgs;
                                         javacArgs << QStringLiteral("-cp") << QDir::toNativeSeparators(srgutilsJar)
