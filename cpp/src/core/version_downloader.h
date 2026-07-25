@@ -72,6 +72,9 @@ public:
     // Main entry: download a Minecraft version
     void downloadVersion(const QJsonObject& versionJson, const QString& versionId);
 
+    // Set version release time (needed for client_mappings Maven path)
+    void setVersionReleaseTime(const QDateTime& rt) { m_versionReleaseTime = rt; }
+
     // Lifecycle
     void pause();
     void resume();
@@ -165,6 +168,7 @@ private:
     State m_state = Idle;
 
     QString m_currentVersionId;
+    QDateTime m_versionReleaseTime; // For client_mappings Maven path (e.g. "1.19.4-20230314.122934")
 
     // Cached for integrity verification
     QMap<QString, QJsonObject> m_assetObjects;
