@@ -43,7 +43,46 @@ static const char* DEFAULT_JVM_ARGS[] = {
     "-XX:+DisableExplicitGC",
     "-Dfml.ignoreInvalidMinecraftCertificates=true",
     "-Dfml.ignorePatchDiscrepancies=true",
+    "-Dlog4j2.formatMsgNoLookups=true",  // CVE-2021-44228 Log4j RCE 防御
 };
+
+// ── 短路径转换（Windows 8.3 短文件名）──
+// 缓解非 ASCII 路径下 LWJGL/JNI 加载 native DLL 失败的问题
+// 参考：主流启动器 PathUtils.ToShortPath
+#ifdef Q_OS_WIN
+static QString toShortPath(const QString& path)
+{
+    if (path.isEmpty()) return path;
+    // 已经是纯 ASCII 且不含空格等特殊字符 → 无需转换
+    // （注意：短路径本身就是纯 ASCII，这里只是提前退出优化）
+    QByteArray utf8 = path.toUtf8();
+    bool allAscii = true;
+    for (char c : utf8) {
+        if (static_cast<unsigned char>(c) > 127) { allAscii = false; break; }
+    }
+    if (allAscii) return QDir::toNativeSeparators(path);
+
+    DWORD len = GetShortPathNameW(reinterpret_cast<LPCWSTR>(path.utf16()), nullptr, 0);
+    if (len == 0) {
+        qCWarning(logLaunch) << QStringLiteral("短路径转换失败(GetShortPathNameW) 路径=%1 err=%2")
+                             .arg(path).arg(GetLastError());
+        return QDir::toNativeSeparators(path); // 回退到原生路径
+    }
+    std::vector<wchar_t> buf(len + 1);
+    DWORD written = GetShortPathNameW(reinterpret_cast<LPCWSTR>(path.utf16()),
+                                       buf.data(), len + 1);
+    if (written == 0 || written > len) {
+        qCWarning(logLaunch) << QStringLiteral("短路径转换写入失败 路径=%1 err=%2")
+                             .arg(path).arg(GetLastError());
+        return QDir::toNativeSeparators(path);
+    }
+    QString result = QString::fromWCharArray(buf.data());
+    qCDebug(logLaunch) << QStringLiteral("短路径转换: %1 → %2").arg(path, result);
+    return result;
+}
+#else
+static QString toShortPath(const QString& path) { return path; }
+#endif
 
 Launcher::Launcher(QObject* parent)
     : QObject(parent)
@@ -264,6 +303,7 @@ void Launcher::onReadyReadStdout()
     QByteArray data = m_process->readAllStandardOutput();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
+        qCInfo(logLaunch) << QStringLiteral("[JVM stdout] %1").arg(text);
         emit launchProgress(text);
     }
 }
@@ -504,7 +544,7 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
                                    const QSet<QString>& moduleExcludePaths = {})
 {
     QStringList cp;
-    QString libsDir = gameDir + QStringLiteral("/libraries");
+    QString libsDir = toShortPath(gameDir) + QStringLiteral("/libraries");
 
     // Add version JAR first
     QString versionJar = gameDir + QStringLiteral("/versions/") + versionId
@@ -667,8 +707,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // Add chain JVM args after memory flags, before user/default flags
     // Replace NeoForge template variables (${library_directory}, ${classpath_separator}, etc.)
     // Minecraft 26.2+ also uses ${natives_directory}, ${classpath}, etc.
-    const QString libDir = m_gameDir + QStringLiteral("/libraries");
-    const QString nativesDir = m_gameDir + QStringLiteral("/versions/") + versionId
+    // Convert to short paths on Windows to mitigate non-ASCII path issues with LWJGL/JNI
+    // (参考：主流启动器 PathUtils.ToShortPath 策略)
+    const QString gameDirShort = toShortPath(m_gameDir);
+    const QString libDir = gameDirShort + QStringLiteral("/libraries");
+    const QString nativesDir = gameDirShort + QStringLiteral("/versions/") + versionId
                                + QStringLiteral("/natives");
 #ifdef Q_OS_WIN
     const QString classpathSep(QStringLiteral(";"));
@@ -694,6 +737,28 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << QString::fromLatin1(arg);
     }
 
+    // ── JVM encoding params (prevent CJK log garbling) ──
+    // Check if chainJvmArgs already set these before adding
+    auto hasArgPrefix = [&](const QString& prefix) -> bool {
+        for (const QString& a : args) {
+            if (a.startsWith(prefix)) return true;
+        }
+        return false;
+    };
+    if (m_javaMajorVersion > 8) {
+        if (!hasArgPrefix(QStringLiteral("-Dstdout.encoding="))) {
+            args << QStringLiteral("-Dstdout.encoding=UTF-8");
+        }
+        if (!hasArgPrefix(QStringLiteral("-Dstderr.encoding="))) {
+            args << QStringLiteral("-Dstderr.encoding=UTF-8");
+        }
+    }
+    if (m_javaMajorVersion >= 18) {
+        if (!hasArgPrefix(QStringLiteral("-Dfile.encoding="))) {
+            args << QStringLiteral("-Dfile.encoding=COMPAT");
+        }
+    }
+
     // Java 9+ needs --add-opens for reflective access (ModLauncher, Forge, LWJGL 2, etc.)
     // Java 8 doesn't support --add-opens (unrecognized option → crash)
     if (m_javaMajorVersion >= 9) {
@@ -716,7 +781,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     }
 
     // ── Version jar path for Forge ──
-    QString versionJar = m_gameDir + QStringLiteral("/versions/") + versionId
+    QString versionJar = gameDirShort + QStringLiteral("/versions/") + versionId
                          + QStringLiteral("/") + versionId + QStringLiteral(".jar");
     args << QStringLiteral("-Dminecraft.client.jar=%1").arg(versionJar);
 
@@ -793,6 +858,50 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // ── Minecraft arguments ──
     // Walk inheritsFrom chain: child args (Forge --launchTarget) FIRST, then parent args
     // modlauncher strips its own flags and passes the rest to Minecraft
+
+    // Forge 1.16.5+ modlauncher: FMLClientLaunchProvider.setup() should add --mavenRoots and
+    // --mods (forge universal coordinate) before beginModScan(). If setup() is not reached or
+    // fails silently, MavenDirectoryLocator gets empty modCoords and forge mod won't register.
+    // As a safety net, inject these args explicitly here:
+    if (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge"))) {
+        // Parse forge group/version from the JSON if available
+        bool isForge = false;
+        QString forgeGroup, forgeVersion, mcVersion;
+        QJsonObject root = versionJson;
+        QString chainId = versionId;
+        while (true) {
+            QJsonObject argsObj = root[QStringLiteral("arguments")].toObject();
+            QJsonArray game = argsObj[QStringLiteral("game")].toArray();
+            for (int i = 0; i + 1 < game.size(); ++i) {
+                QString a = game[i].toString();
+                if (a == QStringLiteral("--fml.forgeGroup") && forgeGroup.isEmpty())
+                    forgeGroup = game[i + 1].toString();
+                if (a == QStringLiteral("--fml.forgeVersion") && forgeVersion.isEmpty())
+                    forgeVersion = game[i + 1].toString();
+                if (a == QStringLiteral("--fml.mcVersion") && mcVersion.isEmpty())
+                    mcVersion = game[i + 1].toString();
+            }
+            // Walk inheritsFrom chain
+            QString parentId = root[QStringLiteral("inheritsFrom")].toString();
+            if (parentId.isEmpty()) break;
+            QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
+            QString parentJsonPath = findVersionJson(parentPath, parentId);
+            if (parentJsonPath.isEmpty() || !QFileInfo::exists(parentJsonPath)) break;
+            QFile pf(parentJsonPath);
+            if (!pf.open(QIODevice::ReadOnly)) break;
+            root = QJsonDocument::fromJson(pf.readAll()).object();
+            pf.close();
+        }
+        if (!forgeGroup.isEmpty() && !forgeVersion.isEmpty() && !mcVersion.isEmpty()) {
+            QString universalMod = forgeGroup + QStringLiteral(":forge:universal:") + mcVersion + QStringLiteral("-") + forgeVersion;
+            // Add as raw args (not --fml. prefix) so ModLauncher's unified jopt-simple parser passes them to FMLServiceProvider
+            gameArgs.prepend(QStringLiteral("--mavenRoots"));
+            gameArgs.prepend(QStringLiteral("libraries"));
+            gameArgs.prepend(QStringLiteral("--mods"));
+            gameArgs.prepend(universalMod);
+            qCInfo(logLaunch) << "[ForgeCompat] Injected mavenRoots+mods:" << universalMod;
+        }
+    }
     QJsonArray gameArgs;
     {
         // First: collect args from leaf to root, then reverse to get root→leaf order
@@ -954,10 +1063,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${auth_player_name}"), m_authName.isEmpty() ? QStringLiteral("{username}") : m_authName);
             arg.replace(QStringLiteral("${version_name}"), versionId);
             arg.replace(QStringLiteral("${game_directory}"),
-                        !m_versionGameDir.isEmpty() ? m_versionGameDir :
-                        m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
+                        !m_versionGameDir.isEmpty() ? toShortPath(m_versionGameDir) :
+                        gameDirShort + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
             arg.replace(QStringLiteral("${assets_root}"),
-                        m_gameDir + QStringLiteral("/assets"));
+                        gameDirShort + QStringLiteral("/assets"));
             arg.replace(QStringLiteral("${assets_index_name}"), assetIndexId);
             arg.replace(QStringLiteral("${auth_uuid}"), m_authUuid.isEmpty() ? QStringLiteral("00000000-0000-0000-0000-000000000000") : m_authUuid);
             arg.replace(QStringLiteral("${auth_access_token}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);
@@ -965,7 +1074,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${version_type}"),
                         versionJson[QStringLiteral("type")].toString(QStringLiteral("release")));
             arg.replace(QStringLiteral("${game_assets}"),
-                        m_gameDir + QStringLiteral("/assets/virtual/") + assetIndexId);  // legacy/pre-1.6
+                        gameDirShort + QStringLiteral("/assets/virtual/") + assetIndexId);  // legacy/pre-1.6
             arg.replace(QStringLiteral("${user_properties}"), QStringLiteral("{}"));
             arg.replace(QStringLiteral("${auth_session}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);  // pre-1.6
             arg.replace(QStringLiteral("${resolution_width}"), QStringLiteral("854"));
@@ -1026,29 +1135,14 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
 
     qCInfo(logLaunch) << QStringLiteral("开始解压natives 版本=%1 目标=%2").arg(versionId, nativesDir);
 
-    // Idempotent: skip if natives already extracted
-    QDir nd(nativesDir);
-    if (nd.exists()) {
-        QStringList nativeFilters;
-#ifdef Q_OS_WIN
-        nativeFilters << QStringLiteral("*.dll");
-#elif defined(Q_OS_MACOS)
-        nativeFilters << QStringLiteral("*.dylib") << QStringLiteral("*.jnilib");
-#else
-        nativeFilters << QStringLiteral("*.so");
-#endif
-        QStringList existing = nd.entryList(nativeFilters, QDir::Files);
-        if (!existing.isEmpty()) {
-            qCDebug(logLaunch) << "Natives already extracted, skipping:" << nativesDir
-                               << "(" << existing.size() << "files)";
-            return true;
-        }
-    }
-
+    // Always extract — idempotent per-file comparison, not whole-directory skip
     QDir().mkpath(nativesDir);
 
     const QString libsDir = m_gameDir + QStringLiteral("/libraries");
     const QJsonArray libraries = resolveMergedLibraries(m_gameDir, versionJson);
+
+    // ── 预扫描：收集所有应存在的 native 文件名（basename only）──
+    QSet<QString> expectedFiles;
 
     // Determine platform-specific native classifier prefix
 #ifdef Q_OS_WIN
@@ -1145,12 +1239,28 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
                 QByteArray data = zipReader.fileData(fileName);
                 if (!data.isEmpty()) {
                     QString baseName = QFileInfo(fileName).fileName();
+                    expectedFiles.insert(baseName);
                     QString destPath = nativesDir + QStringLiteral("/") + baseName;
+
+                    // ── Per-file idempotent: skip if size matches ──
+                    QFileInfo destInfo(destPath);
+                    if (destInfo.exists() && destInfo.size() == data.size()) {
+                        qCDebug(logLaunch) << QStringLiteral("Natives文件已存在且大小一致 跳过:%1").arg(baseName);
+                        continue;
+                    }
+                    if (destInfo.exists()) {
+                        qCDebug(logLaunch) << QStringLiteral("Natives文件大小不一致 重新解压:%1 旧=%2 新=%3")
+                                           .arg(baseName).arg(destInfo.size()).arg(data.size());
+                    }
+
                     QFile destFile(destPath);
                     if (destFile.open(QIODevice::WriteOnly)) {
                         destFile.write(data);
                         destFile.close();
                         extractedCount++;
+                    } else {
+                        qCWarning(logLaunch) << QStringLiteral("Natives写入失败 :%1 err:%2")
+                                             .arg(baseName, destFile.errorString());
                     }
                 }
             }
@@ -1159,6 +1269,26 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     }
 
     qCInfo(logLaunch) << QStringLiteral("natives解压完成 JAR数=%1 文件数=%2 目标=%3").arg(jarCount).arg(extractedCount).arg(nativesDir);
+
+    // ── 清理旧版本残留的 DLL（防止版本切换时加载错误的 native）──
+    // 参考：主流启动器 在解压后删除不在当前版本 native 列表中的文件
+    {
+        QDir nd(nativesDir);
+        const auto files = nd.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+        int cleaned = 0;
+        for (const QFileInfo& fi : files) {
+            if (!expectedFiles.contains(fi.fileName())) {
+                if (QFile::remove(fi.absoluteFilePath())) {
+                    qCDebug(logLaunch) << QStringLiteral("Natives清理残留: %1").arg(fi.fileName());
+                    cleaned++;
+                }
+            }
+        }
+        if (cleaned > 0) {
+            qCInfo(logLaunch) << QStringLiteral("Natives清理完成 残留文件数=%1").arg(cleaned);
+        }
+    }
+
     return extractedCount > 0 || jarCount == 0;
 }
 

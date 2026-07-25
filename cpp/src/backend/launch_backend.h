@@ -94,6 +94,7 @@ private slots:
 private:
     void handleLaunchStarted(Launcher* launcher);
     void handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg);
+    void writeLauncherProfilesJson();  // 写入官方启动器兼容的认证信息
 
     AccountBackend* m_account = nullptr;
     Launcher* m_activeLauncher = nullptr;  // only accept progress from this launcher

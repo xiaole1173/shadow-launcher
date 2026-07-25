@@ -670,6 +670,12 @@ void LaunchBackend::runNextCheck()
             }
         }
 
+        // ── 写入 launcher_profiles.json（官方启动器兼容）──
+        // 某些 Mod 会读取此文件来获取玩家身份，参考 主流启动器 McLaunchPrerun
+        if (m_authIsOnline && !m_authName.isEmpty()) {
+            writeLauncherProfilesJson();
+        }
+
         qCInfo(logLaunch) << QStringLiteral("[启动前检查] 全部通过 开始启动Minecraft");
         break;
     }
@@ -1247,6 +1253,65 @@ QVariantList LaunchBackend::runningGames() const
         list.append(info);
     }
     return list;
+}
+
+// ── 写入 launcher_profiles.json（官方启动器兼容）──
+// 一些 Mod 会读取此文件来获取玩家身份，参考 主流启动器 McLaunchPrerun
+void LaunchBackend::writeLauncherProfilesJson()
+{
+    QString path = m_gameDir + QStringLiteral("/launcher_profiles.json");
+
+    // 固定 ID（参照 主流启动器 的做法，使用固定值避免每次写入不同的 ID）
+    const QString accountId  = QStringLiteral("00000111112222233333444445555566");
+    const QString profileId  = QStringLiteral("66666555554444433333222221111100");
+    const QString clientToken = QStringLiteral("23323323323323323323323323323333");
+
+    QJsonObject root;
+
+    // 如果文件已存在，保留其他内容
+    QFileInfo fi(path);
+    if (fi.exists()) {
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            root = QJsonDocument::fromJson(f.readAll(), &err).object();
+            f.close();
+            if (err.error != QJsonParseError::NoError) {
+                qCWarning(logLaunch) << QStringLiteral("launcher_profiles.json 解析失败 将重建 err=%1").arg(err.errorString());
+                root = QJsonObject();
+            }
+        }
+    }
+
+    // 构建认证信息
+    QJsonObject authDb;
+    QJsonObject account;
+    account[QStringLiteral("username")] = m_authName;
+    QJsonObject profile;
+    profile[QStringLiteral("displayName")] = m_authName;
+    QJsonObject profiles;
+    profiles[profileId] = profile;
+    account[QStringLiteral("profiles")] = profiles;
+    authDb[accountId] = account;
+
+    root[QStringLiteral("authenticationDatabase")] = authDb;
+    root[QStringLiteral("clientToken")] = clientToken;
+
+    QJsonObject selectedUser;
+    selectedUser[QStringLiteral("account")] = accountId;
+    selectedUser[QStringLiteral("profile")] = profileId;
+    root[QStringLiteral("selectedUser")] = selectedUser;
+
+    // 写入文件
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QJsonDocument doc(root);
+        f.write(doc.toJson(QJsonDocument::Indented));
+        f.close();
+        qCInfo(logLaunch) << QStringLiteral("已更新 launcher_profiles.json 玩家=%1").arg(m_authName);
+    } else {
+        qCWarning(logLaunch) << QStringLiteral("写入 launcher_profiles.json 失败 err=%1").arg(f.errorString());
+    }
 }
 
 } // namespace ShadowLauncher
