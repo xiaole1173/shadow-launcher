@@ -782,6 +782,26 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << arg;
     }
 
+    // ── Forge 1.16.x: 关闭 FML early progress window ──
+    // Forge 1.16.x 使用 GLFW 的原生进度窗口在某些 GPU/驱动组合下
+    // 会触发 EXCEPTION_ACCESS_VIOLATION (0xc0000005)，野指针崩溃。
+    // 参考：主流启动器 McLaunch -Dfml.earlyprogresswindow=false
+    // 注意：此 flag 仅禁用渲染窗口，不影响 forge mod 加载流程。
+    if ((versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge")))
+        && (versionId.contains(QStringLiteral("1.16")) || versionId.contains(QStringLiteral("1.17")))) {
+        bool hasFmlWindowFlag = false;
+        for (const QString& a : chainJvmArgs) {
+            if (a.contains(QStringLiteral("fml.earlyprogresswindow"))) {
+                hasFmlWindowFlag = true;
+                break;
+            }
+        }
+        if (!hasFmlWindowFlag) {
+            args << QStringLiteral("-Dfml.earlyprogresswindow=false");
+            qCInfo(logLaunch) << "[ForgeCompat] 已注入 -Dfml.earlyprogresswindow=false";
+        }
+    }
+
     // Always apply default optimized flags (non-GC)
     for (const char* arg : DEFAULT_JVM_ARGS) {
         args << QString::fromLatin1(arg);
