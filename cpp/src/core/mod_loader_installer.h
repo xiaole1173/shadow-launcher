@@ -111,9 +111,8 @@ private:
 
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
-    void neoForgeStep3_buildVersion(const QByteArray& jarData);
-    void neoManualFinalize(const QJsonObject& versionJson);
-    void writeNeoForgeVersion(const QJsonObject& versionInfo);
+    void installNeoForge(const QByteArray& jarData, const QJsonObject& profile);
+    void finalizeNeoForge(const QByteArray& jarData, const QJsonObject& versionJson);
     void renameVersionFolder(const QString& oldName, const QString& newName);
     void cleanupAfterInstall(const QStringList& dirsToClean);
     /// Extract the embedded forge-install-bootstrapper.jar to temp, return path
