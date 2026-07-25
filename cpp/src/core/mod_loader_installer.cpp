@@ -1142,6 +1142,24 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(QByteArray jarData, QJsonObje
         if (!lzmaData.isEmpty()) {
             reader.close();
             qCInfo(logLoader) << QStringLiteral("检测到 binarypatcher 安装器 (data/client.lzma)，异步生成客户端 JAR");
+
+            // 在启动 binarypatcher 前确认 MC JAR 已就绪，避免 race condition
+            QString mcDir2 = findVersionDir(m_mcVersion);
+            if (mcDir2.isEmpty()) {
+                qCWarning(logLoader) << QStringLiteral("MC 版本目录未就绪，等待下载完成...");
+                m_cachedJar = jarData;
+                emit waitingForMC();
+                return;
+            }
+            QString mcJar2 = mcDir2 + QStringLiteral("/") + QDir(mcDir2).dirName() + QStringLiteral(".jar");
+            QFileInfo mcInfo2(mcJar2);
+            if (!mcInfo2.exists() || mcInfo2.size() < 1000000) {
+                qCWarning(logLoader) << QStringLiteral("MC JAR 未就绪（存在=%1 大小=%2），等待下载完成...").arg(mcInfo2.exists()).arg(mcInfo2.size());
+                m_cachedJar = jarData;
+                emit waitingForMC();
+                return;
+            }
+
             // 异步启动 binarypatcher，完成后继续安装
             forgeStep3_runBinaryPatcherAsync(lzmaData,
                 [this, jarData, versionJson, groupPath, ver, filePrefix](QByteArray result)
@@ -1215,6 +1233,13 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         } else {
             qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 已含 .forge_patched_minecraft 标记，跳过重打包");
         }
+    }
+
+    if (clientJarBytes.isEmpty()) {
+        // binarypatcher 失败，或安装程序中无有效 JAR
+        qCWarning(logLoader) << QStringLiteral("客户端 JAR 为空，binarypatcher 可能失败，回退到 JVM");
+        runInstallerProcess(jarData);
+        return;
     }
 
     QFile jf(jarDst);
