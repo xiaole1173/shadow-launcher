@@ -1188,9 +1188,11 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
     const QString& ver,
     const QString& filePrefix)
 {
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] forgeStep3_finishInstallation 开始，字节=%1").arg(clientJarBytes.size());
     // 2. Write client jar to version folder（包括 Forge 必要的标记文件）
     const QString verDir = m_gameDir + QStringLiteral("/versions/") + m_installName;
     QDir().mkpath(verDir);
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] mkpath ok");
     const QString jarDst = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
 
     // 2a. 确保 client JAR 包含 .forge_patched_minecraft（Forge 用该标记定位 Minecraft JAR）
@@ -1200,8 +1202,11 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         QBuffer inBuf;
         inBuf.setData(clientJarBytes);
         if (inBuf.open(QIODevice::ReadOnly)) {
+            qCInfo(logLoader) << QStringLiteral("[DEBUG] QBuffer open ok");
             QZipReader reader(&inBuf);
+            qCInfo(logLoader) << QStringLiteral("[DEBUG] QZipReader created");
             const auto entries = reader.fileInfoList();
+            qCInfo(logLoader) << QStringLiteral("[DEBUG] fileInfoList 返回 %1 条").arg(entries.size());
             for (const auto& entry : entries) {
                 if (entry.filePath == QStringLiteral(".forge_patched_minecraft")) {
                     hasMarker = true;
