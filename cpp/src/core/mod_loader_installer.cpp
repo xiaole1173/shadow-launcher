@@ -1188,11 +1188,9 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
     const QString& ver,
     const QString& filePrefix)
 {
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] forgeStep3_finishInstallation 开始，字节=%1").arg(clientJarBytes.size());
     // 2. Write client jar to version folder（包括 Forge 必要的标记文件）
     const QString verDir = m_gameDir + QStringLiteral("/versions/") + m_installName;
     QDir().mkpath(verDir);
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] mkpath ok");
     const QString jarDst = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
 
     // 2a. 确保 client JAR 包含 .forge_patched_minecraft（Forge 用该标记定位 Minecraft JAR）
@@ -1202,11 +1200,8 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         QBuffer inBuf;
         inBuf.setData(clientJarBytes);
         if (inBuf.open(QIODevice::ReadOnly)) {
-            qCInfo(logLoader) << QStringLiteral("[DEBUG] QBuffer open ok");
             QZipReader reader(&inBuf);
-            qCInfo(logLoader) << QStringLiteral("[DEBUG] QZipReader created");
             const auto entries = reader.fileInfoList();
-            qCInfo(logLoader) << QStringLiteral("[DEBUG] fileInfoList 返回 %1 条").arg(entries.size());
             for (const auto& entry : entries) {
                 if (entry.filePath == QStringLiteral(".forge_patched_minecraft")) {
                     hasMarker = true;
@@ -1215,7 +1210,6 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
             }
             reader.close();
         }
-        qCInfo(logLoader) << QStringLiteral("[DEBUG] 标记查找完毕 hasMarker=%1").arg(hasMarker);
         if (!hasMarker) {
             qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 不含 .forge_patched_minecraft 标记（不影响功能），直接写入");
         } else {
@@ -1234,7 +1228,6 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         return;
     }
 
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] JAR 写入完成，准备复制到库目录");
 
     // ── 确保库目录也存在（预启动检查会验证库文件） ──
     {
@@ -1259,12 +1252,10 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         }
     }
 
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] 库目录复制完成，开始生成版本配置");
 
     emit stepProgress(3, 75);
     emit progressChanged(3, m_totalSteps, "正在生成 Forge 版本配置...");
 
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] 开始合并版本 JSON");
 
     // 3. Write version JSON (merged with vanilla MC)
     QJsonObject json = versionJson;
@@ -1272,7 +1263,6 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
 
     const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
 
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] 开始查找 MC JSON");
 
     // ── 定位原版 MC JSON：支持协议版本名 ≠ 目录名的情况（如 26.2 存在 1.21.5 目录里）──
     auto findMcJson = [&]() -> QJsonObject {
@@ -1300,7 +1290,6 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         return QJsonObject();
     };
     QJsonObject mcObj = findMcJson();
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] MC JSON 查找完毕 isEmpty=%1").arg(mcObj.isEmpty());
 
     if (!mcObj.isEmpty()) {
         // Merge libraries: MC first, Forge after
@@ -1375,7 +1364,6 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         }
     }
 
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] 准备写入版本 JSON");
 
     QFile out(jsonPath);
     if (out.open(QIODevice::WriteOnly)) {
@@ -1384,13 +1372,10 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         qCInfo(logLoader) << QStringLiteral("Forge 版本 JSON 已写入: %1").arg(jsonPath);
     }
 
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] 版本 JSON 写入完成");
 
     emit stepProgress(3, 100);
     emit progressChanged(3, m_totalSteps, "Forge 安装完成");
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] 即将 emit finished");
     emit finished(true, QString());
-    qCInfo(logLoader) << QStringLiteral("[DEBUG] finished 已 emit");
     m_running = false;
 }
 
