@@ -548,41 +548,6 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         m_taskDestPaths.append(jarTask.savePath);
     }
 
-    // --- client_mappings (needed by Forge 1.19+ installer for JAR remapping) ---
-    QJsonObject clientMappings = versionJson.value(QStringLiteral("downloads"))
-                                   .toObject()
-                                   .value(QStringLiteral("client_mappings"))
-                                   .toObject();
-    if (!clientMappings.value(QStringLiteral("url")).toString().isEmpty()) {
-        const QString mappingsUrl = clientMappings.value(QStringLiteral("url")).toString();
-        const QString mappingsSha1 = clientMappings.value(QStringLiteral("sha1")).toString();
-        qint64 mappingsSize = static_cast<qint64>(clientMappings.value(QStringLiteral("size")).toDouble());
-
-        // Build Maven-style path: libraries/net/minecraft/client/{ver-timestamp}/client-{ver-timestamp}-mappings.txt
-        QString mavenVer;
-        if (m_versionReleaseTime.isValid()) {
-            QString ts = m_versionReleaseTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
-            mavenVer = versionId + QStringLiteral("-") + ts;
-        } else {
-            // Fallback: use versionId directly (less precise but still works as last resort)
-            mavenVer = versionId;
-        }
-        const QString mappingsSavePath = m_minecraftDir
-            + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
-            + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
-
-        DownloadTask mapTask;
-        mapTask.name      = QStringLiteral("client-") + mavenVer + QStringLiteral("-mappings.txt");
-        mapTask.url       = mappingsUrl;
-        mapTask.savePath  = mappingsSavePath;
-        mapTask.sha1      = mappingsSha1;
-        mapTask.totalBytes = mappingsSize;
-        // BMCLAPI /maven/ mirror fallback (Maven path mirrors the official launcher CDN)
-        mapTask.mirrors  << QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraft/client/%1/client-%1-mappings.txt").arg(mavenVer);
-        tasks.append(mapTask);
-        m_taskDestPaths.append(mapTask.savePath);
-    }
-
     // --- libraries ---
     QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
     for (const QJsonValue& libVal : libraries) {

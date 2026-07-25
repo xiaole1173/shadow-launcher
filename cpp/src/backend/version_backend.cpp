@@ -1689,7 +1689,6 @@ void VersionBackend::installVersion(const QString& versionId)
 
             emit logMessage(QStringLiteral("[下载] 开始下载版本 %1").arg(versionId));
 
-            downloader->setVersionReleaseTime(targetVersion.releaseTime);
             downloader->downloadVersion(versionJson, versionId);
 
         };
