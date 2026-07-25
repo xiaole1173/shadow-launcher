@@ -1217,28 +1217,7 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         }
         qCInfo(logLoader) << QStringLiteral("[DEBUG] 标记查找完毕 hasMarker=%1").arg(hasMarker);
         if (!hasMarker) {
-            // Binarypatcher 未包含标记（老旧安装器），需手动注入
-            QBuffer inBuf2;
-            inBuf2.setData(clientJarBytes);
-            if (inBuf2.open(QIODevice::ReadOnly)) {
-                QZipReader reader(&inBuf2);
-                const auto entries = reader.fileInfoList();
-                QBuffer outBuf;
-                outBuf.open(QIODevice::WriteOnly);
-                QZipWriter writer(&outBuf);
-                for (const auto& entry : entries) {
-                    if (entry.isDir) {
-                        writer.addDirectory(entry.filePath);
-                    } else {
-                        writer.addFile(entry.filePath, reader.fileData(entry.filePath));
-                    }
-                }
-                writer.addFile(QStringLiteral(".forge_patched_minecraft"), QByteArray());
-                writer.close();
-                reader.close();
-                clientJarBytes = outBuf.data();
-                qCInfo(logLoader) << QStringLiteral("已添加 .forge_patched_minecraft 标记到版本 JAR");
-            }
+            qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 不含 .forge_patched_minecraft 标记（不影响功能），直接写入");
         } else {
             qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 已含 .forge_patched_minecraft 标记，跳过重打包");
         }
