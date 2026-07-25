@@ -1136,12 +1136,29 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(QByteArray jarData, QJsonObje
 
     QByteArray clientJarBytes;
 
-    // ── Path 1: Binarypatcher (Forge 26.2+) — 异步信号驱动 ──
-    if (m_loaderType == QStringLiteral("forge")) {
+    // ── Path 1: 搜索安装程序中的预合并 JAR（同步） ──
+    // 优先走此路径：所有带预合并 JAR 的版本都跳过 binarypatcher
+    {
+        const QStringList jarCandidates = {
+            QStringLiteral("maven/%1/%2/%3-%2-client.jar").arg(groupPath, ver, filePrefix),
+            QStringLiteral("maven/%1/%2/%3-%2-universal.jar").arg(groupPath, ver, filePrefix),
+            QStringLiteral("maven/%1/%2/%3-%2.jar").arg(groupPath, ver, filePrefix),
+        };
+        for (const QString& candidate : jarCandidates) {
+            clientJarBytes = reader.fileData(candidate);
+            if (!clientJarBytes.isEmpty()) {
+                qCInfo(logLoader) << QStringLiteral("从安装程序找到客户端 JAR: %1 大小=%2 字节").arg(candidate).arg(clientJarBytes.size());
+                break;
+            }
+        }
+    }
+
+    // ── Path 2: Binarypatcher（仅当安装器中无预合并 JAR 时才走） ──
+    if (clientJarBytes.isEmpty() && m_loaderType == QStringLiteral("forge")) {
         QByteArray lzmaData = reader.fileData(QStringLiteral("data/client.lzma"));
         if (!lzmaData.isEmpty()) {
             reader.close();
-            qCInfo(logLoader) << QStringLiteral("检测到 binarypatcher 安装器 (data/client.lzma)，异步生成客户端 JAR");
+            qCInfo(logLoader) << QStringLiteral("安装器无预合并 JAR，使用 binarypatcher (data/client.lzma)");
 
             // 在启动 binarypatcher 前确认 MC JAR 已就绪，避免 race condition
             QString mcDir2 = findVersionDir(m_mcVersion);
@@ -1167,22 +1184,6 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(QByteArray jarData, QJsonObje
                 forgeStep3_finishInstallation(result, jarData, versionJson, groupPath, ver, filePrefix);
             });
             return;
-        }
-    }
-
-    // ── Path 2: 搜索安装程序中的预合并 JAR（同步） ──
-    if (clientJarBytes.isEmpty()) {
-        const QStringList jarCandidates = {
-            QStringLiteral("maven/%1/%2/%3-%2-client.jar").arg(groupPath, ver, filePrefix),
-            QStringLiteral("maven/%1/%2/%3-%2-universal.jar").arg(groupPath, ver, filePrefix),
-            QStringLiteral("maven/%1/%2/%3-%2.jar").arg(groupPath, ver, filePrefix),
-        };
-        for (const QString& candidate : jarCandidates) {
-            clientJarBytes = reader.fileData(candidate);
-            if (!clientJarBytes.isEmpty()) {
-                qCInfo(logLoader) << QStringLiteral("从安装程序找到客户端 JAR: %1 大小=%2 字节").arg(candidate).arg(clientJarBytes.size());
-                break;
-            }
         }
     }
 
