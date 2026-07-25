@@ -7739,20 +7739,21 @@ void VersionBackend::addResourceCard(const QString& cardId, const QString& displ
 
 
 
-void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, const QString& status) {
+void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, const QString& status, qint64 speed) {
 
     if (!m_extraCards.contains(cardId)) return;
 
     QVariantMap c = m_extraCards[cardId];
     c["totalProgress"] = progress;
+    c["speed"] = QVariant::fromValue<qint64>(speed);
     if (!status.isEmpty()) c["installPhase"] = status;
     m_extraCards[cardId] = c;
 
-    // ── 精准更新进度+阶段，而非全量重建 ──
+    // ── 精准更新进度+速度+阶段 ──
     if (m_installCardsModel) {
         int row = m_installCardsModel->findRowByIid(cardId);
         if (row >= 0) {
-            m_installCardsModel->updateProgressAndSpeed(row, progress, 0);
+            m_installCardsModel->updateProgressAndSpeed(row, progress, speed);
             if (!status.isEmpty())
                 m_installCardsModel->updatePhase(row, status);
         }

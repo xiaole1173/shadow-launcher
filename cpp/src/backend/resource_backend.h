@@ -63,7 +63,7 @@ signals:
     void downloadStateChanged();
     void downloadFinished(const QString& slug, bool success, const QString& filePath);
     void modFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
-    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total, qint64 speed);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     void searchResultsReady(const QVariantList& results);  // deprecated — use modSearchResultsReady / shaderSearchResultsReady
@@ -97,7 +97,7 @@ private slots:
 
     // Mod file download forwarding
     void onModFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
-    void onModFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void onModFileDownloadProgress(int downloadId, qint64 received, qint64 total, qint64 speed);
     void onModFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void onModFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
 

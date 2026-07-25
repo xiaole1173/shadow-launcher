@@ -203,7 +203,7 @@ public:
 
     // Resource / Mod download cards
     Q_INVOKABLE void addResourceCard(const QString& cardId, const QString& displayName);
-    Q_INVOKABLE void updateResourceCard(const QString& cardId, qreal progress, const QString& status);
+    Q_INVOKABLE void updateResourceCard(const QString& cardId, qreal progress, const QString& status, qint64 speed = 0);
     Q_INVOKABLE void removeResourceCard(const QString& cardId);
 
 signals:

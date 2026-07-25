@@ -10,6 +10,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QDir>
+#include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 #include <QCryptographicHash>
@@ -349,7 +350,18 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
             auto it = m_activeModDownloads.find(id);
             if (it == m_activeModDownloads.end() || it->cancelled || it->finished || it->paused) return;
             it->received = received;
-            emit modFileDownloadProgress(id, received, total);
+            // ── 瞬时速度：delta bytes / delta time ──
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            qint64 deltaB = received - it->lastSpeedBytes;
+            qint64 deltaT = it->lastSpeedMs > 0 ? (now - it->lastSpeedMs) : 0;
+            if (deltaB > 0 && deltaT > 0) {
+                it->speedBytesPerSec = (deltaB * 1000) / deltaT;
+            } else if (deltaT > 30000) {
+                it->speedBytesPerSec = 0;
+            }
+            it->lastSpeedBytes = received;
+            it->lastSpeedMs = now;
+            emit modFileDownloadProgress(id, received, total, it->speedBytesPerSec);
         },
         [this, id, savePath, displayName, sha1](bool ok, const QString& error) {
             auto it = m_activeModDownloads.find(id);
@@ -436,7 +448,7 @@ void ModManager::pauseModFileDownload(int downloadId)
     }
     emit logMessage(tr("[暂停] 已暂停 Mod 下载: %1 (%2/%3)")
         .arg(it->displayName).arg(it->received).arg(it->expectedSize));
-    emit modFileDownloadProgress(downloadId, it->received, it->expectedSize);
+    emit modFileDownloadProgress(downloadId, it->received, it->expectedSize, it->speedBytesPerSec);
 }
 
 void ModManager::resumeModFileDownload(int downloadId)

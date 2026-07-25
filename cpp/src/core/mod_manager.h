@@ -186,7 +186,7 @@ signals:
 
     // Mod file download (user-chosen save path)
     void modFileDownloadStarted(int downloadId, const QString& fileName, qint64 fileSize, const QString& displayName);
-    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
+    void modFileDownloadProgress(int downloadId, qint64 received, qint64 total, qint64 speed);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
 
@@ -235,6 +235,9 @@ private:
         qint64 expectedSize = 0;
         QString sha1;
         qint64 received = 0;
+        qint64 speedBytesPerSec = 0;
+        qint64 lastSpeedBytes = 0;
+        qint64 lastSpeedMs = 0;
         bool cancelled = false;
         bool paused = false;
         bool finished = false;

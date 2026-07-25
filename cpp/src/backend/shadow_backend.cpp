@@ -501,10 +501,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 if (m_version) m_version->addResourceCard(cardId, displayName.isEmpty() ? fileName : displayName);
             });
     connect(m_resource, &ResourceBackend::modFileDownloadProgress,
-            this, [this](int dlId, qint64 received, qint64 total) {
+            this, [this](int dlId, qint64 received, qint64 total, qint64 speed) {
                 if (m_modDownloadCards.contains(dlId) && m_version && total > 0) {
                     m_version->updateResourceCard(m_modDownloadCards[dlId],
-                        (qreal)received / total, QString());
+                        (qreal)received / total, QString(), speed);
                 }
             });
     connect(m_resource, &ResourceBackend::modFileDownloadFinished,

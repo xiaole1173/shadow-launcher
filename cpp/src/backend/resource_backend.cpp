@@ -601,9 +601,9 @@ void ResourceBackend::onModFileDownloadStarted(int downloadId, const QString& fi
     emit modFileDownloadStarted(downloadId, fileName, fileSize, displayName);
 }
 
-void ResourceBackend::onModFileDownloadProgress(int downloadId, qint64 received, qint64 total)
+void ResourceBackend::onModFileDownloadProgress(int downloadId, qint64 received, qint64 total, qint64 speed)
 {
-    emit modFileDownloadProgress(downloadId, received, total);
+    emit modFileDownloadProgress(downloadId, received, total, speed);
 }
 
 void ResourceBackend::onModFileDownloadFinished(int downloadId, bool success,
