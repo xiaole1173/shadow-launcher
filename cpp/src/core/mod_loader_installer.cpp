@@ -1105,7 +1105,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         (*processNext)();
 }
 
-void ModLoaderInstaller::forgeStep3_manualFinalize(const QByteArray& jarData, const QJsonObject& versionJson)
+void ModLoaderInstaller::forgeStep3_manualFinalize(QByteArray jarData, QJsonObject versionJson)
 {
     emit stepProgress(3, 50);
     emit progressChanged(3, m_totalSteps, "正在提取 Forge 客户端文件...");
@@ -1135,25 +1135,23 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(const QByteArray& jarData, co
 
     QByteArray clientJarBytes;
 
-    // ── Path 1: Binarypatcher (Forge 26.2+) ──
-    // Forge 26.2+ (MC 1.21.5) installers no longer contain a pre-merged
-    // -client.jar. Instead they have data/client.lzma (LZMA binary patch)
-    // and universal.jar (Forge module code only, no MC classes).
-    // We must run binarypatcher to generate the actual patched client JAR.
+    // ── Path 1: Binarypatcher (Forge 26.2+) — 异步信号驱动 ──
     if (m_loaderType == QStringLiteral("forge")) {
         QByteArray lzmaData = reader.fileData(QStringLiteral("data/client.lzma"));
         if (!lzmaData.isEmpty()) {
-            qCInfo(logLoader) << QStringLiteral("检测到 binarypatcher 安装器 (data/client.lzma)，生成客户端 JAR");
-            clientJarBytes = forgeStep3_runBinaryPatcher(jarData, lzmaData);
-            if (!clientJarBytes.isEmpty()) {
-                qCInfo(logLoader) << QStringLiteral("binarypatcher 成功生成客户端 JAR: %1 字节").arg(clientJarBytes.size());
-            } else {
-                qCWarning(logLoader) << QStringLiteral("binarypatcher 失败，回退到预合并 JAR 搜索");
-            }
+            reader.close();
+            qCInfo(logLoader) << QStringLiteral("检测到 binarypatcher 安装器 (data/client.lzma)，异步生成客户端 JAR");
+            // 异步启动 binarypatcher，完成后继续安装
+            forgeStep3_runBinaryPatcherAsync(lzmaData,
+                [this, jarData, versionJson, groupPath, ver, filePrefix](QByteArray result)
+            {
+                forgeStep3_finishInstallation(result, jarData, versionJson, groupPath, ver, filePrefix);
+            });
+            return;
         }
     }
 
-    // ── Path 2: 搜索安装程序中的预合并 JAR ──
+    // ── Path 2: 搜索安装程序中的预合并 JAR（同步） ──
     if (clientJarBytes.isEmpty()) {
         const QStringList jarCandidates = {
             QStringLiteral("maven/%1/%2/%3-%2-client.jar").arg(groupPath, ver, filePrefix),
@@ -1177,6 +1175,18 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(const QByteArray& jarData, co
         return;
     }
 
+    // 同步路径：直接完成安装
+    forgeStep3_finishInstallation(clientJarBytes, jarData, versionJson, groupPath, ver, filePrefix);
+}
+
+void ModLoaderInstaller::forgeStep3_finishInstallation(
+    QByteArray clientJarBytes,
+    const QByteArray& jarData,
+    const QJsonObject& versionJson,
+    const QString& groupPath,
+    const QString& ver,
+    const QString& filePrefix)
+{
     // 2. Write client jar to version folder（包括 Forge 必要的标记文件）
     const QString verDir = m_gameDir + QStringLiteral("/versions/") + m_installName;
     QDir().mkpath(verDir);
@@ -1383,146 +1393,88 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(const QByteArray& jarData, co
     m_running = false;
 }
 
-QByteArray ModLoaderInstaller::forgeStep3_runBinaryPatcher(const QByteArray& jarData, const QByteArray& lzmaData)
+void ModLoaderInstaller::forgeStep3_runBinaryPatcherAsync(
+    const QByteArray& lzmaData,
+    std::function<void(QByteArray)> onDone)
 {
-    emit progressChanged(3, m_totalSteps, "正在运行 BinaryPatcher 生成客户端 JAR...");
+    emit progressChanged(3, m_totalSteps, "正在启动 BinaryPatcher...");
 
     // ── Step 1: Verify binarypatcher processor JARs on disk ──
-    // These were pre-downloaded during forgeStep3_install phase.
     struct MavenArtifact { QString mavenPath; QString label; };
-    const std::vector<MavenArtifact> processorLibs = {
-        { QStringLiteral("net/minecraftforge/binarypatcher/1.3.4/binarypatcher-1.3.4.jar"),    QStringLiteral("binarypatcher") },
-        { QStringLiteral("net/minecraftforge/hash-utils/0.2.3/hash-utils-0.2.3.jar"),          QStringLiteral("hash-utils") },
-        { QStringLiteral("net/minecraftforge/srgutils/0.6.6/srgutils-0.6.6.jar"),             QStringLiteral("srgutils") },
-        { QStringLiteral("net/sf/jopt-simple/jopt-simple/6.0-alpha-3/jopt-simple-6.0-alpha-3.jar"), QStringLiteral("jopt-simple") },
-        { QStringLiteral("com/github/jponge/lzma-java/1.3/lzma-java-1.3.jar"),                QStringLiteral("lzma-java") },
-        { QStringLiteral("com/nothome/javaxdelta/2.0.1/javaxdelta-2.0.1.jar"),                QStringLiteral("javaxdelta") },
-        { QStringLiteral("trove/trove/1.0.2/trove-1.0.2.jar"),                               QStringLiteral("trove") },
-    };
+    const std::vector<MavenArtifact> processorLibs = {{
+        {"net/minecraftforge/binarypatcher/1.3.4/binarypatcher-1.3.4.jar",                     "binarypatcher"},
+        {"net/minecraftforge/hash-utils/0.2.3/hash-utils-0.2.3.jar",                           "hash-utils"},
+        {"net/minecraftforge/srgutils/0.6.6/srgutils-0.6.6.jar",                              "srgutils"},
+        {"net/sf/jopt-simple/jopt-simple/6.0-alpha-3/jopt-simple-6.0-alpha-3.jar",            "jopt-simple"},
+        {"com/github/jponge/lzma-java/1.3/lzma-java-1.3.jar",                                 "lzma-java"},
+        {"com/nothome/javaxdelta/2.0.1/javaxdelta-2.0.1.jar",                                 "javaxdelta"},
+        {"trove/trove/1.0.2/trove-1.0.2.jar",                                                "trove"},
+    }};
     
     QStringList classpathEntries;
     for (const auto& lib : processorLibs) {
         QString localPath = QDir::cleanPath(m_gameDir + QStringLiteral("/libraries/") + lib.mavenPath);
         QFileInfo fi(localPath);
         if (!fi.exists() || fi.size() < 1000) {
-            qCWarning(logLoader) << QStringLiteral("binarypatcher 依赖不存在或无效: %1 (%2)").arg(lib.label, localPath);
-            return {};
+            qCWarning(logLoader) << QStringLiteral("binarypatcher 依赖缺失: %1").arg(lib.label);
+            onDone({}); return;
         }
         classpathEntries << QDir::toNativeSeparators(localPath);
     }
-    qCInfo(logLoader) << QStringLiteral("binarypatcher 依赖就绪: %1 个 JAR").arg(processorLibs.size());
 
     // ── Step 2: Find vanilla MC JAR ──
     QString mcDir = findVersionDir(m_mcVersion);
-    if (mcDir.isEmpty()) {
-        qCWarning(logLoader) << QStringLiteral("找不到原版 MC 目录: %1").arg(m_mcVersion);
-        return {};
-    }
+    if (mcDir.isEmpty()) { onDone({}); return; }
     const QString mcJar = mcDir + QStringLiteral("/") + QDir(mcDir).dirName() + QStringLiteral(".jar");
-    if (!QFile::exists(mcJar)) {
-        qCWarning(logLoader) << QStringLiteral("原版 MC JAR 不存在: %1").arg(mcJar);
-        return {};
-    }
-    qCInfo(logLoader) << QStringLiteral("使用原版 MC JAR: %1").arg(mcJar);
+    if (!QFile::exists(mcJar)) { onDone({}); return; }
 
     // ── Step 3: Write temp files ──
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    const QString patchFilePath = tempDir + QStringLiteral("/binpatch-") + m_installName + QStringLiteral(".lzma");
-    const QString outputJarPath = tempDir + QStringLiteral("/patched-") + m_installName + QStringLiteral(".jar");
+    const QString patchFp = tempDir + QStringLiteral("/binpatch-") + m_installName + QStringLiteral(".lzma");
+    const QString outJarFp = tempDir + QStringLiteral("/patched-") + m_installName + QStringLiteral(".jar");
+    { QFile f(patchFp); if (!f.open(QIODevice::WriteOnly)) { onDone({}); return; } f.write(lzmaData); }
 
-    // Write raw client.lzma — binarypatcher handles decompression internally via lzma-java
-    {   QFile f(patchFilePath);
-        if (!f.open(QIODevice::WriteOnly)) return {};
-        f.write(lzmaData);
-    }
-
-    // ── Step 4: Run binarypatcher via QProcess ──
-    // binarypatcher args (from install_profile.json processor spec):
-    //   --clean {MINECRAFT_JAR} --output {PATCHED} --apply {BINPATCH}
-    //   --data --unpatched --store --marker .forge_patched_minecraft
-    // Note: --apply (NOT --binpatch) accepts raw LZMA compressed data
-    //       --store disables output compression (zlib-ng compat workaround)
+    // ── Step 4: Run binarypatcher via QProcess (异步) ──
     QString cpArg = classpathEntries.join(QLatin1Char(';'));
-    
     QStringList args;
-    args << QStringLiteral("-Djava.net.preferIPv4Stack=true")
-         << QStringLiteral("-cp") << cpArg
-         << QStringLiteral("net.minecraftforge.binarypatcher.ConsoleTool")
-         << QStringLiteral("--clean") << QDir::toNativeSeparators(mcJar)
-         << QStringLiteral("--output") << QDir::toNativeSeparators(outputJarPath)
-         << QStringLiteral("--apply") << QDir::toNativeSeparators(patchFilePath)
-         << QStringLiteral("--data")
-         << QStringLiteral("--unpatched")
-         << QStringLiteral("--store")
-         << QStringLiteral("--marker") << QStringLiteral(".forge_patched_minecraft");
+    args << "-Djava.net.preferIPv4Stack=true" << "-cp" << cpArg
+         << "net.minecraftforge.binarypatcher.ConsoleTool"
+         << "--clean" << QDir::toNativeSeparators(mcJar)
+         << "--output" << QDir::toNativeSeparators(outJarFp)
+         << "--apply" << QDir::toNativeSeparators(patchFp)
+         << "--data" << "--unpatched" << "--store"
+         << "--marker" << ".forge_patched_minecraft";
 
-    qCInfo(logLoader) << QStringLiteral("运行 binarypatcher: java %1").arg(args.join(QStringLiteral(" ")));
+    qCInfo(logLoader) << "运行 binarypatcher (异步): java" << args.join(" ");
 
-    QProcess proc;
-    proc.setWorkingDirectory(tempDir);
-    proc.start(QStringLiteral("java"), args);
+    auto* proc = new QProcess(this);
+    proc->setWorkingDirectory(tempDir);
+    QObject::connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+        this, [this, proc, patchFp, outJarFp, onDone](int exitCode, QProcess::ExitStatus status)
+    {
+        auto finally = [&]() { proc->deleteLater(); QFile::remove(patchFp); QFile::remove(outJarFp); };
+        
+        // Read stderr
+        QString errStr = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        if (!errStr.isEmpty()) qCInfo(logLoader) << "binarypatcher stderr:" << errStr;
 
-    // ── Non-blocking wait: process UI events and check cancellation ──
-    const int timeoutMs = 240000;  // 4 minutes max
-    const int pollMs = 100;
-    int elapsedMs = 0;
-    bool timedOut = false;
-    while (!proc.waitForFinished(pollMs)) {
-        elapsedMs += pollMs;
-        QApplication::processEvents();
-        // Report progress every ~2 seconds
-        if (elapsedMs % 2000 < pollMs) {
-            int pct = qMin(elapsedMs * 100 / timeoutMs, 99);
-            emit progressChanged(3, m_totalSteps,
-                QStringLiteral("正在运行 BinaryPatcher 生成客户端 JAR (%1s)...").arg(elapsedMs / 1000));
+        if (status != QProcess::NormalExit || exitCode != 0 || m_cancelled) {
+            qCWarning(logLoader) << "binarypatcher 失败，退出码=" << exitCode;
+            finally(); onDone({}); return;
         }
-        if (m_cancelled || elapsedMs >= timeoutMs) {
-            timedOut = true;
-            break;
-        }
-    }
-    if (timedOut) {
-        proc.kill();
-        proc.waitForFinished(3000);
-        qCWarning(logLoader) << QStringLiteral("binarypatcher 超时（%1 秒），强制终止").arg(timeoutMs / 1000);
-        QFile::remove(patchFilePath); QFile::remove(outputJarPath);
-        return {};
-    }
-    if (m_cancelled) {
-        proc.kill();
-        QFile::remove(patchFilePath); QFile::remove(outputJarPath);
-        return {};
-    }
 
-    QString stderrStr = QString::fromUtf8(proc.readAllStandardError()).trimmed();
-    if (!stderrStr.isEmpty())
-        qCInfo(logLoader) << QStringLiteral("binarypatcher stderr: %1").arg(stderrStr);
+        // Read output JAR
+        QFile f(outJarFp);
+        if (!f.open(QIODevice::ReadOnly)) { finally(); onDone({}); return; }
+        QByteArray result = f.readAll();
+        f.close();
+        finally();
 
-    QFile::remove(patchFilePath);
-
-    if (proc.exitCode() != 0) {
-        qCWarning(logLoader) << QStringLiteral("binarypatcher 失败，退出码=%1").arg(proc.exitCode());
-        QFile::remove(outputJarPath);
-        return {};
-    }
-
-    // ── Step 5: Read output patched JAR ──
-    QFile outFile(outputJarPath);
-    if (!outFile.open(QIODevice::ReadOnly)) {
-        qCWarning(logLoader) << QStringLiteral("无法读取 binarypatcher 输出");
-        return {};
-    }
-    QByteArray result = outFile.readAll();
-    outFile.close();
-    QFile::remove(outputJarPath);
-
-    if (result.isEmpty()) {
-        qCWarning(logLoader) << QStringLiteral("binarypatcher 输出为空");
-        return {};
-    }
-
-    qCInfo(logLoader) << QStringLiteral("binarypatcher 成功: 输出 %1 字节").arg(result.size());
-    return result;
+        if (result.isEmpty()) { onDone({}); return; }
+        qCInfo(logLoader) << "binarypatcher 成功: 输出" << result.size() << "字节";
+        onDone(result);
+    });
+    proc->start("java", args);
 }
 
 void ModLoaderInstaller::runInstallerProcess(const QByteArray& jarData) {

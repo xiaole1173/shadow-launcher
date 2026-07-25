@@ -102,10 +102,14 @@ private:
     void neoStep2_verify(const QByteArray& jarData);
     // Extract version.json → download libraries → write config
     void forgeStep3_install(const QByteArray& jarData);
-    void forgeStep3_manualFinalize(const QByteArray& jarData, const QJsonObject& versionJson);
-    /// Run binarypatcher to generate patched client JAR (Forge 26.2+)
-    /// Returns patched JAR bytes on success, empty on failure
-    QByteArray forgeStep3_runBinaryPatcher(const QByteArray& jarData, const QByteArray& lzmaData);
+    void forgeStep3_manualFinalize(QByteArray jarData, QJsonObject versionJson);
+    /// Run binarypatcher asynchronously (QProcess signal-driven, no main thread blocking)
+    void forgeStep3_runBinaryPatcherAsync(const QByteArray& lzmaData,
+        std::function<void(QByteArray)> onDone);
+    /// Continue forge installation after obtaining the client JAR
+    void forgeStep3_finishInstallation(QByteArray clientJarBytes,
+        const QByteArray& jarData, const QJsonObject& versionJson,
+        const QString& groupPath, const QString& ver, const QString& filePrefix);
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
     void neoForgeStep3_buildVersion(const QByteArray& jarData);
