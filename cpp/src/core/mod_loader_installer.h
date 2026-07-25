@@ -110,6 +110,11 @@ private:
     void forgeStep3_finishInstallation(QByteArray clientJarBytes,
         const QByteArray& jarData, const QJsonObject& versionJson,
         const QString& groupPath, const QString& ver, const QString& filePrefix);
+    /// Write JAR + copy to libs + merge version JSON + emit finished
+    void forgeStep3_writeJarAndFinish(QByteArray clientJarBytes,
+        const QByteArray& jarData, const QJsonObject& versionJson,
+        const QString& groupPath, const QString& ver, const QString& filePrefix,
+        const QString& jarDst);
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
     void neoForgeStep3_buildVersion(const QByteArray& jarData);
