@@ -36,6 +36,8 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(int maxDownloadThreads READ maxDownloadThreads WRITE setMaxDownloadThreads NOTIFY downloadSettingsChanged)
     Q_PROPERTY(double downloadSpeedLimitMB READ downloadSpeedLimitMB WRITE setDownloadSpeedLimitMB NOTIFY downloadSettingsChanged)
     Q_PROPERTY(int autoLangMode READ autoLangMode WRITE setAutoLangMode NOTIFY autoLangModeChanged)
+    Q_PROPERTY(int windowWidth READ windowWidth WRITE setWindowWidth NOTIFY windowSettingsChanged)
+    Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowSettingsChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -139,6 +141,11 @@ public:
     // Returns combo box index for QML (mode → idx mapping: 0→2, 1→0, 2→1)
     int autoLangModeComboIndex() const;
     Q_INVOKABLE void setAutoLangMode(int mode);
+    // Window resolution
+    int windowWidth() const { return m_windowWidth; }
+    void setWindowWidth(int w) { if (w >= 100 && w <= 7680 && w != m_windowWidth) { m_windowWidth = w; saveSettings(); emit windowSettingsChanged(); } }
+    int windowHeight() const { return m_windowHeight; }
+    void setWindowHeight(int h) { if (h >= 100 && h <= 4320 && h != m_windowHeight) { m_windowHeight = h; saveSettings(); emit windowSettingsChanged(); } }
 
     // Download settings
     int fileDownloadSource() const { return m_fileDownloadSource; }
@@ -164,6 +171,7 @@ signals:
     void customBgChanged();
     void downloadSettingsChanged();
     void autoLangModeChanged();
+    void windowSettingsChanged();
     void logMessage(const QString& msg);
 
 private:
@@ -215,6 +223,8 @@ private:
     double m_downloadSpeedLimitMB = -1; // -1 = unlimited
 
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
+    int m_windowWidth = 854;
+    int m_windowHeight = 480;
 
     // Cache for Java scan results (expensive operation)
     QVector<JavaInfo> m_cachedJavaList;

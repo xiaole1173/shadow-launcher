@@ -110,6 +110,10 @@ void SettingsBackend::loadSettings()
     m_autoLangMode = s.value(QStringLiteral("general/autoLangMode"), 1).toInt();
     qCInfo(logApp) << QStringLiteral("[autoLang] loaded mode=%1 from QSettings").arg(m_autoLangMode);
 
+    // Window resolution
+    m_windowWidth  = s.value(QStringLiteral("launch/windowWidth"), 854).toInt();
+    m_windowHeight = s.value(QStringLiteral("launch/windowHeight"), 480).toInt();
+
     // Download settings
     m_fileDownloadSource = s.value(QStringLiteral("download/fileSource"), 1).toInt();
     m_listDownloadSource = s.value(QStringLiteral("download/listSource"), 1).toInt();
@@ -149,6 +153,10 @@ void SettingsBackend::saveSettings()
     s.setValue(QStringLiteral("download/listSource"), m_listDownloadSource);
     s.setValue(QStringLiteral("download/threadLimit"), m_maxDownloadThreads);
     s.setValue(QStringLiteral("download/speedLimitMB"), m_downloadSpeedLimitMB);
+
+    // Window resolution
+    s.setValue(QStringLiteral("launch/windowWidth"), m_windowWidth);
+    s.setValue(QStringLiteral("launch/windowHeight"), m_windowHeight);
 }
 
 // ============================================================
