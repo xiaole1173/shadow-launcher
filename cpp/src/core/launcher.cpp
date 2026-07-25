@@ -1093,47 +1093,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                 hasMavenRoots = true;
                 break;
             }
-        }
-        if (!hasMavenRoots) {
-            // Parse forge group/version from the JSON chain
-            QString forgeGroup, forgeVersion, mcVersion;
-            QJsonObject root = versionJson;
-            while (true) {
-                QJsonObject argsObj = root[QStringLiteral("arguments")].toObject();
-                QJsonArray game = argsObj[QStringLiteral("game")].toArray();
-                for (int i = 0; i + 1 < game.size(); ++i) {
-                    QString a = game[i].toString();
-                    if (a == QStringLiteral("--fml.forgeGroup") && forgeGroup.isEmpty())
-                        forgeGroup = game[i + 1].toString();
-                    if (a == QStringLiteral("--fml.forgeVersion") && forgeVersion.isEmpty())
-                        forgeVersion = game[i + 1].toString();
-                    if (a == QStringLiteral("--fml.mcVersion") && mcVersion.isEmpty())
-                        mcVersion = game[i + 1].toString();
-                }
-                QString parentId = root[QStringLiteral("inheritsFrom")].toString();
-                if (parentId.isEmpty()) break;
-                QString parentPath = m_gameDir + QStringLiteral("/versions/") + parentId;
-                QString pj = findVersionJson(parentPath, parentId);
-                if (pj.isEmpty() || !QFileInfo::exists(pj)) break;
-                QFile pf(pj); if (!pf.open(QIODevice::ReadOnly)) break;
-                root = QJsonDocument::fromJson(pf.readAll()).object();
-                pf.close();
-            }
-            if (!forgeGroup.isEmpty() && !forgeVersion.isEmpty() && !mcVersion.isEmpty()) {
-                QString universalMod = forgeGroup + QStringLiteral(":forge:universal:")
-                                     + mcVersion + QStringLiteral("-") + forgeVersion;
-                // Absolute path: --mavenRoots resolves relative to --gameDir,
-                // but our gameDir is the version subdirectory → relative path would be wrong.
-                QString absLibDir = QDir::toNativeSeparators(m_gameDir + QStringLiteral("/libraries"));
-                    // Must be AFTER --launchTarget & --fml.* args (主流启动器 order).
-                // prepend was putting them first → ModLauncher ignores them.
-                gameArgs.append(QStringLiteral("--mods"));
-                gameArgs.append(universalMod);
-                gameArgs.append(QStringLiteral("--mavenRoots"));
-                gameArgs.append(absLibDir);
-                qCInfo(logLaunch) << "[ForgeCompat] Injected --mods --mavenRoots:" << universalMod;
-            }
-        }
+    }
     }
 
     // Read asset index ID from version JSON chain (not just the leaf JSON)
