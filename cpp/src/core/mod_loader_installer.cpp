@@ -1237,9 +1237,14 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
             QByteArray jarCopy = clientJarBytes;
             auto* watcher = new QFutureWatcher<QByteArray>(this);
             QObject::connect(watcher, &QFutureWatcher<QByteArray>::finished, this,
-                [this, watcher, jarData, versionJson, groupPath, ver, filePrefix, jarDst]() {
+                [this, watcher, jarData, jarCopy, versionJson, groupPath, ver, filePrefix, jarDst]() {
                     QByteArray repacked = watcher->result();
                     watcher->deleteLater();
+                    // 完整性检查：重打包结果不应比原始 JAR 小太多
+                    if (repacked.size() < jarCopy.size() / 2) {
+                        qCWarning(logLoader) << QStringLiteral("重打包结果异常（大小=%1），回退到原始 JAR").arg(repacked.size());
+                        repacked = jarCopy;
+                    }
                     forgeStep3_writeJarAndFinish(repacked, jarData, versionJson, groupPath, ver, filePrefix, jarDst);
                 });
             watcher->setFuture(QtConcurrent::run([jarCopy]() -> QByteArray {
