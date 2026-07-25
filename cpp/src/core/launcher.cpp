@@ -706,6 +706,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     args << QStringLiteral("-Xmx%1M").arg(maxMemoryMB);
     args << QStringLiteral("-Xms%1M").arg(qMin(512, maxMemoryMB / 2));
 
+    // ── Temp dir: old MC versions (ImageIO) try to write to C:\WINDOWS on Win10/11 ──
+    // Without this, javax.imageio.ImageIO fails with AccessDeniedException.
+    args << "-Djava.io.tmpdir=" + QDir::toNativeSeparators(m_gameDir);
+
     // ── JVM flags: custom args replace defaults, otherwise use optimized G1GC ──
     // Collect arguments.jvm from version JSON chain (Forge/NeoForge may add module flags)
     QStringList chainJvmArgs;
