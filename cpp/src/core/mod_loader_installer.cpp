@@ -23,6 +23,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QApplication>
 #include <QEventLoop>
 #include <QTimer>
 #include "utils/lzma/LzmaDec.h"
@@ -1459,10 +1460,36 @@ QByteArray ModLoaderInstaller::forgeStep3_runBinaryPatcher(const QByteArray& jar
     QProcess proc;
     proc.setWorkingDirectory(tempDir);
     proc.start(QStringLiteral("java"), args);
-    if (!proc.waitForFinished(180000)) {
+
+    // ── Non-blocking wait: process UI events and check cancellation ──
+    const int timeoutMs = 240000;  // 4 minutes max
+    const int pollMs = 100;
+    int elapsedMs = 0;
+    bool timedOut = false;
+    while (!proc.waitForFinished(pollMs)) {
+        elapsedMs += pollMs;
+        QApplication::processEvents();
+        // Report progress every ~2 seconds
+        if (elapsedMs % 2000 < pollMs) {
+            int pct = qMin(elapsedMs * 100 / timeoutMs, 99);
+            emit progressChanged(3, m_totalSteps,
+                QStringLiteral("正在运行 BinaryPatcher 生成客户端 JAR (%1s)...").arg(elapsedMs / 1000));
+        }
+        if (m_cancelled || elapsedMs >= timeoutMs) {
+            timedOut = true;
+            break;
+        }
+    }
+    if (timedOut) {
         proc.kill();
-        qCWarning(logLoader) << QStringLiteral("binarypatcher 超时（180 秒），强制终止");
-        QFile::remove(patchFilePath);
+        proc.waitForFinished(3000);
+        qCWarning(logLoader) << QStringLiteral("binarypatcher 超时（%1 秒），强制终止").arg(timeoutMs / 1000);
+        QFile::remove(patchFilePath); QFile::remove(outputJarPath);
+        return {};
+    }
+    if (m_cancelled) {
+        proc.kill();
+        QFile::remove(patchFilePath); QFile::remove(outputJarPath);
         return {};
     }
 
