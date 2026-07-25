@@ -561,7 +561,7 @@ void VersionDownloader::collectTasks(const QJsonObject& versionJson,
         // Build Maven-style path: libraries/net/minecraft/client/{ver-timestamp}/client-{ver-timestamp}-mappings.txt
         QString mavenVer;
         if (m_versionReleaseTime.isValid()) {
-            QString ts = m_versionReleaseTime.toString(QStringLiteral("yyyyMMdd.hhmmss"));
+            QString ts = m_versionReleaseTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
             mavenVer = versionId + QStringLiteral("-") + ts;
         } else {
             // Fallback: use versionId directly (less precise but still works as last resort)
