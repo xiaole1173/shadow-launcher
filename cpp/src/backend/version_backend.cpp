@@ -8226,11 +8226,15 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
             bool anyCategory = false;
 
-            for (int ci = 0; ci < 3 && allDone; ci++) {
+            for (int ci = 0; ci < 3; ci++) {
 
-                if (d->mcStepTotal[ci] <= 0)
+                if (d->mcStepTotal[ci] <= 0) {
 
-                    continue;  // empty category → nothing to download, already done
+                    allDone = false;
+
+                    continue;
+
+                }
 
                 anyCategory = true;
 
@@ -8278,11 +8282,15 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
         bool anyCategory = false;
 
-        for (int ci = 0; ci < 3 && allDone; ci++) {
+        for (int ci = 0; ci < 3; ci++) {
 
-            if (st.catBytesTotal[ci] <= 0)
+            if (st.catBytesTotal[ci] <= 0) {
 
-                continue;  // empty category → nothing to download
+                allDone = false;
+
+                continue;
+
+            }
 
             anyCategory = true;
 
