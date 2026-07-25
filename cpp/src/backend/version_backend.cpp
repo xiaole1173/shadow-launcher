@@ -7539,7 +7539,8 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
     QString newPhase = derivePhase(pipelineSteps);
 
     // 更新 progress + speed (每 200ms 都会跑, cheap)
-    qreal newP = qBound(0.0, ds->smoothProgress, 1.0);
+    // Pure MC: use pipeline weighted progress (smoothProgress only updated for merged installs)
+    qreal newP = ds->isMerged() ? qBound(0.0, ds->smoothProgress, 1.0) : qBound(0.0, ds->totalProgress(), 1.0);
     qint64 newS = 0;
     if (!ds->isMerged() && m_dlStates.contains(installId))
         newS = m_dlStates[installId].speed;
