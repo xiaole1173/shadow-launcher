@@ -1023,7 +1023,13 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
 void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 2）..."));
 
-    const QString ver = m_mcVersion + QStringLiteral("-") + m_loaderVersion;
+    // Pre-1.13 forge uses "mc-forge-mc" Maven naming (e.g. 1.7.10-10.13.4.1614-1.7.10)
+    auto parts = m_mcVersion.split('.');
+    int major = parts.value(0).toInt();
+    int minor = parts.value(1).toInt();
+    const QString ver = (major < 1 || (major == 1 && minor <= 12))
+        ? m_mcVersion + QStringLiteral("-") + m_loaderVersion + QStringLiteral("-") + m_mcVersion
+        : m_mcVersion + QStringLiteral("-") + m_loaderVersion;
     const QString groupPath = QStringLiteral("net/minecraftforge/forge");
     const QString filePrefix = QStringLiteral("forge");
 
