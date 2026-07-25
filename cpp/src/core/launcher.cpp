@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QSysInfo>
 #include <QTextStream>
 #include <QTimer>
 
@@ -29,15 +30,8 @@
 
 namespace ShadowLauncher {
 
-// Default optimized JVM args (G1GC tuning)
+// Default optimized JVM args (non-GC tuning — GC策略见 collectGcArgs)
 static const char* DEFAULT_JVM_ARGS[] = {
-    "-XX:+UseG1GC",
-    "-XX:+UnlockExperimentalVMOptions",
-    "-XX:G1NewSizePercent=20",
-    "-XX:G1ReservePercent=20",
-    "-XX:MaxGCPauseMillis=50",
-    "-XX:G1HeapRegionSize=32M",
-    "-XX:-UseAdaptiveSizePolicy",
     "-XX:-OmitStackTraceInFastThrow",
     "-XX:+IgnoreUnrecognizedVMOptions",
     "-XX:+DisableExplicitGC",
@@ -83,6 +77,59 @@ static QString toShortPath(const QString& path)
 #else
 static QString toShortPath(const QString& path) { return path; }
 #endif
+
+// ── 智能 GC 策略选择 ──
+// 参考 主流启动器 McLaunchArgumentsJVM G1GC/ZGC 自动切换
+// 策略: Java 21+ → 分代 ZGC (性能最优), Java 15-20 → ZGC, Java 14- → G1GC
+// ZGC 需要 Windows 10 1809+ (build 17763)，不支持时回退到 G1GC
+static QStringList collectGcArgs(int javaMajor, bool debugMode)
+{
+    QStringList gc;
+
+    bool canUseZgc = false;
+#ifdef Q_OS_WIN
+    // Windows 10 1809+ (build 17763) required for ZGC
+    // 使用 QSysInfo 或检查产品版本
+    QSysInfo::WinVersion winVer = QSysInfo::windowsVersion();
+    // QSysInfo::WV_WINDOWS10 covers Win10/11; WV_WINDOWS8_1 and below can't use ZGC
+    canUseZgc = (winVer >= QSysInfo::WV_WINDOWS10);
+#else
+    // On Linux/macOS, ZGC is generally available on Java 15+
+    canUseZgc = true;
+#endif
+
+    if (canUseZgc && javaMajor >= 15) {
+        gc << QStringLiteral("-XX:+UnlockExperimentalVMOptions");
+        gc << QStringLiteral("-XX:+UseZGC");
+        // -XX:+ZGenerational: default on Java 23+, optional on 21-22
+        if (javaMajor == 21 || javaMajor == 22) {
+            gc << QStringLiteral("-XX:+ZGenerational");
+        }
+        if (javaMajor >= 24) {
+            gc << QStringLiteral("-XX:+UseCompactObjectHeaders");
+        }
+        qCInfo(logLaunch) << QStringLiteral("GC策略: ZGC Java=%1").arg(javaMajor);
+    } else {
+        // G1GC (optimized)
+        gc << QStringLiteral("-XX:+UseG1GC");
+        gc << QStringLiteral("-XX:+UnlockExperimentalVMOptions");
+        gc << QStringLiteral("-XX:G1NewSizePercent=20");
+        gc << QStringLiteral("-XX:G1ReservePercent=20");
+        gc << QStringLiteral("-XX:MaxGCPauseMillis=50");
+        gc << QStringLiteral("-XX:G1HeapRegionSize=32M");
+        gc << QStringLiteral("-XX:-UseAdaptiveSizePolicy");
+        if (!debugMode) {
+            gc << QStringLiteral("-XX:+PerfDisableSharedMem");
+        }
+        if (javaMajor == 8) {
+            gc << QStringLiteral("-XX:+ParallelRefProcEnabled");
+        }
+        qCInfo(logLaunch) << QStringLiteral("GC策略: G1GC (ZGC不可用 Win10=%1 Java=%2)")
+                           .arg(canUseZgc).arg(javaMajor);
+    }
+
+    return gc;
+}
 
 Launcher::Launcher(QObject* parent)
     : QObject(parent)
@@ -732,9 +779,29 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << arg;
     }
 
-    // Always apply default optimized G1GC flags first
+    // Always apply default optimized flags (non-GC)
     for (const char* arg : DEFAULT_JVM_ARGS) {
         args << QString::fromLatin1(arg);
+    }
+
+    // ── 智能 GC 策略（仅当 chain JVM args 未指定 GC 时）──
+    // 如果版本 JSON 已指定 GC，尊重其选择；否则自动选择最优 GC
+    bool chainHasGc = false;
+    for (const QString& a : chainJvmArgs) {
+        if (a.startsWith(QStringLiteral("-XX:+Use")) || a.startsWith(QStringLiteral("-XX:-Use"))) {
+            if (a.contains(QStringLiteral("GC")) || a.contains(QStringLiteral("gc"))) {
+                chainHasGc = true;
+                break;
+            }
+        }
+    }
+    if (!chainHasGc) {
+        const bool debugMode = false;  // Release mode: 关闭 PerfDisableSharedMem
+        for (const QString& gcArg : collectGcArgs(m_javaMajorVersion, debugMode)) {
+            args << gcArg;
+        }
+    } else {
+        qCInfo(logLaunch) << QStringLiteral("版本JSON已指定GC策略，跳过自动选择");
     }
 
     // ── JVM encoding params (prevent CJK log garbling) ──
@@ -1077,8 +1144,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                         gameDirShort + QStringLiteral("/assets/virtual/") + assetIndexId);  // legacy/pre-1.6
             arg.replace(QStringLiteral("${user_properties}"), QStringLiteral("{}"));
             arg.replace(QStringLiteral("${auth_session}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);  // pre-1.6
-            arg.replace(QStringLiteral("${resolution_width}"), QStringLiteral("854"));
-            arg.replace(QStringLiteral("${resolution_height}"), QStringLiteral("480"));
+            arg.replace(QStringLiteral("${resolution_width}"), QString::number(m_resWidth));
+            arg.replace(QStringLiteral("${resolution_height}"), QString::number(m_resHeight));
             arg.replace(QStringLiteral("${clientid}"), QStringLiteral(""));
             arg.replace(QStringLiteral("${auth_xuid}"), QStringLiteral(""));
             arg.replace(QStringLiteral("${launcher_name}"), QStringLiteral("ShadowLauncher"));
