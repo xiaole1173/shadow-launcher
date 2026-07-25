@@ -1001,8 +1001,10 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         return;
     }
 
-    // Branch B: has "json" AND (no processors OR spec <= 0) → Legacy 1 (maven/ + version JSON)
-    if (hasJson && (procCount == 0 || spec <= 0)) {
+    // Branch B: has "json" AND no processors AND spec <= 0 → Legacy 1 (maven/ + version JSON only)
+    // IMPORTANT: if processors exist, Legacy 1 will skip them → missing client.lzma patches
+    // → Forge can't transform Minecraft classes → vanilla MC boots instead
+    if (hasJson && procCount == 0 && spec <= 0) {
         reader.close();
         qCInfo(logLoader) << QStringLiteral("→ 走 Legacy 1（maven/ + version.json 直接写入）");
         installLegacy1(jarData, profileObj);
