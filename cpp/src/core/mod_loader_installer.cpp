@@ -1020,6 +1020,30 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         downloads.append({bmclUrl, localPath, lib.value(QStringLiteral("name")).toString()});
     }
 
+    // 5b. For spec:1 installers (Forge 26.2+), add binarypatcher processor JARs.
+    // These are NOT in version.json's libraries — they're processor-only deps.
+    if (!profileDoc.object().value(QStringLiteral("processors")).toArray().isEmpty()) {
+        struct { QString group; QString artifact; QString version; } bpDeps[] = {
+            {"net.minecraftforge", "binarypatcher", "1.3.4"},
+            {"net.minecraftforge", "hash-utils",      "0.2.3"},
+            {"net.minecraftforge", "srgutils",        "0.6.6"},
+            {"net.sf.jopt-simple", "jopt-simple",    "6.0-alpha-3"},
+            {"com.github.jponge",  "lzma-java",      "1.3"},
+            {"com.nothome",        "javaxdelta",      "2.0.1"},
+            {"trove",              "trove",           "1.0.2"},
+        };
+        for (const auto& dep : bpDeps) {
+            QString groupPath = QString(dep.group).replace(QLatin1Char('.'), QLatin1Char('/'));
+            QString jarPath = QStringLiteral("%1/%2/%3/%2-%3.jar")
+                .arg(groupPath, dep.artifact, dep.version);
+            QString localPath = libBase + QStringLiteral("/") + jarPath;
+            if (QFile::exists(localPath)) continue;
+            // BMCLAPI (will fall back to Forge Maven in the callback)
+            QString bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1").arg(jarPath);
+            downloads.append({bmclUrl, localPath, QStringLiteral("%1:%2:%3").arg(dep.group, dep.artifact, dep.version)});
+        }
+    }
+
     qCInfo(logLoader) << QStringLiteral("预下载 %1 个库（跳过 %2 个）").arg(downloads.size()).arg(libraries.size() - downloads.size());
 
     if (downloads.isEmpty()) {
@@ -1361,61 +1385,9 @@ QByteArray ModLoaderInstaller::forgeStep3_runBinaryPatcher(const QByteArray& jar
 {
     emit progressChanged(3, m_totalSteps, "正在运行 BinaryPatcher 生成客户端 JAR...");
 
-    // ── Sync Maven download helper (synchronous blocking download) ──
-    auto downloadMavenLib = [&](const QString& mavenPath) -> QByteArray {
-        const QString localLib = QDir::cleanPath(m_gameDir
-            + QStringLiteral("/libraries/") + mavenPath);
-        QFileInfo fi(localLib);
-        if (fi.exists() && fi.size() > 1000) {
-            QFile f(localLib);
-            if (f.open(QIODevice::ReadOnly)) return f.readAll();
-        }
-        QDir().mkpath(fi.absolutePath());
-        const QStringList mirrors = {
-            QStringLiteral("https://maven.minecraftforge.net"),
-            QStringLiteral("https://bmclapi2.bangbang93.com/maven"),
-            QStringLiteral("https://repo1.maven.org/maven2"),
-        };
-        for (const auto& mirror : mirrors) {
-            QUrl url(mirror + QStringLiteral("/") + mavenPath);
-            QNetworkRequest req(url);
-            QNetworkAccessManager mgr;
-            QNetworkReply* reply = mgr.get(req);
-            QEventLoop loop;
-            QTimer timer;
-            timer.setSingleShot(true);
-            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-            QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-            timer.start(15000);
-            loop.exec();
-            if (reply->error() == QNetworkReply::NoError) {
-                QByteArray data = reply->readAll();
-                reply->deleteLater();
-                if (data.size() > 1000) {
-                    QFile f(localLib);
-                    if (f.open(QIODevice::WriteOnly)) {
-                        f.write(data);
-                        qCInfo(logLoader) << QStringLiteral("已下载 Maven 库: %1 (大小=%2)").arg(mavenPath).arg(data.size());
-                        return data;
-                    }
-                }
-            } else {
-                reply->deleteLater();
-            }
-        }
-        return {};
-    };
-
-    // ── Step 1: Download binarypatcher.jar + classpath deps from Maven ──
-    // Forge 26.2+ (spec:1) installers no longer embed processor JARs inside
-    // the installer. They must be downloaded from the Forge Maven repository.
-    // Processor config from install_profile.json:
-    //   jar: net.minecraftforge:binarypatcher:1.3.4
-    //   classpath: net.minecraftforge:hash-utils:0.2.3, net.minecraftforge:srgutils:0.6.6,
-    //              net.sf.jopt-simple:jopt-simple:6.0-alpha-3, com.github.jponge:lzma-java:1.3,
-    //              com.nothome:javaxdelta:2.0.1, trove:trove:1.0.2
-    
-    struct MavenArtifact { QString path; QString label; };
+    // ── Step 1: Verify binarypatcher processor JARs on disk ──
+    // These were pre-downloaded during forgeStep3_install phase.
+    struct MavenArtifact { QString mavenPath; QString label; };
     const std::vector<MavenArtifact> processorLibs = {
         { QStringLiteral("net/minecraftforge/binarypatcher/1.3.4/binarypatcher-1.3.4.jar"),    QStringLiteral("binarypatcher") },
         { QStringLiteral("net/minecraftforge/hash-utils/0.2.3/hash-utils-0.2.3.jar"),          QStringLiteral("hash-utils") },
@@ -1426,25 +1398,17 @@ QByteArray ModLoaderInstaller::forgeStep3_runBinaryPatcher(const QByteArray& jar
         { QStringLiteral("trove/trove/1.0.2/trove-1.0.2.jar"),                               QStringLiteral("trove") },
     };
     
-    // Download all processor JARs into the minecraft libraries folder
-    QByteArray bpJarBytes;
     QStringList classpathEntries;
     for (const auto& lib : processorLibs) {
-        QByteArray jar = downloadMavenLib(lib.path);
-        if (jar.isEmpty()) {
-            qCWarning(logLoader) << QStringLiteral("无法下载 binarypatcher 依赖: %1").arg(lib.label);
+        QString localPath = QDir::cleanPath(m_gameDir + QStringLiteral("/libraries/") + lib.mavenPath);
+        QFileInfo fi(localPath);
+        if (!fi.exists() || fi.size() < 1000) {
+            qCWarning(logLoader) << QStringLiteral("binarypatcher 依赖不存在或无效: %1 (%2)").arg(lib.label, localPath);
             return {};
         }
-        if (lib.label == QStringLiteral("binarypatcher"))
-            bpJarBytes = jar;
-        QString localPath = QDir::cleanPath(m_gameDir + QStringLiteral("/libraries/") + lib.path);
         classpathEntries << QDir::toNativeSeparators(localPath);
     }
-    
-    if (bpJarBytes.isEmpty()) {
-        qCWarning(logLoader) << QStringLiteral("binarypatcher JAR 未下载成功");
-        return {};
-    }
+    qCInfo(logLoader) << QStringLiteral("binarypatcher 依赖就绪: %1 个 JAR").arg(processorLibs.size());
 
     // ── Step 2: Find vanilla MC JAR ──
     QString mcDir = findVersionDir(m_mcVersion);
