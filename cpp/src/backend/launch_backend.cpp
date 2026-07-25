@@ -271,19 +271,20 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
 // ── Begin token refresh attempt (with retry support) ──
 void LaunchBackend::beginTokenRefreshAttempt()
 {
-    if (m_cancelled) {
-        m_checkTimer->stop();
+    if (m_cancelled || !m_account) {
+        if (m_checkTimer) m_checkTimer->stop();
         return;
     }
 
-    // Clean up old timeout connection (singleShot timer reuses same instance)
+    // Clean up old timeout connection
     m_refreshTimeoutTimer->stop();
     m_refreshTimeoutTimer->start(12000);
-
-    // Disconnect previous timeout connections via a wrapper approach:
-    // We use a once-only lambda that cleans itself up.
-    // m_refreshTimeoutTimer is reused; disconnect its old connections first.
     disconnect(m_refreshTimeoutTimer, &QTimer::timeout, nullptr, nullptr);
+
+    // Disconnect any lingering token signal connections from previous attempts
+    // This prevents duplicate connections from accumulating across retries
+    disconnect(m_account, &AccountBackend::tokenRefreshed, this, nullptr);
+    disconnect(m_account, &AccountBackend::tokenRefreshFailed, this, nullptr);
 
     int attempt = m_refreshRetryCount + 1;  // 1-based for display
     connect(m_refreshTimeoutTimer, &QTimer::timeout, this, [this]() {
