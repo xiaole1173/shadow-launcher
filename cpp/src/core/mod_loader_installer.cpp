@@ -839,7 +839,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
         qCInfo(logLoader) << QStringLiteral("Forge SHA1（缓存）期望=%1 实际=%2 匹配=%3").arg(m_expectedForgeSha1, actualSha1, match ? QStringLiteral("是") : QStringLiteral("否"));
         emit verifyFinished(match);
         if (!match) { emit finished(false, QStringLiteral("Forge 安装程序校验失败（SHA1 不匹配）")); m_running = false; return; }
-        if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
+        if (m_verifyOnly) { m_cachedJar = jarData; m_running = false; emit waitingForMC(); return; }
         forgeStep3_install(jarData);
         return;
     }
@@ -851,7 +851,7 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
         if (!ok || forgeData.isEmpty()) {
             qCWarning(logLoader) << QStringLiteral("无法获取 SHA1，跳过校验");
             emit verifyFinished(false);
-            if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
+            if (m_verifyOnly) { m_cachedJar = jarData; m_running = false; emit waitingForMC(); return; }
             forgeStep3_install(jarData);
             return;
         }
@@ -890,10 +890,13 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
-        if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
+        if (m_verifyOnly) { m_cachedJar = jarData; m_running = false; emit waitingForMC(); return; }
         forgeStep3_install(jarData);
     });
 }
+
+
+// ═══════════════════════════════════════════════════════════════
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -2294,7 +2297,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
         if (!ok || sha1Data.isEmpty()) {
             qCWarning(logLoader) << QStringLiteral("无法获取 NeoForge SHA1，跳过校验");
             emit verifyFinished(false);
-            if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
+            if (m_verifyOnly) { m_cachedJar = jarData; m_running = false; emit waitingForMC(); return; }
             forgeStep3_install(jarData);
             return;
         }
@@ -2313,7 +2316,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
             m_running = false;
             return;
         }
-        if (m_verifyOnly) { m_cachedJar = jarData; emit waitingForMC(); return; }
+        if (m_verifyOnly) { m_cachedJar = jarData; m_running = false; emit waitingForMC(); return; }
         forgeStep3_install(jarData);
     });
 }
