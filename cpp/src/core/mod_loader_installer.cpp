@@ -1240,10 +1240,25 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
                 [this, watcher, jarData, jarCopy, versionJson, groupPath, ver, filePrefix, jarDst]() {
                     QByteArray repacked = watcher->result();
                     watcher->deleteLater();
-                    // 完整性检查：重打包结果不应比原始 JAR 小太多
-                    if (repacked.size() < jarCopy.size() / 2) {
-                        qCWarning(logLoader) << QStringLiteral("重打包结果异常（大小=%1），回退到原始 JAR").arg(repacked.size());
-                        repacked = jarCopy;
+                    // 完整性检查：重打包结果异常时回退到原始 JAR + store 模式追加标记
+                    if (repacked.size() < 1000 && jarCopy.size() > 10000) {
+                        qCWarning(logLoader) << QStringLiteral("重打包结果异常（大小=%1），回退到原始 JAR（store 模式追加标记）").arg(repacked.size());
+                        // 用 store 模式给原始 JAR 追加标记（不压缩）
+                        QByteArray storeOut;
+                        QBuffer storeBuf(&storeOut);
+                        storeBuf.open(QIODevice::WriteOnly);
+                        QZipWriter storeWriter(&storeBuf);
+                        storeWriter.setCompressionPolicy(QZipWriter::NeverCompress);
+                        QBuffer storeIn;
+                        storeIn.setData(jarCopy);
+                        storeIn.open(QIODevice::ReadOnly);
+                        QZipReader storeReader(&storeIn);
+                        for (const auto& entry : storeReader.fileInfoList())
+                            storeWriter.addFile(entry.filePath, storeReader.fileData(entry.filePath));
+                        storeWriter.addFile(QStringLiteral(".forge_patched_minecraft"), QByteArray());
+                        storeWriter.close();
+                        storeReader.close();
+                        repacked = storeOut.isEmpty() ? jarCopy : storeOut;
                     }
                     forgeStep3_writeJarAndFinish(repacked, jarData, versionJson, groupPath, ver, filePrefix, jarDst);
                 });
@@ -1252,6 +1267,7 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
                 QBuffer outBuf(&outBytes);
                 outBuf.open(QIODevice::WriteOnly);
                 QZipWriter writer(&outBuf);
+                writer.setCompressionPolicy(QZipWriter::NeverCompress);
                 QBuffer inBuf;
                 inBuf.setData(jarCopy);
                 inBuf.open(QIODevice::ReadOnly);
