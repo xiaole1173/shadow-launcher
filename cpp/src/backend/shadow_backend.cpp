@@ -2965,9 +2965,8 @@ void ShadowBackend::installModLoader(const QString& mcVersion, const QString& lo
         : forgeInstallerSha1;
     if (!sha1.isEmpty())
         qDebug() << "[install] Forge SHA1 cached:" << sha1.left(16) << "...";
-    QString branch = forgeInstallerSha1.isEmpty()
-        ? getForgeInstallerBranch(mcVersion, loaderVersion)
-        : QString();
+    // Always look up branch from cache (populated alongside SHA1 in queryForgeVersions)
+    QString branch = getForgeInstallerBranch(mcVersion, loaderVersion);
     if (!branch.isEmpty())
         qDebug() << "[install] Forge branch:" << branch;
     if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName,

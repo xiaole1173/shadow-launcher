@@ -6105,6 +6105,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                         }
 
                                         m_mlInstaller->setGameDir(m_gameDir);
+                                        m_mlInstaller->setForgeBranch(forgeInstallerBranch);
                                         if (loaderType == QStringLiteral("neoforge")) {
                                             m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                         } else {
@@ -6163,6 +6164,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         // Start forge install immediately (parallel with ongoing MC download)
                         // If forge finishes first, loaderFinishedWaitingMC flag handles the handover
                         m_mlInstaller->setGameDir(m_gameDir);
+                        m_mlInstaller->setForgeBranch(forgeInstallerBranch);
                         if (loaderType == QStringLiteral("neoforge")) {
                             emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
                             m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
