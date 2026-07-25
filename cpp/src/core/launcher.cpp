@@ -681,6 +681,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         arg.replace(QStringLiteral("${classpath_separator}"), classpathSep);
         arg.replace(QStringLiteral("${version_name}"), versionId);
         arg.replace(QStringLiteral("${natives_directory}"), nativesDir);
+        // Java 8 doesn't support --add-exports / --add-opens → filter them out
+        if (m_javaMajorVersion < 9 && (arg.startsWith(QStringLiteral("--add-exports")) ||
+                                        arg.startsWith(QStringLiteral("--add-opens")))) {
+            continue;
+        }
         args << arg;
     }
 
