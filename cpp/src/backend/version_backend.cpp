@@ -5612,7 +5612,16 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
     if (!m_mlInstaller) return;
 
-
+    // Pass MC releaseTime to ModLoaderInstaller (needed for client_mappings download in forgeStep3_install)
+    {
+        QVector<McVersion> vers = m_versionMgr->cachedVersions();
+        for (const auto& v : vers) {
+            if (v.id == mcVersion && v.releaseTime.isValid()) {
+                m_mlInstaller->setForgeMcReleaseTime(v.releaseTime);
+                break;
+            }
+        }
+    }
 
     m_modLoaderInstallId = installName;
 
