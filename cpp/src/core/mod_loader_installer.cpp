@@ -1255,6 +1255,8 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         return;
     }
 
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] JAR 写入完成，准备复制到库目录");
+
     // ── 确保库目录也存在（预启动检查会验证库文件） ──
     {
         const QString libVer = (m_loaderType == QStringLiteral("neoforge"))
@@ -1278,14 +1280,20 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         }
     }
 
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] 库目录复制完成，开始生成版本配置");
+
     emit stepProgress(3, 75);
     emit progressChanged(3, m_totalSteps, "正在生成 Forge 版本配置...");
+
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] 开始合并版本 JSON");
 
     // 3. Write version JSON (merged with vanilla MC)
     QJsonObject json = versionJson;
     json[QStringLiteral("id")] = m_installName;
 
     const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
+
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] 开始查找 MC JSON");
 
     // ── 定位原版 MC JSON：支持协议版本名 ≠ 目录名的情况（如 26.2 存在 1.21.5 目录里）──
     auto findMcJson = [&]() -> QJsonObject {
@@ -1313,6 +1321,7 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         return QJsonObject();
     };
     QJsonObject mcObj = findMcJson();
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] MC JSON 查找完毕 isEmpty=%1").arg(mcObj.isEmpty());
 
     if (!mcObj.isEmpty()) {
         // Merge libraries: MC first, Forge after
@@ -1387,6 +1396,8 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         }
     }
 
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] 准备写入版本 JSON");
+
     QFile out(jsonPath);
     if (out.open(QIODevice::WriteOnly)) {
         out.write(QJsonDocument(json).toJson(QJsonDocument::Indented));
@@ -1394,9 +1405,13 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
         qCInfo(logLoader) << QStringLiteral("Forge 版本 JSON 已写入: %1").arg(jsonPath);
     }
 
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] 版本 JSON 写入完成");
+
     emit stepProgress(3, 100);
     emit progressChanged(3, m_totalSteps, "Forge 安装完成");
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] 即将 emit finished");
     emit finished(true, QString());
+    qCInfo(logLoader) << QStringLiteral("[DEBUG] finished 已 emit");
     m_running = false;
 }
 
