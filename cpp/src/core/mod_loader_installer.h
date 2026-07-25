@@ -25,6 +25,9 @@ public:
     void setGameDir(const QString& dir) { m_gameDir = dir; }
     QString gameDir() const { return m_gameDir; }
     void setModsDir(const QString& dir) { m_modsDir = dir; }
+
+    // Set forge Maven branch suffix before calling installForge (e.g. "1.10.0", "mc172")
+    void setForgeBranch(const QString& branch) { m_forgeBranch = branch; }
     QString modsDir() const { return m_modsDir.isEmpty() ? m_gameDir + "/mods" : m_modsDir; }
 
     void installForge(const QString& mcVersion, const QString& forgeVersion, const QString& installName,
@@ -137,6 +140,7 @@ private:
     QString m_modsDir;
     QString m_mcVersion;
     QString m_loaderVersion;
+    QString m_forgeBranch; // Maven branch suffix (e.g. "1.10.0", "mc172")
     QString m_installName;
     QString m_optifineBmclType;   // BMCLAPI type for OptiFine library path
     QString m_optifineBmclPatch;  // BMCLAPI patch for OptiFine library path

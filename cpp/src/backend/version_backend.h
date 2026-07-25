@@ -186,7 +186,8 @@ public:
                                        const QString& fabricApiVersion = QString(),
                                        const QString& fabricApiUrl = QString(),
                                        const QString& fabricApiSavePath = QString(),
-                                       const QString& forgeInstallerSha1 = QString());
+                                       const QString& forgeInstallerSha1 = QString(),
+                                       const QString& forgeInstallerBranch = QString());
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName,
                                        const QString& bmclType = QString(), const QString& bmclPatch = QString());

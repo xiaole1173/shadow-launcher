@@ -5607,7 +5607,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                                        const QString& fabricApiSavePath,
 
-                                       const QString& forgeInstallerSha1) {
+                                       const QString& forgeInstallerSha1,
+                                       const QString& forgeInstallerBranch) {
 
     if (!m_mlInstaller) return;
 
@@ -5619,7 +5620,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     auto* ds = dlSession(installName);
     if (ds) ds->clearFailure();
 
-
+    // Build the full Forge Maven version: {mc}-{forge} or {mc}-{forge}-{branch}
+    QString m_forgeMavenVer = mcVersion + QStringLiteral("-") + loaderVersion;
+    if (!forgeInstallerBranch.isEmpty())
+        m_forgeMavenVer += QStringLiteral("-") + forgeInstallerBranch;
 
     // Step 0: Ensure vanilla MC is installed first
 
@@ -5902,20 +5906,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
 
         QString verArg = mcVersion + "-" + loaderVersion;
-        // Only 1.7.10 and 1.8.9 use "mc-forge-mc" naming in Maven
-        // All other versions (1.5.2, 1.6.4, 1.8-1.8.8, 1.9.4+, 1.10.2+) use "mc-forge"
-        QString forgeMavenVer;
-        if (mcVersion == QStringLiteral("1.7.10") || mcVersion == QStringLiteral("1.8.9")) {
-            forgeMavenVer = verArg + "-" + mcVersion;
-        } else {
-            forgeMavenVer = verArg;
-        }
+        // Use branch-aware Maven version (handles 1.10->1.10.0, 1.7.2->mc172 etc.)
+        QString fmv = m_forgeMavenVer;
 
         QString loaderDlUrl;
 
         if (loaderType == QStringLiteral("forge")) {
             // Use BMCLAPI Maven mirror (mirrors maven.minecraftforge.net)
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(forgeMavenVer);
+            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv);
 
         } else if (loaderType == QStringLiteral("neoforge")) {
 
@@ -5995,7 +5993,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                     connect(reply, &QNetworkReply::finished, this,
 
-                            [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, loaderDlStepIdx]() {
+                            [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx]() {
 
                         reply->deleteLater();
 
@@ -6007,10 +6005,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                             if (loaderType == QStringLiteral("forge")) {
 
-                                QString verArg = mcVersion + "-" + loaderVersion;
-                                // Only 1.7.10 and 1.8.9 use "mc-forge-mc" naming
-                                QString dv = (mcVersion == QStringLiteral("1.7.10") || mcVersion == QStringLiteral("1.8.9"))
-                                    ? verArg + "-" + mcVersion : verArg;
+                                // Use branch-aware Maven version
+                                QString dv = mcVersion + QStringLiteral("-") + loaderVersion;
+                                if (!forgeInstallerBranch.isEmpty())
+                                    dv += QStringLiteral("-") + forgeInstallerBranch;
                                 fallbackUrl = QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
 
                             } else if (loaderType == QStringLiteral("neoforge")) {
@@ -6309,9 +6307,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         if (loaderType == "forge") {
 
-            // Only 1.7.10 and 1.8.9 use "mc-forge-mc" naming in Maven
-            QString dv = (mcVersion == QStringLiteral("1.7.10") || mcVersion == QStringLiteral("1.8.9"))
-                ? verArg + "-" + mcVersion : verArg;
+            // Use branch-aware Maven version
+            QString dv = m_forgeMavenVer;
             loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
 
         } else if (loaderType == "neoforge") {
@@ -6495,6 +6492,7 @@ auto* ds = dlSession(installName);
 
     if (loaderType == QStringLiteral("forge")) {
 
+        m_mlInstaller->setForgeBranch(forgeInstallerBranch);
         m_mlInstaller->installForge(mcVersion, loaderVersion, installName, forgeInstallerSha1);
 
     } else if (loaderType == QStringLiteral("fabric")) {

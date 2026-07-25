@@ -402,6 +402,10 @@ public:
     Q_INVOKABLE void cacheForgeInstallerSha1(const QString& mcVer, const QString& forgeVer, const QString& sha1);
     QString getForgeInstallerSha1(const QString& mcVer, const QString& forgeVer) const;
 
+    // Cache Forge Maven branch suffix (e.g. "1.10.0" for MC 1.10, "mc172" for MC 1.7.2)
+    void cacheForgeInstallerBranch(const QString& mcVer, const QString& forgeVer, const QString& branch);
+    QString getForgeInstallerBranch(const QString& mcVer, const QString& forgeVer) const;
+
     Q_INVOKABLE bool installFabricApi(const QString& version, const QString& url, const QString& savePath);
 
     // Mod loader installation
@@ -738,6 +742,7 @@ private:
 
     // Forge installer SHA1 cache (populated from version list API)
     QMap<QString, QString> m_forgeInstallerSha1Cache;  // "mcVer-forgeVer" -> sha1
+    QMap<QString, QString> m_forgeInstallerBranchCache; // "mcVer-forgeVer" -> branch (e.g. "1.10.0", "mc172")
 
     // ── Update ──
     UpdateManager* m_updateManager = nullptr;

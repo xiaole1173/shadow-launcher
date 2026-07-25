@@ -2718,7 +2718,7 @@ void ShadowBackend::queryForgeVersions(const QString& mcVersion) {
     m_modLoaderQueriesCancelled = false;  // fresh install page entry
     QString url = QStringLiteral("https://bmclapi2.bangbang93.com/forge/minecraft/") + mcVersion;
     queryModLoaderApi(this, url, "Forge",
-        [](const QByteArray& data) -> QVariantList {
+        [this, mcVersion](const QByteArray& data) -> QVariantList {
             QJsonDocument doc = QJsonDocument::fromJson(data);
             if (!doc.isArray()) return {};
             QJsonArray arr = doc.array();
@@ -2739,6 +2739,10 @@ void ShadowBackend::queryForgeVersions(const QString& mcVersion) {
                         }
                     }
                 }
+                // Extract branch for Maven URL construction (e.g. "1.10.0", "mc172", "1.7.10")
+                QString branch = obj.value("branch").toString();
+                if (!branch.isEmpty())
+                    cacheForgeInstallerBranch(mcVersion, ver, branch);
                 QVariantMap m;
                 m["version"] = ver;
                 m["type"] = QStringLiteral("release");
@@ -2931,6 +2935,14 @@ QString ShadowBackend::getForgeInstallerSha1(const QString& mcVer, const QString
     return m_forgeInstallerSha1Cache.value(mcVer + QStringLiteral("-") + forgeVer);
 }
 
+void ShadowBackend::cacheForgeInstallerBranch(const QString& mcVer, const QString& forgeVer, const QString& branch) {
+    m_forgeInstallerBranchCache.insert(mcVer + QStringLiteral("-") + forgeVer, branch);
+}
+
+QString ShadowBackend::getForgeInstallerBranch(const QString& mcVer, const QString& forgeVer) const {
+    return m_forgeInstallerBranchCache.value(mcVer + QStringLiteral("-") + forgeVer);
+}
+
 bool ShadowBackend::installFabricApi(const QString& version, const QString& url, const QString& savePath) {
     if (url.isEmpty() || savePath.isEmpty()) return false;
     QString dir = QFileInfo(savePath).absolutePath();
@@ -2953,8 +2965,13 @@ void ShadowBackend::installModLoader(const QString& mcVersion, const QString& lo
         : forgeInstallerSha1;
     if (!sha1.isEmpty())
         qDebug() << "[install] Forge SHA1 cached:" << sha1.left(16) << "...";
+    QString branch = forgeInstallerSha1.isEmpty()
+        ? getForgeInstallerBranch(mcVersion, loaderVersion)
+        : QString();
+    if (!branch.isEmpty())
+        qDebug() << "[install] Forge branch:" << branch;
     if (m_version) m_version->installModLoader(mcVersion, loaderType, loaderVersion, installName,
-                                                 fabricApiVersion, fabricApiUrl, fabricApiSavePath, sha1);
+                                                 fabricApiVersion, fabricApiUrl, fabricApiSavePath, sha1, branch);
 }
 
 void ShadowBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,

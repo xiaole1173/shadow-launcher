@@ -803,17 +803,26 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     emit progressChanged(1, m_totalSteps, "正在下载 Forge 安装程序...");
 
     QString mc = m_mcVersion, fv = m_loaderVersion;
-    // Two Maven version formats: new ({mc}-{forge}) and old ({mc}-{forge}-{mc} for 1.7.10/1.8.9)
+    // Two Maven version formats: standard ({mc}-{forge}) and old ({mc}-{forge}-{mc} for 1.7.10/1.8.9)
     QString vNew = mc + "-" + fv;
     QString vOld = mc + "-" + fv + "-" + mc;
+    // Branch-aware version if available (e.g. "1.10-12.18.0.2000-1.10.0", "1.7.2-10.12.2.1155-mc172")
+    QString vBranch;
+    if (!m_forgeBranch.isEmpty())
+        vBranch = mc + "-" + fv + "-" + m_forgeBranch;
 
-    // Ordered fallback URLs: BMCLAPI new → BMCLAPI old → Official new → Official old
-    auto urls = std::make_shared<QStringList>(QStringList{
-        QString("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(vNew),
-        QString("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(vOld),
-        QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(vNew),
-        QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(vOld),
-    });
+    // Ordered fallback URLs: BMCLAPI branch→new→old → Official branch→new→old
+    QStringList urlList;
+    auto addUrl = [&](const QString& base, const QString& ver) {
+        urlList.append(QString("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver));
+    };
+    if (!vBranch.isEmpty()) { addUrl("https://bmclapi2.bangbang93.com/maven", vBranch); }
+    addUrl("https://bmclapi2.bangbang93.com/maven", vNew);
+    addUrl("https://bmclapi2.bangbang93.com/maven", vOld);
+    if (!vBranch.isEmpty()) { addUrl("https://maven.minecraftforge.net", vBranch); }
+    addUrl("https://maven.minecraftforge.net", vNew);
+    addUrl("https://maven.minecraftforge.net", vOld);
+    auto urls = std::make_shared<QStringList>(urlList);
     auto idx = std::make_shared<int>(0);
     auto tryNext = std::make_shared<std::function<void()>>();
 
@@ -1046,10 +1055,9 @@ static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child)
 void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 2）..."));
 
-    // Only 1.7.10 and 1.8.9 use "mc-forge-mc" Maven naming
-    const QString ver = (m_mcVersion == QStringLiteral("1.7.10") || m_mcVersion == QStringLiteral("1.8.9"))
-        ? m_mcVersion + QStringLiteral("-") + m_loaderVersion + QStringLiteral("-") + m_mcVersion
-        : m_mcVersion + QStringLiteral("-") + m_loaderVersion;
+    // Build Maven version with branch suffix
+    const QString ver = m_mcVersion + QStringLiteral("-") + m_loaderVersion
+        + (m_forgeBranch.isEmpty() ? QString() : QStringLiteral("-") + m_forgeBranch);
     const QString groupPath = QStringLiteral("net/minecraftforge/forge");
     const QString filePrefix = QStringLiteral("forge");
 
