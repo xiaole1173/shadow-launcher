@@ -1429,10 +1429,11 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 // Skip JAR signature files — our patch invalidated them
                 QString fp = e.filePath;
                 if (fp.startsWith(QStringLiteral("META-INF/"))) {
-                    // Skip JAR signature files only — .SF/.RSA/.DSA/.EC
-                    // MANIFEST.MF is NOT a signature file; it contains Main-Class
-                    // needed for java -jar to work. Removing it breaks all installer JARs.
-                    if (fp.endsWith(QStringLiteral(".SF"))
+                    // Skip JAR signature files + MANIFEST.MF
+                    // NOTE: MANIFEST.MF 写入会被 QZipWriter 自动处理，
+                    // 主类通过 java -cp ... com.bangbang93.ForgeInstaller 显式指定，不依赖 Main-Class
+                    if (fp == QStringLiteral("META-INF/MANIFEST.MF")
+                        || fp.endsWith(QStringLiteral(".SF"))
                         || fp.endsWith(QStringLiteral(".RSA"))
                         || fp.endsWith(QStringLiteral(".DSA"))
                         || fp.endsWith(QStringLiteral(".EC"))) {
