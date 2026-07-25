@@ -6442,10 +6442,8 @@ auto* ds = dlSession(installName);
 
     qDebug() << "[install] installModLoader calling install" << loaderType << ", m_running before:" << m_mlInstaller->isRunning();
 
-    // Ensure client_mappings is downloaded before Forge/NeoForge install
-    // (needed by bootstrapper's ChainMappings.process for JAR remapping)
+    // Ensure client_mappings is downloaded before Forge install (needed by bootstrapper for JAR remapping)
     if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
-        emit logMessage(QStringLiteral("[映射] 检查 client_mappings..."));
         const QString vmPath = m_gameDir + QStringLiteral("/versions/") + mcVersion
             + QStringLiteral("/") + mcVersion + QStringLiteral(".json");
         QFile vf(vmPath);
@@ -6470,9 +6468,11 @@ auto* ds = dlSession(installName);
                     + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
                     + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
                 if (!QFileInfo::exists(savePath)) {
-                    emit logMessage(QStringLiteral("[映射] 下载 client_mappings: %1").arg(mavenVer));
+                    qDebug() << "[install] Downloading missing client_mappings:" << mavenVer;
+                    emit logMessage(tr(" 下载客户端映射文件..."));
                     QNetworkAccessManager nm;
                     QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
+                    r->setReadBufferSize(0);
                     QEventLoop loop;
                     connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
                     loop.exec();
@@ -6483,23 +6483,14 @@ auto* ds = dlSession(installName);
                         if (out.open(QIODevice::WriteOnly)) {
                             out.write(data);
                             out.close();
-                            emit logMessage(QStringLiteral("[映射] client_mappings 已保存: %1 (%2 KB)")
-                                .arg(savePath).arg(data.size() / 1024));
-                        } else {
-                            emit logMessage(QStringLiteral("[映射] ⚠ 无法写入: %1").arg(savePath));
+                            qDebug() << "[install] client_mappings saved:" << savePath << data.size() << "bytes";
                         }
                     } else {
-                        emit logMessage(QStringLiteral("[映射] ⚠ 下载失败: %1").arg(r->errorString()));
+                        qWarning() << "[install] client_mappings download failed:" << r->errorString();
                     }
                     r->deleteLater();
-                } else {
-                    emit logMessage(QStringLiteral("[映射] client_mappings 已存在，跳过"));
                 }
-            } else {
-                emit logMessage(QStringLiteral("[映射] 版本 %1 无 client_mappings（正常）").arg(mcVersion));
             }
-        } else {
-            emit logMessage(QStringLiteral("[映射] ⚠ 无法读取版本JSON: %1").arg(vmPath));
         }
     }
 
