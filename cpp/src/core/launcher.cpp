@@ -908,6 +908,28 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
 
     // ── Classpath from version JSON ──
     QStringList cp = buildClasspath(versionId, versionJson, m_gameDir, moduleExclude);
+
+    // ── Forge 1.16.x universal jar ──
+    // 版本 JSON 的 libraries 只引用 installer stub (212KB)，不含 universal jar (2.5MB)
+    // 必须手动添加到 classpath，否则 forge mod 不会加载（参考：主流启动器 做法）
+    if (versionId.contains(QStringLiteral("forge"))) {
+        const QString forgeGroupPath = m_gameDir + QStringLiteral("/libraries/net/minecraftforge/forge");
+        QDir forgeDir(forgeGroupPath);
+        if (forgeDir.exists()) {
+            const QStringList versions = forgeDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString& fv : versions) {
+                if (fv.contains(QStringLiteral("-1.16.")) || fv.contains(QStringLiteral("-1.17."))) {
+                    QString universal = forgeGroupPath + QStringLiteral("/") + fv
+                                      + QStringLiteral("/forge-") + fv + QStringLiteral("-universal.jar");
+                    if (QFileInfo::exists(universal) && !cp.contains(universal)) {
+                        cp.append(universal);
+                        qCInfo(logLaunch) << "[ForgeCompat] 已添加 universal jar 到 classpath:" << universal;
+                    }
+                    break;
+                }
+            }
+        }
+    }
     QString cpJoined;
     if (!cp.isEmpty()) {
 #ifdef Q_OS_WIN
