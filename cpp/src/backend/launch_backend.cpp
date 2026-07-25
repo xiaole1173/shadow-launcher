@@ -539,27 +539,25 @@ void LaunchBackend::runNextCheck()
         // Inject authlib-injector JVM arg for Yggdrasil mode
         if (m_yggdrasilMode && !m_yggApiRoot.isEmpty()) {
             // ── Prefetch: 验证外置登录服务器可达性 ──
-            // 参考 主流启动器 authlib-injector prefetch 机制
-            // 在启动前检查服务器，避免 authlib-injector 初始化超时后无明确错误
+            emit launchCheckProgress(tr("验证外置登录服务器..."));
             {
-                emit launchCheckProgress(tr("验证外置登录服务器..."));
-                QNetworkAccessManager nam;
-                QNetworkRequest req(QUrl(m_yggApiRoot));
+                QNetworkAccessManager checkNam;
+                QNetworkRequest checkReq{QUrl(m_yggApiRoot)};
                 // 5秒超时 — authlib-injector 默认 15s 超时，提前告知用户
-                req.setTransferTimeout(5000);
-                QNetworkReply *checkReply = nam.get(req);
-                QEventLoop checkLoop;
-                QObject::connect(checkReply, &QNetworkReply::finished, &checkLoop, &QEventLoop::quit);
-                checkLoop.exec();
-                if (checkReply->error() != QNetworkReply::NoError) {
-                    QString detail = checkReply->errorString();
-                    checkReply->deleteLater();
+                checkReq.setTransferTimeout(5000);
+                QNetworkReply *r = checkNam.get(checkReq);
+                QEventLoop l;
+                QObject::connect(r, &QNetworkReply::finished, &l, &QEventLoop::quit);
+                l.exec();
+                if (r->error() != QNetworkReply::NoError) {
+                    QString detail = r->errorString();
+                    r->deleteLater();
                     abortCheck(tr("外置登录服务器"),
                                tr("无法连接到认证服务器（%1）")
                                    .arg(detail.isEmpty() ? m_yggApiRoot : detail));
                     return;
                 }
-                checkReply->deleteLater();
+                r->deleteLater();
                 qCInfo(logLaunch) << "外置登录服务器可达 OK:" << m_yggApiRoot;
             }
 

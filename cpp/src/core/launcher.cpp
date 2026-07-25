@@ -89,12 +89,15 @@ static QStringList collectGcArgs(int javaMajor, bool debugMode)
     bool canUseZgc = false;
 #ifdef Q_OS_WIN
     // Windows 10 1809+ (build 17763) required for ZGC
-    // 使用 QSysInfo 或检查产品版本
-    QSysInfo::WinVersion winVer = QSysInfo::windowsVersion();
-    // QSysInfo::WV_WINDOWS10 covers Win10/11; WV_WINDOWS8_1 and below can't use ZGC
-    canUseZgc = (winVer >= QSysInfo::WV_WINDOWS10);
+    // QSysInfo::productVersion() returns e.g. "10.0.22631"
+    const QString pv = QSysInfo::productVersion();
+    const QStringList parts = pv.split(QLatin1Char('.'));
+    if (parts.size() >= 3) {
+        int major = parts[0].toInt();
+        int build = parts[2].toInt();
+        canUseZgc = (major >= 10 && build >= 17763);
+    }
 #else
-    // On Linux/macOS, ZGC is generally available on Java 15+
     canUseZgc = true;
 #endif
 
@@ -930,6 +933,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // --mods (forge universal coordinate) before beginModScan(). If setup() is not reached or
     // fails silently, MavenDirectoryLocator gets empty modCoords and forge mod won't register.
     // As a safety net, inject these args explicitly here:
+
+    // Collect game args from version JSON chain (declared before forge block for early prepend)
+    QJsonArray gameArgs;
+
     if (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge"))) {
         // Parse forge group/version from the JSON if available
         bool isForge = false;
@@ -969,9 +976,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             qCInfo(logLaunch) << "[ForgeCompat] Injected mavenRoots+mods:" << universalMod;
         }
     }
-    QJsonArray gameArgs;
     {
-        // First: collect args from leaf to root, then reverse to get root→leaf order
+        // Collect args from version JSON chain (reuse gameArgs declared above)
         QJsonArray chainArgs;  // root-args ... child-args (will reverse)
         QJsonObject chainJson = versionJson;
         QString chainId = versionId;
