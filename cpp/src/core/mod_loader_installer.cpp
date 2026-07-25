@@ -1183,19 +1183,32 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(const QByteArray& jarData, co
     const QString jarDst = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
 
     // 2a. 确保 client JAR 包含 .forge_patched_minecraft（Forge 用该标记定位 Minecraft JAR）
+    // binarypatcher 的 --marker 已自动添加此标记，仅验证而非重打包
     {
+        bool hasMarker = false;
         QBuffer inBuf;
         inBuf.setData(clientJarBytes);
         if (inBuf.open(QIODevice::ReadOnly)) {
             QZipReader reader(&inBuf);
             const auto entries = reader.fileInfoList();
-            QByteArray patchedBytes;
-            {
+            for (const auto& entry : entries) {
+                if (entry.filePath == QStringLiteral(".forge_patched_minecraft")) {
+                    hasMarker = true;
+                    break;
+                }
+            }
+            reader.close();
+        }
+        if (!hasMarker) {
+            // Binarypatcher 未包含标记（老旧安装器），需手动注入
+            QBuffer inBuf2;
+            inBuf2.setData(clientJarBytes);
+            if (inBuf2.open(QIODevice::ReadOnly)) {
+                QZipReader reader(&inBuf2);
+                const auto entries = reader.fileInfoList();
                 QBuffer outBuf;
                 outBuf.open(QIODevice::WriteOnly);
                 QZipWriter writer(&outBuf);
-
-                // Copy all existing entries
                 for (const auto& entry : entries) {
                     if (entry.isDir) {
                         writer.addDirectory(entry.filePath);
@@ -1203,26 +1216,14 @@ void ModLoaderInstaller::forgeStep3_manualFinalize(const QByteArray& jarData, co
                         writer.addFile(entry.filePath, reader.fileData(entry.filePath));
                     }
                 }
-
-                // Add .forge_patched_minecraft marker if missing
-                bool hasMarker = false;
-                for (const auto& entry : entries) {
-                    if (entry.filePath == QStringLiteral(".forge_patched_minecraft")) {
-                        hasMarker = true;
-                        break;
-                    }
-                }
-                if (!hasMarker) {
-                    writer.addFile(QStringLiteral(".forge_patched_minecraft"), QByteArray());
-                    qCInfo(logLoader) << QStringLiteral("已添加 .forge_patched_minecraft 标记到版本 JAR");
-                }
-
+                writer.addFile(QStringLiteral(".forge_patched_minecraft"), QByteArray());
                 writer.close();
-                patchedBytes = outBuf.data();
+                reader.close();
+                clientJarBytes = outBuf.data();
+                qCInfo(logLoader) << QStringLiteral("已添加 .forge_patched_minecraft 标记到版本 JAR");
             }
-            reader.close();
-            if (!patchedBytes.isEmpty())
-                clientJarBytes = patchedBytes;
+        } else {
+            qCInfo(logLoader) << QStringLiteral("binarypatcher JAR 已含 .forge_patched_minecraft 标记，跳过重打包");
         }
     }
 
