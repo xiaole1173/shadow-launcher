@@ -1230,9 +1230,30 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
             reader.close();
         }
         if (!hasMarker) {
-            qCInfo(logLoader) << QStringLiteral("客户端 JAR 不含 .forge_patched_minecraft 标记（不影响功能），直接写入");
+            qCInfo(logLoader) << QStringLiteral("客户端 JAR 不含 .forge_patched_minecraft 标记，轻量追加...");
+            // 读全部已有条目 + 写回 + 追加标记（NeverCompress = store，无 DEFLATE）
+            QBuffer inBuf2(&clientJarBytes);
+            inBuf2.open(QIODevice::ReadOnly);
+            QZipReader srcReader(&inBuf2);
+            const auto entries = srcReader.fileInfoList();
+            QByteArray outBytes;
+            QBuffer outBuf(&outBytes);
+            outBuf.open(QIODevice::WriteOnly);
+            QZipWriter zipWriter(&outBuf);
+            zipWriter.setCompressionPolicy(QZipWriter::NeverCompress);
+            for (const auto& entry : entries)
+                zipWriter.addFile(entry.filePath, srcReader.fileData(entry.filePath));
+            zipWriter.addFile(QStringLiteral(".forge_patched_minecraft"), QByteArray());
+            zipWriter.close();
+            outBuf.close();
+            srcReader.close();
+            inBuf2.close();
+            if (!outBytes.isEmpty()) {
+                clientJarBytes = outBytes;
+                qCInfo(logLoader) << QStringLiteral("已追加标记，JAR 大小=%1 字节").arg(clientJarBytes.size());
+            }
         } else {
-            qCInfo(logLoader) << QStringLiteral("客户端 JAR 已含 .forge_patched_minecraft 标记，跳过重打包");
+            qCInfo(logLoader) << QStringLiteral("客户端 JAR 已含 .forge_patched_minecraft 标记");
         }
     }
 
