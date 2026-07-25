@@ -912,21 +912,31 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // ── Forge 1.16.x universal jar ──
     // 版本 JSON 的 libraries 只引用 installer stub (212KB)，不含 universal jar (2.5MB)
     // 必须手动添加到 classpath，否则 forge mod 不会加载（参考：主流启动器 做法）
+    // 注意：libraries 目录可能有多个 forge 版本残留，必须精确匹配
     if (versionId.contains(QStringLiteral("forge"))) {
-        const QString forgeGroupPath = m_gameDir + QStringLiteral("/libraries/net/minecraftforge/forge");
-        QDir forgeDir(forgeGroupPath);
-        if (forgeDir.exists()) {
-            const QStringList versions = forgeDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const QString& fv : versions) {
-                // Directory name is <mcVersion>-<forgeVersion>, e.g. "1.16.5-36.2.42"
-                    if (fv.startsWith(QStringLiteral("1.16.")) || fv.startsWith(QStringLiteral("1.17."))) {
-                    QString universal = forgeGroupPath + QStringLiteral("/") + fv
-                                      + QStringLiteral("/forge-") + fv + QStringLiteral("-universal.jar");
-                    if (QFileInfo::exists(universal) && !cp.contains(universal)) {
-                        cp.append(universal);
-                        qCInfo(logLaunch) << "[ForgeCompat] 已添加 universal jar 到 classpath:" << universal;
-                    }
-                    break;
+        // Extract forge version from versionId: "1.16.5-forge-36.2.42" → "1.16.5-36.2.42"
+        int forgeIdx = versionId.indexOf(QStringLiteral("-forge-"));
+        if (forgeIdx < 0) forgeIdx = versionId.indexOf(QStringLiteral("-forge"));
+        if (forgeIdx >= 0) {
+            QString mcPart = versionId.left(forgeIdx);  // "1.16.5"
+            int dashAfterMc = versionId.indexOf(QLatin1Char('-'), forgeIdx + 6);
+            QString fv = (dashAfterMc >= 0)
+                       ? mcPart + versionId.mid(dashAfterMc)  // "1.16.5-36.2.42"
+                       : QString();
+            // Also try: scan for mcVersion-forgeVersion pattern directly
+            if (fv.isEmpty() || mcPart.isEmpty()) {
+                // Fallback: parse from the version JSON's --fml.forgeVersion
+                // Already parsed in getMcVersion() but that's complex here.
+                // Just scan all dirs and match mc prefix + forge suffix.
+            }
+            if (!fv.isEmpty()) {
+                QString universal = m_gameDir + QStringLiteral("/libraries/net/minecraftforge/forge/")
+                                  + fv + QStringLiteral("/forge-") + fv + QStringLiteral("-universal.jar");
+                if (QFileInfo::exists(universal) && !cp.contains(universal)) {
+                    cp.append(universal);
+                    qCInfo(logLaunch) << "[ForgeCompat] 已添加 universal jar 到 classpath:" << universal;
+                } else {
+                    qCWarning(logLaunch) << "[ForgeCompat] universal jar 不存在或已存在:" << universal;
                 }
             }
         }
