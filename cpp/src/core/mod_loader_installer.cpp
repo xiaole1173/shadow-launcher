@@ -1059,12 +1059,13 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     QSharedPointer<bool> doneCalled(new bool(false));
     const int MAX_CONCURRENT = 8;
 
+    QByteArray jarCopy = jarData;
     auto processNext = QSharedPointer<std::function<void()>>::create();
     *processNext = [=]() {
         if (*completed >= downloads.size()) {
             if (*doneCalled) return;
             *doneCalled = true;
-            forgeStep3_manualFinalize(jarData, versionJson);
+            forgeStep3_manualFinalize(jarCopy, versionJson);
             return;
         }
         if (*remaining <= 0) return;  // No more to start, waiting for inflight
