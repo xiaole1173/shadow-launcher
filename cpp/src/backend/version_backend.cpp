@@ -1442,6 +1442,17 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         bool firstPulse = (st.bytesDl == 0 && db > 0);
 
+                        if (firstPulse) {
+                            // Activate steps 1-2 immediately so they show as downloading
+                            // (even at 0% — avoids gray/pending while waiting for first file of each category)
+                            // Pure MC version
+                            auto* pureDs = dlSession(versionId);
+                            if (pureDs && !pureDs->isMerged() && pureDs->steps.size() >= 3) {
+                                updateStep(versionId, 1, QStringLiteral("active"), 0, 0, 0);
+                                updateStep(versionId, 2, QStringLiteral("active"), 0, 0, 0);
+                            }
+                        }
+
                         // Also inject into session for merged install mod_loader card
 
                         for (auto sit = m_downloadSessions.begin(); sit != m_downloadSessions.end(); ++sit) {
@@ -1467,10 +1478,6 @@ void VersionBackend::installVersion(const QString& versionId)
                                 }
 
                                 if (firstPulse) {
-
-                                    // Activate steps 1-2 immediately so they show as downloading
-
-                                    // (even at 0% — avoids gray/pending while waiting for first file of each category)
 
                                     updateStep(sit.key(), 1, QStringLiteral("active"), 0, 0, 0);
 
@@ -2155,11 +2162,21 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         qCDebug(logVersion) << "[cancelInstall] 无法清理: 无游戏目录";
 
     // ── Update DownloadSession for immediate card feedback ──
+    // Pure MC version
     auto* cancelDs = dlSession(resolvedId);
     if (cancelDs && !cancelDs->isMerged()) {
         cancelDs->markFailed(tr("已取消"));
         cancelDs->resetSpeed();
         updateCardFromSession(resolvedId, versionId, QStringLiteral("version"));
+    }
+    // Merged installs (Forge/NeoForge/Fabric + MC): mark all sessions using this MC version
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+        auto* mergedDs = dlSession(it.key());
+        if (mergedDs && mergedDs->isMerged() && mergedDs->mcVersion == resolvedId) {
+            mergedDs->markFailed(tr("已取消"));
+            mergedDs->resetSpeed();
+            updateCardFromSession(it.key(), it.key(), QStringLiteral("mod_loader"));
+        }
     }
 
 
@@ -3557,13 +3574,12 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
                 } else {
 
-                    // Empty category (0 bytes) → already done, force display as 100%
-
-                    qCInfo(logVersion) << QStringLiteral("空分类 idx=%1 总数=%2 已完成=%3 → 标记完成 session=%4")
-
-                        .arg(ci).arg(ds->mcStepTotal[ci]).arg(ds->mcStepDone[ci]).arg(mergedSessionId);
-
-                    updateStep(mergedSessionId, ci, QStringLiteral("completed"), 100, 0, 0);
+                    // mcStepTotal is 0 — this category may be genuinely empty, or the
+                    // downloader hasn't populated it yet (MC still in early download).
+                    // Either way, don't assume all downloads are done — let
+                    // verifyProgressChanged / activateVerifyOnDownloadsDone activate
+                    // the verify step when the downloader genuinely enters that phase.
+                    allDone = false;
 
                 }
 
