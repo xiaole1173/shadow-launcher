@@ -800,6 +800,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             args << QStringLiteral("-Dfml.earlyprogresswindow=false");
             qCInfo(logLaunch) << "[ForgeCompat] 已注入 -Dfml.earlyprogresswindow=false";
         }
+        // ── Forge diagnostic logging ──
+        args << QStringLiteral("-Dforge.logging.mojang.level=debug");
+        args << QStringLiteral("-Dfml.log.level=debug");
+        qCInfo(logLaunch) << "[ForgeCompat] 已启用 forge DEBUG 日志";
     }
 
     // Always apply default optimized flags (non-GC)
@@ -1218,9 +1222,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             // Replace placeholders
             arg.replace(QStringLiteral("${auth_player_name}"), m_authName.isEmpty() ? QStringLiteral("{username}") : m_authName);
             arg.replace(QStringLiteral("${version_name}"), versionId);
+            // 主流启动器 reference: gameDir = .minecraft root (McFolderSelected)
+            // Forge/FML needs .minecraft root for mods/, config/, libraries/ resolution
+            // Version isolation is handled via APPDATA env override, not --gameDir
             arg.replace(QStringLiteral("${game_directory}"),
-                        !m_versionGameDir.isEmpty() ? toShortPath(m_versionGameDir) :
-                        gameDirShort + QStringLiteral("/versions/") + versionId + QStringLiteral("/game"));
+                        gameDirShort);
             arg.replace(QStringLiteral("${assets_root}"),
                         gameDirShort + QStringLiteral("/assets"));
             arg.replace(QStringLiteral("${assets_index_name}"), assetIndexId);
