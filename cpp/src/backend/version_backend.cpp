@@ -6063,6 +6063,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                                         if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
 
+                                        // Mark step as failed so UI updates immediately
+                                        updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
+
                                         if (m_downloadSessions.contains(installName)) {
 
                                             ensureSession(installName);
@@ -6150,6 +6153,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                             m_activeIds.removeAll(mcVersion);
 
                             if (!m_activeIds.isEmpty()) m_activeCount = m_activeIds.size();
+
+                            // Mark step as failed so UI updates immediately
+                            updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
 
                             if (m_downloadSessions.contains(installName)) {
 
