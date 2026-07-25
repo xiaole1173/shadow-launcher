@@ -5615,58 +5615,6 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
 
 
-    // ── Ensure client_mappings is on disk BEFORE any forge/neoforge install ──
-    // Forge 1.19+ bootstrapper (ChainMappings.process) requires this file for JAR remapping.
-    // Must download synchronously here because the bootstrapper runs in parallel with MC download.
-    if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
-        const QString vmPath = m_gameDir + QStringLiteral("/versions/") + mcVersion
-            + QStringLiteral("/") + mcVersion + QStringLiteral(".json");
-        QFile vf(vmPath);
-        if (vf.open(QIODevice::ReadOnly)) {
-            QJsonDocument vd = QJsonDocument::fromJson(vf.readAll());
-            vf.close();
-            QJsonObject cm = vd.object().value(QStringLiteral("downloads")).toObject()
-                .value(QStringLiteral("client_mappings")).toObject();
-            QString cmUrl = cm.value(QStringLiteral("url")).toString();
-            if (!cmUrl.isEmpty()) {
-                QString mavenVer = mcVersion;
-                QVector<McVersion> vers = m_versionMgr->cachedVersions();
-                for (const auto& v : vers) {
-                    if (v.id == mcVersion && v.releaseTime.isValid()) {
-                        mavenVer = mcVersion + QStringLiteral("-")
-                            + v.releaseTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
-                        break;
-                    }
-                }
-                const QString savePath = m_gameDir
-                    + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
-                    + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
-                if (!QFileInfo::exists(savePath)) {
-                    emit logMessage(QStringLiteral("[映射] 下载 client_mappings: %1").arg(mavenVer));
-                    QNetworkAccessManager nm;
-                    QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
-                    QEventLoop loop;
-                    connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                    loop.exec();
-                    if (r->error() == QNetworkReply::NoError) {
-                        QByteArray data = r->readAll();
-                        QDir().mkpath(QFileInfo(savePath).absolutePath());
-                        QFile out(savePath);
-                        if (out.open(QIODevice::WriteOnly)) {
-                            out.write(data);
-                            out.close();
-                            emit logMessage(QStringLiteral("[映射] client_mappings 已保存 (%1 KB)")
-                                .arg(data.size() / 1024));
-                        }
-                    } else {
-                        emit logMessage(QStringLiteral("[映射] ⚠ 下载失败: %1").arg(r->errorString()));
-                    }
-                    r->deleteLater();
-                }
-            }
-        }
-    }
-
     m_modLoaderInstallId = installName;
 
     ensureSession(installName);
