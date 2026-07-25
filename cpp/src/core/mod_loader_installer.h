@@ -118,7 +118,7 @@ private:
     /// Extract the embedded forge-install-bootstrapper.jar to temp, return path
     static QString extractBootstrapperPath();
     /// Find a usable Java 8+ on PATH or common install dirs
-    QString findJavaPath();
+    QString findJavaPath(int minVersion = 8);
 
     // Fabric
     void fabricStep1_downloadProfile();

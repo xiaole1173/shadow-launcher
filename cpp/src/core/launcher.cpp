@@ -753,13 +753,26 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
 
     // ── Classpath from version JSON ──
     QStringList cp = buildClasspath(versionId, versionJson, m_gameDir, moduleExclude);
+    QString cpJoined;
     if (!cp.isEmpty()) {
-        args << QStringLiteral("-cp");
 #ifdef Q_OS_WIN
-        args << cp.join(QStringLiteral(";"));
+        cpJoined = cp.join(QStringLiteral(";"));
 #else
-        args << cp.join(QStringLiteral(":"));
+        cpJoined = cp.join(QStringLiteral(":"));
 #endif
+        args << QStringLiteral("-cp");
+        args << cpJoined;
+    }
+
+    // Replace JVM template ${classpath} in already-added args
+    // (version JSON's arguments.jvm contains -cp ${classpath} which was preserved
+    //  through flattenVersionJson but not replaced in the JVM template loop above)
+    if (!cpJoined.isEmpty()) {
+        for (auto it = args.begin(); it != args.end(); ++it) {
+            if (*it == QStringLiteral("${classpath}")) {
+                *it = cpJoined;
+            }
+        }
     }
 
     // ── Main class ──

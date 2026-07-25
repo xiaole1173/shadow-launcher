@@ -366,7 +366,7 @@ qt6_add_resources(ShadowLauncher "agreement_resources"
 
 # ── Bootstrap tools (embedded installer helper JARs) ──
 qt6_add_resources(ShadowLauncher "tools_resources"
-    PREFIX "/tools"
+    PREFIX "/"
     FILES
         resources/tools/forge-install-bootstrapper.jar
 )

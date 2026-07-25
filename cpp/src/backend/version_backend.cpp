@@ -377,6 +377,8 @@ VersionBackend::VersionBackend(QObject* parent)
 
             //  while sub-items like Fabric API are still in progress, keeping the card alive)
 
+            // Safety: scan all version JSONs first — skip if any still inherits from this version
+
             if (ds->isMerged()) {
 
                 bool otherUsingSameMC = false;
@@ -397,7 +399,47 @@ VersionBackend::VersionBackend(QObject* parent)
 
                 if (!otherUsingSameMC) {
 
-                    if (!otherUsingSameMC) {
+                    // Double-check: scan all version JSONs for inheritsFrom pointing at mcVersion
+
+                    bool inheritsFound = false;
+
+                    QDir vDir(m_gameDir + QStringLiteral("/versions"));
+
+                    const QStringList subDirs = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+
+                    for (const QString& sub : subDirs) {
+
+                        QString jsonPath = m_gameDir + QStringLiteral("/versions/") + sub
+
+                            + QStringLiteral("/") + sub + QStringLiteral(".json");
+
+                        QFile jf(jsonPath);
+
+                        if (jf.open(QIODevice::ReadOnly)) {
+
+                            QJsonDocument jdoc = QJsonDocument::fromJson(jf.readAll());
+
+                            jf.close();
+
+                            if (jdoc.isObject()) {
+
+                                QJsonObject jObj = jdoc.object();
+
+                                if (jObj.value(QStringLiteral("inheritsFrom")).toString() == ds->mcVersion) {
+
+                                    inheritsFound = true;
+
+                                    break;
+
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                    if (!inheritsFound) {
 
                         QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
 
@@ -413,7 +455,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
                     } else {
 
-                        qCDebug(logVersion) << "Skipping MC cleanup:" << ds->mcVersion << "still in use by other install";
+                        qCDebug(logVersion) << "Skipping MC cleanup:" << ds->mcVersion << "inheritsFrom still in use by existing version";
 
                     }
 
@@ -465,33 +507,39 @@ VersionBackend::VersionBackend(QObject* parent)
 
                 // other active merged install still uses this MC version
 
-                bool otherUsingSameMC = false;
+                // Safety: skip if this is forge/neoforge (inheritsFrom needs the base version)
 
-                for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+                if (!QStringLiteral("forge,neoforge").split(QStringLiteral(",")).contains(ds->loaderType)) {
 
-                    auto* d = dlSession(it.key());
+                    bool otherUsingSameMC = false;
 
-                    if (it.key() != mlId && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+                    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
-                        otherUsingSameMC = true;
+                        auto* d = dlSession(it.key());
 
-                        break;
+                        if (it.key() != mlId && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+
+                            otherUsingSameMC = true;
+
+                            break;
+
+                        }
 
                     }
 
-                }
+                    if (!otherUsingSameMC) {
 
-                if (!otherUsingSameMC) {
+                        QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
 
-                    QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
+                        QDir vd(vanillaVerDir);
 
-                    QDir vd(vanillaVerDir);
+                        if (vd.exists()) {
 
-                    if (vd.exists()) {
+                            vd.removeRecursively();
 
-                        vd.removeRecursively();
+                            emit logMessage(tr("清理残留原版文件夹: %1").arg(vanillaVerDir));
 
-                        emit logMessage(tr("清理残留原版文件夹: %1").arg(vanillaVerDir));
+                        }
 
                     }
 

@@ -1083,9 +1083,10 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
 
 // ═══════════════════════════════════════════════════════════════
 // Legacy 1: has "json" field, no install, no processors
-// → extract version.json from installer + maven/ already unpacked
+// → extract version.json from installer + flatten + download libs
 // (Forge ~1.13-1.16.x, spec 0)
 // ═══════════════════════════════════════════════════════════════
+static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child);
 void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 1）..."));
 
@@ -1103,7 +1104,7 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
     }
     QZipReader reader(&buffer);
 
-    // 1. Read version.json
+    // 1. Read version.json from installer JAR
     QString actualPath = versionJsonPath.startsWith(QLatin1Char('/'))
         ? versionJsonPath.mid(1) : versionJsonPath;
     QByteArray versionData = reader.fileData(actualPath);
@@ -1119,14 +1120,96 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
     }
     QJsonObject versionJson = versionDoc.object();
 
-    // 2. Set correct id, ensure inheritsFrom
+    // 2. Set correct id
     versionJson[QStringLiteral("id")] = m_installName;
-    if (!versionJson.contains(QStringLiteral("inheritsFrom")))
-        versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
 
-    // 3. Write to versions/{installName}/
+    // 3. Create version directory
     QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
     QDir().mkpath(verDir);
+
+    // 4. Copy vanilla client.jar to version dir (needed after flatten)
+    QString srcClientJar = versionsDir() + QStringLiteral("/") + m_mcVersion
+        + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+    QString dstClientJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+    if (!QFile::exists(dstClientJar) && QFile::exists(srcClientJar)) {
+        if (QFile::copy(srcClientJar, dstClientJar))
+            qCInfo(logLoader) << QStringLiteral("已复制客户端 JAR: %1").arg(dstClientJar);
+        else
+            qCWarning(logLoader) << QStringLiteral("复制客户端 JAR 失败: %1").arg(srcClientJar);
+    }
+
+    // 5. Ensure inheritsFrom is set, then flatten into standalone
+    if (!versionJson.contains(QStringLiteral("inheritsFrom")))
+        versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
+    QJsonObject flattened = flattenVersionJson(m_gameDir, versionJson);
+    if (flattened != versionJson) {
+        versionJson = flattened;
+        qCInfo(logLoader) << QStringLiteral("version.json 已压平为独立版本（inheritsFrom 链已消解）");
+    }
+
+    // 6. Pre-download Forge-specific libraries from BMCLAPI
+    //    (similar to step 3d in runBootstrapperProcess)
+    QJsonArray libs = versionJson.value(QStringLiteral("libraries")).toArray();
+    if (!libs.isEmpty()) {
+        QNetworkAccessManager* nam = HttpClient::instance().manager();
+        int downloaded = 0;
+        for (const auto& lv : libs) {
+            if (!lv.isObject()) continue;
+            QJsonObject libObj = lv.toObject();
+            QString name = libObj.value(QStringLiteral("name")).toString();
+            if (name.isEmpty()) continue;
+            // Parse Maven coordinate
+            QStringList parts = name.split(QLatin1Char(':'));
+            if (parts.size() < 3) continue;
+            QString group = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+            QString artifact = parts[1];
+            QString version = parts[2];
+            QString ext = QStringLiteral("jar");
+            if (version.contains(QLatin1Char('@'))) {
+                int atIdx = version.indexOf(QLatin1Char('@'));
+                ext = version.mid(atIdx + 1);
+                version = version.left(atIdx);
+            }
+            // Build local path
+            QString libDir = m_gameDir + QStringLiteral("/libraries/") + group
+                + QStringLiteral("/") + artifact + QStringLiteral("/") + version;
+            QString libFile = libDir + QStringLiteral("/") + artifact
+                + QStringLiteral("-") + version + QStringLiteral(".") + ext;
+            if (QFile::exists(libFile)) continue;
+            // Download from BMCLAPI mirror
+            QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.%4")
+                .arg(group, artifact, version, ext);
+            QDir().mkpath(libDir);
+            QNetworkRequest req;
+            req.setUrl(QUrl(url));
+            QNetworkReply* reply = nam->get(req);
+            QEventLoop loop;
+            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+            QTimer timer;
+            timer.setSingleShot(true);
+            QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+            timer.start(30000);
+            loop.exec();
+            if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+                timer.stop();
+                QFile f(libFile);
+                if (f.open(QIODevice::WriteOnly)) {
+                    f.write(reply->readAll());
+                    f.close();
+                    downloaded++;
+                }
+            } else {
+                qCWarning(logLoader) << QStringLiteral("Legacy 1 库下载失败: %1 %2")
+                    .arg(url, reply->errorString());
+                QFile::remove(libFile);
+            }
+            reply->deleteLater();
+        }
+        if (downloaded > 0)
+            qCInfo(logLoader) << QStringLiteral("已为 Legacy 1 预下载 %1 个 Forge 库").arg(downloaded);
+    }
+
+    // 7. Write flattened version.json
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile jf(jsonPath);
     if (jf.open(QIODevice::WriteOnly)) {
@@ -1134,7 +1217,8 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
         jf.close();
     }
 
-    qCInfo(logLoader) << QStringLiteral("Legacy 1 安装完成: %1").arg(m_installName);
+    qCInfo(logLoader) << QStringLiteral("Legacy 1 安装完成: %1（独立版本，%2 个库已就绪）")
+        .arg(m_installName).arg(libs.size());
     emit finished(true, QString());
     m_running = false;
 }
@@ -1146,7 +1230,7 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
 QString ModLoaderInstaller::extractBootstrapperPath() {
     QString dst = QDir::tempPath() + QStringLiteral("/forge-install-bootstrapper.jar");
     if (QFile::exists(dst)) return dst;
-    QFile res(QStringLiteral(":/tools/forge-install-bootstrapper.jar"));
+    QFile res(QStringLiteral(":/resources/tools/forge-install-bootstrapper.jar"));
     if (!res.open(QIODevice::ReadOnly)) {
         qCWarning(logLoader) << "无法打开嵌入式 bootstrapper 资源";
         return QString();
@@ -1164,62 +1248,105 @@ QString ModLoaderInstaller::extractBootstrapperPath() {
     return QString();
 }
 
-QString ModLoaderInstaller::findJavaPath() {
+// Forward declaration for Java version parsing used by findJavaPath and runBootstrapperProcess
+static int parseJavaMajorVersion(const QString& output);
+static int minJavaForMcInstaller(const QString& mcVersion);
+
+QString ModLoaderInstaller::findJavaPath(int minVersion) {
     // 1. Try PATH
     QProcess proc;
-    proc.start(QStringLiteral("java"), {QStringLiteral("-version")});
-    if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-        QString out = QString::fromUtf8(proc.readAllStandardError());
-        QRegularExpression re(QStringLiteral("(\\d+)\\."));
-        auto m = re.match(out);
-        if (m.hasMatch()) {
-            int major = m.captured(1).toInt();
-            if (major <= 1) {
-                QRegularExpression re2(QStringLiteral("1\\.(\\d+)"));
-                auto m2 = re2.match(out);
-                if (m2.hasMatch()) major = m2.captured(1).toInt();
-            }
-            if (major >= 8) {
-                qCInfo(logLoader) << QStringLiteral("PATH 上找到 Java %1: java").arg(major);
-                return QStringLiteral("java");
-            }
+    if (proc.start(QStringLiteral("java"), {QStringLiteral("-version")});
+        proc.waitForFinished(5000) && proc.exitCode() == 0) {
+        int major = parseJavaMajorVersion(QString::fromUtf8(proc.readAllStandardError()));
+        if (major >= minVersion) {
+            qCInfo(logLoader) << QStringLiteral("PATH 上找到 Java %1: java").arg(major);
+            return QStringLiteral("java");
         }
     }
 
-    // 2. Check common install dirs
+    // 2. Check common install dirs — return first match >= minVersion
+    //    Track lower versions as fallback.
     QStringList candidates = {
+        QStringLiteral("C:/Program Files/Java"),
         QStringLiteral("C:/Program Files/Eclipse Adoptium"),
         QStringLiteral("C:/Program Files/Adoptium"),
-        QStringLiteral("C:/Program Files/Java"),
-        QStringLiteral("C:/Program Files (x86)/Java"),
         QStringLiteral("C:/Program Files/Amazon Corretto"),
+        QStringLiteral("C:/Program Files (x86)/Java"),
     };
+    QString bestPath;
+    int bestMajor = 0;
     for (const auto& dir : candidates) {
         QDir d(dir);
         if (!d.exists()) continue;
-        for (const auto& sub : d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed)) {
+        for (const auto& sub : d.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
             QString exe = dir + QStringLiteral("/") + sub + QStringLiteral("/bin/java.exe");
-            if (QFile::exists(exe)) {
-                proc.start(exe, {QStringLiteral("-version")});
-                if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-                    qCInfo(logLoader) << QStringLiteral("在 %1 找到 Java").arg(exe);
+            if (!QFile::exists(exe)) continue;
+            proc.start(exe, {QStringLiteral("-version")});
+            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
+                int major = parseJavaMajorVersion(QString::fromUtf8(proc.readAllStandardError()));
+                if (major >= minVersion) {
+                    qCInfo(logLoader) << QStringLiteral("在 %1 找到 Java %2").arg(exe).arg(major);
                     return exe;
+                }
+                if (major > bestMajor) {
+                    bestMajor = major;
+                    bestPath = exe;
                 }
             }
         }
     }
 
-    qCWarning(logLoader) << "未找到可用的 Java";
+    // 3. Fallback if we have something (but below minimum)
+    if (!bestPath.isEmpty()) {
+        qCInfo(logLoader) << QStringLiteral("在 %1 找到 Java %2（要求 ≥%3）").arg(bestPath).arg(bestMajor).arg(minVersion);
+        return bestPath;
+    }
+
+    qCWarning(logLoader) << QStringLiteral("未找到 Java ≥%1").arg(minVersion);
     return QString();
 }
+
+static int parseJavaMajorVersion(const QString& output) {
+    QRegularExpression re(QStringLiteral("version\\s+\"([^\"]+)\""));
+    auto m = re.match(output);
+    if (!m.hasMatch()) return 0;
+    QString ver = m.captured(1);
+    ver.replace(QLatin1Char('_'), QLatin1Char('.'));
+    QStringList parts = ver.split(QLatin1Char('.'));
+    if (parts.isEmpty()) return 0;
+    int major = parts[0].toInt();
+    if (major == 1 && parts.size() > 1)
+        major = parts[1].toInt();  // 1.8.0 → 8
+    return major;
+}
+
+/**
+ * Minimum Java version for the Forge/NeoForge installer bootstrapper,
+ * based on MC version. MC 1.18+ Forge installers need Java 17+
+ * for their post-processors (FART, srgutils).
+ */
+static int minJavaForMcInstaller(const QString& mcVersion) {
+    QStringList parts = mcVersion.split(QLatin1Char('.'));
+    if (parts.size() >= 2) {
+        int major = parts[0].toInt();
+        int minor = parts[1].toInt();
+        // MC 1.18+ → Forge installer needs Java 17+
+        if (major >= 2 || (major == 1 && minor >= 18))
+            return 17;
+    }
+    return 8;
+}
+
 
 void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("正在通过 Bootstrapper 安装..."));
 
-    // 1. Find Java
-    QString javaPath = findJavaPath();
+    // 1. Find Java — minimum version depends on MC version
+    //    MC 1.18+ Forge installers need Java 17+ for their post-processors (FART, srgutils)
+    int minJava = minJavaForMcInstaller(m_mcVersion);
+    QString javaPath = findJavaPath(minJava);
     if (javaPath.isEmpty()) {
-        emit finished(false, QStringLiteral("未找到 Java 8+，请先在「设置 → Java」中下载 Java。"));
+        emit finished(false, QStringLiteral("未找到 Java %1+，请先在「设置 → Java」中下载 Java。").arg(minJava));
         m_running = false;
         return;
     }
@@ -1232,17 +1359,351 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         return;
     }
 
-    // 3. Write installer JAR to temp
-    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
-    QFile jarFile(installerJarPath);
-    if (!jarFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "无法写入临时文件");
-        m_running = false;
-        return;
+    // installerJarPath is set below after patching install_profile.json
+    QString installerJarPath;
+
+    // 3. Read installer JAR entries, patch install_profile.json to add --skipIfExists
+    //    to the DOWNLOAD_MOJMAPS processor, then write the modified JAR to temp.
+    {
+        QBuffer buf;
+        buf.setData(jarData);
+        if (!buf.open(QIODevice::ReadOnly)) {
+            emit finished(false, "无法打开安装程序");
+            m_running = false; return;
+        }
+        QZipReader reader(&buf);
+        QList<QZipReader::FileInfo> entries = reader.fileInfoList();
+
+        // Read install_profile.json and patch processor[3] (DOWNLOAD_MOJMAPS)
+        QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
+        if (!profData.isEmpty()) {
+            QJsonDocument doc = QJsonDocument::fromJson(profData);
+            if (doc.isObject()) {
+                QJsonObject root = doc.object();
+                QJsonArray procs = root.value(QStringLiteral("processors")).toArray();
+                bool patched = false;
+                for (int i = 0; i < procs.size(); ++i) {
+                    QJsonObject proc = procs[i].toObject();
+                    QJsonArray args = proc.value(QStringLiteral("args")).toArray();
+                    // Patch processor whose args include DOWNLOAD_MOJMAPS
+                    for (const auto& a : args) {
+                        if (a.toString() == QStringLiteral("DOWNLOAD_MOJMAPS")) {
+                            // Add --skipIfExists after --sanitize if not already present
+                            bool hasSkip = false;
+                            for (const auto& sa : args) {
+                                if (sa.toString() == QStringLiteral("--skipIfExists")) {
+                                    hasSkip = true; break;
+                                }
+                            }
+                            if (!hasSkip) {
+                                args.append(QStringLiteral("--skipIfExists"));
+                                proc[QStringLiteral("args")] = args;
+                                procs[i] = proc;
+                                patched = true;
+                                qCInfo(logLoader) << QStringLiteral("已为 processor[%1] 添加 --skipIfExists").arg(i);
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (patched) {
+                    root[QStringLiteral("processors")] = procs;
+                    QJsonDocument newDoc(root);
+                    profData = newDoc.toJson(QJsonDocument::Compact);
+                }
+            }
+        }
+
+        // Write modified JAR to temp
+        // IMPORTANT: Strip JAR signature files (META-INF/*.SF, *.RSA, *.DSA, *.EC, MANIFEST.MF)
+        // because we modified install_profile.json, which invalidates the existing digest.
+        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
+        QZipWriter writer(installerJarPath);
+        for (const auto& e : entries) {
+            if (e.isDir) {
+                writer.addDirectory(e.filePath);
+            } else if (e.isSymLink) {
+                qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
+            } else {
+                // Skip JAR signature files — our patch invalidated them
+                QString fp = e.filePath;
+                if (fp.startsWith(QStringLiteral("META-INF/"))) {
+                    if (fp == QStringLiteral("META-INF/MANIFEST.MF")
+                        || fp.endsWith(QStringLiteral(".SF"))
+                        || fp.endsWith(QStringLiteral(".RSA"))
+                        || fp.endsWith(QStringLiteral(".DSA"))
+                        || fp.endsWith(QStringLiteral(".EC"))) {
+                        continue;
+                    }
+                }
+                QByteArray data;
+                if (fp == QStringLiteral("install_profile.json")) {
+                    data = profData;  // Use patched version
+                } else {
+                    data = reader.fileData(fp);
+                }
+                writer.addFile(fp, data);
+            }
+        }
+        writer.close();
+        reader.close();
+        qCInfo(logLoader) << QStringLiteral("已写入修改后的安装程序（已剥离签名）: %1").arg(installerJarPath);
     }
-    jarFile.write(jarData);
-    jarFile.close();
+
+    // 3b. Ensure client JAR exists at Forge-installer-expected path
+    // (Forge's FART processor and post-processors look for the client jar
+    //  in libraries/net/minecraft/client/<version>/ — NOT in versions/.)
+    QString clientVerDir = m_gameDir + QStringLiteral("/versions/") + m_mcVersion;
+    QString clientJarPath = clientVerDir + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+    QString clientLibDir = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion;
+    QString clientLibPath = clientLibDir + QStringLiteral("/client-") + m_mcVersion + QStringLiteral(".jar");
+    if (QFile::exists(clientJarPath) && !QFile::exists(clientLibPath)) {
+        QDir().mkpath(clientLibDir);
+        if (QFile::copy(clientJarPath, clientLibPath))
+            qCInfo(logLoader) << QStringLiteral("已复制客户端 JAR 到库目录: %1").arg(clientLibPath);
+        else
+            qCWarning(logLoader) << QStringLiteral("复制客户端 JAR 失败: %1 → %2").arg(clientJarPath, clientLibPath);
+    }
+
+    // 3d. Download install_profile libraries to Maven paths
+    // The Forge installer's post-processors (DOWNLOAD_MOJMAPS, FART, binarypatcher)
+    // need their JARs to be available locally. If they're not here, the installer
+    // tries to download from official Maven which may be slow or blocked in China.
+    // We pre-download using BMCLAPI mirror so the installer finds them and skips.
+    {
+        QBuffer buffer;
+        buffer.setData(jarData);
+        if (buffer.open(QIODevice::ReadOnly)) {
+            QZipReader reader(&buffer);
+            QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
+            reader.close();
+            if (!profData.isEmpty()) {
+                QJsonObject prof = QJsonDocument::fromJson(profData).object();
+                QJsonArray libs = prof.value(QStringLiteral("libraries")).toArray();
+                QNetworkAccessManager* nam = HttpClient::instance().manager();
+                for (const auto& lv : libs) {
+                    QString name = lv.toString();
+                    if (name.isEmpty()) {
+                        QJsonObject lo = lv.toObject();
+                        name = lo.value(QStringLiteral("name")).toString();
+                    }
+                    if (name.isEmpty()) continue;
+                    // Parse Maven coordinate: group:artifact:version[@ext]
+                    QStringList parts = name.split(QLatin1Char(':'));
+                    if (parts.size() < 3) continue;
+                    QString group = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+                    QString artifact = parts[1];
+                    QString version = parts[2];
+                    QString ext = QStringLiteral("jar");
+                    if (version.contains(QLatin1Char('@'))) {
+                        int atIdx = version.indexOf(QLatin1Char('@'));
+                        ext = version.mid(atIdx + 1);
+                        version = version.left(atIdx);
+                    }
+                    // Handle classifier after version (e.g. "1.21.10-20251007.101210")
+                    // The version might contain a timestamp suffix
+                    QString libDir = m_gameDir + QStringLiteral("/libraries/") + group + QStringLiteral("/") + artifact + QStringLiteral("/") + version;
+                    QString libFile = libDir + QStringLiteral("/") + artifact + QStringLiteral("-") + version + QStringLiteral(".") + ext;
+                    if (QFile::exists(libFile)) continue;
+                    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.%4").arg(group, artifact, version, ext);
+                    qCInfo(logLoader) << QStringLiteral("下载安装器库: %1").arg(url);
+                    QDir().mkpath(libDir);
+                    QNetworkRequest req;
+                    req.setUrl(QUrl(url));
+                    QNetworkReply* reply = nam->get(req);
+                    QEventLoop loop;
+                    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    QTimer timer;
+                    timer.setSingleShot(true);
+                    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                    timer.start(30000);
+                    loop.exec();
+                    if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+                        timer.stop();
+                        QFile f(libFile);
+                        if (f.open(QIODevice::WriteOnly)) {
+                            f.write(reply->readAll());
+                            f.close();
+                        }
+                    } else {
+                        qCWarning(logLoader) << QStringLiteral("安装器库下载失败: %1 %2").arg(url, reply->errorString());
+                        QFile::remove(libFile);
+                    }
+                    reply->deleteLater();
+                }
+            }
+        }
+    }
+
+    // 3e. Pre-download Mojang mapping file for FART processor
+    // DOWNLOAD_MOJMAPS processor needs to download from Mojang servers (may be slow/unreliable in China).
+    // We pre-download the raw ProGuard mapping from Mojang, convert to TSRG using
+    // Java + srgutils, and save to the expected Maven path.
+    // This way, if DOWNLOAD_MOJMAPS times out or fails, FART still finds its input file.
+    {
+        QString tsrgDir = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion;
+        QString tsrgPath = tsrgDir + QStringLiteral("/client-") + m_mcVersion + QStringLiteral("-mappings.tsrg");
+        if (!QFile::exists(tsrgPath)) {
+            qCInfo(logLoader) << QStringLiteral("预下载 mappings.tsrg for %1").arg(m_mcVersion);
+            QNetworkAccessManager* nam = HttpClient::instance().manager();
+
+            // Helper: download URL with timeout
+            auto downloadUrl = [&](const QString& url, int timeoutMs) -> QByteArray {
+                QNetworkRequest req;
+                req.setUrl(QUrl(url));
+                QNetworkReply* reply = nam->get(req);
+                QEventLoop loop;
+                QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                QTimer timer;
+                timer.setSingleShot(true);
+                QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                timer.start(timeoutMs);
+                loop.exec();
+                QByteArray data;
+                if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+                    timer.stop();
+                    data = reply->readAll();
+                }
+                reply->deleteLater();
+                return data;
+            };
+
+            // 1. Download version manifest
+            QByteArray manifestData = downloadUrl(
+                QStringLiteral("https://launchermeta.mojang.com/mc/game/version_manifest.json"), 15000);
+            if (manifestData.isEmpty()) {
+                qCWarning(logLoader) << QStringLiteral("无法下载 Mojang version manifest");
+            } else {
+                QJsonDocument manifestDoc = QJsonDocument::fromJson(manifestData);
+                QJsonArray versions = manifestDoc.object().value(QStringLiteral("versions")).toArray();
+                QString versionUrl;
+                for (const auto& v : versions) {
+                    if (v.toObject().value(QStringLiteral("id")).toString() == m_mcVersion) {
+                        versionUrl = v.toObject().value(QStringLiteral("url")).toString();
+                        break;
+                    }
+                }
+                if (versionUrl.isEmpty()) {
+                    qCWarning(logLoader) << QStringLiteral("版本 %1 不在 Mojang manifest 中").arg(m_mcVersion);
+                } else {
+                    // 2. Download version JSON
+                    QByteArray versionData = downloadUrl(versionUrl, 15000);
+                    if (versionData.isEmpty()) {
+                        qCWarning(logLoader) << QStringLiteral("无法下载 %1 version JSON").arg(m_mcVersion);
+                    } else {
+                        QJsonObject versionObj = QJsonDocument::fromJson(versionData).object();
+                        QJsonObject clientMappings = versionObj.value(QStringLiteral("downloads")).toObject()
+                            .value(QStringLiteral("client_mappings")).toObject();
+                        QString mappingsUrl = clientMappings.value(QStringLiteral("url")).toString();
+                        if (mappingsUrl.isEmpty()) {
+                            qCInfo(logLoader) << QStringLiteral("版本 %1 没有 client_mappings").arg(m_mcVersion);
+                        } else {
+                            // 3. Download raw ProGuard mapping file (up to 60s for ~12MB)
+                            QByteArray rawMapping = downloadUrl(mappingsUrl, 60000);
+                            if (rawMapping.isEmpty()) {
+                                qCWarning(logLoader) << QStringLiteral("下载 mapping 文件失败");
+                            } else {
+                                // 4. Save raw mapping to temp file
+                                QString rawPath = QDir::tempPath()
+                                    + QStringLiteral("/forge_raw_mapping_") + m_mcVersion + QStringLiteral(".txt");
+                                {
+                                    QFile f(rawPath);
+                                    if (f.open(QIODevice::WriteOnly)) {
+                                        f.write(rawMapping);
+                                        f.close();
+                                    }
+                                }
+
+                                // 5. Find srgutils JAR (downloaded in step 3d)
+                                QStringList srgCandidates = {
+                                    m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils/0.5.10/srgutils-0.5.10.jar"),
+                                    m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils/0.5.6/srgutils-0.5.6.jar"),
+                                    m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils/0.5.1/srgutils-0.5.1.jar"),
+                                };
+                                QString srgutilsJar;
+                                for (const auto& c : srgCandidates) {
+                                    if (QFile::exists(c)) { srgutilsJar = c; break; }
+                                }
+
+                                if (srgutilsJar.isEmpty()) {
+                                    qCWarning(logLoader) << QStringLiteral("未找到 srgutils JAR");
+                                } else {
+                                    QString classDir = QDir::tempPath();
+                                    QString javaSrc = classDir + QStringLiteral("/ProGuardToTSRG.java");
+                                    QString classFile = classDir + QStringLiteral("/ProGuardToTSRG.class");
+
+                                    // 6. Compile Java converter if not already compiled
+                                    if (!QFile::exists(classFile) || QFileInfo(classFile).lastModified()
+                                        < QFileInfo(javaSrc).lastModified()) {
+                                        QFile sf(javaSrc);
+                                        if (sf.open(QIODevice::WriteOnly)) {
+                                            sf.write(QByteArray(
+                                                "import java.io.*;\n"
+                                                "import java.nio.file.*;\n"
+                                                "import net.minecraftforge.srgutils.*;\n"
+                                                "public class ProGuardToTSRG {\n"
+                                                "    public static void main(String[] a) throws Exception {\n"
+                                                "        if (a.length<2) { System.err.println(\"Usage: ...\"); System.exit(1); }\n"
+                                                "        File i = new File(a[0]), o = new File(a[1]);\n"
+                                                "        o.getParentFile().mkdirs();\n"
+                                                "        try (InputStream is = new BufferedInputStream(new FileInputStream(i))) {\n"
+                                                "            IMappingFile m = IMappingFile.load(is);\n"
+                                                "            if (m == null) { System.err.println(\"Failed to load\"); System.exit(1); }\n"
+                                                "            m.write(o.toPath(), IMappingFile.Format.TSRG, false);\n"
+                                                "        }\n"
+                                                "    }\n"
+                                                "}\n"
+                                            ));
+                                            sf.close();
+                                        }
+
+                                        QString javacPath = QFileInfo(javaPath).dir().absolutePath()
+                                            + QStringLiteral("/javac");
+                                        QProcess javacProc;
+                                        QStringList javacArgs;
+                                        javacArgs << QStringLiteral("-cp") << QDir::toNativeSeparators(srgutilsJar)
+                                                  << QStringLiteral("-d") << QDir::toNativeSeparators(classDir)
+                                                  << QDir::toNativeSeparators(javaSrc);
+                                        javacProc.start(javacPath, javacArgs);
+                                        javacProc.waitForFinished(30000);
+                                        if (javacProc.exitCode() != 0) {
+                                            qCWarning(logLoader) << QStringLiteral("javac 编译失败: ")
+                                                + QString::fromUtf8(javacProc.readAllStandardError());
+                                        }
+                                    }
+
+                                    // 7. Run converter: java ProGuardToTSRG raw.txt out.tsrg
+                                    if (QFile::exists(classFile)) {
+                                        QString outPath = tsrgDir + QStringLiteral("/client-")
+                                            + m_mcVersion + QStringLiteral("-mappings.tsrg");
+                                        QProcess runProc;
+                                        runProc.start(javaPath,
+                                            QStringList() << QStringLiteral("-cp")
+                                                << (QDir::toNativeSeparators(srgutilsJar) + QStringLiteral(";") + QDir::toNativeSeparators(classDir))
+                                                << QStringLiteral("ProGuardToTSRG")
+                                                << QDir::toNativeSeparators(rawPath)
+                                                << QDir::toNativeSeparators(outPath));
+                                        if (runProc.waitForFinished(30000) && runProc.exitCode() == 0) {
+                                            qCInfo(logLoader) << QStringLiteral("mappings -> TSRG 转换成功: ") + outPath;
+                                        } else {
+                                            qCWarning(logLoader) << QStringLiteral("mappings -> TSRG 转换失败: ")
+                                                + QString::fromUtf8(runProc.readAllStandardError());
+                                        }
+                                    }
+                                }
+
+                                // 8. Clean up raw temp file
+                                QFile::remove(rawPath);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            qCInfo(logLoader) << QStringLiteral("mappings.tsrg 已存在，跳过预下载");
+        }
+    }
 
     // 4. Ensure launcher_profiles.json exists
     QString profilesPath = m_gameDir + QStringLiteral("/launcher_profiles.json");
@@ -1269,10 +1730,10 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     auto* timeoutTimer = new QTimer(this);
     timeoutTimer->setSingleShot(true);
 
-    QStringList outputLines;
-    connect(proc, &QProcess::readyReadStandardOutput, this, [proc, &outputLines]() {
+    auto outputLines = QSharedPointer<QStringList>::create();
+    connect(proc, &QProcess::readyReadStandardOutput, this, [proc, outputLines]() {
         QString data = QString::fromUtf8(proc->readAllStandardOutput());
-        outputLines.append(data.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts));
+        outputLines->append(data.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts));
     });
     connect(proc, &QProcess::readyReadStandardError, this, [proc]() {
         QString data = QString::fromUtf8(proc->readAllStandardError());
@@ -1302,7 +1763,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         proc->deleteLater();
         QFile::remove(installerJarPath);
 
-        bool success = (exitCode == 0) && outputLines.contains(QStringLiteral("true"));
+        bool success = (exitCode == 0) && outputLines->contains(QStringLiteral("true"));
 
         if (success) {
             const QString ver = (m_loaderType == QStringLiteral("neoforge"))
@@ -1331,6 +1792,27 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                         + QStringLiteral("/") + m_installName + QStringLiteral(".json");
                     jarPathV = versionsDir() + QStringLiteral("/") + m_installName
                         + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+                }
+
+                // Flatten version JSON into standalone — resolve inheritsFrom chain
+                // so the vanilla version folder can be safely removed
+                QFile jf(jsonPath);
+                if (jf.open(QIODevice::ReadOnly)) {
+                    QByteArray jdata = jf.readAll();
+                    jf.close();
+                    QJsonDocument jdoc = QJsonDocument::fromJson(jdata);
+                    if (jdoc.isObject()) {
+                        QJsonObject jObj = jdoc.object();
+                        QJsonObject flattened = flattenVersionJson(m_gameDir, jObj);
+                        if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                            jf.write(QJsonDocument(flattened).toJson(QJsonDocument::Indented));
+                            jf.close();
+                            if (!jObj.contains(QStringLiteral("inheritsFrom")) ||
+                                jObj.value(QStringLiteral("inheritsFrom")).toString() != QString()) {
+                                qCInfo(logLoader) << QStringLiteral("版本 JSON 已压平为独立版本，inheritsFrom 已消解");
+                            }
+                        }
+                    }
                 }
 
                 if (!QFile::exists(jarPathV)) {
@@ -2066,6 +2548,181 @@ void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QStri
     }
 
     qCInfo(logLoader) << QStringLiteral("版本已重命名: %1 → %2").arg(oldName, newName);
+}
+
+// ============================================================
+// Helper: Flatten version JSON — resolve inheritsFrom chain into standalone version
+// ============================================================
+static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child) {
+    // Walk inheritance chain and collect all version JSONs (child first)
+    QList<QJsonObject> chain;
+    chain.append(child);
+    QString inherits = child.value(QStringLiteral("inheritsFrom")).toString();
+    QStringList seen;
+    while (!inherits.isEmpty() && !seen.contains(inherits)) {
+        seen.append(inherits);
+        QFile f(gameDir + QStringLiteral("/versions/") + inherits
+                + QStringLiteral("/") + inherits + QStringLiteral(".json"));
+        if (!f.open(QIODevice::ReadOnly)) break;
+        QJsonObject parent = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        if (parent.isEmpty()) break;
+        chain.append(parent);
+        inherits = parent.value(QStringLiteral("inheritsFrom")).toString();
+    }
+
+    if (chain.size() <= 1)
+        return child;  // Nothing to flatten
+
+    // Merge fields from all parents into child
+    // Libraries: merged & dedup by name (child first for priority)
+    QJsonArray mergedLibs;
+    // Map: lib name → index in mergedLibs (for merging cross-chain fields like `natives`)
+    QMap<QString, int> libNameIndex;
+    for (const auto& ver : chain) {
+        QJsonArray libs = ver.value(QStringLiteral("libraries")).toArray();
+        for (const auto& libVal : libs) {
+            QJsonObject libObj = libVal.toObject();
+            QString name = libObj.value(QStringLiteral("name")).toString();
+            if (name.isEmpty()) {
+                mergedLibs.append(libVal);
+                continue;
+            }
+            if (libNameIndex.contains(name)) {
+                // Duplicate — merge missing fields from parent into existing entry
+                // (child wins for most fields, but `natives` & `downloads.classifiers`
+                //  may only exist in the parent version JSON — merge them in)
+                int idx = libNameIndex[name];
+                QJsonObject existing = mergedLibs[idx].toObject();
+                bool changed = false;
+                // Merge `natives` — Forge child version often omits this field
+                if (!existing.contains(QStringLiteral("natives")) && libObj.contains(QStringLiteral("natives"))) {
+                    existing[QStringLiteral("natives")] = libObj[QStringLiteral("natives")];
+                    changed = true;
+                }
+                // Merge `downloads` — parent may have download URLs the child lacks
+                if (!existing.contains(QStringLiteral("downloads")) && libObj.contains(QStringLiteral("downloads"))) {
+                    existing[QStringLiteral("downloads")] = libObj[QStringLiteral("downloads")];
+                    changed = true;
+                } else if (existing.contains(QStringLiteral("downloads")) && libObj.contains(QStringLiteral("downloads"))) {
+                    // Merge classifiers (natives artifacts) from parent into child
+                    QJsonObject exDl = existing[QStringLiteral("downloads")].toObject();
+                    QJsonObject parentDl = libObj[QStringLiteral("downloads")].toObject();
+                    if (!exDl.contains(QStringLiteral("classifiers")) && parentDl.contains(QStringLiteral("classifiers"))) {
+                        exDl[QStringLiteral("classifiers")] = parentDl[QStringLiteral("classifiers")];
+                        existing[QStringLiteral("downloads")] = exDl;
+                        changed = true;
+                    }
+                }
+                if (changed)
+                    mergedLibs[idx] = existing;
+            } else {
+                libNameIndex[name] = mergedLibs.size();
+                mergedLibs.append(libVal);
+            }
+        }
+    }
+    child[QStringLiteral("libraries")] = mergedLibs;
+
+    // arguments: walk parent → child, merging (not replacing)
+    // Forge versions may use both `arguments` (object) and `minecraftArguments` (legacy string)
+    QJsonObject mergedArgs;
+    for (int i = chain.size() - 1; i >= 0; i--) {
+        QJsonValue argsVal = chain[i].value(QStringLiteral("arguments"));
+        if (argsVal.isObject()) {
+            QJsonObject argsObj = argsVal.toObject();
+            // game: parent first, child appends
+            if (argsObj.contains(QStringLiteral("game"))) {
+                QJsonArray arr = argsObj[QStringLiteral("game")].toArray();
+                if (!mergedArgs.contains(QStringLiteral("game"))) {
+                    mergedArgs[QStringLiteral("game")] = arr;
+                } else {
+                    QJsonArray existing = mergedArgs[QStringLiteral("game")].toArray();
+                    for (const auto& v : arr) existing.append(v);
+                    mergedArgs[QStringLiteral("game")] = existing;
+                }
+            }
+            // jvm: parent first, child appends
+            if (argsObj.contains(QStringLiteral("jvm"))) {
+                QJsonArray arr = argsObj[QStringLiteral("jvm")].toArray();
+                if (!mergedArgs.contains(QStringLiteral("jvm"))) {
+                    mergedArgs[QStringLiteral("jvm")] = arr;
+                } else {
+                    QJsonArray existing = mergedArgs[QStringLiteral("jvm")].toArray();
+                    for (const auto& v : arr) existing.append(v);
+                    mergedArgs[QStringLiteral("jvm")] = existing;
+                }
+            }
+        }
+    }
+    if (!mergedArgs.isEmpty())
+        child[QStringLiteral("arguments")] = mergedArgs;
+
+    // minecraftArguments: prefer child, fallback to deepest parent
+    if (!child.contains(QStringLiteral("minecraftArguments"))) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            if (chain[i].contains(QStringLiteral("minecraftArguments"))) {
+                child[QStringLiteral("minecraftArguments")] = chain[i][QStringLiteral("minecraftArguments")];
+                break;
+            }
+        }
+    }
+
+    // assetIndex: from deepest parent unless child specifies one
+    if (!child.contains(QStringLiteral("assetIndex"))) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            if (chain[i].contains(QStringLiteral("assetIndex"))) {
+                child[QStringLiteral("assetIndex")] = chain[i][QStringLiteral("assetIndex")];
+                break;
+            }
+        }
+    }
+
+    // javaVersion: from deepest parent unless child specifies one
+    if (!child.contains(QStringLiteral("javaVersion"))) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            if (chain[i].contains(QStringLiteral("javaVersion"))) {
+                child[QStringLiteral("javaVersion")] = chain[i][QStringLiteral("javaVersion")];
+                break;
+            }
+        }
+    }
+
+    // logging: from deepest parent unless child specifies one
+    if (!child.contains(QStringLiteral("logging"))) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            if (chain[i].contains(QStringLiteral("logging"))) {
+                child[QStringLiteral("logging")] = chain[i][QStringLiteral("logging")];
+                break;
+            }
+        }
+    }
+
+    // minimumLauncherVersion: from deepest parent unless child specifies one
+    if (!child.contains(QStringLiteral("minimumLauncherVersion"))) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            if (chain[i].contains(QStringLiteral("minimumLauncherVersion"))) {
+                child[QStringLiteral("minimumLauncherVersion")] = chain[i][QStringLiteral("minimumLauncherVersion")];
+                break;
+            }
+        }
+    }
+
+    // downloads: merge from deepest parent (client/server JAR URLs)
+    // Forge child version.json typically omits downloads, relying on inheritance.
+    if (!child.contains(QStringLiteral("downloads"))) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            if (chain[i].contains(QStringLiteral("downloads"))) {
+                child[QStringLiteral("downloads")] = chain[i][QStringLiteral("downloads")];
+                break;
+            }
+        }
+    }
+
+    // Remove inheritsFrom — version is now standalone
+    child.remove(QStringLiteral("inheritsFrom"));
+
+    return child;
 }
 
 // ============================================================
