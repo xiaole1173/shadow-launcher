@@ -1017,9 +1017,12 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     runBootstrapperProcess(jarData);
 }
 // ═══════════════════════════════════════════════════════════════
-// Legacy 2: has "install" field → universal JAR + inheritsFrom JSON
-// (Forge pre-1.13 style, e.g. 1.7.10, 1.12.2)
 // ═══════════════════════════════════════════════════════════════
+// Legacy 2: has "install" field → universal JAR + standalone JSON
+// (Forge pre-1.13 style, e.g. 1.7.10, 1.12.2)
+// Now flattens to standalone via flattenVersionJson → vanilla folder can be cleaned up
+// ═══════════════════════════════════════════════════════════════
+static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child);
 void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 2）..."));
 
@@ -1077,6 +1080,23 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
 
     QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
     QDir().mkpath(verDir);
+
+    // Flatten to standalone: copy vanilla JAR + flatten inheritsFrom chain
+    // (Same approach as Legacy 1 — makes forge folder self-contained, allows vanilla cleanup)
+    {
+        QString srcJar = versionsDir() + QStringLiteral("/") + m_mcVersion
+            + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+        QString dstJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+        if (!QFile::exists(dstJar) && QFile::exists(srcJar)) {
+            QFile::copy(srcJar, dstJar);
+        }
+        QJsonObject flattened = flattenVersionJson(m_gameDir, vInfo);
+        if (flattened != vInfo) {
+            vInfo = flattened;
+            qCInfo(logLoader) << QStringLiteral("Legacy 2 JSON 已压平为独立版本（inheritsFrom 链已消解）");
+        }
+    }
+
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile jf2(jsonPath);
     if (jf2.open(QIODevice::WriteOnly)) {
@@ -1084,7 +1104,7 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
         jf2.close();
     }
 
-    qCInfo(logLoader) << QStringLiteral("Legacy 2 安装完成: %1 继承 %2").arg(m_installName, m_mcVersion);
+    qCInfo(logLoader) << QStringLiteral("Legacy 2 安装完成: %1（独立版本）").arg(m_installName);
     emit finished(true, QString());
     m_running = false;
 }
@@ -1094,7 +1114,6 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
 // → extract version.json from installer + flatten + download libs
 // (Forge ~1.13-1.16.x, spec 0)
 // ═══════════════════════════════════════════════════════════════
-static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child);
 void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 1）..."));
 
