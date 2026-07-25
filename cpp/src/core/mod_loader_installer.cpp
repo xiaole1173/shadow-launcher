@@ -1215,6 +1215,7 @@ void ModLoaderInstaller::forgeStep3_finishInstallation(
             }
             reader.close();
         }
+        qCInfo(logLoader) << QStringLiteral("[DEBUG] 标记查找完毕 hasMarker=%1").arg(hasMarker);
         if (!hasMarker) {
             // Binarypatcher 未包含标记（老旧安装器），需手动注入
             QBuffer inBuf2;
