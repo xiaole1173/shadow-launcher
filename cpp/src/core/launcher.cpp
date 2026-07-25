@@ -855,8 +855,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                          + QStringLiteral("/") + versionId + QStringLiteral(".jar");
     args << QStringLiteral("-Dminecraft.client.jar=%1").arg(versionJar);
 
-    // ── Natives path (nativesDir already computed above) ──
-    args << QStringLiteral("-Djava.library.path=%1").arg(nativesDir);
+    // ── Natives path (only if version JSON doesn't already set it) ──
+    // MC 26.2+ JSON has -Djava.library.path=${natives_directory}/java in arguments.jvm
+    if (!hasArgPrefix(QStringLiteral("-Djava.library.path="))) {
+        args << QStringLiteral("-Djava.library.path=%1").arg(nativesDir);
+    }
 
     // ── Extract module-path group:artifact prefixes (from NeoForge -p flag)
     //     to exclude ALL versions from classpath, not just exact JAR paths
@@ -919,6 +922,17 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         }
     }
 
+    // Build classpath string (only if version JSON doesn't already provide -cp)
+    // MC 26.2+ version JSON includes "-cp ${classpath}" in arguments.jvm
+    // Older versions rely on launcher to add -cp
+    bool jsonHasCp = false;
+    for (const QString& a : args) {
+        if (a == QStringLiteral("-cp") || a == QStringLiteral("-classpath")) {
+            jsonHasCp = true;
+            break;
+        }
+    }
+
     QString cpJoined;
     if (!cp.isEmpty()) {
 #ifdef Q_OS_WIN
@@ -926,18 +940,23 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
 #else
         cpJoined = cp.join(QStringLiteral(":"));
 #endif
-        args << QStringLiteral("-cp");
-        args << cpJoined;
     }
 
     // Replace JVM template ${classpath} in already-added args
-    // (version JSON's arguments.jvm contains -cp ${classpath} which was preserved
-    //  through flattenVersionJson but not replaced in the JVM template loop above)
+    // (version JSON's arguments.jvm contains -cp ${classpath})
     if (!cpJoined.isEmpty()) {
+        bool replaced = false;
         for (auto it = args.begin(); it != args.end(); ++it) {
             if (*it == QStringLiteral("${classpath}")) {
                 *it = cpJoined;
+                replaced = true;
             }
+        }
+
+        if (!replaced && !jsonHasCp) {
+            // Old version JSON: no -cp in JVM args → we add it
+            args << QStringLiteral("-cp");
+            args << cpJoined;
         }
     }
 
