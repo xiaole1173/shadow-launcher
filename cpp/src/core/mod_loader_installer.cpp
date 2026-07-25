@@ -802,21 +802,21 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, "正在下载 Forge 安装程序...");
 
+    // Use BMCLAPI maven mirror as primary (their /forge/download/ API endpoint is unstable)
     QString verArg = m_mcVersion + "-" + m_loaderVersion;
-    QString bmclUrl = QString("https://bmclapi2.bangbang93.com/forge/download/%1/installer").arg(verArg);
+    QString mavenPath = QString("net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+    QString bmclUrl = QString("https://bmclapi2.bangbang93.com/maven/%1").arg(mavenPath);
 
-    downloadToMemory(bmclUrl, [this, verArg](bool ok, const QByteArray& data) {
+    downloadToMemory(bmclUrl, [this, verArg, mavenPath](bool ok, const QByteArray& data) {
         if (ok) {
-            
             forgeStep2_verify(data);
             return;
         }
-        // Fallback to official Forge Maven
-        qCInfo(logLoader) << QStringLiteral("BMCLAPI Forge 下载失败，尝试官方 Maven...");
-        QString officialUrl = QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(verArg);
+        // Fallback: official Forge Maven
+        qCInfo(logLoader) << QStringLiteral("BMCLAPI maven 下载失败，尝试官方 Maven...");
+        QString officialUrl = QString("https://maven.minecraftforge.net/%1").arg(mavenPath);
         downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
             if (!ok2) { emit finished(false, "Forge 安装程序下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
-            
             forgeStep2_verify(data2);
         }, "forge-installer.jar");
     }, "forge-installer.jar");
