@@ -6,7 +6,12 @@ import QtQuick.Layouts
 
 // DownloadQueueCard — 下载队列面板中的单张卡片
 // 紧凑布局：名称行 + 进度条 + 信息行
-// 取消按钮在可取消时显示 x.svg，完成后自动 3s 消失
+// 采用 Poll 模式：Timer 每 200ms 从 C++ InstallCardModel::cardData() 获取数据
+//
+// 数据分离策略：
+//   _hot  (progress, speed) — 每 200ms 变化，仅触发进度条/速度文本重评
+//   _meta (name, steps, failed, error, phase, canCancel) — 仅状态变化时更新
+//   步骤未变时 Repeater 不重建（通过 JSON 比较检测）
 
 Rectangle {
     id: root
@@ -16,18 +21,70 @@ Rectangle {
     radius: StyleTokens.radiusLg
     color: "#141a24"
 
+    // ── Poll 变量 ──
+    property var _hot: ({})     // 高频：progress, speed（每 200ms 变化）
+    property var _meta: ({})    // 低频：name, steps, failed, error, phase, canCancel
+    property bool _dismissed: false
+    property string _stepsJson: ''  // 步骤缓存，用于检测变化
+    // 从 panel 传入的模型引用 (防止 scope 问题)
+    property var cardModel: null
+
+    // 获取 C++ 模型对象的辅助函数
+    // 优先级: cardModel > model.model > ListView.view.model
+    function _getModel() {
+        if (root.cardModel && typeof root.cardModel.cardData === 'function')
+            return root.cardModel
+        if (model && model.model && typeof model.model.cardData === 'function')
+            return model.model
+        if (ListView.view && ListView.view.model && typeof ListView.view.model.cardData === 'function')
+            return ListView.view.model
+        return null
+    }
+
+    // 初始加载
+    Component.onCompleted: {
+        var mdl = _getModel()
+        if (mdl) {
+            var d = mdl.cardData(index)
+            if (d && d.iid) {
+                _hot = { progress: d.progress, speed: d.speed }
+                _meta = d
+                if (d.steps) _stepsJson = JSON.stringify(d.steps)
+            }
+        }
+    }
+
+    // ── Poll 定时器 ──
+    Timer {
+        id: pollTimer
+        interval: 200
+        running: !_dismissed
+        repeat: true
+        onTriggered: {
+            var mdl = root._getModel()
+            if (mdl) {
+                var nd = mdl.cardData(index)
+                // cardData 返回空 map 时跳过 (row 无效)
+                if (nd && nd.iid) {
+                    // 临时：始终更新 _meta，测试步骤能否正常显示
+                    _hot = { progress: nd.progress, speed: nd.speed }
+                    _meta = nd
+                    if (nd.steps) _stepsJson = JSON.stringify(nd.steps)
+                }
+            }
+        }
+    }
+
     // ── 自动消失计时器（完成后 3s 自动关闭卡片） ──
-    // 只触发一次，触发后由 running 绑定控制不再重复
     Timer {
         id: dismissTimer
         interval: 3000
         repeat: false
-        running: !_dismissed && (model.failed || model.progress >= 1.0)
-        property bool _dismissed: false
+        running: !_dismissed && (_meta.failed || _hot.progress >= 1.0)
         onTriggered: {
             _dismissed = true
-            if (backend && model.iid)
-                backend.dismissCard(model.iid)
+            if (backend && _meta.iid)
+                backend.dismissCard(_meta.iid)
         }
     }
 
@@ -42,10 +99,10 @@ Rectangle {
 
         Rectangle {
             height: parent.height; radius: 2
-            color: model.failed ? StyleTokens.errorLight
-                 : model.progress >= 1.0 ? "#3fb950"
+            color: _meta.failed ? StyleTokens.errorLight
+                 : _hot.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.accent
-            width: parent.width * Math.min(model.progress || 0, 1.0)
+            width: parent.width * Math.min(_hot.progress || 0, 1.0)
             Behavior on width {
                 SmoothedAnimation { velocity: 0.5; duration: 300 }
             }
@@ -64,25 +121,23 @@ Rectangle {
             id: nameText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: model.failed ? (model.name || "") + " — " + (model.error || "失败")
-                  : (model.name || "")
+            text: _meta.failed ? (_meta.name || "") + " — " + (_meta.error || "失败")
+                  : (_meta.name || "")
             font.pixelSize: StyleTokens.fontSizeCaption
-            color: model.failed ? StyleTokens.errorLight
-                 : model.progress >= 1.0 ? "#3fb950"
+            color: _meta.failed ? StyleTokens.errorLight
+                 : _hot.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textPrimary
             elide: Text.ElideRight
             width: parent.width - 30
         }
 
         // ── 操作按钮 ──
-        // 失败/完成后：关闭图标 (x.svg)，取消后或已终态：关闭
-        // 活跃下载中：如果可取消则显示 x.svg 取消按钮
         Rectangle {
             id: actionBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 20; height: 20; radius: 10
-            visible: model.canCancel !== false || model.failed || model.progress >= 1.0
+            visible: _meta.canCancel !== false || _meta.failed || _hot.progress >= 1.0
             color: actionMouse.containsMouse ? "#4a1a1a" : "transparent"
 
             Behavior on color { ColorAnimation { duration: 120 } }
@@ -99,14 +154,12 @@ Rectangle {
                 anchors.fill: parent; hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (model.failed || model.progress >= 1.0) {
-                        // 完成态：关闭卡片
-                        if (backend && model.iid)
-                            backend.dismissCard(model.iid)
+                    if (_meta.failed || _hot.progress >= 1.0) {
+                        if (backend && _meta.iid)
+                            backend.dismissCard(_meta.iid)
                     } else {
-                        // 下载中：取消任务
-                        if (backend && model.iid)
-                            backend.cancelVersionInstall(model.iid)
+                        if (backend && _meta.iid)
+                            backend.cancelVersionInstall(_meta.iid)
                     }
                 }
             }
@@ -123,22 +176,21 @@ Rectangle {
 
         Text {
             text: {
-                if (model.failed) return model.error || "失败"
-                if (model.progress >= 1.0) return "完成 ✓"
-                return fmtSpeed(model.speed || 0)
+                if (_meta.failed) return _meta.error || "失败"
+                if (_hot.progress >= 1.0) return "完成 ✓"
+                return fmtSpeed(_hot.speed || 0)
             }
             font.pixelSize: StyleTokens.fontSizeXs
-            color: model.failed ? StyleTokens.errorLight
-                 : model.progress >= 1.0 ? "#3fb950"
+            color: _meta.failed ? StyleTokens.errorLight
+                 : _hot.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textMuted
             visible: true
         }
 
         Item { Layout.fillWidth: true }
 
-        // ── 完成图标 (Lucide check-circle.svg) ──
         Image {
-            visible: !model.failed && model.progress >= 1.0
+            visible: !_meta.failed && _hot.progress >= 1.0
             source: "icons/lucide/check-circle.svg"
             width: 14; height: 14
             sourceSize.width: 14; sourceSize.height: 14
@@ -152,8 +204,8 @@ Rectangle {
         anchors.left: parent.left; anchors.leftMargin: 16
         anchors.right: parent.right; anchors.rightMargin: 12
         spacing: 3
-        visible: model.progress < 1.0 && !model.failed
-        property var __steps: model && model.steps ? model.steps : []
+        visible: _hot.progress < 1.0 && !_meta.failed
+        property var __steps: _meta.steps || []
 
         Repeater {
             model: stepsList.__steps

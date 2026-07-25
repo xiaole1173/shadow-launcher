@@ -103,6 +103,9 @@ private:
     // Extract version.json → download libraries → write config
     void forgeStep3_install(const QByteArray& jarData);
     void forgeStep3_manualFinalize(const QByteArray& jarData, const QJsonObject& versionJson);
+    /// Run binarypatcher to generate patched client JAR (Forge 26.2+)
+    /// Returns patched JAR bytes on success, empty on failure
+    QByteArray forgeStep3_runBinaryPatcher(const QByteArray& jarData, const QByteArray& lzmaData);
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
     void neoForgeStep3_buildVersion(const QByteArray& jarData);

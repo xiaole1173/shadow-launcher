@@ -65,6 +65,7 @@ public:
     void appendRow(const InstallCard& card);
     void removeRow(int row);
     int findRowByIid(const QString& iid) const;
+    Q_INVOKABLE QVariantMap cardData(int row) const;  // poll 接口：返回整行数据
     QVariantList stepsAt(int row) const;  // preserve steps on incremental update
     const InstallCard* cardAt(int row) const;  // read-only peek
 
@@ -73,7 +74,6 @@ public:
 
 signals:
     void generationChanged();
-    void cardUpdated(int row);       // 单行更新信号 (QML 可监听)
 
 private:
     QVector<InstallCard> m_cards;

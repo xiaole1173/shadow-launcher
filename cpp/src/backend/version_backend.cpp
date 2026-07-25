@@ -27,6 +27,7 @@
 #include "../core/mod_loader_installer.h"
 
 #include "../core/download_coordinator.h"
+#include "../core/step_pipeline.h"
 
 #include "../core/mc_language.h"
 
@@ -396,15 +397,23 @@ VersionBackend::VersionBackend(QObject* parent)
 
                 if (!otherUsingSameMC) {
 
-                    QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
+                    if (!otherUsingSameMC) {
 
-                    QDir vd(vanillaVerDir);
+                        QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
 
-                    if (vd.exists()) {
+                        QDir vd(vanillaVerDir);
 
-                        vd.removeRecursively();
+                        if (vd.exists()) {
 
-                        emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                            vd.removeRecursively();
+
+                            emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+
+                        }
+
+                    } else {
+
+                        qCDebug(logVersion) << "Skipping MC cleanup:" << ds->mcVersion << "still in use by other install";
 
                     }
 
@@ -7281,6 +7290,50 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     if (!ds || !m_installCardsModel) return;
 
+    // ── Shared: build step list from pipeline (real-time status/percentage) ──
+    // Pipeline 是实时数据源 (所有 setPercentage/setActive 都写入 pipeline)
+    // ds->steps 是陈旧 copy, 仅通过 updateStep 刷新, 不是所有下载路径都用 updateStep
+    // 所以直接从 pipeline 构建步骤列表, 确保 QML poll 到最新状态
+    auto buildPipelineSteps = [](DownloadSession* ds) -> QVariantList {
+        QVariantList steps;
+        auto* pipeline = ds ? ds->pipeline() : nullptr;
+        if (!pipeline) return steps;
+        for (int i = 0; i < pipeline->totalSteps(); ++i) {
+            auto* node = pipeline->stepNode(i);
+            if (!node) continue;
+            QVariantMap s;
+            s["name"] = node->name();
+            switch (node->status()) {
+                case StepStatus::Pending:   s["status"] = QStringLiteral("pending"); break;
+                case StepStatus::Active:    s["status"] = QStringLiteral("active"); break;
+                case StepStatus::Completed: s["status"] = QStringLiteral("completed"); break;
+                case StepStatus::Failed:    s["status"] = QStringLiteral("failed"); break;
+                case StepStatus::Skipped:   s["status"] = QStringLiteral("skipped"); break;
+            }
+            s["percentage"] = node->percentage();
+            s["show"] = !node->isHidden();
+            steps.append(s);
+        }
+        return steps;
+    };
+
+    // ── Helper: derive phase string from pipeline steps ──
+    auto derivePhase = [](const QVariantList& steps) -> QString {
+        bool allDone = true, anyActive = false, anyFailed = false;
+        QString activeName;
+        for (const QVariant& vs : steps) {
+            QVariantMap s = vs.toMap();
+            QString st = s.value("status").toString();
+            if (st == "active") { if (!anyActive) activeName = s.value("name").toString(); anyActive = true; allDone = false; }
+            else if (st == "pending" || st == "skipped") { allDone = false; }
+            else if (st == "failed") { anyFailed = true; }
+        }
+        if (anyFailed) return QStringLiteral("失败");
+        else if (allDone) return QStringLiteral("已完成");
+        else if (anyActive) return activeName;
+        return QString();
+    };
+
     // Merged installs: in-place update with m_dlStates network speed
     if (ds->isMerged()) {
         int mrow = m_installCardsModel->findRowByIid(installId);
@@ -7288,6 +7341,8 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             QString effectiveName = name.isEmpty() ? installId : name;
             QString effectiveType = type.isEmpty() ? QStringLiteral("mod_loader") : type;
             InstallCard mergedCard = ds->toCard(installId, effectiveName, effectiveType);
+            // Override steps with pipeline data (more up-to-date)
+            mergedCard.steps = buildPipelineSteps(ds);
             mergedCard.type = effectiveType;
             qint64 ts = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
@@ -7298,9 +7353,36 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
                 ts += ds->fabSpeed;
             mergedCard.speed = ts;
             mergedCard.progress = qBound(0.0, ds->smoothProgress, 1.0);
+            mergedCard.phase = derivePhase(mergedCard.steps);
             m_installCardsModel->appendRow(mergedCard);
         } else {
-            // Existing merged card: only progress+speed change → targeted update
+            // Existing merged card: update steps from pipeline + progress/speed
+            QVariantList pipelineSteps = buildPipelineSteps(ds);
+            const InstallCard* existing = m_installCardsModel->cardAt(mrow);
+            bool stepsChanged = false;
+            if (existing) {
+                stepsChanged = (existing->steps.size() != pipelineSteps.size());
+                if (!stepsChanged) {
+                    for (int i = 0; i < pipelineSteps.size(); ++i) {
+                        QVariantMap oldS = existing->steps[i].toMap();
+                        QVariantMap newS = pipelineSteps[i].toMap();
+                        if (oldS.value("status") != newS.value("status") ||
+                            oldS.value("percentage").toInt() != newS.value("percentage").toInt() ||
+                            oldS.value("show").toBool() != newS.value("show").toBool()) {
+                            stepsChanged = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (stepsChanged) {
+                m_installCardsModel->updateStepList(mrow, pipelineSteps);
+                // Update phase from new steps
+                QString newPhase = derivePhase(pipelineSteps);
+                if (!newPhase.isEmpty() && existing && existing->phase != newPhase)
+                    m_installCardsModel->updatePhase(mrow, newPhase);
+            }
+
             qreal p = qBound(0.0, ds->smoothProgress, 1.0);
             qint64 s = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
@@ -7327,15 +7409,17 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         return;
     }
 
-    // ── Existing card: detect if steps changed since last update ──
+    QVariantList pipelineSteps = buildPipelineSteps(ds);
+
+    // 检查步骤是否与 card 中一致 (检测变化)
     const InstallCard* existing = m_installCardsModel->cardAt(row);
     bool stepsChanged = false;
     if (existing) {
-        stepsChanged = (existing->steps.size() != ds->steps.size());
+        stepsChanged = (existing->steps.size() != pipelineSteps.size());
         if (!stepsChanged) {
-            for (int i = 0; i < ds->steps.size(); ++i) {
+            for (int i = 0; i < pipelineSteps.size(); ++i) {
                 QVariantMap oldS = existing->steps[i].toMap();
-                QVariantMap newS = ds->steps[i].toMap();
+                QVariantMap newS = pipelineSteps[i].toMap();
                 if (oldS.value("status") != newS.value("status") ||
                     oldS.value("percentage").toInt() != newS.value("percentage").toInt() ||
                     oldS.value("show").toBool() != newS.value("show").toBool()) {
@@ -7348,63 +7432,54 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
         stepsChanged = true;
     }
 
-    // ── Fast path: only progress & speed changed, steps/phase/name unchanged ──
-    // This is the 99% case during active download — avoids QML binding re-eval for all roles.
-    if (!stepsChanged && !ds->isFailed() && ds->smoothProgress < 1.0) {
-        qreal newP = qBound(0.0, ds->smoothProgress, 1.0);
-        qint64 newS = 0;
-        if (!ds->isMerged() && m_dlStates.contains(installId))
-            newS = m_dlStates[installId].speed;
-        m_installCardsModel->updateProgressAndSpeed(row, newP, newS);
-        return;
-    }
+    // ── 用 pipeline 数据更新 card 的 steps ──
+    // (无信号发射, QML 端通过 Timer+_stepsJson 控制 Repeater 重建)
+    m_installCardsModel->updateStepList(row, pipelineSteps);
 
-    // ── Slow path: steps/status changed ──
-    // 1. 原地更新 steps (保持 QVariantList 身份 → Repeater 不重建)
-    m_installCardsModel->updateStepList(row, ds->steps);
+    // ── 从 pipeline 推导 phase ──
+    QString newPhase = derivePhase(pipelineSteps);
 
-    // 2. 推导 phase
-    QString newPhase;
-    {
-        bool allDone = true, anyActive = false, anyFailed = false;
-        for (const QVariant& vs : ds->steps) {
-            QVariantMap s = vs.toMap();
-            QString st = s.value("status").toString();
-            if (st == "active") { if (!anyActive) newPhase = s.value("name").toString(); anyActive = true; allDone = false; }
-            else if (st == "pending" || st == "skipped") { allDone = false; }
-            else if (st == "failed") { anyFailed = true; }
-        }
-        if (anyFailed) newPhase = QStringLiteral("失败");
-        else if (allDone) newPhase = ds->steps.last().toMap().value("name").toString() + QStringLiteral(" - 完成");
-    }
+    // 更新 progress + speed (每 200ms 都会跑, cheap)
+    qreal newP = qBound(0.0, ds->smoothProgress, 1.0);
+    qint64 newS = 0;
+    if (!ds->isMerged() && m_dlStates.contains(installId))
+        newS = m_dlStates[installId].speed;
+    m_installCardsModel->updateProgressAndSpeed(row, newP, newS);
 
-    // 3. 检查是否有步骤以外的字段需要更新 (phase / failed / completed)
+    // 更新 phase / failed / completed
     const InstallCard* cur = m_installCardsModel->cardAt(row);
-    bool needFull = false;
+    InstallCard patch;
+    bool needPatch = false;
 
     if (cur) {
-        // Phase changed?
-        if (!newPhase.isEmpty() && cur->phase != newPhase) needFull = true;
-        // Failed?
-        if (ds->isFailed() && !cur->failed) needFull = true;
-        // Completed? (progress hit 1.0)
-        if (ds->smoothProgress >= 1.0 && cur->progress < 1.0) needFull = true;
-    }
-
-    if (needFull) {
-        // 仅当有 steps 以外的变更时走完整 updateRow
-        // (失败/完成只触发一次，开销可接受)
-        InstallCard patch = *cur;
-        if (!newPhase.isEmpty()) patch.phase = newPhase;
-        if (ds->isFailed()) {
+        if (!newPhase.isEmpty() && cur->phase != newPhase) {
+            patch.phase = newPhase;
+            needPatch = true;
+        }
+        if (ds->isFailed() && !cur->failed) {
             patch.failed = true;
             patch.error = ds->errorMessage();
             patch.canCancel = false;
+            needPatch = true;
         }
-        if (ds->smoothProgress >= 1.0) patch.canCancel = false;
-        m_installCardsModel->updateRow(row, patch);
+        if (ds->smoothProgress >= 1.0 && cur->progress < 1.0) {
+            patch.canCancel = false;
+            needPatch = true;
+        }
     }
-    // else: 仅 steps 变化 → updateStepList 已处理
+
+    if (needPatch) {
+        InstallCard fullPatch = *cur;
+        if (!patch.phase.isEmpty()) fullPatch.phase = patch.phase;
+        if (patch.failed) {
+            fullPatch.failed = true;
+            fullPatch.error = patch.error;
+            fullPatch.canCancel = false;
+        }
+        if (patch.canCancel == false && cur->canCancel != false)
+            fullPatch.canCancel = false;
+        m_installCardsModel->updateRow(row, fullPatch);
+    }
 
 }
 
@@ -7822,21 +7897,10 @@ QHash<int, QByteArray> InstallCardModel::roleNames() const {
 
 void InstallCardModel::updateProgressAndSpeed(int row, qreal progress, qint64 speed) {
     if (row < 0 || row >= m_cards.size()) return;
-
-    bool pc = !qFuzzyCompare(m_cards[row].progress, progress);
-    bool sc = (m_cards[row].speed != speed);
-
-    if (!pc && !sc) return;  // 无变化，跳过 (避免无意义的 QML 绑定重新评估)
-
-    if (pc) m_cards[row].progress = progress;
-    if (sc) m_cards[row].speed = speed;
-
-    QVector<int> roles;
-    if (pc) roles << ProgressRole;
-    if (sc) roles << SpeedRole;
-
-    QModelIndex idx = index(row);
-    emit dataChanged(idx, idx, roles);
+    // Poll 模式下只更新内部字段，不发射 dataChanged
+    // QML 端通过 Timer 轮询 cardData() 获取最新值
+    m_cards[row].progress = progress;
+    m_cards[row].speed = speed;
 }
 
 const InstallCard* InstallCardModel::cardAt(int row) const {
@@ -7845,17 +7909,9 @@ const InstallCard* InstallCardModel::cardAt(int row) const {
 }
 
 void InstallCardModel::updateRow(int row, const InstallCard& card) {
-
     if (row < 0 || row >= m_cards.size()) return;
-
+    // Poll 模式：只更新字段，不发射 dataChanged
     m_cards[row] = card;
-
-    QModelIndex idx = index(row);
-
-    emit dataChanged(idx, idx);
-
-    emit cardUpdated(row);
-
 }
 
 // ── 原地更新步骤列表，保持 QVariantList 身份不变 ──
@@ -7863,59 +7919,17 @@ void InstallCardModel::updateRow(int row, const InstallCard& card) {
 // 返回是否实际修改了任何字段
 bool InstallCardModel::updateStepList(int row, const QVariantList& newSteps) {
     if (row < 0 || row >= m_cards.size()) return false;
-
-    QVariantList& steps = m_cards[row].steps;
-
-    // 大小不同 → 必须整体替换 (同时需要 full dataChanged)
-    if (steps.size() != newSteps.size()) {
-        steps = newSteps;
-        QModelIndex idx = index(row);
-        emit dataChanged(idx, idx, {StepsRole});
-        return true;
-    }
-
-    // 大小相同 → 逐字段比较，仅改变动的
-    bool changed = false;
-    for (int i = 0; i < steps.size(); ++i) {
-        QVariantMap oldMap = steps[i].toMap();
-        const QVariantMap newMap = newSteps[i].toMap();
-
-        bool itemChanged = false;
-
-        auto maybeSet = [&](const char* key, const QVariant& newVal) {
-            if (oldMap.value(key) != newVal) {
-                oldMap[key] = newVal;
-                itemChanged = true;
-            }
-        };
-        maybeSet("status", newMap.value("status"));
-        maybeSet("percentage", newMap.value("percentage"));
-        maybeSet("show", newMap.value("show"));
-        maybeSet("bytesReceived", newMap.value("bytesReceived"));
-        maybeSet("bytesTotal", newMap.value("bytesTotal"));
-
-        if (itemChanged) {
-            steps[i] = oldMap;
-            changed = true;
-        }
-    }
-
-    // 只发 StepsRole —— QML 仅重新评估 model.steps 绑定
-    // 因为 QVariantList 身份未变，Repeater 不会重建
-    if (changed) {
-        QModelIndex idx = index(row);
-        emit dataChanged(idx, idx, {StepsRole});
-    }
-
-    return changed;
+    // Poll 模式：整体替换 steps，不发射 dataChanged
+    // QML 端通过 cardData() 获取最新值，步骤 Repeater 会重建
+    // （步骤变化频率低，重建开销可接受）
+    m_cards[row].steps = newSteps;
+    return true;
 }
 
 void InstallCardModel::updatePhase(int row, const QString& phase) {
     if (row < 0 || row >= m_cards.size()) return;
-    if (m_cards[row].phase == phase) return;
+    // Poll 模式：只写字段，不发射 dataChanged
     m_cards[row].phase = phase;
-    QModelIndex idx = index(row);
-    emit dataChanged(idx, idx, {PhaseRole});
 }
 
 QVariantList InstallCardModel::stepsAt(int row) const {
@@ -7966,15 +7980,31 @@ void InstallCardModel::removeRow(int row) {
 
 
 int InstallCardModel::findRowByIid(const QString& iid) const {
-
     for (int i = 0; i < m_cards.size(); ++i) {
-
         if (m_cards[i].iid == iid) return i;
-
     }
-
     return -1;
+}
 
+QVariantMap InstallCardModel::cardData(int row) const {
+    QVariantMap map;
+    if (row < 0 || row >= m_cards.size()) return map;
+    const auto& c = m_cards[row];
+    map["iid"] = c.iid;
+    map["name"] = c.name;
+    map["type"] = c.type;
+    map["progress"] = c.progress;
+    map["speed"] = static_cast<qint64>(c.speed);
+    map["phase"] = c.phase;
+    map["remaining"] = c.remaining;
+    map["steps"] = c.steps;
+    map["failed"] = c.failed;
+    map["error"] = c.error;
+    map["totalProgressVisible"] = c.totalProgressVisible;
+    map["hasUserDataImport"] = c.hasUserDataImport;
+    map["canCancel"] = c.canCancel;
+    map["importFailedAtMs"] = c.importFailedAtMs;
+    return map;
 }
 
 
@@ -7995,36 +8025,16 @@ void InstallCardModel::rebuild(const QVector<InstallCard>& cards) {
 
 
 
-    // Same size: update in-place (dataChanged) — preserves delegates & animations
-
-    // Different size: full reset (beginResetModel/endResetModel)
-
+    // Poll 模式：同尺寸原地更新字段（不发 dataChanged，QML 靠 Timer 轮询）
+    // 不同尺寸：full reset（必须，否则 ListView 计数不同步）
     if (cards.size() == m_cards.size()) {
-
         for (int i = 0; i < cards.size(); ++i) {
-
             m_cards[i] = cards[i];
-
         }
-
-        if (!cards.isEmpty()) {
-
-            QModelIndex topLeft = index(0);
-
-            QModelIndex bottomRight = index(cards.size() - 1);
-
-            emit dataChanged(topLeft, bottomRight);
-
-        }
-
     } else {
-
         beginResetModel();
-
         m_cards = cards;
-
         endResetModel();
-
     }
 
 

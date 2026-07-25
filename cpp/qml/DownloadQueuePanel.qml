@@ -128,6 +128,7 @@ Rectangle {
             delegate: DownloadQueueCard {
                 width: cardsView.width - 8
                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                cardModel: cardsView.model
             }
 
             // ── 空状态 ──
