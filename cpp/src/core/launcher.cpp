@@ -1050,7 +1050,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             if (!forgeGroup.isEmpty() && !forgeVersion.isEmpty() && !mcVersion.isEmpty()) {
                 QString universalMod = forgeGroup + QStringLiteral(":forge:universal:")
                                      + mcVersion + QStringLiteral("-") + forgeVersion;
-                gameArgs.prepend(QStringLiteral("libraries"));
+                // Absolute path: --mavenRoots resolves relative to --gameDir,
+                // but our gameDir is the version subdirectory → relative path would be wrong.
+                QString absLibDir = QDir::toNativeSeparators(m_gameDir + QStringLiteral("/libraries"));
+                gameArgs.prepend(absLibDir);
                 gameArgs.prepend(QStringLiteral("--mavenRoots"));
                 gameArgs.prepend(universalMod);
                 gameArgs.prepend(QStringLiteral("--mods"));
