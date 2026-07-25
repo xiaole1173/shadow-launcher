@@ -5902,18 +5902,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
 
         QString verArg = mcVersion + "-" + loaderVersion;
-        // Pre-1.13 forge uses "mc-forge-mc" naming in Maven (e.g. 1.7.10-10.13.4.1614-1.7.10)
-        // Post-1.13 uses "mc-forge" (e.g. 1.20.1-47.3.0)
+        // Only 1.7.10 and 1.8.9 use "mc-forge-mc" naming in Maven
+        // All other versions (1.5.2, 1.6.4, 1.8-1.8.8, 1.9.4+, 1.10.2+) use "mc-forge"
         QString forgeMavenVer;
-        {
-            auto parts = mcVersion.split('.');
-            int major = parts.value(0).toInt();
-            int minor = parts.value(1).toInt();
-            if (major < 1 || (major == 1 && minor <= 12)) {
-                forgeMavenVer = verArg + "-" + mcVersion;
-            } else {
-                forgeMavenVer = verArg;
-            }
+        if (mcVersion == QStringLiteral("1.7.10") || mcVersion == QStringLiteral("1.8.9")) {
+            forgeMavenVer = verArg + "-" + mcVersion;
+        } else {
+            forgeMavenVer = verArg;
         }
 
         QString loaderDlUrl;
@@ -6317,11 +6312,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         if (loaderType == "forge") {
 
-            // Pre-1.13 forge uses "mc-forge-mc" naming in Maven
-            auto parts = mcVersion.split('.');
-            int major = parts.value(0).toInt();
-            int minor = parts.value(1).toInt();
-            QString dv = (major < 1 || (major == 1 && minor <= 12))
+            // Only 1.7.10 and 1.8.9 use "mc-forge-mc" naming in Maven
+            QString dv = (mcVersion == QStringLiteral("1.7.10") || mcVersion == QStringLiteral("1.8.9"))
                 ? verArg + "-" + mcVersion : verArg;
             loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
 
