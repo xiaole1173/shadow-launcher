@@ -269,6 +269,8 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
 }
 
 // ── Begin token refresh attempt (with retry support) ──
+// Uses Qt::SingleShotConnection (Qt 6.0+) — connections auto-disconnect after first fire,
+// eliminating the need for heap-allocated connection handles and refreshHandled guards.
 void LaunchBackend::beginTokenRefreshAttempt()
 {
     if (m_cancelled || !m_account) {
@@ -276,17 +278,15 @@ void LaunchBackend::beginTokenRefreshAttempt()
         return;
     }
 
-    // Clean up old timeout connection
+    // Clean up previous attempt's connections
     m_refreshTimeoutTimer->stop();
-    m_refreshTimeoutTimer->start(12000);
-    disconnect(m_refreshTimeoutTimer, &QTimer::timeout, nullptr, nullptr);
-
-    // Disconnect any lingering token signal connections from previous attempts
-    // This prevents duplicate connections from accumulating across retries
+    disconnect(m_refreshTimeoutTimer, &QTimer::timeout, this, nullptr);
     disconnect(m_account, &AccountBackend::tokenRefreshed, this, nullptr);
     disconnect(m_account, &AccountBackend::tokenRefreshFailed, this, nullptr);
 
-    int attempt = m_refreshRetryCount + 1;  // 1-based for display
+    m_refreshTimeoutTimer->start(12000);
+
+    // Timeout handler
     connect(m_refreshTimeoutTimer, &QTimer::timeout, this, [this]() {
         if (m_cancelled) return;
         qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token刷新超时 重试次数=%1").arg(m_refreshRetryCount);
@@ -307,43 +307,32 @@ void LaunchBackend::beginTokenRefreshAttempt()
         abortCheck(tr("登录状态"), tr("网络超时，无法验证正版登录状态"));
     });
 
-    // Shared guard: prevent double-processing when both signals fire
-    auto* refreshHandled = new bool(false);
-
     // Connection 1: tokenRefreshed — handle success only
-    QMetaObject::Connection* connOk = new QMetaObject::Connection();
-    *connOk = connect(m_account, &AccountBackend::tokenRefreshed, this,
-        [this, connOk, refreshHandled](bool ok) {
-            disconnect(*connOk);
-            delete connOk;
-            if (!ok) return;  // tokenRefreshFailed will handle the decision
-            if (*refreshHandled) { delete refreshHandled; return; } *refreshHandled = true;
+    // When ok=false, tokenRefreshFailed will fire right after, so just ignore here
+    connect(m_account, &AccountBackend::tokenRefreshed, this,
+        [this](bool ok) {
+            if (!ok) return;  // tokenRefreshFailed handles the failure
 
-            if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
+            m_refreshTimeoutTimer->stop();
+            disconnect(m_account, &AccountBackend::tokenRefreshFailed, this, nullptr);
+
             qCInfo(logLaunch) << QStringLiteral("[启动前检查] Token刷新成功");
             m_authToken = m_account->mcToken();
 
-            // Progress feedback
             emit launchCheckProgress(tr("正版授权验证通过"));
             emit launchProgressChanged(9, tr("正版授权验证通过"));
             emit logMessage(tr("正版令牌验证通过"));
-            delete refreshHandled;
 
             if (m_checkTimer && !m_checkTimer->isActive()) {
                 m_checkStep++;
                 m_checkTimer->start();
             }
-        });
+        }, Qt::SingleShotConnection);
 
     // Connection 2: tokenRefreshFailed — decide retry vs abort vs proceed
-    QMetaObject::Connection* connFail = new QMetaObject::Connection();
-    *connFail = connect(m_account, &AccountBackend::tokenRefreshFailed, this,
-        [this, connFail, refreshHandled](bool tokenExpired, const QString& reason) {
-            disconnect(*connFail);
-            delete connFail;
-            if (*refreshHandled) { delete refreshHandled; return; } *refreshHandled = true;
-            if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
-            delete refreshHandled;
+    connect(m_account, &AccountBackend::tokenRefreshFailed, this,
+        [this](bool tokenExpired, const QString& reason) {
+            m_refreshTimeoutTimer->stop();
 
             if (tokenExpired) {
                 qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token已过期 阻止启动");
@@ -351,7 +340,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
                 return;
             }
 
-            // Transient error — retry up to 3 times total (current attempt + 2 retries)
+            // Transient error — retry up to 3 times total
             if (m_refreshRetryCount < 2) {
                 m_refreshRetryCount++;
                 emit logMessage(tr("令牌刷新失败(%1)，正在重试(%2/3)...").arg(reason).arg(m_refreshRetryCount));
@@ -363,7 +352,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
                 return;
             }
 
-            // Max retries reached — proceed with cached token (MC may still accept it)
+            // Max retries reached — proceed with cached token
             qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token刷新重试耗尽 使用缓存Token继续 原因=%1").arg(reason);
             emit logMessage(tr("令牌刷新失败(%1)，重试耗尽，使用本地令牌继续").arg(reason));
             emit launchCheckProgress(tr("令牌刷新失败，使用本地令牌继续"));
@@ -373,7 +362,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
                 m_checkStep++;
                 m_checkTimer->start();
             }
-        });
+        }, Qt::SingleShotConnection);
 
     // Show attempt progress
     if (m_refreshRetryCount > 0) {
