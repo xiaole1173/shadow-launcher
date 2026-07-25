@@ -1073,10 +1073,12 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                 // Absolute path: --mavenRoots resolves relative to --gameDir,
                 // but our gameDir is the version subdirectory → relative path would be wrong.
                 QString absLibDir = QDir::toNativeSeparators(m_gameDir + QStringLiteral("/libraries"));
-                gameArgs.prepend(absLibDir);
-                gameArgs.prepend(QStringLiteral("--mavenRoots"));
-                gameArgs.prepend(universalMod);
-                gameArgs.prepend(QStringLiteral("--mods"));
+                    // Must be AFTER --launchTarget & --fml.* args (主流启动器 order).
+                // prepend was putting them first → ModLauncher ignores them.
+                gameArgs.append(QStringLiteral("--mods"));
+                gameArgs.append(universalMod);
+                gameArgs.append(QStringLiteral("--mavenRoots"));
+                gameArgs.append(absLibDir);
                 qCInfo(logLaunch) << "[ForgeCompat] Injected --mods --mavenRoots:" << universalMod;
             }
         }
