@@ -782,19 +782,6 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << arg;
     }
 
-    // ── Forge 1.16.x patch: disable early progress window ──
-    // 1.16.x 的 Forge 会在游戏主窗口出现前弹出一个灰色加载窗口，
-    // 该窗口可能抢占焦点导致"双窗口"问题或窗口置顶异常
-    // 参考: 主流启动器 McLaunch -Dfml.earlyprogresswindow=false
-    if (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge"))) {
-        // Check if the MC version in the chain is 1.16.x
-        bool isMc116 = versionId.contains(QStringLiteral("1.16"));
-        if (isMc116) {
-            args << QStringLiteral("-Dfml.earlyprogresswindow=false");
-            qCInfo(logLaunch) << "[Forge 1.16] 已注入 -Dfml.earlyprogresswindow=false";
-        }
-    }
-
     // Always apply default optimized flags (non-GC)
     for (const char* arg : DEFAULT_JVM_ARGS) {
         args << QString::fromLatin1(arg);
