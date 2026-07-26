@@ -1086,16 +1086,15 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     qCInfo(logLoader) << QStringLiteral("=== Forge install_profile 分析: spec=%1 processors=%2 install=%3 json=%4 ===")
         .arg(spec).arg(procCount).arg(hasInstall).arg(hasJson);
 
-    // Branch 0: NeoForge — use bootstrapper if processors or spec>=1 exist
+    // Branch 0: NeoForge — always use installNeoForge (LZMA + version.json extraction)
+    // Bootstrapper (主流启动器's ForgeInstaller) does NOT run the binary patcher processor
+    // → no SRG'd merged MC+NeoForge client JAR produced
+    // → FMLLoader fails validation with "The patched Minecraft jar is missing"
+    // NeoForge installer always has `data/client.lzma` or `*-main.jar` regardless of spec>=1
     if (m_loaderType == QStringLiteral("neoforge")) {
         reader.close();
-        if (procCount > 0 || spec >= 1) {
-            qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（NeoForge 有 processors/spec>=1）");
-            runBootstrapperProcess(jarData);
-        } else {
-            qCInfo(logLoader) << QStringLiteral("→ 走 NeoForge 统一路径 (version.json + LZMA + libraries)");
-            installNeoForge(jarData, profileObj);
-        }
+        qCInfo(logLoader) << QStringLiteral("→ 走 NeoForge 统一路径 (version.json + LZMA + libraries)");
+        installNeoForge(jarData, profileObj);
         return;
     }
 
