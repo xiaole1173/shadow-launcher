@@ -2596,6 +2596,25 @@ void ModLoaderInstaller::finalizeNeoForge(const QByteArray& jarData, const QJson
     json[QStringLiteral("id")] = m_installName;
     QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
     QDir().mkpath(verDir);
+
+    // ── Flatten inheritsFrom 链，使版本独立（移除对原版父版本的依赖）──
+    // 合并父版本的 libraries/arguments/javaVersion/assetIndex/downloads 等字段
+    // 使得原版版本文件夹之后可安全清理
+    if (json.contains(QStringLiteral("inheritsFrom"))) {
+        // 先拷贝 vanilla client JAR 作为 fallback（后续会被 LZMA 解压结果覆盖）
+        // 使用 findVersionDir 避免目录名和版本 ID 不一致的问题（如 "26.2" vs "1.21.5"）
+        QString mcVerDir = findVersionDir(m_mcVersion);
+        QString dstJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+        if (!mcVerDir.isEmpty() && !QFile::exists(dstJar)) {
+            QString srcJar = mcVerDir + QStringLiteral("/") + QDir(mcVerDir).dirName() + QStringLiteral(".jar");
+            if (QFile::exists(srcJar))
+                QFile::copy(srcJar, dstJar);
+        }
+        json = flattenVersionJson(m_gameDir, json);
+        qCInfo(logLoader) << QStringLiteral("NeoForge JSON 已压平为独立版本（inheritsFrom 已消解）");
+    }
+
+    // ── 写入 JSON ──
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile f(jsonPath);
     if (f.open(QIODevice::WriteOnly)) {
@@ -2604,8 +2623,10 @@ void ModLoaderInstaller::finalizeNeoForge(const QByteArray& jarData, const QJson
     }
     qCInfo(logLoader) << QStringLiteral("NeoForge 版本 JSON 已写入: %1").arg(jsonPath);
 
+    // ── 写入客户端 JAR ──
+    QString clientPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
     if (!clientJarBytes.isEmpty()) {
-        QString clientPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+        // LZMA 解压成功 → 写入 NeoForge remapped 客户端 JAR（覆盖 flatten 阶段的 vanilla 副本）
         QFile cf(clientPath);
         if (cf.open(QIODevice::WriteOnly)) {
             cf.write(clientJarBytes);
@@ -2613,8 +2634,12 @@ void ModLoaderInstaller::finalizeNeoForge(const QByteArray& jarData, const QJson
             qCInfo(logLoader) << QStringLiteral("NeoForge client JAR 已写入: %1（%2 字节）")
                 .arg(clientPath).arg(clientJarBytes.size());
         }
+    } else if (QFile::exists(clientPath)) {
+        // LZMA 解压失败，但 flatten 阶段已复制 vanilla client JAR 作为保底
+        qCInfo(logLoader) << QStringLiteral("NeoForge 使用 vanilla client JAR 作为 fallback: %1").arg(clientPath);
     } else {
-        qCWarning(logLoader) << QStringLiteral("NeoForge 安装程序中未找到 client JAR");
+        // 无 LZMA 解压结果也无 vanilla 副本（理论上不应发生，因 flatten 覆盖所有现代 NeoForge）
+        qCWarning(logLoader) << QStringLiteral("NeoForge 安装程序中未找到 client JAR，跳过 JAR 写入");
     }
 
     qCInfo(logLoader) << QStringLiteral("NeoForge 安装完成: %1").arg(m_installName);
@@ -2650,9 +2675,10 @@ static QByteArray decompressLzma(const QByteArray& compressed)
 
     // Try 1: LZMA_FINISH_END with specified uncompSize
     // If uncompSize is valid (not -1) and reasonable (< 1GB), use it as output buffer
+    // For NeoForge client.lzma (uncompSize=-1), use 40x to handle ~80MB decompressed JARs
     size_t outLen = (uncompSize != (UInt64)-1 && uncompSize < 1024 * 1024 * 1024)
         ? (size_t)uncompSize
-        : (size_t)compressed.size() * 10;  // generous fallback
+        : (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
 
     QByteArray result((int)outLen, Qt::Uninitialized);
     ELzmaStatus status;
@@ -2669,7 +2695,8 @@ static QByteArray decompressLzma(const QByteArray& compressed)
     // Try 2: LZMA_FINISH_ANY with generous buffer (in case end marker is missing)
     if (res != SZ_OK) {
         qCWarning(logLoader) << QStringLiteral("LZMA_FINISH_END 失败(rc=%1)，尝试 LZMA_FINISH_ANY...").arg(static_cast<int>(res));
-        size_t bigLen = (size_t)qMax((qint64)compressed.size() * 20, (qint64)100 * 1024 * 1024);
+        // Use huge 200MB buffer — NeoForge remapped client JARs can be 70-100MB
+        size_t bigLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
         result.resize((int)bigLen);
         size_t retrySrcLen = (size_t)(compressed.size() - 13);
         size_t retryOutLen = bigLen;

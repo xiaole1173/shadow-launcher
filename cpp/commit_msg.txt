@@ -1,0 +1,7 @@
+fix(forge): 从 install_profile.json 提取准确的 Maven 版本号下载 client_mappings
+
+Forge bootstrapper 的 ChainMappings 需要 client_mappings 文件用于 JAR 反混淆：
+- Maven 版本号（如 1.18.2-20220404.173914）直接写在安装器 JAR 的 install_profile.json 中
+- 之前用版本 JSON 的 "time" 字段推导，某些版本（1.18.2）时间戳不匹配
+- 现在直接解析 install_profile.json 的 data.MOJMAPS.client / data.MAPPINGS.client 条目
+- 提取准确版本号构造下载路径，覆盖所有 Forge/NeoForge 安装路径
