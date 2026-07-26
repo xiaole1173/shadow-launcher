@@ -974,16 +974,16 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
                 .value(QStringLiteral("client_mappings")).toObject();
             QString cmUrl = cm.value(QStringLiteral("url")).toString();
             if (!cmUrl.isEmpty()) {
+                // Forge bootstrapper uses version JSON "time" (last-modified),
+                // NOT "releaseTime" from the version manifest.
                 QString mavenVer = m_mcVersion;
-                if (m_forgeMcReleaseTime.isValid()) {
+                QString timeStr = vd.object().value(QStringLiteral("time")).toString();
+                QDateTime verTime = QDateTime::fromString(timeStr, Qt::ISODate);
+                if (verTime.isValid()) {
                     mavenVer = m_mcVersion + QStringLiteral("-")
-                        + m_forgeMcReleaseTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
-                } else {
-                    // Without releaseTime we can't build the Maven timestamp path;
-                    // downloading to the wrong path would waste bandwidth.
-                    qCWarning(logLoader) << QStringLiteral("缺少 MC releaseTime，无法下载 client_mappings");
+                        + verTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
                 }
-                if (m_forgeMcReleaseTime.isValid()) {
+                if (verTime.isValid()) {
                     const QString savePath = m_gameDir
                         + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
                         + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
