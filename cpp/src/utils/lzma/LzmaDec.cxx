@@ -192,7 +192,8 @@ static void Lzma_Init(CLzmaDecoder *p)
     p->prevByte  = 0;
     p->matchByte = 0;
     p->repDists[0] = p->repDists[1] = p->repDists[2] = p->repDists[3] = 0;
-    memset(p->probs, 1024, sizeof(p->probs));
+    for (size_t i = 0; i < sizeof(p->probs) / sizeof(UInt32); i++)
+        p->probs[i] = 1024;
 }
 
 static UInt32 *Lzma_LiteralProbs(CLzmaDecoder *p)
@@ -218,8 +219,16 @@ static SRes Lzma_DecodeReal(CLzmaDecoder *p, Byte *dest, size_t *destLen,
 
     CLenDecoder   lenDecoder;
     CDistDecoder  distDecoder;
-    memset(&lenDecoder,  1024, sizeof(lenDecoder));
-    memset(&distDecoder, 1024, sizeof(distDecoder));
+    {
+        UInt32 *lp = (UInt32*)&lenDecoder;
+        for (size_t i = 0; i < sizeof(lenDecoder) / sizeof(UInt32); i++)
+            lp[i] = 1024;
+    }
+    {
+        UInt32 *dp = (UInt32*)&distDecoder;
+        for (size_t i = 0; i < sizeof(distDecoder) / sizeof(UInt32); i++)
+            dp[i] = 1024;
+    }
 
     while (destPos < destSize)
     {
