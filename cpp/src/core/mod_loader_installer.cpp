@@ -2108,10 +2108,43 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     if (jdoc.isObject()) {
                         QJsonObject jObj = jdoc.object();
                         QJsonObject flattened = flattenVersionJson(m_gameDir, jObj);
+
+                        // The launcher needs the vanilla MC client on classpath.
+                        // If flatten was incomplete (parent JSON missing → inheritsFrom
+                        // persists), or even if it succeeded but the MC client isn't in
+                        // the merged libs, we inject it manually.
+                        // This prevents "The patched Minecraft jar is missing".
+                        // If flatten couldn't resolve inheritsFrom (parent JSON missing),
+                        // remove it manually since we inject MC client as a library instead.
+                        bool inheritsLeft = flattened.contains(QStringLiteral("inheritsFrom"));
+                        if (inheritsLeft)
+                            flattened.remove(QStringLiteral("inheritsFrom"));
+
+                        QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
+                        QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
+                        bool hasMcClient = false;
+                        for (const auto& lib : mergedLibs) {
+                            if (lib.toObject().value(QStringLiteral("name")).toString() == mcClientName) {
+                                hasMcClient = true;
+                                break;
+                            }
+                        }
+                        if (!hasMcClient) {
+                            QJsonObject mcClient;
+                            mcClient[QStringLiteral("name")] = mcClientName;
+                            QJsonObject downloads;
+                            QJsonObject artifact;
+                            artifact[QStringLiteral("path")] = QStringLiteral("net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+                            downloads[QStringLiteral("artifact")] = artifact;
+                            mcClient[QStringLiteral("downloads")] = downloads;
+                            mergedLibs.append(mcClient);
+                            flattened[QStringLiteral("libraries")] = mergedLibs;
+                        }
+
                         if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
                             jf.write(QJsonDocument(flattened).toJson(QJsonDocument::Indented));
                             jf.close();
-                            if (!jObj.contains(QStringLiteral("inheritsFrom")) ||
+                            if (inheritsLeft || !jObj.contains(QStringLiteral("inheritsFrom")) ||
                                 jObj.value(QStringLiteral("inheritsFrom")).toString() != QString()) {
                                 qCInfo(logLoader) << QStringLiteral("版本 JSON 已压平为独立版本，inheritsFrom 已消解");
                             }
