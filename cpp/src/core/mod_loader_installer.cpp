@@ -1529,10 +1529,12 @@ static int minJavaForMcInstaller(const QString& mcVersion) {
 
 
 void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
-    emit progressChanged(3, m_totalSteps, QStringLiteral("正在通过 Bootstrapper 安装..."));
+    const bool isNeoForge = (m_loaderType == QStringLiteral("neoforge"));
+    emit progressChanged(3, m_totalSteps,
+        isNeoForge ? QStringLiteral("正在通过 Java 直接安装 NeoForge...")
+                   : QStringLiteral("正在通过 Bootstrapper 安装..."));
 
     // 1. Find Java — minimum version depends on MC version
-    //    MC 1.18+ Forge installers need Java 17+ for their post-processors (FART, srgutils)
     int minJava = minJavaForMcInstaller(m_mcVersion);
     QString javaPath = findJavaPath(minJava);
     if (javaPath.isEmpty()) {
@@ -1541,20 +1543,35 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         return;
     }
 
-    // 2. Extract bootstrapper JAR
-    QString bootstrapperJar = extractBootstrapperPath();
-    if (bootstrapperJar.isEmpty()) {
-        emit finished(false, "无法释放 Forge Bootstrapper");
-        m_running = false;
-        return;
+    // 2. Extract bootstrapper JAR (Forge only; NeoForge runs installer directly)
+    QString bootstrapperJar;
+    if (!isNeoForge) {
+        bootstrapperJar = extractBootstrapperPath();
+        if (bootstrapperJar.isEmpty()) {
+            emit finished(false, "无法释放 Forge Bootstrapper");
+            m_running = false;
+            return;
+        }
     }
 
-    // installerJarPath is set below after patching install_profile.json
+    // installerJarPath — temp file for the Java subprocess to run
     QString installerJarPath;
 
-    // 3. Read installer JAR entries, patch install_profile.json to add --skipIfExists
-    //    to the DOWNLOAD_MOJMAPS processor, then write the modified JAR to temp.
-    {
+    if (isNeoForge) {
+        // NeoForge: write original JAR to temp as-is (no patching needed; --installClient handles everything)
+        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        installerJarPath = tempDir + QStringLiteral("/neoforge-installer-") + m_installName + QStringLiteral(".jar");
+        {
+            QFile f(installerJarPath);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(jarData);
+                f.close();
+            }
+        }
+        qCInfo(logLoader) << QStringLiteral("已写入 NeoForge 安装程序: %1").arg(installerJarPath);
+    } else {
+        // Forge: patch install_profile.json to add --skipIfExists to DOWNLOAD_MOJMAPS,
+        // then write the modified JAR to temp (stripping invalidated signatures).
         QBuffer buf;
         buf.setData(jarData);
         if (!buf.open(QIODevice::ReadOnly)) {
@@ -1564,7 +1581,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         QZipReader reader(&buf);
         QList<QZipReader::FileInfo> entries = reader.fileInfoList();
 
-        // Read install_profile.json and patch processor[3] (DOWNLOAD_MOJMAPS)
+        // Read install_profile.json and patch DOWNLOAD_MOJMAPS processor
         QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
         if (!profData.isEmpty()) {
             QJsonDocument doc = QJsonDocument::fromJson(profData);
@@ -1575,10 +1592,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 for (int i = 0; i < procs.size(); ++i) {
                     QJsonObject proc = procs[i].toObject();
                     QJsonArray args = proc.value(QStringLiteral("args")).toArray();
-                    // Patch processor whose args include DOWNLOAD_MOJMAPS
                     for (const auto& a : args) {
                         if (a.toString() == QStringLiteral("DOWNLOAD_MOJMAPS")) {
-                            // Add --skipIfExists after --sanitize if not already present
                             bool hasSkip = false;
                             for (const auto& sa : args) {
                                 if (sa.toString() == QStringLiteral("--skipIfExists")) {
@@ -1604,9 +1619,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             }
         }
 
-        // Write modified JAR to temp
-        // IMPORTANT: Strip JAR signature files (META-INF/*.SF, *.RSA, *.DSA, *.EC, MANIFEST.MF)
-        // because we modified install_profile.json, which invalidates the existing digest.
+        // Write modified JAR to temp (strip signatures since we modified install_profile.json)
         QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
         installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
         QZipWriter writer(installerJarPath);
@@ -1616,12 +1629,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             } else if (e.isSymLink) {
                 qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
             } else {
-                // Skip JAR signature files — our patch invalidated them
                 QString fp = e.filePath;
                 if (fp.startsWith(QStringLiteral("META-INF/"))) {
-                    // Skip JAR signature files + MANIFEST.MF
-                    // NOTE: MANIFEST.MF 写入会被 QZipWriter 自动处理，
-                    // 主类通过 java -cp ... com.bangbang93.ForgeInstaller 显式指定，不依赖 Main-Class
                     if (fp == QStringLiteral("META-INF/MANIFEST.MF")
                         || fp.endsWith(QStringLiteral(".SF"))
                         || fp.endsWith(QStringLiteral(".RSA"))
@@ -1632,7 +1641,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 }
                 QByteArray data;
                 if (fp == QStringLiteral("install_profile.json")) {
-                    data = profData;  // Use patched version
+                    data = profData;
                 } else {
                     data = reader.fileData(fp);
                 }
@@ -1911,16 +1920,27 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         }
     }
 
-    // 5. Run bootstrapper
+    // 5. Run installer
     QStringList args;
-    args << QStringLiteral("-cp")
-         << (bootstrapperJar + QStringLiteral(";") + installerJarPath)
-         << QStringLiteral("com.bangbang93.ForgeInstaller")
-         << QDir::toNativeSeparators(m_gameDir);
+    if (isNeoForge) {
+        // NeoForge: run installer directly with --installClient (standard CLI)
+        args << QStringLiteral("-jar") << installerJarPath
+             << QStringLiteral("--installClient") << QDir::toNativeSeparators(m_gameDir);
+        qCInfo(logLoader) << QStringLiteral("运行 NeoForge 安装器: %1 -jar %2 --installClient %3")
+            .arg(javaPath, installerJarPath, QDir::toNativeSeparators(m_gameDir));
+    } else {
+        // Forge: run via custom bootstrapper JAR
+        args << QStringLiteral("-cp")
+             << (bootstrapperJar + QStringLiteral(";") + installerJarPath)
+             << QStringLiteral("com.bangbang93.ForgeInstaller")
+             << QDir::toNativeSeparators(m_gameDir);
+        qCInfo(logLoader) << QStringLiteral("运行 Bootstrapper: %1 %2")
+            .arg(javaPath, args.join(QStringLiteral(" ")));
+    }
 
-    qCInfo(logLoader) << QStringLiteral("运行 Bootstrapper: %1 %2").arg(javaPath, args.join(QStringLiteral(" ")));
-
-    emit progressChanged(3, m_totalSteps, QStringLiteral("正在通过 Java 运行 Forge 安装器..."));
+    emit progressChanged(3, m_totalSteps,
+        isNeoForge ? QStringLiteral("正在通过 Java 运行 NeoForge 安装器...")
+                   : QStringLiteral("正在通过 Java 运行 Forge 安装器..."));
 
     auto* proc = new QProcess(this);
     auto* timeoutTimer = new QTimer(this);
@@ -1941,13 +1961,15 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 
     timeoutTimer->start(120000);
     connect(timeoutTimer, &QTimer::timeout, this, [this, proc, installerJarPath, timeoutTimer]() {
-        qCWarning(logLoader) << QStringLiteral("Bootstrapper 超时（120 秒），强制终止");
+        qCWarning(logLoader) << QStringLiteral("%1 超时（120 秒），强制终止")
+            .arg(m_loaderType == QStringLiteral("neoforge") ? QStringLiteral("NeoForge 安装器") : QStringLiteral("Bootstrapper"));
         proc->kill();
         proc->waitForFinished(5000);
         timeoutTimer->deleteLater();
         proc->deleteLater();
         QFile::remove(installerJarPath);
-        emit finished(false, QStringLiteral("Forge 安装器超时，请检查 Java 配置后重试"));
+        emit finished(false, QStringLiteral("%1 安装器超时，请检查 Java 配置后重试")
+            .arg(m_loaderType == QStringLiteral("neoforge") ? QStringLiteral("NeoForge") : QStringLiteral("Forge")));
         m_running = false;
     });
 
@@ -1959,7 +1981,10 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         proc->deleteLater();
         QFile::remove(installerJarPath);
 
-        bool success = (exitCode == 0) && outputLines->contains(QStringLiteral("true"));
+        // NeoForge: exit code is sufficient; Forge: needs output to contain "true"
+        bool success = (m_loaderType == QStringLiteral("neoforge"))
+            ? (exitCode == 0)
+            : (exitCode == 0) && outputLines->contains(QStringLiteral("true"));
 
         if (success) {
             const QString ver = (m_loaderType == QStringLiteral("neoforge"))
@@ -2036,7 +2061,9 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 
             emit finished(true, QString());
         } else {
-            emit finished(false, QStringLiteral("Forge 安装器返回错误（退出码=%1）").arg(exitCode));
+            emit finished(false, QStringLiteral("%1 安装器返回错误（退出码=%2）")
+                .arg(m_loaderType == QStringLiteral("neoforge") ? QStringLiteral("NeoForge") : QStringLiteral("Forge"))
+                .arg(exitCode));
         }
         m_running = false;
     });
