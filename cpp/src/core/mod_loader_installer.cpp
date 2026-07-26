@@ -1675,55 +1675,136 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 QJsonObject prof = QJsonDocument::fromJson(profData).object();
                 QJsonArray libs = prof.value(QStringLiteral("libraries")).toArray();
                 QNetworkAccessManager* nam = HttpClient::instance().manager();
+
+                // Helper to mirror official Maven URL to BMCLAPI
+                auto bmclapiMirror = [](const QString& officialUrl) -> QString {
+                    QString result = officialUrl;
+                    result.replace(QStringLiteral("https://maven.neoforged.net/releases"),
+                                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
+                    result.replace(QStringLiteral("https://files.minecraftforge.net/maven"),
+                                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
+                    result.replace(QStringLiteral("https://libraries.minecraft.net"),
+                                   QStringLiteral("https://bmclapi2.bangbang93.com/libraries"));
+                    result.replace(QStringLiteral("https://repo1.maven.org/maven2"),
+                                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
+                    result.replace(QStringLiteral("https://repo.maven.apache.org/maven2"),
+                                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
+                    return result;
+                };
+
                 for (const auto& lv : libs) {
-                    QString name = lv.toString();
-                    if (name.isEmpty()) {
+                    // Determine download URL from library entry
+                    QString officialUrl;
+                    QString name;
+                    QString classifier;
+
+                    if (lv.isObject()) {
                         QJsonObject lo = lv.toObject();
                         name = lo.value(QStringLiteral("name")).toString();
+                        // If the library object has an explicit download URL, use it directly
+                        QJsonObject artifactUrl = lo.value(QStringLiteral("downloads")).toObject()
+                                                    .value(QStringLiteral("artifact")).toObject();
+                        if (!artifactUrl.isEmpty()) {
+                            // Extract classifier from the URL path if present
+                            QString urlStr = artifactUrl.value(QStringLiteral("url")).toString();
+                            if (!urlStr.isEmpty()) {
+                                officialUrl = urlStr;
+                                // Derive classifier from filename like "neoforge-26.2.0.32-beta-universal.jar"
+                                QString fileName = urlStr.mid(urlStr.lastIndexOf(QLatin1Char('/')) + 1);
+                                QString bare = name.section(QLatin1Char(':'), 1, 1) + QStringLiteral("-")
+                                             + name.section(QLatin1Char(':'), 2, 2);
+                                if (fileName.startsWith(bare) && fileName.contains(QLatin1Char('-'))) {
+                                    // Extra parts in filename beyond "artifact-version" indicate classifier
+                                    QString middle = fileName.mid(bare.length());
+                                    // middle can be "-classifier.ext" or just ".ext"
+                                    if (middle.contains(QLatin1Char('.')) && middle.indexOf(QLatin1Char('.')) > 0) {
+                                        classifier = middle.section(QLatin1Char('.'), 0, 0).mid(1); // strip leading -
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        name = lv.toString();
                     }
+
                     if (name.isEmpty()) continue;
-                    // Parse Maven coordinate: group:artifact:version[@ext]
+
+                    // Parse Maven coordinate: group:artifact:version[:classifier][@ext]
                     QStringList parts = name.split(QLatin1Char(':'));
                     if (parts.size() < 3) continue;
                     QString group = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
-                    QString artifact = parts[1];
+                    QString artifactName = parts[1];
                     QString version = parts[2];
                     QString ext = QStringLiteral("jar");
+
+                    // Handle version@ext notation
                     if (version.contains(QLatin1Char('@'))) {
                         int atIdx = version.indexOf(QLatin1Char('@'));
                         ext = version.mid(atIdx + 1);
                         version = version.left(atIdx);
                     }
-                    // Handle classifier after version (e.g. "1.21.10-20251007.101210")
-                    // The version might contain a timestamp suffix
-                    QString libDir = m_gameDir + QStringLiteral("/libraries/") + group + QStringLiteral("/") + artifact + QStringLiteral("/") + version;
-                    QString libFile = libDir + QStringLiteral("/") + artifact + QStringLiteral("-") + version + QStringLiteral(".") + ext;
-                    if (QFile::exists(libFile)) continue;
-                    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.%4").arg(group, artifact, version, ext);
-                    qCInfo(logLoader) << QStringLiteral("下载安装器库: %1").arg(url);
-                    QDir().mkpath(libDir);
-                    QNetworkRequest req;
-                    req.setUrl(QUrl(url));
-                    QNetworkReply* reply = nam->get(req);
-                    QEventLoop loop;
-                    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                    QTimer timer;
-                    timer.setSingleShot(true);
-                    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-                    timer.start(30000);
-                    loop.exec();
-                    if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
-                        timer.stop();
-                        QFile f(libFile);
-                        if (f.open(QIODevice::WriteOnly)) {
-                            f.write(reply->readAll());
-                            f.close();
-                        }
-                    } else {
-                        qCWarning(logLoader) << QStringLiteral("安装器库下载失败: %1 %2").arg(url, reply->errorString());
-                        QFile::remove(libFile);
+
+                    // Handle classifier: Maven coordinate 4th field (group:artifact:version:classifier)
+                    if (parts.size() >= 4 && classifier.isEmpty()) {
+                        classifier = parts[3];
                     }
-                    reply->deleteLater();
+
+                    // Build local path
+                    QString libDir = m_gameDir + QStringLiteral("/libraries/") + group + QStringLiteral("/") + artifactName + QStringLiteral("/") + version;
+                    QString classifierSuffix = classifier.isEmpty() ? QString() : (QStringLiteral("-") + classifier);
+                    QString libFile = libDir + QStringLiteral("/") + artifactName + QStringLiteral("-") + version + classifierSuffix + QStringLiteral(".") + ext;
+                    if (QFile::exists(libFile)) continue;
+
+                    // Build download URLs
+                    QStringList urls;
+                    if (!officialUrl.isEmpty()) {
+                        // Use the exact URL from install_profile.json (mirror to BMCLAPI too)
+                        urls << bmclapiMirror(officialUrl);
+                        urls << officialUrl;
+                    } else {
+                        // Reconstruct URL from Maven coordinate
+                        QString fileName = artifactName + QStringLiteral("-") + version + classifierSuffix + QStringLiteral(".") + ext;
+                        urls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
+                        // Official NeoForge Maven
+                        if (group.startsWith(QLatin1String("net/neoforged")))
+                            urls << QStringLiteral("https://maven.neoforged.net/releases/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
+                        // Official Forge Maven
+                        else if (group.startsWith(QLatin1String("net/minecraftforge")))
+                            urls << QStringLiteral("https://files.minecraftforge.net/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
+                    }
+
+                    bool libOk = false;
+                    for (const QString& url : urls) {
+                        qCInfo(logLoader) << QStringLiteral("下载安装器库: %1").arg(url);
+                        QDir().mkpath(libDir);
+                        QNetworkRequest req;
+                        req.setUrl(QUrl(url));
+                        QNetworkReply* reply = nam->get(req);
+                        QEventLoop loop;
+                        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                        QTimer timer;
+                        timer.setSingleShot(true);
+                        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                        timer.start(30000);
+                        loop.exec();
+                        if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+                            timer.stop();
+                            QFile f(libFile);
+                            if (f.open(QIODevice::WriteOnly)) {
+                                f.write(reply->readAll());
+                                f.close();
+                                libOk = true;
+                            }
+                        } else {
+                            qCWarning(logLoader) << QStringLiteral("安装器库下载失败: %1 %2").arg(url, reply->errorString());
+                            QFile::remove(libFile);
+                        }
+                        reply->deleteLater();
+                        if (libOk) break;
+                    }
+                    if (!libOk) {
+                        qCWarning(logLoader) << QStringLiteral("安装器库下载失败（所有源均失败）: %1").arg(artifactName + QStringLiteral("-") + version);
+                    }
                 }
             }
         }
