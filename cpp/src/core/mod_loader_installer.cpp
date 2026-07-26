@@ -1566,12 +1566,12 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 
         // Read install_profile.json and patch processor[3] (DOWNLOAD_MOJMAPS)
         QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
+        bool patched = false;  // outlives the if block for JAR rewrite decision
         if (!profData.isEmpty()) {
             QJsonDocument doc = QJsonDocument::fromJson(profData);
             if (doc.isObject()) {
                 QJsonObject root = doc.object();
                 QJsonArray procs = root.value(QStringLiteral("processors")).toArray();
-                bool patched = false;
                 for (int i = 0; i < procs.size(); ++i) {
                     QJsonObject proc = procs[i].toObject();
                     QJsonArray args = proc.value(QStringLiteral("args")).toArray();
@@ -1604,44 +1604,55 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             }
         }
 
-        // Write modified JAR to temp
-        // IMPORTANT: Strip JAR signature files (META-INF/*.SF, *.RSA, *.DSA, *.EC, MANIFEST.MF)
-        // because we modified install_profile.json, which invalidates the existing digest.
+        // Write installer JAR to temp
         QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
         installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
-        QZipWriter writer(installerJarPath);
-        for (const auto& e : entries) {
-            if (e.isDir) {
-                writer.addDirectory(e.filePath);
-            } else if (e.isSymLink) {
-                qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
-            } else {
-                // Skip JAR signature files — our patch invalidated them
-                QString fp = e.filePath;
-                if (fp.startsWith(QStringLiteral("META-INF/"))) {
-                    // Skip JAR signature files + MANIFEST.MF
-                    // NOTE: MANIFEST.MF 写入会被 QZipWriter 自动处理，
-                    // 主类通过 java -cp ... com.bangbang93.ForgeInstaller 显式指定，不依赖 Main-Class
-                    if (fp == QStringLiteral("META-INF/MANIFEST.MF")
-                        || fp.endsWith(QStringLiteral(".SF"))
-                        || fp.endsWith(QStringLiteral(".RSA"))
-                        || fp.endsWith(QStringLiteral(".DSA"))
-                        || fp.endsWith(QStringLiteral(".EC"))) {
-                        continue;
-                    }
-                }
-                QByteArray data;
-                if (fp == QStringLiteral("install_profile.json")) {
-                    data = profData;  // Use patched version
+
+        if (patched) {
+            // We modified install_profile.json → JAR signatures invalidated.
+            // Rewrite WITHOUT signature files so the bootstrapper can still parse it.
+            // IMPORTANT: Strip META-INF/*.SF, *.RSA, *.DSA, *.EC, MANIFEST.MF
+            // NOTE: Main class is explicitly specified via -cp + com.bangbang93.ForgeInstaller,
+            //       so removing MANIFEST.MF is safe.
+            QZipWriter writer(installerJarPath);
+            for (const auto& e : entries) {
+                if (e.isDir) {
+                    writer.addDirectory(e.filePath);
+                } else if (e.isSymLink) {
+                    qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
                 } else {
-                    data = reader.fileData(fp);
+                    QString fp = e.filePath;
+                    if (fp.startsWith(QStringLiteral("META-INF/"))) {
+                        if (fp == QStringLiteral("META-INF/MANIFEST.MF")
+                            || fp.endsWith(QStringLiteral(".SF"))
+                            || fp.endsWith(QStringLiteral(".RSA"))
+                            || fp.endsWith(QStringLiteral(".DSA"))
+                            || fp.endsWith(QStringLiteral(".EC"))) {
+                            continue;
+                        }
+                    }
+                    QByteArray data;
+                    if (fp == QStringLiteral("install_profile.json")) {
+                        data = profData;  // Use patched version
+                    } else {
+                        data = reader.fileData(fp);
+                    }
+                    writer.addFile(fp, data);
                 }
-                writer.addFile(fp, data);
             }
+            writer.close();
+            qCInfo(logLoader) << QStringLiteral("已写入修改后的安装程序（已剥离签名）: %1").arg(installerJarPath);
+        } else {
+            // No modification needed — use original JAR bytes as-is
+            // (No signature stripping to avoid potential bootstrapper/processor issues)
+            QFile f(installerJarPath);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(jarData);
+                f.close();
+            }
+            qCInfo(logLoader) << QStringLiteral("已写入原始安装程序（无需修改）: %1").arg(installerJarPath);
         }
-        writer.close();
         reader.close();
-        qCInfo(logLoader) << QStringLiteral("已写入修改后的安装程序（已剥离签名）: %1").arg(installerJarPath);
     }
 
     // 3b. Ensure client JAR exists at Forge-installer-expected path
@@ -1686,6 +1697,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     result.replace(QStringLiteral("https://libraries.minecraft.net"),
                                    QStringLiteral("https://bmclapi2.bangbang93.com/libraries"));
                     result.replace(QStringLiteral("https://repo1.maven.org/maven2"),
+                                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
+                    result.replace(QStringLiteral("https://maven.minecraftforge.net"),
                                    QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
                     result.replace(QStringLiteral("https://repo.maven.apache.org/maven2"),
                                    QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
@@ -1747,6 +1760,20 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     // Handle classifier: Maven coordinate 4th field (group:artifact:version:classifier)
                     if (parts.size() >= 4 && classifier.isEmpty()) {
                         classifier = parts[3];
+                    }
+
+                    // Skip pre-download for the main loader artifact when:
+                    // 1. It's a string-format library (no downloads.artifact.url) AND
+                    // 2. It matches the NeoForge loader (purpose of 26.2.x installer)
+                    // The main NeoForge JAR uses "universal" classifier not encoded in Maven coordinate string
+                    // → our reconstructed URL would point to a non-existent file
+                    // → bootstrapper handles this artifact correctly using its own resolver
+                    if (officialUrl.isEmpty()
+                        && m_loaderType == QStringLiteral("neoforge")
+                        && group == QStringLiteral("net/neoforged")
+                        && artifactName == QStringLiteral("neoforge")) {
+                        qCInfo(logLoader) << QStringLiteral("跳过主 NeoForge loader 预下载（bootstrapper 自行处理）: %1").arg(name);
+                        continue;
                     }
 
                     // Build local path
