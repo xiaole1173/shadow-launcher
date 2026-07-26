@@ -961,8 +961,45 @@ static QString mirrorMavenUrl(const QString& url) {
 void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     if (m_cancelled) return;
 
-    // Ensure client_mappings is on disk before bootstrapper runs
-    // (Forge 1.19+ ChainMappings.process needs it for JAR remapping)
+    // 1. Open installer JAR as ZIP (needed early for Maven version in install_profile.json)
+    QBuffer buffer;
+    buffer.setData(jarData);
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
+        return;
+    }
+    QZipReader reader(&buffer);
+
+    // 2. Extract Maven version from install_profile.json data section
+    //    (e.g. "1.18.2-20220404.173914" from [net.minecraft:client:1.18.2-20220404.173914:mappings@txt])
+    //    This is the definitive version Forge uses — NOT the MC version JSON "time" field.
+    QString mavenVer = m_mcVersion;  // fallback: plain MC version, no timestamp
+    {
+        QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
+        if (!profileData.isEmpty()) {
+            QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
+            if (!profileDoc.isNull()) {
+                QJsonObject data = profileDoc.object().value(QStringLiteral("data")).toObject();
+                // Try MOJMAPS (net.minecraft:client) first, then MAPPINGS (mcp_config)
+                for (const QString& key : {QStringLiteral("MOJMAPS"), QStringLiteral("MAPPINGS")}) {
+                    QJsonObject entry = data.value(key).toObject();
+                    QString clientRef = entry.value(QStringLiteral("client")).toString();
+                    if (!clientRef.isEmpty()) {
+                        QRegularExpression re(QStringLiteral("\\[[^:]+:[^:]+:([^:\\]]+):mappings@txt\\]"));
+                        QRegularExpressionMatch match = re.match(clientRef);
+                        if (match.hasMatch()) {
+                            mavenVer = match.captured(1);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Ensure client_mappings is on disk before bootstrapper runs
+    //    (Forge 1.19+ ChainMappings.process needs it for JAR remapping)
     {
         const QString vmPath = m_gameDir + QStringLiteral("/versions/") + m_mcVersion
             + QStringLiteral("/") + m_mcVersion + QStringLiteral(".json");
@@ -974,39 +1011,28 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
                 .value(QStringLiteral("client_mappings")).toObject();
             QString cmUrl = cm.value(QStringLiteral("url")).toString();
             if (!cmUrl.isEmpty()) {
-                // Forge bootstrapper uses version JSON "time" (last-modified),
-                // NOT "releaseTime" from the version manifest.
-                QString mavenVer = m_mcVersion;
-                QString timeStr = vd.object().value(QStringLiteral("time")).toString();
-                QDateTime verTime = QDateTime::fromString(timeStr, Qt::ISODate);
-                if (verTime.isValid()) {
-                    mavenVer = m_mcVersion + QStringLiteral("-")
-                        + verTime.toString(QStringLiteral("yyyyMMdd.HHmmss"));
-                }
-                if (verTime.isValid()) {
-                    const QString savePath = m_gameDir
-                        + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
-                        + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
-                    if (!QFileInfo::exists(savePath)) {
-                        qCInfo(logLoader) << QStringLiteral("下载缺失的 client_mappings: %1").arg(mavenVer);
-                        QNetworkAccessManager nm;
-                        QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
-                        QEventLoop loop;
-                        connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                        loop.exec();
-                        if (r->error() == QNetworkReply::NoError) {
-                            QByteArray data = r->readAll();
-                            QDir().mkpath(QFileInfo(savePath).absolutePath());
-                            QFile out(savePath);
-                            if (out.open(QIODevice::WriteOnly)) {
-                                out.write(data);
-                                out.close();
-                                qCInfo(logLoader) << QStringLiteral("client_mappings 已保存: %1 (%2 KB)")
-                                    .arg(savePath).arg(data.size() / 1024);
-                            }
-                        } else {
-                            qCWarning(logLoader) << QStringLiteral("client_mappings 下载失败: %1").arg(r->errorString());
+                const QString savePath = m_gameDir
+                    + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
+                    + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
+                if (!QFileInfo::exists(savePath)) {
+                    qCInfo(logLoader) << QStringLiteral("下载缺失的 client_mappings: %1").arg(mavenVer);
+                    QNetworkAccessManager nm;
+                    QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
+                    QEventLoop loop;
+                    connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    loop.exec();
+                    if (r->error() == QNetworkReply::NoError) {
+                        QByteArray data = r->readAll();
+                        QDir().mkpath(QFileInfo(savePath).absolutePath());
+                        QFile out(savePath);
+                        if (out.open(QIODevice::WriteOnly)) {
+                            out.write(data);
+                            out.close();
+                            qCInfo(logLoader) << QStringLiteral("client_mappings 已保存: %1 (%2 KB)")
+                                .arg(savePath).arg(data.size() / 1024);
                         }
+                    } else {
+                        qCWarning(logLoader) << QStringLiteral("client_mappings 下载失败: %1").arg(r->errorString());
                     }
                 }
             }
@@ -1015,16 +1041,6 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
 
     m_currentStep = 3;
     emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备安装..."));
-
-    // 1. Open installer JAR as ZIP
-    QBuffer buffer;
-    buffer.setData(jarData);
-    if (!buffer.open(QIODevice::ReadOnly)) {
-        emit finished(false, "无法打开安装程序文件");
-        m_running = false;
-        return;
-    }
-    QZipReader reader(&buffer);
 
     // 2. Extract bundled maven jars from installer to libraries/ (all paths benefit)
     QString libBase = m_gameDir + QStringLiteral("/libraries");
