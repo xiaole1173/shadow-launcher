@@ -2474,7 +2474,11 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                     flattened[QStringLiteral("libraries")] = mergedLibs;
                 }
 
-                if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                // NeoForge: remove downloads.client (points to vanilla MC; launcher would redownload & overwrite patched)
+        if (isNeo)
+            flattened.remove(QStringLiteral("downloads"));
+
+        if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
                     jf.write(QJsonDocument(flattened).toJson(QJsonDocument::Indented));
                     jf.close();
                     if (inheritsLeft || !jObj.contains(QStringLiteral("inheritsFrom")) ||
