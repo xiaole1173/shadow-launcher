@@ -77,9 +77,9 @@ bool writeOptionsTxt(const QString& versionGameDir, const QString& mcLangCode)
     const QString optionsPath = versionGameDir + QStringLiteral("/options.txt");
     const QString langLine = QStringLiteral("lang:") + mcLangCode;
 
-    // Read existing options.txt
+    // Read existing options.txt, replacing or appending lang: line
     QStringList lines;
-    bool foundLang = false;
+    bool replaced = false;
 
     QFile file(optionsPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -87,10 +87,8 @@ bool writeOptionsTxt(const QString& versionGameDir, const QString& mcLangCode)
         while (!stream.atEnd()) {
             QString line = stream.readLine().trimmed();
             if (line.startsWith(QStringLiteral("lang:"))) {
-                // Already has a language setting — user may have changed it.
-                // Do NOT overwrite; respect existing preference.
-                file.close();
-                return true;
+                lines.append(langLine);
+                replaced = true;
             } else if (!line.isEmpty()) {
                 lines.append(line);
             }
@@ -98,8 +96,9 @@ bool writeOptionsTxt(const QString& versionGameDir, const QString& mcLangCode)
         file.close();
     }
 
-    // No lang: line exists — first launch, write auto-detected language
-    lines.append(langLine);
+    if (!replaced) {
+        lines.append(langLine);
+    }
 
     // Write back
     QDir().mkpath(versionGameDir);
