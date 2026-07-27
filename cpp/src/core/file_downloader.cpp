@@ -270,6 +270,7 @@ void FileDownloader::start()
     m_speedTimer.start();
     m_lastSpeedBytes = 0;
     m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
+    m_finishedGuard.store(false, std::memory_order_relaxed);
     m_speedRecords.clear();
     m_throttleTimer.start();
     m_throttleBytes = 0;
@@ -331,6 +332,7 @@ void FileDownloader::managerTick()
         else if (f->state >= 1 && f->state <= 2) ongoing.append(f);
     }
 
+    m_bmclapiThisTick = 0;  // reset per-tick BMCLAPI budget
     int active = m_activeThreads.loadRelaxed();
 
     // ── Start first thread for waiting files ──
@@ -339,9 +341,11 @@ void FileDownloader::managerTick()
         auto th = tryStartFirstThread(f);
         if (th) {
             active++;
-            // 主流启动器: reduce BMCLAPI request frequency
-            if (th->sourceUrl.contains("bmclapi", Qt::CaseInsensitive))
-                QThread::msleep(50);
+            // Non-blocking BMCLAPI rate limit: max 4 per tick
+            if (th->sourceUrl.contains("bmclapi", Qt::CaseInsensitive)) {
+                if (++m_bmclapiThisTick > kMaxBmclapiPerTick)
+                    break;
+            }
         }
     }
 
@@ -365,8 +369,10 @@ void FileDownloader::managerTick()
         auto th = tryAddThread(f);
         if (th) {
             active++;
-            if (th->sourceUrl.contains("bmclapi", Qt::CaseInsensitive))
-                QThread::msleep(50);
+            if (th->sourceUrl.contains("bmclapi", Qt::CaseInsensitive)) {
+                if (++m_bmclapiThisTick > kMaxBmclapiPerTick)
+                    break;
+            }
         }
     }
 }
@@ -430,9 +436,9 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
 
     // Adaptive timeout: 主流启动器-style
     int avgConnMs = file->connectAverageMs();
-    int baseTimeout = (avgConnMs > 0) ? qMax(avgConnMs, 15000) : 15000;
+    int baseTimeout = (avgConnMs > 0) ? qMax(avgConnMs, 20000) : 20000;
     int srcFail = file->orderedSources[srcId].failCount;
-    th->timeoutMs = qMin(baseTimeout * (1 + srcFail), 30000);
+    th->timeoutMs = qMin(baseTimeout * (1 + srcFail), 45000);
 
     // Shorten the max piece
     maxPiece->downloadEnd = splitPoint;
@@ -955,16 +961,27 @@ void FileDownloader::updateStats()
                           m_totalBytes.loadRelaxed());
 
     if (done + fails >= total && total > 0) {
-        m_managerTimer->stop();
-        m_speedTimer2->stop();
-        m_state = Idle;
+        // One-in-flight guard: worker threads may race through updateStats.
+        bool expected = false;
+        if (!m_finishedGuard.compare_exchange_strong(expected, true,
+                                                      std::memory_order_relaxed))
+            return;  // another worker already queued the finish lambda
+
+        // Timer stop must happen on main thread (QTimer owner thread).
+        // This function may run on a worker thread via runDownloadThread cleanup.
         qint64 totalDl = m_totalBytes.loadRelaxed();
         double speedMBps = m_emaMbps;
-        emit logMessage(QString::fromUtf8("[完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s")
-                            .arg(done).arg(total)
-                            .arg(formatSize(totalDl))
-                            .arg(speedMBps, 0, 'f', 1));
-        emit allFinished();
+        QString summary = QString::fromUtf8("[完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s")
+                              .arg(done).arg(total)
+                              .arg(formatSize(totalDl))
+                              .arg(speedMBps, 0, 'f', 1);
+        QMetaObject::invokeMethod(this, [this, summary]() {
+            m_managerTimer->stop();
+            m_speedTimer2->stop();
+            m_state = Idle;
+            emit logMessage(summary);
+            emit allFinished();
+        }, Qt::QueuedConnection);
     }
 }
 
