@@ -633,7 +633,7 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1);
                 if (dlHash != file->expectedSha1) {
                     qCWarning(logDownload) << QStringLiteral("SHA1不匹配 URL=%1 预期=%2 实际=%3 尝试=%4")
-                        .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
+                        .arg(url, QString::fromLatin1(file->expectedSha1.toHex()), QString::fromLatin1(dlHash.toHex()))
                         .arg(attempt + 1);
                     source.failCount++;
                     th->downloadDone = 0;
