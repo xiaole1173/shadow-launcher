@@ -2171,42 +2171,12 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             return;
         }
 
-        QStringList launchArgs;
-        // 主流启动器: extract BOTH forge-installer.jar (helper) and java-wrapper.jar (wrapper)
-        QString wrapperJar = extractJavaWrapperPath();
-        if (wrapperJar.isEmpty()) {
-            qCWarning(logLoader) << QStringLiteral("无法释放 java-wrapper.jar，跳过 JavaWrapper");
-            useWrapper = false;
-        }
-        if (useWrapper && !wrapperJar.isEmpty()) {
-            // 主流启动器: -Doolloo.jlw.tmpdir=... -cp forge_installer.jar;installer.jar -jar java-wrapper.jar com.bangbang93.ForgeInstaller
-            // java-wrapper.jar fixes CJK encoding on Windows (JDK-8272352)
-            launchArgs << QStringLiteral("-Doolloo.jlw.tmpdir=%1").arg(QDir::toNativeSeparators(m_gameDir.trimmed()));
-            launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
-            launchArgs << QStringLiteral("-jar") << wrapperJar;
-            launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
-        } else {
-            // 主流启动器 fallback: -cp forge_installer.jar;installer.jar com.bangbang93.ForgeInstaller
-            // (no JavaWrapper; may have CJK issues on Windows with UTF-8 Beta enabled)
-            launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
-            launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
-        }
-        launchArgs << QDir::toNativeSeparators(m_gameDir);
-
-        // 主流启动器: --add-exports cpw.mods.bootstraplauncher/... for Java 9+
-        if (minJava >= 9) {
-            launchArgs.prepend(QStringLiteral("cpw.mods.bootstraplauncher/cpw.mods.bootstraplauncher=ALL-UNNAMED"));
-            launchArgs.prepend(QStringLiteral("--add-exports"));
-        }
-
-        qCInfo(logLoader) << QStringLiteral("运行 Bootstrapper（%1）: %2 %3")
-            .arg(useWrapper ? QStringLiteral("JavaWrapper") : QStringLiteral("裸 Java"),
-                 javaPath, launchArgs.join(QStringLiteral(" ")));
-
         emit progressChanged(3, m_totalSteps,
             QStringLiteral("正在通过 Java 运行 %1 安装器...").arg(loaderName));
 
-            // ── Launch bootstrapper async (QtConcurrent::run) ──
+        qCInfo(logLoader) << QStringLiteral("运行 Bootstrapper: %1").arg(javaPath);
+
+        // ── Launch bootstrapper async with retry (QtConcurrent::run) ──
         if (m_bootstrapperWatcher && m_bootstrapperWatcher->isRunning()) {
             m_bootstrapperWatcher->waitForFinished();
         }
@@ -2216,16 +2186,48 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     this, &ModLoaderInstaller::onBootstrapperFinished);
         }
 
-        // Snapshot old versions list before bootstrapper creates new folders
         QStringList oldVersionsSnapshot = oldVersions;
-        QString installNameSnapshot = m_installName;
         QString versionsDirSnapshot = versionsDir();
 
+        // Build both launch arg sets on main thread (uses member state)
+        QString wrapperJar = extractJavaWrapperPath();
+        bool hasWrapper = !wrapperJar.isEmpty();
+
+        QStringList launchArgsWrapper, launchArgsRaw;
+        if (hasWrapper) {
+            launchArgsWrapper << QStringLiteral("-Doolloo.jlw.tmpdir=%1").arg(QDir::toNativeSeparators(m_gameDir.trimmed()));
+            launchArgsWrapper << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
+            launchArgsWrapper << QStringLiteral("-jar") << wrapperJar;
+            launchArgsWrapper << QStringLiteral("com.bangbang93.ForgeInstaller");
+        }
+        launchArgsRaw << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
+        launchArgsRaw << QStringLiteral("com.bangbang93.ForgeInstaller");
+
+        const QString gameDirNative = QDir::toNativeSeparators(m_gameDir);
+        launchArgsWrapper << gameDirNative;
+        launchArgsRaw << gameDirNative;
+
+        if (minJava >= 9) {
+            const QString exportArg = QStringLiteral("--add-exports");
+            const QString exportVal = QStringLiteral("cpw.mods.bootstraplauncher/cpw.mods.bootstraplauncher=ALL-UNNAMED");
+            launchArgsWrapper.prepend(exportVal); launchArgsWrapper.prepend(exportArg);
+            launchArgsRaw.prepend(exportVal);    launchArgsRaw.prepend(exportArg);
+        }
+
         QFuture<BootstrapperResult> future = QtConcurrent::run(
-            [javaPath, launchArgs, installerJarPath, loaderName, oldVersionsSnapshot,
+            [javaPath, launchArgsWrapper, launchArgsRaw, hasWrapper,
+             installerJarPath, loaderName, oldVersionsSnapshot,
              versionsDirSnapshot]() -> BootstrapperResult {
+            // Attempt 1: with JavaWrapper (if available)
+            if (hasWrapper) {
+                BootstrapperResult r = runBootstrapperSync(
+                    javaPath, launchArgsWrapper, installerJarPath, loaderName,
+                    oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr);
+                if (r.success) return r;
+            }
+            // Attempt 2: raw Java (fallback)
             return runBootstrapperSync(
-                javaPath, launchArgs, installerJarPath, loaderName,
+                javaPath, launchArgsRaw, installerJarPath, loaderName,
                 oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr);
         });
 
