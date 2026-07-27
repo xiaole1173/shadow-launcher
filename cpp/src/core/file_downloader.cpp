@@ -467,16 +467,15 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
     // ── Per-source retry loop (主流启动器: 3 attempts, SHA1: 6) ──
     bool sourceOk = false;
     int maxAttempts = file->expectedSha1.isEmpty() ? 3 : 6;
+    const qint64 retryStartMs = getElapsedMs();
 
     for (int attempt = 0; attempt < maxAttempts && !sourceOk; ++attempt) {
         if (m_cancelled.loadRelaxed()) goto cleanup;
 
         // Fast retry guard: if <5.5s elapsed after 2 attempts on a non-SHA1 file, stop
-        static qint64 s_retryStartMs = 0;
-        if (attempt == 0) s_retryStartMs = getElapsedMs();
         if (attempt >= 2 && file->expectedSha1.isEmpty()
-            && (getElapsedMs() - s_retryStartMs) < 5500) break;
-        if (attempt >= 5 && (getElapsedMs() - s_retryStartMs) < 5500) break;
+            && (getElapsedMs() - retryStartMs) < 5500) break;
+        if (attempt >= 5 && (getElapsedMs() - retryStartMs) < 5500) break;
 
         if (attempt > 0) QThread::msleep(500);
 
