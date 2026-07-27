@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Ӱ / Shadow / xiaole1173
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "shadow_backend.h"
 #include "../core/http_client.h"
 #include "../core/mod_manager.h"
@@ -68,7 +68,7 @@
 #include <QTranslator>
 #include <QUrl>
 
-// libwebp: in-process webp��PNG decoding
+// libwebp: in-process webp→PNG decoding
 #include <webp/decode.h>
 #include <webp/encode.h>
 #include <QSettings>
@@ -92,7 +92,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
 {
     QElapsedTimer bt; bt.start();
     auto bp = [&bt](const char* label) {
-        qCInfo(logApp) << QStringLiteral("[������� +%1ms] %2").arg(bt.elapsed()).arg(label);
+        qCInfo(logApp) << QStringLiteral("[后端启动 +%1ms] %2").arg(bt.elapsed()).arg(label);
     };
 
     // Create all 7 sub-backends
@@ -124,7 +124,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_userData = new UserDataBackend(this);
     bp("UserDataBackend");
 
-    // ���� Icon cache (3 separate caches: mod / shader / rp, each max 100) ����
+    // ── Icon cache (3 separate caches: mod / shader / rp, each max 100) ──
     QString iconBase = m_app->dataDir() + "/icons";
     m_modIconCache = new IconCache(iconBase + "/mod", 100, this);
     m_shaderIconCache = new IconCache(iconBase + "/shader", 100, this);
@@ -139,7 +139,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     syncPlayerName();
     bp("IconCache");
 
-    // ���� Sync game directories: ALL backends use the same path ����
+    // ── Sync game directories: ALL backends use the same path ──
     m_version->setGameDir(m_app->gameDir());
     m_settings->setMinecraftDir(m_app->gameDir());
     m_settings->setIsolationGameDir(m_app->gameDir());
@@ -148,7 +148,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_launch->setAccount(m_account);
     m_version->setIsolation(m_settings->isolation());
 
-    // ���� GeoIP service (auto-language detection) ����
+    // ── GeoIP service (auto-language detection) ──
     m_geoIp = new GeoIpService(this);
     // Pass initial settings
     m_version->setAutoLangMode(m_settings->autoLangMode());
@@ -203,7 +203,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 }
             });
 
-    // ���� Signal forwarding: SettingsBackend �� ShadowBackend ����
+    // ── Signal forwarding: SettingsBackend → ShadowBackend ──
     connect(m_settings, &SettingsBackend::javaPathChanged,
             this, &ShadowBackend::javaPathChanged);
     connect(m_settings, &SettingsBackend::memorySettingsChanged,
@@ -219,17 +219,17 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_settings, &SettingsBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
-    // ���� Embedded login: sync SettingsBackend ? AccountBackend ����
+    // ── Embedded login: sync SettingsBackend ↔ AccountBackend ──
     m_account->setEmbeddedLoginEnabled(m_settings->embeddedLoginEnabled());
     connect(m_settings, &SettingsBackend::embeddedLoginChanged, this, [this]() {
         m_account->setEmbeddedLoginEnabled(m_settings->embeddedLoginEnabled());
     });
 
-    // ���� Signal forwarding: CheckBackend �� ShadowBackend ����
+    // ── Signal forwarding: CheckBackend → ShadowBackend ──
     connect(m_check, &CheckBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
-    // ���� Signal forwarding: VersionBackend �� ShadowBackend ����
+    // ── Signal forwarding: VersionBackend → ShadowBackend ──
     connect(m_version, &VersionBackend::versionListReady,
             this, &ShadowBackend::versionListReady);
     connect(m_version, &VersionBackend::versionListReady,
@@ -238,7 +238,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 QString last = m_settings->lastSelectedVersion();
                 if (!last.isEmpty() && m_version->versionIds().contains(last)) {
                     m_version->setSelectedVersion(last);
-                    qCInfo(logLaunch) << QStringLiteral("�ָ��ϴ�ѡ�а汾 �汾=%1").arg(last);
+                    qCInfo(logLaunch) << QStringLiteral("恢复上次选中版本 版本=%1").arg(last);
                 }
             });
     connect(m_version, &VersionBackend::installedVersionsChanged,
@@ -268,7 +268,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             QDirIterator it(gameDir, QDir::Files, QDirIterator::Subdirectories);
             while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
         }
-        // Add version files (jar, json, libraries) �� but NOT game/ subdir (already counted)
+        // Add version files (jar, json, libraries) — but NOT game/ subdir (already counted)
         if (QDir(versionDir).exists()) {
             QDirIterator it(versionDir, QDir::Files, QDirIterator::Subdirectories);
             while (it.hasNext()) {
@@ -325,7 +325,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_version, &VersionBackend::verifyFinished,
             this, [this](bool allPassed) {
-        setVerifyResult(allPassed ? tr("�����ļ�У��ͨ��") : tr("������/ȱʧ�ļ������޸�������"), allPassed);
+        setVerifyResult(allPassed ? tr("所有文件校验通过") : tr("存在损坏/缺失文件，请修复后重试"), allPassed);
         emit verifyFinished(allPassed);
     });
                 connect(m_version, &VersionBackend::verifyFailedFiles,
@@ -340,17 +340,17 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     QFile report(m_verifyReportPath);
                     if (report.open(QIODevice::WriteOnly | QIODevice::Text)) {
                         QTextStream out(&report);
-                        out << tr("Shadow Launcher �� �汾������У�鱨��\n");
+                        out << tr("Shadow Launcher — 版本完整性校验报告\n");
                         out << QStringLiteral("======================================\n");
-                        out << tr("ʱ��: ") << QDateTime::currentDateTime().toString(Qt::ISODate) << QStringLiteral("\n");
-                        out << tr("�汾: ") << m_version->selectedVersion() << QStringLiteral("\n");
-                        out << tr("�쳣�ļ���: ") << failedFiles.size() << QStringLiteral("\n");
+                        out << tr("时间: ") << QDateTime::currentDateTime().toString(Qt::ISODate) << QStringLiteral("\n");
+                        out << tr("版本: ") << m_version->selectedVersion() << QStringLiteral("\n");
+                        out << tr("异常文件数: ") << failedFiles.size() << QStringLiteral("\n");
                         out << QStringLiteral("--------------------------------------\n");
                         for (int i = 0; i < failedFiles.size(); ++i) {
                             out << (i + 1) << QStringLiteral(". ") << failedFiles[i] << QStringLiteral("\n");
                         }
                         out << QStringLiteral("--------------------------------------\n");
-                        out << tr("��ʹ�á�һ���޸�������������/ȱʧ���ļ���\n");
+                        out << tr("请使用「一键修复」重新下载损坏/缺失的文件。\n");
                     }
                 } else {
                     m_verifyReportPath.clear();
@@ -362,7 +362,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_version, &VersionBackend::downloadQueueFull,
             this, &ShadowBackend::downloadQueueFull);
 
-    // ���� Signal forwarding: LaunchBackend �� ShadowBackend ����
+    // ── Signal forwarding: LaunchBackend → ShadowBackend ──
     connect(m_launch, &LaunchBackend::launchProgressChanged,
             this, &ShadowBackend::launchProgressChanged);
     connect(m_launch, &LaunchBackend::launchStateChanged,
@@ -391,34 +391,34 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_launch, &LaunchBackend::launchCheckWarning,
             this, &ShadowBackend::launchCheckWarning);
 
-    // ���� Load persisted login mode ����
+    // ── Load persisted login mode ──
     {
         QSettings s(QCoreApplication::organizationName(),
                     QCoreApplication::applicationName());
         m_lastLoginMode = s.value(QStringLiteral("account/lastLoginMode"), 1).toInt();
         QString lastUser = s.value(QStringLiteral("account/lastUsername")).toString();
         if (!lastUser.isEmpty()) {
-            // Auto-restore login on startup �� differentiate mode
+            // Auto-restore login on startup — differentiate mode
             QTimer::singleShot(100, this, [this, lastUser]() {
                 if (m_lastLoginMode == 0) {
-                    // Microsoft (online) �� session already restored in AccountBackend ctor via loadMicrosoftSession()
-                    qCInfo(logApp) << QStringLiteral("[����] �ָ������¼: ") << lastUser;
+                    // Microsoft (online) — session already restored in AccountBackend ctor via loadMicrosoftSession()
+                    qCInfo(logApp) << QStringLiteral("[启动] 恢复正版登录: ") << lastUser;
                 } else if (m_lastLoginMode == 1) {
                     // Offline mode
-                    qCInfo(logApp) << QStringLiteral("[����] �ָ����ߵ�¼: ") << lastUser;
+                    qCInfo(logApp) << QStringLiteral("[启动] 恢复离线登录: ") << lastUser;
                     m_account->offlineLogin(lastUser);
                 }
-                // m_lastLoginMode == 2 (���õ�¼): YggdrasilBackend �� loadSession() ���Զ��ָ�
+                // m_lastLoginMode == 2 (外置登录): YggdrasilBackend 的 loadSession() 已自动恢复
             });
         }
 
-        // ֪ͨ QML �ָ���¼ģʽ���������õ�¼��
+        // 通知 QML 恢复登录模式（包括外置登录）
         QTimer::singleShot(200, this, [this]() {
             emit loginModeChanged();
         });
     }
 
-    // ���� Signal forwarding: ResourceBackend �� ShadowBackend ����
+    // ── Signal forwarding: ResourceBackend → ShadowBackend ──
     connect(m_resource, &ResourceBackend::downloadStateChanged,
             this, [this]() {
                 bool downloading = m_resource->isDownloading();
@@ -433,9 +433,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     m_resourceDlProgress = 0;
                     m_resourceDlTotal = 0;
                     m_resourceDlFile.clear();
-                    if (m_version) m_version->addResourceCard(QStringLiteral("resource"), tr("��Դ������"));
+                    if (m_version) m_version->addResourceCard(QStringLiteral("resource"), tr("资源包下载"));
                 }
-                qCInfo(logLaunch) << QStringLiteral("[��Դ������] ״̬��� ������=%1").arg(m_resource->isDownloading());
+                qCInfo(logLaunch) << QStringLiteral("[资源包下载] 状态变更 下载中=%1").arg(m_resource->isDownloading());
                 emit resourceDownloadStateChanged();
             });
     connect(m_resource, &ResourceBackend::downloadProgressChanged,
@@ -444,7 +444,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 m_resourceDlTotal = total;
                 m_resourceDlSpeed = m_resource->dlSpeed();
                 m_resourceDlFile = fileName;
-                qCInfo(logLaunch) << QStringLiteral("[��Դ������] ���� %1/%2 %3").arg(completed).arg(total).arg(fileName);
+                qCInfo(logLaunch) << QStringLiteral("[资源包下载] 进度 %1/%2 %3").arg(completed).arg(total).arg(fileName);
                 emit resourceDownloadProgress(completed, total, fileName);
                 if (m_version && total > 0) {
                     m_version->updateResourceCard(QStringLiteral("resource"),
@@ -453,7 +453,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
             });
     connect(m_resource, &ResourceBackend::downloadFinished,
             this, [this](const QString&, bool success, const QString&) {
-                qCInfo(logLaunch) << QStringLiteral("[��Դ������] ������� �ɹ�=%1").arg(success);
+                qCInfo(logLaunch) << QStringLiteral("[资源包下载] 下载完成 成功=%1").arg(success);
                 emit resourceDownloadDone(success);
                 if (m_version) m_version->removeResourceCard(QStringLiteral("resource"));
             });
@@ -493,7 +493,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_resource, &ResourceBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
-    // ���� Mod file download forwarding ����
+    // ── Mod file download forwarding ──
     connect(m_resource, &ResourceBackend::modFileDownloadStarted,
             this, [this](int dlId, const QString& fileName, qint64 fileSize, const QString& displayName) {
                 Q_UNUSED(fileSize);
@@ -524,7 +524,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 }
             });
 
-    // ���� Signal forwarding: AppBackend �� ShadowBackend ����
+    // ── Signal forwarding: AppBackend → ShadowBackend ──
     connect(m_app, &AppBackend::gameDirChanged,
             this, &ShadowBackend::gameDirChanged);
     connect(m_app, &AppBackend::themeChanged,
@@ -532,7 +532,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     connect(m_app, &AppBackend::logMessage,
             this, &ShadowBackend::logMessage);
 
-    // ���� Update manager ����
+    // ── Update manager ──
     m_updateManager = new UpdateManager(this);
     m_updateManager->setRepo(QStringLiteral("xiaole1173"), QStringLiteral("shadow-launcher"));
     m_updateManager->setCurrentVersion(appVersion());
@@ -654,7 +654,7 @@ void ShadowBackend::setEmbeddedLoginEnabled(bool v) {
     m_settings->setEmbeddedLoginEnabled(v);
 }
 
-// ���� Custom background ����
+// ── Custom background ──
 QString ShadowBackend::customBgPath() const { return m_settings->customBgPath(); }
 void ShadowBackend::setCustomBgPath(const QString& url) {
     // On clear, delete the cached copy
@@ -682,8 +682,8 @@ void ShadowBackend::updateCrop(qreal x, qreal y) {
 
 QString ShadowBackend::pickBackgroundImage() {
     QString path = QFileDialog::getOpenFileName(nullptr,
-        QString::fromUtf8("ѡ�񱳾�ͼƬ"), QString(),
-        QString::fromUtf8("ͼƬ�ļ� (*.png *.jpg *.jpeg *.bmp *.webp);;�����ļ� (*)"));
+        QString::fromUtf8("选择背景图片"), QString(),
+        QString::fromUtf8("图片文件 (*.png *.jpg *.jpeg *.bmp *.webp);;所有文件 (*)"));
     if (path.isEmpty()) return QString();
 
     // Copy to app data directory so the file doesn't go missing
@@ -818,7 +818,7 @@ static bool isAprilFoolVersion(const McVersion& v)
     // Specific April Fools version IDs
     static const QSet<QString> foolIds = {
         QStringLiteral("20w14infinite"),
-        QStringLiteral("20w14\u221E"),          // 20w14��
+        QStringLiteral("20w14\u221E"),          // 20w14∞
         QStringLiteral("3d shareware v1.34"),
         QStringLiteral("1.rv-pre1"),
         QStringLiteral("15w14a"),
@@ -874,8 +874,8 @@ QStringList ShadowBackend::aprilFoolVersions() const {
 
 void ShadowBackend::refreshVersionDetails()
 {
-    // ���׶��첽���� ����ɨ��״̬�� QML ��ʾ����ָʾ��
-    //              �� ��һ�¼�ѭ����ִ��ʵ��ɨ�裨�� QML ��Ⱦʱ�䣩
+    // 两阶段异步：① 设置扫描状态让 QML 显示加载指示器
+    //              ② 下一事件循环再执行实际扫描（给 QML 渲染时间）
     QTimer::singleShot(0, this, [this]() {
         if (m_isScanningVersions) return;
         m_isScanningVersions = true;
@@ -926,19 +926,19 @@ void ShadowBackend::refreshVersionDetails()
 
         // === Find the main JAR (flexible static helper) ===
         QString jarPath = VersionBackend::findVersionJar(verPath, versionId);
-        // If no jar found, that's OK �� loader versions inherit from vanilla
+        // If no jar found, that's OK — loader versions inherit from vanilla
 
         QVariantMap detail;
         detail[QStringLiteral("id")] = versionId;
 
-        // ���� Determine base MC version from JSON id ����
+        // ── Determine base MC version from JSON id ──
         QString baseMcVersion = versionId;
         if (!verJson.isEmpty() && verJson.contains(QStringLiteral("id"))) {
             baseMcVersion = verJson.value(QStringLiteral("id")).toString();
         }
 
-        // ���� Detect mod loader (directory-based + versionId-based) ����
-        QString loaderType = tr("ԭ��");
+        // ── Detect mod loader (directory-based + versionId-based) ──
+        QString loaderType = tr("原版");
         QString loaderVersion;
 
         // Try to detect loader from versionId pattern: "XX.X-neoforge-XX.X" etc.
@@ -973,7 +973,7 @@ void ShadowBackend::refreshVersionDetails()
         }
 
         // Fallback: detect loader from versionId pattern when dir check fails
-        if (loaderType == tr("ԭ��") && loaderMatch.hasMatch()) {
+        if (loaderType == tr("原版") && loaderMatch.hasMatch()) {
             QString key = loaderMatch.captured(2);
             if (key == QStringLiteral("neoforge")) loaderType = QStringLiteral("NeoForge");
             else if (key == QStringLiteral("forge")) loaderType = QStringLiteral("Forge");
@@ -983,11 +983,11 @@ void ShadowBackend::refreshVersionDetails()
         detail[QStringLiteral("loaderType")] = loaderType;
         detail[QStringLiteral("loaderVersion")] = loaderVersion;
 
-        // ���� Version type: use base MC version for manifest lookup ����
+        // ── Version type: use base MC version for manifest lookup ──
         QString vtype = knownTypes.value(baseMcVersion, QString());
         if (vtype.isEmpty()) {
-            // Not in manifest �� run heuristic ONLY for vanilla versions
-            if (loaderType == tr("ԭ��") && baseMcVersion.contains(QRegularExpression(QStringLiteral("\\dw\\d|alpha|beta|inf"))))
+            // Not in manifest — run heuristic ONLY for vanilla versions
+            if (loaderType == tr("原版") && baseMcVersion.contains(QRegularExpression(QStringLiteral("\\dw\\d|alpha|beta|inf"))))
                 vtype = QStringLiteral("old");
             else
                 vtype = QStringLiteral("release");
@@ -1003,18 +1003,18 @@ void ShadowBackend::refreshVersionDetails()
         }
         detail[QStringLiteral("versionType")] = vtype;
 
-        // Release time (Unix ms) for sorting �� use base MC version for loader versions
+        // Release time (Unix ms) for sorting — use base MC version for loader versions
         QDateTime rt = releaseTimes.value(baseMcVersion);
         if (!rt.isValid()) rt = releaseTimes.value(versionId);
         detail[QStringLiteral("releaseTimeMs")] = rt.isValid() ? rt.toMSecsSinceEpoch() : 0;
 
-        // ���ٹ����С������ݹ��������Ŀ¼��
+        // 快速估算大小（避免递归遍历整个目录）
         qint64 totalSize = 0;
         QFileInfo jarFi(jarPath);
         if (jarFi.exists()) totalSize += jarFi.size();
         QFileInfo jsonFi(jsonPath);
         if (jsonFi.exists()) totalSize += jsonFi.size();
-        // ֻͳ�ƶ�����Ŀ¼���ֱ���ļ������ݹ�����Ŀ¼��
+        // 只统计顶层子目录里的直接文件（不递归子子目录）
         static const QStringList topDirs = {
             QStringLiteral("mods"), QStringLiteral("resourcepacks"),
             QStringLiteral("shaderpacks"), QStringLiteral("saves")
@@ -1043,7 +1043,7 @@ void ShadowBackend::refreshVersionDetails()
     }
 
     emit versionDetailsReady();
-    emit logMessage(tr("��ɨ�� %1 ���Ѱ�װ�汾").arg(m_versionDetails.size()));
+    emit logMessage(tr("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
 
     m_isScanningVersions = false;
     emit scanningChanged();
@@ -1211,7 +1211,7 @@ static QString readQrcFile(const QString& path)
 {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return QStringLiteral("<p>�޷�����Э���ļ�</p>");
+        return QStringLiteral("<p>无法加载协议文件</p>");
     return QString::fromUtf8(f.readAll());
 }
 
@@ -1231,7 +1231,7 @@ QString ShadowBackend::termsAgreementHtml() const
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Account
+// Q_INVOKABLE methods — Account
 // ============================================================
 
 void ShadowBackend::offlineLogin(const QString& username) {
@@ -1259,13 +1259,13 @@ void ShadowBackend::logout() {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Settings / Java
+// Q_INVOKABLE methods — Settings / Java
 // ============================================================
 
 QVariantList ShadowBackend::scanJavaInstallations() {
-    emit logMessage(tr("����ɨ�� Java ����..."));
+    emit logMessage(tr("正在扫描 Java 环境..."));
     QVariantList list = m_settings->scanJavaInstallations();
-    qCInfo(logJava) << QStringLiteral("Javaɨ����� ���=%1").arg(list.size());
+    qCInfo(logJava) << QStringLiteral("Java扫描完成 检出=%1").arg(list.size());
     return list;
 }
 
@@ -1283,7 +1283,7 @@ QString ShadowBackend::jvmArgs() const {
 
 void ShadowBackend::setJvmArgs(const QString& args) {
     m_app->setJvmArgs(args);
-    emit logMessage(tr("[JVM] GC�����Ѹ���: %1").arg(args));
+    emit logMessage(tr("[JVM] GC参数已更新: %1").arg(args));
     saveJvmArgs();
     emit jvmArgsChanged();
 }
@@ -1294,7 +1294,7 @@ QString ShadowBackend::gameArgs() const {
 
 void ShadowBackend::setGameArgs(const QString& args) {
     m_app->setGameArgs(args);
-    emit logMessage(tr("[GAME] ��Ϸ���Ӳ����Ѹ���: %1").arg(args));
+    emit logMessage(tr("[GAME] 游戏附加参数已更新: %1").arg(args));
     saveGameArgs();
     emit gameArgsChanged();
 }
@@ -1305,13 +1305,13 @@ bool ShadowBackend::highPerfGpu() const {
 
 void ShadowBackend::setHighPerfGpu(bool v) {
     m_app->setHighPerfGpu(v);
-    emit logMessage(tr("[GPU] �������Կ�ģʽ: %1").arg(v ? QStringLiteral("����") : QStringLiteral("�ر�")));
+    emit logMessage(tr("[GPU] 高性能显卡模式: %1").arg(v ? QStringLiteral("开启") : QStringLiteral("关闭")));
     saveHighPerfGpu();
     emit highPerfGpuChanged();
 }
 
 
-// ���� Persistence helpers (delegated to SettingsBackend-style QSettings) ����
+// ── Persistence helpers (delegated to SettingsBackend-style QSettings) ──
 void ShadowBackend::saveJvmArgs() {
     QSettings s(QCoreApplication::organizationName(),
                 QCoreApplication::applicationName());
@@ -1340,12 +1340,12 @@ void ShadowBackend::loadJavaRuntimeSettings() {
 }
 
 QString ShadowBackend::browseJava() {
-    emit logMessage(tr("�û��ֶ�ѡ�� Java ����..."));
+    emit logMessage(tr("用户手动选择 Java 环境..."));
     return m_settings->browseJava();
 }
 
 void ShadowBackend::selectJavaByIndex(int index) {
-    qCInfo(logJava) << QStringLiteral("ѡ��Java index=%1").arg(index);
+    qCInfo(logJava) << QStringLiteral("选择Java index=%1").arg(index);
     m_settings->selectJavaByIndex(index);
 }
 
@@ -1443,7 +1443,7 @@ int ShadowBackend::diskPercent() const
     return 30;
 }
 
-// ���� Helper: get the game directory for a given version ID ����
+// ── Helper: get the game directory for a given version ID ──
 QString ShadowBackend::gameDirForVersion(const QString& versionId) const {
     if (versionId.isEmpty()) return m_app->gameDir();
     return getVersionGameDir(versionId);
@@ -1466,7 +1466,7 @@ bool ShadowBackend::openGameDir(const QString& versionId) {
     QString dir = gameDirForVersion(versionId);
     QDir().mkpath(dir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
-    emit logMessage(tr("�Ѵ���ϷĿ¼") + (versionId.isEmpty() ? QString() : QStringLiteral(" (") + versionId + QStringLiteral(")")));
+    emit logMessage(tr("已打开游戏目录") + (versionId.isEmpty() ? QString() : QStringLiteral(" (") + versionId + QStringLiteral(")")));
     return true;
 }
 
@@ -1475,7 +1475,7 @@ bool ShadowBackend::openLatestLog(const QString& versionId) {
     QString latestLog = gameDir + QStringLiteral("/logs/latest.log");
     if (QFileInfo::exists(latestLog)) {
         QDesktopServices::openUrl(QUrl::fromLocalFile(latestLog));
-        emit logMessage(tr("�Ѵ�������־"));
+        emit logMessage(tr("已打开最新日志"));
         return true;
     }
     return false;
@@ -1485,7 +1485,7 @@ bool ShadowBackend::openLogsFolder(const QString& versionId) {
     QString logsDir = gameDirForVersion(versionId) + QStringLiteral("/logs");
     QDir().mkpath(logsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
-    emit logMessage(tr("�Ѵ���־Ŀ¼"));
+    emit logMessage(tr("已打开日志目录"));
     return true;
 }
 
@@ -1493,7 +1493,7 @@ bool ShadowBackend::openLauncherLogsFolder() {
     QString logsDir = QCoreApplication::applicationDirPath() + QStringLiteral("/logs");
     QDir().mkpath(logsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
-    emit logMessage(tr("�Ѵ���������־Ŀ¼"));
+    emit logMessage(tr("已打开启动器日志目录"));
     return true;
 }
 
@@ -1506,7 +1506,7 @@ bool ShadowBackend::openCrashLog(const QString& versionId) {
         QFileInfoList entries = cd.entryInfoList(filters, QDir::Files, QDir::Time);
         if (!entries.isEmpty()) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(entries.first().absoluteFilePath()));
-            emit logMessage(tr("�Ѵ򿪱�����־"));
+            emit logMessage(tr("已打开崩溃日志"));
             return true;
         }
     }
@@ -1518,7 +1518,7 @@ bool ShadowBackend::openCrashLog(const QString& versionId) {
         QFileInfoList entries = acd.entryInfoList(filters, QDir::Files, QDir::Time);
         if (!entries.isEmpty()) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(entries.first().absoluteFilePath()));
-            emit logMessage(tr("�Ѵ򿪱�����־ (����Ŀ¼)"));
+            emit logMessage(tr("已打开崩溃日志 (隔离目录)"));
             return true;
         }
     }
@@ -1529,7 +1529,7 @@ bool ShadowBackend::openSavesFolder(const QString& versionId) {
     QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
     QDir().mkpath(savesDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(savesDir));
-    emit logMessage(tr("�Ѵ򿪴浵�ļ���"));
+    emit logMessage(tr("已打开存档文件夹"));
     return true;
 }
 
@@ -1537,7 +1537,7 @@ bool ShadowBackend::openScreenshotsFolder(const QString& versionId) {
     QString screenshotsDir = gameDirForVersion(versionId) + QStringLiteral("/screenshots");
     QDir().mkpath(screenshotsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(screenshotsDir));
-    emit logMessage(tr("�Ѵ򿪽�ͼ�ļ���"));
+    emit logMessage(tr("已打开截图文件夹"));
     return true;
 }
 
@@ -1545,7 +1545,7 @@ bool ShadowBackend::openModsFolder(const QString& versionId) {
     QString modsDir = gameDirForVersion(versionId) + QStringLiteral("/mods");
     QDir().mkpath(modsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(modsDir));
-    emit logMessage(tr("�Ѵ� Mod �ļ���"));
+    emit logMessage(tr("已打开 Mod 文件夹"));
     return true;
 }
 
@@ -1553,7 +1553,7 @@ bool ShadowBackend::openResourcePacksFolder(const QString& versionId) {
     QString rpDir = gameDirForVersion(versionId) + QStringLiteral("/resourcepacks");
     QDir().mkpath(rpDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(rpDir));
-    emit logMessage(tr("�Ѵ���Դ���ļ���"));
+    emit logMessage(tr("已打开资源包文件夹"));
     return true;
 }
 
@@ -1561,11 +1561,11 @@ bool ShadowBackend::openShaderPacksFolder(const QString& versionId) {
     QString spDir = gameDirForVersion(versionId) + QStringLiteral("/shaderpacks");
     QDir().mkpath(spDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(spDir));
-    emit logMessage(tr("�Ѵ򿪹�Ӱ���ļ���"));
+    emit logMessage(tr("已打开光影包文件夹"));
     return true;
 }
 
-// ���� Mod/local file operations ����
+// ── Mod/local file operations ──
 
 QVariantList ShadowBackend::listMods(const QString& versionId) const
 {
@@ -1579,7 +1579,7 @@ QVariantList ShadowBackend::listResourcePacks(const QString& versionId) const
     return m_localMods->scanResourcePacks(versionId);
 }
 
-// ���� �������ݹ����Ŀ¼��С ����
+// ── 辅助：递归计算目录大小 ──
 static qint64 computeDirSize(const QString& path)
 {
     qint64 total = 0;
@@ -1592,7 +1592,7 @@ static qint64 computeDirSize(const QString& path)
     return total;
 }
 
-// ���� ��������ʽ���ļ���СΪ�ɶ��ַ��� ����
+// ── 辅助：格式化文件大小为可读字符串 ──
 static QString formatSizeDisplay(qint64 bytes)
 {
     if (bytes < 1024) return QString::number(bytes) + QStringLiteral(" B");
@@ -1613,7 +1613,7 @@ QVariantList ShadowBackend::listSaves(const QString& versionId) const
             QVariantMap m;
             m[QStringLiteral("name")] = fi.fileName();
 
-            // Size (reuse the cached result from fi if available �� QFileInfo caches)
+            // Size (reuse the cached result from fi if available — QFileInfo caches)
             qint64 sizeBytes = computeDirSize(fi.absoluteFilePath());
             m[QStringLiteral("sizeBytes")] = sizeBytes;
             m[QStringLiteral("sizeDisplay")] = formatSizeDisplay(sizeBytes);
@@ -1637,13 +1637,13 @@ void ShadowBackend::deleteSave(const QString& saveName, const QString& versionId
     QString savePath = gameDirForVersion(versionId) + QStringLiteral("/saves/") + saveName;
     QDir dir(savePath);
     if (!dir.exists()) {
-        emit logMessage(QStringLiteral("�浵������: ") + saveName);
+        emit logMessage(QStringLiteral("存档不存在: ") + saveName);
         return;
     }
     if (dir.removeRecursively()) {
-        emit logMessage(QStringLiteral("��ɾ���浵: ") + saveName);
+        emit logMessage(QStringLiteral("已删除存档: ") + saveName);
     } else {
-        emit logMessage(QStringLiteral("ɾ���浵ʧ��: ") + saveName);
+        emit logMessage(QStringLiteral("删除存档失败: ") + saveName);
     }
 }
 
@@ -1651,14 +1651,14 @@ void ShadowBackend::deleteMod(const QString& filename, const QString& versionId)
 {
     if (!m_localMods) return;
     if (m_localMods->deleteMod(filename, versionId))
-        emit logMessage(QStringLiteral("��ɾ�� Mod: ") + filename);
+        emit logMessage(QStringLiteral("已删除 Mod: ") + filename);
 }
 
 void ShadowBackend::deleteResourcePack(const QString& filename, const QString& versionId)
 {
     if (!m_localMods) return;
     if (m_localMods->deleteResourcePack(filename, versionId))
-        emit logMessage(QStringLiteral("��ɾ����Դ��: ") + filename);
+        emit logMessage(QStringLiteral("已删除资源包: ") + filename);
 }
 
 bool ShadowBackend::importMod(const QString& filePath, const QString& versionId)
@@ -1684,7 +1684,7 @@ void ShadowBackend::deleteVersion(const QString& versionId) {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Version
+// Q_INVOKABLE methods — Version
 // ============================================================
 
 void ShadowBackend::refreshVersionList() {
@@ -1734,7 +1734,7 @@ void ShadowBackend::setSelectedVersion(const QString& versionId) {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Launch
+// Q_INVOKABLE methods — Launch
 // ============================================================
 
 void ShadowBackend::launch(const QString& versionId, bool online) {
@@ -1743,12 +1743,12 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
         m_multiplayer->prepareServerProperties(m_app->gameDir(), versionId);
     }
 
-    // ���õ�¼ģʽ���� yggdrasil backend ��ȡ�û����� token
+    // 外置登录模式：从 yggdrasil backend 获取用户名和 token
     QString username;
     auto *ygg = static_cast<YggdrasilBackend*>(m_yggdrasil);
     if (m_lastLoginMode == 2 && ygg && ygg->loggedIn()) {
         username = ygg->username();
-        // ֪ͨ launch backend ʹ�����õ�¼
+        // 通知 launch backend 使用外置登录
         m_launch->setYggdrasilMode(ygg->apiRoot(), ygg->accessToken());
     } else {
         username = m_account->username();
@@ -1770,18 +1770,18 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
             ? m_launch->getAutoMemory()
             : m_settings->maxMemoryMB();
     }
-    qCInfo(logApp) << QStringLiteral("�����ڴ�: %1MB (verMode=%2, auto=%3)").arg(maxMemory).arg(verMode).arg(m_settings->autoMemoryEnabled());
+    qCInfo(logApp) << QStringLiteral("启动内存: %1MB (verMode=%2, auto=%3)").arg(maxMemory).arg(verMode).arg(m_settings->autoMemoryEnabled());
     QString jvmArgs = resolvedJvmArgs(versionId);
     QString gameArgs = resolvedGameArgs(versionId);
 
-    // ���õ�¼���Զ����������
+    // 外置登录：自动进入服务器
     auto *yggServer = static_cast<YggdrasilBackend*>(m_yggdrasil);
     if (m_lastLoginMode == 2 && yggServer && yggServer->loggedIn()
             && yggServer->autoJoinServer() && !yggServer->serverAddress().isEmpty()) {
         QString addr = yggServer->serverAddress();
-        // ������֤�������Ա�̣������� setter �ѹ��ˣ�
+        // 二次验证（防御性编程，理论上 setter 已过滤）
         if (!YggdrasilBackend::isValidServerAddress(addr)) {
-            qCWarning(logApp) << QStringLiteral("[�����] ��������ַ��Ч�������Զ�����: %1").arg(addr);
+            qCWarning(logApp) << QStringLiteral("[服务端] 服务器地址无效，跳过自动连接: %1").arg(addr);
         } else {
             QStringList parts = addr.split(QLatin1Char(':'));
             QString host = parts.value(0);
@@ -1793,7 +1793,7 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
                     port = parsed;
             }
             gameArgs += QStringLiteral(" --server %1 --port %2").arg(host).arg(port);
-            qCInfo(logApp) << QStringLiteral("[�����] �Զ�����: %1:%2").arg(host).arg(port);
+            qCInfo(logApp) << QStringLiteral("[服务端] 自动连接: %1:%2").arg(host).arg(port);
         }
     }
 
@@ -1818,30 +1818,30 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
         bool needExactJava8 = (requiredMajor == 8 && manualMajor > 8);
 
         if (needExactJava8) {
-            emit logMessage(tr("[��ʾ] �˰汾���� LWJGL 2������ʹ�� Java 8�������Զ�ƥ��..."));
+            emit logMessage(tr("[提示] 此版本依赖 LWJGL 2，建议使用 Java 8，尝试自动匹配..."));
             javaPath = m_settings->findJavaForVersion(requiredMajor);
             if (!javaPath.isEmpty()) {
-                emit logMessage(tr("[���] ���Զ����� Java 8: %1").arg(javaPath));
+                emit logMessage(tr("[完成] 已自动降级 Java 8: %1").arg(javaPath));
             } else {
-                // Java 8 not found �� fall back to manual Java as best-effort
-                emit logMessage(tr("[����] δ�ҵ� Java 8������ʹ���ֶ����õ� Java %1").arg(manualMajor));
+                // Java 8 not found — fall back to manual Java as best-effort
+                emit logMessage(tr("[警告] 未找到 Java 8，降级使用手动配置的 Java %1").arg(manualMajor));
                 javaPath = manualJava;
             }
         } else if (manualMajor >= requiredMajor) {
             javaPath = manualJava;
-            emit logMessage(tr("[���] ʹ�����õ� Java %1: %2").arg(manualMajor).arg(javaPath));
+            emit logMessage(tr("[完成] 使用设置的 Java %1: %2").arg(manualMajor).arg(javaPath));
         } else {
-            emit logMessage(tr("[��ʾ] ���õ� Java %1 (%2) ������汾Ҫ�� (��Ҫ ��%3)�������Զ�ƥ��...")
+            emit logMessage(tr("[提示] 设置的 Java %1 (%2) 不满足版本要求 (需要 ≥%3)，尝试自动匹配...")
                                 .arg(manualMajor).arg(manualJava).arg(requiredMajor));
             javaPath = m_settings->findJavaForVersion(requiredMajor);
             if (!javaPath.isEmpty()) {
-                emit logMessage(tr("[���] ���Զ�ƥ�� Java %1: %2").arg(requiredMajor).arg(javaPath));
+                emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
             }
         }
     } else {
         javaPath = m_settings->findJavaForVersion(requiredMajor);
         if (!javaPath.isEmpty()) {
-            emit logMessage(tr("[���] ���Զ�ƥ�� Java %1: %2").arg(requiredMajor).arg(javaPath));
+            emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
         }
     }
 
@@ -1849,12 +1849,12 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
         // Check if scan is still in progress (async, takes ~500ms)
         if (m_settings->isJavaScanning()) {
             emit logMessage(QStringLiteral("[JAVA] Java scan still in progress, please wait and try again"));
-            emit launchBlocked(tr("Java ɨ������У����Ժ�����"));
+            emit launchBlocked(tr("Java 扫描进行中，请稍后再试"));
         } else {
-            emit logMessage(tr("[ʧ��] �˰汾��Ҫ Java %1����ϵͳ��δ�ҵ�ƥ��� Java ��װ")
+            emit logMessage(tr("[失败] 此版本需要 Java %1，但系统中未找到匹配的 Java 安装")
                                 .arg(requiredMajor));
-            emit logMessage(tr("[��ʾ] �밲װ Java %1 �����������ֶ�ѡ��").arg(requiredMajor));
-            emit launchBlocked(tr("Javaδ��װ���޷�������Ϸ��"));
+            emit logMessage(tr("[提示] 请安装 Java %1 后在设置中手动选择").arg(requiredMajor));
+            emit launchBlocked(tr("Java未安装！无法启动游戏！"));
         }
         return;
     }
@@ -1863,17 +1863,17 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     if (online) {
         auto *ygg2 = static_cast<YggdrasilBackend*>(m_yggdrasil);
         if (m_lastLoginMode == 2 && ygg2 && ygg2->loggedIn()) {
-            // ���õ�¼
-            qCInfo(logLaunch) << QStringLiteral("[��֤] ���õ�¼ģʽ���� �����=%1 uuid=%2").arg(ygg2->username(), ygg2->uuid());
+            // 外置登录
+            qCInfo(logLaunch) << QStringLiteral("[认证] 外置登录模式启动 玩家名=%1 uuid=%2").arg(ygg2->username(), ygg2->uuid());
             m_launch->setAuthInfo(ygg2->username(), ygg2->uuid(),
                                   ygg2->accessToken(), true);
         } else {
-            qCInfo(logLaunch) << QStringLiteral("[��֤] ����ģʽ���� �����=%1 uuid=%2").arg(m_account->username(), m_account->accountUuid());
+            qCInfo(logLaunch) << QStringLiteral("[认证] 在线模式启动 玩家名=%1 uuid=%2").arg(m_account->username(), m_account->accountUuid());
             m_launch->setAuthInfo(m_account->username(), m_account->accountUuid(),
                                   m_account->mcToken(), true);
         }
     } else {
-        qCInfo(logLaunch) << QStringLiteral("[��֤] ����ģʽ���� �����=%1 uuid=%2").arg(m_account->offlineUsername(), m_account->offlineUuid());
+        qCInfo(logLaunch) << QStringLiteral("[认证] 离线模式启动 玩家名=%1 uuid=%2").arg(m_account->offlineUsername(), m_account->offlineUuid());
         m_launch->setAuthInfo(m_account->offlineUsername(), m_account->offlineUuid(), QString(), false);
     }
 
@@ -1912,7 +1912,7 @@ int ShadowBackend::requiredJavaMajor(const QString& versionId)
         if (!javaVer.isEmpty()) {
             int major = javaVer[QStringLiteral("majorVersion")].toInt(0);
             if (major > 0) {
-                qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 inherits %2 �� requires Java %3")
+                qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 inherits %2 → requires Java %3")
                                     .arg(versionId, currentId).arg(major);
                 return major;
             }
@@ -1923,11 +1923,11 @@ int ShadowBackend::requiredJavaMajor(const QString& versionId)
     }
 
     // Fallback: parse MC version from versionId and infer Java requirement
-    // Examples: "1.12.2-forge-14.23.5.2860" �� "1.12.2" �� Java 8
-    //           "26.1.1-forge-63.0.2" �� "26.1.1" �� no known mapping �� try base version
+    // Examples: "1.12.2-forge-14.23.5.2860" → "1.12.2" → Java 8
+    //           "26.1.1-forge-63.0.2" → "26.1.1" → no known mapping → try base version
     // Parse MC version: everything before first "-" that follows a digit
     QString mcVer;
-    // Strip loader suffix: "X.Y.Z-forge-..." �� "X.Y.Z"
+    // Strip loader suffix: "X.Y.Z-forge-..." → "X.Y.Z"
     static QRegularExpression mcVerRe(QStringLiteral("^(\\d+\\.\\d+(?:\\.\\d+)?)"));
     QRegularExpressionMatch match = mcVerRe.match(versionId);
     if (match.hasMatch()) {
@@ -1935,7 +1935,7 @@ int ShadowBackend::requiredJavaMajor(const QString& versionId)
     }
     
     int javaMajor = inferJavaByMcVersion(mcVer);
-    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 �� MC %2 �� inferred Java %3 (no javaVersion in chain)")
+    qCInfo(logLaunch) << QStringLiteral("[JAVA] Version %1 → MC %2 → inferred Java %3 (no javaVersion in chain)")
                         .arg(versionId, mcVer.isEmpty() ? QStringLiteral("unknown") : mcVer).arg(javaMajor);
     return javaMajor;
 }
@@ -1946,11 +1946,11 @@ int ShadowBackend::inferJavaByMcVersion(const QString& mcVersion)
     // Used when version JSON + inheritsFrom chain has no javaVersion field.
     //
     // Source: Minecraft Wiki + ModReady version table
-    //   MC < 1.17                 �� Java 8
-    //   MC 1.17~1.17.1            �� Java 16
-    //   MC 1.18~1.20.4            �� Java 17
-    //   MC 1.20.5~1.21.5          �� Java 21
-    //   MC 22.x+ (post-rename)    �� Java 25 (java-runtime-beta)
+    //   MC < 1.17                 → Java 8
+    //   MC 1.17~1.17.1            → Java 16
+    //   MC 1.18~1.20.4            → Java 17
+    //   MC 1.20.5~1.21.5          → Java 21
+    //   MC 22.x+ (post-rename)    → Java 25 (java-runtime-beta)
     //
     if (mcVersion.isEmpty()) return 8;
 
@@ -1962,24 +1962,24 @@ int ShadowBackend::inferJavaByMcVersion(const QString& mcVersion)
     int minor = parts[1].toInt();
     int rev = (parts.size() >= 3) ? parts[2].split(QStringLiteral("-"))[0].toInt() : 0;
     
-    // ���� Post-rename era: "22.x.x" ~ "26.x.x" ����
+    // ── Post-rename era: "22.x.x" ~ "26.x.x" ──
     // Mojang renamed 1.22+ to 22.x (e.g. 26.1 = Tiny Takeover, 26.2 = Chaos Cubed)
-    // These all use java-runtime-beta �� Java 25
+    // These all use java-runtime-beta → Java 25
     if (major >= 22) return 25;
     
-    // ���� Classic era: "1.X.Y" ����
+    // ── Classic era: "1.X.Y" ──
     if (major == 1) {
-        // 1.21.x (regardless of rev) �� Java 21
-        if (minor >= 22) return 25;   // 1.22+ (if it exists) �� same as post-rename
+        // 1.21.x (regardless of rev) → Java 21
+        if (minor >= 22) return 25;   // 1.22+ (if it exists) → same as post-rename
         if (minor >= 21) return 21;
-        // 1.20.x: 1.20.5+ �� Java 21, 1.20.0~1.20.4 �� Java 17
+        // 1.20.x: 1.20.5+ → Java 21, 1.20.0~1.20.4 → Java 17
         if (minor >= 20) return (rev >= 5) ? 21 : 17;
         if (minor == 18 || minor == 19) return 17;
         if (minor == 17) return 16;
         return 8;  // 1.16.x and below
     }
     
-    // Unknown version scheme �� conservative
+    // Unknown version scheme → conservative
     return 21;
 }
 
@@ -2036,7 +2036,7 @@ void ShadowBackend::setVersionMemoryManualMB(const QString& versionId, int mb) {
     m_settings->setVersionMemoryManualMB(versionId, mb);
 }
 
-// ���� Per-version Java/launch overrides ����
+// ── Per-version Java/launch overrides ──
 
 int ShadowBackend::versionJavaMode(const QString& versionId) const {
     return m_settings->versionJavaMode(versionId);
@@ -2103,7 +2103,7 @@ bool ShadowBackend::resolvedHighPerfGpu(const QString& versionId) const {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Resource
+// Q_INVOKABLE methods — Resource
 // ============================================================
 
 QVariantList ShadowBackend::getPopularMods(const QString& loader) {
@@ -2167,7 +2167,7 @@ void ShadowBackend::fetchShaderVersions(const QStringList& slugs) {
     m_resource->fetchShaderVersions(slugs);
 }
 
-// ���� Mod file download proxy ����
+// ── Mod file download proxy ──
 int ShadowBackend::downloadModFile(const QString& url, const QString& savePath,
                                     const QString& displayName, qint64 expectedSize,
                                     const QString& sha1, qint64 receivedOffset, int resumeId) {
@@ -2189,7 +2189,7 @@ void ShadowBackend::retryModFileDownload(int downloadId) {
     m_resource->retryModFileDownload(downloadId);
 }
 
-// �T�T�T Wardrobe (��ñ��) �T�T�T
+// ═══ Wardrobe (衣帽间) ═══
 
 void ShadowBackend::initCapeCache() {
     if (!m_capeCache.isEmpty()) return;
@@ -2243,26 +2243,26 @@ QString ShadowBackend::loginType() const {
 }
 
 void ShadowBackend::browseSkin() {
-    QString file = QFileDialog::getOpenFileName(nullptr, tr("ѡ��Ƥ��ͼƬ"), QString(),
-        tr("PNG ͼƬ (*.png)"));
+    QString file = QFileDialog::getOpenFileName(nullptr, tr("选择皮肤图片"), QString(),
+        tr("PNG 图片 (*.png)"));
     if (file.isEmpty()) return;
 
     // Validate PNG dimensions (64x64 or 64x32)
     QImage img(file);
     if (img.isNull()) {
-        emit wardrobeError(tr("�޷���ȡͼƬ"));
+        emit wardrobeError(tr("无法读取图片"));
         return;
     }
     int w = img.width();
     int h = img.height();
     bool valid = (w == 64 && h == 64) || (w == 64 && h == 32);
     if (!valid) {
-        emit wardrobeError(tr("Ƥ���ߴ����Ϊ 64x64 �� 64x32����ǰΪ %1x%2").arg(w).arg(h));
+        emit wardrobeError(tr("皮肤尺寸必须为 64x64 或 64x32，当前为 %1x%2").arg(w).arg(h));
         return;
     }
 
     m_selectedSkinPath = file;
-    emit logMessage(tr("��ѡ��Ƥ��: %1 (%2x%3)").arg(file).arg(w).arg(h));
+    emit logMessage(tr("已选择皮肤: %1 (%2x%3)").arg(file).arg(w).arg(h));
     emit skinChanged();
 }
 
@@ -2271,8 +2271,8 @@ void ShadowBackend::uploadSkin(const QString& skinPath, int modelType) {
 
     if (m_lastLoginMode != 0 || !m_account || m_account->mcToken().isEmpty()) {
         // Offline mode: just save locally
-        qCInfo(logApp) << QStringLiteral("��ñ��: ����ģʽ��Ƥ�����浽����");
-        emit logMessage(tr("����ģʽ��Ƥ���ѱ��浽����"));
+        qCInfo(logApp) << QStringLiteral("衣帽间: 离线模式，皮肤保存到本地");
+        emit logMessage(tr("离线模式：皮肤已保存到本地"));
         emit wardrobeBusyChanged();
         return;
     }
@@ -2283,7 +2283,7 @@ void ShadowBackend::uploadSkin(const QString& skinPath, int modelType) {
     // Read PNG and convert to base64 data URL
     QFile f(skinPath);
     if (!f.open(QIODevice::ReadOnly)) {
-        emit wardrobeError(tr("�޷���ȡƤ���ļ�"));
+        emit wardrobeError(tr("无法读取皮肤文件"));
         m_wardrobeBusy = false;
         emit wardrobeBusyChanged();
         return;
@@ -2314,18 +2314,18 @@ void ShadowBackend::uploadSkin(const QString& skinPath, int modelType) {
 
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 200 || status == 204) {
-            qCInfo(logApp) << QStringLiteral("��ñ��: Ƥ���ϴ��ɹ�");
-            emit logMessage(tr("Ƥ����ͬ���� Mojang ������"));
+            qCInfo(logApp) << QStringLiteral("衣帽间: 皮肤上传成功");
+            emit logMessage(tr("皮肤已同步到 Mojang 服务器"));
         } else {
             QByteArray body = reply->readAll();
-            qCWarning(logApp) << QStringLiteral("��ñ��: Ƥ���ϴ�ʧ�� status=%1 body=%2").arg(status).arg(QString::fromUtf8(body));
-            emit wardrobeError(tr("�ϴ�ʧ�� (HTTP %1)").arg(status));
+            qCWarning(logApp) << QStringLiteral("衣帽间: 皮肤上传失败 status=%1 body=%2").arg(status).arg(QString::fromUtf8(body));
+            emit wardrobeError(tr("上传失败 (HTTP %1)").arg(status));
         }
     });
 }
 
 void ShadowBackend::saveWardrobeSettings(const QString& skinPath, const QString& capeId, int modelType) {
-    qCInfo(logApp) << QStringLiteral("��ñ�䱣�� skin=%1 cape=%2 model=%3").arg(skinPath, capeId).arg(modelType);
+    qCInfo(logApp) << QStringLiteral("衣帽间保存 skin=%1 cape=%2 model=%3").arg(skinPath, capeId).arg(modelType);
 
     if (m_lastLoginMode == 0 && m_account && !m_account->mcToken().isEmpty()) {
         // Online: upload to Mojang
@@ -2333,7 +2333,7 @@ void ShadowBackend::saveWardrobeSettings(const QString& skinPath, const QString&
             uploadSkin(skinPath, modelType);
         }
         if (!capeId.isEmpty()) {
-            emit logMessage(tr("����ѡ��: %1 (���� Minecraft ��������)").arg(capeId));
+            emit logMessage(tr("披风选择: %1 (需在 Minecraft 官网设置)").arg(capeId));
         }
     } else {
         // Offline: copy skin to launcher data dir
@@ -2342,30 +2342,30 @@ void ShadowBackend::saveWardrobeSettings(const QString& skinPath, const QString&
             QDir().mkpath(skinDir);
             QString dest = skinDir + "/custom_skin.png";
             if (QFile::copy(skinPath, dest)) {
-                emit logMessage(tr("����Ƥ���ѱ���: %1").arg(dest));
+                emit logMessage(tr("离线皮肤已保存: %1").arg(dest));
             } else {
-                emit wardrobeError(tr("Ƥ������ʧ��"));
+                emit wardrobeError(tr("皮肤保存失败"));
             }
         }
-        emit logMessage(tr("����ģʽ: Ƥ�������´�����ʱ��Ч"));
+        emit logMessage(tr("离线模式: 皮肤将在下次启动时生效"));
     }
 }
 
-// ������������������������������������������������������������������������������������������������������������������������
+// ────────────────────────────────────────────────────────────
 // Save Skin To File (user-chosen destination via file dialog)
-// ������������������������������������������������������������������������������������������������������������������������
+// ────────────────────────────────────────────────────────────
 
 void ShadowBackend::saveSkinToFile()
 {
     if (!m_account) {
-        emit wardrobeError(tr("δ����"));
+        emit wardrobeError(tr("未就绪"));
         return;
     }
 
     // Online mode: fetch fresh full skin from Mojang API
     if (m_account->isOnline()) {
-        qCInfo(logApp) << QStringLiteral("���߱���Ƥ��: ���ڴ�Mojang��ȡ����Ƥ��");
-        qCInfo(logApp) << QStringLiteral("���ڻ�ȡ����Ƥ��...");
+        qCInfo(logApp) << QStringLiteral("在线保存皮肤: 正在从Mojang获取最新皮肤");
+        qCInfo(logApp) << QStringLiteral("正在获取最新皮肤...");
 
         QNetworkRequest req(QUrl(QStringLiteral("https://api.minecraftservices.com/minecraft/profile")));
         req.setRawHeader("Authorization",
@@ -2376,7 +2376,7 @@ void ShadowBackend::saveSkinToFile()
             profileReply->deleteLater();
 
             if (profileReply->error() != QNetworkReply::NoError) {
-                emit wardrobeError(tr("��ȡƤ����Ϣʧ��: %1").arg(profileReply->errorString()));
+                emit wardrobeError(tr("获取皮肤信息失败: %1").arg(profileReply->errorString()));
                 return;
             }
 
@@ -2393,35 +2393,35 @@ void ShadowBackend::saveSkinToFile()
             }
 
             if (skinUrl.isEmpty()) {
-                emit wardrobeError(tr("δ�ҵ���ԾƤ��"));
+                emit wardrobeError(tr("未找到活跃皮肤"));
                 return;
             }
 
-            qCInfo(logApp) << QStringLiteral("��������Ƥ������: ") << skinUrl;
+            qCInfo(logApp) << QStringLiteral("正在下载皮肤纹理: ") << skinUrl;
             QNetworkRequest skinReq(skinUrl);
             QNetworkReply* skinReply = HttpClient::instance().getRaw(skinReq);
             connect(skinReply, &QNetworkReply::finished, this, [this, skinReply]() {
                 skinReply->deleteLater();
 
                 if (skinReply->error() != QNetworkReply::NoError) {
-                    emit wardrobeError(tr("Ƥ����������ʧ��: %1").arg(skinReply->errorString()));
+                    emit wardrobeError(tr("皮肤纹理下载失败: %1").arg(skinReply->errorString()));
                     return;
                 }
 
                 QByteArray skinData = skinReply->readAll();
 
-                QString dest = QFileDialog::getSaveFileName(nullptr, tr("����Ƥ���ļ�"),
-                    QStringLiteral("skin.png"), tr("PNG ͼƬ (*.png)"));
+                QString dest = QFileDialog::getSaveFileName(nullptr, tr("保存皮肤文件"),
+                    QStringLiteral("skin.png"), tr("PNG 图片 (*.png)"));
                 if (dest.isEmpty()) return;
 
                 QFile file(dest);
                 if (file.open(QIODevice::WriteOnly)) {
                     file.write(skinData);
                     file.close();
-                    qCInfo(logApp) << QStringLiteral("Ƥ�������߱��浽: ") << dest;
-                    emit wardrobeError(tr("Ƥ���ѱ��浽: %1").arg(dest));
+                    qCInfo(logApp) << QStringLiteral("皮肤已在线保存到: ") << dest;
+                    emit wardrobeError(tr("皮肤已保存到: %1").arg(dest));
                 } else {
-                    emit wardrobeError(tr("����ʧ��: %1").arg(dest));
+                    emit wardrobeError(tr("保存失败: %1").arg(dest));
                 }
             });
         });
@@ -2439,16 +2439,16 @@ void ShadowBackend::saveSkinToFile()
         srcPath = srcPath.mid(8);
 
     if (srcPath.isEmpty() || !QFile::exists(srcPath)) {
-        emit wardrobeError(tr("û�пɱ����Ƥ��"));
+        emit wardrobeError(tr("没有可保存的皮肤"));
         return;
     }
 
-    QString dest = QFileDialog::getSaveFileName(nullptr, tr("����Ƥ���ļ�"),
-        QStringLiteral("skin.png"), tr("PNG ͼƬ (*.png)"));
+    QString dest = QFileDialog::getSaveFileName(nullptr, tr("保存皮肤文件"),
+        QStringLiteral("skin.png"), tr("PNG 图片 (*.png)"));
     if (dest.isEmpty()) return;
 
     if (QFile::copy(srcPath, dest)) {
-        emit wardrobeError(tr("Ƥ���ѱ��浽: %1").arg(dest));
+        emit wardrobeError(tr("皮肤已保存到: %1").arg(dest));
     } else {
         // Try reading + writing if copy fails (e.g. across drives)
         QFile inFile(srcPath);
@@ -2459,15 +2459,15 @@ void ShadowBackend::saveSkinToFile()
             if (outFile.open(QIODevice::WriteOnly)) {
                 outFile.write(data);
                 outFile.close();
-                emit wardrobeError(tr("Ƥ���ѱ��浽: %1").arg(dest));
+                emit wardrobeError(tr("皮肤已保存到: %1").arg(dest));
                 return;
             }
         }
-        emit wardrobeError(tr("����ʧ��: %1").arg(dest));
+        emit wardrobeError(tr("保存失败: %1").arg(dest));
     }
 }
 
-// ���� Icon cache: async download webp �� ffmpeg convert to PNG �� cache locally ����
+// ── Icon cache: async download webp → ffmpeg convert to PNG → cache locally ──
 // Qt 6.5.3 on this machine lacks qwebp.dll plugin, so we pre-convert webp to PNG
 void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
     if (webpUrl.isEmpty()) return;
@@ -2505,14 +2505,14 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, webpUrl, pngPath]() {
         if (reply->error() != QNetworkReply::NoError) {
-            qCWarning(logApp) << QStringLiteral("[ͼ��] ����ʧ�� url=%1 ����=%2").arg(webpUrl.left(100), reply->errorString());
+            qCWarning(logApp) << QStringLiteral("[图标] 下载失败 url=%1 错误=%2").arg(webpUrl.left(100), reply->errorString());
             reply->deleteLater();
             mgr->deleteLater();
             emit iconCached(webpUrl, {});
             return;
         }
 
-        // Decode webp �� QImage �� save PNG (libwebp, zero subprocess overhead)
+        // Decode webp → QImage → save PNG (libwebp, zero subprocess overhead)
         QByteArray webpData = reply->readAll();
         reply->deleteLater();
         mgr->deleteLater();
@@ -2532,7 +2532,7 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
             WebPFree(rgba);  // safe to free null
             img = QImage::fromData(webpData);
             if (img.isNull()) {
-                qCWarning(logApp) << QStringLiteral("[ͼ��] ����ʧ�� url=%1").arg(webpUrl.left(100));
+                qCWarning(logApp) << QStringLiteral("[图标] 解码失败 url=%1").arg(webpUrl.left(100));
                 emit iconCached(webpUrl, {});
                 return;
             }
@@ -2540,11 +2540,11 @@ void ShadowBackend::cacheIconAsync(const QString& webpUrl) {
 
         // Save PNG to disk cache for future instant loads
         if (img.save(pngPath, "PNG")) {
-            qCDebug(logApp) << "[ICON] cached (libwebp):" << webpUrl.left(100) << "��" << pngPath
+            qCDebug(logApp) << "[ICON] cached (libwebp):" << webpUrl.left(100) << "→" << pngPath
                      << "(" << img.width() << "x" << img.height() << ")";
             emit iconCached(webpUrl, QUrl::fromLocalFile(pngPath).toString());
         } else {
-            qCWarning(logApp) << QStringLiteral("[ͼ��] PNG����ʧ�� ·��=%1").arg(pngPath);
+            qCWarning(logApp) << QStringLiteral("[图标] PNG保存失败 路径=%1").arg(pngPath);
             emit iconCached(webpUrl, {});
         }
     });
@@ -2563,7 +2563,7 @@ QString ShadowBackend::cachedIconPath(const QString& webpUrl) const {
 
 // ============================================================
 // fetchResourcepackVersions
-// Q_INVOKABLE methods �� App
+// Q_INVOKABLE methods — App
 // ============================================================
 
 void ShadowBackend::setTheme(const QString& theme) {
@@ -2581,7 +2581,7 @@ void ShadowBackend::setGameDir(const QString& dir) {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Version management
+// Q_INVOKABLE methods — Version management
 // ============================================================
 
 void ShadowBackend::verifyVersion(const QString& versionId) {
@@ -2607,8 +2607,8 @@ bool ShadowBackend::cloneVersion(const QString& sourceId) {
 }
 
 bool ShadowBackend::renameVersion(const QString& oldId) {
-    // Single-param: called from QML with just oldId �� QML shows rename dialog
-    qDebug() << "[renameVersion] single-param stub called for" << oldId << "�C QML should show dialog";
+    // Single-param: called from QML with just oldId — QML shows rename dialog
+    qDebug() << "[renameVersion] single-param stub called for" << oldId << "– QML should show dialog";
     return false;
 }
 
@@ -2644,7 +2644,7 @@ void ShadowBackend::openVerifyReport() {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Check
+// Q_INVOKABLE methods — Check
 // ============================================================
 
 QVariantMap ShadowBackend::checkAll(const QString& versionId) {
@@ -2655,7 +2655,7 @@ QVariantMap ShadowBackend::checkAll(const QString& versionId) {
 }
 
 // ============================================================
-// Q_INVOKABLE methods �� Clipboard
+// Q_INVOKABLE methods — Clipboard
 // ============================================================
 
 void ShadowBackend::copyToClipboard(const QString& text)
@@ -2682,7 +2682,7 @@ static void queryModLoaderApi(ShadowBackend* self, const QString& url,
     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     QNetworkReply* reply = mgr->get(req);
-    qCInfo(logApp) << QStringLiteral("[������] ��ѯ�汾�б� ������=%1 url=%2").arg(loaderName, url);
+    qCInfo(logApp) << QStringLiteral("[加载器] 查询版本列表 加载器=%1 url=%2").arg(loaderName, url);
 
     // Track for cancellation
     self->m_modLoaderReplies.append(reply);
@@ -2692,13 +2692,13 @@ static void queryModLoaderApi(ShadowBackend* self, const QString& url,
         self->m_modLoaderReplies.removeAll(reply);
 
         if (self->m_modLoaderQueriesCancelled) {
-            qCInfo(logApp) << QStringLiteral("[������] ��ѯ��ȡ�� ������=%1").arg(loaderName);
+            qCInfo(logApp) << QStringLiteral("[加载器] 查询已取消 加载器=%1").arg(loaderName);
             reply->deleteLater();
             mgr->deleteLater();
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            qCWarning(logApp) << QStringLiteral("[������] ��ѯʧ�� ������=%1 ����=%2").arg(loaderName, reply->errorString());
+            qCWarning(logApp) << QStringLiteral("[加载器] 查询失败 加载器=%1 错误=%2").arg(loaderName, reply->errorString());
             reply->deleteLater();
             mgr->deleteLater();
             emitFn({});
@@ -2707,9 +2707,9 @@ static void queryModLoaderApi(ShadowBackend* self, const QString& url,
         QByteArray data = reply->readAll();
         reply->deleteLater();
         mgr->deleteLater();
-        qCInfo(logApp) << QStringLiteral("[������] ��ȡ�汾���� ������=%1 ��С=%2�ֽ�").arg(loaderName).arg(data.size());
+        qCInfo(logApp) << QStringLiteral("[加载器] 获取版本数据 加载器=%1 大小=%2字节").arg(loaderName).arg(data.size());
         QVariantList list = parseFn(data);
-        qCInfo(logApp) << QStringLiteral("[������] �����汾��� ������=%1 �汾��=%2").arg(loaderName).arg(list.size());
+        qCInfo(logApp) << QStringLiteral("[加载器] 解析版本完成 加载器=%1 版本数=%2").arg(loaderName).arg(list.size());
         emitFn(list);
     });
     });  // QTimer::singleShot
@@ -2785,31 +2785,29 @@ void ShadowBackend::queryFabricVersions(const QString& mcVersion) {
         },
         [this](const QVariantList& list) { emit fabricVersionsReady(list); });
 }
-// ���� NeoForge version parser (主流启动器 3-format logic) ����
-// 主流启动器: DlNeoForgeListEntry.New handles 3 formats:
-//   1) 1.20.1-47.1.99  -> Legacy: Inherit="1.20.1"
-//   2) 0.25w14craftmine.3 -> Snapshot: Inherit = snapshot name
-//   3) 20.4.30-beta    -> Standard: Major<24 -> "1.{maj}.{min}", Major>=24 -> "{maj}.{min}", strip trailing ".0"
-// Returns list of QVariantMap { version, type, inherit } filtered by filterMc.
-static QVariantList parseNeoForgeVersions(const QByteArray& latestJson, const QByteArray& legacyJson, const QString& filterMc) {
-    // Combine both JSON arrays via regex-extract (主流启动器 approach: regex on raw text)
-    QString raw = QString::fromUtf8(legacyJson) + QString::fromUtf8(latestJson);
-    QRegularExpression re(QStringLiteral("(?:1\\.20\\.1-)?\\d+\\.[^\"]+?\\.\\d+(?:\\.\\d+)?(?:-(?:beta|alpha)(?:\\.\\d+)?)?(?:\\+snapshot-\\d+)?"));
-    QRegularExpressionMatchIterator it = re.globalMatch(raw);
+
+
+static QVariantList parseNeoForgeVersions(const QByteArray& latestData, const QByteArray& legacyData, const QString& filterMc) {
     QStringList versionNames;
-    while (it.hasNext()) {
-        QString v = it.next().captured(0);
-        if (v == QStringLiteral("47.1.82")) continue;  // 主流启动器 exclusion: in list but can't download
-        versionNames.append(v);
+    for (const QByteArray& data : {latestData, legacyData}) {
+        if (data.isEmpty()) continue;
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isObject()) continue;
+        QJsonArray versions = doc.object().value(QStringLiteral("versions")).toArray();
+        for (const QJsonValue& v : versions) {
+            if (v.isObject()) {
+                QString name = v.toObject().value(QStringLiteral("version")).toString();
+                if (!name.isEmpty()) versionNames.append(name);
+            }
+        }
     }
-    versionNames.removeDuplicates();
 
     QVariantList result;
     for (const QString& apiName : versionNames) {
         bool isBeta = apiName.contains(QStringLiteral("beta"), Qt::CaseInsensitive)
                    || apiName.contains(QStringLiteral("alpha"), Qt::CaseInsensitive);
-        QString versionName;  // display name
-        QString inherit;      // MC version
+        QString versionName;
+        QString inherit;
 
         // Format 1: Legacy 1.20.1-47.1.99
         if (apiName.contains(QStringLiteral("1.20.1"))) {
@@ -2821,33 +2819,26 @@ static QVariantList parseNeoForgeVersions(const QByteArray& latestJson, const QB
         else if (apiName.startsWith(QStringLiteral("0."))) {
             versionName = apiName;
             QStringList segments = apiName.section(QLatin1Char('-'), 0, 0).split(QLatin1Char('.'));
-            // segments[0]="0", segments[1]="25w14craftmine", segments[2]="3"
             inherit = segments.value(1);
             if (inherit.isEmpty()) continue;
         }
-        // Format 3: Standard 20.4.30-beta or 26.1.0.0-alpha.1+snapshot-1
+        // Format 3: Standard 20.4.30-beta or 26.1.0.0-alpha
         else {
             versionName = apiName;
-            QString verStr = apiName.section(QLatin1Char('-'), 0, 0);  // before first "-"
+            QString verStr = apiName.section(QLatin1Char('-'), 0, 0);
             QStringList parts = verStr.split(QLatin1Char('.'));
             if (parts.size() < 3) continue;
             int major = parts[0].toInt();
             int minor = parts[1].toInt();
-            int build = parts[2].toInt();
             if (major >= 24) {
-                inherit = QStringLiteral("%1.%2.%3").arg(major).arg(minor).arg(build);
+                inherit = QStringLiteral("%1.%2").arg(major).arg(minor);
             } else {
                 inherit = QStringLiteral("1.%1.%2").arg(major).arg(minor);
             }
-            // Strip trailing ".0" (主流启动器 logic)
             if (inherit.endsWith(QStringLiteral(".0")))
                 inherit.chop(2);
-            // Handle +snapshot suffix in inherit
-            if (versionName.contains(QLatin1Char('+')))
-                inherit += QLatin1Char('-') + versionName.section(QLatin1Char('+'), 1);
         }
 
-        // Filter by requested MC version
         if (inherit != filterMc) continue;
 
         QVariantMap m;
@@ -2860,122 +2851,77 @@ static QVariantList parseNeoForgeVersions(const QByteArray& latestJson, const QB
     return result;
 }
 
+
 void ShadowBackend::queryNeoForgeVersions(const QString& mcVersion) {
     m_modLoaderQueriesCancelled = false;
 
-    // Shared state: each source (BMCLAPI/Official) has 2 sub-requests (latest + legacy)
-    struct SubReq {
-        bool done = false;
-        QByteArray data;
-    };
+    struct SubReq { bool done = false; QByteArray data; };
     struct SourceState {
-        SubReq latest;
-        SubReq legacy;
-        bool parsed = false;   // both sub-reqs parsed + filtered
-        QVariantList result;   // result after parse + filter
+        SubReq latest; SubReq legacy; bool parsed = false; QVariantList result;
     };
-    struct DualState {
-        SourceState bmcl;
-        SourceState official;
-        bool emitted = false;
-    };
+    struct DualState { SourceState bmcl; SourceState official; bool emitted = false; };
     auto state = std::make_shared<DualState>();
 
-    // Called when both sub-reqs of a source complete -> parse and possibly emit
     auto checkSourceComplete = [this, state, mcVersion](bool isBmcl) {
         if (state->emitted) return;
-
         SourceState& src = isBmcl ? state->bmcl : state->official;
-        if (!src.latest.done || !src.legacy.done) return;  // not both done yet
-        if (src.parsed) return;  // already parsed
-
+        if (!src.latest.done || !src.legacy.done) return;
+        if (src.parsed) return;
         src.parsed = true;
         src.result = parseNeoForgeVersions(src.latest.data, src.legacy.data, mcVersion);
 
-        // ���� Resolution rules ����
-        // Rule 1: First source with data wins
         if (!src.result.isEmpty()) {
             state->emitted = true;
             emit neoforgeVersionsReady(src.result);
             return;
         }
-
-        // Rule 2: Both sources fully done -> take whichever has data, else empty
         SourceState& other = isBmcl ? state->official : state->bmcl;
         if (other.parsed) {
             state->emitted = true;
-            if (!other.result.isEmpty())
-                emit neoforgeVersionsReady(other.result);
-            else
-                emit neoforgeVersionsReady({});
+            emit neoforgeVersionsReady(other.result.isEmpty() ? QVariantList() : other.result);
         }
-        // Otherwise: this source empty, wait for the other
     };
 
-    // Factory: fires one sub-request (latest or legacy) for a given source
-    auto fireSubRequest = [this, state, mcVersion, checkSourceComplete](bool isBmcl, bool isLatest) {
-        QString url;
-        QString sourceName = isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("Official");
-        QString subName = isLatest ? QStringLiteral("latest") : QStringLiteral("legacy");
-
-        if (isLatest) {
-            url = isBmcl
+    auto fireSubRequest = [this, state, checkSourceComplete](bool isBmcl, bool isLatest) {
+        QString url = isBmcl
+            ? (isLatest
                 ? QStringLiteral("https://bmclapi2.bangbang93.com/neoforge/meta/api/maven/details/releases/net/neoforged/neoforge")
-                : QStringLiteral("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge");
-        } else {
-            url = isBmcl
-                ? QStringLiteral("https://bmclapi2.bangbang93.com/neoforge/meta/api/maven/details/releases/net/neoforged/forge")
-                : QStringLiteral("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/forge");
-        }
+                : QStringLiteral("https://bmclapi2.bangbang93.com/neoforge/meta/api/maven/details/releases/net/neoforged/forge"))
+            : (isLatest
+                ? QStringLiteral("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge")
+                : QStringLiteral("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/forge"));
 
         auto* mgr = new QNetworkAccessManager(this);
-        QNetworkRequest req;
-        req.setUrl(QUrl(url));
+        QNetworkRequest req{QUrl(url)};
         req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         QNetworkReply* reply = mgr->get(req);
-        qCInfo(logApp) << QStringLiteral("[NeoForge] ��ѯ������ Դ=%1 ·��=%2 url=%3").arg(sourceName, subName, url);
-
         m_modLoaderReplies.append(reply);
 
         QObject::connect(reply, &QNetworkReply::finished, this,
-            [this, reply, mgr, isBmcl, isLatest, state, checkSourceComplete, sourceName, subName]() {
+            [this, reply, mgr, isBmcl, isLatest, state, checkSourceComplete]() {
                 m_modLoaderReplies.removeAll(reply);
-
                 if (m_modLoaderQueriesCancelled) {
-                    reply->deleteLater();
-                    mgr->deleteLater();
-                    return;
+                    reply->deleteLater(); mgr->deleteLater(); return;
                 }
-
-                // Store result
                 SubReq& sub = isBmcl
                     ? (isLatest ? state->bmcl.latest : state->bmcl.legacy)
                     : (isLatest ? state->official.latest : state->official.legacy);
-
-                if (reply->error() == QNetworkReply::NoError) {
+                if (reply->error() == QNetworkReply::NoError)
                     sub.data = reply->readAll();
-                    qCInfo(logApp) << QStringLiteral("[NeoForge] ��ȡ���� Դ=%1 ·��=%2 ��С=%3�ֽ�")
-                        .arg(sourceName, subName).arg(sub.data.size());
-                } else {
-                    qCWarning(logApp) << QStringLiteral("[NeoForge] ��ѯʧ�� Դ=%1 ·��=%2 ����=%3")
-                        .arg(sourceName, subName, reply->errorString());
-                }
                 sub.done = true;
-
                 reply->deleteLater();
                 mgr->deleteLater();
-
                 checkSourceComplete(isBmcl);
             });
     };
 
-    // Fire 4 sub-requests simultaneously
-    fireSubRequest(true, true);   // BMCLAPI latest
-    fireSubRequest(true, false);  // BMCLAPI legacy
-    fireSubRequest(false, true);  // Official latest
-    fireSubRequest(false, false); // Official legacy
+    fireSubRequest(true, true);
+    fireSubRequest(true, false);
+    fireSubRequest(false, true);
+    fireSubRequest(false, false);
 }
+
+
 
 void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
     QString url = QStringLiteral("https://bmclapi2.bangbang93.com/optifine/") + mcVersion;
@@ -3052,7 +2998,7 @@ void ShadowBackend::queryFabricApiVersions(const QString& mcVersion) {
                 return;
             }
             if (m_modLoaderQueriesCancelled) return;
-            qCWarning(logApp) << QStringLiteral("[FabricApi] MCIM����ʧ�� ״̬��=%1").arg(status)
+            qCWarning(logApp) << QStringLiteral("[FabricApi] MCIM镜像失败 状态码=%1").arg(status)
                                << "), falling back to Modrinth direct";
             HttpClient::instance().get(fallbackUrl,
                 [this, parseResponse](int status2, const QByteArray& body2) {
@@ -3065,7 +3011,7 @@ void ShadowBackend::queryFabricApiVersions(const QString& mcVersion) {
                         qCDebug(logApp) << "[FabricApi] direct got" << list.size() << "versions";
                         emit fabricApiVersionsReady(list);
                     } else {
-                        qCWarning(logApp) << QStringLiteral("[FabricApi] ֱ��Ҳʧ�� ״̬��=%1").arg(status2);
+                        qCWarning(logApp) << QStringLiteral("[FabricApi] 直连也失败 状态码=%1").arg(status2);
                         emit fabricApiVersionsReady({});
                     }
                 });
@@ -3137,7 +3083,7 @@ void ShadowBackend::installOptifine(const QString& mcVersion, const QString& opt
     if (m_version) m_version->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
 }
 
-// ���� Language hot-switch implementation ����
+// ── Language hot-switch implementation ──
 void ShadowBackend::switchLanguage(int index)
 {
     const QStringList codes = { QStringLiteral("zh_CN"), QStringLiteral("zh_HK"), QStringLiteral("zh_TW") };
@@ -3156,14 +3102,14 @@ void ShadowBackend::switchLanguage(int index)
         m_translator = nullptr;
     }
 
-    // 3. Install new translator (skip for zh_CN �� source language)
+    // 3. Install new translator (skip for zh_CN — source language)
     if (lang != QStringLiteral("zh_CN")) {
         m_translator = new QTranslator(this);
         if (m_translator->load(QStringLiteral(":/i18n/shadow_%1").arg(lang))) {
             qApp->installTranslator(m_translator);
-            qCInfo(logApp) << QStringLiteral("�����л� lang=%1").arg(lang);
+            qCInfo(logApp) << QStringLiteral("语言切换 lang=%1").arg(lang);
         } else {
-            qCWarning(logApp) << QStringLiteral("�������ʧ�� lang=%1").arg(lang);
+            qCWarning(logApp) << QStringLiteral("翻译加载失败 lang=%1").arg(lang);
             delete m_translator;
             m_translator = nullptr;
         }
@@ -3222,14 +3168,14 @@ void ShadowBackend::writeLanguageFile(int index) const
 void ShadowBackend::submitBetaKey(const QString& key)
 {
     if (key.trimmed().isEmpty()) {
-        emit betaKeyInvalid(QStringLiteral("�������ڲ���Կ"));
+        emit betaKeyInvalid(QStringLiteral("请输入内测密钥"));
         return;
     }
 
     m_betaStatus = QStringLiteral("checking");
     emit betaStatusChanged();
 
-    // Beta key verification endpoint �� decrypted from opaque flat blob on each call.
+    // Beta key verification endpoint — decrypted from opaque flat blob on each call.
     // Not cached: decrypted inline, zeroed after QNetworkRequest consumes it.
     const uint8_t* blob = getAssembledBlob();
     QByteArray plain = aesGcmDecrypt(
@@ -3243,7 +3189,7 @@ void ShadowBackend::submitBetaKey(const QString& key)
     SecureZeroMemory(plain.data(), plain.size());
 
     if (kWorkerUrl.isEmpty()) {
-        qCInfo(logApp) << QStringLiteral("[BetaKey] ��֤���� δ����Worker URL");
+        qCInfo(logApp) << QStringLiteral("[BetaKey] 验证跳过 未配置Worker URL");
         m_betaStatus = QStringLiteral("disabled");
         emit betaStatusChanged();
         return;
@@ -3251,7 +3197,7 @@ void ShadowBackend::submitBetaKey(const QString& key)
 
     auto* mgr = new QNetworkAccessManager(this);
     QNetworkRequest req{QUrl(kWorkerUrl)};
-    // Worker URL consumed by QNetworkRequest �� zero the local copy
+    // Worker URL consumed by QNetworkRequest — zero the local copy
     secureWipe(kWorkerUrl);
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
@@ -3274,7 +3220,7 @@ void ShadowBackend::submitBetaKey(const QString& key)
                     emit betaStatusChanged();
                     emit betaVerified();
                 } else {
-                    emit betaKeyInvalid(QStringLiteral("��Կ����ʧ�ܣ�������̿ռ�"));
+                    emit betaKeyInvalid(QStringLiteral("密钥保存失败，请检查磁盘空间"));
                 }
                 return;
             }
@@ -3282,7 +3228,7 @@ void ShadowBackend::submitBetaKey(const QString& key)
 
         m_betaStatus.clear();
         emit betaStatusChanged();
-        emit betaKeyInvalid(QStringLiteral("��Ч���ڲ���Կ"));
+        emit betaKeyInvalid(QStringLiteral("无效的内测密钥"));
     });
 }
 
@@ -3300,7 +3246,7 @@ bool ShadowBackend::saveBetaKey(const QString& key)
 
     if (!CryptProtectData(&in, L"Shadow Beta", nullptr, nullptr, nullptr,
                           0, &out)) {
-        qCWarning(logApp) << QStringLiteral("[BetaKey] CryptProtectDataʧ��");
+        qCWarning(logApp) << QStringLiteral("[BetaKey] CryptProtectData失败");
         return false;
     }
 
@@ -3312,7 +3258,7 @@ bool ShadowBackend::saveBetaKey(const QString& key)
     f.write(reinterpret_cast<const char*>(out.pbData), static_cast<qint64>(out.cbData));
     f.close();
     LocalFree(out.pbData);
-    qCInfo(logApp) << QStringLiteral("[BetaKey] ������Կ�ѱ���");
+    qCInfo(logApp) << QStringLiteral("[BetaKey] 加密密钥已保存");
     return true;
 #else
     // Non-Windows: store as plain text (beta gate is Windows-only for now)
@@ -3341,7 +3287,7 @@ QString ShadowBackend::loadBetaKey()
     in.cbData = static_cast<DWORD>(encrypted.size());
 
     if (!CryptUnprotectData(&in, nullptr, nullptr, nullptr, nullptr, 0, &out)) {
-        qCWarning(logApp) << QStringLiteral("[BetaKey] CryptUnprotectDataʧ�� ��Կ��������");
+        qCWarning(logApp) << QStringLiteral("[BetaKey] CryptUnprotectData失败 密钥可能已损坏");
         f.remove();
         return {};
     }
@@ -3358,7 +3304,7 @@ QString ShadowBackend::loadBetaKey()
 bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
 {
     // Decrypt Worker endpoint from opaque flat blob (AES-256-GCM).
-    // With public all-zero placeholder �� decrypt fails �� validation disabled.
+    // With public all-zero placeholder → decrypt fails → validation disabled.
     // Not cached: decrypted inline, zeroed after QNetworkRequest consumes it.
     const uint8_t* blob = getAssembledBlob();
     QByteArray plain = aesGcmDecrypt(
@@ -3372,7 +3318,7 @@ bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
     SecureZeroMemory(plain.data(), plain.size());
 
     if (kWorkerUrl.isEmpty()) {
-        if (outError) *outError = QStringLiteral("�ڲ���֤δ����");
+        if (outError) *outError = QStringLiteral("内测验证未配置");
         return false;
     }
 
@@ -3423,7 +3369,7 @@ int ShadowBackend::diagAutoLangComboIdx() const
 void ShadowBackend::setAutoLangModeFromCombo(int idx)
 {
     if (!m_settings) return;
-    // idx �� mode: 0��1(ϵͳ����), 1��2(IP����), 2��0(�ر�)
+    // idx → mode: 0→1(系统区域), 1→2(IP属地), 2→0(关闭)
     int mode = idx == 0 ? 1 : (idx == 1 ? 2 : 0);
     m_settings->setAutoLangMode(mode);
 }
@@ -3463,7 +3409,7 @@ void ShadowBackend::checkChangelog()
     QString updateDir = QCoreApplication::applicationDirPath()
                         + QStringLiteral("/_update/");
 
-    // ���� Debug mechanism: force changelog popup via debug file ����
+    // ── Debug mechanism: force changelog popup via debug file ──
     QString debugPath = updateDir + QStringLiteral("debug_changelog.json");
     QFileInfo debugFi(debugPath);
     if (debugFi.exists() && debugFi.size() <= 65536) {
@@ -3475,68 +3421,68 @@ void ShadowBackend::checkChangelog()
             if (derr.error == QJsonParseError::NoError) {
                 QJsonObject dobj = ddoc.object();
                 QString dver = dobj.value("version").toString();
-                bool dPersistent = dobj.value("persistent").toBool(false); // Ĭ�� false��������һ��
+                bool dPersistent = dobj.value("persistent").toBool(false); // 默认 false：仅弹出一次
 
-                // ���� Gitee mode: fetch latest release notes from Gitee API ����
+                // ── Gitee mode: fetch latest release notes from Gitee API ──
                 if (dobj.value("gitee").toBool()) {
                     if (dver.isEmpty()) dver = appVersion();
-                    qCInfo(logApp) << "[ShadowBackend] ���Թ��� �� ��Gitee��ȡ����˵��"
-                                   << (dPersistent ? "[�־�ģʽ]" : "[����ģʽ]");
+                    qCInfo(logApp) << "[ShadowBackend] 调试公告 — 从Gitee获取发布说明"
+                                   << (dPersistent ? "[持久模式]" : "[单次模式]");
                     QString giteeUrl = QStringLiteral(
                         "https://gitee.com/api/v5/repos/YOUR_GITEE_OWNER/YOUR_GITEE_REPO/releases/latest");
                     HttpClient::instance().get(giteeUrl,
                         [this, dver, dPersistent, debugPath](int status, const QByteArray& body) {
                             if (status != 200 || body.isEmpty()) {
-                                qCWarning(logApp) << "[ShadowBackend] Gitee��ȡʧ�� status=" << status;
+                                qCWarning(logApp) << "[ShadowBackend] Gitee获取失败 status=" << status;
                                 if (!dPersistent) QFile::remove(debugPath);
                                 return;
                             }
                             QJsonParseError perr;
                             QJsonDocument pdoc = QJsonDocument::fromJson(body, &perr);
                             if (perr.error != QJsonParseError::NoError) {
-                                qCWarning(logApp) << "[ShadowBackend] Gitee��ӦJSON����ʧ��";
+                                qCWarning(logApp) << "[ShadowBackend] Gitee响应JSON解析失败";
                                 if (!dPersistent) QFile::remove(debugPath);
                                 return;
                             }
                             QJsonObject release = pdoc.object();
                             QString rawNotes = release.value("body").toString();
                             if (rawNotes.isEmpty()) {
-                                qCWarning(logApp) << "[ShadowBackend] Gitee����˵��Ϊ��";
+                                qCWarning(logApp) << "[ShadowBackend] Gitee发布说明为空";
                                 if (!dPersistent) QFile::remove(debugPath);
                                 return;
                             }
-                            // �淶����������Ӧ Markdown ��Ⱦ��
-                            //   \r\n �� \n\n���հ��� = ��������
-                            //   ���� \n\n �� ���� \n\n���������ؿ��У�
+                            // 规范化换行以适应 Markdown 渲染：
+                            //   \r\n → \n\n（空白行 = 段落间隔）
+                            //   连续 \n\n → 单个 \n\n（避免三重空行）
                             QString giteeNotes = rawNotes;
                             giteeNotes.replace(QStringLiteral("\r\n"), QStringLiteral("\n\n"));
                             giteeNotes.replace(QRegularExpression(QStringLiteral("\n{3,}")),
                                                QStringLiteral("\n\n"));
-                            qCInfo(logApp) << "[ShadowBackend] Gitee�����ȡ�ɹ� version=" << dver
+                            qCInfo(logApp) << "[ShadowBackend] Gitee公告获取成功 version=" << dver
                                            << " len=" << giteeNotes.size();
                             emit updateChangelogAvailable(dver, giteeNotes);
-                            // �ǳ־�ģʽ�������źź�����ɾ�������ļ����´��������ٵ���
+                            // 非持久模式：发射信号后立即删除调试文件，下次启动不再弹出
                             if (!dPersistent) {
                                 QFile::remove(debugPath);
-                                qCInfo(logApp) << "[ShadowBackend] ���Թ����ļ���ɾ��������ģʽ��";
+                                qCInfo(logApp) << "[ShadowBackend] 调试公告文件已删除（单次模式）";
                             }
                         },
                         [debugPath, dPersistent](const QString& err) {
-                            qCWarning(logApp) << "[ShadowBackend] Gitee����ʧ��:" << err;
+                            qCWarning(logApp) << "[ShadowBackend] Gitee请求失败:" << err;
                             if (!dPersistent) QFile::remove(debugPath);
                         });
                     return;
                 }
-                // ���� Local mode: use notes from debug file ����
+                // ── Local mode: use notes from debug file ──
                 QString dnotes = dobj.value("notes").toString();
                 if (!dver.isEmpty() && !dnotes.isEmpty()) {
-                    qCInfo(logApp) << "[ShadowBackend] ���Թ��津�� version=" << dver
-                                   << (dPersistent ? "[�־�ģʽ]" : "[����ģʽ]");
+                    qCInfo(logApp) << "[ShadowBackend] 调试公告触发 version=" << dver
+                                   << (dPersistent ? "[持久模式]" : "[单次模式]");
                     emit updateChangelogAvailable(dver, dnotes);
-                    // �ǳ־�ģʽ��ɾ�������ļ�
+                    // 非持久模式：删除调试文件
                     if (!dPersistent) {
                         QFile::remove(debugPath);
-                        qCInfo(logApp) << "[ShadowBackend] ���Թ����ļ���ɾ��������ģʽ��";
+                        qCInfo(logApp) << "[ShadowBackend] 调试公告文件已删除（单次模式）";
                     }
                     return;
                 }
@@ -3544,7 +3490,7 @@ void ShadowBackend::checkChangelog()
         }
     }
 
-    // ���� Normal post-update changelog ����
+    // ── Normal post-update changelog ──
     QString clPath = updateDir + QStringLiteral("changelog_to_show.json");
     QFileInfo fi(clPath);
     if (!fi.exists() || fi.size() > 65536) return; // 64KB sanity limit
@@ -3566,7 +3512,7 @@ void ShadowBackend::checkChangelog()
     QString notes = obj.value("notes").toString();
 
     if (version == appVersion() && !notes.isEmpty()) {
-        qCInfo(logApp) << "[ShadowBackend] ���ָ��¹��� version=" << version
+        qCInfo(logApp) << "[ShadowBackend] 发现更新公告 version=" << version
                        << " len=" << notes.size();
         emit updateChangelogAvailable(version, notes);
     }
