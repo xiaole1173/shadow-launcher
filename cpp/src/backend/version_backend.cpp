@@ -265,11 +265,18 @@ VersionBackend::VersionBackend(QObject* parent)
 
 
 
-        // Non-merged installs: stepProgress drives smoothProgress during install phases
+        // Non-merged installs: stepProgress drives smoothProgress during install phases.
+        // Fix: stepProgress(3,27) means "step 3 at 27%", NOT "total at 27%".
+        // Correct: total = (completed_steps + current_step_progress) / total_steps
+        // Example: stepProgress(3,27) with 3 steps: (2 + 0.27) / 3 = 0.757
 
         if (!ds->isMerged()) {
 
-            qreal raw = percentage / 100.0;
+            int totalSteps = qMax(ds->steps.size(), 1);
+
+            int completedSteps = qMin(stepIdx, totalSteps - 1); // 0-indexed, stepIdx steps already done
+
+            qreal raw = (completedSteps + percentage / 100.0) / totalSteps;
 
             ds->m_rawTotalProgress = raw;
 
