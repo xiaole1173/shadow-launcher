@@ -236,7 +236,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                 for (const auto& m : t.mirrors)
                     sources.append(m);
             }
-            QByteArray sha1 = QByteArray::fromHex(t.sha1.toUtf8());
+            QByteArray sha1 = t.sha1.toUtf8();
             m_downloader->addFile(t.savePath, t.name, sources,
                                   t.totalBytes, sha1, false);
         }
@@ -698,7 +698,7 @@ void VersionDownloader::retryWithNextMirror()
         sources.append(t.url);
         for (const auto& m : t.mirrors) sources.append(m);
         m_downloader->addFile(t.savePath, t.name, sources,
-                              t.totalBytes, QByteArray::fromHex(t.sha1.toUtf8()), false);
+                              t.totalBytes, t.sha1.toUtf8(), false);
     }
     m_downloader->start();
 }
