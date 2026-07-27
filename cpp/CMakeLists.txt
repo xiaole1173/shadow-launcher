@@ -372,6 +372,7 @@ qt6_add_resources(ShadowLauncher "tools_resources"
     FILES
         resources/tools/forge-installer.jar
         resources/tools/java-wrapper.jar
+        resources/tools/ProGuardToTSRG.class
 )
 
 # Cape textures (Wardrobe)

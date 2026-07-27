@@ -8,7 +8,7 @@
 #include <QJsonArray>
 #include <QDir>
 #include <QFile>
-#include <QTextStream>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QProcess>
@@ -2084,74 +2084,85 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     }
                 }
 
-                // 5. Convert ProGuard .txt → TSRG .tsrg (pure C++, zero dependencies)
+                // 5. Convert ProGuard .txt → TSRG .tsrg using srgutils (same library FART uses)
                 //
-                //    Why: the bootstrapper's com.bangbang93.ForgeInstaller filters OUT the
-                //    DOWNLOAD_MOJMAPS processor (which would download+convert the mapping),
-                //    so we must produce the .tsrg ourselves before the bootstrapper runs.
+                //    We cannot reliably produce TSRG in C++ — srgutils output format is complex
+                //    (descriptors, ordering, edge cases). Instead, we use the srgutils JAR
+                //    already downloaded to libraries by step 3d, via a pre-compiled wrapper class
+                //    (ProGuardToTSRG.class) embedded as a Qt resource.
                 //
-                //    ProGuard format:                  TSRG format:
-                //      pkg.Class -> a:                   pkg/Class a
-                //          type method(args) -> b            method b
-                //          type field -> c                  field c
+                //    Flow: java -cp <srgutils.jar>;<converter_dir> ProGuardToTSRG <in.txt> <out.tsrg>
                 {
                     QString outPath = tsrgDir + QStringLiteral("/client-")
                         + m_mcVersion + QStringLiteral("-mappings.tsrg");
 
-                    QFile inFile(rawPath);
-                    if (!inFile.open(QIODevice::ReadOnly)) {
-                        qCWarning(logLoader) << QStringLiteral("无法打开映射输入文件: %1").arg(rawPath);
-                    } else {
-                        QDir().mkpath(QFileInfo(outPath).absolutePath());
-                        QFile outFile(outPath);
-                        if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                            qCWarning(logLoader) << QStringLiteral("无法写入 TSRG 输出: %1").arg(outPath);
-                        } else {
-                            QTextStream in(&inFile);
-                            QTextStream out(&outFile);
-                            int lineCount = 0, classCount = 0, memberCount = 0;
-                            while (!in.atEnd()) {
-                                QString line = in.readLine().trimmed();
-                                lineCount++;
-                                if (line.isEmpty() || line.startsWith(QLatin1Char('#')))
-                                    continue;
-                                // Split on " -> "
-                                int arrowPos = line.indexOf(QStringLiteral(" -> "));
-                                if (arrowPos < 0) continue;
-                                QString lhs = line.left(arrowPos);          // original
-                                QString rhs = line.mid(arrowPos + 4);       // obfuscated
+                    // Find srgutils JAR by scanning libraries (matching the version FART uses)
+                    // FART uses whichever srgutils is on its classpath;
+                    // we scan for any version and prefer newest.
+                    QString srgutilsJar;
+                    {
+                        QDirIterator it(m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils"),
+                                        QDir::Dirs | QDir::NoDotAndDotDot);
+                        QStringList versions;
+                        while (it.hasNext()) {
+                            QString verDir = it.next();
+                            QString jarPath = verDir + QStringLiteral("/srgutils-")
+                                + QDir(verDir).dirName() + QStringLiteral(".jar");
+                            if (QFile::exists(jarPath))
+                                versions.append(verDir);
+                        }
+                        if (!versions.isEmpty()) {
+                            std::sort(versions.begin(), versions.end(), std::greater<QString>());
+                            QString verDir = versions.first();
+                            srgutilsJar = verDir + QStringLiteral("/srgutils-")
+                                + QDir(verDir).dirName() + QStringLiteral(".jar");
+                            qCInfo(logLoader) << QStringLiteral("找到 srgutils JAR: %1").arg(srgutilsJar);
+                        }
+                    }
 
-                                // Class line: rhs ends with ":"  (e.g. "pkg.Class -> a:")
-                                if (rhs.endsWith(QLatin1Char(':'))) {
-                                    rhs.chop(1);  // Remove trailing ':'
-                                    // In TSRG, class names use '/' instead of '.'
-                                    QString classOrig = lhs;
-                                    classOrig.replace(QLatin1Char('.'), QLatin1Char('/'));
-                                    out << classOrig << QLatin1Char(' ') << rhs << QStringLiteral("\n");
-                                    classCount++;
-                                } else {
-                                    // Member line: type name[(args)] -> name  (field or method)
-                                    // Strip return type / field type prefix from lhs
-                                    int lastSpace = lhs.lastIndexOf(QLatin1Char(' '));
-                                    QString memberName = (lastSpace >= 0) ? lhs.mid(lastSpace + 1) : lhs;
-                                    // Method names have '(' in them; fields don't
-                                    // Strip parameter list from method name in TSRG output
-                                    int parenPos = memberName.indexOf(QLatin1Char('('));
-                                    if (parenPos >= 0)
-                                        memberName = memberName.left(parenPos);
-                                    out << QLatin1Char('\t') << memberName << QLatin1Char(' ') << rhs << QStringLiteral("\n");
-                                    memberCount++;
+                    if (srgutilsJar.isEmpty()) {
+                        qCWarning(logLoader) << QStringLiteral("未找到 srgutils JAR，TSRG 转换将失败");
+                    } else {
+                        // Extract embedded converter class
+                        QString converterDir = QDir::tempPath() + QStringLiteral("/sl_tsrg_converter");
+                        QDir().mkpath(converterDir);
+                        QString classPath = converterDir + QStringLiteral("/ProGuardToTSRG.class");
+                        {
+                            QFile res(QStringLiteral(":/resources/tools/ProGuardToTSRG.class"));
+                            if (res.open(QIODevice::ReadOnly)) {
+                                QByteArray classData = res.readAll();
+                                res.close();
+                                QFile cf(classPath);
+                                if (cf.open(QIODevice::WriteOnly)) {
+                                    cf.write(classData);
+                                    cf.close();
                                 }
                             }
-                            inFile.close();
-                            outFile.close();
+                        }
 
-                            qint64 outSize = QFileInfo(outPath).size();
-                            if (outSize > 1024) {
-                                qCInfo(logLoader) << QStringLiteral("TSRG 转换完成: %1 (%2 个类, %3 个成员, %4 KB, 输入 %5 行)")
-                                    .arg(outPath).arg(classCount).arg(memberCount).arg(outSize / 1024).arg(lineCount);
+                        if (!QFile::exists(classPath)) {
+                            qCWarning(logLoader) << QStringLiteral("无法提取 ProGuardToTSRG.class");
+                        } else {
+                            qCInfo(logLoader) << QStringLiteral("运行 srgutils TSRG 转换: %1 → %2").arg(rawPath, outPath);
+                            QProcess srgProc;
+                            QString cp = srgutilsJar + QStringLiteral(";") + converterDir;
+                            srgProc.start(javaPath,
+                                QStringList() << QStringLiteral("-cp") << cp
+                                    << QStringLiteral("ProGuardToTSRG")
+                                    << QDir::toNativeSeparators(rawPath)
+                                    << QDir::toNativeSeparators(outPath));
+                            if (srgProc.waitForFinished(120000) && srgProc.exitCode() == 0) {
+                                qint64 outSize = QFileInfo(outPath).size();
+                                if (outSize > 1024) {
+                                    qCInfo(logLoader) << QStringLiteral("srgutils TSRG 转换成功: %1 (%2 KB)")
+                                        .arg(outPath).arg(outSize / 1024);
+                                } else {
+                                    qCWarning(logLoader) << QStringLiteral("TSRG 输出异常（仅 %1 字节）").arg(outSize);
+                                    QFile::remove(outPath);
+                                }
                             } else {
-                                qCWarning(logLoader) << QStringLiteral("TSRG 转换结果异常（仅 %1 字节），FART 可能失败").arg(outSize);
+                                qCWarning(logLoader) << QStringLiteral("srgutils TSRG 转换失败: ")
+                                    + QString::fromUtf8(srgProc.readAllStandardError());
                                 QFile::remove(outPath);
                             }
                         }
