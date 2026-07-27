@@ -2481,7 +2481,8 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             }
         }
 
-        // Copy client/universal JAR to version folder if missing
+        // Copy client/universal JAR to version folder if missing (Forge only; NeoForge has patched client in libraries/)
+        if (!isNeo) {
         QString targetDir = versionsDir() + QStringLiteral("/") + m_installName;
         QString jarPathV = targetDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
         if (!QFile::exists(jarPathV)) {
@@ -2497,6 +2498,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPathV)) {
                 qCInfo(logLoader) << QStringLiteral("已复制 universal JAR 到 %1").arg(jarPathV);
             }
+        }
         }
     }
 
