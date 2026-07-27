@@ -2699,10 +2699,12 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
                         {
                             QFile pf(patchFile);
                             if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                                pf.write(decompressed);
+                                // PatchBundleReader 内部自行处理 LZMA 解压
+                                // 传原始 client.lzma，不要传解压后的 NFPATCHBUNDLE
+                                pf.write(lzma);
                                 pf.close();
-                                qCInfo(logLoader) << QStringLiteral("NFPATCHBUNDLE 已保存: %1 (%2 字节)")
-                                    .arg(patchFile).arg(decompressed.size());
+                                qCInfo(logLoader) << QStringLiteral("原始 client.lzma 已保存为 patch 文件: %1 (%2 字节)")
+                                    .arg(patchFile).arg(lzma.size());
                             }
                         }
 
