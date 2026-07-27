@@ -3100,6 +3100,99 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
         }
     }
 
+    // ── 5d. 向 patched JAR 注入 Minecraft-Dists: client（FMLLoader 需要此属性识别 dist type）──
+    //     NeoForge 11.x+ 需要 Minecraft-Dists 在 JAR manifest 的 Main 区（第一个空行前），
+    //     否则 FMLLoader 启动后无声崩溃。
+    if (!QFile::exists(dstJar)) {
+        qCWarning(logLoader) << QStringLiteral("patched JAR \u4e0d\u5b58\u5728 (%1)\uff0c\u8df3\u8fc7 Minecraft-Dists \u6ce8\u5165").arg(dstJar);
+    } else {
+        // \u5199\u5165 Java streaming source (use build dir to avoid CJK path issues with Java)
+        QString injectTmpBase = QStringLiteral("D:/latest-code/cpp/build/neoforge-inject");
+        QDir().mkpath(injectTmpBase);
+        QString tmpJava = injectTmpBase + QStringLiteral("/nf_mf_%1.java")
+            .arg(QRandomGenerator::global()->generate());
+        bool hasSource = false;
+        {
+            QFile jf(tmpJava);
+            if (jf.open(QIODevice::WriteOnly)) {
+                jf.write(QStringLiteral(
+                    "import java.io.*;import java.util.jar.*;import java.util.zip.*;\n"
+                    "public class _IM {\n"
+                    " public static void main(String[]a)throws Exception{\n"
+                    "  String p=a[0],k=a[1],v=a[2],t=p+\".tmp\";\n"
+                    "  Manifest m;\n"
+                    "  try(JarInputStream ji=new JarInputStream(new FileInputStream(p))){\n"
+                    "   m=ji.getManifest();if(m==null)m=new Manifest();\n"
+                    "   if(m.getMainAttributes().getValue(k)==null)\n"
+                    "    m.getMainAttributes().putValue(k,v);\n"
+                    "   try(JarOutputStream jo=new JarOutputStream(new FileOutputStream(t),m)){\n"
+                    "    JarEntry e;\n"
+                    "    while((e=ji.getNextJarEntry())!=null){\n"
+                    "     if(e.getName().equals(\"META-INF/MANIFEST.MF\"))continue;\n"
+                    "     jo.putNextEntry(e);ji.transferTo(jo);jo.closeEntry();\n"
+                    "    }\n"
+                    "   }\n"
+                    "  }\n"
+                    "  new File(p).delete();new File(t).renameTo(new File(p));\n"
+                    " }}\n").toUtf8());
+                jf.close();
+                hasSource = true;
+            }
+        }
+
+        if (!hasSource) {
+            qCWarning(logLoader) << QStringLiteral("Minecraft-Dists: \u65e0\u6cd5\u5199\u5165\u4e34\u65f6 Java \u6e90\u6587\u4ef6 %1").arg(tmpJava);
+        } else {
+            // \u67e5\u627e Java 17+\uff08\u540c NeoForge Processor \u7684\u8981\u6c42\uff09
+            QString injectJava = findJavaPath(17);
+            if (injectJava.isEmpty()) {
+                qCWarning(logLoader) << QStringLiteral("Minecraft-Dists \u6ce8\u5165\u8df3\u8fc7: \u672a\u627e\u5230 Java 17+\uff0c\u8bf7\u5148\u5728\u300c\u8bbe\u7f6e \u2192 Java\u300d\u4e2d\u4e0b\u8f7d Java 17");
+            } else {
+                // \u542f\u52a8 Java process
+                QProcess injectProc;
+                injectProc.start(injectJava, {
+                    QDir::toNativeSeparators(tmpJava),
+                    QDir::toNativeSeparators(dstJar),
+                    QStringLiteral("Minecraft-Dists"),
+                    QStringLiteral("client")
+                });
+                if (!injectProc.waitForStarted(5000)) {
+                    qCWarning(logLoader) << QStringLiteral("Minecraft-Dists \u6ce8\u5165\u5931\u8d25: Java \u8fdb\u7a0b\u65e0\u6cd5\u542f\u52a8 (%1)")
+                        .arg(injectProc.errorString());
+                } else if (!injectProc.waitForFinished(60000)) {
+                    qCWarning(logLoader) << QStringLiteral("Minecraft-Dists \u6ce8\u5165\u8d85\u65f6 (60s)");
+                    injectProc.kill();
+                    injectProc.waitForFinished(5000);
+                } else if (injectProc.exitCode() != 0) {
+                    qCWarning(logLoader) << QStringLiteral("Minecraft-Dists \u6ce8\u5165\u5931\u8d25 (exit=%1): %2")
+                        .arg(injectProc.exitCode())
+                        .arg(QString::fromLocal8Bit(injectProc.readAllStandardError()).trimmed());
+                } else {
+                    qCInfo(logLoader) << QStringLiteral("\u2705 Minecraft-Dists: client \u5df2\u6ce8\u5165 patched JAR");
+                    // \u540c\u6b65\u66f4\u65b0 library \u526f\u672c
+                    QString libClientPath = m_gameDir
+                        + QStringLiteral("/libraries/net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+                    if (QFile::exists(libClientPath)) {
+                        QString bakPath = libClientPath + QStringLiteral(".bak");
+                        if (QFile::exists(bakPath))
+                            QFile::remove(bakPath);
+                        QFile::rename(libClientPath, bakPath);  // \u4fdd\u7559 backup \u4ee5\u9632 copy \u5931\u8d25
+                        if (QFile::copy(dstJar, libClientPath)) {
+                            QFile::remove(bakPath);
+                            qCInfo(logLoader) << QStringLiteral("\u5df2\u540c\u6b65\u66f4\u65b0 library \u526f\u672c: %1").arg(libClientPath);
+                        } else {
+                            // copy \u5931\u8d25\uff0c\u6062\u590d backup
+                            QFile::rename(bakPath, libClientPath);
+                            qCWarning(logLoader) << QStringLiteral("Minecraft-Dists: library \u526f\u672c\u66f4\u65b0\u5931\u8d25\uff0c\u5df2\u6062\u590d\u539f\u6587\u4ef6");
+                        }
+                    }
+                }
+            }  // close injectJava else
+        }  // close hasSource else
+
+        QFile::remove(tmpJava);
+    }
+
     // ── 6. 顺序下载原始 version.json 中的 libraries（NeoForge 特有库）──
     QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
     QNetworkAccessManager* nam = HttpClient::instance().manager();

@@ -2787,20 +2787,40 @@ void ShadowBackend::queryFabricVersions(const QString& mcVersion) {
 }
 
 
-static QVariantList parseNeoForgeVersions(const QByteArray& latestData, const QByteArray& legacyData, const QString& filterMc) {
-    QStringList versionNames;
-    for (const QByteArray& data : {latestData, legacyData}) {
-        if (data.isEmpty()) continue;
-        QJsonDocument doc = QJsonDocument::fromJson(data);
-        if (!doc.isObject()) continue;
-        QJsonArray versions = doc.object().value(QStringLiteral("versions")).toArray();
-        for (const QJsonValue& v : versions) {
-            if (v.isObject()) {
-                QString name = v.toObject().value(QStringLiteral("version")).toString();
-                if (!name.isEmpty()) versionNames.append(name);
+static QStringList parseNeoForgeApiNames(const QByteArray& data) {
+    if (data.isEmpty()) return {};
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isObject()) return {};
+    QJsonObject obj = doc.object();
+
+    // Try official Maven API: {"versions": ["str", ...]}
+    QJsonArray arr = obj.value(QStringLiteral("versions")).toArray();
+    if (!arr.isEmpty()) {
+        QStringList names;
+        for (const QJsonValue& v : arr) {
+            if (v.isString()) {
+                QString n = v.toString();
+                if (!n.isEmpty()) names.append(n);
             }
         }
+        if (!names.isEmpty()) return names;
     }
+
+    // Try BMCLAPI: {"files": [{"name": "str", ...}, ...]}
+    arr = obj.value(QStringLiteral("files")).toArray();
+    QStringList names;
+    for (const QJsonValue& v : arr) {
+        if (v.isObject()) {
+            QString n = v.toObject().value(QStringLiteral("name")).toString();
+            if (!n.isEmpty()) names.append(n);
+        }
+    }
+    return names;
+}
+
+static QVariantList parseNeoForgeVersions(const QByteArray& latestData, const QByteArray& legacyData, const QString& filterMc) {
+    QStringList versionNames = parseNeoForgeApiNames(latestData);
+    versionNames.append(parseNeoForgeApiNames(legacyData));
 
     QVariantList result;
     for (const QString& apiName : versionNames) {
