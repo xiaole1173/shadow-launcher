@@ -197,9 +197,6 @@ private:
     mutable QMutex m_speedMutex;
     double m_emaMbps = 0.0;
     QAtomicInteger<qint64> m_speedFloorBps{256 * 1024};
-    std::atomic<bool> m_finishedGuard{false};
-    int m_bmclapiThisTick = 0;
-    static constexpr int kMaxBmclapiPerTick = 4;
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;
 
     // Speed limit throttle state
