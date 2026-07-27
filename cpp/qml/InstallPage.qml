@@ -26,7 +26,11 @@ Rectangle {
     signal requestClose()
 
     Component.onCompleted: {
-        if (backend) backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
+        if (backend) {
+            backend.logMessage("[install] InstallPage loaded, mcVersion=" + mcVersion)
+            // 刷新已安装版本列表，确保冲突检测基于最新数据
+            backend.refreshInstalled()
+        }
     }
 
     onMcVersionChanged: {
@@ -724,8 +728,15 @@ Rectangle {
             cursorShape: root.versionConflict ? Qt.ArrowCursor : Qt.PointingHandCursor
             enabled: !root.versionConflict
             onClicked: {
-                installPressBounce.start()
+                // 点击前再次检查命名冲突（用户可能在此期间修改了versions文件夹）
                 var n = root.customName !== "" ? root.customName : root.fullVersionName
+                root.checkVersionConflict(n)
+                if (root.versionConflict) {
+                    console.log("[install] download blocked: versionConflict=true, name=" + n)
+                    return
+                }
+
+                installPressBounce.start()
                 console.log("[install] floating button clicked: name=" + n)
                 if (backend) {
                     backend.logMessage("[install] download: " + n)
