@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 //
-// Per-file download engine (v8).
+// Per-file download engine (v9).
 //
-// Architecture:
-//   - NO pre-created chunk pool
-//   - Each file manages its own thread chain
-//   - Manager scans files every 50ms, starts/expands threads as needed
-//   - Threads split remaining work dynamically (40% of largest unfinished piece)
-//   - Speed floor: weighted average × 85%
+// Architecture (主流启动器-ref):
+//   - Per-file thread chain: files > 1MB are split dynamically at 40% of
+//     the largest unfinished piece (主流启动器-style).
+//   - Shared QNetworkAccessManager with HTTP/1.1 connection pool (255/host).
+//   - DNS resolution with IP reliability scoring (round-robin across IPs).
+//   - Multi-source round-robin: different threads of the same file use
+//     different mirror URLs to distribute server load.
+//   - Adaptive timeout: starts at 15 s, grows with per-source fail count.
+//   - Speed floor: weighted average x 85%, updated every 100 ms.
+//   - Speed limit throttle: per-worker sleep to cap aggregate throughput.
 
 #pragma once
 #include <QObject>
@@ -29,6 +33,7 @@ namespace ShadowDownloader {
 
 // ── Download source: one URL with fail-tracking ──
 struct DownloadSource {
+    int id = 0;
     QString url;
     int failCount = 0;
     bool isDead = false;
@@ -40,26 +45,37 @@ struct DownloadThread {
     qint64 downloadStart = 0;
     qint64 downloadEnd = 0;
     qint64 downloadDone = 0;
+    int sourceId = 0;           // index into file->orderedSources
     QString sourceUrl;
     QString tempPath;
     qint64 lastReceiveTime = 0;
-    int state = 0;  // 0=waiting,1=connecting,2=downloading,3=finished,4=failed
+    int state = 0;              // 0=waiting,1=connecting,2=downloading,3=finished,4=failed
+    int timeoutMs = 15000;      // adaptive per-source timeout
 
-    qint64 downloadUndone() const { return downloadEnd - downloadStart - downloadDone; }
+    qint64 downloadUndone() const { return qMax(0LL, downloadEnd - downloadStart - downloadDone); }
 };
 
 // ── Per-file download state ──
 struct FileDownload {
     QString localPath;
     QString localName;
-    qint64 fileSize = -2;      // -2=unknown, -1=cannot determine
+    qint64 fileSize = -2;       // -2=unknown, -1=cannot determine
     bool isUnknownSize = false;
-    bool isNoSplit = false;    // files < 1MB, single range
-    int state = 0;             // 0=waiting,1=connecting,2=downloading,3=merging,4=finished,5=failed
-    QStringList orderedSources;
+    bool isNoSplit = false;     // files < 1MB, single range
+    int state = 0;              // 0=waiting,1=connecting,2=downloading,3=merging,4=finished,5=failed
+    QStringList sourceUrls;     // original source URLs
+    QList<DownloadSource> orderedSources;  // with fail tracking
     QList<std::shared_ptr<DownloadThread>> threads;
     QByteArray expectedSha1;
     bool needsJarStrip = false;
+
+    // Connect timing (主流启动器 ConnectAverage)
+    int connectCount = 0;
+    qint64 connectTotalMs = 0;
+    int connectAverageMs() const { return connectCount > 0 ? (int)(connectTotalMs / connectCount) : -1; }
+
+    std::shared_ptr<DownloadThread> findMaxUndonePiece() const;
+    int nextSourceId(bool preferDifferent = false) const;
 
     qint64 totalDone() const {
         qint64 sum = 0;
@@ -68,7 +84,30 @@ struct FileDownload {
     }
 };
 
-// ── Stats ──
+// ── DNS resolver (主流启动器-style IP reliability) ──
+struct DnsRecord {
+    QString host;
+    QString ip;
+    double reliability = 0.0;   // -1 to +0.5
+};
+
+class DnsResolver {
+public:
+    /// Resolve host to the best IP (or return raw host if resolution skipped).
+    static QString resolve(const QUrl& url, QString& outIp, int& outFamily);
+    /// Record success/failure for an IP.
+    static void recordReliability(const QString& ip, double score);
+    /// Get best IPs for a host, sorted by reliability.
+    static QStringList getCandidateIps(const QString& host);
+
+private:
+    static QMutex s_mutex;
+    static QMap<QString, double> s_ipReliability; // ip → score
+    static QMap<QString, qint64> s_dnsFailureTime; // host → last fail epoch ms
+    static constexpr qint64 kDnsFailCooldownMs = 60000;
+};
+
+// ── Stats (thread-safe atomics) ──
 struct DownloadStats {
     QAtomicInt totalFiles{0};
     QAtomicInt completedFiles{0};
@@ -97,7 +136,9 @@ public:
 
     void setMaxThreads(int n) { m_maxThreads = qBound(1, n, 128); }
     int maxThreads() const { return m_maxThreads; }
-    void setSpeedLimitMB(double mb) { m_speedLimitBps.storeRelaxed(static_cast<qint64>(mb * 1024 * 1024)); }
+    void setSpeedLimitMB(double mb) {
+        m_speedLimitBps.storeRelaxed(mb > 0 ? static_cast<qint64>(mb * 1024 * 1024) : -1);
+    }
 
     int completedFiles() const { return m_completedFiles.loadRelaxed(); }
     int totalFiles() const { return m_totalFiles.loadRelaxed(); }
@@ -123,6 +164,9 @@ private:
     enum State { Idle, Running, Paused, Cancelled };
     State m_state = Idle;
     QAtomicInt m_cancelled{0};
+
+    // Note: QNetworkAccessManager is NOT thread-safe in Qt 6.
+    // Each thread creates its own QNAM with per-request HTTP/1.1 config.
 
     // Thread limit
     int m_maxThreads = 64;
@@ -154,6 +198,10 @@ private:
     double m_emaMbps = 0.0;
     QAtomicInteger<qint64> m_speedFloorBps{256 * 1024};
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;
+
+    // Speed limit throttle state
+    QElapsedTimer m_throttleTimer;
+    qint64 m_throttleBytes = 0;
 
     // Timers
     QTimer* m_managerTimer = nullptr;

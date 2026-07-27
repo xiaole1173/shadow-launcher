@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "description": "Shadow Launcher 动画设计语言 —— 所有 UI 动画参数统一配置",
+
+  "timing": {
+    "instant": 0,
+    "micro": 80,
+    "fast": 150,
+    "normal": 300,
+    "slow": 500,
+    "page_enter": 450,
+    "page_exit": 350,
+    "overlay_flip": 1500,
+    "toast_in": 400,
+    "toast_out": 300,
+    "progress_bar": 2500
+  },
+
+  "easing": {
+    "default": "OutCubic",
+    "bounce": "OutBack",
+    "spring": "OutElastic",
+    "smooth": "InOutSine",
+    "gentle": "OutQuad"
+  },
+
+  "spring": {
+    "menu_highlight": {
+      "velocity": 0,
+      "damping": 10,
+      "mass": 1.0,
+      "stiffness": 200
+    },
+    "modal": {
+      "velocity": 0,
+      "damping": 15,
+      "mass": 0.8,
+      "stiffness": 150
+    }
+  },
+
+  "elements": {
+    "button_hover": {
+      "target": "scale",
+      "from": 1.0,
+      "to": 1.05,
+      "duration": "fast",
+      "easing": "smooth",
+      "description": "按钮悬停微放大"
+    },
+    "button_press": {
+      "target": "scale",
+      "from": 1.0,
+      "to": 0.95,
+      "duration": "micro",
+      "easing": "smooth",
+      "description": "按钮按下微缩"
+    },
+    "button_color": {
+      "target": "color",
+      "duration": "fast",
+      "easing": "default",
+      "description": "按钮颜色过渡"
+    },
+
+    "list_item_enter": {
+      "target": "opacity",
+      "from": 0,
+      "to": 1,
+      "duration": "normal",
+      "easing": "default",
+      "description": "列表项渐入"
+    },
+    "list_item_exit": {
+      "target": "opacity",
+      "from": 1,
+      "to": 0,
+      "duration": "fast",
+      "easing": "default",
+      "description": "列表项渐出"
+    },
+
+    "page_transition": {
+      "target": "opacity",
+      "from": 0,
+      "to": 1,
+      "duration": "page_enter",
+      "easing": "bounce",
+      "description": "页面切换渐入"
+    },
+
+    "overlay_progress": {
+      "target": "width",
+      "duration": "progress_bar",
+      "easing": "smooth",
+      "description": "覆盖层进度条平滑增长"
+    },
+
+    "toast_slide_in": {
+      "target": "y",
+      "from_offset": 30,
+      "from_anchor": "bottom",
+      "duration": "toast_in",
+      "easing": "spring",
+      "description": "Toast 弹入"
+    },
+    "toast_fade_out": {
+      "target": "opacity",
+      "from": 1,
+      "to": 0,
+      "duration": "toast_out",
+      "easing": "smooth",
+      "description": "Toast 淡出"
+    },
+
+    "menu_select_bar": {
+      "target": "y",
+      "duration": "slow",
+      "spring": "menu_highlight",
+      "description": "左侧菜单选中条弹性移动"
+    },
+
+    "modal_scale_in": {
+      "target": "scale",
+      "from": 0.7,
+      "to": 1.0,
+      "duration": "slow",
+      "spring": "modal",
+      "description": "弹窗弹性展开"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="resources/tools/forge-install-bootstrapper.jar">D:/latest-code/cpp/resources/tools/forge-install-bootstrapper.jar</file>
+  </qresource>
+</RCC>
+

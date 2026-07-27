@@ -1,0 +1,31 @@
+<RCC>
+  <qresource prefix="/qt/qml/ShadowLauncher/resources/capes">
+    <file alias="resources/capes/15th_anniversary.png">D:/latest-code/cpp/resources/capes/15th_anniversary.png</file>
+    <file alias="resources/capes/builder.png">D:/latest-code/cpp/resources/capes/builder.png</file>
+    <file alias="resources/capes/cherry_blossom.png">D:/latest-code/cpp/resources/capes/cherry_blossom.png</file>
+    <file alias="resources/capes/common.png">D:/latest-code/cpp/resources/capes/common.png</file>
+    <file alias="resources/capes/copper.png">D:/latest-code/cpp/resources/capes/copper.png</file>
+    <file alias="resources/capes/followers.png">D:/latest-code/cpp/resources/capes/followers.png</file>
+    <file alias="resources/capes/founders.png">D:/latest-code/cpp/resources/capes/founders.png</file>
+    <file alias="resources/capes/home.png">D:/latest-code/cpp/resources/capes/home.png</file>
+    <file alias="resources/capes/mcc_15th_year.png">D:/latest-code/cpp/resources/capes/mcc_15th_year.png</file>
+    <file alias="resources/capes/menace.png">D:/latest-code/cpp/resources/capes/menace.png</file>
+    <file alias="resources/capes/migrator.png">D:/latest-code/cpp/resources/capes/migrator.png</file>
+    <file alias="resources/capes/minecon_2011.png">D:/latest-code/cpp/resources/capes/minecon_2011.png</file>
+    <file alias="resources/capes/minecon_2012.png">D:/latest-code/cpp/resources/capes/minecon_2012.png</file>
+    <file alias="resources/capes/minecon_2013.png">D:/latest-code/cpp/resources/capes/minecon_2013.png</file>
+    <file alias="resources/capes/minecon_2015.png">D:/latest-code/cpp/resources/capes/minecon_2015.png</file>
+    <file alias="resources/capes/minecon_2016.png">D:/latest-code/cpp/resources/capes/minecon_2016.png</file>
+    <file alias="resources/capes/minecraft_experience.png">D:/latest-code/cpp/resources/capes/minecraft_experience.png</file>
+    <file alias="resources/capes/mojang.png">D:/latest-code/cpp/resources/capes/mojang.png</file>
+    <file alias="resources/capes/mojang_studios.png">D:/latest-code/cpp/resources/capes/mojang_studios.png</file>
+    <file alias="resources/capes/pan.png">D:/latest-code/cpp/resources/capes/pan.png</file>
+    <file alias="resources/capes/purple_heart.png">D:/latest-code/cpp/resources/capes/purple_heart.png</file>
+    <file alias="resources/capes/realms_mapmaker.png">D:/latest-code/cpp/resources/capes/realms_mapmaker.png</file>
+    <file alias="resources/capes/translator_chinese.png">D:/latest-code/cpp/resources/capes/translator_chinese.png</file>
+    <file alias="resources/capes/vanilla.png">D:/latest-code/cpp/resources/capes/vanilla.png</file>
+    <file alias="resources/capes/yearn.png">D:/latest-code/cpp/resources/capes/yearn.png</file>
+    <file alias="resources/capes/zombie_horse.png">D:/latest-code/cpp/resources/capes/zombie_horse.png</file>
+  </qresource>
+</RCC>
+

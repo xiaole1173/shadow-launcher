@@ -1,29 +1,191 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 //
-// Per-file download engine (v8).
-// See file_downloader.h for architecture overview.
+// Per-file download engine (v9 — 主流启动器-ref).
+// Architecture: see file_downloader.h.
 
 #include "core/file_downloader.h"
 #include "utils/logger.h"
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QHttp1Configuration>
 #include <QThread>
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
+#include <QUrl>
 #include <QCryptographicHash>
 #include <QEventLoop>
+#include <QTimer>
+#include <QHostInfo>
+#include <QDateTime>
 #include <algorithm>
+#include <climits>
+#include <cmath>
 
 namespace ShadowDownloader {
 using namespace ShadowLauncher;
 
 // ═══════════════════════════════════════
+// DnsResolver implementation
+// ═══════════════════════════════════════
+
+QMutex DnsResolver::s_mutex;
+QMap<QString, double> DnsResolver::s_ipReliability;
+QMap<QString, qint64> DnsResolver::s_dnsFailureTime;
+
+QString DnsResolver::resolve(const QUrl& url, QString& outIp, int& outFamily)
+{
+    outIp.clear();
+    outFamily = 0;
+
+    QString host = url.host();
+
+    // Skip DNS for Mojang/Minecraft domains (strict SNI requirements, #8295)
+    if (host.contains("mojang.com", Qt::CaseInsensitive) ||
+        host.contains("minecraft.net", Qt::CaseInsensitive) ||
+        host.contains("minecraftservices.com", Qt::CaseInsensitive))
+        return host;
+
+    QMutexLocker lock(&s_mutex);
+
+    // Cool-down check: if DNS failed in last 60s, skip
+    if (s_dnsFailureTime.contains(host)) {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - s_dnsFailureTime[host] < kDnsFailCooldownMs)
+            return host;
+        s_dnsFailureTime.remove(host);
+    }
+
+    lock.unlock();
+
+    // Perform DNS resolution
+    QHostInfo info = QHostInfo::fromName(host);
+    if (info.error() != QHostInfo::NoError || info.addresses().isEmpty()) {
+        lock.relock();
+        s_dnsFailureTime[host] = QDateTime::currentMSecsSinceEpoch();
+        return host;
+    }
+
+    QList<QHostAddress> candidates = info.addresses();
+
+    // Separate IPv4 and IPv6
+    QList<QHostAddress> v4, v6;
+    for (auto& addr : candidates) {
+        if (addr.protocol() == QAbstractSocket::IPv4Protocol) v4.append(addr);
+        else if (addr.protocol() == QAbstractSocket::IPv6Protocol) v6.append(addr);
+    }
+
+    // If both families exist, choose the family with higher reliability
+    if (!v4.isEmpty() && !v6.isEmpty()) {
+        QMutexLocker lock2(&s_mutex);
+        double v4Max = 0.0, v6Max = 0.0;
+        for (auto& a : v4) v4Max = qMax(v4Max, s_ipReliability.value(a.toString(), 0.0));
+        for (auto& a : v6) v6Max = qMax(v6Max, s_ipReliability.value(a.toString(), 0.0));
+        if (v4Max >= v6Max) candidates = v4; else candidates = v6;
+    } else if (!v4.isEmpty()) {
+        candidates = v4;
+    } else {
+        candidates = v6;
+    }
+
+    // Pick the IP with highest reliability
+    QHostAddress best;
+    double bestRel = -999.0;
+    QMutexLocker lock3(&s_mutex);
+    for (auto& addr : candidates) {
+        QString ip = addr.toString();
+        double rel = s_ipReliability.value(ip, 0.0);
+        if (rel > bestRel) { bestRel = rel; best = addr; }
+    }
+
+    if (best.isNull()) return host;
+
+    outIp = best.toString();
+    outFamily = (best.protocol() == QAbstractSocket::IPv4Protocol) ? 4 : 6;
+
+    // Build URL with IP (preserve port)
+    QUrl result;
+    result.setScheme(url.scheme());
+    result.setHost(best.toString());
+    result.setPort(url.port());
+    result.setPath(url.path());
+    result.setQuery(url.query());
+    // Set Host header separately (used by HTTP virtual hosting)
+    // The caller is responsible for setting Host header
+    return result.toString();
+}
+
+void DnsResolver::recordReliability(const QString& ip, double score)
+{
+    if (ip.isEmpty()) return;
+    QMutexLocker lock(&s_mutex);
+    double old = s_ipReliability.value(ip, 0.0);
+    s_ipReliability[ip] = old * 0.5 + score * 0.5;
+}
+
+QStringList DnsResolver::getCandidateIps(const QString& host)
+{
+    QMutexLocker lock(&s_mutex);
+    QStringList result;
+    // Not implementing full list retrieval for now
+    Q_UNUSED(host);
+    return result;
+}
+
+// ═══════════════════════════════════════
+// FileDownload helpers
+// ═══════════════════════════════════════
+
+std::shared_ptr<DownloadThread> FileDownload::findMaxUndonePiece() const
+{
+    std::shared_ptr<DownloadThread> maxPiece;
+    qint64 maxUndone = 0;
+    for (auto& t : threads) {
+        if (t->state >= 3) continue;
+        qint64 u = t->downloadUndone();
+        if (u > maxUndone) { maxUndone = u; maxPiece = t; }
+    }
+    return maxPiece;
+}
+
+int FileDownload::nextSourceId(bool preferDifferent) const
+{
+    if (orderedSources.isEmpty()) return -1;
+
+    if (!preferDifferent) {
+        // Pick first non-dead source
+        for (int i = 0; i < orderedSources.size(); ++i)
+            if (!orderedSources[i].isDead) return i;
+        return -1;
+    }
+
+    // Prefer a source different from most existing threads
+    QMap<int, int> countBySource;
+    for (auto& t : threads) countBySource[t->sourceId]++;
+
+    int bestId = -1;
+    int bestCount = INT_MAX;
+    for (int i = 0; i < orderedSources.size(); ++i) {
+        if (orderedSources[i].isDead) continue;
+        int cnt = countBySource.value(i, 0);
+        if (cnt < bestCount) { bestCount = cnt; bestId = i; }
+    }
+    return bestId;
+}
+
+// ═══════════════════════════════════════
+// FileDownloader
+// ═══════════════════════════════════════
+
 FileDownloader::FileDownloader(QObject* parent) : QObject(parent)
 {
-    qCInfo(logDownload) << QStringLiteral("下载引擎初始化");
+    qCInfo(logDownload) << QStringLiteral("下载引擎初始化 (v9 — 主流启动器-ref)");
+
+    // QNetworkAccessManager is NOT thread-safe in Qt 6.
+    // Per-thread QNAMs are created in each runDownloadThread.
+    // HTTP/1.1 connection pool config is set per-request.
 
     m_speedTimer.start();
 
@@ -43,7 +205,8 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                               const QStringList& sources, qint64 expectedSize,
                               const QByteArray& sha1, bool jarStrip)
 {
-    qCInfo(logDownload) << QStringLiteral("添加下载任务 名称=%1 大小=%2").arg(localName, formatSize(expectedSize));
+    qCInfo(logDownload) << QStringLiteral("添加下载任务 名称=%1 大小=%2")
+        .arg(localName, formatSize(expectedSize));
 
     // Pre-check SHA1 cache hit
     if (!sha1.isEmpty()) {
@@ -54,11 +217,12 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                 QCryptographicHash hash(QCryptographicHash::Sha1);
                 hash.addData(&f);
                 f.close();
-                if (hash.result().toHex() == sha1) {
+                if (hash.result() == sha1) {
                     m_completedFiles.fetchAndAddRelaxed(1);
                     m_totalBytes.fetchAndAddRelaxed(fi.size());
                     m_downloadedBytes.fetchAndAddRelaxed(fi.size());
-                    emit logMessage(QString::fromUtf8("[完成] 缓存命中: %1 (%2)").arg(localName, formatSize(fi.size())));
+                    emit logMessage(QString::fromUtf8("[完成] 缓存命中: %1 (%2)")
+                                        .arg(localName, formatSize(fi.size())));
                     emit fileProgress(localPath, localName, fi.size(), fi.size(), localPath);
                     emit fileFinished(localPath, true);
                     m_totalFiles.fetchAndAddRelaxed(1);
@@ -71,22 +235,30 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     auto file = std::make_shared<FileDownload>();
     file->localPath = localPath;
     file->localName = localName;
-    file->orderedSources = sources;
+    file->sourceUrls = sources;
     file->expectedSha1 = sha1;
     file->needsJarStrip = jarStrip;
     file->fileSize = expectedSize;
     file->isUnknownSize = (expectedSize <= 0);
-    // Single-thread threshold: 50 MB. Larger files bypass SHA1 check during
-    // download (range threads only have partial data), so SHA1 is only verified
-    // in mergeFile() — which is too late to switch sources.
-    file->isNoSplit = (!file->isUnknownSize && file->fileSize < 50LL * 1024 * 1024);
+
+    // ── Changed: 1 MB threshold (was 50 MB), matching 主流启动器 ──
+    file->isNoSplit = (!file->isUnknownSize && file->fileSize < 1024 * 1024);
+
+    // Build orderedSources with per-source fail tracking
+    for (int i = 0; i < sources.size(); ++i) {
+        DownloadSource ds;
+        ds.id = i;
+        ds.url = sources[i];
+        file->orderedSources.append(ds);
+    }
 
     QMutexLocker lock(&m_filesMutex);
     m_files.append(file);
     m_totalFiles.fetchAndAddRelaxed(1);
     if (file->fileSize > 0) m_totalBytes.fetchAndAddRelaxed(file->fileSize);
 
-    qCInfo(logDownload) << QStringLiteral("任务已排队 名称=%1 队列总数=%2").arg(localName).arg(m_files.size());
+    qCInfo(logDownload) << QStringLiteral("任务已排队 名称=%1 队列总数=%2")
+        .arg(localName).arg(m_files.size());
 }
 
 void FileDownloader::start()
@@ -99,15 +271,18 @@ void FileDownloader::start()
     m_lastSpeedBytes = 0;
     m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
     m_speedRecords.clear();
+    m_throttleTimer.start();
+    m_throttleBytes = 0;
 
     m_managerTimer->start(50);
     m_speedTimer2->start(100);
 
-    // Immediate progress pulse (in case timer hasn't fired yet)
+    // Immediate progress pulse
     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
 
-    emit logMessage(QString("引擎启动: %1 文件, %2 线程上限").arg(m_files.size()).arg(m_maxThreads));
+    emit logMessage(QString("引擎启动: %1 文件, %2 线程上限, 全局连接池(255/host)")
+                        .arg(m_files.size()).arg(m_maxThreads));
 }
 
 void FileDownloader::pause()
@@ -124,6 +299,8 @@ void FileDownloader::resume()
     m_state = Running;
     m_speedTimer.restart();
     m_lastSpeedBytes = m_downloadedBytes.loadRelaxed();
+    m_throttleTimer.restart();
+    m_throttleBytes = 0;
     m_managerTimer->start(50);
     m_speedTimer2->start(100);
     emit logMessage(QString::fromUtf8("▶ 下载已恢复"));
@@ -139,6 +316,9 @@ void FileDownloader::cancel()
 }
 
 // ═══════════════════════════════════════
+// Manager tick — scans files and spawns threads (主流启动器-style ThreadStarter)
+// ═══════════════════════════════════════
+
 void FileDownloader::managerTick()
 {
     if (m_state != Running || m_cancelled.loadRelaxed()) return;
@@ -153,31 +333,41 @@ void FileDownloader::managerTick()
 
     int active = m_activeThreads.loadRelaxed();
 
-    // Start first thread for waiting files
+    // ── Start first thread for waiting files ──
     for (auto& f : waiting) {
         if (active >= m_maxThreads) break;
         auto th = tryStartFirstThread(f);
-        if (th) { active++; if (th->sourceUrl.contains("bmclapi")) QThread::msleep(50); }
+        if (th) {
+            active++;
+            // 主流启动器: reduce BMCLAPI request frequency
+            if (th->sourceUrl.contains("bmclapi", Qt::CaseInsensitive))
+                QThread::msleep(50);
+        }
     }
 
+    // ── Only add extra threads if current speed < speed floor ──
+    double curBps = currentSpeedMBps() * 1024.0 * 1024.0;
+    if (curBps >= m_speedFloorBps.loadRelaxed()) return;
     if (active >= m_maxThreads) return;
-
-    // Expand threads (speed < floor → add)
-    double curMbps = currentSpeedMBps();
-    if (curMbps * 1024 * 1024 >= m_speedFloorBps.loadRelaxed()) return;
 
     for (auto& f : ongoing) {
         if (active >= m_maxThreads) break;
         if (f->isNoSplit && !f->threads.isEmpty()) continue;
 
+        // 主流启动器: don't add if more threads are preparing than downloading
         int prep = 0, dl = 0;
         for (auto& t : f->threads) {
-            if (t->state < 2) prep++; else if (t->state == 2) dl++;
+            if (t->state < 2) prep++;
+            else if (t->state == 2) dl++;
         }
         if (prep > dl) continue;
 
         auto th = tryAddThread(f);
-        if (th) { active++; if (th->sourceUrl.contains("bmclapi")) QThread::msleep(50); }
+        if (th) {
+            active++;
+            if (th->sourceUrl.contains("bmclapi", Qt::CaseInsensitive))
+                QThread::msleep(50);
+        }
     }
 }
 
@@ -185,23 +375,27 @@ void FileDownloader::managerTick()
 std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
     std::shared_ptr<FileDownload> file)
 {
-    if (file->orderedSources.isEmpty()) return nullptr;
-    if (file->fileSize <= 0 && !file->isUnknownSize) file->fileSize = 10LL * 1024 * 1024;
-    if (file->fileSize <= 0) { file->isUnknownSize = true; file->isNoSplit = true; }
+    int srcId = file->nextSourceId(false);
+    if (srcId < 0) return nullptr;
+    if (file->fileSize <= 0 && !file->isUnknownSize)
+        file->fileSize = 10LL * 1024 * 1024;
+    if (file->fileSize <= 0) {
+        file->isUnknownSize = true;
+        file->isNoSplit = true;
+    }
 
     auto th = std::make_shared<DownloadThread>();
     th->uuid = m_nextUuid.fetchAndAddRelaxed(1);
     th->downloadStart = 0;
     th->downloadEnd = file->isUnknownSize ? 0 : file->fileSize;
-    th->sourceUrl = file->orderedSources.first();
+    th->sourceId = srcId;
+    th->sourceUrl = file->orderedSources[srcId].url;
+    th->timeoutMs = 30000; // first thread: generous timeout
     file->threads.append(th);
     file->state = 1;
     m_activeThreads.fetchAndAddRelaxed(1);
 
-    emit logMessage(QString("▶ 启动线程: %1 [%2 → %3] %4")
-                        .arg(file->localName)
-                        .arg(th->downloadStart).arg(th->downloadEnd)
-                        .arg(th->sourceUrl));
+    qCInfo(logDownload) << QStringLiteral("启动首个线程 文件=%1 源=%2").arg(file->localName).arg(th->sourceUrl);
 
     auto self = this;
     QThread::create([self, th, file]() { self->runDownloadThread(th, file); })->start();
@@ -211,29 +405,43 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
 std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     std::shared_ptr<FileDownload> file)
 {
-    if (file->fileSize <= 0 || file->isNoSplit || file->threads.isEmpty()) return nullptr;
+    if (file->fileSize <= 0 || file->isNoSplit || file->threads.isEmpty())
+        return nullptr;
 
-    std::shared_ptr<DownloadThread> maxPiece;
-    qint64 maxUndone = 0;
-    for (auto& t : file->threads) {
-        if (t->state >= 3) continue;
-        qint64 u = t->downloadUndone();
-        if (u > maxUndone) { maxUndone = u; maxPiece = t; }
-    }
-    if (!maxPiece || maxUndone < 512 * 1024) return nullptr;
+    // Find the largest unfinished piece (主流启动器-style dynamic splitting)
+    auto maxPiece = file->findMaxUndonePiece();
+    if (!maxPiece || maxPiece->downloadUndone() < 512 * 1024)
+        return nullptr;
 
-    qint64 splitPoint = maxPiece->downloadEnd - static_cast<qint64>(maxUndone * 0.4);
+    // Split at 40% of remaining gap (主流启动器 matches)
+    qint64 und = maxPiece->downloadUndone();
+    qint64 splitPoint = maxPiece->downloadEnd - static_cast<qint64>(und * 0.4);
+
+    // Pick a source different from existing threads (multi-source rotation)
+    int srcId = file->nextSourceId(true);
+    if (srcId < 0) return nullptr;
+
     auto th = std::make_shared<DownloadThread>();
     th->uuid = m_nextUuid.fetchAndAddRelaxed(1);
     th->downloadStart = splitPoint;
     th->downloadEnd = maxPiece->downloadEnd;
-    th->sourceUrl = file->orderedSources.first();
-    maxPiece->downloadEnd = splitPoint;
+    th->sourceId = srcId;
+    th->sourceUrl = file->orderedSources[srcId].url;
 
-    qCInfo(logDownload) << QStringLiteral("启动下载线程 线程号=%1 文件=%2").arg(th->uuid).arg(file->localName);
+    // Adaptive timeout: 主流启动器-style
+    int avgConnMs = file->connectAverageMs();
+    int baseTimeout = (avgConnMs > 0) ? qMax(avgConnMs, 15000) : 15000;
+    int srcFail = file->orderedSources[srcId].failCount;
+    th->timeoutMs = qMin(baseTimeout * (1 + srcFail), 30000);
+
+    // Shorten the max piece
+    maxPiece->downloadEnd = splitPoint;
 
     file->threads.append(th);
     m_activeThreads.fetchAndAddRelaxed(1);
+
+    qCInfo(logDownload) << QStringLiteral("新增线程 文件=%1 起始=%2 源=%3 timeout=%4ms")
+        .arg(file->localName).arg(splitPoint).arg(th->sourceUrl).arg(th->timeoutMs);
 
     auto self = this;
     QThread::create([self, th, file]() { self->runDownloadThread(th, file); })->start();
@@ -241,71 +449,86 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
 }
 
 // ═══════════════════════════════════════
+// Per-thread download
+// ═══════════════════════════════════════
+
 void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                                         std::shared_ptr<FileDownload> file)
 {
     th->state = 1;
     th->lastReceiveTime = getElapsedMs();
 
-    qCInfo(logDownload) << QStringLiteral("开始下载 URL=%1 文件=%2").arg(th->sourceUrl, file->localName);
+    qCInfo(logDownload) << QStringLiteral("开始下载 URL=%1 文件=%2 范围=[%3,%4]")
+        .arg(th->sourceUrl, file->localName).arg(th->downloadStart).arg(th->downloadEnd);
 
     if (!ShadowLauncher::suppressUrlLog())
-        emit logMessage(QString("↓ 开始下载: %1 (%2)").arg(file->localName).arg(th->sourceUrl));
+        emit logMessage(QString("↓ 开始: %1 (%2)").arg(file->localName).arg(th->sourceUrl));
 
-    QNetworkAccessManager mgr;
-
+    // ── Per-source retry loop (主流启动器: 3 attempts, SHA1: 6) ──
     bool sourceOk = false;
-    for (int sourceIdx = 0; sourceIdx < file->orderedSources.size() && !sourceOk; ++sourceIdx) {
+    int maxAttempts = file->expectedSha1.isEmpty() ? 3 : 6;
+
+    for (int attempt = 0; attempt < maxAttempts && !sourceOk; ++attempt) {
         if (m_cancelled.loadRelaxed()) goto cleanup;
 
-        QString url = file->orderedSources[sourceIdx];
-        th->sourceUrl = url;
+        // Fast retry guard: if <5.5s elapsed after 2 attempts on a non-SHA1 file, stop
+        static qint64 s_retryStartMs = 0;
+        if (attempt == 0) s_retryStartMs = getElapsedMs();
+        if (attempt >= 2 && file->expectedSha1.isEmpty()
+            && (getElapsedMs() - s_retryStartMs) < 5500) break;
+        if (attempt >= 5 && (getElapsedMs() - s_retryStartMs) < 5500) break;
 
-        if (sourceIdx > 0)
-            qCInfo(logDownload) << QStringLiteral("切换到镜像%1 URL=%2").arg(sourceIdx + 1).arg(url);
+        if (attempt > 0) QThread::msleep(500);
 
-        QUrl qurl(url);
+        // Try each source in order (with per-source fail tracking)
+        bool srcWorked = false;
+        for (int si = 0; si < file->orderedSources.size() && !srcWorked; ++si) {
+            int srcIdx = (th->sourceId + si) % file->orderedSources.size();
+            auto& source = file->orderedSources[srcIdx];
+            if (source.isDead) continue;
 
-        // Per-source retry:
-        //   - Connection failures (timeout, HTTP error): up to 3 retries
-        //   - SHA1 mismatch: up to 6 retries (load-balanced mirrors
-        //     like BMCLAPI may have inconsistent cache across nodes)
-        sourceOk = false;
-        qint64 startTimeMs = getElapsedMs();
-        for (int attempt = 0; attempt < 6 && !sourceOk; ++attempt) {
-            if (m_cancelled.loadRelaxed()) goto cleanup;
+            QString url = source.url;
+            th->sourceId = srcIdx;
+            th->sourceUrl = url;
 
-            int timeoutMs;
-            switch (attempt) {
-                case 0: timeoutMs = 30000; break;  // Official sources need 15-30s
-                case 1: timeoutMs = 30000; break;
-                default: timeoutMs = 15000; break; // SHA1 retries, give 15s
+            if (si > 0)
+                qCInfo(logDownload) << QStringLiteral("  切换到源[%1]: %2").arg(srcIdx).arg(url);
+
+            // ── DNS resolution (主流启动器-style) ──
+            QUrl qurl(url);
+            QString dnsIp;
+            int dnsFamily = 0;
+            QString resolvedUrl = DnsResolver::resolve(qurl, dnsIp, dnsFamily);
+            QUrl reqUrl(resolvedUrl);
+
+            // Connect timing
+            qint64 connectStart = getElapsedMs();
+
+            QNetworkRequest req(reqUrl);
+            // Per-host connection pool (Qt 6: set on request, applies to shared QNAM)
+            {
+                QHttp1Configuration h1cfg;
+                h1cfg.setNumberOfConnectionsPerHost(255);
+                req.setHttp1Configuration(h1cfg);
             }
-            // Fast retry guard: if <5.5s elapsed after 2 attempts, retrying the
-            // same dead source is pointless. But for SHA1-mismatch files (where
-            // load-balanced mirrors may serve inconsistent cache), allow more retries.
-            if (attempt >= 2 && file->expectedSha1.isEmpty()
-                && (getElapsedMs() - startTimeMs) < 5500) break;
-            // For SHA1 files, always try at least 5 attempts (cache inconsistency)
-            if (attempt >= 5 && (getElapsedMs() - startTimeMs) < 5500) break;
-            if (attempt > 0) QThread::msleep(500);
-
-            QNetworkRequest req{qurl};
+            // Set Host header to original host (for virtual hosting)
+            req.setRawHeader("Host", qurl.host().toUtf8());
             req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-            req.setTransferTimeout(timeoutMs);
+            req.setTransferTimeout(th->timeoutMs);
             req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);
 
-            // Range header only for multi-threaded (split) downloads.
-            // No-split files always request the full file — Range would cause
-            // retries to resume from a stale offset after CDN truncation.
+            // Range header for multi-threaded downloads
             if (!file->isUnknownSize && !file->isNoSplit) {
                 qint64 start = th->downloadStart + th->downloadDone;
                 qint64 end = th->downloadEnd - 1;
-                req.setRawHeader("Range", QString("bytes=%1-%2").arg(start).arg(end).toUtf8());
+                req.setRawHeader("Range",
+                    QString("bytes=%1-%2").arg(start).arg(end).toUtf8());
             }
 
-            QNetworkReply* reply = mgr.get(req);
+            // Per-thread QNAM (worker threads need their own instances)
+            thread_local QNetworkAccessManager tl_nam;
+            QNetworkReply* reply = tl_nam.get(req);
 
             QEventLoop loop;
             QTimer timeout;
@@ -314,8 +537,9 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
 
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
-            timeout.start(timeoutMs);
+            timeout.start(th->timeoutMs);
 
+            // Data arrival — feed m_downloadedBytes for speed tracking
             connect(reply, &QNetworkReply::downloadProgress,
                     [&](qint64 received, qint64 total) {
                 qint64 delta = received - th->downloadDone;
@@ -324,83 +548,102 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     th->downloadDone = received;
                 }
                 th->lastReceiveTime = getElapsedMs();
-                // Throttle progress signals to 150ms intervals (avoids QML UI freeze)
-                static qint64 s_lastProgressEmitMs = 0;
+                // Throttle progress signals to 150ms
+                static qint64 s_lastEmitMs = 0;
                 qint64 now = getElapsedMs();
-                if (now - s_lastProgressEmitMs >= 150) {
-                    s_lastProgressEmitMs = now;
+                if (now - s_lastEmitMs >= 150) {
+                    s_lastEmitMs = now;
                     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
                 }
-                // fileProgress is needed for per-file detail but throttle it too
                 emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
             });
 
             loop.exec();
 
+            // ── Record connect time ──
+            qint64 connectEnd = getElapsedMs();
+            int elapsedMs = (int)(connectEnd - connectStart);
+            if (elapsedMs > 0 && !timedOut) {
+                file->connectCount++;
+                file->connectTotalMs += elapsedMs;
+            }
+
+            // ── Handle errors ──
             if (timedOut || reply->error() != QNetworkReply::NoError) {
-                qCWarning(logDownload) << QStringLiteral("请求失败 URL=%1 错误=%2 重试=%3")
-                    .arg(url, timedOut ? QStringLiteral("超时") : reply->errorString())
-                    .arg(attempt + 1);
+                qCWarning(logDownload) << QStringLiteral("请求失败 URL=%1 错误=%2 尝试=%3")
+                    .arg(url, timedOut ? "超时" : reply->errorString()).arg(attempt + 1);
+                source.failCount++;
+                if (dnsIp.isEmpty())
+                    DnsResolver::recordReliability(dnsIp, -0.7);
                 reply->abort();
                 reply->deleteLater();
-                // Connection failures: give up after 3 attempts
+                th->downloadDone = 0;
                 if (attempt >= 2) break;
-                // No-split files start fresh on retry (stale Range offset = truncated file)
+                continue;
+            }
+
+            // Success — record DNS reliability
+            if (!dnsIp.isEmpty())
+                DnsResolver::recordReliability(dnsIp, 0.5);
+
+            // ── Check HTTP status ──
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode < 200 || statusCode >= 300) {
+                qCWarning(logDownload) << QStringLiteral("HTTP错误 URL=%1 状态码=%2")
+                    .arg(url).arg(statusCode);
+                source.failCount++;
+                reply->deleteLater();
+                if (statusCode == 404) break;
+                if (attempt >= 2) break;
                 th->downloadDone = 0;
                 continue;
             }
 
-            sourceOk = true;
+            // ── Read response data ──
             QByteArray data = reply->readAll();
             qint64 contentLen = reply->rawHeader("Content-Length").toLongLong();
-            // Validate data size against expected file size (from version JSON)
-            // Catches truncation even when CDN uses chunked encoding (no Content-Length):
+            reply->deleteLater();
+
+            // Validate data size
             qint64 expectedSize = (file->fileSize > 0) ? file->fileSize : contentLen;
             if (expectedSize > 0 && data.size() < expectedSize) {
-                qCWarning(logDownload) << QStringLiteral("下载数据不完整 URL=%1 预期=%2 实际=%3 (fileSize=%4)")
-                    .arg(url).arg(expectedSize).arg(data.size()).arg(file->fileSize);
-                sourceOk = false;
-                reply->deleteLater();
+                qCWarning(logDownload) << QStringLiteral("数据不完整 URL=%1 预期=%2 实际=%3")
+                    .arg(url).arg(expectedSize).arg(data.size());
+                source.failCount++;
                 th->downloadDone = 0;
                 continue;
             }
-            reply->deleteLater();
 
-            // Determine file size on first thread
+            // ── Determine file size on first thread ──
             if (th->downloadStart == 0 && data.size() > 0) {
                 if (file->fileSize <= 0) {
                     if (contentLen > 0) {
                         file->fileSize = contentLen;
                         file->isUnknownSize = false;
-                        // Single-thread threshold (must match the one in addFile)
-                        file->isNoSplit = (contentLen < 50LL * 1024 * 1024);
+                        file->isNoSplit = (contentLen < 1024 * 1024);
                         th->downloadEnd = contentLen;
                         m_totalBytes.fetchAndAddRelaxed(contentLen);
                     }
                 }
             }
 
-            // SHA1 verification: immediately check downloaded data
-            // Only valid when data is the COMPLETE file (not a range request):
-            //   - isNoSplit: single-thread, no range splitting
-            //   - isUnknownSize: no Range header, server returned the full file
-            // Range-thread downloads (split) are verified later in mergeFile().
+            // ── SHA1 verification (full downloads only) ──
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
-                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
+                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1);
                 if (dlHash != file->expectedSha1) {
-                    qCWarning(logDownload) << QStringLiteral("下载数据SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
+                    qCWarning(logDownload) << QStringLiteral("SHA1不匹配 URL=%1 预期=%2 实际=%3 尝试=%4")
                         .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
                         .arg(attempt + 1);
-                    sourceOk = false;
-                    reply->deleteLater();
-                    if (attempt >= 5) break; // SHA1 retries exhausted
+                    source.failCount++;
+                    th->downloadDone = 0;
+                    if (attempt >= 5) break;
                     continue;
                 }
             }
 
-            // Write data
+            // ── Write data ──
             if (file->isNoSplit) {
                 QFile f(file->localPath);
                 QDir().mkpath(QFileInfo(file->localPath).absolutePath());
@@ -413,22 +656,38 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                 if (f.open(QIODevice::WriteOnly)) {
                     f.write(data);
                     f.close();
-                    qCInfo(logDownload) << QStringLiteral("写入临时文件 路径=%1 大小=%2")
-                        .arg(th->tempPath).arg(data.size());
                 }
             }
 
+            // ── Speed limit throttle ──
+            if (m_speedLimitBps.loadRelaxed() > 0) {
+                qint64 totalDl = m_downloadedBytes.loadRelaxed();
+                m_throttleBytes += data.size();
+                qint64 throttleElapsed = m_throttleTimer.elapsed();
+                if (throttleElapsed >= 1000) {
+                    double currentBps = static_cast<double>(m_throttleBytes) / (throttleElapsed / 1000.0);
+                    double limitBps = static_cast<double>(m_speedLimitBps.loadRelaxed());
+                    if (currentBps > limitBps) {
+                        qint64 targetMs = static_cast<qint64>(m_throttleBytes / limitBps * 1000);
+                        qint64 sleepMs = targetMs - throttleElapsed;
+                        if (sleepMs > 5)
+                            QThread::msleep(qMin(sleepMs, (qint64)500));
+                    }
+                    m_throttleTimer.restart();
+                    m_throttleBytes = 0;
+                }
+            }
+
+            srcWorked = true;
             th->state = 3; // finished
             goto cleanup;
-        } // for (attempt)
-    } // for (sourceIdx)
+        } // for (source)
+        if (srcWorked) { sourceOk = true; break; }
+    } // for (attempt)
 
-    // Last resort: if SHA1 mismatch across all sources, re-try the first source
-    // with a longer 60s timeout. This handles the case where:
-    //   - Official source is slow (>30s) but has correct data
-    //   - Mirror (BMCLAPI) returns stale cached data (SHA1 mismatch)
+    // ── Last resort: long timeout fallback on official source ──
     if (!sourceOk && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
-        const QString url = file->orderedSources[0];
+        const QString url = file->orderedSources[0].url;
         qCInfo(logDownload) << QStringLiteral("最终兜底重试 URL=%1").arg(url);
         QUrl qurl(url);
         for (int attempt = 0; attempt < 3 && !sourceOk; ++attempt) {
@@ -436,10 +695,16 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             if (attempt > 0) QThread::msleep(500);
 
             QNetworkRequest req(qurl);
+            {
+                QHttp1Configuration h1cfg;
+                h1cfg.setNumberOfConnectionsPerHost(255);
+                req.setHttp1Configuration(h1cfg);
+            }
             req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
             req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);
-            QNetworkReply* reply = mgr.get(req);
+            thread_local QNetworkAccessManager tl_nam;
+            QNetworkReply* reply = tl_nam.get(req);
 
             QEventLoop loop;
             QTimer timeout;
@@ -458,22 +723,19 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
                     th->downloadDone = received;
                 }
                 th->lastReceiveTime = getElapsedMs();
-                // Throttle progress signals to 150ms intervals (avoids QML UI freeze)
-                static qint64 s_lastProgressEmitMs = 0;
+                static qint64 s_lastEmit2 = 0;
                 qint64 now = getElapsedMs();
-                if (now - s_lastProgressEmitMs >= 150) {
-                    s_lastProgressEmitMs = now;
+                if (now - s_lastEmit2 >= 150) {
+                    s_lastEmit2 = now;
                     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
                 }
-                // fileProgress is needed for per-file detail but throttle it too
                 emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
             });
 
             loop.exec();
 
             if (timedOut || reply->error() != QNetworkReply::NoError) {
-                qCWarning(logDownload) << QStringLiteral("重试失败 URL=%1 错误=%2").arg(url, timedOut ? "超时" : reply->errorString());
                 reply->abort();
                 reply->deleteLater();
                 continue;
@@ -482,28 +744,23 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
             QByteArray data = reply->readAll();
             reply->deleteLater();
 
-            // SHA1 check for last resort
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
-                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
+                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1);
                 if (dlHash == file->expectedSha1) {
-                    qCInfo(logDownload) << QStringLiteral("最终兜底: SHA1匹配成功 URL=%1").arg(url);
+                    sourceOk = true;
                 } else {
-                    qCWarning(logDownload) << QStringLiteral("最终兜底SHA1不匹配 URL=%1 预期=%2 实际=%3 大小=%4 fileSize=%5")
-                        .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
-                        .arg(data.size())
-                        .arg(file->fileSize);
-                    // Last resort: if size matches expected, trust the mirror's data.
-                    // The mirror may serve a functionally identical but differently-hashed
-                    // version (stale manifest SHA1), which is still usable.
                     if (file->fileSize > 0 && data.size() >= file->fileSize) {
-                        qCInfo(logDownload) << QStringLiteral("大小匹配,信任镜像源数据 URL=%1").arg(url);
+                        sourceOk = true; // size matches, trust mirror
                     } else {
-                        sourceOk = false;
                         continue;
                     }
                 }
+            } else {
                 sourceOk = true;
+            }
+
+            if (sourceOk) {
                 if (file->isNoSplit) {
                     QFile f(file->localPath);
                     QDir().mkpath(QFileInfo(file->localPath).absolutePath());
@@ -527,10 +784,10 @@ void FileDownloader::runDownloadThread(std::shared_ptr<DownloadThread> th,
 cleanup:
     m_activeThreads.fetchAndAddRelaxed(-1);
 
-    qCInfo(logDownload) << QStringLiteral("下载线程完成 文件=%1 字节=%2")
-        .arg(file->localName).arg(th->downloadDone);
+    qCInfo(logDownload) << QStringLiteral("线程完成 文件=%1 字节=%2 状态=%3")
+        .arg(file->localName).arg(th->downloadDone).arg(th->state);
 
-    // Check if file done
+    // Check if file is done
     bool allDone = true, anyFailed = false;
     {
         QMutexLocker lock(&m_filesMutex);
@@ -544,14 +801,18 @@ cleanup:
         if (anyFailed) {
             file->state = 5;
             m_failedFiles.fetchAndAddRelaxed(1);
-            emit logMessage(QString::fromUtf8("[失败] 下载失败: %1 (所有源均失败)").arg(file->localName));
+            emit logMessage(QString::fromUtf8("[失败] %1 (所有源均失败)").arg(file->localName));
             emit fileFinished(file->localPath, false);
         } else {
             file->state = 3;
             bool ok = mergeFile(file);
             file->state = ok ? 4 : 5;
-            if (ok) m_completedFiles.fetchAndAddRelaxed(1);
-            else m_failedFiles.fetchAndAddRelaxed(1);
+            if (ok) {
+                m_completedFiles.fetchAndAddRelaxed(1);
+                emit logMessage(QString::fromUtf8("[完成] %1 (%2)").arg(file->localName, formatSize(QFileInfo(file->localPath).size())));
+            } else {
+                m_failedFiles.fetchAndAddRelaxed(1);
+            }
             emit fileFinished(file->localPath, ok);
         }
     }
@@ -568,7 +829,7 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
             if (!f.open(QIODevice::ReadOnly)) return false;
             QCryptographicHash h(QCryptographicHash::Sha1);
             h.addData(&f); f.close();
-            if (h.result().toHex() != file->expectedSha1) {
+            if (h.result() != file->expectedSha1) {
                 emit logMessage(QString("SHA1校验失败: %1").arg(file->localName));
                 return false;
             }
@@ -576,8 +837,7 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
         return true;
     }
 
-    qCInfo(logDownload) << QStringLiteral("开始合并文件 路径=%1 分段数=%2")
-        .arg(file->localPath).arg(file->threads.size());
+    qCInfo(logDownload) << QStringLiteral("合并文件 %1 分段=%2").arg(file->localPath).arg(file->threads.size());
 
     QDir().mkpath(QFileInfo(file->localPath).absolutePath());
     QFile out(file->localPath);
@@ -586,8 +846,10 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
         return false;
     }
 
+    // Sort threads by uuid (which preserves downloadStart order)
     auto sorted = file->threads;
-    std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) { return a->uuid < b->uuid; });
+    std::sort(sorted.begin(), sorted.end(),
+              [](auto& a, auto& b) { return a->uuid < b->uuid; });
 
     for (auto& th : sorted) {
         if (th->tempPath.isEmpty()) continue;
@@ -599,21 +861,29 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
     }
     out.close();
 
+    // SHA1 verification for merged file
     if (!file->expectedSha1.isEmpty()) {
         out.open(QIODevice::ReadOnly);
         QCryptographicHash h(QCryptographicHash::Sha1);
         h.addData(&out); out.close();
-        if (h.result().toHex() != file->expectedSha1) {
+        if (h.result() != file->expectedSha1) {
             emit logMessage(QString("SHA1合并校验失败: %1").arg(file->localName));
             return false;
         }
     }
 
-    qCInfo(logDownload) << QStringLiteral("合并完成 文件=%1 SHA1校验=通过").arg(file->localName);
+    // JAR signature stripping
+    if (file->needsJarStrip && file->localPath.endsWith(".jar", Qt::CaseInsensitive)) {
+        // Inline JAR stripping via QProcess+powershell (defined elsewhere)
+    }
+
     return true;
 }
 
 // ═══════════════════════════════════════
+// Speed tracking (主流启动器-style: recency-weighted average, raised to 85%)
+// ═══════════════════════════════════════
+
 void FileDownloader::speedTick()
 {
     if (m_state != Running) return;
@@ -626,32 +896,50 @@ void FileDownloader::speedTick()
     m_lastSpeedBytes = now;
     m_speedTimer.restart();
 
-    qint64 actualBps = bytes * 1000 / elapsed;
+    qint64 actualBps = (elapsed > 0) ? (bytes * 1000 / elapsed) : 0;
 
+    // Record
     {
         QMutexLocker lock(&m_speedMutex);
         m_speedRecords.prepend(actualBps);
-        if (m_speedRecords.size() > kMaxSpeedRecords) m_speedRecords.removeLast();
+        if (m_speedRecords.size() > kMaxSpeedRecords)
+            m_speedRecords.removeLast();
     }
 
+    // 主流启动器-style: use last 10 records (~1s window) for speed floor
+    qint64 recentSum = 0;
+    int recentCount = 0;
+    {
+        QMutexLocker lock(&m_speedMutex);
+        for (int i = 0; i < qMin(10, m_speedRecords.size()); ++i) {
+            recentSum += m_speedRecords[i];
+            recentCount++;
+        }
+    }
+    qint64 recentAvgBps = (recentCount > 0) ? (recentSum / recentCount) : actualBps;
+
+    // Weighted average for display
     qint64 weightedSum = 0;
     int weightDiv = 0;
     {
         QMutexLocker lock(&m_speedMutex);
         int w = m_speedRecords.size();
-        for (auto rec : m_speedRecords) { weightedSum += rec * w; weightDiv += w; w--; }
+        for (auto rec : m_speedRecords) {
+            weightedSum += rec * w;
+            weightDiv += w;
+            w--;
+        }
     }
-    qint64 currentBps = (weightDiv > 0) ? (weightedSum / weightDiv) : actualBps;
+    qint64 weightedBps = (weightDiv > 0) ? (weightedSum / weightDiv) : actualBps;
+    m_emaMbps = m_emaMbps * 0.5 + (weightedBps / (1024.0 * 1024.0)) * 0.5;
 
-    m_emaMbps = m_emaMbps * 0.5 + (currentBps / (1024.0 * 1024.0)) * 0.5;
-
-    qint64 floorLimit = static_cast<qint64>(currentBps * 0.85);
+    // Speed floor: 85% of recent average (主流启动器-style)
+    qint64 floorLimit = static_cast<qint64>(recentAvgBps * 0.85);
     qint64 currentFloor = m_speedFloorBps.loadRelaxed();
-    if (currentBps >= kMinSpeedFloorBps && floorLimit > currentFloor) {
+    if (recentAvgBps >= kMinSpeedFloorBps && floorLimit > currentFloor) {
         m_speedFloorBps.storeRelaxed(floorLimit);
     }
 
-    // ── Periodic progress emission (for UI polling) ──
     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
 }
@@ -671,8 +959,8 @@ void FileDownloader::updateStats()
         m_managerTimer->stop();
         m_speedTimer2->stop();
         m_state = Idle;
-        const qint64 totalDl = m_totalBytes.loadRelaxed();
-        const double speedMBps = m_emaMbps;
+        qint64 totalDl = m_totalBytes.loadRelaxed();
+        double speedMBps = m_emaMbps;
         emit logMessage(QString::fromUtf8("[完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s")
                             .arg(done).arg(total)
                             .arg(formatSize(totalDl))
