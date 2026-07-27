@@ -1401,7 +1401,23 @@ QString ModLoaderInstaller::findJavaPath(int minVersion) {
         }
     }
 
-    // 2. Check common install dirs — return first match >= minVersion
+    // 2. Check auto-download cache first (from downloadAndExtractJava)
+    {
+        const QString cacheExe = QDir::currentPath() + QStringLiteral("/java_cache/%1/bin/java.exe").arg(minVersion);
+        if (QFile::exists(cacheExe)) {
+            QProcess cacheProc;
+            cacheProc.start(cacheExe, {QStringLiteral("-version")});
+            if (cacheProc.waitForFinished(5000) && cacheProc.exitCode() == 0) {
+                int major = parseJavaMajorVersion(QString::fromUtf8(cacheProc.readAllStandardError()));
+                if (major >= minVersion) {
+                    qCInfo(logLoader) << QStringLiteral("在 java_cache 找到 Java %1: %2").arg(major).arg(cacheExe);
+                    return cacheExe;
+                }
+            }
+        }
+    }
+
+    // 3. Check common install dirs — return first match >= minVersion
     //    Track lower versions as fallback.
     QStringList candidates = {
         QStringLiteral("C:/Program Files/Java"),
