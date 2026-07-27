@@ -149,7 +149,10 @@ void AssetDownloader::fireNext()
     AssetTask task = m_pendingQueue.dequeue();
 
     if (task.mirrors.isEmpty()) {
-        finishDownload(task, false);
+        // Defer to avoid synchronous recursion into finishDownload->fireNext
+        QTimer::singleShot(0, this, [this, task]() {
+            finishDownload(task, false);
+        });
         return;
     }
 
@@ -164,7 +167,13 @@ void AssetDownloader::fireNext()
                 f.close();
                 if (hash.result().toHex() == task.sha1) {
                     qCInfo(logAssetDownload) << "  [cache hit]" << task.sha1;
-                    finishDownload(task, true);
+                    // Defer finish + next fire by 5ms so cache hits are
+                    // spread across event loop iterations (avoiding a synchronous
+                    // burst when many files are already cached).
+                    AssetTask cachedTask = task;
+                    QTimer::singleShot(5, this, [this, cachedTask]() {
+                        finishDownload(cachedTask, true);
+                    });
                     return;
                 }
             }
