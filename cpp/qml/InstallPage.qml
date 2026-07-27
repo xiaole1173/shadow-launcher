@@ -733,6 +733,9 @@ Rectangle {
                 root.checkVersionConflict(n)
                 if (root.versionConflict) {
                     console.log("[install] download blocked: versionConflict=true, name=" + n)
+                    if (root.toastManager) {
+                        root.toastManager.show("版本名 \"" + n + "\" 已存在，请修改后重试", "warning")
+                    }
                     return
                 }
 
