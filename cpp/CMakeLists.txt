@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ShadowLauncher VERSION 0.3.1 LANGUAGES CXX)
+project(ShadowLauncher VERSION 0.3.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)  # Qt default
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -71,7 +71,7 @@ set(SOURCES
     src/core/local_mod_manager.cpp
     src/core/modpack_importer.cpp
     src/core/update_manager.cpp
-    src/utils/lzma/LzmaDec.cxx
+    src/utils/lzma/LzmaDec.c
     src/core/download_coordinator.cpp
     src/core/crash_detector.cpp
     src/core/screenshot_server.cpp

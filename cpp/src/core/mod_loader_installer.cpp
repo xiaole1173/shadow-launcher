@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "mod_loader_installer.h"
 #include "http_client.h"
@@ -91,6 +91,8 @@ void injectJarManifestAttributeAsync(const QString& jarPath,
 using namespace ShadowLauncher;
 
 // Forward declaration for LZMA decompression (defined below)
+static QByteArray decompressLzma(const QByteArray& compressed);
+
 static QByteArray decompressLzma(const QByteArray& compressed);
 
 ModLoaderInstaller::ModLoaderInstaller(QObject* parent) : QObject(parent) {}
@@ -2530,8 +2532,15 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
     emit progressChanged(2, m_totalSteps, "正在获取 NeoForge SHA1 校验值...");
 
     // NeoForge Maven provides .sha1 files (BMCLAPI does not mirror them)
-    QString sha1Url = QString("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar.sha1")
-                           .arg(m_loaderVersion);
+    // MC 1.20.1 uses legacy net/neoforged/forge package
+    QString sha1Url;
+    if (m_mcVersion == QStringLiteral("1.20.1")) {
+        sha1Url = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/forge/1.20.1-%1/forge-1.20.1-%1-installer.jar.sha1")
+                       .arg(m_loaderVersion);
+    } else {
+        sha1Url = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar.sha1")
+                       .arg(m_loaderVersion);
+    }
 
     downloadSmall(sha1Url, [this, jarData](bool ok, const QByteArray& sha1Data) {
         if (!ok || sha1Data.isEmpty()) {
@@ -2573,27 +2582,27 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
 void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonObject& profile) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装 NeoForge..."));
 
+    // ── 1. 从 profile["json"] 获取 version.json 在 JAR 内的路径 ──
     QString versionJsonPath = profile.value(QStringLiteral("json")).toString();
     if (versionJsonPath.isEmpty()) {
-        emit finished(false, "NeoForge profile 中缺少 json 字段");
+        emit finished(false, "NeoForge 安装配置中缺少 json 字段");
         m_running = false; return;
     }
 
+    // ── 2. 从 installer JAR 中提取 version.json ──
     QBuffer buffer;
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
-        emit finished(false, "无法打开安装程序");
+        emit finished(false, "无法打开 NeoForge 安装程序");
         m_running = false; return;
     }
     QZipReader reader(&buffer);
-
     QString actualPath = versionJsonPath.startsWith(QLatin1Char('/'))
         ? versionJsonPath.mid(1) : versionJsonPath;
     QByteArray versionData = reader.fileData(actualPath);
     reader.close();
-
     if (versionData.isEmpty()) {
-        emit finished(false, "NeoForge 安装程序找不到 version.json");
+        emit finished(false, "NeoForge 安装程序中未找到 version.json");
         m_running = false; return;
     }
     QJsonDocument versionDoc = QJsonDocument::fromJson(versionData);
@@ -2602,164 +2611,158 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
         m_running = false; return;
     }
     QJsonObject versionJson = versionDoc.object();
+    versionJson[QStringLiteral("id")] = m_installName;
 
-    QString libBase = m_gameDir + QStringLiteral("/libraries");
-    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
-    struct DlItem { QString url; QString path; QString name; };
-    QList<DlItem> downloads;
-    for (const QJsonValue& v : libraries) {
-        QJsonObject lib = v.toObject();
-        QJsonObject artifact = lib.value(QStringLiteral("downloads")).toObject()
-            .value(QStringLiteral("artifact")).toObject();
-        QString url = artifact.value(QStringLiteral("url")).toString();
-        if (url.isEmpty()) continue;
-        QString pathStr = artifact.value(QStringLiteral("path")).toString();
-        if (pathStr.isEmpty()) continue;
-        QString localPath = libBase + QStringLiteral("/") + pathStr;
-        if (QFile::exists(localPath)) continue;
-        QString bmclUrl = QString(url)
-            .replace(QStringLiteral("libraries.minecraft.net"),
-                     QStringLiteral("bmclapi2.bangbang93.com/libraries"))
-            .replace(QStringLiteral("maven.neoforged.net/releases"),
-                     QStringLiteral("bmclapi2.bangbang93.com/maven"));
-        downloads.append({bmclUrl, localPath, lib.value(QStringLiteral("name")).toString()});
-    }
-    {
-        QString uniRel = QStringLiteral("net/neoforged/neoforge/%1/neoforge-%1-universal.jar").arg(m_loaderVersion);
-        QString uniPath = libBase + QStringLiteral("/") + uniRel;
-        if (!QFile::exists(uniPath)) {
-            QString uniUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-universal.jar")
-                .arg(m_loaderVersion);
-            qCInfo(logLoader) << QStringLiteral("NeoForge universal JAR 未找到，加入下载队列: %1").arg(uniRel);
-            downloads.append({uniUrl, uniPath, QStringLiteral("neoforge-universal")});
-        }
-    }
-
-    qCInfo(logLoader) << QStringLiteral("NeoForge 开始下载 文件数=%1 (已跳过 %2)").arg(downloads.size())
-        .arg(libraries.size() - downloads.size());
-
-    if (downloads.isEmpty()) {
-        finalizeNeoForge(jarData, versionJson);
-        return;
-    }
-
-    QSharedPointer<int> remaining(new int(downloads.size()));
-    QSharedPointer<int> completed(new int(0));
-    QSharedPointer<bool> doneCalled(new bool(false));
-    const int MAX_CONCURRENT = 8;
-
-    auto processNext = QSharedPointer<std::function<void()>>::create();
-    *processNext = [=]() {
-        if (*doneCalled) return;
-        if (*completed >= downloads.size()) {
-            *doneCalled = true;
-            finalizeNeoForge(jarData, versionJson);
-            return;
-        }
-        int remainingCount = *remaining;
-        if (remainingCount <= 0) return;
-        int idx = downloads.size() - remainingCount;
-        (*remaining)--;
-        const DlItem& t = downloads.at(idx);
-        QDir().mkpath(QFileInfo(t.path).absolutePath());
-        downloadToFile(t.url, t.path, [=](bool ok, const QString&) {
-            if (*doneCalled) return;
-            if (ok) {
-                (*completed)++;
-                int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
-                emit stepProgress(3, pct);
-                if (*completed >= downloads.size()) {
-                    *doneCalled = true;
-                    finalizeNeoForge(jarData, versionJson);
-                    return;
-                }
-                (*processNext)();
-            } else {
-                QString origUrl = QString(t.url)
-                    .replace(QStringLiteral("bmclapi2.bangbang93.com/libraries"),
-                             QStringLiteral("libraries.minecraft.net"))
-                    .replace(QStringLiteral("bmclapi2.bangbang93.com/maven"),
-                             QStringLiteral("maven.neoforged.net/releases"));
-                downloadToFile(origUrl, t.path, [=](bool ok2, const QString&) {
-                    if (!ok2)
-                        qCWarning(logLoader) << QStringLiteral("NeoForge 库不可用: %1").arg(t.name);
-                    (*completed)++;
-                    int pct = downloads.size() > 0 ? ((*completed) * 100 / downloads.size()) : 100;
-                    emit stepProgress(3, pct);
-                    if (*completed >= downloads.size()) {
-                        *doneCalled = true;
-                        finalizeNeoForge(jarData, versionJson);
-                        return;
-                    }
-                    (*processNext)();
-                });
-            }
-        });
-    };
-
-    int initial = qMin(MAX_CONCURRENT, downloads.size());
-    for (int i = 0; i < initial; i++)
-        (*processNext)();
-}
-
-void ModLoaderInstaller::finalizeNeoForge(const QByteArray& jarData, const QJsonObject& versionJson) {
-    emit progressChanged(3, m_totalSteps, QStringLiteral("正在提取 NeoForge 客户端文件..."));
-    emit stepProgress(3, 25);
-
-    if (jarData.isEmpty()) {
-        qCWarning(logLoader) << QStringLiteral("空 NeoForge JAR 数据");
-        emit finished(true, QString());
-        m_running = false;
-        return;
-    }
-    QBuffer buf;
-    buf.setData(jarData);
-    if (!buf.open(QIODevice::ReadOnly)) {
-        qCWarning(logLoader) << QStringLiteral("无法读取 NeoForge 安装程序");
-        emit finished(true, QString());
-        m_running = false;
-        return;
-    }
-    QZipReader reader(&buf);
-
-    QByteArray clientJarBytes;
-    {
-        QByteArray lzma = reader.fileData(QStringLiteral("data/client.lzma"));
-        if (!lzma.isEmpty()) {
-            clientJarBytes = decompressLzma(lzma);
-            if (clientJarBytes.isEmpty())
-                qCWarning(logLoader) << QStringLiteral("client.lzma LZMA 解压失败");
-        }
-    }
-    if (clientJarBytes.isEmpty()) {
-        clientJarBytes = reader.fileData(QStringLiteral("net/neoforged/neoforge/%1/%1-main.jar")
-            .arg(m_loaderVersion));
-    }
-    reader.close();
-
-    QJsonObject json = versionJson;
-    json[QStringLiteral("id")] = m_installName;
+    // ── 3. 创建版本目录 ──
     QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
     QDir().mkpath(verDir);
 
-    // ── Flatten inheritsFrom 链，使版本独立（移除对原版父版本的依赖）──
-    // 合并父版本的 libraries/arguments/javaVersion/assetIndex/downloads 等字段
-    // 使得原版版本文件夹之后可安全清理
-    if (json.contains(QStringLiteral("inheritsFrom"))) {
-        // 先拷贝 vanilla client JAR 作为 fallback（后续会被 LZMA 解压结果覆盖）
-        // 使用 findVersionDir 避免目录名和版本 ID 不一致的问题（如 "26.2" vs "1.21.5"）
-        QString mcVerDir = findVersionDir(m_mcVersion);
-        QString dstJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-        if (!mcVerDir.isEmpty() && !QFile::exists(dstJar)) {
-            QString srcJar = mcVerDir + QStringLiteral("/") + QDir(mcVerDir).dirName() + QStringLiteral(".jar");
-            if (QFile::exists(srcJar))
+    // ── 4. 复制 vanilla client JAR 作为 LZMA 失败的 fallback ──
+    QString dstJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+    {
+        QString mcVerDirPath = findVersionDir(m_mcVersion);
+        if (!mcVerDirPath.isEmpty()) {
+            QString srcJar = mcVerDirPath + QStringLiteral("/") + QDir(mcVerDirPath).dirName() + QStringLiteral(".jar");
+            if (QFile::exists(srcJar) && !QFile::exists(dstJar))
                 QFile::copy(srcJar, dstJar);
         }
-        json = flattenVersionJson(m_gameDir, json);
-        qCInfo(logLoader) << QStringLiteral("NeoForge JSON 已压平为独立版本（inheritsFrom 已消解）");
     }
 
-    // ── 写入 JSON ──
+    // ── 5. 尝试从 installer 中获取 client JAR（LZMA 解压 / 直存 JAR / vanilla fallback）──
+    //    NeoForge 新版：data/client.lzma 是 LZMA 压缩的 patched JAR
+    //    NeoForge 旧版/特殊版：net/neoforged/neoforge/{ver}/{ver}-main.jar 直接存 JAR
+    //    都不行则回退到步骤 4 复制的 vanilla JAR
+    {
+        QByteArray clientJarBytes;
+        QBuffer buf2;
+        buf2.setData(jarData);
+        if (buf2.open(QIODevice::ReadOnly)) {
+            QZipReader r2(&buf2);
+            // 5a. 尝试 LZMA 解压 data/client.lzma
+            QByteArray lzma = r2.fileData(QStringLiteral("data/client.lzma"));
+            if (!lzma.isEmpty()) {
+                // 诊断：打印前 16 字节十六进制
+                QString hexDump;
+                for (int i = 0; i < qMin(lzma.size(), 16); ++i)
+                    hexDump += QStringLiteral("%1 ").arg(static_cast<unsigned char>(lzma[i]), 2, 16, QLatin1Char('0'));
+                qCInfo(logLoader) << QStringLiteral("client.lzma: 大小=%1 字节 前16字节=%2").arg(lzma.size()).arg(hexDump);
+
+                // 检查是否为 ZIP/JAR 格式（client.lzma 实际是未压缩 JAR）
+                if (lzma.size() >= 4
+                    && static_cast<unsigned char>(lzma[0]) == 0x50
+                    && static_cast<unsigned char>(lzma[1]) == 0x4B
+                    && static_cast<unsigned char>(lzma[2]) == 0x03
+                    && static_cast<unsigned char>(lzma[3]) == 0x04) {
+                    clientJarBytes = lzma;
+                    qCInfo(logLoader) << QStringLiteral("client.lzma 是直存 JAR，直接使用: %1 字节").arg(clientJarBytes.size());
+                } else {
+                    QByteArray decompressed = decompressLzma(lzma);
+                    if (!decompressed.isEmpty()) {
+                        clientJarBytes = decompressed;
+                        qCInfo(logLoader) << QStringLiteral("NeoForge client JAR 已从 LZMA 解压: %1 字节")
+                            .arg(decompressed.size());
+                    }
+                }
+            }
+            // 5b. LZMA 失败或无 data/client.lzma → 尝试从 installer 直接提取 -main.jar
+            if (clientJarBytes.isEmpty()) {
+                // 支持 modern net/neoforged/neoforge 路径
+                clientJarBytes = r2.fileData(
+                    QStringLiteral("net/neoforged/neoforge/%1/%1-main.jar").arg(m_loaderVersion));
+                if (clientJarBytes.isEmpty()) {
+                    // 也尝试 legacy net/neoforged/forge 路径
+                    clientJarBytes = r2.fileData(
+                        QStringLiteral("net/neoforged/forge/1.20.1-%1/forge-1.20.1-%1-main.jar").arg(m_loaderVersion));
+                }
+                if (!clientJarBytes.isEmpty())
+                    qCInfo(logLoader) << QStringLiteral("NeoForge client JAR 从 -main.jar 提取: %1 字节").arg(clientJarBytes.size());
+            }
+            r2.close();
+        }
+        // 5c. 写入 client JAR（有 patched 的写 patched，否则保持 vanilla fallback）
+        if (!clientJarBytes.isEmpty()) {
+            QFile cf(dstJar);
+            if (cf.open(QIODevice::WriteOnly)) {
+                cf.write(clientJarBytes);
+                cf.close();
+            }
+        }
+    }
+
+    // ── 6. 顺序下载原始 version.json 中的 libraries（NeoForge 特有库）──
+    QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
+    QNetworkAccessManager* nam = HttpClient::instance().manager();
+    int downloaded = 0;
+    for (const QJsonValue& lv : libraries) {
+        if (!lv.isObject()) continue;
+        QJsonObject libObj = lv.toObject();
+        QJsonObject artifact = libObj.value(QStringLiteral("downloads")).toObject()
+            .value(QStringLiteral("artifact")).toObject();
+        QString url = artifact.value(QStringLiteral("url")).toString();
+        QString pathStr = artifact.value(QStringLiteral("path")).toString();
+        if (url.isEmpty() || pathStr.isEmpty()) continue;
+
+        QString localPath = m_gameDir + QStringLiteral("/libraries/") + pathStr;
+        if (QFile::exists(localPath)) continue;
+
+        // BMCLAPI 镜像（NeoForge 所有库都在 maven.neoforged.net）
+        QString bmclUrl = url;
+        bmclUrl.replace(QStringLiteral("maven.neoforged.net/releases"),
+                        QStringLiteral("bmclapi2.bangbang93.com/maven"));
+
+        QDir().mkpath(QFileInfo(localPath).absolutePath());
+        QUrl reqUrl(bmclUrl);
+        QNetworkRequest req{reqUrl};
+        QNetworkReply* reply = nam->get(req);
+        QEventLoop loop;
+        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        QTimer timer;
+        timer.setSingleShot(true);
+        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        timer.start(30000);
+        loop.exec();
+
+        if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+            timer.stop();
+            QFile f(localPath);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(reply->readAll());
+                f.close();
+                downloaded++;
+            }
+        } else {
+            // Fallback: 官方源
+            qCWarning(logLoader) << QStringLiteral("BMCLAPI 镜像下载失败，尝试官方源: %1").arg(url);
+            QUrl fallbackUrl(url);
+            QNetworkRequest fbReq(fallbackUrl);
+            QNetworkReply* r2 = nam->get(fbReq);
+            QEventLoop loop2;
+            QObject::connect(r2, &QNetworkReply::finished, &loop2, &QEventLoop::quit);
+            timer.start(30000);
+            loop2.exec();
+            if (r2->error() == QNetworkReply::NoError && timer.isActive()) {
+                QFile f(localPath);
+                if (f.open(QIODevice::WriteOnly)) {
+                    f.write(r2->readAll());
+                    f.close();
+                }
+            } else {
+                qCWarning(logLoader) << QStringLiteral("NeoForge 库不可用: %1").arg(libObj.value(QStringLiteral("name")).toString());
+            }
+            r2->deleteLater();
+        }
+        reply->deleteLater();
+    }
+    if (downloaded > 0)
+        qCInfo(logLoader) << QStringLiteral("NeoForge 预下载 %1 个库文件").arg(downloaded);
+
+    // ── 7. 压平 inheritsFrom 链，写入 JSON ──
+    QJsonObject json = versionJson;
+    if (json.contains(QStringLiteral("inheritsFrom"))) {
+        json = flattenVersionJson(m_gameDir, json);
+        json[QStringLiteral("id")] = m_installName;
+        qCInfo(logLoader) << QStringLiteral("NeoForge JSON 已压平为独立版本");
+    }
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile f(jsonPath);
     if (f.open(QIODevice::WriteOnly)) {
@@ -2767,25 +2770,6 @@ void ModLoaderInstaller::finalizeNeoForge(const QByteArray& jarData, const QJson
         f.close();
     }
     qCInfo(logLoader) << QStringLiteral("NeoForge 版本 JSON 已写入: %1").arg(jsonPath);
-
-    // ── 写入客户端 JAR ──
-    QString clientPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-    if (!clientJarBytes.isEmpty()) {
-        // LZMA 解压成功 → 写入 NeoForge remapped 客户端 JAR（覆盖 flatten 阶段的 vanilla 副本）
-        QFile cf(clientPath);
-        if (cf.open(QIODevice::WriteOnly)) {
-            cf.write(clientJarBytes);
-            cf.close();
-            qCInfo(logLoader) << QStringLiteral("NeoForge client JAR 已写入: %1（%2 字节）")
-                .arg(clientPath).arg(clientJarBytes.size());
-        }
-    } else if (QFile::exists(clientPath)) {
-        // LZMA 解压失败，但 flatten 阶段已复制 vanilla client JAR 作为保底
-        qCInfo(logLoader) << QStringLiteral("NeoForge 使用 vanilla client JAR 作为 fallback: %1").arg(clientPath);
-    } else {
-        // 无 LZMA 解压结果也无 vanilla 副本（理论上不应发生，因 flatten 覆盖所有现代 NeoForge）
-        qCWarning(logLoader) << QStringLiteral("NeoForge 安装程序中未找到 client JAR，跳过 JAR 写入");
-    }
 
     qCInfo(logLoader) << QStringLiteral("NeoForge 安装完成: %1").arg(m_installName);
     emit finished(true, QString());
