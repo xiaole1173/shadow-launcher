@@ -1164,11 +1164,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             // Replace placeholders
             arg.replace(QStringLiteral("${auth_player_name}"), m_authName.isEmpty() ? QStringLiteral("{username}") : m_authName);
             arg.replace(QStringLiteral("${version_name}"), versionId);
-            // 主流启动器 reference: gameDir = .minecraft root (McFolderSelected)
-            // Forge/FML needs .minecraft root for mods/, config/, libraries/ resolution
-            // Version isolation is handled via APPDATA env override, not --gameDir
+            // ── 版本隔离：${game_directory} 必须指向版本隔离目录 ──
+            // 当版本隔离启用时，m_versionGameDir 指向 versions/{id}/game（或 versions/{id}）
+            // 当版本隔离关闭时，m_versionGameDir == m_gameDir（根目录），行为不变
             arg.replace(QStringLiteral("${game_directory}"),
-                        gameDirShort);
+                        toShortPath(m_versionGameDir));
             arg.replace(QStringLiteral("${assets_root}"),
                         gameDirShort + QStringLiteral("/assets"));
             arg.replace(QStringLiteral("${assets_index_name}"), assetIndexId);
