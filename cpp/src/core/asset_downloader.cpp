@@ -28,6 +28,12 @@ AssetDownloader::AssetDownloader(QObject* parent)
     : QObject(parent)
 {
     setupNam();
+
+    // Gradual ramp-up timer
+    m_rampTimer = new QTimer(this);
+    m_rampTimer->setSingleShot(false);
+    m_rampTimer->setInterval(kRampIntervalMs);
+    connect(m_rampTimer, &QTimer::timeout, this, &AssetDownloader::rampTick);
 }
 
 AssetDownloader::~AssetDownloader()
@@ -44,6 +50,7 @@ void AssetDownloader::setupNam()
         m_nam->disconnect();
         m_nam->deleteLater();
     }
+    m_rampTimer->stop();
 
     m_nam = new QNetworkAccessManager(this);
 
@@ -90,9 +97,14 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
                         .arg(tasks.size()).arg(formatSize(totalEst)));
     emit progressChanged(0, tasks.size(), 0, totalEst);
 
-    // Fire initial batch
-    for (int i = 0; i < m_maxConcurrent && !m_pendingQueue.isEmpty(); ++i)
+    // Gradual ramp-up: fire a small initial batch,
+    // then let rampTick() add more every 100ms.
+    int initial = qMin(kInitialBatch, m_maxConcurrent);
+    for (int i = 0; i < initial && !m_pendingQueue.isEmpty(); ++i)
         fireNext();
+
+    if (m_inFlight.size() < m_maxConcurrent && !m_pendingQueue.isEmpty())
+        m_rampTimer->start();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -102,6 +114,7 @@ void AssetDownloader::cancel()
 {
     if (m_state != Running) return;
     m_state = Cancelled;
+    m_rampTimer->stop();
 
     // Collect replies into a local list FIRST, then clear the map.
     // This avoids iterator invalidation when abort() fires finished()
@@ -267,6 +280,31 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
 }
 
 // ═══════════════════════════════════════════════════════════
+// Gradual ramp-up: add a few more connections every tick
+// until we reach m_maxConcurrent.
+// ═══════════════════════════════════════════════════════════
+void AssetDownloader::rampTick()
+{
+    if (m_state != Running || m_pendingQueue.isEmpty()) {
+        m_rampTimer->stop();
+        return;
+    }
+
+    int currentActive = m_inFlight.size();
+    if (currentActive >= m_maxConcurrent) {
+        m_rampTimer->stop();
+        return;
+    }
+
+    int target = qMin(currentActive + kRampStep, m_maxConcurrent);
+    for (int i = currentActive; i < target && !m_pendingQueue.isEmpty(); ++i)
+        fireNext();
+
+    if (m_inFlight.size() >= m_maxConcurrent || m_pendingQueue.isEmpty())
+        m_rampTimer->stop();
+}
+
+// ═══════════════════════════════════════════════════════════
 // Finish tracking for one task
 // ═══════════════════════════════════════════════════════════
 void AssetDownloader::finishDownload(const AssetTask& task, bool success)
@@ -313,6 +351,7 @@ void AssetDownloader::checkAllFinished()
     if (!m_pendingQueue.isEmpty() || !m_inFlight.isEmpty())
         return;
 
+    m_rampTimer->stop();
     m_state = (m_state == Cancelled) ? Cancelled : Done;
 
     emit progressChanged(m_completedFiles.loadRelaxed(),

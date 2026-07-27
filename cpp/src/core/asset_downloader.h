@@ -20,6 +20,7 @@
 #include <QStringList>
 #include <QVector>
 #include <QQueue>
+#include <QTimer>
 
 #include "utils/types.h"
 
@@ -83,6 +84,7 @@ private slots:
 private:
     void setupNam();
     void fireNext();
+    void rampTick();
     void finishDownload(const AssetTask& task, bool success);
     void checkAllFinished();
     static QString sha1HexOf(const QByteArray& data);
@@ -108,10 +110,16 @@ private:
     // In-flight tracking (to know which replies belong to which task)
     struct InFlight {
         AssetTask task;
-        int mirrorIndex = 0;  // which mirror we're currently trying (index into task.mirrors)
+        int mirrorIndex = 0;
     };
     QMap<QNetworkReply*, InFlight> m_inFlight;
     int m_maxConcurrent = 32;
+
+    // Gradual ramp-up: start small, build up to m_maxConcurrent
+    QTimer* m_rampTimer = nullptr;
+    static constexpr int kInitialBatch = 8;
+    static constexpr int kRampStep = 4;
+    static constexpr int kRampIntervalMs = 100;
 
     // Throttle progress signals (avoid flooding QML)
     QElapsedTimer m_lastProgressEmit;
