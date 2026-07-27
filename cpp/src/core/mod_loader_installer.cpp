@@ -2449,11 +2449,34 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                 if (inheritsLeft)
                     flattened.remove(QStringLiteral("inheritsFrom"));
 
+                // NeoForge: ensure net.neoforged:neoforge:{ver}:universal is in libraries
+                // FMLLoader scans classpath for NeoForgeMod.class - it's in the universal JAR.
+                // The bootstrapper's version.json may omit this entry; flatten doesn't add it.
+                if (isNeo) {
+                    QString nfName = QStringLiteral("net.neoforged:neoforge:%1:universal").arg(m_loaderVersion);
+                    QJsonArray nfLibs = flattened.value(QStringLiteral("libraries")).toArray();
+                    bool hasNf = false;
+                    for (const auto& lib : nfLibs) {
+                        if (lib.toObject().value(QStringLiteral("name")).toString() == nfName) {
+                            hasNf = true; break;
+                        }
+                    }
+                    if (!hasNf) {
+                        QString nfPath = QStringLiteral("net/neoforged/neoforge/%1/neoforge-%1-universal.jar").arg(m_loaderVersion);
+                        QJsonObject artifact;
+                        artifact[QStringLiteral("path")] = nfPath;
+                        QJsonObject dlObj;
+                        dlObj[QStringLiteral("artifact")] = artifact;
+                        QJsonObject nfEntry;
+                        nfEntry[QStringLiteral("name")] = nfName;
+                        nfEntry[QStringLiteral("downloads")] = dlObj;
+                        nfLibs.append(nfEntry);
+                        flattened[QStringLiteral("libraries")] = nfLibs;
+                        qCInfo(logLoader) << QStringLiteral("已添加 NeoForge universal JAR 到 libraries: %1").arg(nfName);
+                    }
+                }
+
                 // Inject MC client as library if missing (for standalone version)
-                // NeoForge: skip this! The patched client is in the version folder JAR, not as a library.
-                // Injecting net.minecraft:client adds the VANILLA client to classpath, which makes
-                // NeoForge think the patched client is missing (it sees the unpatched vanilla one).
-                if (!isNeo) {
                 QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
                 QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
                 bool hasMcClient = false;
@@ -2474,35 +2497,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                     flattened[QStringLiteral("libraries")] = mergedLibs;
                 }
 
-                // NeoForge: remove downloads.client (points to vanilla MC; launcher would redownload & overwrite patched)
-        if (isNeo) {
-            flattened.remove(QStringLiteral("downloads"));
-            // Ensure net.neoforged:neoforge:{ver}:universal is in libraries (FMLLoader needs NeoForgeMod.class)
-            // The bootstrapper's version.json might not include this entry; it's on disk but not in the JSON.
-            QString nfName = QStringLiteral("net.neoforged:neoforge:%1:universal").arg(m_loaderVersion);
-            QJsonArray nfLibs = flattened.value(QStringLiteral("libraries")).toArray();
-            bool hasNf = false;
-            for (const auto& lib : nfLibs) {
-                if (lib.toObject().value(QStringLiteral("name")).toString() == nfName) {
-                    hasNf = true; break;
-                }
-            }
-            if (!hasNf) {
-                QString nfPath = QStringLiteral("net/neoforged/neoforge/%1/neoforge-%1-universal.jar").arg(m_loaderVersion);
-                QJsonObject artifact;
-                artifact[QStringLiteral("path")] = nfPath;
-                QJsonObject dlObj;
-                dlObj[QStringLiteral("artifact")] = artifact;
-                QJsonObject nfEntry;
-                nfEntry[QStringLiteral("name")] = nfName;
-                nfEntry[QStringLiteral("downloads")] = dlObj;
-                nfLibs.append(nfEntry);
-                flattened[QStringLiteral("libraries")] = nfLibs;
-                qCInfo(logLoader) << QStringLiteral("已添加 NeoForge universal JAR 到 libraries: %1").arg(nfName);
-            }
-        }
-
-        if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
                     jf.write(QJsonDocument(flattened).toJson(QJsonDocument::Indented));
                     jf.close();
                     if (inheritsLeft || !jObj.contains(QStringLiteral("inheritsFrom")) ||
@@ -2513,43 +2508,22 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             }
         }
 
-        } // end if (!isNeo) for MC client injection
-        // Copy the correct JAR to version folder (always overwrite in case of stale file)
+        // Copy client/universal JAR to version folder if missing
         QString targetDir = versionsDir() + QStringLiteral("/") + m_installName;
         QString jarPathV = targetDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-        QFile::remove(jarPathV);
-        bool jarCopied = false;
-        if (!isNeo) {
-            // Forge: -client.jar (installer-patched) or -universal.jar (loader)
+        if (!QFile::exists(jarPathV)) {
             const QString clientJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
                 + QStringLiteral("/") + ver + QStringLiteral("/")
                 + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-client.jar");
             const QString universalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
                 + QStringLiteral("/") + ver + QStringLiteral("/")
                 + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-universal.jar");
+
             if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("已复制 Forge client JAR 到 %1").arg(jarPathV);
-                jarCopied = true;
+                qCInfo(logLoader) << QStringLiteral("已复制 client JAR 到 %1").arg(jarPathV);
             } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("已复制 Forge universal JAR 到 %1").arg(jarPathV);
-                jarCopied = true;
+                qCInfo(logLoader) << QStringLiteral("已复制 universal JAR 到 %1").arg(jarPathV);
             }
-        } else {
-            // NeoForge: copy the patched client from processor output
-            // Processor: --output libraries/net/neoforged/minecraft-client-patched/{ver}/{name}.jar
-            const QString patchedJar = m_gameDir
-                + QStringLiteral("/libraries/net/neoforged/minecraft-client-patched/")
-                + m_loaderVersion + QStringLiteral("/minecraft-client-patched-")
-                + m_loaderVersion + QStringLiteral(".jar");
-            if (QFile::exists(patchedJar) && QFile::copy(patchedJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("已复制 NeoForge patched client JAR 到 %1").arg(jarPathV);
-                jarCopied = true;
-            } else {
-                qCWarning(logLoader) << QStringLiteral("未找到 NeoForge patched client JAR: %1").arg(patchedJar);
-            }
-        }
-        if (!jarCopied) {
-            qCWarning(logLoader) << QStringLiteral("无法复制版本 JAR 文件");
         }
     }
 
