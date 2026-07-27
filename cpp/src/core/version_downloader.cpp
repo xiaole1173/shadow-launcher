@@ -124,6 +124,11 @@ VersionDownloader::VersionDownloader(QObject* parent)
     connect(m_assetDownloader, &AssetDownloader::logMessage,
             this, &VersionDownloader::logMessage);
 
+    // Forward per-file progress so VersionBackend::updateDownloadFile can
+    // track per-category done bytes (cat = fileCategory(savePath)) and speed.
+    connect(m_assetDownloader, &AssetDownloader::fileProgress,
+            this, &VersionDownloader::fileProgress);
+
     connect(m_assetDownloader, &AssetDownloader::allFinished,
             this, [this](bool success, int failedCount, const QStringList& failedFiles) {
         m_assetTasksDone = true;

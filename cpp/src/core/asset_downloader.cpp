@@ -296,6 +296,13 @@ void AssetDownloader::finishDownload(const AssetTask& task, bool success)
 
     emit fileCompleted(task.sha1, success);
 
+    // Forward detail for VersionBackend::updateDownloadFile
+    // (uses savePath to look up fileCategory, updates mcStepDone/mcStepTotal)
+    if (!task.mirrors.isEmpty()) {
+        emit fileProgress(task.mirrors.first(), task.sha1,
+                          task.size, task.size, task.savePath);
+    }
+
     fireNext();
     checkAllFinished();
 }

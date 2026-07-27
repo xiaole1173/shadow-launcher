@@ -68,6 +68,12 @@ signals:
     void progressChanged(int completedFiles, int totalFiles,
                          qint64 downloadedBytes, qint64 totalBytes);
     void fileCompleted(const QString& fileName, bool success);
+    /// Per-file progress for speed calculation & step tracking.
+    /// url: primary mirror URL; fileName: sha1 hash;
+    /// savePath: disk path used by VersionBackend to determine category.
+    void fileProgress(const QString& url, const QString& fileName,
+                      qint64 received, qint64 total,
+                      const QString& savePath);
     void allFinished(bool success, int failedCount, const QStringList& failedFiles);
     void logMessage(const QString& msg);
 
