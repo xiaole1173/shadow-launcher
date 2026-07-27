@@ -1108,7 +1108,11 @@ bool SettingsBackend::isPathInCandidateDir(const QString& binDir) const
             if (val.isEmpty()) continue;
             searchDir.replace(m.captured(0), val);
         }
-        if (lower.startsWith(searchDir.toLower())) return true;
+        if (lower.startsWith(searchDir.toLower())) {
+            int sl = searchDir.length();
+            if (lower.length() == sl || lower[sl] == QLatin1Char('\\') || lower[sl] == QLatin1Char('/'))
+                return true;
+        }
     }
     return false;
 }
