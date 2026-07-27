@@ -2449,33 +2449,6 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                 if (inheritsLeft)
                     flattened.remove(QStringLiteral("inheritsFrom"));
 
-                // NeoForge: ensure net.neoforged:neoforge:{ver}:universal is in libraries
-                // FMLLoader scans classpath for NeoForgeMod.class - it's in the universal JAR.
-                // The bootstrapper's version.json may omit this entry; flatten doesn't add it.
-                if (isNeo) {
-                    QString nfName = QStringLiteral("net.neoforged:neoforge:%1:universal").arg(m_loaderVersion);
-                    QJsonArray nfLibs = flattened.value(QStringLiteral("libraries")).toArray();
-                    bool hasNf = false;
-                    for (const auto& lib : nfLibs) {
-                        if (lib.toObject().value(QStringLiteral("name")).toString() == nfName) {
-                            hasNf = true; break;
-                        }
-                    }
-                    if (!hasNf) {
-                        QString nfPath = QStringLiteral("net/neoforged/neoforge/%1/neoforge-%1-universal.jar").arg(m_loaderVersion);
-                        QJsonObject artifact;
-                        artifact[QStringLiteral("path")] = nfPath;
-                        QJsonObject dlObj;
-                        dlObj[QStringLiteral("artifact")] = artifact;
-                        QJsonObject nfEntry;
-                        nfEntry[QStringLiteral("name")] = nfName;
-                        nfEntry[QStringLiteral("downloads")] = dlObj;
-                        nfLibs.append(nfEntry);
-                        flattened[QStringLiteral("libraries")] = nfLibs;
-                        qCInfo(logLoader) << QStringLiteral("已添加 NeoForge universal JAR 到 libraries: %1").arg(nfName);
-                    }
-                }
-
                 // Inject MC client as library if missing (for standalone version)
                 QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
                 QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
@@ -2525,7 +2498,22 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                 qCInfo(logLoader) << QStringLiteral("已复制 universal JAR 到 %1").arg(jarPathV);
             }
         }
-    }
+        }
+
+        // 主流启动器: copy vanilla MC client JAR to version folder (needed by launcher for classpath)
+        // The bootstrapper doesn't create a JAR in the version folder; 主流启动器's MC download + MergeJson does.
+        // Source: versions/{mcVer}/{mcVer}.jar → Target: versions/{installName}/{installName}.jar
+        QString mcClientSrc = m_gameDir + QStringLiteral("/versions/") + m_mcVersion
+            + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+        QString mcClientDst = versionsDir() + QStringLiteral("/") + m_installName
+            + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+        if (QFile::exists(mcClientSrc) && !QFile::exists(mcClientDst)) {
+            QDir().mkpath(QFileInfo(mcClientDst).absolutePath());
+            if (QFile::copy(mcClientSrc, mcClientDst))
+                qCInfo(logLoader) << QStringLiteral("已复制原版客户端 JAR 到版本文件夹: %1").arg(mcClientDst);
+            else
+                qCWarning(logLoader) << QStringLiteral("复制原版客户端 JAR 失败: %1 -> %2").arg(mcClientSrc, mcClientDst);
+        }
 
     emit finished(true, QString());
     m_running = false;
