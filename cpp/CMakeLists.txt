@@ -57,6 +57,7 @@ set(SOURCES
     src/core/downloader.cpp
     src/core/parallel_downloader.cpp
     src/core/file_downloader.cpp
+    src/core/asset_downloader.cpp
     src/core/version_downloader.cpp
     src/core/launcher.cpp
     src/core/mc_language.cpp
@@ -105,6 +106,7 @@ set(HEADERS
     src/core/downloader.h
     src/core/parallel_downloader.h
     src/core/file_downloader.h
+    src/core/asset_downloader.h
     src/core/download_coordinator.h
     src/core/version_downloader.h
     src/core/step_node.h

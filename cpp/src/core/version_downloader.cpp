@@ -7,6 +7,7 @@
 
 #include "version_downloader.h"
 #include "file_downloader.h"
+#include "asset_downloader.h"
 #include "http_client.h"
 #include "../utils/logger.h"
 
@@ -100,6 +101,38 @@ VersionDownloader::VersionDownloader(QObject* parent)
     connect(m_downloader, &ShadowDownloader::FileDownloader::allFinished,
             this, &VersionDownloader::onAllFinishedV2,
             Qt::QueuedConnection);
+
+    // ── Asset-dedicated downloader (shared QNAM + HTTP/2) ──
+    m_assetDownloader = new AssetDownloader(this);
+    m_assetDownloader->setMaxConcurrent(64);
+
+    connect(m_assetDownloader, &AssetDownloader::progressChanged,
+            this, [this](int completed, int total, qint64 dlBytes, qint64 totBytes) {
+        int libTotal = m_downloader ? m_downloader->totalFiles() : 0;
+        int libCompleted = m_downloader ? m_downloader->completedFiles() : 0;
+        int mergedCompleted = libCompleted + completed;
+        int mergedTotal = libTotal + total;
+        qint64 libBytes = m_downloader ? m_downloader->downloadedBytes() : 0;
+        qint64 libTotalBytes = m_downloader ? m_downloader->totalBytes() : 0;
+        m_completedFiles.storeRelaxed(mergedCompleted);
+        m_totalFiles.storeRelaxed(mergedTotal);
+        m_downloadedBytes.storeRelaxed(libBytes + dlBytes);
+        m_totalBytes.storeRelaxed(libTotalBytes + totBytes);
+        emit progressChanged(mergedCompleted, mergedTotal, libBytes + dlBytes, libTotalBytes + totBytes);
+    });
+
+    connect(m_assetDownloader, &AssetDownloader::logMessage,
+            this, &VersionDownloader::logMessage);
+
+    connect(m_assetDownloader, &AssetDownloader::allFinished,
+            this, [this](bool success, int failedCount, const QStringList& failedFiles) {
+        m_assetTasksDone = true;
+        if (failedCount > 0) {
+            emit logMessage(QStringLiteral("[资源下载] %1 个文件失败").arg(failedCount));
+            emit downloadFailedFiles(failedFiles);
+        }
+        checkBothDownloadersDone();
+    });
 }
 
 VersionDownloader::~VersionDownloader()
@@ -211,37 +244,100 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         m_totalBytes.storeRelaxed(totalEstimate);
         emit logMessage(tr("准备下载 %1 个文件").arg(tasks.size()));
 
-        // Feed tasks → addFile with source ordering by policy
+        // Feed tasks → split into libraries/jar and assets
+        // Category 1: /versions/, /libraries/, /maven/ paths → FileDownloader
+        // Category 2: /assets/ paths → AssetDownloader
         bool preferOfficial = (m_downloadCfg.fileSource == DownloadSourcePolicy::PreferOfficial ||
                                m_downloadCfg.fileSource == DownloadSourcePolicy::AutoSwitch);
+
+        QVector<AssetDownloader::AssetTask> assetTasks;
+        bool hasLibTasks = false;
+        bool hasAssetTasks = false;
+
         for (const auto& t : tasks) {
-            QStringList sources;
-            // Apply source order policy
-            if (preferOfficial) {
-                bool mojangAdded = false;
-                for (const auto& m : t.mirrors) {
-                    if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
-                        sources.append(m);
-                        mojangAdded = true;
+            int cat = m_fileCategory.value(t.savePath, -1);
+            if (cat == 2) {
+                // ── Asset task → AssetDownloader ──
+                hasAssetTasks = true;
+                QStringList mirrors;
+                if (preferOfficial) {
+                    bool mojangAdded = false;
+                    for (const auto& m : t.mirrors) {
+                        if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
+                            mirrors.append(m);
+                            mojangAdded = true;
+                        }
                     }
+                    if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
+                        mirrors.append(t.url);
+                    for (const auto& m : t.mirrors) {
+                        if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
+                            mirrors.append(m);
+                    }
+                } else {
+                    mirrors.append(t.url);
+                    for (const auto& m : t.mirrors)
+                        mirrors.append(m);
                 }
-                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
-                sources.append(t.url);  // BMCLAPI as fallback
-                for (const auto& m : t.mirrors) {
-                    if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
+
+                AssetDownloader::AssetTask at;
+                at.savePath = t.savePath;
+                at.sha1 = t.sha1;
+                at.mirrors = mirrors;
+                at.size = t.totalBytes;
+                assetTasks.append(at);
+
+                // Track dest path for verification
+                m_taskDestPaths.append(t.savePath);
+
+            } else {
+                // ── Library/jar task → FileDownloader ──
+                hasLibTasks = true;
+                QStringList sources;
+                if (preferOfficial) {
+                    bool mojangAdded = false;
+                    for (const auto& m : t.mirrors) {
+                        if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
+                            sources.append(m);
+                            mojangAdded = true;
+                        }
+                    }
+                    if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
+                        sources.append(t.url);
+                    for (const auto& m : t.mirrors) {
+                        if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
+                            sources.append(m);
+                    }
+                } else {
+                    sources.append(t.url);
+                    for (const auto& m : t.mirrors)
                         sources.append(m);
                 }
-            } else {
-                sources.append(t.url);
-                for (const auto& m : t.mirrors)
-                    sources.append(m);
+                QByteArray sha1 = t.sha1.toUtf8();
+                m_downloader->addFile(t.savePath, t.name, sources,
+                                      t.totalBytes, sha1, false);
+                m_taskDestPaths.append(t.savePath);
             }
-            QByteArray sha1 = t.sha1.toUtf8();
-            m_downloader->addFile(t.savePath, t.name, sources,
-                                  t.totalBytes, sha1, false);
         }
 
-        m_downloader->start();
+        // Reset cross-downloader tracking
+        m_libTasksDone = !hasLibTasks;
+        m_assetTasksDone = !hasAssetTasks;
+
+        // Start FileDownloader (libraries/jar)
+        if (hasLibTasks) {
+            emit logMessage(tr("启动库文件下载器 (%1 个文件)").arg(tasks.size() - assetTasks.size()));
+            m_downloader->start();
+        }
+
+        // Start AssetDownloader (assets with HTTP/2)
+        if (hasAssetTasks) {
+            emit logMessage(tr("启动资源文件下载器 (%1 个文件, HTTP/2)").arg(assetTasks.size()));
+            m_assetDownloader->startDownload(assetTasks, 64);
+        }
+
+        // Both done immediately? (no tasks at all)
+        checkBothDownloadersDone();
     };
 
     if (assetIdx.isEmpty()) { startTasks(); return; }
@@ -286,7 +382,15 @@ void VersionDownloader::cancel()
 {
     if (m_state != Running && m_state != Paused) return;
     m_state = Cancelled;
-    m_downloader->cancel();
+    if (m_downloader) m_downloader->cancel();
+    if (m_assetDownloader) m_assetDownloader->cancel();
+    if (m_verifyWorkerObj) {
+        m_verifyWorkerObj->cancel();
+        if (m_verifyThread) {
+            m_verifyThread->quit();
+            m_verifyThread->wait(3000);
+        }
+    }
     emit stateChanged();
 }
 
@@ -334,33 +438,45 @@ bool VersionDownloader::isRunning() const
 }
 
 // ═══════════════════════════════════════════════════════════
-// allFinished (FileDownloader v8) → adapt to existing logic
+// Cross-downloader completion: both FileDownloader (libraries)
+// and AssetDownloader (assets, HTTP/2) must finish before
+// proceeding to integrity verification.
 // ═══════════════════════════════════════════════════════════
 
-void VersionDownloader::onAllFinishedV2()
+void VersionDownloader::checkBothDownloadersDone()
 {
+    if (!m_libTasksDone || !m_assetTasksDone)
+        return;
     if (m_state == Cancelled) {
         emit downloadFinished(false, tr("下载已取消"));
         return;
     }
 
-    int failedCount = m_downloader->failedFiles();
+    // Both downloaders complete — continue to the original
+    // onAllFinishedV2 logic (verification, mirror fallback, etc.)
+    int libFailed = m_downloader ? m_downloader->failedFiles() : 0;
+    int assetFailed = 0;  // tracked inside m_assetDownloader
+    int failedCount = libFailed;  // asset failures are separate
+
     QStringList failedPaths;
-    // TODO: collect failed file paths from fileFinished signals
-
     if (failedCount > 0) {
-        emit downloadFailedFiles(failedPaths);
-        emit logMessage(tr("[警告] 下载阶段: %1 个文件下载失败").arg(failedCount));
+        emit logMessage(tr("[警告] 库文件下载: %1 个文件下载失败").arg(failedCount));
+    }
 
-        const double failRate = static_cast<double>(failedCount) / m_totalFiles.loadRelaxed();
-        if (m_fallbackIndex + 1 < m_fallbackChain.size() && failRate >= kFallbackThreshold) {
-            const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-            emit logMessage(tr("[重试] %1%% 文件下载失败, 切换到 %2 重试...")
-                                .arg(static_cast<int>(failRate * 100))
-                                .arg(next.name));
-            retryWithNextMirror();
-            return;
-        }
+    // Skip mirror fallback for asset-only failures; assets use AssetDownloader's
+    // built-in per-file mirror retry. Only library batch failures trigger fallback.
+    const double failRate = m_totalFiles.loadRelaxed() > 0
+        ? static_cast<double>(failedCount) / m_totalFiles.loadRelaxed() : 0.0;
+
+    if (failedCount > 0
+        && m_fallbackIndex + 1 < m_fallbackChain.size()
+        && failRate >= kFallbackThreshold) {
+        const auto& next = m_fallbackChain[m_fallbackIndex + 1];
+        emit logMessage(tr("[重试] %1%% 文件下载失败, 切换到 %2 重试...")
+                            .arg(static_cast<int>(failRate * 100))
+                            .arg(next.name));
+        retryWithNextMirror();
+        return;
     }
 
     // --- Integrity verification ---
@@ -371,6 +487,17 @@ void VersionDownloader::onAllFinishedV2()
 
     QVector<VerifyItem> items = collectVerifyItems(m_currentVersionJson, m_currentVersionId);
     startAsyncVerify(items);
+}
+
+// ═══════════════════════════════════════════════════════════
+// allFinished (FileDownloader v8) → library tasks done
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::onAllFinishedV2()
+{
+    // FileDownloader finished — mark lib tasks done and check both
+    m_libTasksDone = true;
+    checkBothDownloadersDone();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -645,7 +772,7 @@ void VersionDownloader::retryWithNextMirror()
     m_downloadedBytes.storeRelaxed(0);
     m_taskDestPaths.clear();
 
-    // Create fresh downloader (old one is in Done/Failed state, can't reuse)
+    // Create fresh FileDownloader (old one is in Done/Failed state, can't reuse)
     if (m_downloader) {
         m_downloader->deleteLater();
         m_downloader = nullptr;
@@ -655,11 +782,16 @@ void VersionDownloader::retryWithNextMirror()
     m_downloader->setSpeedLimitMB(m_downloadCfg.speedLimitMB);
     connect(m_downloader, &ShadowDownloader::FileDownloader::progressChanged,
             this, [this](int completed, int total, qint64 rx, qint64 totalBytes) {
-        m_completedFiles.storeRelaxed(completed);
-        m_totalFiles.storeRelaxed(total);
-        m_downloadedBytes.storeRelaxed(rx);
-        m_totalBytes.storeRelaxed(totalBytes);
-        emit progressChanged(completed, total, rx, totalBytes);
+        int assetCompleted = m_assetDownloader ? m_assetDownloader->completedFiles() : 0;
+        int assetTotal = m_assetDownloader ? m_assetDownloader->totalFiles() : 0;
+        qint64 assetBytes = m_assetDownloader ? m_assetDownloader->downloadedBytes() : 0;
+        qint64 assetTotalBytes = m_assetDownloader ? m_assetDownloader->totalBytes() : 0;
+        m_completedFiles.storeRelaxed(completed + assetCompleted);
+        m_totalFiles.storeRelaxed(total + assetTotal);
+        m_downloadedBytes.storeRelaxed(rx + assetBytes);
+        m_totalBytes.storeRelaxed(totalBytes + assetTotalBytes);
+        emit progressChanged(completed + assetCompleted, total + assetTotal,
+                             rx + assetBytes, totalBytes + assetTotalBytes);
     });
     connect(m_downloader, &ShadowDownloader::FileDownloader::logMessage,
             this, &VersionDownloader::logMessage);
@@ -670,30 +802,43 @@ void VersionDownloader::retryWithNextMirror()
     // Re-collect tasks with the new mirror
     QVector<DownloadTask> tasks;
     collectTasks(m_currentVersionJson, m_currentVersionId, m_assetObjects, tasks);
-    m_totalFiles.storeRelaxed(tasks.size());
 
-    if (tasks.isEmpty()) {
-        m_state = Done;
-        emit downloadFinished(true, QString());
-        emit stateChanged();
+    // Reset tracking — only libraries/jar go back to FileDownloader
+    m_libTasksDone = false;
+
+    // Filter to only library/jar tasks (category 1) for FileDownloader retry
+    QVector<DownloadTask> libTasks;
+    bool hasLibTasks = false;
+    for (const auto& t : tasks) {
+        int cat = m_fileCategory.value(t.savePath, -1);
+        if (cat != 2) {  // not asset → library/jar
+            libTasks.append(t);
+            hasLibTasks = true;
+        }
+    }
+
+    m_totalFiles.storeRelaxed(libTasks.size() + (m_assetDownloader ? m_assetDownloader->totalFiles() : 0));
+
+    if (!hasLibTasks) {
+        m_state = Running;
+        checkBothDownloadersDone();
         return;
     }
 
     qint64 totalEstimate = 0;
-    for (const auto& t : tasks) totalEstimate += t.totalBytes;
-    m_totalBytes.storeRelaxed(totalEstimate);
+    for (const auto& t : libTasks) totalEstimate += t.totalBytes;
 
     m_state = Running;
     emit stateChanged();
     emit logMessage(tr("开始下载版本 %1 | 镜像=%2").arg(m_currentVersionId, next.name));
-    emit logMessage(tr("[重试] 已切换到 %1 (%2/%3), 重新下载 %4 个文件")
+    emit logMessage(tr("[重试] 已切换到 %1 (%2/%3), 重新下载 %4 个库文件")
                         .arg(next.name)
                         .arg(m_fallbackIndex + 1)
                         .arg(m_fallbackChain.size())
-                        .arg(tasks.size()));
+                        .arg(libTasks.size()));
 
-    // Feed tasks to FileDownloader
-    for (const auto& t : tasks) {
+    // Feed library/jar tasks to FileDownloader
+    for (const auto& t : libTasks) {
         QStringList sources;
         sources.append(t.url);
         for (const auto& m : t.mirrors) sources.append(m);
@@ -701,6 +846,8 @@ void VersionDownloader::retryWithNextMirror()
                               t.totalBytes, t.sha1.toUtf8(), false);
     }
     m_downloader->start();
+
+    // AssetDownloader is already running (or completed) — no need to restart
 }
 
 // ═══════════════════════════════════════════════════════════

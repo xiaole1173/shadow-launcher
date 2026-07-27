@@ -14,6 +14,7 @@
 #include "utils/types.h"
 // Forward-declare (see version_downloader.cpp for full include)
 namespace ShadowDownloader { class FileDownloader; }
+class AssetDownloader;
 
 namespace ShadowLauncher {
 
@@ -143,6 +144,9 @@ private:
     // --- Mirror fallback ---
     void retryWithNextMirror();
 
+    // --- Cross-downloader coordination ---
+    void checkBothDownloadersDone();
+
     // --- Members ---
     MirrorSource m_mirror;
     QString m_minecraftDir;
@@ -155,11 +159,16 @@ private:
     static constexpr double kFallbackThreshold = 0.3;
 
     ShadowDownloader::FileDownloader* m_downloader = nullptr;
+    AssetDownloader* m_assetDownloader = nullptr;
 
     QAtomicInt m_completedFiles{0};
     QAtomicInt m_totalFiles{0};
     QAtomicInteger<qint64> m_totalBytes{0};
     QAtomicInteger<qint64> m_downloadedBytes{0};
+
+    // Cross-downloader completion tracking
+    bool m_libTasksDone = false;
+    bool m_assetTasksDone = false;
 
     enum State { Idle, Running, Paused, Cancelled, Verifying, Done, Failed };
     State m_state = Idle;
