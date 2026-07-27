@@ -2481,24 +2481,42 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             }
         }
 
-        // Copy client/universal JAR to version folder if missing (Forge only; NeoForge has patched client in libraries/)
-        if (!isNeo) {
+        // Copy the correct JAR to version folder (always overwrite in case of stale file)
         QString targetDir = versionsDir() + QStringLiteral("/") + m_installName;
         QString jarPathV = targetDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-        if (!QFile::exists(jarPathV)) {
+        QFile::remove(jarPathV);
+        bool jarCopied = false;
+        if (!isNeo) {
+            // Forge: -client.jar (installer-patched) or -universal.jar (loader)
             const QString clientJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
                 + QStringLiteral("/") + ver + QStringLiteral("/")
                 + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-client.jar");
             const QString universalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
                 + QStringLiteral("/") + ver + QStringLiteral("/")
                 + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-universal.jar");
-
             if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("已复制 client JAR 到 %1").arg(jarPathV);
+                qCInfo(logLoader) << QStringLiteral("已复制 Forge client JAR 到 %1").arg(jarPathV);
+                jarCopied = true;
             } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("已复制 universal JAR 到 %1").arg(jarPathV);
+                qCInfo(logLoader) << QStringLiteral("已复制 Forge universal JAR 到 %1").arg(jarPathV);
+                jarCopied = true;
+            }
+        } else {
+            // NeoForge: copy the patched client from processor output
+            // Processor: --output libraries/net/neoforged/minecraft-client-patched/{ver}/{name}.jar
+            const QString patchedJar = m_gameDir
+                + QStringLiteral("/libraries/net/neoforged/minecraft-client-patched/")
+                + m_loaderVersion + QStringLiteral("/minecraft-client-patched-")
+                + m_loaderVersion + QStringLiteral(".jar");
+            if (QFile::exists(patchedJar) && QFile::copy(patchedJar, jarPathV)) {
+                qCInfo(logLoader) << QStringLiteral("已复制 NeoForge patched client JAR 到 %1").arg(jarPathV);
+                jarCopied = true;
+            } else {
+                qCWarning(logLoader) << QStringLiteral("未找到 NeoForge patched client JAR: %1").arg(patchedJar);
             }
         }
+        if (!jarCopied) {
+            qCWarning(logLoader) << QStringLiteral("无法复制版本 JAR 文件");
         }
     }
 
