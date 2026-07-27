@@ -1973,7 +1973,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     for (retryAttempt = 0; retryAttempt < maxRetries; ++retryAttempt) {
         bool useWrapper = (retryAttempt == 0);
         if (m_cancelled) {
-            cleanupAfterInstall({installerJarPath});
+            QFile::remove(installerJarPath);
             emit finished(false, QStringLiteral("用户取消"));
             m_running = false;
             return;
@@ -2012,7 +2012,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 qCWarning(logLoader) << QStringLiteral("JavaWrapper 启动失败，将重试（裸 Java）");
                 continue;
             }
-            cleanupAfterInstall({installerJarPath});
+            QFile::remove(installerJarPath);
             emit finished(false, QStringLiteral("无法启动 %1 安装器 Java 进程").arg(loaderName));
             m_running = false;
             return;
@@ -2030,7 +2030,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             if (m_cancelled) {
                 proc.kill();
                 proc.waitForFinished(3000);
-                cleanupAfterInstall({installerJarPath});
+                QFile::remove(installerJarPath);
                 emit finished(false, QStringLiteral("用户取消"));
                 m_running = false;
                 return;
