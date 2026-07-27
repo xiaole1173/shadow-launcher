@@ -193,6 +193,10 @@ private:
                           QVector<JavaInfo>& out);
     QString findJavaInDir(const QString& dirPath);
     QString findJavaOnPath();
+    void findJavaRecursive(const QString& dirPath, int maxDepth, int currentDepth,
+                           QSet<QString>& seenBinDirs,
+                           QVector<JavaInfo>& results);
+    bool isJavaSpecialPath(const QString& binDir) const;
 
     QString m_javaPath;
     QString m_javaVersion;

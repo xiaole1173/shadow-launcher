@@ -17,6 +17,8 @@
 #include <QCoreApplication>
 #include <QThread>
 #include <future>
+#include <mutex>
+#include <functional>
 #include <algorithm>
 #include <climits>
 
@@ -34,6 +36,7 @@ namespace ShadowLauncher {
 // ============================================================
 
 static const char* COMMON_JAVA_DIRS[] = {
+    // Standard JDK install paths
     "C:\\Program Files\\Java",
     "C:\\Program Files\\Eclipse Adoptium",
     "C:\\Program Files\\Microsoft",
@@ -42,11 +45,36 @@ static const char* COMMON_JAVA_DIRS[] = {
     "C:\\Program Files\\Azul",
     "C:\\Program Files\\Zulu",
     "C:\\Program Files\\BellSoft",
+    "C:\\Program Files\\GraalVM",
+    "C:\\Program Files\\Semeru",
+    "C:\\Program Files\\Liberica",
     "C:\\Program Files (x86)\\Java",
     "C:\\Program Files (x86)\\Eclipse Adoptium",
     "C:\\Program Files (x86)\\Microsoft",
+
+    // Chocolatey
+    "C:\\ProgramData\\chocolatey\\lib",
+
+    // Launcher runtimes — Microsoft
     "C:\\Program Files (x86)\\Minecraft Launcher\\runtime",
+    "C:\\Program Files (x86)\\Minecraft\\runtime",
     "C:\\XboxGames\\Minecraft Launcher\\Content\\runtime",
+    "%LOCALAPPDATA%\\Packages\\Microsoft.4297127D64EC6_8wekyb3d8bbwe\\LocalCache\\Local\\runtime",
+
+    // Launcher runtimes — other
+    "%APPDATA%\\.hmcl\\java",
+    "%APPDATA%\\ATLauncher\\runtimes\\minecraft",
+    "%APPDATA%\\ModrinthApp\\meta\\java_versions",
+    "%APPDATA%\\PrismLauncher\\java",
+    "%APPDATA%\\.ftba\\bin\\runtime",
+    "%USERPROFILE%\\curseforge\\minecraft\\Install\\runtime",
+    "%USERPROFILE%\\Documents\\Curse\\Minecraft\\Install\\runtime",
+
+    // Development JDKs
+    "%USERPROFILE%\\.jdks",
+    "%USERPROFILE%\\.sdkman\\candidates\\java",
+
+    // Package managers
     "%USERPROFILE%\\scoop\\apps",
     "%LOCALAPPDATA%\\Programs",
 };
@@ -749,34 +777,71 @@ QVector<SettingsBackend::JavaInfo> SettingsBackend::findAllJava()
 
     auto add = [&](const QString& p) { tryAddJavaResult(p, seenBinDirs, results); };
 
-    // 1. JAVA_HOME
+    // 1. JAVA_HOME + JDK_HOME
     QString javaHome = qEnvironmentVariable("JAVA_HOME");
     if (!javaHome.isEmpty()) add(findJavaInDir(javaHome));
+    QString jdkHome = qEnvironmentVariable("JDK_HOME");
+    if (!jdkHome.isEmpty() && jdkHome != javaHome) add(findJavaInDir(jdkHome));
 
     // 2. PATH ("where java")
-    add(findJavaOnPath());
+    {
+        QProcess proc;
+        proc.start(QStringLiteral("where"), QStringList() << QStringLiteral("java"));
+        proc.waitForFinished(5000);
+        if (proc.exitCode() == 0) {
+            QStringList lines = QString::fromLocal8Bit(
+                proc.readAllStandardOutput()).split(QRegularExpression(QStringLiteral("[\\r\\n]")),
+                                                    Qt::SkipEmptyParts);
+            QSet<QString> seenPath;
+            for (const auto& line : lines) {
+                QString p = QDir::cleanPath(line.trimmed());
+                if (p.isEmpty()) continue;
+                QString dirLower = QDir::cleanPath(QFileInfo(p).absolutePath()).toLower();
+                if (seenPath.contains(dirLower)) continue;
+                seenPath.insert(dirLower);
+                add(p);
+            }
+        }
+    }
 
-    // 3. Scan common directories (depth-limited)
-    for (const char* raw : COMMON_JAVA_DIRS) {
-        QString searchDir = QString::fromLocal8Bit(raw);
-        // Expand %VAR% tokens
+    // 3. Scan common directories (recursive, up to 6 levels, parallel)
+    {
+        // Collect all valid root directories (expand env vars)
+        QVector<QString> dirRoots;
         static const QRegularExpression varRe(QStringLiteral("%([^%]+)%"));
-        auto m = varRe.match(searchDir);
-        if (m.hasMatch()) {
-            QString val = qEnvironmentVariable(m.captured(1).toLocal8Bit());
-            if (val.isEmpty()) continue;
-            searchDir.replace(m.captured(0), val);
+        for (const char* raw : COMMON_JAVA_DIRS) {
+            QString searchDir = QString::fromLocal8Bit(raw);
+            auto m = varRe.match(searchDir);
+            if (m.hasMatch()) {
+                QString val = qEnvironmentVariable(m.captured(1).toLocal8Bit());
+                if (val.isEmpty()) continue;
+                searchDir.replace(m.captured(0), val);
+            }
+            if (!QDir(searchDir).exists()) continue;
+            dirRoots.append(searchDir);
         }
-        QDir d(searchDir);
-        if (!d.exists()) continue;
 
-        // Check top level + depth-1 subdirectories only (Java never deeper than 2 levels)
-        // Registry for precision; directory scan is supplementary
-        add(findJavaInDir(searchDir));
-        const auto entries = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const auto& entry : entries) {
-            add(findJavaInDir(entry.absoluteFilePath()));
+        // Parallel recursive scan (each root in its own thread)
+        const int maxDepth = 6;
+        std::mutex resultsMutex;
+        std::vector<std::future<void>> dirFutures;
+        for (const auto& root : dirRoots) {
+            dirFutures.push_back(std::async(std::launch::async, [this, &root, &results, &seenBinDirs, &resultsMutex, maxDepth]() {
+                QVector<JavaInfo> localResults;
+                QSet<QString> localSeen;
+                findJavaRecursive(root, maxDepth, 0, localSeen, localResults);
+                if (!localResults.isEmpty()) {
+                    std::lock_guard<std::mutex> lock(resultsMutex);
+                    for (const auto& j : localResults) {
+                        QString binDir = QDir::cleanPath(QFileInfo(j.path).absolutePath()).toLower();
+                        if (seenBinDirs.contains(binDir)) continue;
+                        seenBinDirs.insert(binDir);
+                        results.append(j);
+                    }
+                }
+            }));
         }
+        for (auto& f : dirFutures) f.wait();
     }
 
     // 4. Windows Registry
@@ -842,9 +907,9 @@ QString SettingsBackend::findJavaOnPath()
         QStringList lines = QString::fromLocal8Bit(
             proc.readAllStandardOutput()).split(QRegularExpression(QStringLiteral("[\r\n]")),
                                                 Qt::SkipEmptyParts);
-        if (!lines.isEmpty()) {
-            QString p = QDir::cleanPath(lines.first().trimmed());
-            if (QFileInfo::exists(p)) return p;
+        for (const auto& line : lines) {
+            QString p = QDir::cleanPath(line.trimmed());
+            if (!p.isEmpty() && QFileInfo::exists(p)) return p;
         }
     }
     return {};
@@ -938,6 +1003,55 @@ void SettingsBackend::restartApp()
     QString exe = QCoreApplication::applicationFilePath();
     QProcess::startDetached(exe, {}, QCoreApplication::applicationDirPath());
     QCoreApplication::quit();
+}
+
+// ============================================================
+// findJavaRecursive -- recursively search a directory tree for Java
+// ============================================================
+
+void SettingsBackend::findJavaRecursive(const QString& dirPath, int maxDepth,
+                                         int currentDepth,
+                                         QSet<QString>& seenBinDirs,
+                                         QVector<JavaInfo>& results)
+{
+    if (currentDepth > maxDepth) return;
+    QDir d(dirPath);
+    if (!d.exists()) return;
+
+    // Check current directory for java.exe/javaw.exe
+    QString javaPath = findJavaInDir(dirPath);
+    if (!javaPath.isEmpty()) {
+        QFileInfo fi(javaPath);
+        QString binDir = QDir::cleanPath(fi.absolutePath()).toLower();
+        if (!isJavaSpecialPath(binDir)) {
+            tryAddJavaResult(javaPath, seenBinDirs, results);
+        }
+    }
+
+    // Recurse into subdirectories (skip reparse points / symlinks to avoid loops)
+    const auto entries = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
+    for (const auto& entry : entries) {
+        if (entry.isSymLink() || entry.isShortcut()) continue;
+        // Skip Windows special directories that won't contain Java
+        QString lowerName = entry.fileName().toLower();
+        if (lowerName == "system32" || lowerName == "syswow64" || lowerName == "windows") continue;
+        findJavaRecursive(entry.absoluteFilePath(), maxDepth, currentDepth + 1,
+                          seenBinDirs, results);
+    }
+}
+
+// ============================================================
+// isJavaSpecialPath -- filter out known bogus/dangling Java paths
+// ============================================================
+
+bool SettingsBackend::isJavaSpecialPath(const QString& binDir) const
+{
+    QString lower = binDir.toLower();
+    return lower.contains("java8path_target_")
+        || lower.contains("javapath_target_")
+        || lower.contains("javatmp")
+        || lower.contains("system32")
+        || lower.contains("syswow64");
 }
 
 } // namespace ShadowLauncher
