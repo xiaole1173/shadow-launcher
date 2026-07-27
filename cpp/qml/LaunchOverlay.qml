@@ -15,6 +15,25 @@ Rectangle {
     // Block all mouse events from passing through to underlying UI
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
 
+    // ── Window drag area (top bar, same height as MainWindow) ──
+    MouseArea {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 52
+        property point clickPos: Qt.point(0, 0)
+        onPressed: (mouse) => { clickPos = Qt.point(mouse.x, mouse.y) }
+        onPositionChanged: (mouse) => {
+            if (mouse.buttons & Qt.LeftButton) {
+                var win = overlay.Window.window
+                if (win) {
+                    win.x += mouse.x - clickPos.x
+                    win.y += mouse.y - clickPos.y
+                }
+            }
+        }
+    }
+
     // ── Visibility ──
     property bool _dismissed: false
     property bool _animatingOut: false
