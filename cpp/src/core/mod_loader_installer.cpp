@@ -2150,13 +2150,14 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 
         QStringList launchArgs;
         if (useWrapper) {
-            // 主流启动器: -Doolloo.jlw.tmpdir=... -cp bootstrapper.jar;installer.jar -jar JavaWrapper com.bangbang93.ForgeInstaller
+            // 主流启动器: -Doolloo.jlw.tmpdir=... -cp forge_installer.jar;installer.jar -jar JavaWrapper com.bangbang93.ForgeInstaller
+            // Our bootstrapper.jar = 主流启动器's forge_installer.jar only (no JavaWrapper, no Main-Class in manifest)
+            // So both modes use -cp; wrapper mode just adds the jlw property
             launchArgs << QStringLiteral("-Doolloo.jlw.tmpdir=%1").arg(QDir::toNativeSeparators(m_gameDir.trimmed()));
             launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
-            launchArgs << QStringLiteral("-jar") << extractBootstrapperPath();
             launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
         } else {
-            // 主流启动器 fallback: -cp bootstrapper.jar;installer.jar com.bangbang93.ForgeInstaller
+            // 主流启动器 fallback: -cp forge_installer.jar;installer.jar com.bangbang93.ForgeInstaller
             launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
             launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
         }
