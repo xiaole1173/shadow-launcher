@@ -1109,15 +1109,13 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         return;
     }
 
-    // Branch C: has processors OR spec >= 1 → Bootstrapper(for Forge) / Direct(for NeoForge)
+    // Branch C: has processors OR spec >= 1 → Bootstrapper
+    // 主流启动器's ForgelikeInjector handles BOTH Forge and NeoForge identically.
+    // No separate fork for NeoForge — the bootstrapper JAR (com.bangbang93.ForgeInstaller)
+    // processes any Forgelike installer (Forge / NeoForge) the same way.
     reader.close();
-    if (m_loaderType == QStringLiteral("neoforge")) {
-        qCInfo(logLoader) << QStringLiteral("→ 走内置 NeoForge Processor（方案3：直接解析 installer）");
-        installNeoForge(jarData, profileObj);
-    } else {
-        qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（Method A：Java 注入器）");
-        runBootstrapperProcess(jarData);
-    }
+    qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（Method A：Java 注入器）");
+    runBootstrapperProcess(jarData);
 }
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
