@@ -1109,10 +1109,15 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         return;
     }
 
-    // Branch C: has processors OR spec >= 1 → Bootstrapper (Method A)
+    // Branch C: has processors OR spec >= 1 → Bootstrapper(for Forge) / Direct(for NeoForge)
     reader.close();
-    qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（Method A：Java 注入器）");
-    runBootstrapperProcess(jarData);
+    if (m_loaderType == QStringLiteral("neoforge")) {
+        qCInfo(logLoader) << QStringLiteral("→ 走内置 NeoForge Processor（方案3：直接解析 installer）");
+        installNeoForge(jarData, profileObj);
+    } else {
+        qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（Method A：Java 注入器）");
+        runBootstrapperProcess(jarData);
+    }
 }
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
@@ -2647,7 +2652,7 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
     //    NeoForge 旧版: data/client.lzma → ZIP/JAR 格式 或 -main.jar → 直接可用
     {
         QByteArray clientJarBytes;
-        bool needsProcessor = false;
+        int processorsSucceeded = 0;
         QBuffer buf2;
         buf2.setData(jarData);
         if (buf2.open(QIODevice::ReadOnly)) {
@@ -3021,24 +3026,38 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
 
                             if (exitCode != 0) {
                                 qCWarning(logLoader) << QStringLiteral("  Processor[%1] 执行失败").arg(pi);
+                            } else {
+                                processorsSucceeded++;
+                                qCInfo(logLoader) << QStringLiteral("  Processor[%1] 执行成功").arg(pi);
                             }
                         }
 
-                        // 5a5. 检查处理器是否生成了输出文件，并复制到 library 路径
-                        if (QFile::exists(dstJar) && QFileInfo(dstJar).size() > 0) {
-                            qCInfo(logLoader) << QStringLiteral("Processor 已生成 patched JAR: %1 (%2 字节)")
-                                .arg(dstJar).arg(QFileInfo(dstJar).size());
-                            // 复制到 library 路径（net.minecraft:client 库条目指向的位置）
-                            QString libClientPath = m_gameDir
-                                + QStringLiteral("/libraries/net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
-                            QDir().mkpath(QFileInfo(libClientPath).absolutePath());
-                            if (QFile::exists(libClientPath))
-                                QFile::remove(libClientPath);
-                            if (QFile::copy(dstJar, libClientPath)) {
-                                qCInfo(logLoader) << QStringLiteral("已复制 patched JAR 到 library 目录: %1")
-                                    .arg(libClientPath);
+                        // 5a5. 检查处理器是否生成了输出文件
+                        if (processorsSucceeded > 0 && QFile::exists(dstJar)) {
+                            qint64 jarSize = QFileInfo(dstJar).size();
+                            if (jarSize > 100000) {  // patched JAR 至少几百KB，不是空文件
+                                qCInfo(logLoader) << QStringLiteral("Processor 已生成 patched JAR: %1 (%2 字节)")
+                                    .arg(dstJar).arg(jarSize);
+                                // 复制到 library 路径
+                                QString libClientPath = m_gameDir
+                                    + QStringLiteral("/libraries/net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+                                QDir().mkpath(QFileInfo(libClientPath).absolutePath());
+                                if (QFile::exists(libClientPath))
+                                    QFile::remove(libClientPath);
+                                if (QFile::copy(dstJar, libClientPath)) {
+                                    qCInfo(logLoader) << QStringLiteral("已复制 patched JAR 到 library 目录: %1")
+                                        .arg(libClientPath);
+                                }
+                            } else {
+                                qCWarning(logLoader) << QStringLiteral("Processor 生成的 JAR 太小(%1 字节)，可能未正确打补丁")
+                                    .arg(jarSize);
+                                processorsSucceeded = 0;  // 回退：processor 实际没成功
                             }
-                            needsProcessor = true;
+                        } else if (processorsSucceeded == 0) {
+                            // Processor 数组为空或全部失败
+                            // 尝试直接用 NFPATCHBUNDLE 数据作为版本 JAR
+                            qCInfo(logLoader) << QStringLiteral("Processor 未运行或全部失败，尝试直接使用 NFPATCHBUNDLE 数据");
+                            clientJarBytes = decompressed;
                         }
                     } else if (!decompressed.isEmpty()) {
                         // 普通 LZMA 解压（旧版格式），直接使用
@@ -3050,7 +3069,7 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
             }
 
             // 5b. LZMA 失败或无 data/client.lzma → 尝试从 installer 直接提取 -main.jar
-            if (clientJarBytes.isEmpty() && !needsProcessor) {
+            if (clientJarBytes.isEmpty() && processorsSucceeded == 0) {
                 clientJarBytes = r2.fileData(
                     QStringLiteral("net/neoforged/neoforge/%1/%1-main.jar").arg(m_loaderVersion));
                 if (clientJarBytes.isEmpty()) {
@@ -3063,8 +3082,9 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
             r2.close();
         }
 
-        // 5c. 写入 client JAR（仅旧版格式，processor 已经自己生成了）
-        if (!clientJarBytes.isEmpty() && !needsProcessor) {
+        // 5c. 写入 client JAR
+        // 条件：有可用数据（直接 JAR 或 NFPATCHBUNDLE fallback）且 processor 未生成过
+        if (!clientJarBytes.isEmpty() && processorsSucceeded == 0) {
             QFile cf(dstJar);
             if (cf.open(QIODevice::WriteOnly)) {
                 cf.write(clientJarBytes);
@@ -3072,6 +3092,9 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
                 qCInfo(logLoader) << QStringLiteral("Patched JAR 已写入版本 JAR: %1 (%2 字节)")
                     .arg(dstJar).arg(clientJarBytes.size());
             }
+        } else if (processorsSucceeded == 0 && clientJarBytes.isEmpty() && !QFile::exists(dstJar)) {
+            // 什么都没生成，且 dstJar 不存在（vanilla 拷贝失败）→ 致命错误
+            qCWarning(logLoader) << QStringLiteral("无法生成 patched JAR: processor 未运行且无 client JAR 数据");
         }
     }
 
@@ -3292,21 +3315,21 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
 
 static QByteArray decompressLzma(const QByteArray& compressed)
 {
-    if (compressed.size() < 7)
-        return {};  // NeoForge LZMA header is 7 bytes minimum
+    if (compressed.size() < 13)
+        return {};  // Standard .lzma header is 13 bytes minimum
 
-    // NeoForge client.lzma: custom 7-byte raw LZMA header (NOT standard .lzma).
+    // NeoForge client.lzma: standard .lzma format with 13-byte header.
     //   bytes 0-4:   LZMA properties (LZMA_PROPS_SIZE = 5)
     //                  byte 0 = lc/lp/pb, bytes 1-4 = dict size (32-bit LE)
-    //   bytes 5-6:   NeoForge-specific (dictionary window check / reserved)
-    //   byte 7+:     pure LZMA compressed stream
-    // No trailing 8-byte uncompressed size field like standard .lzma files!
+    //   bytes 5-12:  uncompressed size (8 bytes, little-endian, -1 = unknown)
+    //   byte 13+:    pure LZMA compressed stream
+    // This is standard FORMAT_ALONE, NOT a custom format!
     Byte props[LZMA_PROPS_SIZE];
     props[0] = (Byte)compressed[0];
     for (int i = 0; i < 4; i++)
         props[1 + i] = (Byte)compressed[1 + i];
 
-    constexpr int NEOFORGE_LZMA_HEADER = 7;  // 5B props + 2B reserved
+    constexpr int NEOFORGE_LZMA_HEADER = 13;  // 5B props + 8B uncompressed size
     size_t srcLen = (size_t)(compressed.size() - NEOFORGE_LZMA_HEADER);
     if (srcLen == 0) {
         qCWarning(logLoader) << QStringLiteral("LZMA 数据为空");
