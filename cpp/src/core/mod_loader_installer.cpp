@@ -3336,35 +3336,68 @@ static QByteArray decompressLzma(const QByteArray& compressed)
         return {};
     }
 
-    // Use generous output buffer (40x compression ratio, up to 200MB)
-    size_t outLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
+    // Read uncompressed size from .lzma header (bytes 5-12, LE)
+    quint64 uncompressedSize = 0;
+    for (int i = 0; i < 8; i++)
+        uncompressedSize |= (static_cast<quint64>(static_cast<unsigned char>(compressed[5 + i])) << (i * 8));
 
-    QByteArray result((int)outLen, Qt::Uninitialized);
+    // Read dict_size from props (bytes 1-4, LE) — need buffer >= dictsize for circular dict
+    quint64 dictSize = 0;
+    for (int i = 0; i < 4; i++)
+        dictSize |= (static_cast<quint64>(static_cast<unsigned char>(compressed[1 + i])) << (i * 8));
+
+    // Calculate output buffer size:
+    // - If uncompressed size is known (not -1): use max(uncompressed, dictSize)
+    //   LzmaDecode uses dest buffer AS dictionary (circular), so it must be >= dictSize
+    // - Otherwise: generous estimate
+    bool sizeKnown = (uncompressedSize != 0xFFFFFFFFFFFFFFFFULL);
+    size_t outLen;
+    if (sizeKnown) {
+        quint64 minBuf = qMax(uncompressedSize, dictSize);
+        outLen = (size_t)qMin(minBuf, (quint64)200 * 1024 * 1024);
+    } else {
+        outLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
+    }
+
+    size_t bufSize = outLen;  // save original buffer size before LzmaDecode modifies it
+    QByteArray result((int)bufSize, Qt::Uninitialized);
     ELzmaStatus status;
+    size_t decodedOut = bufSize;
+    size_t decodedIn = srcLen;
     SRes res = LzmaDecode(
-        reinterpret_cast<Byte*>(result.data()), &outLen,
-        reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &srcLen,
+        reinterpret_cast<Byte*>(result.data()), &decodedOut,
+        reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &decodedIn,
         props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &g_Alloc);
 
     if (res == SZ_OK) {
-        result.resize((int)outLen);
+        result.resize((int)decodedOut);
         return result;
     }
 
-    // Try 2: LZMA_FINISH_ANY with generous buffer (in case end marker is missing)
-    if (res != SZ_OK) {
+    // Try 2: LZMA_FINISH_ANY (for .lzma without end-of-stream marker)
+    // NeoForge's client.lzma often lacks the stream end marker.
+    // LzmaDecode may return SZ_ERROR_DATA (end marker missing) or
+    // SZ_ERROR_INPUT_EOF (input exhausted), BUT *destLen (= dicPos) is
+    // still set to the actual decoded byte count. We salvage it.
+    {
         qCWarning(logLoader) << QStringLiteral("LZMA_FINISH_END 失败(rc=%1)，尝试 LZMA_FINISH_ANY...").arg(static_cast<int>(res));
-        size_t bigLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
-        result.resize((int)bigLen);
         size_t retrySrcLen = (size_t)(compressed.size() - NEOFORGE_LZMA_HEADER);
-        size_t retryOutLen = bigLen;
+        size_t retryOutLen = bufSize;
         res = LzmaDecode(
             reinterpret_cast<Byte*>(result.data()), &retryOutLen,
             reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &retrySrcLen,
             props, LZMA_PROPS_SIZE, LZMA_FINISH_ANY, &status, &g_Alloc);
-        if (res == SZ_OK) {
+        // Even if res != SZ_OK, *retryOutLen contains p.dicPos (bytes decoded before error)
+        if (res == SZ_OK && retryOutLen > 0) {
             result.resize((int)retryOutLen);
             qCInfo(logLoader) << QStringLiteral("LZMA_FINISH_ANY 成功: %1 字节").arg(retryOutLen);
+            return result;
+        }
+        // Salvage partial: LzmaDecode sets *destLen = dicPos even on error
+        if (retryOutLen > 100000) {
+            result.resize((int)retryOutLen);
+            qCWarning(logLoader) << QStringLiteral("LZMA_FINISH_ANY 返回错误(rc=%1)，但已解码 %2 字节，尝试使用")
+                .arg(static_cast<int>(res)).arg(retryOutLen);
             return result;
         }
     }
