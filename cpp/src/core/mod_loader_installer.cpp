@@ -2503,8 +2503,8 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
         // 主流启动器: copy vanilla MC client JAR to version folder (needed by launcher for classpath)
         // The bootstrapper doesn't create a JAR in the version folder; 主流启动器's MC download + MergeJson does.
         // Source: versions/{mcVer}/{mcVer}.jar → Target: versions/{installName}/{installName}.jar
-        QString mcClientSrc = m_gameDir + QStringLiteral("/versions/") + m_mcVersion
-            + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+        QString mcClientSrc = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion
+            + QStringLiteral("/client-") + m_mcVersion + QStringLiteral(".jar");
         QString mcClientDst = versionsDir() + QStringLiteral("/") + m_installName
             + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
         if (QFile::exists(mcClientSrc) && !QFile::exists(mcClientDst)) {
