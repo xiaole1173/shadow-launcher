@@ -3348,7 +3348,7 @@ static QByteArray decompressLzma(const QByteArray& compressed)
 
     // Calculate output buffer size:
     // - If uncompressed size is known (not -1): use max(uncompressed, dictSize)
-    //   LzmaDecode uses dest buffer AS dictionary (circular), so it must be >= dictSize
+    //   CLzmaDec.dic is the circular dictionary, so dicBufSize must be >= dictSize
     // - Otherwise: generous estimate
     bool sizeKnown = (uncompressedSize != 0xFFFFFFFFFFFFFFFFULL);
     size_t outLen;
@@ -3364,10 +3364,11 @@ static QByteArray decompressLzma(const QByteArray& compressed)
     ELzmaStatus status;
     SRes res;
 
-    // Use CLzmaDec directly instead of the LzmaDecode wrapper, so we can
-    // set different dicBufSize and dicLimit:
-    //   - dicBufSize >= dictSize  (circular dictionary requirement)
-    //   - dicLimit = uncompressedSize  (exact output, don't need end marker)
+    // Use CLzmaDec directly (not LzmaDecode wrapper) so we can keep
+    // dicBufSize >= dictSize while processing ALL input bits.
+    // We then truncate to uncompressedSize — the range coder needs all
+    // input bits consumed, even without end-of-stream marker, to produce
+    // correct trailing bytes.
     {
         CLzmaDec p;
         LzmaDec_CONSTRUCT(&p);
@@ -3384,18 +3385,20 @@ static QByteArray decompressLzma(const QByteArray& compressed)
         size_t srcLenLocal = srcLen;
         const Byte* src = reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER;
 
-        if (sizeKnown) {
-            // Use LZMA_FINISH_ANY with dicLimit = exact uncompressed size
-            // This correctly handles .lzma files without end-of-stream marker
-            res = LzmaDec_DecodeToDic(&p, static_cast<SizeT>(uncompressedSize),
-                                       src, &srcLenLocal, LZMA_FINISH_ANY, &status);
-        } else {
-            // Size unknown: need end-of-stream marker (standard .lzma)
-            res = LzmaDec_DecodeToDic(&p, static_cast<SizeT>(bufSize),
-                                       src, &srcLenLocal, LZMA_FINISH_END, &status);
-        }
+        // dicLimit = bufSize (= max(uncompressedSize, dictSize) or generous estimate)
+        // This ensures the LZMA range coder consumes ALL input bits before stopping.
+        // Without an end-of-stream marker, dicLimit=uncompressedSize would stop the
+        // decoder mid-stream, leaving trailing bits unprocessed → corrupt last bytes.
+        // After decoding, we truncate to the known uncompressedSize (if available).
+        ELzmaFinishMode finishMode = sizeKnown ? LZMA_FINISH_ANY : LZMA_FINISH_END;
+        res = LzmaDec_DecodeToDic(&p, static_cast<SizeT>(bufSize),
+                                   src, &srcLenLocal, finishMode, &status);
 
+        // Truncate to known uncompressed size (discard any garbage from trailing bits)
         size_t decodedLen = p.dicPos;
+        if (sizeKnown && decodedLen > static_cast<size_t>(uncompressedSize))
+            decodedLen = static_cast<size_t>(uncompressedSize);
+
         LzmaDec_FreeProbs(&p, &g_Alloc);
 
         if (res == SZ_OK && decodedLen > 0) {
