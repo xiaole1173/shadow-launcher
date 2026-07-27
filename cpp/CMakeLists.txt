@@ -370,7 +370,8 @@ qt6_add_resources(ShadowLauncher "agreement_resources"
 qt6_add_resources(ShadowLauncher "tools_resources"
     PREFIX "/"
     FILES
-        resources/tools/forge-install-bootstrapper.jar
+        resources/tools/forge-installer.jar
+        resources/tools/java-wrapper.jar
 )
 
 # Cape textures (Wardrobe)
