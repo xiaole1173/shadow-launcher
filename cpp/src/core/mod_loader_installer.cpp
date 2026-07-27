@@ -93,8 +93,6 @@ using namespace ShadowLauncher;
 // Forward declaration for LZMA decompression (defined below)
 static QByteArray decompressLzma(const QByteArray& compressed);
 
-static QByteArray decompressLzma(const QByteArray& compressed);
-
 ModLoaderInstaller::ModLoaderInstaller(QObject* parent) : QObject(parent) {}
 ModLoaderInstaller::~ModLoaderInstaller() = default;
 
@@ -1088,19 +1086,11 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     qCInfo(logLoader) << QStringLiteral("=== Forge install_profile 分析: spec=%1 processors=%2 install=%3 json=%4 ===")
         .arg(spec).arg(procCount).arg(hasInstall).arg(hasJson);
 
-    // Branch 0: NeoForge — always use installNeoForge (LZMA + version.json extraction)
-    // Bootstrapper (主流启动器's ForgeInstaller) does NOT run the binary patcher processor
-    // → no SRG'd merged MC+NeoForge client JAR produced
-    // → FMLLoader fails validation with "The patched Minecraft jar is missing"
-    // NeoForge installer always has `data/client.lzma` or `*-main.jar` regardless of spec>=1
-    if (m_loaderType == QStringLiteral("neoforge")) {
-        reader.close();
-        qCInfo(logLoader) << QStringLiteral("→ 走 NeoForge 统一路径 (version.json + LZMA + libraries)");
-        installNeoForge(jarData, profileObj);
-        return;
-    }
-
     // ── Three-way branch ──
+    // Note: 主流启动器's ForgelikeInjector (forge-installer.jar / com.bangbang93.ForgeInstaller)
+    // handles BOTH Forge AND NeoForge identically via the bootstrapper path.
+    // We do the same: NeoForge falls through to Branch C / Bootstrapper.
+    //
     // Branch A: has "install" → Legacy 2 (universal JAR + inheritsFrom)
     if (hasInstall) {
         reader.close();
@@ -1530,7 +1520,10 @@ static int minJavaForMcInstaller(const QString& mcVersion) {
 
 
 void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
-    emit progressChanged(3, m_totalSteps, QStringLiteral("正在通过 Bootstrapper 安装..."));
+    const bool isNeoForge = (m_loaderType == QStringLiteral("neoforge"));
+    emit progressChanged(3, m_totalSteps, isNeoForge
+        ? QStringLiteral("正在通过 Bootstrapper 安装 NeoForge...")
+        : QStringLiteral("正在通过 Bootstrapper 安装 Forge..."));
 
     // 1. Find Java — minimum version depends on MC version
     //    MC 1.18+ Forge installers need Java 17+ for their post-processors (FART, srgutils)
@@ -1542,20 +1535,22 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         return;
     }
 
-    // 2. Extract bootstrapper JAR
+    // 2. Extract bootstrapper JAR (same bootstrapper for Forge and NeoForge, matching 主流启动器's ForgelikeInjector)
     QString bootstrapperJar = extractBootstrapperPath();
     if (bootstrapperJar.isEmpty()) {
-        emit finished(false, "无法释放 Forge Bootstrapper");
+        emit finished(false, "无法释放 Bootstrapper JAR");
         m_running = false;
         return;
     }
 
-    // installerJarPath is set below after patching install_profile.json
     QString installerJarPath;
 
-    // 3. Read installer JAR entries, patch install_profile.json to add --skipIfExists
-    //    to the DOWNLOAD_MOJMAPS processor, then write the modified JAR to temp.
-    {
+    // 3. Write installer JAR to temp
+    //    For Forge: patch install_profile.json (DOWNLOAD_MOJMAPS → --skipIfExists)
+    //    For NeoForge: write as-is, bootstrapper handles everything
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    if (!isNeoForge) {
+        // ── Forge: patch DOWNLOAD_MOJMAPS processor ──
         QBuffer buf;
         buf.setData(jarData);
         if (!buf.open(QIODevice::ReadOnly)) {
@@ -1565,9 +1560,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         QZipReader reader(&buf);
         QList<QZipReader::FileInfo> entries = reader.fileInfoList();
 
-        // Read install_profile.json and patch processor[3] (DOWNLOAD_MOJMAPS)
         QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
-        bool patched = false;  // outlives the if block for JAR rewrite decision
+        bool patched = false;
         if (!profData.isEmpty()) {
             QJsonDocument doc = QJsonDocument::fromJson(profData);
             if (doc.isObject()) {
@@ -1576,16 +1570,11 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 for (int i = 0; i < procs.size(); ++i) {
                     QJsonObject proc = procs[i].toObject();
                     QJsonArray args = proc.value(QStringLiteral("args")).toArray();
-                    // Patch processor whose args include DOWNLOAD_MOJMAPS
                     for (const auto& a : args) {
                         if (a.toString() == QStringLiteral("DOWNLOAD_MOJMAPS")) {
-                            // Add --skipIfExists after --sanitize if not already present
                             bool hasSkip = false;
-                            for (const auto& sa : args) {
-                                if (sa.toString() == QStringLiteral("--skipIfExists")) {
-                                    hasSkip = true; break;
-                                }
-                            }
+                            for (const auto& sa : args)
+                                if (sa.toString() == QStringLiteral("--skipIfExists")) { hasSkip = true; break; }
                             if (!hasSkip) {
                                 args.append(QStringLiteral("--skipIfExists"));
                                 proc[QStringLiteral("args")] = args;
@@ -1599,61 +1588,44 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 }
                 if (patched) {
                     root[QStringLiteral("processors")] = procs;
-                    QJsonDocument newDoc(root);
-                    profData = newDoc.toJson(QJsonDocument::Compact);
+                    profData = QJsonDocument(root).toJson(QJsonDocument::Compact);
                 }
             }
         }
 
-        // Write installer JAR to temp
-        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
         installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
-
         if (patched) {
-            // We modified install_profile.json → JAR signatures invalidated.
-            // Rewrite WITHOUT signature files so the bootstrapper can still parse it.
-            // IMPORTANT: Strip META-INF/*.SF, *.RSA, *.DSA, *.EC, MANIFEST.MF
-            // NOTE: Main class is explicitly specified via -cp + com.bangbang93.ForgeInstaller,
-            //       so removing MANIFEST.MF is safe.
             QZipWriter writer(installerJarPath);
             for (const auto& e : entries) {
-                if (e.isDir) {
-                    writer.addDirectory(e.filePath);
-                } else if (e.isSymLink) {
-                    qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
-                } else {
+                if (e.isDir) writer.addDirectory(e.filePath);
+                else if (e.isSymLink) qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
+                else {
                     QString fp = e.filePath;
-                    if (fp.startsWith(QStringLiteral("META-INF/"))) {
-                        if (fp == QStringLiteral("META-INF/MANIFEST.MF")
-                            || fp.endsWith(QStringLiteral(".SF"))
-                            || fp.endsWith(QStringLiteral(".RSA"))
-                            || fp.endsWith(QStringLiteral(".DSA"))
-                            || fp.endsWith(QStringLiteral(".EC"))) {
-                            continue;
-                        }
-                    }
-                    QByteArray data;
-                    if (fp == QStringLiteral("install_profile.json")) {
-                        data = profData;  // Use patched version
-                    } else {
-                        data = reader.fileData(fp);
-                    }
-                    writer.addFile(fp, data);
+                    if (fp.startsWith(QStringLiteral("META-INF/")) && (fp == QStringLiteral("META-INF/MANIFEST.MF")
+                        || fp.endsWith(QStringLiteral(".SF")) || fp.endsWith(QStringLiteral(".RSA"))
+                        || fp.endsWith(QStringLiteral(".DSA")) || fp.endsWith(QStringLiteral(".EC")))) continue;
+                    writer.addFile(fp, (fp == QStringLiteral("install_profile.json")) ? profData : reader.fileData(fp));
                 }
             }
             writer.close();
             qCInfo(logLoader) << QStringLiteral("已写入修改后的安装程序（已剥离签名）: %1").arg(installerJarPath);
         } else {
-            // No modification needed — use original JAR bytes as-is
-            // (No signature stripping to avoid potential bootstrapper/processor issues)
+            QFile f(installerJarPath);
+            if (f.open(QIODevice::WriteOnly)) { f.write(jarData); f.close(); }
+            qCInfo(logLoader) << QStringLiteral("已写入原始安装程序（无需修改）: %1").arg(installerJarPath);
+        }
+        reader.close();
+    } else {
+        // ── NeoForge: write JAR as-is (no patching, bootstrapper handles everything) ──
+        installerJarPath = tempDir + QStringLiteral("/neoforge-installer-") + m_installName + QStringLiteral(".jar");
+        {
             QFile f(installerJarPath);
             if (f.open(QIODevice::WriteOnly)) {
                 f.write(jarData);
                 f.close();
             }
-            qCInfo(logLoader) << QStringLiteral("已写入原始安装程序（无需修改）: %1").arg(installerJarPath);
         }
-        reader.close();
+        qCInfo(logLoader) << QStringLiteral("已写入 NeoForge 安装程序: %1").arg(installerJarPath);
     }
 
     // 3b. Ensure client JAR exists at Forge-installer-expected path
@@ -1838,11 +1810,12 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         }
     }
 
-    // 3e. Pre-download Mojang mapping file for FART processor
+    // 3e. Pre-download Mojang mapping file for FART processor (Forge only)
     // DOWNLOAD_MOJMAPS processor needs to download from Mojang servers (may be slow/unreliable in China).
     // We pre-download the raw ProGuard mapping from Mojang, convert to TSRG using
     // Java + srgutils, and save to the expected Maven path.
     // This way, if DOWNLOAD_MOJMAPS times out or fails, FART still finds its input file.
+    if (!isNeoForge)
     {
         QString tsrgDir = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion;
         QString tsrgPath = tsrgDir + QStringLiteral("/client-") + m_mcVersion + QStringLiteral("-mappings.tsrg");
@@ -2020,8 +1993,11 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         }
     }
 
-    // 5. Run bootstrapper
+    // 5. Run bootstrapper (matching 主流启动器's ForgelikeInjector)
     QStringList args;
+    // Note: 主流启动器 adds --add-exports cpw.mods.bootstraplauncher/... for Java 9+,
+    // but on Java 25+ that module is removed from the JDK (it was inside bootstrapper JAR on classpath, not a system module).
+    // The flag is unnecessary here — bootstrapper JAR is on -cp (unnamed module).
     args << QStringLiteral("-cp")
          << (bootstrapperJar + QStringLiteral(";") + installerJarPath)
          << QStringLiteral("com.bangbang93.ForgeInstaller")
@@ -2617,7 +2593,7 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
     QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
     QDir().mkpath(verDir);
 
-    // ── 4. 复制 vanilla client JAR 作为 LZMA 失败的 fallback ──
+    // ── 4. 复制 vanilla client JAR 作为版本 JAR（FMLLoader 需要有效 ZIP/JAR）──
     QString dstJar = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
     {
         QString mcVerDirPath = findVersionDir(m_mcVersion);
@@ -2628,49 +2604,456 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
         }
     }
 
-    // ── 5. 尝试从 installer 中获取 client JAR（LZMA 解压 / 直存 JAR / vanilla fallback）──
-    //    NeoForge 新版：data/client.lzma 是 LZMA 压缩的 patched JAR
-    //    NeoForge 旧版/特殊版：net/neoforged/neoforge/{ver}/{ver}-main.jar 直接存 JAR
-    //    都不行则回退到步骤 4 复制的 vanilla JAR
+    // ── 4b. 从 version.json 的 game arguments 解析 --fml.mcVersion 和 --fml.neoFormVersion
+    //      NeoForge 11.x (MC 1.21+) 用这些值构建 patched jar 的 Maven 坐标
+    //      patched jar 路径: libraries/net/neoforged/minecraft-client-patched/{mc}-{form}/{...}.jar
+    QString fmlMcVersion, fmlNeoFormVersion;
+    {
+        QJsonArray gameArgs = versionJson.value(QStringLiteral("arguments")).toObject()
+            .value(QStringLiteral("game")).toArray();
+        int idx = 0;
+        // gameArgs may contain nested objects (rules) and strings. Parse sequentially.
+        QJsonArray flat;
+        for (const auto& a : gameArgs) {
+            if (a.isString()) {
+                flat.append(a);
+            } else if (a.isObject()) {
+                // Handle rules objects that contain arrays of values
+                QJsonObject obj = a.toObject();
+                QJsonValue val = obj.value(QStringLiteral("value"));
+                if (val.isString())
+                    flat.append(val);
+                else if (val.isArray()) {
+                    for (const auto& v : val.toArray()) {
+                        if (v.isString())
+                            flat.append(v);
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < flat.size() - 1; ++i) {
+            if (flat[i].toString() == QStringLiteral("--fml.mcVersion"))
+                fmlMcVersion = flat[i + 1].toString();
+            if (flat[i].toString() == QStringLiteral("--fml.neoFormVersion"))
+                fmlNeoFormVersion = flat[i + 1].toString();
+        }
+    }
+
+    // ── 5. LZMA 解压 → NFPATCHBUNDLE → 执行 Processor 打补丁 → 输出标准 patched JAR ──
+    //    NeoForge 新版 (11.x+, MC 1.21+): 
+    //      1) data/client.lzma → LZMA 解压 → NFPATCHBUNDLE001 格式（补丁原料）
+    //      2) 运行 NeoForge InstallerTools Processor（Java 子进程）
+    //      3) Processor 合并 vanilla client.jar + NFPATCHBUNDLE → 输出标准 patched client.jar
+    //    NeoForge 旧版: data/client.lzma → ZIP/JAR 格式 或 -main.jar → 直接可用
     {
         QByteArray clientJarBytes;
+        bool needsProcessor = false;
         QBuffer buf2;
         buf2.setData(jarData);
         if (buf2.open(QIODevice::ReadOnly)) {
             QZipReader r2(&buf2);
-            // 5a. 尝试 LZMA 解压 data/client.lzma
+
+            // 5a. LZMA 解压 data/client.lzma
             QByteArray lzma = r2.fileData(QStringLiteral("data/client.lzma"));
             if (!lzma.isEmpty()) {
-                // 诊断：打印前 16 字节十六进制
                 QString hexDump;
                 for (int i = 0; i < qMin(lzma.size(), 16); ++i)
                     hexDump += QStringLiteral("%1 ").arg(static_cast<unsigned char>(lzma[i]), 2, 16, QLatin1Char('0'));
                 qCInfo(logLoader) << QStringLiteral("client.lzma: 大小=%1 字节 前16字节=%2").arg(lzma.size()).arg(hexDump);
 
-                // 检查是否为 ZIP/JAR 格式（client.lzma 实际是未压缩 JAR）
-                if (lzma.size() >= 4
-                    && static_cast<unsigned char>(lzma[0]) == 0x50
+                if (lzma.size() >= 4 && static_cast<unsigned char>(lzma[0]) == 0x50
                     && static_cast<unsigned char>(lzma[1]) == 0x4B
                     && static_cast<unsigned char>(lzma[2]) == 0x03
                     && static_cast<unsigned char>(lzma[3]) == 0x04) {
+                    // 直接 ZIP/JAR 格式，不需要 processor
                     clientJarBytes = lzma;
                     qCInfo(logLoader) << QStringLiteral("client.lzma 是直存 JAR，直接使用: %1 字节").arg(clientJarBytes.size());
                 } else {
                     QByteArray decompressed = decompressLzma(lzma);
-                    if (!decompressed.isEmpty()) {
+                    if (!decompressed.isEmpty() && decompressed.size() >= 16
+                        && memcmp(decompressed.constData(), "NFPATCHBUNDLE001", 16) == 0) {
+                        // NFPATCHBUNDLE 格式 → 需要 processor 合并
+                        qCInfo(logLoader) << QStringLiteral("检测到 NFPATCHBUNDLE001，需要运行 Processor 打补丁: %1 字节")
+                            .arg(decompressed.size());
+
+                        // 5a1. 保存 installer JAR + NFPATCHBUNDLE 到临时文件
+                        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+                        QString installerPath = tempDir + QStringLiteral("/neoforge-installer-") + m_installName + QStringLiteral(".jar");
+                        QString patchFile = tempDir + QStringLiteral("/neoforge-nfpatch-") + m_installName;
+                        // 写入 installer JAR（供 {INSTALLER} 占位符使用）
+                        {
+                            QFile inf(installerPath);
+                            if (inf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                                inf.write(jarData);
+                                inf.close();
+                                qCInfo(logLoader) << QStringLiteral("installer JAR 已保存: %1 (%2 字节)")
+                                    .arg(installerPath).arg(jarData.size());
+                            }
+                        }
+                        // 写入 NFPATCHBUNDLE（二进制模式）
+                        {
+                            QFile pf(patchFile);
+                            if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                                pf.write(decompressed);
+                                pf.close();
+                                qCInfo(logLoader) << QStringLiteral("NFPATCHBUNDLE 已保存: %1 (%2 字节)")
+                                    .arg(patchFile).arg(decompressed.size());
+                            }
+                        }
+
+                        // 5a2. 确保 vanilla client.jar 在 processor 期望的路径
+                        // (libraries/net/minecraft/client/{mcver}/client-{mcver}.jar)
+                        QString clientLibPath = m_gameDir
+                            + QStringLiteral("/libraries/net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+                        if (!QFile::exists(clientLibPath)) {
+                            // 从版本 JAR 复制
+                            if (QFile::exists(dstJar)) {
+                                QDir().mkpath(QFileInfo(clientLibPath).absolutePath());
+                                QFile::copy(dstJar, clientLibPath);
+                                qCInfo(logLoader) << QStringLiteral("已复制 client.jar 到 library 目录: %1").arg(clientLibPath);
+                            }
+                        }
+
+                        // 5a3. 读取 processors 列表 + 下载依赖 + 执行
+                        QJsonArray processors = profile.value(QStringLiteral("processors")).toArray();
+                        qCInfo(logLoader) << QStringLiteral("开始执行 %1 个 Processor 处理器").arg(processors.size());
+
+                        // 5a4. 确定 Java 路径（NeoForge 11.x 需要 Java 17+）
+                        QString javaPath = findJavaPath(17);
+                        if (javaPath.isEmpty()) {
+                            qCWarning(logLoader) << QStringLiteral("未找到 Java 17+，无法执行 Processor");
+                        }
+
+                        for (int pi = 0; pi < processors.size() && !javaPath.isEmpty(); ++pi) {
+                            QJsonObject proc = processors[pi].toObject();
+                            QString jarPath = proc.value(QStringLiteral("jar")).toString();
+                            QJsonArray cpDeps = proc.value(QStringLiteral("classpath")).toArray();
+                            QJsonArray procArgs = proc.value(QStringLiteral("args")).toArray();
+
+                            qCInfo(logLoader) << QStringLiteral("  Processor[%1]: jar=%2  classpath=%3  args=%4")
+                                .arg(pi).arg(jarPath)
+                                .arg(QStringList({}).join(QStringLiteral(","))) // will expand below
+                                .arg(QStringList({}).join(QStringLiteral(" ")));
+
+                            // Build classpath string for this processor
+                            QStringList procClasspath;
+
+                            // a) The processor's own JAR
+                            // jar field is either a Maven coordinate (group:artifact:version[:classifier])
+                            // or a path inside the installer JAR. Try both.
+                            QByteArray procJarData;
+                            QString procJarPath;
+                            QByteArray manifestData;
+
+                            auto addJarToClasspath = [&](const QByteArray& jarBytes, const QString& savePath) {
+                                QFile pjf(savePath);
+                                if (pjf.open(QIODevice::WriteOnly)) {
+                                    pjf.write(jarBytes);
+                                    pjf.close();
+                                    procClasspath << QDir::toNativeSeparators(savePath);
+                                    // Also extract manifest for main class
+                                    QBuffer mBuf;
+                                    mBuf.setData(jarBytes);
+                                    if (mBuf.open(QIODevice::ReadOnly)) {
+                                        QZipReader mReader(&mBuf);
+                                        manifestData = mReader.fileData(QStringLiteral("META-INF/MANIFEST.MF"));
+                                        mReader.close();
+                                    }
+                                    return true;
+                                }
+                                return false;
+                            };
+
+                            if (!jarPath.isEmpty()) {
+                                // Check if jarPath is a Maven coordinate (contains colons)
+                                QStringList jParts = jarPath.split(QLatin1Char(':'));
+                                if (jParts.size() >= 3) {
+                                    // Maven coordinate: group:artifact:version[:classifier][@ext]
+                                    QString mGroup = jParts[0];
+                                    QString mArtifact = jParts[1];
+                                    QString mVersion = jParts[2];
+                                    QString mClassifier;
+                                    if (jParts.size() >= 4)
+                                        mClassifier = jParts[3];
+                                    QString mGroupPath = QString(mGroup).replace(QLatin1Char('.'), QLatin1Char('/'));
+                                    QString mFile = mArtifact + QStringLiteral("-") + mVersion;
+                                    if (!mClassifier.isEmpty())
+                                        mFile += QStringLiteral("-") + mClassifier;
+                                    mFile += QStringLiteral(".jar");
+
+                                    // Check if already downloaded
+                                    QString mLocalPath = m_gameDir + QStringLiteral("/libraries/")
+                                        + mGroupPath + QStringLiteral("/") + mArtifact
+                                        + QStringLiteral("/") + mVersion + QStringLiteral("/") + mFile;
+
+                                    if (QFile::exists(mLocalPath)) {
+                                        // Already cached, read it
+                                        QFile mf(mLocalPath);
+                                        if (mf.open(QIODevice::ReadOnly)) {
+                                            procJarData = mf.readAll();
+                                            mf.close();
+                                        }
+                                    } else {
+                                        // Download from Maven
+                                        QStringList mUrls;
+                                        mUrls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/")
+                                            + mGroupPath + QStringLiteral("/") + mArtifact
+                                            + QStringLiteral("/") + mVersion + QStringLiteral("/") + mFile;
+                                        if (mGroupPath.startsWith(QStringLiteral("net/neoforged")))
+                                            mUrls << QStringLiteral("https://maven.neoforged.net/releases/")
+                                                + mGroupPath + QStringLiteral("/") + mArtifact
+                                                + QStringLiteral("/") + mVersion + QStringLiteral("/") + mFile;
+                                        else
+                                            mUrls << QStringLiteral("https://repo1.maven.org/maven2/")
+                                                + mGroupPath + QStringLiteral("/") + mArtifact
+                                                + QStringLiteral("/") + mVersion + QStringLiteral("/") + mFile;
+
+                                        QNetworkAccessManager* mam = HttpClient::instance().manager();
+                                        for (const QString& mu : mUrls) {
+                                            QNetworkRequest mr;
+                                            mr.setUrl(QUrl(mu));
+                                            QNetworkReply* mreply = mam->get(mr);
+                                            QEventLoop mloop;
+                                            QObject::connect(mreply, &QNetworkReply::finished, &mloop, &QEventLoop::quit);
+                                            QTimer mtimer;
+                                            mtimer.setSingleShot(true);
+                                            QObject::connect(&mtimer, &QTimer::timeout, &mloop, &QEventLoop::quit);
+                                            mtimer.start(60000);
+                                            mloop.exec();
+                                            if (mreply->error() == QNetworkReply::NoError && mtimer.isActive()) {
+                                                mtimer.stop();
+                                                procJarData = mreply->readAll();
+                                                // Cache to disk
+                                                QDir().mkpath(QFileInfo(mLocalPath).absolutePath());
+                                                QFile mcf(mLocalPath);
+                                                if (mcf.open(QIODevice::WriteOnly)) {
+                                                    mcf.write(procJarData);
+                                                    mcf.close();
+                                                }
+                                                mreply->deleteLater();
+                                                break;
+                                            }
+                                            mreply->deleteLater();
+                                        }
+                                    }
+
+                                    if (!procJarData.isEmpty()) {
+                                        procJarPath = tempDir + QStringLiteral("/neoforge-proc-") + QString::number(pi)
+                                            + QStringLiteral("-") + mFile;
+                                        addJarToClasspath(procJarData, procJarPath);
+                                    }
+                                } else {
+                                    // Try to extract from installer JAR at the given path
+                                    QZipReader procReader(&buf2);
+                                    procJarData = procReader.fileData(jarPath);
+                                    procReader.close();
+                                    if (!procJarData.isEmpty()) {
+                                        procJarPath = tempDir + QStringLiteral("/neoforge-proc-") + QString::number(pi)
+                                            + QStringLiteral("-") + jarPath.mid(jarPath.lastIndexOf(QLatin1Char('/')) + 1);
+                                        addJarToClasspath(procJarData, procJarPath);
+                                    }
+                                }
+                            }
+
+                            // b) Classpath dependencies (resolve Maven coordinates)
+                            QNetworkAccessManager* procNam = HttpClient::instance().manager();
+                            for (const auto& depVal : cpDeps) {
+                                QString dep = depVal.toString();
+                                if (dep.isEmpty()) continue;
+                                QStringList parts = dep.split(QLatin1Char(':'));
+                                if (parts.size() < 3) {
+                                    procClasspath << dep; // treat as direct path
+                                    continue;
+                                }
+                                QString depGroup = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+                                QString depArtifact = parts[1];
+                                QString depVersion = parts[2];
+                                QString depClassifier;
+                                if (parts.size() >= 4 && parts[3].indexOf(QLatin1Char('.')) < 0)
+                                    depClassifier = parts[3];
+                                QString depFile = depArtifact + QStringLiteral("-") + depVersion;
+                                if (!depClassifier.isEmpty())
+                                    depFile += QStringLiteral("-") + depClassifier;
+                                depFile += QStringLiteral(".jar");
+
+                                QString depLocalPath = m_gameDir + QStringLiteral("/libraries/")
+                                    + depGroup + QStringLiteral("/") + depArtifact
+                                    + QStringLiteral("/") + depVersion + QStringLiteral("/") + depFile;
+
+                                if (!QFile::exists(depLocalPath)) {
+                                    // Download from BMCLAPI
+                                    QStringList depUrls;
+                                    depUrls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/")
+                                        + depGroup + QStringLiteral("/") + depArtifact
+                                        + QStringLiteral("/") + depVersion + QStringLiteral("/") + depFile;
+                                    // Original Maven fallback
+                                    if (depGroup.startsWith(QStringLiteral("net/neoforged")))
+                                        depUrls << QStringLiteral("https://maven.neoforged.net/releases/")
+                                            + depGroup + QStringLiteral("/") + depArtifact
+                                            + QStringLiteral("/") + depVersion + QStringLiteral("/") + depFile;
+                                    else
+                                        depUrls << QStringLiteral("https://repo1.maven.org/maven2/")
+                                            + depGroup + QStringLiteral("/") + depArtifact
+                                            + QStringLiteral("/") + depVersion + QStringLiteral("/") + depFile;
+
+                                    QDir().mkpath(QFileInfo(depLocalPath).absolutePath());
+                                    bool depDownloaded = false;
+                                    for (const QString& depUrl : depUrls) {
+                                        QNetworkRequest depReq;
+                                        depReq.setUrl(QUrl(depUrl));
+                                        QNetworkReply* depReply = procNam->get(depReq);
+                                        QEventLoop depLoop;
+                                        QObject::connect(depReply, &QNetworkReply::finished, &depLoop, &QEventLoop::quit);
+                                        QTimer depTimer;
+                                        depTimer.setSingleShot(true);
+                                        QObject::connect(&depTimer, &QTimer::timeout, &depLoop, &QEventLoop::quit);
+                                        depTimer.start(30000);
+                                        depLoop.exec();
+                                        if (depReply->error() == QNetworkReply::NoError && depTimer.isActive()) {
+                                            depTimer.stop();
+                                            QFile df(depLocalPath);
+                                            if (df.open(QIODevice::WriteOnly)) {
+                                                df.write(depReply->readAll());
+                                                df.close();
+                                                depDownloaded = true;
+                                                break;
+                                            }
+                                        }
+                                        depReply->deleteLater();
+                                    }
+                                }
+                                if (QFile::exists(depLocalPath))
+                                    procClasspath << QDir::toNativeSeparators(depLocalPath);
+                            }
+
+                            // c) Build processor arguments (replace templates)
+                            QStringList procCmdArgs;
+                            QString gameDirStr = QDir::toNativeSeparators(m_gameDir);
+                            QString libDirStr = QDir::toNativeSeparators(m_gameDir + QStringLiteral("/libraries"));
+                            for (const auto& argVal : procArgs) {
+                                QString a = argVal.toString();
+                                // Replace templates from processor args
+                                // {SIDE} / ${SIDE} → CLIENT
+                                // {MINECRAFT_JAR} → client jar path (same as {INPUT})
+                                // {PATCH} / {BINPATCH} → NFPATCHBUNDLE temp file
+                                // {OUTPUT} / {PATCHED} → output patched jar path
+                                // {ROOT} → game root dir
+                                // {LIBRARIES} / {EXTRACTION_ROOT} → libraries dir (or root/libraries)
+                                a.replace(QStringLiteral("${SIDE}"), QStringLiteral("CLIENT"))
+                                 .replace(QStringLiteral("{SIDE}"), QStringLiteral("CLIENT"))
+                                 .replace(QStringLiteral("${MINECRAFT_JAR}"), QDir::toNativeSeparators(clientLibPath))
+                                 .replace(QStringLiteral("{MINECRAFT_JAR}"), QDir::toNativeSeparators(clientLibPath))
+                                 .replace(QStringLiteral("{PATCH}"), QDir::toNativeSeparators(patchFile))
+                                 .replace(QStringLiteral("{BINPATCH}"), QDir::toNativeSeparators(patchFile))
+                                 .replace(QStringLiteral("${OUTPUT}"), QDir::toNativeSeparators(dstJar))
+                                 .replace(QStringLiteral("{OUTPUT}"), QDir::toNativeSeparators(dstJar))
+                                 .replace(QStringLiteral("{PATCHED}"), QDir::toNativeSeparators(dstJar))
+                                 .replace(QStringLiteral("${LIBRARIES}"), libDirStr)
+                                 .replace(QStringLiteral("{LIBRARIES}"), libDirStr)
+                                 .replace(QStringLiteral("{ROOT}"), gameDirStr);
+                                // {INSTALLER} → installer JAR 的绝对路径
+                                a.replace(QStringLiteral("{INSTALLER}"), QDir::toNativeSeparators(installerPath));
+                                // {ROOT}/libraries/ fragments — replace after {ROOT} is done
+                                a.replace(QStringLiteral("{EXTRACTION_ROOT}"), libDirStr);
+                                procCmdArgs << a;
+                            }
+
+                            if (procClasspath.isEmpty()) {
+                                qCWarning(logLoader) << QStringLiteral("  Processor[%1] classpath 为空，跳过").arg(pi);
+                                continue;
+                            }
+
+                            // d) Determine main class
+                            // Try to extract Main-Class from the processor JAR's MANIFEST.MF
+                            QString mainClass;
+                            if (!procJarData.isEmpty()) {
+                                // Check MANIFEST.MF inside the processor JAR
+                                QBuffer manifestBuf;
+                                manifestBuf.setData(procJarData);
+                                if (manifestBuf.open(QIODevice::ReadOnly)) {
+                                    QZipReader manifestReader(&manifestBuf);
+                                    QByteArray mfData = manifestReader.fileData(QStringLiteral("META-INF/MANIFEST.MF"));
+                                    manifestReader.close();
+                                    if (!mfData.isEmpty()) {
+                                        // Parse simple key: value format
+                                        QString mfStr = QString::fromUtf8(mfData);
+                                        for (const QString& line : mfStr.split(QLatin1Char('\n'))) {
+                                            if (line.startsWith(QStringLiteral("Main-Class:"))) {
+                                                mainClass = line.mid(11).trimmed();
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // If no main class from manifest, use first arg as class name (fallback)
+                            // This handles cases where the profile puts main class as first arg
+
+                            // e) Execute processor
+                            QString cpStr = procClasspath.join(QStringLiteral(";"));
+
+                            QProcess procProcess;
+                            QStringList procJavaArgs;
+                            procJavaArgs << QStringLiteral("-cp") << cpStr;
+                            if (!mainClass.isEmpty())
+                                procJavaArgs << mainClass;
+                            procJavaArgs << procCmdArgs;
+
+                            qCInfo(logLoader) << QStringLiteral("  运行 Processor[%1]: java -cp ... %2 %3")
+                                .arg(pi).arg(mainClass).arg(procCmdArgs.join(QStringLiteral(" ")));
+
+                            procProcess.start(javaPath, procJavaArgs);
+                            if (!procProcess.waitForFinished(120000)) {
+                                qCWarning(logLoader) << QStringLiteral("  Processor[%1] 超时 (120s)").arg(pi);
+                                procProcess.kill();
+                                procProcess.waitForFinished(5000);
+                            }
+
+                            QString procStdout = QString::fromUtf8(procProcess.readAllStandardOutput());
+                            QString procStderr = QString::fromUtf8(procProcess.readAllStandardError());
+                            int exitCode = procProcess.exitCode();
+
+                            qCInfo(logLoader) << QStringLiteral("  Processor[%1] 退出码=%2").arg(pi).arg(exitCode);
+                            if (!procStdout.isEmpty())
+                                qCInfo(logLoader) << QStringLiteral("  Processor[%1] stdout: %2").arg(pi).arg(procStdout.trimmed());
+                            if (!procStderr.isEmpty())
+                                qCInfo(logLoader) << QStringLiteral("  Processor[%1] stderr: %2").arg(pi).arg(procStderr.trimmed());
+
+                            if (exitCode != 0) {
+                                qCWarning(logLoader) << QStringLiteral("  Processor[%1] 执行失败").arg(pi);
+                            }
+                        }
+
+                        // 5a5. 检查处理器是否生成了输出文件，并复制到 library 路径
+                        if (QFile::exists(dstJar) && QFileInfo(dstJar).size() > 0) {
+                            qCInfo(logLoader) << QStringLiteral("Processor 已生成 patched JAR: %1 (%2 字节)")
+                                .arg(dstJar).arg(QFileInfo(dstJar).size());
+                            // 复制到 library 路径（net.minecraft:client 库条目指向的位置）
+                            QString libClientPath = m_gameDir
+                                + QStringLiteral("/libraries/net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+                            QDir().mkpath(QFileInfo(libClientPath).absolutePath());
+                            if (QFile::exists(libClientPath))
+                                QFile::remove(libClientPath);
+                            if (QFile::copy(dstJar, libClientPath)) {
+                                qCInfo(logLoader) << QStringLiteral("已复制 patched JAR 到 library 目录: %1")
+                                    .arg(libClientPath);
+                            }
+                            needsProcessor = true;
+                        }
+                    } else if (!decompressed.isEmpty()) {
+                        // 普通 LZMA 解压（旧版格式），直接使用
                         clientJarBytes = decompressed;
                         qCInfo(logLoader) << QStringLiteral("NeoForge client JAR 已从 LZMA 解压: %1 字节")
                             .arg(decompressed.size());
                     }
                 }
             }
+
             // 5b. LZMA 失败或无 data/client.lzma → 尝试从 installer 直接提取 -main.jar
-            if (clientJarBytes.isEmpty()) {
-                // 支持 modern net/neoforged/neoforge 路径
+            if (clientJarBytes.isEmpty() && !needsProcessor) {
                 clientJarBytes = r2.fileData(
                     QStringLiteral("net/neoforged/neoforge/%1/%1-main.jar").arg(m_loaderVersion));
                 if (clientJarBytes.isEmpty()) {
-                    // 也尝试 legacy net/neoforged/forge 路径
                     clientJarBytes = r2.fileData(
                         QStringLiteral("net/neoforged/forge/1.20.1-%1/forge-1.20.1-%1-main.jar").arg(m_loaderVersion));
                 }
@@ -2679,12 +3062,15 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
             }
             r2.close();
         }
-        // 5c. 写入 client JAR（有 patched 的写 patched，否则保持 vanilla fallback）
-        if (!clientJarBytes.isEmpty()) {
+
+        // 5c. 写入 client JAR（仅旧版格式，processor 已经自己生成了）
+        if (!clientJarBytes.isEmpty() && !needsProcessor) {
             QFile cf(dstJar);
             if (cf.open(QIODevice::WriteOnly)) {
                 cf.write(clientJarBytes);
                 cf.close();
+                qCInfo(logLoader) << QStringLiteral("Patched JAR 已写入版本 JAR: %1 (%2 字节)")
+                    .arg(dstJar).arg(clientJarBytes.size());
             }
         }
     }
@@ -2756,12 +3142,139 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
     if (downloaded > 0)
         qCInfo(logLoader) << QStringLiteral("NeoForge 预下载 %1 个库文件").arg(downloaded);
 
+    // ── 6b. 额外下载 NeoForge 主 JAR（version.json 的 libraries 不包含它）──
+    //     version.json 只列出了运行时依赖，NeoForge 主加载器需要从 Maven 单独下载
+    {
+        bool isLegacy = (m_mcVersion == QStringLiteral("1.20.1"));
+        QString mavenGroup = isLegacy
+            ? QStringLiteral("net/neoforged/forge")
+            : QStringLiteral("net/neoforged/neoforge");
+        QString artifactId = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
+        QString apiVersion = isLegacy
+            ? QStringLiteral("1.20.1-") + m_loaderVersion
+            : m_loaderVersion;
+
+        QString uniRel = mavenGroup + QStringLiteral("/") + apiVersion
+            + QStringLiteral("/") + artifactId + QStringLiteral("-") + apiVersion + QStringLiteral("-universal.jar");
+        QString uniPath = m_gameDir + QStringLiteral("/libraries/") + uniRel;
+        if (!QFile::exists(uniPath)) {
+            QString uniUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/") + uniRel;
+            qCInfo(logLoader) << QStringLiteral("NeoForge 主 JAR 未找到，开始下载: %1").arg(uniRel);
+            QDir().mkpath(QFileInfo(uniPath).absolutePath());
+            QUrl uUrl(uniUrl);
+            QNetworkRequest uReq{uUrl};
+            QNetworkReply* uReply = nam->get(uReq);
+            QEventLoop uLoop;
+            QObject::connect(uReply, &QNetworkReply::finished, &uLoop, &QEventLoop::quit);
+            QTimer uTimer;
+            uTimer.setSingleShot(true);
+            QObject::connect(&uTimer, &QTimer::timeout, &uLoop, &QEventLoop::quit);
+            uTimer.start(60000);
+            uLoop.exec();
+            if (uReply->error() == QNetworkReply::NoError && uTimer.isActive()) {
+                uTimer.stop();
+                QFile uf(uniPath);
+                if (uf.open(QIODevice::WriteOnly)) {
+                    uf.write(uReply->readAll());
+                    uf.close();
+                    qCInfo(logLoader) << QStringLiteral("NeoForge 主 JAR 已下载: %1 (%2 MB)")
+                        .arg(uniRel).arg(QFileInfo(uniPath).size() / 1048576.0, 0, 'f', 1);
+                }
+            } else {
+                qCWarning(logLoader) << QStringLiteral("NeoForge 主 JAR 下载失败: %1").arg(uniUrl);
+            }
+            uReply->deleteLater();
+        } else {
+            qCInfo(logLoader) << QStringLiteral("NeoForge 主 JAR 已存在: %1").arg(uniRel);
+        }
+    }
+
     // ── 7. 压平 inheritsFrom 链，写入 JSON ──
     QJsonObject json = versionJson;
     if (json.contains(QStringLiteral("inheritsFrom"))) {
         json = flattenVersionJson(m_gameDir, json);
         json[QStringLiteral("id")] = m_installName;
         qCInfo(logLoader) << QStringLiteral("NeoForge JSON 已压平为独立版本");
+    }
+
+    // ── 7b. 注入 net.minecraft:client 库（patched MC jar 在 classpath 上的入口）──
+    //      当 flatten 后父版本 JSON 不存在时，inheritsFrom 已消解但 MC client JAR
+    //      不在 libraries 中，FMLLoader 无法找到 Minecraft classes。
+    //      注入后，patched jar 通过 classpath 对 FMLLoader 可见。
+    //      （参考 commit dca5514: 由 bootstrapper/installer 创建的 client jar）
+    {
+        QJsonArray libs = json.value(QStringLiteral("libraries")).toArray();
+        QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
+        bool hasMcClient = false;
+        for (const auto& lv : libs) {
+            if (lv.isObject() && lv[QStringLiteral("name")].toString() == mcClientName) {
+                hasMcClient = true;
+                break;
+            }
+        }
+        if (!hasMcClient) {
+            QJsonObject mcClient;
+            mcClient[QStringLiteral("name")] = mcClientName;
+            QJsonObject downloads;
+            QJsonObject artifact;
+            artifact[QStringLiteral("path")] = QStringLiteral("net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+            downloads[QStringLiteral("artifact")] = artifact;
+            mcClient[QStringLiteral("downloads")] = downloads;
+            libs.append(mcClient);
+            json[QStringLiteral("libraries")] = libs;
+            qCInfo(logLoader) << QStringLiteral("已注入 net.minecraft:client 到 libraries: %1").arg(mcClientName);
+        }
+    }
+
+    // 在 flattened JSON 的 libraries 中添加 NeoForge 主 JAR 的 Maven 条目
+    //（version.json 的 libraries 不包含主 JAR，但 FMLLoader 启动时需要它在 classpath 上）
+    {
+        bool isLegacy = (m_mcVersion == QStringLiteral("1.20.1"));
+        QString mavenGroup = isLegacy
+            ? QStringLiteral("net/neoforged/forge")
+            : QStringLiteral("net/neoforged/neoforge");
+        QString artifactId = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
+        QString apiVersion = isLegacy
+            ? QStringLiteral("1.20.1-") + m_loaderVersion
+            : m_loaderVersion;
+
+        QString mainJarName = QStringLiteral("%1-%2-universal.jar").arg(artifactId, apiVersion);
+        QString mainJarMavenPath = QStringLiteral("%1/%2/%3").arg(mavenGroup, apiVersion, mainJarName);
+
+        // 检查本地文件是否存在
+        qint64 localSize = 0;
+        QString localPath = m_gameDir + QStringLiteral("/libraries/") + mainJarMavenPath;
+        if (QFile::exists(localPath))
+            localSize = QFileInfo(localPath).size();
+
+        QJsonObject mainLibArtifact;
+        mainLibArtifact[QStringLiteral("url")] = QString();  // 已缓存，不需要 URL
+        mainLibArtifact[QStringLiteral("path")] = mainJarMavenPath;
+        if (localSize > 0)
+            mainLibArtifact[QStringLiteral("size")] = localSize;
+        QJsonObject mainLibDownloads;
+        mainLibDownloads[QStringLiteral("artifact")] = mainLibArtifact;
+
+        QJsonObject mainLib;
+        QString mavenGroupDots = QString(mavenGroup).replace(QLatin1Char('/'), QLatin1Char('.'));
+        mainLib[QStringLiteral("name")] = QStringLiteral("%1:%2:%3").arg(mavenGroupDots, artifactId, apiVersion);
+        mainLib[QStringLiteral("downloads")] = mainLibDownloads;
+
+        QJsonArray libs = json.value(QStringLiteral("libraries")).toArray();
+        // 去重：避免已存在同名库条目
+        bool found = false;
+        QString targetName = mainLib[QStringLiteral("name")].toString();
+        for (const auto& lv : libs) {
+            if (lv.isObject() && lv[QStringLiteral("name")].toString() == targetName) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            libs.append(mainLib);
+            json[QStringLiteral("libraries")] = libs;
+            qCInfo(logLoader) << QStringLiteral("已添加 NeoForge 主 JAR 到 libraries: %1").arg(targetName);
+        }
     }
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile f(jsonPath);
@@ -2779,41 +3292,35 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
 
 static QByteArray decompressLzma(const QByteArray& compressed)
 {
-    if (compressed.size() < 13)
-        return {};  // LZMA header is 13 bytes minimum
+    if (compressed.size() < 7)
+        return {};  // NeoForge LZMA header is 7 bytes minimum
 
-    // LZMA header (13 bytes):
-    //   byte 0:      encoded lc/lp/pb (LZMA properties)
-    //   bytes 1-4:   dictionary size (32-bit LE)
-    //   bytes 5-12:  uncompressed size (64-bit LE, -1 = unknown)
-    //   byte 13+:    compressed data
+    // NeoForge client.lzma: custom 7-byte raw LZMA header (NOT standard .lzma).
+    //   bytes 0-4:   LZMA properties (LZMA_PROPS_SIZE = 5)
+    //                  byte 0 = lc/lp/pb, bytes 1-4 = dict size (32-bit LE)
+    //   bytes 5-6:   NeoForge-specific (dictionary window check / reserved)
+    //   byte 7+:     pure LZMA compressed stream
+    // No trailing 8-byte uncompressed size field like standard .lzma files!
     Byte props[LZMA_PROPS_SIZE];
     props[0] = (Byte)compressed[0];
     for (int i = 0; i < 4; i++)
         props[1 + i] = (Byte)compressed[1 + i];
 
-    UInt64 uncompSize = 0;
-    for (int i = 0; i < 8; i++)
-        uncompSize |= ((UInt64)(Byte)compressed[5 + i]) << (8 * i);
-
-    size_t srcLen = (size_t)(compressed.size() - 13);
+    constexpr int NEOFORGE_LZMA_HEADER = 7;  // 5B props + 2B reserved
+    size_t srcLen = (size_t)(compressed.size() - NEOFORGE_LZMA_HEADER);
     if (srcLen == 0) {
         qCWarning(logLoader) << QStringLiteral("LZMA 数据为空");
         return {};
     }
 
-    // Try 1: LZMA_FINISH_END with specified uncompSize
-    // If uncompSize is valid (not -1) and reasonable (< 1GB), use it as output buffer
-    // For NeoForge client.lzma (uncompSize=-1), use 40x to handle ~80MB decompressed JARs
-    size_t outLen = (uncompSize != (UInt64)-1 && uncompSize < 1024 * 1024 * 1024)
-        ? (size_t)uncompSize
-        : (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
+    // Use generous output buffer (40x compression ratio, up to 200MB)
+    size_t outLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
 
     QByteArray result((int)outLen, Qt::Uninitialized);
     ELzmaStatus status;
     SRes res = LzmaDecode(
         reinterpret_cast<Byte*>(result.data()), &outLen,
-        reinterpret_cast<const Byte*>(compressed.constData()) + 13, &srcLen,
+        reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &srcLen,
         props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &g_Alloc);
 
     if (res == SZ_OK) {
@@ -2824,14 +3331,13 @@ static QByteArray decompressLzma(const QByteArray& compressed)
     // Try 2: LZMA_FINISH_ANY with generous buffer (in case end marker is missing)
     if (res != SZ_OK) {
         qCWarning(logLoader) << QStringLiteral("LZMA_FINISH_END 失败(rc=%1)，尝试 LZMA_FINISH_ANY...").arg(static_cast<int>(res));
-        // Use huge 200MB buffer — NeoForge remapped client JARs can be 70-100MB
         size_t bigLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
         result.resize((int)bigLen);
-        size_t retrySrcLen = (size_t)(compressed.size() - 13);
+        size_t retrySrcLen = (size_t)(compressed.size() - NEOFORGE_LZMA_HEADER);
         size_t retryOutLen = bigLen;
         res = LzmaDecode(
             reinterpret_cast<Byte*>(result.data()), &retryOutLen,
-            reinterpret_cast<const Byte*>(compressed.constData()) + 13, &retrySrcLen,
+            reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &retrySrcLen,
             props, LZMA_PROPS_SIZE, LZMA_FINISH_ANY, &status, &g_Alloc);
         if (res == SZ_OK) {
             result.resize((int)retryOutLen);

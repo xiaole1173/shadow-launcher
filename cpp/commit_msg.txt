@@ -1,7 +1,11 @@
-fix(forge): 从 install_profile.json 提取准确的 Maven 版本号下载 client_mappings
+fix(neoforge): bootstrapper path + LZMA header fix + processor execution
 
-Forge bootstrapper 的 ChainMappings 需要 client_mappings 文件用于 JAR 反混淆：
-- Maven 版本号（如 1.18.2-20220404.173914）直接写在安装器 JAR 的 install_profile.json 中
-- 之前用版本 JSON 的 "time" 字段推导，某些版本（1.18.2）时间戳不匹配
-- 现在直接解析 install_profile.json 的 data.MOJMAPS.client / data.MAPPINGS.client 条目
-- 提取准确版本号构造下载路径，覆盖所有 Forge/NeoForge 安装路径
+NeoForge 安装管线整改（第三轮迭代）：
+
+[Routing] 删除 NeoForge 短路分支，走 Bootstrapper 路径（同 主流启动器 ForgelikeInjector）
+[bootstrapper] runBootstrapperProcess 新增 isNeoForge 标志，Forge 专属逻辑隔离
+[processor] 实现 InstallerTools Processor 执行：Maven下载 + 模板替换 + Java子进程
+[LZMA] 修正 client.lzma 头部为 7 字节（5B props + 2B 保留），非标准 13 字节
+[other] net.minecraft:client 库注入保留（commit dca5514），install_profile 库预下载保留
+
+当前状态：编译通过，启动报 "The patched Minecraft jar is missing"
