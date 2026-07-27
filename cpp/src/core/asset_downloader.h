@@ -10,10 +10,6 @@
 //   - All requests to the same host share one HTTP/2 connection → multiplexed
 
 #pragma once
-//   - SHA1 verification per file; mirror fallback on failure
-//   - No threads, no chunking — files are small (90%+ < 50 KB)
-
-#pragma once
 
 #include <QObject>
 #include <QNetworkAccessManager>
@@ -82,7 +78,6 @@ private:
     void setupNam();
     void fireNext();
     void finishDownload(const AssetTask& task, bool success);
-    void tryFallback(const AssetTask& task, int mirrorIndex);
     void checkAllFinished();
     static QString sha1HexOf(const QByteArray& data);
 

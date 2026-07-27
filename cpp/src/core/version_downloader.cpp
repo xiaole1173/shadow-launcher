@@ -287,9 +287,6 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                 at.size = t.totalBytes;
                 assetTasks.append(at);
 
-                // Track dest path for verification
-                m_taskDestPaths.append(t.savePath);
-
             } else {
                 // ── Library/jar task → FileDownloader ──
                 hasLibTasks = true;
@@ -316,7 +313,6 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                 QByteArray sha1 = t.sha1.toUtf8();
                 m_downloader->addFile(t.savePath, t.name, sources,
                                       t.totalBytes, sha1, false);
-                m_taskDestPaths.append(t.savePath);
             }
         }
 
@@ -455,18 +451,18 @@ void VersionDownloader::checkBothDownloadersDone()
     // Both downloaders complete — continue to the original
     // onAllFinishedV2 logic (verification, mirror fallback, etc.)
     int libFailed = m_downloader ? m_downloader->failedFiles() : 0;
-    int assetFailed = 0;  // tracked inside m_assetDownloader
-    int failedCount = libFailed;  // asset failures are separate
+    int failedCount = libFailed;
 
     QStringList failedPaths;
     if (failedCount > 0) {
         emit logMessage(tr("[警告] 库文件下载: %1 个文件下载失败").arg(failedCount));
     }
 
-    // Skip mirror fallback for asset-only failures; assets use AssetDownloader's
-    // built-in per-file mirror retry. Only library batch failures trigger fallback.
-    const double failRate = m_totalFiles.loadRelaxed() > 0
-        ? static_cast<double>(failedCount) / m_totalFiles.loadRelaxed() : 0.0;
+    // Mirror fallback: calculate fail rate against library tasks only.
+    // Asset failures are handled individually by AssetDownloader's per-file retry.
+    int libTotalFiles = m_downloader ? m_downloader->totalFiles() : 0;
+    const double failRate = libTotalFiles > 0
+        ? static_cast<double>(failedCount) / libTotalFiles : 0.0;
 
     if (failedCount > 0
         && m_fallbackIndex + 1 < m_fallbackChain.size()
