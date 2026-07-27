@@ -3205,10 +3205,36 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
                     qCInfo(logLoader) << QStringLiteral("NeoForge 主 JAR 已下载: %1 (%2 MB)")
                         .arg(uniRel).arg(QFileInfo(uniPath).size() / 1048576.0, 0, 'f', 1);
                 }
+                uReply->deleteLater();
             } else {
-                qCWarning(logLoader) << QStringLiteral("NeoForge 主 JAR 下载失败: %1").arg(uniUrl);
+                // BMCLAPI 没有这个版本，尝试官方源
+                qCWarning(logLoader) << QStringLiteral("BMCLAPI 下载失败，尝试官方 Maven: %1").arg(uniRel);
+                uReply->deleteLater();
+                QString officialUrl = QStringLiteral("https://maven.neoforged.net/releases/") + uniRel;
+                QUrl offU(officialUrl);
+                QNetworkRequest offReq{offU};
+                QNetworkReply* offReply = nam->get(offReq);
+                QEventLoop offLoop;
+                QObject::connect(offReply, &QNetworkReply::finished, &offLoop, &QEventLoop::quit);
+                QTimer offTimer;
+                offTimer.setSingleShot(true);
+                QObject::connect(&offTimer, &QTimer::timeout, &offLoop, &QEventLoop::quit);
+                offTimer.start(60000);
+                offLoop.exec();
+                if (offReply->error() == QNetworkReply::NoError && offTimer.isActive()) {
+                    offTimer.stop();
+                    QFile uf(uniPath);
+                    if (uf.open(QIODevice::WriteOnly)) {
+                        uf.write(offReply->readAll());
+                        uf.close();
+                        qCInfo(logLoader) << QStringLiteral("NeoForge 主 JAR 已从官方源下载: %1 (%2 MB)")
+                            .arg(uniRel).arg(QFileInfo(uniPath).size() / 1048576.0, 0, 'f', 1);
+                    }
+                } else {
+                    qCWarning(logLoader) << QStringLiteral("NeoForge 主 JAR 下载失败（BMCLAPI 和官方源均失败）: %1").arg(uniRel);
+                }
+                offReply->deleteLater();
             }
-            uReply->deleteLater();
         } else {
             qCInfo(logLoader) << QStringLiteral("NeoForge 主 JAR 已存在: %1").arg(uniRel);
         }
