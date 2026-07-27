@@ -2375,9 +2375,16 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
     }
 
     const bool isNeo = (m_loaderType == QStringLiteral("neoforge"));
-    const QString ver = isNeo ? m_loaderVersion : (m_mcVersion + QStringLiteral("-") + m_loaderVersion);
-    const QString loaderGroup = isNeo ? QStringLiteral("net/neoforged/neoforge") : QStringLiteral("net/minecraftforge/forge");
-    const QString filePrefix = isNeo ? QStringLiteral("neoforge") : QStringLiteral("forge");
+    // 主流启动器: DlNeoForgeListEntry.UrlBase -> PackageName = If(Inherit = "1.20.1", "forge", "neoforge")
+    bool isLegacy = (m_mcVersion == QStringLiteral("1.20.1"));
+    const QString neoPkg = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
+    const QString ver = isNeo
+        ? (isLegacy ? QStringLiteral("1.20.1-%1").arg(m_loaderVersion) : m_loaderVersion)
+        : (m_mcVersion + QStringLiteral("-") + m_loaderVersion);
+    const QString loaderGroup = isNeo
+        ? (QStringLiteral("net/neoforged/") + neoPkg)
+        : QStringLiteral("net/minecraftforge/forge");
+    const QString filePrefix = isNeo ? neoPkg : QStringLiteral("forge");
 
     // Flatten version JSON (resolve inheritsFrom chain) — 主流启动器's MergeJson equivalent
     if (!m_postJsonPath.isEmpty()) {
