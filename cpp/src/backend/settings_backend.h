@@ -98,6 +98,8 @@ public:
 
     Q_INVOKABLE QVariantList availableJavaList();
     Q_INVOKABLE void selectJavaByIndex(int index);
+    Q_INVOKABLE void removeJavaFromList(int index);
+    Q_INVOKABLE QVariantList persistedJavaList();
     Q_INVOKABLE QString findJavaForVersion(int requiredMajor);
     Q_INVOKABLE int getJavaMajorVersion(const QString& path);
     Q_INVOKABLE QString openJavaFileDialog();
@@ -185,6 +187,9 @@ private:
     void saveSettings();
     void doAutoDetect();
     const QVector<JavaInfo>& cachedJavaList();
+    void loadJavaList();
+    void saveJavaList(const QVector<JavaInfo>& list);
+    bool isPathInCandidateDir(const QString& binDir) const;
 
     QVector<JavaInfo> findAllJava();
     JavaInfo getJavaInfo(const QString& exePath);
@@ -234,6 +239,7 @@ private:
     QVector<JavaInfo> m_cachedJavaList;
     bool m_javaCacheValid = false;
     bool m_javaScanning = false;
+    QSet<QString> m_javaRemovedPaths;
 };
 
 } // namespace ShadowLauncher

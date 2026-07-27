@@ -63,6 +63,7 @@ static const char* COMMON_JAVA_DIRS[] = {
 
     // Launcher runtimes — other
     "%APPDATA%\\.hmcl\\java",
+    "%APPDATA%\\.minecraft\\runtime",
     "%APPDATA%\\ATLauncher\\runtimes\\minecraft",
     "%APPDATA%\\ModrinthApp\\meta\\java_versions",
     "%APPDATA%\\PrismLauncher\\java",
@@ -193,11 +194,14 @@ void SettingsBackend::saveSettings()
 
 void SettingsBackend::doAutoDetect()
 {
+    // Load persisted Java list first (avoids full re-scan on every launch)
+    loadJavaList();
+
     // Skip if we already have a valid Java from saved settings
     if (m_javaReady && QFileInfo::exists(m_javaPath)) {
         emit logMessage(tr("Java 已配置: %1 (版本 %2)")
                             .arg(m_javaPath, m_javaVersion));
-        // Still scan in background to populate the list
+        // Still scan in background to refresh the list
         scanJavaInstallations();
         return;
     }
@@ -264,10 +268,19 @@ QVariantList SettingsBackend::scanJavaInstallations()
     // Use std::thread::detach() — NOT std::async whose future destructor blocks!
     std::thread([this]() {
         QVector<JavaInfo> results = findAllJava();
+        // 主流启动器-style sort: prefer JDKs in candidate dirs, then by proximity to Java 21
         std::sort(results.begin(), results.end(),
-                  [](const JavaInfo& a, const JavaInfo& b) {
+                  [this](const JavaInfo& a, const JavaInfo& b) {
+                      bool aInCand = isPathInCandidateDir(QFileInfo(a.path).absolutePath());
+                      bool bInCand = isPathInCandidateDir(QFileInfo(b.path).absolutePath());
+                      if (aInCand != bInCand) return aInCand;
+                      int aDist = qAbs(a.major - 21);
+                      int bDist = qAbs(b.major - 21);
+                      if (aDist != bDist) return aDist < bDist;
                       return a.major > b.major;
                   });
+        // Persist scan results
+        saveJavaList(results);
 
         QMetaObject::invokeMethod(this, [this, results]() {
             m_cachedJavaList = results;
@@ -275,7 +288,7 @@ QVariantList SettingsBackend::scanJavaInstallations()
             m_javaScanning = false;
             emit javaPathChanged();
             if (!results.isEmpty()) {
-                emit logMessage(tr("找到 %1 个 Java 安装，最新: Java %2")
+                emit logMessage(tr("找到 %1 个 Java 安装，最新: Java %2 (优先 Java 21)")
                                     .arg(results.size())
                                     .arg(results.first().major));
                 if (!m_javaReady || !QFileInfo::exists(m_javaPath)) {
@@ -357,7 +370,10 @@ QString SettingsBackend::findJavaForVersion(int requiredMajor)
     const auto& results = cachedJavaList();
     
     if (results.isEmpty()) {
-        qCWarning(logLaunch) << QStringLiteral("[JAVA] 缓存中未找到Java安装");
+        qCWarning(logLaunch) << QStringLiteral("[JAVA] 缓存中未找到Java安装，触发重新扫描...");
+        // 主流启动器-style two-pass: trigger async re-scan, results ready next call
+        emit logMessage(tr("Java 列表为空，正在后台重新扫描..."));
+        scanJavaInstallations();
         return {};
     }
     
@@ -881,6 +897,12 @@ QVector<SettingsBackend::JavaInfo> SettingsBackend::findAllJava()
     }
 #endif
 
+    // Filter out user-removed Java paths
+    results.erase(std::remove_if(results.begin(), results.end(),
+        [this](const JavaInfo& j) {
+            return m_javaRemovedPaths.contains(QDir::cleanPath(QFileInfo(j.path).absolutePath()).toLower());
+        }), results.end());
+
     return results;
 }
 
@@ -941,6 +963,22 @@ SettingsBackend::JavaInfo SettingsBackend::getJavaInfo(const QString& exePath)
     QString output = QString::fromLocal8Bit(proc.readAllStandardError());
     if (output.isEmpty()) output = QString::fromLocal8Bit(proc.readAllStandardOutput());
     if (output.isEmpty()) return info;
+
+    // 主流启动器-style sanity checks
+    QString lower = output.toLower();
+    if (lower.contains(QStringLiteral("/lib/ext exists"))) {
+        qCWarning(logJava) << QStringLiteral("Java rejected (/lib/ext exists): %1").arg(exePath);
+        return info;
+    }
+    if (lower.contains(QStringLiteral("a fatal error")) || lower.contains(QStringLiteral("error: "))) {
+        qCWarning(logJava) << QStringLiteral("Java rejected (fatal error): %1").arg(exePath);
+        return info;
+    }
+    // Reject 32-bit Java (MC needs 64-bit)
+    if (!lower.contains(QStringLiteral("64-bit"))) {
+        qCWarning(logJava) << QStringLiteral("Java rejected (not 64-bit): %1").arg(exePath);
+        return info;
+    }
 
     QRegularExpression re(QStringLiteral("version\\s+\"([^\"]+)\""));
     auto match = re.match(output);
@@ -1052,6 +1090,111 @@ bool SettingsBackend::isJavaSpecialPath(const QString& binDir) const
         || lower.contains("javatmp")
         || lower.contains("system32")
         || lower.contains("syswow64");
+}
+
+// ============================================================
+// isPathInCandidateDir -- check if path is inside our known JDK dirs
+// ============================================================
+
+bool SettingsBackend::isPathInCandidateDir(const QString& binDir) const
+{
+    QString lower = binDir.toLower();
+    static const QRegularExpression varRe(QStringLiteral("%([^%]+)%"));
+    for (const char* raw : COMMON_JAVA_DIRS) {
+        QString searchDir = QString::fromLocal8Bit(raw);
+        auto m = varRe.match(searchDir);
+        if (m.hasMatch()) {
+            QString val = qEnvironmentVariable(m.captured(1).toLocal8Bit());
+            if (val.isEmpty()) continue;
+            searchDir.replace(m.captured(0), val);
+        }
+        if (lower.startsWith(searchDir.toLower())) return true;
+    }
+    return false;
+}
+
+// ============================================================
+// removeJavaFromList -- user manually removes a Java from list
+// ============================================================
+
+void SettingsBackend::removeJavaFromList(int index)
+{
+    const auto& list = cachedJavaList();
+    if (index < 0 || index >= list.size()) return;
+    QString binDir = QDir::cleanPath(QFileInfo(list[index].path).absolutePath()).toLower();
+    m_javaRemovedPaths.insert(binDir);
+    // Persist removed paths
+    {
+        QSettings s(QCoreApplication::organizationName(),
+                    QCoreApplication::applicationName());
+        QStringList removed;
+        for (const auto& p : m_javaRemovedPaths) removed.append(p);
+        s.setValue(QStringLiteral("java/removedPaths"), removed);
+    }
+    emit logMessage(tr("已移除 Java: %1").arg(list[index].path));
+    // Trigger re-scan to update display immediately
+    scanJavaInstallations();
+}
+
+// ============================================================
+// persistedJavaList -- return persisted list (QML access)
+// ============================================================
+
+QVariantList SettingsBackend::persistedJavaList()
+{
+    return availableJavaList();
+}
+
+// ============================================================
+// loadJavaList -- restore persisted Java list from QSettings
+// ============================================================
+
+void SettingsBackend::loadJavaList()
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+
+    // Load removed paths
+    QStringList removed = s.value(QStringLiteral("java/removedPaths")).toStringList();
+    m_javaRemovedPaths.clear();
+    for (const auto& p : removed) m_javaRemovedPaths.insert(p.toLower());
+
+    // Load cached Java list
+    int count = s.value(QStringLiteral("java/listCount"), 0).toInt();
+    if (count > 0) {
+        QVector<JavaInfo> loaded;
+        for (int i = 0; i < count; ++i) {
+            QString prefix = QStringLiteral("java/list/%1/").arg(i);
+            JavaInfo j;
+            j.path = s.value(prefix + QStringLiteral("path")).toString();
+            j.version = s.value(prefix + QStringLiteral("version")).toString();
+            j.major = s.value(prefix + QStringLiteral("major"), 0).toInt();
+            if (!j.path.isEmpty() && QFileInfo::exists(j.path)) {
+                loaded.append(j);
+            }
+        }
+        if (!loaded.isEmpty()) {
+            m_cachedJavaList = loaded;
+            m_javaCacheValid = true;
+        }
+    }
+}
+
+// ============================================================
+// saveJavaList -- persist Java list to QSettings
+// ============================================================
+
+void SettingsBackend::saveJavaList(const QVector<JavaInfo>& list)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("java/listCount"), list.size());
+    for (int i = 0; i < list.size(); ++i) {
+        QString prefix = QStringLiteral("java/list/%1/").arg(i);
+        s.setValue(prefix + QStringLiteral("path"), list[i].path);
+        s.setValue(prefix + QStringLiteral("version"), list[i].version);
+        s.setValue(prefix + QStringLiteral("major"), list[i].major);
+    }
 }
 
 } // namespace ShadowLauncher
