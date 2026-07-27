@@ -103,13 +103,27 @@ void AssetDownloader::cancel()
     if (m_state != Running) return;
     m_state = Cancelled;
 
-    // Abort all in-flight requests
+    // Collect replies into a local list FIRST, then clear the map.
+    // This avoids iterator invalidation when abort() fires finished()
+    // synchronously and onReplyFinished tries to erase from m_inFlight.
+    QList<QNetworkReply*> toAbort;
     for (auto it = m_inFlight.begin(); it != m_inFlight.end(); ++it)
-        it.key()->abort();
+        toAbort.append(it.key());
+
     m_inFlight.clear();
     m_pendingQueue.clear();
 
+    // Now abort — onReplyFinished won't find anything in m_inFlight
+    // and will return immediately.
+    for (auto* reply : toAbort) {
+        reply->abort();
+        reply->deleteLater();
+    }
+
     emit logMessage("AssetDownloader: cancelled");
+
+    // VersionDownloader relies on allFinished to unblock
+    emit allFinished(false, m_failedCount, m_failedFiles);
 }
 
 // ═══════════════════════════════════════════════════════════
