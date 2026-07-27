@@ -102,9 +102,11 @@ VersionDownloader::VersionDownloader(QObject* parent)
             this, &VersionDownloader::onAllFinishedV2,
             Qt::QueuedConnection);
 
-    // ── Asset-dedicated downloader (shared QNAM + HTTP/2) ──
+    // ── Asset-dedicated downloader v2 (2× HTTP/1.1 QNAMs, adaptive concurrency) ──
     m_assetDownloader = new AssetDownloader(this);
     m_assetDownloader->setMaxConcurrent(64);
+    if (m_downloadCfg.speedLimitMB > 0)
+        m_assetDownloader->setSpeedLimitMB(m_downloadCfg.speedLimitMB);
 
     connect(m_assetDownloader, &AssetDownloader::progressChanged,
             this, [this](int completed, int total, qint64 dlBytes, qint64 totBytes) {
@@ -174,6 +176,8 @@ void VersionDownloader::setDownloadConfig(const DownloadConfig& config)
         m_downloader->setMaxThreads(m_maxWorkers);
         m_downloader->setSpeedLimitMB(config.speedLimitMB);
     }
+    if (m_assetDownloader && config.speedLimitMB > 0)
+        m_assetDownloader->setSpeedLimitMB(config.speedLimitMB);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -331,9 +335,9 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
             m_downloader->start();
         }
 
-        // Start AssetDownloader (assets with HTTP/2)
+        // Start AssetDownloader v2 (2× HTTP/1.1, adaptive concurrency)
         if (hasAssetTasks) {
-            emit logMessage(tr("启动资源文件下载器 (%1 个文件, HTTP/2)").arg(assetTasks.size()));
+            emit logMessage(tr("启动资源文件下载器 v2 (%1 个文件, 2×HTTP/1.1)").arg(assetTasks.size()));
             m_assetDownloader->startDownload(assetTasks, 64);
         }
 
