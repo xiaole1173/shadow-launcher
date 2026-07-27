@@ -27,13 +27,14 @@ QString formatSize(qint64 bytes)
 AssetDownloader::AssetDownloader(QObject* parent)
     : QObject(parent)
 {
-    setupNam();
-
-    // Gradual ramp-up timer
+    // Gradual ramp-up timer MUST be created before setupNam(),
+    // because setupNam() calls m_rampTimer->stop().
     m_rampTimer = new QTimer(this);
     m_rampTimer->setSingleShot(false);
     m_rampTimer->setInterval(kRampIntervalMs);
     connect(m_rampTimer, &QTimer::timeout, this, &AssetDownloader::rampTick);
+
+    setupNam();
 }
 
 AssetDownloader::~AssetDownloader()
