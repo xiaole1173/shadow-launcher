@@ -854,11 +854,6 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         }
     }
 
-    // ── Version jar path for Forge ──
-    QString versionJar = gameDirShort + QStringLiteral("/versions/") + versionId
-                         + QStringLiteral("/") + versionId + QStringLiteral(".jar");
-    args << QStringLiteral("-Dminecraft.client.jar=%1").arg(versionJar);
-
     // ── Natives path (only if version JSON doesn't already set it) ──
     // MC 26.2+ JSON has -Djava.library.path=${natives_directory}/java in arguments.jvm
     if (!hasArgPrefix(QStringLiteral("-Djava.library.path="))) {

@@ -2450,6 +2450,10 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                     flattened.remove(QStringLiteral("inheritsFrom"));
 
                 // Inject MC client as library if missing (for standalone version)
+                // NeoForge: skip — client-26.2.jar on classpath interferes with
+                // RequiredSystemFiles.areNeoForgeAndMinecraftSeparate(), causing
+                // "The patched Minecraft jar is missing" error.
+                if (!isNeo) {
                 QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
                 QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
                 bool hasMcClient = false;
@@ -2468,6 +2472,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                     mcClient[QStringLiteral("downloads")] = downloads;
                     mergedLibs.append(mcClient);
                     flattened[QStringLiteral("libraries")] = mergedLibs;
+                }
                 }
 
                 if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
