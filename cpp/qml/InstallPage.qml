@@ -401,14 +401,15 @@ Rectangle {
                             text: root.customName !== "" ? root.customName : root.fullVersionName
                             font.pixelSize: StyleTokens.fontSizeMd; color: "#c0c8e0"
                             selectByMouse: true; clip: true; verticalAlignment: TextInput.AlignVCenter
-                            onActiveFocusChanged: {
-                                if (!activeFocus) {
-                                    if (text !== root.fullVersionName) {
-                                        root.customName = text
-                                    } else {
-                                        root.customName = ""
-                                    }
+                            onTextChanged: {
+                                // 每次输入立即更新 customName 并重新检测冲突
+                                var t = text.trim()
+                                if (t !== root.fullVersionName) {
+                                    root.customName = t
+                                } else {
+                                    root.customName = ""
                                 }
+                                root.checkVersionConflict(t !== "" ? t : root.fullVersionName)
                             }
                         }
                     }
