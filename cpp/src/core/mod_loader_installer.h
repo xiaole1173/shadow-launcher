@@ -11,6 +11,7 @@ class QZipReader;
 #include <QJsonObject>
 #include <QElapsedTimer>
 #include <QAtomicInt>
+#include <QFutureWatcher>
 #include <functional>
 
 namespace ShadowLauncher {
@@ -111,6 +112,24 @@ private:
     void installLegacy1(const QByteArray& jarData, const QJsonObject& profile);
     // Method A: Bootstrapper (processors / spec≥1 / NeoForge)
     void runBootstrapperProcess(const QByteArray& jarData);
+    void onBootstrapperFinished();
+
+    // Async bootstrapper result
+    struct BootstrapperResult {
+        bool success = false;
+        int exitCode = -1;
+        bool timedOut = false;
+        QString installerJarPath;
+        QString loaderName;
+        QStringList oldVersions;
+        QString foundSub;
+        QString errorMsg;
+    };
+    static BootstrapperResult runBootstrapperSync(
+        const QString& javaPath, const QStringList& launchArgs,
+        const QString& installerJarPath, const QString& loaderName,
+        const QStringList& oldVersions, const QString& versionsDirPath,
+        int timeoutMs, std::function<void(int)> onStepProgress);
 
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
@@ -183,6 +202,9 @@ private:
     qint64 m_bytesReceived = 0;
     qint64 m_bytesLast = 0;
     QElapsedTimer m_speedTimer;
+
+    // Async bootstrapper watcher
+    QFutureWatcher<BootstrapperResult>* m_bootstrapperWatcher = nullptr;
 };
 
 } // namespace ShadowLauncher

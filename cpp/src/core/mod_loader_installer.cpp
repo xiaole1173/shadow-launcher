@@ -2206,206 +2206,222 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         emit progressChanged(3, m_totalSteps,
             QStringLiteral("正在通过 Java 运行 %1 安装器...").arg(loaderName));
 
-        QProcess proc;
-        proc.start(javaPath, launchArgs);
-        if (!proc.waitForStarted(10000)) {
-            if (useWrapper) {
-                qCWarning(logLoader) << QStringLiteral("JavaWrapper 启动失败，将重试（裸 Java）");
-                continue;
-            }
-            QFile::remove(installerJarPath);
-            emit finished(false, QStringLiteral("无法启动 %1 安装器 Java 进程").arg(loaderName));
-            m_running = false;
-            return;
+            // ── Launch bootstrapper async (QtConcurrent::run) ──
+        if (m_bootstrapperWatcher && m_bootstrapperWatcher->isRunning()) {
+            m_bootstrapperWatcher->waitForFinished();
+        }
+        if (!m_bootstrapperWatcher) {
+            m_bootstrapperWatcher = new QFutureWatcher<BootstrapperResult>(this);
+            connect(m_bootstrapperWatcher, &QFutureWatcher<BootstrapperResult>::finished,
+                    this, &ModLoaderInstaller::onBootstrapperFinished);
         }
 
-        // Synchronous loop with progress keywords (matching 主流启动器's ForgelikeInjectorLine)
-        QElapsedTimer elapsed;
-        elapsed.start();
-        const int pollMs = 100;
-        const int timeoutMs = 180000;
-        outputLines.clear();
-        bool procFinished = false;
+        // Snapshot old versions list before bootstrapper creates new folders
+        QStringList oldVersionsSnapshot = oldVersions;
+        QString installNameSnapshot = m_installName;
+        QString versionsDirSnapshot = versionsDir();
 
-        while (!procFinished) {
-            if (m_cancelled) {
-                proc.kill();
-                proc.waitForFinished(3000);
-                QFile::remove(installerJarPath);
-                emit finished(false, QStringLiteral("用户取消"));
-                m_running = false;
-                return;
-            }
-            if (elapsed.elapsed() > timeoutMs) {
-                timedOut = true;
-                proc.kill();
-                proc.waitForFinished(3000);
-                break;
-            }
-            if (proc.waitForReadyRead(pollMs)) {
-                QByteArray stdoutData = proc.readAllStandardOutput();
-                if (!stdoutData.isEmpty()) {
-                    QStringList lines = QString::fromUtf8(stdoutData)
-                        .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
-                    for (const QString& line : lines) {
-                        if (line.trimmed().isEmpty()) continue;
-                        outputLines.append(line);
-                        // 主流启动器 keyword → stepProgress mapping
+        QFuture<BootstrapperResult> future = QtConcurrent::run(
+            [javaPath, launchArgs, installerJarPath, loaderName, oldVersionsSnapshot,
+             versionsDirSnapshot]() -> BootstrapperResult {
+            return runBootstrapperSync(
+                javaPath, launchArgs, installerJarPath, loaderName,
+                oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr);
+        });
+
+        m_bootstrapperWatcher->setFuture(future);
+        return;  // Result handled in onBootstrapperFinished
+    }
+
+    // If we get here without returning, all retries failed
+    QFile::remove(installerJarPath);
+    emit finished(false, QStringLiteral("%1 安装器启动失败，请检查 Java 配置后重试").arg(loaderName));
+    m_running = false;
+    return;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Async bootstrapper: run Java installer process off the main thread
+// Returns BootstrapperResult struct with success/failure details.
+// ═══════════════════════════════════════════════════════════════
+ModLoaderInstaller::BootstrapperResult
+ModLoaderInstaller::runBootstrapperSync(
+    const QString& javaPath, const QStringList& launchArgs,
+    const QString& installerJarPath, const QString& loaderName,
+    const QStringList& oldVersions, const QString& versionsDirPath,
+    int timeoutMs, std::function<void(int)> onStepProgress)
+{
+    BootstrapperResult result;
+    result.installerJarPath = installerJarPath;
+    result.loaderName = loaderName;
+    result.oldVersions = oldVersions;
+
+    QProcess proc;
+    proc.start(javaPath, launchArgs);
+    if (!proc.waitForStarted(10000)) {
+        result.success = false;
+        result.exitCode = -1;
+        result.errorMsg = QStringLiteral("无法启动 %1 安装器 Java 进程").arg(loaderName);
+        return result;
+    }
+
+    // Process output loop (runs on background thread — no UI blocking)
+    QElapsedTimer elapsed;
+    elapsed.start();
+    const int pollMs = 100;
+    QStringList outputLines;
+    bool procFinished = false;
+
+    while (!procFinished && !result.timedOut) {
+        if (elapsed.elapsed() > timeoutMs) {
+            result.timedOut = true;
+            proc.kill();
+            proc.waitForFinished(3000);
+            break;
+        }
+        if (proc.waitForReadyRead(pollMs)) {
+            QByteArray stdoutData = proc.readAllStandardOutput();
+            if (!stdoutData.isEmpty()) {
+                QStringList lines = QString::fromUtf8(stdoutData)
+                    .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+                for (const QString& line : lines) {
+                    if (line.trimmed().isEmpty()) continue;
+                    outputLines.append(line);
+                    // 主流启动器 keyword → stepProgress mapping
+                    if (onStepProgress) {
                         if (line == QStringLiteral("Extracting json"))
-                            emit stepProgress(3, 27);
+                            onStepProgress(27);
                         else if (line == QStringLiteral("Downloading libraries"))
-                            emit stepProgress(3, 28);
-                        else if (line.startsWith(QStringLiteral("File exists: Checksum validated.")))
-                            qCInfo(logLoader) << line;
+                            onStepProgress(28);
                         else if (line == QStringLiteral("Building Processors"))
-                            emit stepProgress(3, 38);
+                            onStepProgress(38);
                         else if (line == QStringLiteral("Task: DOWNLOAD_MOJMAPS"))
-                            emit stepProgress(3, 40);
+                            onStepProgress(40);
                         else if (line == QStringLiteral("Task: MERGE_MAPPING"))
-                            emit stepProgress(3, 50);
+                            onStepProgress(50);
                         else if (line.startsWith(QStringLiteral("Splitting: ")))
-                            emit stepProgress(3, 55);
+                            onStepProgress(55);
                         else if (line == QStringLiteral("Parameter Annotations"))
-                            emit stepProgress(3, 60);
+                            onStepProgress(60);
                         else if (line == QStringLiteral("Processing Complete") || line == QStringLiteral("log: null"))
-                            emit stepProgress(3, 67);
+                            onStepProgress(67);
                         else if (line == QStringLiteral("Sorting"))
-                            emit stepProgress(3, 80);
+                            onStepProgress(80);
                         else if (line == QStringLiteral("Remapping final jar"))
-                            emit stepProgress(3, 85);
+                            onStepProgress(85);
                         else if (line == QStringLiteral("Remapping jar... 50%"))
-                            emit stepProgress(3, 90);
+                            onStepProgress(90);
                         else if (line == QStringLiteral("Remapping jar... 100%"))
-                            emit stepProgress(3, 95);
+                            onStepProgress(95);
                         else if (line == QStringLiteral("Injecting profile"))
-                            emit stepProgress(3, 98);
-                        else
-                            qCInfo(logLoader) << line;
+                            onStepProgress(98);
                     }
                 }
             }
-            QByteArray stderrData = proc.readAllStandardError();
-            if (!stderrData.isEmpty()) {
-                for (const auto& line : QString::fromUtf8(stderrData)
-                    .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts)) {
-                    if (!line.trimmed().isEmpty())
-                        qCInfo(logLoader) << QStringLiteral("[Bootstrapper:err] ") + line;
-                }
-            }
-            if (proc.state() == QProcess::NotRunning) {
-                procFinished = true;
-                proc.waitForFinished(3000);
+        }
+        QByteArray stderrData = proc.readAllStandardError();
+        if (!stderrData.isEmpty()) {
+            for (const auto& line : QString::fromUtf8(stderrData)
+                .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts)) {
+                if (!line.trimmed().isEmpty())
+                    qCInfo(logLoader) << QStringLiteral("[Bootstrapper:err] ") + line;
             }
         }
-
-        bootExitCode = proc.exitCode();
-
-        // 主流启动器: check if output contains "true" in the last 5 lines
-        bool hasTrue = outputLines.contains(QStringLiteral("true"));
-        if (!hasTrue) {
-            for (int i = qMax(0, outputLines.size() - 5); i < outputLines.size(); ++i) {
-                if (outputLines[i] == QStringLiteral("true")) { hasTrue = true; break; }
-            }
-        }
-
-        if (bootExitCode == 0 && hasTrue) {
-            // Success — break out of retry loop
-            break;
-        }
-
-        // 主流启动器: retry without JavaWrapper on failure
-        if (useWrapper) {
-            qCWarning(logLoader) << QStringLiteral("使用 JavaWrapper 安装 %1 失败（退出码=%2），将不使用 JavaWrapper 并重试")
-                .arg(loaderName).arg(bootExitCode);
+        if (proc.state() == QProcess::NotRunning) {
+            procFinished = true;
+            proc.waitForFinished(3000);
         }
     }
 
-    // Cleanup installer JAR
-    QFile::remove(installerJarPath);
+    result.exitCode = proc.exitCode();
 
-    if (timedOut) {
-        emit finished(false, QStringLiteral("%1 安装器超时，请检查 Java 配置后重试").arg(loaderName));
+    if (result.timedOut) {
+        result.success = false;
+        result.errorMsg = QStringLiteral("%1 安装器超时").arg(loaderName);
+        return result;
+    }
+
+    // 主流启动器: check if output contains "true" in the last 5 lines
+    bool hasTrue = outputLines.contains(QStringLiteral("true"));
+    if (!hasTrue) {
+        for (int i = qMax(0, outputLines.size() - 5); i < outputLines.size(); ++i) {
+            if (outputLines[i] == QStringLiteral("true")) { hasTrue = true; break; }
+        }
+    }
+
+    result.success = (result.exitCode == 0 && hasTrue);
+
+    if (result.success) {
+        // Find new version folder
+        QStringList newVersions = QDir(versionsDirPath).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        QStringList delta = newVersions;
+        for (const QString& v : oldVersions) delta.removeAll(v);
+
+        if (delta.size() == 1) {
+            result.foundSub = delta[0];
+        } else if (delta.size() > 1) {
+            for (const QString& d : delta) {
+                QDir dDir(versionsDirPath + QStringLiteral("/") + d);
+                if (dDir.exists() && dDir.entryList(QDir::Files).size() > 0) {
+                    if (d.contains(QStringLiteral("forge"), Qt::CaseInsensitive)) {
+                        result.foundSub = d;
+                        break;
+                    }
+                    if (result.foundSub.isEmpty()) result.foundSub = d;
+                }
+            }
+        }
+    } else {
+        result.errorMsg = QStringLiteral("%1 安装器返回错误（退出码=%2）").arg(loaderName).arg(result.exitCode);
+    }
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Handle async bootstrapper result — called on main thread via watcher
+// ═══════════════════════════════════════════════════════════════
+void ModLoaderInstaller::onBootstrapperFinished()
+{
+    if (!m_bootstrapperWatcher) return;
+    BootstrapperResult result = m_bootstrapperWatcher->result();
+
+    // Cleanup installer JAR
+    QFile::remove(result.installerJarPath);
+
+    if (result.timedOut) {
+        emit finished(false, QStringLiteral("%1 安装器超时，请检查 Java 配置后重试").arg(result.loaderName));
         m_running = false;
         return;
     }
 
-    // Determine success (主流启动器: exitCode == 0 && (output has "true" OR last 5 lines contain "true"))
-    bool success = (bootExitCode == 0);
-    if (success) {
-        bool hasTrue = outputLines.contains(QStringLiteral("true"));
-        if (!hasTrue) {
-            for (int i = qMax(0, outputLines.size() - 5); i < outputLines.size(); ++i) {
-                if (outputLines[i] == QStringLiteral("true")) { hasTrue = true; break; }
-            }
-        }
-        success = hasTrue;
-    }
-
-    if (success) {
-        // ── Find new version folder by comparing with snapshot (matching 主流启动器's OldList approach) ──
-        QStringList newVersions = QDir(versionsDir()).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        QStringList delta;
-        for (const QString& v : newVersions) {
-            if (!oldVersions.contains(v))
-                delta.append(v);
-        }
-
-        // 主流启动器 logic:
-        // Delta.Count == 1 → use new folder
-        // Delta.Count > 1  → filter by non-empty + name contains "forge"
-        // Delta.Count == 0 → predicted folder name
-        QString foundSub;
-        if (delta.size() == 1) {
-            foundSub = delta[0];
-            qCInfo(logLoader) << QStringLiteral("新增版本文件夹: %1").arg(foundSub);
-        } else if (delta.size() > 1) {
-            for (const QString& d : delta) {
-                QDir dDir(versionsDir() + QStringLiteral("/") + d);
-                if (dDir.exists() && dDir.entryList(QDir::Files).size() > 0) {
-                    if (d.contains(QStringLiteral("forge"), Qt::CaseInsensitive)) {
-                        foundSub = d;
-                        qCInfo(logLoader) << QStringLiteral("选定新增版本文件夹（含 Forge 关键词）: %1").arg(foundSub);
-                        break;
-                    }
-                    if (foundSub.isEmpty()) {
-                        foundSub = d;
-                        qCInfo(logLoader) << QStringLiteral("暂选新增版本文件夹: %1").arg(foundSub);
-                    }
-                }
-            }
-        }
-
-        if (!foundSub.isEmpty()) {
+    if (result.success) {
+        if (!result.foundSub.isEmpty()) {
+            QString foundSub = result.foundSub;
             QString jsonPath = versionsDir() + QStringLiteral("/") + foundSub
                 + QStringLiteral("/") + foundSub + QStringLiteral(".json");
-            QString jarPathV = versionsDir() + QStringLiteral("/") + foundSub
-                + QStringLiteral("/") + foundSub + QStringLiteral(".jar");
 
             if (foundSub != m_installName) {
                 renameVersionFolder(foundSub, m_installName);
                 jsonPath = versionsDir() + QStringLiteral("/") + m_installName
                     + QStringLiteral("/") + m_installName + QStringLiteral(".json");
-                jarPathV = versionsDir() + QStringLiteral("/") + m_installName
-                    + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-                qCInfo(logLoader) << QStringLiteral("已重命名版本文件夹: %1 → %2").arg(foundSub, m_installName);
             }
 
-            // 主流启动器: step 5 just copies JSON (resolves inheritsFrom later via MergeJson).
-            // We store the path so forgeStep3_install can do the flatten post-step.
             m_postJsonPath = jsonPath;
         } else {
             qCWarning(logLoader) << QStringLiteral("Bootstrapper 完成后未找到新增版本文件夹");
         }
 
         m_bootstrapperOk = true;
-        // DON'T emit finished here — caller (forgeStep3_install) does the flatten step + emit.
         m_running = false;
     } else {
         m_bootstrapperOk = false;
-        m_bootstrapperError = QStringLiteral("%1 安装器返回错误（退出码=%2）").arg(loaderName).arg(bootExitCode);
-        // DON'T emit finished here either — caller handles it.
+        m_bootstrapperError = result.errorMsg;
         m_running = false;
     }
+
+    // Continue with JSON flatten + copy JAR
+    finalizeBootstrapperInstall();
 }
 
 // ═══════════════════════════════════════════════════════════════
