@@ -2450,6 +2450,10 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                     flattened.remove(QStringLiteral("inheritsFrom"));
 
                 // Inject MC client as library if missing (for standalone version)
+                // NeoForge: skip this! The patched client is in the version folder JAR, not as a library.
+                // Injecting net.minecraft:client adds the VANILLA client to classpath, which makes
+                // NeoForge think the patched client is missing (it sees the unpatched vanilla one).
+                if (!isNeo) {
                 QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
                 QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
                 bool hasMcClient = false;
@@ -2481,6 +2485,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             }
         }
 
+        } // end if (!isNeo) for MC client injection
         // Copy the correct JAR to version folder (always overwrite in case of stale file)
         QString targetDir = versionsDir() + QStringLiteral("/") + m_installName;
         QString jarPathV = targetDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
