@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QDir>
 #include <QFile>
+#include <QTextStream>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QProcess>
@@ -961,10 +962,14 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
                 .value(QStringLiteral("client_mappings")).toObject();
             QString cmUrl = cm.value(QStringLiteral("url")).toString();
             if (!cmUrl.isEmpty()) {
-                const QString savePath = m_gameDir
+                const QString mavenSavePath = m_gameDir
                     + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
                     + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
-                if (!QFileInfo::exists(savePath)) {
+                // Also save to standard MC version path for Place 2 to find later
+                const QString stdSavePath = m_gameDir
+                    + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion
+                    + QStringLiteral("/client-") + m_mcVersion + QStringLiteral("-mappings.txt");
+                if (!QFileInfo::exists(mavenSavePath) || (mavenVer != m_mcVersion && !QFileInfo::exists(stdSavePath))) {
                     qCInfo(logLoader) << QStringLiteral("下载缺失的 client_mappings: %1").arg(mavenVer);
                     QNetworkAccessManager nm;
                     QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
@@ -973,13 +978,26 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
                     loop.exec();
                     if (r->error() == QNetworkReply::NoError) {
                         QByteArray data = r->readAll();
-                        QDir().mkpath(QFileInfo(savePath).absolutePath());
-                        QFile out(savePath);
-                        if (out.open(QIODevice::WriteOnly)) {
-                            out.write(data);
-                            out.close();
-                            qCInfo(logLoader) << QStringLiteral("client_mappings 已保存: %1 (%2 KB)")
-                                .arg(savePath).arg(data.size() / 1024);
+                        // Save to Maven path (install_profile data section path)
+                        QDir().mkpath(QFileInfo(mavenSavePath).absolutePath());
+                        {
+                            QFile out(mavenSavePath);
+                            if (out.open(QIODevice::WriteOnly)) {
+                                out.write(data);
+                                out.close();
+                                qCInfo(logLoader) << QStringLiteral("client_mappings 已保存: %1 (%2 KB)")
+                                    .arg(mavenSavePath).arg(data.size() / 1024);
+                            }
+                        }
+                        // Also save to standard MC version path for TSRG converter
+                        if (mavenVer != m_mcVersion) {
+                            QDir().mkpath(QFileInfo(stdSavePath).absolutePath());
+                            QFile out2(stdSavePath);
+                            if (out2.open(QIODevice::WriteOnly)) {
+                                out2.write(data);
+                                out2.close();
+                                qCInfo(logLoader) << QStringLiteral("client_mappings 已同步到标准路径: %1").arg(stdSavePath);
+                            }
                         }
                     } else {
                         qCWarning(logLoader) << QStringLiteral("client_mappings 下载失败: %1").arg(r->errorString());
@@ -1666,11 +1684,15 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     QString installerJarPath;
 
     // 3. Write installer JAR to temp
-    //    For Forge: patch install_profile.json (DOWNLOAD_MOJMAPS → --skipIfExists)
-    //    For NeoForge: write as-is, bootstrapper handles everything
+    //    主流启动器 does NOT patch --skipIfExists on DOWNLOAD_MOJMAPS.
+    //    The DOWNLOAD_MOJMAPS processor natively checks whether the .txt mapping exists
+    //    and skips the download if it does (but still runs the TSRG conversion internally).
+    //    Patching --skipIfExists was harmful: it made DOWNLOAD_MOJMAPS check for .tsrg (not .txt),
+    //    skip even when .txt existed, and never produce .tsrg — crashing FART.
+    //    We write the installer JAR as-is, matching 主流启动器's approach.
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     if (!isNeoForge) {
-        // ── Forge: patch DOWNLOAD_MOJMAPS processor ──
+        // ── Forge: write installer JAR as-is (no patching, matching 主流启动器) ──
         QBuffer buf;
         buf.setData(jarData);
         if (!buf.open(QIODevice::ReadOnly)) {
@@ -1678,65 +1700,27 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             m_running = false; return;
         }
         QZipReader reader(&buf);
+
+        // Strip signature files (META-INF/*.SF, *.RSA, etc.) so Java doesn't reject the JAR
         QList<QZipReader::FileInfo> entries = reader.fileInfoList();
-
-        QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
-        bool patched = false;
-        if (!profData.isEmpty()) {
-            QJsonDocument doc = QJsonDocument::fromJson(profData);
-            if (doc.isObject()) {
-                QJsonObject root = doc.object();
-                QJsonArray procs = root.value(QStringLiteral("processors")).toArray();
-                for (int i = 0; i < procs.size(); ++i) {
-                    QJsonObject proc = procs[i].toObject();
-                    QJsonArray args = proc.value(QStringLiteral("args")).toArray();
-                    for (const auto& a : args) {
-                        if (a.toString() == QStringLiteral("DOWNLOAD_MOJMAPS")) {
-                            bool hasSkip = false;
-                            for (const auto& sa : args)
-                                if (sa.toString() == QStringLiteral("--skipIfExists")) { hasSkip = true; break; }
-                            if (!hasSkip) {
-                                args.append(QStringLiteral("--skipIfExists"));
-                                proc[QStringLiteral("args")] = args;
-                                procs[i] = proc;
-                                patched = true;
-                                qCInfo(logLoader) << QStringLiteral("已为 processor[%1] 添加 --skipIfExists").arg(i);
-                            }
-                            break;
-                        }
-                    }
-                }
-                if (patched) {
-                    root[QStringLiteral("processors")] = procs;
-                    profData = QJsonDocument(root).toJson(QJsonDocument::Compact);
-                }
+        QZipWriter writer(tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar"));
+        for (const auto& e : entries) {
+            if (e.isDir) writer.addDirectory(e.filePath);
+            else if (e.isSymLink) qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
+            else {
+                QString fp = e.filePath;
+                if (fp.startsWith(QStringLiteral("META-INF/")) && (fp == QStringLiteral("META-INF/MANIFEST.MF")
+                    || fp.endsWith(QStringLiteral(".SF")) || fp.endsWith(QStringLiteral(".RSA"))
+                    || fp.endsWith(QStringLiteral(".DSA")) || fp.endsWith(QStringLiteral(".EC")))) continue;
+                writer.addFile(fp, reader.fileData(fp));
             }
         }
-
-        installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
-        if (patched) {
-            QZipWriter writer(installerJarPath);
-            for (const auto& e : entries) {
-                if (e.isDir) writer.addDirectory(e.filePath);
-                else if (e.isSymLink) qCWarning(logLoader) << QStringLiteral("installer JAR 含符号链接，跳过: %1").arg(e.filePath);
-                else {
-                    QString fp = e.filePath;
-                    if (fp.startsWith(QStringLiteral("META-INF/")) && (fp == QStringLiteral("META-INF/MANIFEST.MF")
-                        || fp.endsWith(QStringLiteral(".SF")) || fp.endsWith(QStringLiteral(".RSA"))
-                        || fp.endsWith(QStringLiteral(".DSA")) || fp.endsWith(QStringLiteral(".EC")))) continue;
-                    writer.addFile(fp, reader.fileData(fp));
-                }
-            }
-            writer.close();
-            qCInfo(logLoader) << QStringLiteral("已写入修改后的安装程序（已剥离签名）: %1").arg(installerJarPath);
-        } else {
-            QFile f(installerJarPath);
-            if (f.open(QIODevice::WriteOnly)) { f.write(jarData); f.close(); }
-            qCInfo(logLoader) << QStringLiteral("已写入原始安装程序（无需修改）: %1").arg(installerJarPath);
-        }
+        writer.close();
         reader.close();
+        installerJarPath = tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar");
+        qCInfo(logLoader) << QStringLiteral("已写入安装程序（已剥离签名）: %1").arg(installerJarPath);
     } else {
-        // ── NeoForge: write JAR as-is (no patching, bootstrapper handles everything) ──
+        // ── NeoForge: write JAR as-is (no patching needed, bootstrapper handles everything) ──
         installerJarPath = tempDir + QStringLiteral("/neoforge-installer-") + m_installName + QStringLiteral(".jar");
         {
             QFile f(installerJarPath);
@@ -1895,6 +1879,17 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                         continue;
                     }
 
+                    // Skip pre-download for Forge main artifacts when URL is empty (embedded in installer JAR).
+                    // Matches 主流启动器's removal: "forge-{ver}.jar" and "forge-{ver}-client.jar" from the library list.
+                    // These files are NOT published on Maven — the bootstrapper extracts them from the installer JAR.
+                    if (officialUrl.isEmpty()
+                        && m_loaderType == QStringLiteral("forge")
+                        && group == QStringLiteral("net/minecraftforge")
+                        && artifactName == QStringLiteral("forge")) {
+                        qCInfo(logLoader) << QStringLiteral("跳过主 Forge artifact 预下载（bootstrapper 自行处理，URL 为空）: %1").arg(name);
+                        continue;
+                    }
+
                     // Build local path
                     QString libDir = m_gameDir + QStringLiteral("/libraries/") + group + QStringLiteral("/") + artifactName + QStringLiteral("/") + version;
                     QString classifierSuffix = classifier.isEmpty() ? QString() : (QStringLiteral("-") + classifier);
@@ -1990,26 +1985,61 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 return data;
             };
 
-            // 1. Download version manifest
-            QByteArray manifestData = downloadUrl(
-                QStringLiteral("https://launchermeta.mojang.com/mc/game/version_manifest.json"), 15000);
-            if (manifestData.isEmpty()) {
-                qCWarning(logLoader) << QStringLiteral("无法下载 Mojang version manifest");
-            } else {
-                QJsonDocument manifestDoc = QJsonDocument::fromJson(manifestData);
-                QJsonArray versions = manifestDoc.object().value(QStringLiteral("versions")).toArray();
+            // 1. Try to use existing .txt mapping from forgeStep3_install (Place 1) if available
+            //    Path: libraries/net/minecraft/client/{m_mcVersion}/client-{m_mcVersion}-mappings.txt
+            //    This avoids re-downloading the ~12MB file from Mojang.
+            QString existingTxtPath = tsrgDir + QStringLiteral("/client-") + m_mcVersion + QStringLiteral("-mappings.txt");
+            QByteArray rawMapping;
+            bool mappingFromExisting = false;
+            if (QFile::exists(existingTxtPath)) {
+                qCInfo(logLoader) << QStringLiteral("使用已有的 client_mappings.txt: %1").arg(existingTxtPath);
+                QFile ef(existingTxtPath);
+                if (ef.open(QIODevice::ReadOnly)) {
+                    rawMapping = ef.readAll();
+                    ef.close();
+                    if (!rawMapping.isEmpty()) {
+                        mappingFromExisting = true;
+                        qCInfo(logLoader) << QStringLiteral("已读取 %1 KB 的映射文件").arg(rawMapping.size() / 1024);
+                    }
+                }
+            }
+
+            if (!mappingFromExisting) {
+                // Try BMCLAPI version manifest (fast from China) first, fallback to Mojang
+                QStringList manifestUrls = {
+                    QStringLiteral("https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json"),
+                    QStringLiteral("https://launchermeta.mojang.com/mc/game/version_manifest.json"),
+                };
+                QByteArray manifestData;
                 QString versionUrl;
-                for (const auto& v : versions) {
-                    if (v.toObject().value(QStringLiteral("id")).toString() == m_mcVersion) {
-                        versionUrl = v.toObject().value(QStringLiteral("url")).toString();
-                        break;
+                for (const auto& mu : manifestUrls) {
+                    manifestData = downloadUrl(mu, 15000);
+                    if (!manifestData.isEmpty()) {
+                        QJsonDocument manifestDoc = QJsonDocument::fromJson(manifestData);
+                        QJsonArray versions = manifestDoc.object().value(QStringLiteral("versions")).toArray();
+                        for (const auto& v : versions) {
+                            if (v.toObject().value(QStringLiteral("id")).toString() == m_mcVersion) {
+                                versionUrl = v.toObject().value(QStringLiteral("url")).toString();
+                                break;
+                            }
+                        }
+                        if (!versionUrl.isEmpty()) break;
                     }
                 }
                 if (versionUrl.isEmpty()) {
-                    qCWarning(logLoader) << QStringLiteral("版本 %1 不在 Mojang manifest 中").arg(m_mcVersion);
+                    qCWarning(logLoader) << QStringLiteral("无法获取 %1 的版本信息（manifest 不可用）").arg(m_mcVersion);
                 } else {
-                    // 2. Download version JSON
-                    QByteArray versionData = downloadUrl(versionUrl, 15000);
+                    // 2. Download version JSON (try BMCLAPI mirror first)
+                    QString versionJsonUrl = versionUrl;
+                    // If the URL is from BMCLAPI manifest, it already points to BMCLAPI
+                    QByteArray versionData = downloadUrl(versionJsonUrl, 15000);
+                    if (versionData.isEmpty() && versionUrl.contains(QStringLiteral("launchermeta"))) {
+                        // Try BMCLAPI version JSON directly
+                        QString bmclVerUrl = QStringLiteral("https://bmclapi2.bangbang93.com/version/%1/json").arg(m_mcVersion);
+                        qCInfo(logLoader) << QStringLiteral("尝试 BMCLAPI version JSON: %1").arg(bmclVerUrl);
+                        versionData = downloadUrl(bmclVerUrl, 15000);
+                    }
+
                     if (versionData.isEmpty()) {
                         qCWarning(logLoader) << QStringLiteral("无法下载 %1 version JSON").arg(m_mcVersion);
                     } else {
@@ -2020,109 +2050,118 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                         if (mappingsUrl.isEmpty()) {
                             qCInfo(logLoader) << QStringLiteral("版本 %1 没有 client_mappings").arg(m_mcVersion);
                         } else {
-                            // 3. Download raw ProGuard mapping file (up to 60s for ~12MB)
-                            QByteArray rawMapping = downloadUrl(mappingsUrl, 60000);
+                            qCInfo(logLoader) << QStringLiteral("下载 client_mappings 文件（~12MB）...");
+                            // 3. Download raw ProGuard mapping file (up to 90s for ~12MB)
+                            rawMapping = downloadUrl(mappingsUrl, 90000);
                             if (rawMapping.isEmpty()) {
-                                qCWarning(logLoader) << QStringLiteral("下载 mapping 文件失败");
-                            } else {
-                                // 4. Save raw mapping to temp file
-                                QString rawPath = QDir::tempPath()
-                                    + QStringLiteral("/forge_raw_mapping_") + m_mcVersion + QStringLiteral(".txt");
-                                {
-                                    QFile f(rawPath);
-                                    if (f.open(QIODevice::WriteOnly)) {
-                                        f.write(rawMapping);
-                                        f.close();
-                                    }
-                                }
-
-                                // 5. Find srgutils JAR (downloaded in step 3d)
-                                QStringList srgCandidates = {
-                                    m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils/0.5.10/srgutils-0.5.10.jar"),
-                                    m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils/0.5.6/srgutils-0.5.6.jar"),
-                                    m_gameDir + QStringLiteral("/libraries/net/minecraftforge/srgutils/0.5.1/srgutils-0.5.1.jar"),
-                                };
-                                QString srgutilsJar;
-                                for (const auto& c : srgCandidates) {
-                                    if (QFile::exists(c)) { srgutilsJar = c; break; }
-                                }
-
-                                if (srgutilsJar.isEmpty()) {
-                                    qCWarning(logLoader) << QStringLiteral("未找到 srgutils JAR");
-                                } else {
-                                    QString classDir = QDir::tempPath();
-                                    QString javaSrc = classDir + QStringLiteral("/ProGuardToTSRG.java");
-                                    QString classFile = classDir + QStringLiteral("/ProGuardToTSRG.class");
-
-                                    // 6. Compile Java converter (always recompile to avoid Java version mismatch)
-                                    {
-                                        QFile sf(javaSrc);
-                                        if (sf.open(QIODevice::WriteOnly)) {
-                                            sf.write(QByteArray(
-                                                "import java.io.*;\n"
-                                                "import java.nio.file.*;\n"
-                                                "import net.minecraftforge.srgutils.*;\n"
-                                                "public class ProGuardToTSRG {\n"
-                                                "    public static void main(String[] a) throws Exception {\n"
-                                                "        if (a.length<2) { System.err.println(\"Usage: ...\"); System.exit(1); }\n"
-                                                "        File i = new File(a[0]), o = new File(a[1]);\n"
-                                                "        o.getParentFile().mkdirs();\n"
-                                                "        try (InputStream is = new BufferedInputStream(new FileInputStream(i))) {\n"
-                                                "            IMappingFile m = IMappingFile.load(is);\n"
-                                                "            if (m == null) { System.err.println(\"Failed to load\"); System.exit(1); }\n"
-                                                "            m.write(o.toPath(), IMappingFile.Format.TSRG, false);\n"
-                                                "        }\n"
-                                                "    }\n"
-                                                "}\n"
-                                            ));
-                                            sf.close();
-                                        }
-
-                                        // Resolve javac (same Java as bootstrapper — not system PATH which may differ)
-                                        QString javacPath = QStandardPaths::findExecutable(
-                                            QStringLiteral("javac"),
-                                            {QFileInfo(javaPath).absolutePath()});
-                                        if (javacPath.isEmpty())
-                                            javacPath = QStandardPaths::findExecutable(QStringLiteral("javac"));
-                                        QProcess javacProc;
-                                        QStringList javacArgs;
-                                        javacArgs << QStringLiteral("-cp") << QDir::toNativeSeparators(srgutilsJar)
-                                                  << QStringLiteral("-d") << QDir::toNativeSeparators(classDir)
-                                                  << QDir::toNativeSeparators(javaSrc);
-                                        javacProc.start(javacPath, javacArgs);
-                                        javacProc.waitForFinished(30000);
-                                        if (javacProc.exitCode() != 0) {
-                                            qCWarning(logLoader) << QStringLiteral("javac 编译失败: ")
-                                                + QString::fromUtf8(javacProc.readAllStandardError());
-                                        }
-                                    }
-
-                                    // 7. Run converter: java ProGuardToTSRG raw.txt out.tsrg
-                                    if (QFile::exists(classFile)) {
-                                        QString outPath = tsrgDir + QStringLiteral("/client-")
-                                            + m_mcVersion + QStringLiteral("-mappings.tsrg");
-                                        QProcess runProc;
-                                        runProc.start(javaPath,
-                                            QStringList() << QStringLiteral("-cp")
-                                                << (QDir::toNativeSeparators(srgutilsJar) + QStringLiteral(";") + QDir::toNativeSeparators(classDir))
-                                                << QStringLiteral("ProGuardToTSRG")
-                                                << QDir::toNativeSeparators(rawPath)
-                                                << QDir::toNativeSeparators(outPath));
-                                        if (runProc.waitForFinished(30000) && runProc.exitCode() == 0) {
-                                            qCInfo(logLoader) << QStringLiteral("mappings -> TSRG 转换成功: ") + outPath;
-                                        } else {
-                                            qCWarning(logLoader) << QStringLiteral("mappings -> TSRG 转换失败: ")
-                                                + QString::fromUtf8(runProc.readAllStandardError());
-                                        }
-                                    }
-                                }
-
-                                // 8. Clean up raw temp file
-                                QFile::remove(rawPath);
+                                qCWarning(logLoader) << QStringLiteral("下载 mapping 文件失败（Mojang 可能不可达）");
                             }
                         }
                     }
                 }
+            }
+
+            if (!rawMapping.isEmpty()) {
+                // 4. Save raw mapping to temp file
+                QString rawPath = QDir::tempPath()
+                    + QStringLiteral("/forge_raw_mapping_") + m_mcVersion + QStringLiteral(".txt");
+                {
+                    QFile f(rawPath);
+                    if (f.open(QIODevice::WriteOnly)) {
+                        f.write(rawMapping);
+                        f.close();
+                    }
+                }
+
+                // Also save a copy to the Maven path for Place 1 / future use
+                {
+                    QDir().mkpath(tsrgDir);
+                    QFile sf(existingTxtPath);
+                    if (!sf.exists() && sf.open(QIODevice::WriteOnly)) {
+                        sf.write(rawMapping);
+                        sf.close();
+                        qCInfo(logLoader) << QStringLiteral("已缓存 client_mappings.txt: %1").arg(existingTxtPath);
+                    }
+                }
+
+                // 5. Convert ProGuard .txt → TSRG .tsrg (pure C++, zero dependencies)
+                //
+                //    Why: the bootstrapper's com.bangbang93.ForgeInstaller filters OUT the
+                //    DOWNLOAD_MOJMAPS processor (which would download+convert the mapping),
+                //    so we must produce the .tsrg ourselves before the bootstrapper runs.
+                //
+                //    ProGuard format:                  TSRG format:
+                //      pkg.Class -> a:                   pkg/Class a
+                //          type method(args) -> b            method b
+                //          type field -> c                  field c
+                {
+                    QString outPath = tsrgDir + QStringLiteral("/client-")
+                        + m_mcVersion + QStringLiteral("-mappings.tsrg");
+
+                    QFile inFile(rawPath);
+                    if (!inFile.open(QIODevice::ReadOnly)) {
+                        qCWarning(logLoader) << QStringLiteral("无法打开映射输入文件: %1").arg(rawPath);
+                    } else {
+                        QDir().mkpath(QFileInfo(outPath).absolutePath());
+                        QFile outFile(outPath);
+                        if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                            qCWarning(logLoader) << QStringLiteral("无法写入 TSRG 输出: %1").arg(outPath);
+                        } else {
+                            QTextStream in(&inFile);
+                            QTextStream out(&outFile);
+                            int lineCount = 0, classCount = 0, memberCount = 0;
+                            while (!in.atEnd()) {
+                                QString line = in.readLine().trimmed();
+                                lineCount++;
+                                if (line.isEmpty() || line.startsWith(QLatin1Char('#')))
+                                    continue;
+                                // Split on " -> "
+                                int arrowPos = line.indexOf(QStringLiteral(" -> "));
+                                if (arrowPos < 0) continue;
+                                QString lhs = line.left(arrowPos);          // original
+                                QString rhs = line.mid(arrowPos + 4);       // obfuscated
+
+                                // Class line: rhs ends with ":"  (e.g. "pkg.Class -> a:")
+                                if (rhs.endsWith(QLatin1Char(':'))) {
+                                    rhs.chop(1);  // Remove trailing ':'
+                                    // In TSRG, class names use '/' instead of '.'
+                                    QString classOrig = lhs;
+                                    classOrig.replace(QLatin1Char('.'), QLatin1Char('/'));
+                                    out << classOrig << QLatin1Char(' ') << rhs << QStringLiteral("\n");
+                                    classCount++;
+                                } else {
+                                    // Member line: type name[(args)] -> name  (field or method)
+                                    // Strip return type / field type prefix from lhs
+                                    int lastSpace = lhs.lastIndexOf(QLatin1Char(' '));
+                                    QString memberName = (lastSpace >= 0) ? lhs.mid(lastSpace + 1) : lhs;
+                                    // Method names have '(' in them; fields don't
+                                    // Strip parameter list from method name in TSRG output
+                                    int parenPos = memberName.indexOf(QLatin1Char('('));
+                                    if (parenPos >= 0)
+                                        memberName = memberName.left(parenPos);
+                                    out << QLatin1Char('\t') << memberName << QLatin1Char(' ') << rhs << QStringLiteral("\n");
+                                    memberCount++;
+                                }
+                            }
+                            inFile.close();
+                            outFile.close();
+
+                            qint64 outSize = QFileInfo(outPath).size();
+                            if (outSize > 1024) {
+                                qCInfo(logLoader) << QStringLiteral("TSRG 转换完成: %1 (%2 个类, %3 个成员, %4 KB, 输入 %5 行)")
+                                    .arg(outPath).arg(classCount).arg(memberCount).arg(outSize / 1024).arg(lineCount);
+                            } else {
+                                qCWarning(logLoader) << QStringLiteral("TSRG 转换结果异常（仅 %1 字节），FART 可能失败").arg(outSize);
+                                QFile::remove(outPath);
+                            }
+                        }
+                    }
+                }
+
+                // 8. Clean up raw temp file
+                QFile::remove(rawPath);
+            } else {
+                qCInfo(logLoader) << QStringLiteral("映射文件不可用，将由 bootstrapper 的 DOWNLOAD_MOJMAPS 处理器下载");
             }
         } else {
             qCInfo(logLoader) << QStringLiteral("mappings.tsrg 已存在，跳过预下载");
