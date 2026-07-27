@@ -1365,11 +1365,12 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
 // For: spec>=1 / has processors / NeoForge
 // ═══════════════════════════════════════════════════════════════
 QString ModLoaderInstaller::extractBootstrapperPath() {
-    QString dst = QDir::tempPath() + QStringLiteral("/forge-install-bootstrapper.jar");
+    // Extract forge-installer.jar (helper, contains com.bangbang93.ForgeInstaller)
+    QString dst = QDir::tempPath() + QStringLiteral("/forge-installer.jar");
     if (QFile::exists(dst)) return dst;
-    QFile res(QStringLiteral(":/resources/tools/forge-install-bootstrapper.jar"));
+    QFile res(QStringLiteral(":/resources/tools/forge-installer.jar"));
     if (!res.open(QIODevice::ReadOnly)) {
-        qCWarning(logLoader) << "无法打开嵌入式 bootstrapper 资源";
+        qCWarning(logLoader) << "无法打开嵌入式 forge-installer.jar 资源";
         return QString();
     }
     QByteArray data = res.readAll();
@@ -1378,10 +1379,32 @@ QString ModLoaderInstaller::extractBootstrapperPath() {
     if (f.open(QIODevice::WriteOnly)) {
         f.write(data);
         f.close();
-        qCInfo(logLoader) << QStringLiteral("已释放 bootstrapper 到 %1（%2 字节）").arg(dst).arg(data.size());
+        qCInfo(logLoader) << QStringLiteral("已释放 forge-installer.jar 到 %1（%2 字节）").arg(dst).arg(data.size());
         return dst;
     }
-    qCWarning(logLoader) << QStringLiteral("无法写入 bootstrapper 到 %1").arg(dst);
+    qCWarning(logLoader) << QStringLiteral("无法写入 forge-installer.jar 到 %1").arg(dst);
+    return QString();
+}
+
+QString ModLoaderInstaller::extractJavaWrapperPath() {
+    // Extract java-wrapper.jar (oolloo.jlw.Wrapper, fixes CJK encoding on Windows)
+    QString dst = QDir::tempPath() + QStringLiteral("/java-wrapper.jar");
+    if (QFile::exists(dst)) return dst;
+    QFile res(QStringLiteral(":/resources/tools/java-wrapper.jar"));
+    if (!res.open(QIODevice::ReadOnly)) {
+        qCWarning(logLoader) << "无法打开嵌入式 java-wrapper.jar 资源";
+        return QString();
+    }
+    QByteArray data = res.readAll();
+    res.close();
+    QFile f(dst);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(data);
+        f.close();
+        qCInfo(logLoader) << QStringLiteral("已释放 java-wrapper.jar 到 %1（%2 字节）").arg(dst).arg(data.size());
+        return dst;
+    }
+    qCWarning(logLoader) << QStringLiteral("无法写入 java-wrapper.jar 到 %1").arg(dst);
     return QString();
 }
 
@@ -2149,15 +2172,22 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         }
 
         QStringList launchArgs;
-        if (useWrapper) {
-            // 主流启动器: -Doolloo.jlw.tmpdir=... -cp forge_installer.jar;installer.jar -jar JavaWrapper com.bangbang93.ForgeInstaller
-            // Our bootstrapper.jar = 主流启动器's forge_installer.jar only (no JavaWrapper, no Main-Class in manifest)
-            // So both modes use -cp; wrapper mode just adds the jlw property
+        // 主流启动器: extract BOTH forge-installer.jar (helper) and java-wrapper.jar (wrapper)
+        QString wrapperJar = extractJavaWrapperPath();
+        if (wrapperJar.isEmpty()) {
+            qCWarning(logLoader) << QStringLiteral("无法释放 java-wrapper.jar，跳过 JavaWrapper");
+            useWrapper = false;
+        }
+        if (useWrapper && !wrapperJar.isEmpty()) {
+            // 主流启动器: -Doolloo.jlw.tmpdir=... -cp forge_installer.jar;installer.jar -jar java-wrapper.jar com.bangbang93.ForgeInstaller
+            // java-wrapper.jar fixes CJK encoding on Windows (JDK-8272352)
             launchArgs << QStringLiteral("-Doolloo.jlw.tmpdir=%1").arg(QDir::toNativeSeparators(m_gameDir.trimmed()));
             launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
+            launchArgs << QStringLiteral("-jar") << wrapperJar;
             launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
         } else {
             // 主流启动器 fallback: -cp forge_installer.jar;installer.jar com.bangbang93.ForgeInstaller
+            // (no JavaWrapper; may have CJK issues on Windows with UTF-8 Beta enabled)
             launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
             launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
         }

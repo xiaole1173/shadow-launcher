@@ -117,8 +117,10 @@ private:
     void installNeoForge(const QByteArray& jarData, const QJsonObject& profile);
     void renameVersionFolder(const QString& oldName, const QString& newName);
     void cleanupAfterInstall(const QStringList& dirsToClean);
-    /// Extract the embedded forge-install-bootstrapper.jar to temp, return path
+    /// Extract the embedded forge-installer.jar (helper) to temp, return path
     static QString extractBootstrapperPath();
+    /// Extract the embedded java-wrapper.jar (oolloo.jlw.Wrapper) to temp, return path
+    static QString extractJavaWrapperPath();
     /// Find a usable Java on PATH or common install dirs
     QString findJavaPath(int minVersion = 8);
     /// Auto-download Java from Tuna Adoptium mirror (ZIP), extract to java_cache/
