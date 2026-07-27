@@ -2195,7 +2195,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 
         // 主流启动器: --add-exports cpw.mods.bootstraplauncher/... for Java 9+
         if (minJava >= 9) {
-            launchArgs.prepend(QStringLiteral("--add-exports cpw.mods.bootstraplauncher/cpw.mods.bootstraplauncher=ALL-UNNAMED"));
+            launchArgs.prepend(QStringLiteral("cpw.mods.bootstraplauncher/cpw.mods.bootstraplauncher=ALL-UNNAMED"));
+            launchArgs.prepend(QStringLiteral("--add-exports"));
         }
 
         qCInfo(logLoader) << QStringLiteral("运行 Bootstrapper（%1）: %2 %3")
