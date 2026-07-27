@@ -1,0 +1,36 @@
+*** Begin Patch ***
+--- a/file_downloader.cpp
++++ b/file_downloader.cpp
+@@ -443,7 +443,7 @@
+             }
+
+-            QNetworkReply* reply = self->m_nam[namIdx]->get(req);
++            QNetworkReply* reply = m_nam[namIdx]->get(req);
+
+             QEventLoop loop;
+             QTimer timeout;
+@@ -563,7 +563,7 @@
+                 req.setHttp1Configuration(h1cfg);
+             }
+-            QNetworkReply* reply = self->m_nam[namIdx]->get(req);
++            QNetworkReply* reply = m_nam[namIdx]->get(req);
+
+             QEventLoop loop;
+             QTimer timeout;
+@@ -685,12 +685,8 @@
+     }
+
+-    // Signal completion back to main thread
+-    QPointer<FileDownloader> self(this);
+-    QMetaObject::invokeMethod(this, [this, self, file]() {
+-        if (!self) return;
+-        onWorkerDone(file);
+-    });
++    // Signal completion back to main thread
++    QMetaObject::invokeMethod(this, [this, file]() {
++        onWorkerDone(file);
++    }, Qt::QueuedConnection);
+ }
+
+ // ═════════════════════════════════════════════════════════════════════════════
+*** End Patch ***

@@ -1017,7 +1017,8 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         qCWarning(logLoader) << QStringLiteral("未找到 install_profile.json，走 Bootstrapper");
         reader.close();
         runBootstrapperProcess(jarData);
-        finalizeBootstrapperInstall();
+        // NB: 不要在此调用 finalizeBootstrapperInstall() — bootstrapper 是异步的
+        // onBootstrapperFinished 会在完成后自动调用它。
         return;
     }
     QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
@@ -1025,7 +1026,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         qCWarning(logLoader) << QStringLiteral("install_profile.json 无效，走 Bootstrapper");
         reader.close();
         runBootstrapperProcess(jarData);
-        finalizeBootstrapperInstall();
+        // Bootstrapper 异步运行，onBootstrapperFinished 接管后续
         return;
     }
     QJsonObject profileObj = profileDoc.object();
@@ -1068,7 +1069,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     reader.close();
     qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（Method A：Java 注入器）");
     runBootstrapperProcess(jarData);
-    finalizeBootstrapperInstall();
+    // Bootstrapper 异步运行，onBootstrapperFinished 接管后续 finalize
 }
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
@@ -2207,12 +2208,6 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         launchArgsWrapper << gameDirNative;
         launchArgsRaw << gameDirNative;
 
-        if (minJava >= 9) {
-            const QString exportArg = QStringLiteral("--add-exports");
-            const QString exportVal = QStringLiteral("cpw.mods.bootstraplauncher/cpw.mods.bootstraplauncher=ALL-UNNAMED");
-            launchArgsWrapper.prepend(exportVal); launchArgsWrapper.prepend(exportArg);
-            launchArgsRaw.prepend(exportVal);    launchArgsRaw.prepend(exportArg);
-        }
 
         QFuture<BootstrapperResult> future = QtConcurrent::run(
             [javaPath, launchArgsWrapper, launchArgsRaw, hasWrapper,
