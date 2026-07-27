@@ -34,8 +34,7 @@
 #include "utils/lzma/LzmaDec.h"
 #include "utils/logger.h"
 
-// ── JAR manifest attribute injector (Java streaming, zero memory) ──
-using namespace ShadowLauncher;#include <private/qzipreader_p.h>
+#include <private/qzipreader_p.h>
 #include <private/qzipwriter_p.h>
 #include <QFutureWatcher>
 #include <QtConcurrent>
@@ -1558,7 +1557,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     if (fp.startsWith(QStringLiteral("META-INF/")) && (fp == QStringLiteral("META-INF/MANIFEST.MF")
                         || fp.endsWith(QStringLiteral(".SF")) || fp.endsWith(QStringLiteral(".RSA"))
                         || fp.endsWith(QStringLiteral(".DSA")) || fp.endsWith(QStringLiteral(".EC")))) continue;
-                    writer.addFile(fp, (fp == QStringLiteral("install_profile.json")) ? profData : reader.fileData(fp));
+                    writer.addFile(fp, reader.fileData(fp));
                 }
             }
             writer.close();
@@ -1983,7 +1982,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         QStringList launchArgs;
         if (useWrapper) {
             // 主流启动器: -Doolloo.jlw.tmpdir=... -cp bootstrapper.jar;installer.jar -jar JavaWrapper com.bangbang93.ForgeInstaller
-            launchArgs << QStringLiteral("-Doolloo.jlw.tmpdir=%1").arg(QDir::toNativeSeparators(m_gameDir.trimmed(QChar(u'/'))));
+            launchArgs << QStringLiteral("-Doolloo.jlw.tmpdir=%1").arg(QDir::toNativeSeparators(m_gameDir.trimmed()));
             launchArgs << QStringLiteral("-cp") << (bootstrapperJar + QStringLiteral(";") + installerJarPath);
             launchArgs << QStringLiteral("-jar") << extractBootstrapperPath();
             launchArgs << QStringLiteral("com.bangbang93.ForgeInstaller");
@@ -2681,7 +2680,6 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
     qCWarning(logLoader) << QStringLiteral("installNeoForge(const QByteArray&) called unexpectedly — bootstrapper handles NeoForge");
     emit finished(false, QStringLiteral("内部错误：NeoForge 安装路径异常"));
     m_running = false;
-}
 }
 
 void ModLoaderInstaller::renameVersionFolder(const QString& oldName, const QString& newName)
