@@ -46,7 +46,7 @@ QString DnsResolver::resolve(const QUrl& url, QString& outIp, int& outFamily)
     if (host.contains("mojang.com", Qt::CaseInsensitive) ||
         host.contains("minecraft.net", Qt::CaseInsensitive) ||
         host.contains("minecraftservices.com", Qt::CaseInsensitive))
-        return host;
+        return url.toString();
 
     QMutexLocker lock(&s_mutex);
 
@@ -54,7 +54,7 @@ QString DnsResolver::resolve(const QUrl& url, QString& outIp, int& outFamily)
     if (s_dnsFailureTime.contains(host)) {
         qint64 now = QDateTime::currentMSecsSinceEpoch();
         if (now - s_dnsFailureTime[host] < kDnsFailCooldownMs)
-            return host;
+            return url.toString();
         s_dnsFailureTime.remove(host);
     }
 
@@ -65,7 +65,7 @@ QString DnsResolver::resolve(const QUrl& url, QString& outIp, int& outFamily)
     if (info.error() != QHostInfo::NoError || info.addresses().isEmpty()) {
         lock.relock();
         s_dnsFailureTime[host] = QDateTime::currentMSecsSinceEpoch();
-        return host;
+        return url.toString();
     }
 
     QList<QHostAddress> candidates = info.addresses();
@@ -100,7 +100,7 @@ QString DnsResolver::resolve(const QUrl& url, QString& outIp, int& outFamily)
         if (rel > bestRel) { bestRel = rel; best = addr; }
     }
 
-    if (best.isNull()) return host;
+    if (best.isNull()) return url.toString();
 
     outIp = best.toString();
     outFamily = (best.protocol() == QAbstractSocket::IPv4Protocol) ? 4 : 6;
