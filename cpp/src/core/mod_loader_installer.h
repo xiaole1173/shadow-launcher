@@ -122,6 +122,9 @@ private:
     /// Find a usable Java 8+ on PATH or common install dirs
     QString findJavaPath(int minVersion = 8);
 
+    // Post-bootstrapper: flatten JSON + copy JAR (主流启动器 MergeJson equivalent)
+    void finalizeBootstrapperInstall();
+
     // Fabric
     void fabricStep1_downloadProfile();
     void fabricStep2_downloadLibraries(const QByteArray& profileData);
@@ -166,6 +169,11 @@ private:
     qint64 m_fabricLibBytesTotal = 0;
     int m_fabricLibIndex = 0;
     QByteArray m_fabricProfileData;  // held between parallel download and finalize
+
+    // Bootstrapper result (主流启动器: copy JSON first, flatten via MergeJson in a separate step)
+    bool m_bootstrapperOk = false;
+    QString m_bootstrapperError;
+    QString m_postJsonPath;
 
     // byte progress tracking
     qint64 m_bytesReceived = 0;
