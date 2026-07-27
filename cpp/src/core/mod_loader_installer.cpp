@@ -2481,7 +2481,8 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             }
         }
 
-        // Copy client/universal JAR to version folder if missing
+        // Forge: copy client/universal JAR to version folder (NeoForge uses vanilla MC client JAR instead)
+        if (!isNeo) {
         QString targetDir = versionsDir() + QStringLiteral("/") + m_installName;
         QString jarPathV = targetDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
         if (!QFile::exists(jarPathV)) {
@@ -2499,10 +2500,11 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             }
         }
         }
+    }
 
-        // 主流启动器: copy vanilla MC client JAR to version folder (needed by launcher for classpath)
-        // The bootstrapper doesn't create a JAR in the version folder; 主流启动器's MC download + MergeJson does.
-        // Source: versions/{mcVer}/{mcVer}.jar → Target: versions/{installName}/{installName}.jar
+    // Copy vanilla MC client JAR to version folder (主流启动器's MergeJson FileUtils.Copy equivalent)
+    // Needed by launcher for classpath; source: libraries/net/minecraft/client/{ver}/client-{ver}.jar
+    {
         QString mcClientSrc = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion
             + QStringLiteral("/client-") + m_mcVersion + QStringLiteral(".jar");
         QString mcClientDst = versionsDir() + QStringLiteral("/") + m_installName
@@ -2514,6 +2516,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
             else
                 qCWarning(logLoader) << QStringLiteral("复制原版客户端 JAR 失败: %1 -> %2").arg(mcClientSrc, mcClientDst);
         }
+    }
 
     emit finished(true, QString());
     m_running = false;
