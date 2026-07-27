@@ -3359,45 +3359,55 @@ static QByteArray decompressLzma(const QByteArray& compressed)
         outLen = (size_t)qMax((qint64)compressed.size() * 40, (qint64)200 * 1024 * 1024);
     }
 
-    size_t bufSize = outLen;  // save original buffer size before LzmaDecode modifies it
+    size_t bufSize = outLen;
     QByteArray result((int)bufSize, Qt::Uninitialized);
     ELzmaStatus status;
-    size_t decodedOut = bufSize;
-    size_t decodedIn = srcLen;
-    SRes res = LzmaDecode(
-        reinterpret_cast<Byte*>(result.data()), &decodedOut,
-        reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &decodedIn,
-        props, LZMA_PROPS_SIZE, LZMA_FINISH_END, &status, &g_Alloc);
+    SRes res;
 
-    if (res == SZ_OK) {
-        result.resize((int)decodedOut);
-        return result;
-    }
-
-    // Try 2: LZMA_FINISH_ANY (for .lzma without end-of-stream marker)
-    // NeoForge's client.lzma often lacks the stream end marker.
-    // LzmaDecode may return SZ_ERROR_DATA (end marker missing) or
-    // SZ_ERROR_INPUT_EOF (input exhausted), BUT *destLen (= dicPos) is
-    // still set to the actual decoded byte count. We salvage it.
+    // Use CLzmaDec directly instead of the LzmaDecode wrapper, so we can
+    // set different dicBufSize and dicLimit:
+    //   - dicBufSize >= dictSize  (circular dictionary requirement)
+    //   - dicLimit = uncompressedSize  (exact output, don't need end marker)
     {
-        qCWarning(logLoader) << QStringLiteral("LZMA_FINISH_END 失败(rc=%1)，尝试 LZMA_FINISH_ANY...").arg(static_cast<int>(res));
-        size_t retrySrcLen = (size_t)(compressed.size() - NEOFORGE_LZMA_HEADER);
-        size_t retryOutLen = bufSize;
-        res = LzmaDecode(
-            reinterpret_cast<Byte*>(result.data()), &retryOutLen,
-            reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER, &retrySrcLen,
-            props, LZMA_PROPS_SIZE, LZMA_FINISH_ANY, &status, &g_Alloc);
-        // Even if res != SZ_OK, *retryOutLen contains p.dicPos (bytes decoded before error)
-        if (res == SZ_OK && retryOutLen > 0) {
-            result.resize((int)retryOutLen);
-            qCInfo(logLoader) << QStringLiteral("LZMA_FINISH_ANY 成功: %1 字节").arg(retryOutLen);
+        CLzmaDec p;
+        LzmaDec_CONSTRUCT(&p);
+        res = LzmaDec_AllocateProbs(&p, props, LZMA_PROPS_SIZE, &g_Alloc);
+        if (res != SZ_OK) {
+            qCWarning(logLoader) << QStringLiteral("LZMA LzmaDec_AllocateProbs 失败: rc=%1").arg(static_cast<int>(res));
+            return {};
+        }
+
+        p.dic = reinterpret_cast<Byte*>(result.data());
+        p.dicBufSize = bufSize;
+        LzmaDec_Init(&p);
+
+        size_t srcLenLocal = srcLen;
+        const Byte* src = reinterpret_cast<const Byte*>(compressed.constData()) + NEOFORGE_LZMA_HEADER;
+
+        if (sizeKnown) {
+            // Use LZMA_FINISH_ANY with dicLimit = exact uncompressed size
+            // This correctly handles .lzma files without end-of-stream marker
+            res = LzmaDec_DecodeToDic(&p, static_cast<SizeT>(uncompressedSize),
+                                       src, &srcLenLocal, LZMA_FINISH_ANY, &status);
+        } else {
+            // Size unknown: need end-of-stream marker (standard .lzma)
+            res = LzmaDec_DecodeToDic(&p, static_cast<SizeT>(bufSize),
+                                       src, &srcLenLocal, LZMA_FINISH_END, &status);
+        }
+
+        size_t decodedLen = p.dicPos;
+        LzmaDec_FreeProbs(&p, &g_Alloc);
+
+        if (res == SZ_OK && decodedLen > 0) {
+            result.resize((int)decodedLen);
             return result;
         }
-        // Salvage partial: LzmaDecode sets *destLen = dicPos even on error
-        if (retryOutLen > 100000) {
-            result.resize((int)retryOutLen);
-            qCWarning(logLoader) << QStringLiteral("LZMA_FINISH_ANY 返回错误(rc=%1)，但已解码 %2 字节，尝试使用")
-                .arg(static_cast<int>(res)).arg(retryOutLen);
+
+        // Fallback: even on error, dicPos might have valid data (partial decode)
+        if (res != SZ_OK && decodedLen > 100000) {
+            qCWarning(logLoader) << QStringLiteral("LZMA 解码遇到错误(rc=%1)，但已解码 %2 字节，尝试使用")
+                .arg(static_cast<int>(res)).arg(decodedLen);
+            result.resize((int)decodedLen);
             return result;
         }
     }
