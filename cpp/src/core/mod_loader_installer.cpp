@@ -2170,14 +2170,6 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     }
 
     if (success) {
-        const QString ver = isNeoForge
-            ? m_loaderVersion
-            : (m_mcVersion + QStringLiteral("-") + m_loaderVersion);
-        const QString loaderGroup = isNeoForge
-            ? QStringLiteral("net/neoforged/neoforge")
-            : QStringLiteral("net/minecraftforge/forge");
-        const QString filePrefix = isNeoForge ? QStringLiteral("neoforge") : QStringLiteral("forge");
-
         // ── Find new version folder by comparing with snapshot (matching 主流启动器's OldList approach) ──
         QStringList newVersions = QDir(versionsDir()).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
         QStringList delta;
