@@ -119,8 +119,10 @@ private:
     void cleanupAfterInstall(const QStringList& dirsToClean);
     /// Extract the embedded forge-install-bootstrapper.jar to temp, return path
     static QString extractBootstrapperPath();
-    /// Find a usable Java 8+ on PATH or common install dirs
+    /// Find a usable Java on PATH or common install dirs
     QString findJavaPath(int minVersion = 8);
+    /// Auto-download Java from Tuna Adoptium mirror (ZIP), extract to java_cache/
+    QString downloadAndExtractJava(int minVersion);
 
     // Post-bootstrapper: flatten JSON + copy JAR (主流启动器 MergeJson equivalent)
     void finalizeBootstrapperInstall();

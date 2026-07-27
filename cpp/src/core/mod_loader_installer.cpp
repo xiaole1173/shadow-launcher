@@ -1443,6 +1443,124 @@ QString ModLoaderInstaller::findJavaPath(int minVersion) {
     return QString();
 }
 
+/** Auto-download Java from Tuna Adoptium mirror, extract ZIP to java_cache/{minVersion}/.
+ *  Returns path to java.exe, or empty on failure. */
+QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
+    const QString baseDir = QDir::currentPath() + QStringLiteral("/java_cache/");
+    const QString javaDir = baseDir + QString::number(minVersion);
+    const QString javaExe = javaDir + QStringLiteral("/bin/java.exe");
+
+    // Already downloaded?
+    if (QFile::exists(javaExe)) {
+        qCInfo(logLoader) << QStringLiteral("Java %1 已存在于 java_cache: %2").arg(minVersion).arg(javaExe);
+        return javaExe;
+    }
+
+    // Fetch directory listing from Tuna Adoptium mirror
+    const QString mirrorBase = QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/jdk/x64/windows/")
+                                   .arg(minVersion);
+    QNetworkAccessManager* nam = HttpClient::instance().manager();
+    QNetworkRequest req;
+    req.setUrl(QUrl(mirrorBase));
+    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    QNetworkReply* reply = nam->get(req);
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timer.start(15000);
+    loop.exec();
+
+    if (reply->error() != QNetworkReply::NoError || !timer.isActive()) {
+        qCWarning(logLoader) << QStringLiteral("获取 Java %1 文件列表失败: %2").arg(minVersion).arg(reply->errorString());
+        reply->deleteLater();
+        return {};
+    }
+
+    // Parse HTML for .zip file links
+    QString html = QString::fromUtf8(reply->readAll());
+    reply->deleteLater();
+    static QRegularExpression zipRe(QLatin1String("<a href=\"([^\"]+\\.zip)\""));
+    QStringList zipUrls;
+    auto it = zipRe.globalMatch(html);
+    while (it.hasNext()) {
+        auto m = it.next();
+        zipUrls.append(mirrorBase + m.captured(1));
+    }
+    if (zipUrls.isEmpty()) {
+        qCWarning(logLoader) << QStringLiteral("Java %1 镜像中未找到 .zip 文件").arg(minVersion);
+        return {};
+    }
+
+    // Download the latest .zip (last entry in alphabetical order)
+    const QString zipUrl = zipUrls.last();
+    const QString zipPath = baseDir + QStringLiteral("/jdk-%1.zip").arg(minVersion);
+    QDir().mkpath(baseDir);
+
+    qCInfo(logLoader) << QStringLiteral("正在下载 Java %1: %2").arg(minVersion).arg(zipUrl);
+    emit progressChanged(3, m_totalSteps, QStringLiteral("正在下载 Java %1...").arg(minVersion));
+
+    QNetworkRequest zipReq;
+    zipReq.setUrl(QUrl(zipUrl));
+    zipReq.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    QNetworkReply* zipReply = nam->get(zipReq);
+    QEventLoop zipLoop;
+    QObject::connect(zipReply, &QNetworkReply::finished, &zipLoop, &QEventLoop::quit);
+    QTimer zipTimer;
+    zipTimer.setSingleShot(true);
+    QObject::connect(&zipTimer, &QTimer::timeout, &zipLoop, &QEventLoop::quit);
+    // Large file: 3 minute timeout
+    zipTimer.start(180000);
+    zipLoop.exec();
+
+    if (zipReply->error() != QNetworkReply::NoError || !zipTimer.isActive()) {
+        qCWarning(logLoader) << QStringLiteral("下载 Java %1 ZIP 失败: %2").arg(minVersion).arg(zipReply->errorString());
+        zipReply->deleteLater();
+        return {};
+    }
+
+    QByteArray zipData = zipReply->readAll();
+    zipReply->deleteLater();
+
+    // Extract ZIP using QZipReader
+    qCInfo(logLoader) << QStringLiteral("正在解压 Java %1 (%2 MB)...").arg(minVersion).arg(zipData.size() / 1048576);
+    emit progressChanged(3, m_totalSteps, QStringLiteral("正在解压 Java %1...").arg(minVersion));
+
+    QBuffer buf;
+    buf.setData(zipData);
+    if (!buf.open(QIODevice::ReadOnly)) {
+        QFile::remove(zipPath);
+        return {};
+    }
+    {
+        QZipReader reader(&buf);
+        const QList<QZipReader::FileInfo> entries = reader.fileInfoList();
+        int extracted = 0;
+        for (const auto& entry : entries) {
+            if (entry.isDir || entry.isSymLink) continue;
+            QString outPath = javaDir + QStringLiteral("/") + entry.filePath;
+            QDir().mkpath(QFileInfo(outPath).absolutePath());
+            QFile out(outPath);
+            if (out.open(QIODevice::WriteOnly)) {
+                out.write(reader.fileData(entry.filePath));
+                out.close();
+                extracted++;
+            }
+        }
+        reader.close();
+        qCInfo(logLoader) << QStringLiteral("Java %1 解压完成: %2 个文件").arg(minVersion).arg(extracted);
+    }
+
+    if (!QFile::exists(javaExe)) {
+        qCWarning(logLoader) << QStringLiteral("Java %1 解压后未找到 java.exe").arg(minVersion);
+        return {};
+    }
+
+    qCInfo(logLoader) << QStringLiteral("Java %1 已就绪: %2").arg(minVersion).arg(javaExe);
+    return javaExe;
+}
+
 static int parseJavaMajorVersion(const QString& output) {
     QRegularExpression re(QStringLiteral("version\\s+\"([^\"]+)\""));
     auto m = re.match(output);
@@ -1486,9 +1604,15 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     int minJava = minJavaForMcInstaller(m_mcVersion);
     QString javaPath = findJavaPath(minJava);
     if (javaPath.isEmpty()) {
-        emit finished(false, QStringLiteral("未找到 Java %1+，请先在「设置 → Java」中下载 Java。").arg(minJava));
-        m_running = false;
-        return;
+        qCInfo(logLoader) << QStringLiteral("未找到 Java %1+，尝试自动下载...").arg(minJava);
+        emit progressChanged(3, m_totalSteps, QStringLiteral("未找到 Java %1+，正在自动下载...").arg(minJava));
+        javaPath = downloadAndExtractJava(minJava);
+        if (javaPath.isEmpty()) {
+            emit finished(false, QStringLiteral("未找到 Java %1+，且自动下载失败。请先在「设置 → Java」中下载 Java。").arg(minJava));
+            m_running = false;
+            return;
+        }
+        qCInfo(logLoader) << QStringLiteral("自动下载/解压 Java 完成: %1").arg(javaPath);
     }
 
     // 2. Extract bootstrapper JAR (same bootstrapper for Forge and NeoForge, matching 主流启动器's ForgelikeInjector)
