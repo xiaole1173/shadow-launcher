@@ -1606,11 +1606,37 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         buffer.setData(jarData);
         if (buffer.open(QIODevice::ReadOnly)) {
             QZipReader reader(&buffer);
+            // 主流启动器: read BOTH install_profile.json AND version.json, merge them, extract libs
             QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
+            QByteArray verData = reader.fileData(QStringLiteral("version.json"));
             reader.close();
             if (!profData.isEmpty()) {
-                QJsonObject prof = QJsonDocument::fromJson(profData).object();
-                QJsonArray libs = prof.value(QStringLiteral("libraries")).toArray();
+                QJsonObject merged = QJsonDocument::fromJson(profData).object();
+                if (!verData.isEmpty()) {
+                    QJsonObject verObj = QJsonDocument::fromJson(verData).object();
+                    // Merge version.json fields into install_profile.json (主流启动器: Json.Merge(Json2))
+                    for (auto it = verObj.begin(); it != verObj.end(); ++it) {
+                        if (!merged.contains(it.key()))
+                            merged[it.key()] = it.value();
+                    }
+                    // Merge libraries from both
+                    QJsonArray profLibs = merged.value(QStringLiteral("libraries")).toArray();
+                    QJsonArray verLibs = verObj.value(QStringLiteral("libraries")).toArray();
+                    for (const auto& vl : verLibs) {
+                        QString vlName = vl.toObject().value(QStringLiteral("name")).toString();
+                        if (vlName.isEmpty()) continue;
+                        bool found = false;
+                        for (const auto& pl : profLibs) {
+                            if (pl.toObject().value(QStringLiteral("name")).toString() == vlName) {
+                                found = true; break;
+                            }
+                        }
+                        if (!found)
+                            profLibs.append(vl);
+                    }
+                    merged[QStringLiteral("libraries")] = profLibs;
+                }
+                QJsonArray libs = merged.value(QStringLiteral("libraries")).toArray();
                 QNetworkAccessManager* nam = HttpClient::instance().manager();
 
                 // Helper to mirror official Maven URL to BMCLAPI
@@ -2197,66 +2223,72 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 qCInfo(logLoader) << QStringLiteral("已重命名版本文件夹: %1 → %2").arg(foundSub, m_installName);
             }
 
-            // Flatten version JSON (resolve inheritsFrom chain)
-            QFile jf(jsonPath);
-            if (jf.open(QIODevice::ReadOnly)) {
-                QByteArray jdata = jf.readAll();
-                jf.close();
-                QJsonDocument jdoc = QJsonDocument::fromJson(jdata);
-                if (jdoc.isObject()) {
-                    QJsonObject jObj = jdoc.object();
-                    QJsonObject flattened = flattenVersionJson(m_gameDir, jObj);
+            // 主流启动器 for NeoForge: just copy the JSON, no flattening, no JAR copying.
+            // Forge: flatten JSON (resolve inheritsFrom chain) + copy JAR if missing.
+            if (!isNeoForge) {
+                // Flatten version JSON (resolve inheritsFrom chain)
+                QFile jf(jsonPath);
+                if (jf.open(QIODevice::ReadOnly)) {
+                    QByteArray jdata = jf.readAll();
+                    jf.close();
+                    QJsonDocument jdoc = QJsonDocument::fromJson(jdata);
+                    if (jdoc.isObject()) {
+                        QJsonObject jObj = jdoc.object();
+                        QJsonObject flattened = flattenVersionJson(m_gameDir, jObj);
 
-                    bool inheritsLeft = flattened.contains(QStringLiteral("inheritsFrom"));
-                    if (inheritsLeft)
-                        flattened.remove(QStringLiteral("inheritsFrom"));
+                        bool inheritsLeft = flattened.contains(QStringLiteral("inheritsFrom"));
+                        if (inheritsLeft)
+                            flattened.remove(QStringLiteral("inheritsFrom"));
 
-                    QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
-                    QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
-                    bool hasMcClient = false;
-                    for (const auto& lib : mergedLibs) {
-                        if (lib.toObject().value(QStringLiteral("name")).toString() == mcClientName) {
-                            hasMcClient = true;
-                            break;
+                        QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
+                        QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
+                        bool hasMcClient = false;
+                        for (const auto& lib : mergedLibs) {
+                            if (lib.toObject().value(QStringLiteral("name")).toString() == mcClientName) {
+                                hasMcClient = true;
+                                break;
+                            }
                         }
-                    }
-                    if (!hasMcClient) {
-                        QJsonObject mcClient;
-                        mcClient[QStringLiteral("name")] = mcClientName;
-                        QJsonObject downloads;
-                        QJsonObject artifact;
-                        artifact[QStringLiteral("path")] = QStringLiteral("net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
-                        downloads[QStringLiteral("artifact")] = artifact;
-                        mcClient[QStringLiteral("downloads")] = downloads;
-                        mergedLibs.append(mcClient);
-                        flattened[QStringLiteral("libraries")] = mergedLibs;
-                    }
+                        if (!hasMcClient) {
+                            QJsonObject mcClient;
+                            mcClient[QStringLiteral("name")] = mcClientName;
+                            QJsonObject downloads;
+                            QJsonObject artifact;
+                            artifact[QStringLiteral("path")] = QStringLiteral("net/minecraft/client/%1/client-%1.jar").arg(m_mcVersion);
+                            downloads[QStringLiteral("artifact")] = artifact;
+                            mcClient[QStringLiteral("downloads")] = downloads;
+                            mergedLibs.append(mcClient);
+                            flattened[QStringLiteral("libraries")] = mergedLibs;
+                        }
 
-                    if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                        jf.write(QJsonDocument(flattened).toJson(QJsonDocument::Indented));
-                        jf.close();
-                        if (inheritsLeft || !jObj.contains(QStringLiteral("inheritsFrom")) ||
-                            jObj.value(QStringLiteral("inheritsFrom")).toString() != QString()) {
-                            qCInfo(logLoader) << QStringLiteral("版本 JSON 已压平为独立版本，inheritsFrom 已消解");
+                        if (jf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                            jf.write(QJsonDocument(flattened).toJson(QJsonDocument::Indented));
+                            jf.close();
+                            if (inheritsLeft || !jObj.contains(QStringLiteral("inheritsFrom")) ||
+                                jObj.value(QStringLiteral("inheritsFrom")).toString() != QString()) {
+                                qCInfo(logLoader) << QStringLiteral("版本 JSON 已压平为独立版本，inheritsFrom 已消解");
+                            }
                         }
                     }
                 }
-            }
 
-            // Copy client/universal JAR to version folder if missing
-            if (!QFile::exists(jarPathV)) {
-                const QString clientJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
-                    + QStringLiteral("/") + ver + QStringLiteral("/")
-                    + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-client.jar");
-                const QString universalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
-                    + QStringLiteral("/") + ver + QStringLiteral("/")
-                    + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-universal.jar");
+                // Copy client/universal JAR to version folder if missing
+                if (!QFile::exists(jarPathV)) {
+                    const QString clientJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
+                        + QStringLiteral("/") + ver + QStringLiteral("/")
+                        + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-client.jar");
+                    const QString universalJar = m_gameDir + QStringLiteral("/libraries/") + loaderGroup
+                        + QStringLiteral("/") + ver + QStringLiteral("/")
+                        + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-universal.jar");
 
-                if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPathV)) {
-                    qCInfo(logLoader) << QStringLiteral("已复制 client JAR 到 %1").arg(jarPathV);
-                } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPathV)) {
-                    qCInfo(logLoader) << QStringLiteral("已复制 universal JAR 到 %1").arg(jarPathV);
+                    if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPathV)) {
+                        qCInfo(logLoader) << QStringLiteral("已复制 client JAR 到 %1").arg(jarPathV);
+                    } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPathV)) {
+                        qCInfo(logLoader) << QStringLiteral("已复制 universal JAR 到 %1").arg(jarPathV);
+                    }
                 }
+            } else {
+                qCInfo(logLoader) << QStringLiteral("NeoForge: 按 主流启动器 仅复制 JSON，保留 inheritsFrom");
             }
         } else {
             qCWarning(logLoader) << QStringLiteral("Bootstrapper 完成后未找到新增版本文件夹");
