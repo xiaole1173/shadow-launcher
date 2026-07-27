@@ -6,7 +6,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QHttp2Configuration>
 #include <QCryptographicHash>
 #include <QUrl>
 #include <QLoggingCategory>
@@ -48,9 +47,10 @@ void AssetDownloader::setupNam()
 
     m_nam = new QNetworkAccessManager(this);
 
-    // ── HTTP/2 — configured per-request. Enable ALPN negotiation.
-    // Windows 10+ SChannel supports HTTP/2 natively via ALPN.
-    qCInfo(logAssetDownload) << "QNAM created";
+    // HTTP/2: let ALPN negotiate with Qt defaults.
+    // SChannel on Windows 10+ supports HTTP/2 automatically.
+    // Avoid explicit large window sizes (BMCLAPI may RST_STREAM).
+    qCInfo(logAssetDownload) << "QNAM created (HTTP/2 via ALPN, Qt defaults)";
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -169,14 +169,10 @@ void AssetDownloader::fireNext()
     req.setTransferTimeout(30000);
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
-    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
 
-    // Configure HTTP/2 for multiplexed streaming
-    QHttp2Configuration h2;
-    h2.setSessionReceiveWindowSize(256 * 1024 * 1024);
-    h2.setStreamReceiveWindowSize(16 * 1024 * 1024);
-    h2.setHuffmanCompressionEnabled(true);
-    req.setHttp2Configuration(h2);
+    // HTTP/2: let QNetworkAccessManager negotiate via ALPN with Qt defaults.
+    // Large explicit window sizes can cause BMCLAPI to RST_STREAM streams,
+    // manifesting as "Operation canceled" errors on many concurrent requests.
 
     QNetworkReply* reply = m_nam->get(req);
 
