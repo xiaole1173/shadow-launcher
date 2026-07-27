@@ -1,8 +1,0 @@
-<RCC>
-  <qresource prefix="/qt/qml/ShadowLauncher/agreements">
-    <file alias="qml/agreements/beta_agreement.html">D:/latest-code/cpp/qml/agreements/beta_agreement.html</file>
-    <file alias="qml/agreements/terms_of_service.html">D:/latest-code/cpp/qml/agreements/terms_of_service.html</file>
-    <file alias="qml/agreements/privacy_policy.html">D:/latest-code/cpp/qml/agreements/privacy_policy.html</file>
-  </qresource>
-</RCC>
-

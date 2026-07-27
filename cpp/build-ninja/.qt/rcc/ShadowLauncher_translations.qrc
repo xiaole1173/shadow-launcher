@@ -1,8 +1,0 @@
-<RCC>
-  <qresource prefix="/i18n">
-    <file alias="shadow_zh_CN.qm">D:/latest-code/cpp/build-ninja/shadow_zh_CN.qm</file>
-    <file alias="shadow_zh_HK.qm">D:/latest-code/cpp/build-ninja/shadow_zh_HK.qm</file>
-    <file alias="shadow_zh_TW.qm">D:/latest-code/cpp/build-ninja/shadow_zh_TW.qm</file>
-  </qresource>
-</RCC>
-
