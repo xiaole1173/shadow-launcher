@@ -32,6 +32,14 @@ qreal DownloadSession::totalProgress() const {
 void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
     qint64 now = m_sessionTimer.elapsed();
 
+    // 首次调用：还没有基线，只记录当前值，不计算速度
+    if (m_lastRecvTime == 0 && m_lastRecvBytes == 0) {
+        m_lastRecvTime = now;
+        m_lastRecvBytes = bytesRecv;
+        emit progressUpdated();
+        return;
+    }
+
     // ── 瞬时速度: delta / elapsed ──
     qint64 deltaBytes = bytesRecv - m_lastRecvBytes;
     qint64 deltaMs = now - m_lastRecvTime;
