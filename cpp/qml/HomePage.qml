@@ -1299,7 +1299,8 @@ Rectangle {
         }
         onCancelled: {
             showProfilePopup = false
-            if (backend && backend.yggdrasil)
+            // 未登录时取消登录流程；已登录后关闭弹窗即可（防止 cancelLogin 登出已登录用户）
+            if (backend && backend.yggdrasil && !backend.yggdrasil.loggedIn)
                 backend.yggdrasil.cancelLogin()
         }
     }
