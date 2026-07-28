@@ -22,8 +22,10 @@ Item {
         opacity: root.opened ? 1 : 0
         visible: root.opened || opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        // 显式 enabled 确保关闭时绝不拦截事件
         MouseArea {
             anchors.fill: parent
+            enabled: root.opened
             onClicked: root.cancelled()
         }
     }
@@ -186,6 +188,7 @@ Item {
                     MouseArea {
                         id: ma; anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        enabled: root.opened
                         onClicked: {
                             if (backend && backend.yggdrasil) {
                                 backend.yggdrasil.selectProfile(index)
