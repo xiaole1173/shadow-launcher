@@ -1202,6 +1202,8 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // OptiFineForgeTweaker 必须在 --tweakClass 链的末尾，否则 Forge 找不到
     // 同时修复常见的错误名称: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker
     // 参考: 主流启动器 McLaunchArgumentsGame OptiFineForge 处理
+    // 注意: 独立 OptiFine（无 Forge）不应改名，否则 OptiFineForgeTweaker 可能
+    // 改变 LaunchWrapper 的参数传递行为，导致游戏收不到 --accessToken 等参数。
     {
         auto hasTweakClass = [&](const QString& name) -> int {
             for (int j = 0; j < args.size(); ++j) {
@@ -1211,19 +1213,30 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             }
             return -1;
         };
-        // 修复错误的 OptiFineTweaker 名称
-        int wrongIdx = hasTweakClass(QStringLiteral("optifine.OptiFineTweaker"));
-        if (wrongIdx >= 0) {
-            args[wrongIdx + 1] = QStringLiteral("optifine.OptiFineForgeTweaker");
-            qCInfo(logLaunch) << QStringLiteral("修正 tweakClass: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker");
-        }
-        // 将 OptiFineForgeTweaker 移到 --tweakClass 链末尾
-        int forgeIdx = hasTweakClass(QStringLiteral("optifine.OptiFineForgeTweaker"));
-        if (forgeIdx >= 0) {
-            QString tweakClass = args.takeAt(forgeIdx);     // --tweakClass
-            QString className = args.takeAt(forgeIdx);       // optifine.OptiFineForgeTweaker
-            args << tweakClass << className;
-            qCInfo(logLaunch) << QStringLiteral("OptiFineForgeTweaker 已移至参数末尾");
+
+        // Detect if Forge is present: check for Forge tweakClass or Forge mainClass
+        bool hasForge =
+            hasTweakClass(QStringLiteral("net.minecraftforge.fml.common.launcher.FMLTweaker"))
+            || hasTweakClass(QStringLiteral("net.minecraftforge.fml.common.launcher.FMLServerTweaker"))
+            || versionJson.value(QStringLiteral("mainClass")).toString()
+                   .contains(QStringLiteral("net.minecraftforge"))
+            || versionId.contains(QStringLiteral("forge"));
+
+        if (hasForge) {
+            // Only rename to ForgeTweaker when Forge is actually present
+            int wrongIdx = hasTweakClass(QStringLiteral("optifine.OptiFineTweaker"));
+            if (wrongIdx >= 0) {
+                args[wrongIdx + 1] = QStringLiteral("optifine.OptiFineForgeTweaker");
+                qCInfo(logLaunch) << QStringLiteral("修正 tweakClass: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker");
+            }
+            // 将 OptiFineForgeTweaker 移到 --tweakClass 链末尾
+            int forgeIdx = hasTweakClass(QStringLiteral("optifine.OptiFineForgeTweaker"));
+            if (forgeIdx >= 0) {
+                QString tweakClass = args.takeAt(forgeIdx);     // --tweakClass
+                QString className = args.takeAt(forgeIdx);       // optifine.OptiFineForgeTweaker
+                args << tweakClass << className;
+                qCInfo(logLaunch) << QStringLiteral("OptiFineForgeTweaker 已移至参数末尾");
+            }
         }
     }
 
