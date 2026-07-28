@@ -411,6 +411,9 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     installOptifineSynthetic(jarData);
 }
 
+// Forward declaration of flattenVersionJson (defined later in the file)
+static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child);
+
 // ── Synthetic version JSON construction (no JAR metadata needed) ──
 void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     // Derive library suffix: prefer bmclType+bmclPatch, fallback to optifine version string
@@ -518,7 +521,17 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     }
     versionJson[QStringLiteral("libraries")] = libraries;
 
-    // 3. Copy base MC JAR to version folder (主流启动器 does this)
+    // 3. Flatten to standalone (remove inheritsFrom, merge all parent libs + args)
+    //    This allows the launcher to delete the base MC version (version isolation).
+    {
+        QJsonObject flattened = flattenVersionJson(m_gameDir, versionJson);
+        if (flattened != versionJson) {
+            versionJson = flattened;
+            qCInfo(logLoader) << QStringLiteral("OptiFine JSON 已压平为独立版本（inheritsFrom 链已消解）");
+        }
+    }
+
+    // 4. Copy base MC JAR to version folder
     QString baseJarPath;
     if (!mcOptifineDir.isEmpty())
         baseJarPath = mcOptifineDir + "/" + QDir(mcOptifineDir).dirName() + ".jar";
@@ -528,7 +541,7 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     if (QFile::exists(baseJarPath) && !QFile::exists(optiJarPath))
         QFile::copy(baseJarPath, optiJarPath);
 
-    // 4. Write version JSON
+    // 5. Write version JSON
     QFile jsonFile(verDir + QStringLiteral("/") + versionId + QStringLiteral(".json"));
     if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         emit finished(false, "无法写入版本配置文件");
@@ -539,8 +552,8 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     jsonFile.write(doc.toJson(QJsonDocument::Indented));
     jsonFile.close();
 
-    qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装完成 → %1（inheritsFrom=%2, mainClass=LaunchWrapper, tweaker=已添加）")
-        .arg(versionId, versionJson.value(QStringLiteral("inheritsFrom")).toString());
+    qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装完成 → %1（独立版本，mainClass=LaunchWrapper, tweaker=已添加）")
+        .arg(versionId);
     emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
     emit finished(true, QString());
     m_running = false;
