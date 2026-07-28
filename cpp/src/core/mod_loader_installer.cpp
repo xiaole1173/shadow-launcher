@@ -413,8 +413,18 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     reader.close();
     buffer.close();
 
-    // ── Step B: Check for optifine/Installer.class → run installer (modern OptiFine 1.17+) ──
+    // ── Step B: For modern MC (>= 1.17), OptiFine no longer uses LaunchWrapper.
+    // Run the installer JAR if available; otherwise fall back to synthetic.
+    bool isModernMC = false;
     {
+        QStringList parts = m_mcVersion.split(QLatin1Char('.'));
+        if (parts.size() >= 2) {
+            int major = parts[0].toInt();
+            int minor = parts[1].toInt();
+            isModernMC = (major > 1) || (major == 1 && minor >= 17);
+        }
+    }
+    if (isModernMC) {
         QBuffer buf2;
         buf2.setData(jarData);
         if (buf2.open(QIODevice::ReadOnly)) {
@@ -423,15 +433,17 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
             zr2.close();
             buf2.close();
             if (hasInstallerClass) {
-                qCInfo(logLoader) << QStringLiteral("OptiFine JAR 包含 Installer.class，使用安装器模式");
+                qCInfo(logLoader) << QStringLiteral("OptiFine 现代 MC (%1) + Installer.class  → 使用安装器模式").arg(m_mcVersion);
                 runOptifineInstaller(jarData);
                 return;
             }
         }
+        qCInfo(logLoader) << QStringLiteral("OptiFine 现代 MC (%1) 但无 Installer.class，回退到合成模式").arg(m_mcVersion);
+    } else {
+        qCInfo(logLoader) << QStringLiteral("OptiFine 旧版 MC (%1) → 跳过安装器，直接使用合成模式").arg(m_mcVersion);
     }
 
-    // ── Step C: Synthetic version JSON (no Java needed, old OptiFine pre-1.13) ──
-    qCInfo(logLoader) << QStringLiteral("OptiFine JAR 无 Installer.class，使用合成模式");
+    // ── Step C: Synthetic version JSON (LaunchWrapper, no Java needed) ──
     installOptifineSynthetic(jarData);
 }
 
