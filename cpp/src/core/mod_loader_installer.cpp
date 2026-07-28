@@ -841,18 +841,21 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         tempMcRoot = tmp.endsWith("/.minecraft") ? tmp.left(tmp.length() - 11) : tmp;
     }
 
+    // Follow 主流启动器's approach: set -Duser.home and run optifine.Installer directly
+    // The installer auto-detects .minecraft under user.home, no GUI needed.
+    QStringList jargs;
+    jargs << QStringLiteral("-Duser.home=%1").arg(QDir::toNativeSeparators(tempMcRoot))
+          << QStringLiteral("-cp") << QDir::toNativeSeparators(jarPath)
+          << QStringLiteral("optifine.Installer");
+
+    qCInfo(logLoader) << QStringLiteral("OptiFine 安装（隔离模式，主流启动器 方案）: %1 %2").arg(javaExe, jargs.join(QStringLiteral(" ")));
+
     QProcess* proc = new QProcess(this);
 #if defined(Q_OS_WIN)
-    // Suppress child process window (OptiFine installer may show GUI even with --installClient)
     proc->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
         args->flags |= 0x08000000;  // CREATE_NO_WINDOW
     });
 #endif
-    QStringList jargs;
-    jargs << "-jar" << jarPath << "--installClient"
-          << QDir::toNativeSeparators(tempMcDir.absolutePath());
-
-    qCInfo(logLoader) << QStringLiteral("OptiFine 安装（隔离模式）: %1 %2").arg(javaExe, jargs.join(QStringLiteral(" ")));
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
