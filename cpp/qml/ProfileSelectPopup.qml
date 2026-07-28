@@ -187,7 +187,7 @@ Item {
 
                     MouseArea {
                         id: ma; anchors.fill: parent; hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        cursorShape: root.opened ? Qt.PointingHandCursor : Qt.ArrowCursor
                         enabled: root.opened
                         onClicked: {
                             if (backend && backend.yggdrasil) {
