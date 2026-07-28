@@ -1214,16 +1214,10 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             return -1;
         };
 
-        // Detect if Forge is present
-        bool hasForge =
-            hasTweakClass(QStringLiteral("net.minecraftforge.fml.common.launcher.FMLTweaker"))
-            || hasTweakClass(QStringLiteral("net.minecraftforge.fml.common.launcher.FMLServerTweaker"))
-            || versionJson.value(QStringLiteral("mainClass")).toString()
-                   .contains(QStringLiteral("net.minecraftforge"))
-            || versionId.contains(QStringLiteral("forge"));
-        qCInfo(logLaunch) << QStringLiteral("tweakClass 修复: versionId=%1 mainClass=%2 hasForge=%3")
-            .arg(versionId, versionJson.value(QStringLiteral("mainClass")).toString())
-            .arg(hasForge);
+        // HARDCODE: disable rename for testing - verify OptiFineForgeTweaker source
+        bool hasForge = false;
+        qCInfo(logLaunch) << QStringLiteral("tweakClass 修复: versionId=%1 mainClass=%2 hasForge=HARDCODED_FALSE")
+            .arg(versionId, versionJson.value(QStringLiteral("mainClass")).toString());
 
         // 修复错误的 OptiFineTweaker 名称（仅当 Forge 存在时）
         if (hasForge) {
