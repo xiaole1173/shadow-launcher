@@ -360,6 +360,18 @@ void ModLoaderInstaller::installOptifineFromJar(const QByteArray& jarData, const
     m_loaderType = "optifine";
     m_optifineBmclType = bmclType;
     m_optifineBmclPatch = bmclPatch;
+    // Clean up any stale version folder from a previous synthetic-mode or
+    // partial install. Otherwise old LaunchWrapper data persists and the
+    // game loads the broken version even if the new installer fails.
+    {
+        QString oldVerDir = m_gameDir + QStringLiteral("/versions/") + installName;
+        QDir oldDir(oldVerDir);
+        if (oldDir.exists()) {
+            oldDir.removeRecursively();
+            qCInfo(logLoader) << QStringLiteral("已清理旧版本文件夹: %1").arg(oldVerDir);
+        }
+    }
+
     m_totalSteps = 1;
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, tr("正在安装 OptiFine..."));
@@ -373,11 +385,16 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
 
     Q_UNUSED(filename);
 
-    // Validate: JAR must start with PK (ZIP magic bytes)
-    if (jarData.size() < 4 || jarData[0] != 'P' || jarData[1] != 'K') {
-        QString preview = QString::fromUtf8(jarData.left(qMin(500, jarData.size())));
-        qCWarning(logLoader) << QStringLiteral("OptiFine JAR 文件无效，预览: %1").arg(preview);
-        emit finished(false, QString("OptiFine JAR 文件无效（可能下载失败），前500字节: %1").arg(preview.left(200)));
+    // Validate: JAR must start with PK (ZIP magic bytes).
+    // BMCLAPI may return HTTP 200 with an error body ("File not found.\n") or redirect
+    // to an error page — both pass reply->error() checks but are not valid JAR data.
+    if (!ModLoaderInstaller::isValidZip(jarData)) {
+        int size = jarData.size();
+        QString preview = QString::fromUtf8(jarData.left(qMin(500, size)));
+        qCWarning(logLoader) << QStringLiteral("OptiFine JAR 无效: 大小=%1 字节, 内容预览=%2")
+            .arg(size).arg(preview);
+        emit finished(false, QString("OptiFine JAR 下载无效（大小=%1 字节，非 ZIP 格式）。"
+            "可能是 BMCLAPI/OptiFine 源暂时不可用。").arg(size));
         m_running = false;
         return;
     }
@@ -752,7 +769,7 @@ QString ModLoaderInstaller::resolveOptifineOfficialUrl(const QString& filename) 
 
 // ── Fallback: run OptiFine installer via javaw (legacy / incompatible JAR) ──
 void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
-    qCInfo(logLoader) << QStringLiteral("OptiFine 解压失败，回退到 javaw 安装程序");
+    qCInfo(logLoader) << QStringLiteral("OptiFine MC >= 1.14 — 启动 Java 安装器 (optifine.Installer)");
     emit progressChanged(2, m_totalSteps, "正在运行 OptiFine 安装程序...");
 
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
@@ -847,11 +864,15 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         return;
     }
 
-    QDir tempMcDir = setupTempMc();
-    QString tempMcRoot;
-    {
-        QString tmp = tempMcDir.absolutePath();
-        tempMcRoot = tmp.endsWith("/.minecraft") ? tmp.left(tmp.length() - 11) : tmp;
+    QDir tempMcDir(setupTempMc()); // .minecraft path
+    const QString tempMcPath = tempMcDir.absolutePath();  // save for collectForgeOutput
+    // 主流启动器: -Duser.home must point to PARENT of .minecraft, not .minecraft itself
+    // tempMcDir.absolutePath() on Windows uses backslashes, so .endsWith("/.minecraft")
+    // would always fail. Use dirName() instead, which is platform-independent.
+    QString tempMcRoot = tempMcPath;
+    if (tempMcDir.dirName() == QStringLiteral(".minecraft")) {
+        tempMcDir.cdUp();
+        tempMcRoot = tempMcDir.absolutePath();
     }
 
     // Follow 主流启动器's approach: set -Duser.home and run optifine.Installer directly
@@ -870,17 +891,95 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     });
 #endif
 
+    // Set environment: 主流启动器 sets both user.home AND APPDATA to the temp root
+    // OptiFine installer on Windows may check %%APPDATA%%/.minecraft directly
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QString nativeTempMcRoot = QDir::toNativeSeparators(tempMcRoot);
+    env.insert(QStringLiteral("APPDATA"), nativeTempMcRoot);
+    proc->setProcessEnvironment(env);
+
+    // Set working directory to temp root (主流启动器 does this)
+    proc->setWorkingDirectory(tempMcRoot);
+
+    // Capture installer output for validation (主流启动器 checks output length > 1000)
+    proc->setProcessChannelMode(QProcess::MergedChannels);
+    // Use shared_ptr so the output buffer outlives runOptifineInstaller.
+    // capturedOutput is a local variable — capturing by reference (&) in the
+    // readyReadStandardOutput lambda would create a dangling ref after this
+    // function returns, causing use-after-free (access violation 0xc0000005).
+    auto capturedOutput = std::make_shared<QStringList>();
+
+    connect(proc, &QProcess::readyReadStandardOutput, this, [proc, capturedOutput]() {
+        while (proc->canReadLine()) {
+            capturedOutput->append(proc->readLine().trimmed());
+        }
+    });
+
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
+            this, [this, proc, jarPath, tempMcRoot, tempMcPath, tempMcDir, capturedOutput](int exitCode, QProcess::ExitStatus) mutable {
+        // Read any remaining output
+        if (proc->bytesAvailable() > 0)
+            capturedOutput->append(QString::fromUtf8(proc->readAllStandardOutput()).trimmed());
         proc->deleteLater();
-        if (m_cancelled || exitCode != 0) {
+
+        // 主流启动器-style validation: check output length >= 1000, and the LAST line
+        // must not be a Java stack trace (i.e. start with "at "). 主流启动器 only checks
+        // the last line (LastResult.Contains("at ")), NOT the entire output — the
+        // installer may print normal messages containing "at" during progress.
+        QString fullOutput = capturedOutput->join(QStringLiteral("\n"));
+        QString lastLine = capturedOutput->isEmpty() ? QString() : capturedOutput->last();
+        bool installOk = (exitCode == 0) && fullOutput.length() >= 1000
+                         && !lastLine.contains(QStringLiteral("at "));
+
+        // Log installer output for debugging
+        if (!capturedOutput->isEmpty()) {
+            int logLines = qMin(20, static_cast<int>(capturedOutput->size()));
+            QStringList preview = capturedOutput->mid(0, logLines);
+            qCInfo(logLoader) << QStringLiteral("OptiFine 安装器输出（前%1行/%2行）: %3")
+                .arg(logLines).arg(static_cast<int>(capturedOutput->size()))
+                .arg(preview.join(QStringLiteral(" | ")));
+        }
+
+        if (m_cancelled || !installOk) {
             cleanupTempMc(tempMcRoot);
-            qCWarning(logLoader) << QStringLiteral("OptiFine 安装程序运行失败，退出码=%1").arg(exitCode);
-            emit finished(false, QString("OptiFine 安装程序运行失败（退出码: %1）").arg(exitCode));
+            qCWarning(logLoader) << QStringLiteral("OptiFine 安装程序运行失败，退出码=%1，输出长度=%2")
+                .arg(exitCode).arg(fullOutput.length());
+            emit finished(false, QString("OptiFine 安装程序运行失败（退出码: %1，输出长度: %2）")
+                .arg(exitCode).arg(fullOutput.length()));
             m_running = false;
             return;
         }
-        collectForgeOutput(tempMcDir.absolutePath(), jarPath);
+        // ── Debug: dump installer output ──
+        {
+            QDir verDir(tempMcPath + QStringLiteral("/versions"));
+            QStringList subDirs = verDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString& sd : subDirs) {
+                QDir sdDir(verDir.absoluteFilePath(sd));
+                QStringList files = sdDir.entryList(QDir::Files);
+                qint64 totalSize = 0;
+                for (const QString& fn : files)
+                    totalSize += QFileInfo(sdDir.absoluteFilePath(fn)).size();
+                qCInfo(logLoader) << QStringLiteral("安装器输出版本目录: %1 (%2 个文件, %3 字节)")
+                    .arg(sd).arg(files.size()).arg(totalSize);
+                for (const QString& fn : files)
+                    qCInfo(logLoader) << QStringLiteral("  文件: %1 (%2 字节)")
+                        .arg(fn).arg(QFileInfo(sdDir.absoluteFilePath(fn)).size());
+            }
+        }
+
+        // ── 主流启动器 方式: 将整个 temp .minecraft 复制回游戏目录 ──
+        // 这确保了所有文件（打过补丁的 jar、新版本 JSON、库、资源等）都被正确复制。
+        // 选择性复制（collectForgeOutput）可能漏掉某些文件或复制不完整。
+        copyOptifineTempMc(tempMcPath);
+
+        qCInfo(logLoader) << QStringLiteral("OptiFine 安装器输出复制完成");
+
+        // ── 拍平版本 JSON（去掉 inheritsFrom）──
+        // buildClasspath 现在将版本 jar 放在类路径末尾（在所有库之后），
+        // 因此 OptiFine 库 jar 中的补丁类优先级更高。
+        // 拍平后原版 MC 文件夹可安全删除。
+        flattenOptifineVersion(m_installName);
+
         cleanupTempMc(tempMcRoot);
         qCInfo(logLoader) << QStringLiteral("OptiFine 独立安装完成");
         emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
@@ -888,6 +987,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         m_running = false;
     });
 
+    qCInfo(logLoader) << QStringLiteral("OptiFine 安装器工作目录: %1").arg(tempMcRoot);
     proc->start(javaExe, jargs);
 }
 
@@ -910,24 +1010,108 @@ QString ModLoaderInstaller::setupTempMc() {
         srcVerDir = m_gameDir + "/versions/" + m_mcVersion;
     QString dstVerDir = tempMc + "/versions/" + m_mcVersion;
     QString srcId = QDir(srcVerDir).dirName();
-    if (QFile::exists(srcVerDir + "/" + srcId + ".json")) {
-        QFile::copy(srcVerDir + "/" + srcId + ".json",
-                    dstVerDir + "/" + m_mcVersion + ".json");
-    }
-    if (QFile::exists(srcVerDir + "/" + srcId + ".jar")) {
-        QFile::copy(srcVerDir + "/" + srcId + ".jar",
-                    dstVerDir + "/" + m_mcVersion + ".jar");
+
+    // Copy version JSON
+    QString srcJson = srcVerDir + "/" + srcId + ".json";
+    QString dstJson = dstVerDir + "/" + m_mcVersion + ".json";
+    if (QFile::exists(srcJson)) {
+        if (QFile::copy(srcJson, dstJson))
+            qCInfo(logLoader) << QStringLiteral("setupTempMc: 已拷贝版本 JSON: %1").arg(dstJson);
+        else
+            qCWarning(logLoader) << QStringLiteral("setupTempMc: JSON 拷贝失败: %1 -> %2").arg(srcJson, dstJson);
+    } else {
+        qCWarning(logLoader) << QStringLiteral("setupTempMc: JSON 源文件不存在: %1").arg(srcJson);
     }
 
-    // Create minimal launcher_profiles.json (Forge installer requirement)
+    // Copy client JAR — critical for OptiFine installer
+    QString srcJar = srcVerDir + "/" + srcId + ".jar";
+    QString dstJar = dstVerDir + "/" + m_mcVersion + ".jar";
+    if (QFile::exists(srcJar)) {
+        if (QFile::copy(srcJar, dstJar))
+            qCInfo(logLoader) << QStringLiteral("setupTempMc: 已拷贝客户端 JAR: %1 (大小 %2 字节)")
+                .arg(dstJar).arg(QFileInfo(srcJar).size());
+        else
+            qCWarning(logLoader) << QStringLiteral("setupTempMc: JAR 拷贝失败: %1 -> %2").arg(srcJar, dstJar);
+        // Double-check destination exists
+        if (!QFile::exists(dstJar))
+            qCWarning(logLoader) << QStringLiteral("setupTempMc: 拷贝后目标 JAR 仍不存在: %1").arg(dstJar);
+    } else {
+        // Possible timing issue: MC files not yet flushed to disk
+        qCWarning(logLoader) << QStringLiteral("setupTempMc: JAR 源文件不存在: %1").arg(srcJar);
+        // Also check what files ARE in the version directory
+        QDir verCheck(srcVerDir);
+        QStringList files = verCheck.entryList(QDir::Files);
+        qCInfo(logLoader) << QStringLiteral("setupTempMc: 版本目录 %1 下共有 %2 个文件: %3")
+            .arg(srcVerDir).arg(files.size()).arg(files.join(QStringLiteral(", ")));
+    }
+
+    // Create launcher_profiles.json (主流启动器-compatible format — OptiFine installer may check it)
     QFile lpj(tempMc + "/launcher_profiles.json");
     if (lpj.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        lpj.write("{\"profiles\":{},\"settings\":{},\"version\":3}");
+        lpj.write(
+            "{\"profiles\":{\"PCL\":{}},"
+            "\"selectedProfile\":\"PCL\","
+            "\"settings\":{},"
+            "\"version\":3}");
         lpj.close();
     }
 
     qCInfo(logLoader) << QStringLiteral("临时 .minecraft 已创建: %1").arg(tempMc);
     return tempMc;
+}
+
+/// Copy entire temp .minecraft back to game dir (主流启动器-style).
+/// This is more reliable than selective copy for OptiFine installs.
+void ModLoaderInstaller::copyOptifineTempMc(const QString& tempMcPath) {
+    // Copy versions: first remove the pre-existing MC version folder so the
+    // patched jar from temp is fresh and correct.
+    QDir verDir(tempMcPath + QStringLiteral("/versions"));
+    if (verDir.exists()) {
+        QStringList subDirs = verDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& d : subDirs) {
+            QString dstDir = m_gameDir + QStringLiteral("/versions/") + d;
+            // If this is the inherited MC version folder, delete it first in the game dir
+            // so the patched jar from temp replaces it fresh.
+            if (d == m_mcVersion) {
+                QDir gameMcDir(dstDir);
+                if (gameMcDir.exists()) {
+                    gameMcDir.removeRecursively();
+                    qCInfo(logLoader) << QStringLiteral("copyOptifineTempMc: 已清理游戏目录中版本 %1 的旧文件").arg(d);
+                }
+            }
+            QString srcDir = tempMcPath + QStringLiteral("/versions/") + d;
+            copyRecursive(srcDir, dstDir);
+            // Log jar size for verification
+            QString jarName = d + QStringLiteral(".jar");
+            QString dstJar = dstDir + QStringLiteral("/") + jarName;
+            if (QFileInfo::exists(dstJar)) {
+                qCInfo(logLoader) << QStringLiteral("copyOptifineTempMc: %1/%2 (%3 字节)")
+                    .arg(d, jarName).arg(QFileInfo(dstJar).size());
+            }
+        }
+    }
+
+
+
+    // Copy libraries from temp (overwrite individual files, but don't delete
+    // pre-existing libraries — launchwrapper-of may only exist in the game dir
+    // from a previous install, and the installer may not recreate it in temp).
+    QDir libSrc(tempMcPath + QStringLiteral("/libraries"));
+    if (libSrc.exists()) {
+        QStringList dirs2 = libSrc.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString& d : dirs2) {
+            copyRecursive(libSrc.absoluteFilePath(d),
+                          m_gameDir + QStringLiteral("/libraries/") + d);
+        }
+    }
+
+    // Copy assets from temp (OptiFine installer may generate virtual assets)
+    QDir assetsSrc(tempMcPath + QStringLiteral("/assets"));
+    if (assetsSrc.exists()) {
+        copyRecursive(assetsSrc.absolutePath(), m_gameDir + QStringLiteral("/assets"));
+    }
+
+    qCInfo(logLoader) << QStringLiteral("copyOptifineTempMc: 完整复制完成");
 }
 
 void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString& jarPath) {
@@ -937,7 +1121,14 @@ void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString
 
     QStringList dirs = QDir(versionsSrc).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QString& d : dirs) {
-        if (d == m_mcVersion) continue;
+        // For Forge/NeoForge: the installer creates a standalone version folder,
+        // leaving the source MC version untouched. Skip it — it already exists.
+        //
+        // For OptiFine (MC >= 1.14): the installer PATCHES the vanilla jar IN-PLACE
+        // and then creates a new version folder with "inheritsFrom" pointing at the
+        // patched MC version. We MUST copy back the patched MC jar, otherwise
+        // the inherited jar in the real game dir is the unpatched original.
+        if (d == m_mcVersion && m_loaderType != QStringLiteral("optifine")) continue;
         QString srcDir = versionsSrc + "/" + d;
         QString dstDir = m_gameDir + "/versions/" + d;
         QDir().mkpath(dstDir);
@@ -986,6 +1177,62 @@ void ModLoaderInstaller::cleanupTempMc(const QString& tempDir) {
     QDir dir(tempDir);
     if (dir.exists()) dir.removeRecursively();
     qCInfo(logLoader) << QStringLiteral("临时目录已清理: %1").arg(tempDir);
+}
+
+/// Flatten an OptiFine version JSON (remove inheritsFrom) so the version
+/// becomes fully standalone and the inherited MC version folder can be deleted.
+void ModLoaderInstaller::flattenOptifineVersion(const QString& versionId) {
+    QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    QString jsonPath = verDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+
+    QFile f(jsonPath);
+    if (!f.open(QIODevice::ReadOnly)) {
+        qCWarning(logLoader) << QStringLiteral("拍平失败: 无法读取 %1").arg(jsonPath);
+        return;
+    }
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+    QJsonObject json = doc.object();
+
+    QString inherits = json.value(QStringLiteral("inheritsFrom")).toString();
+    if (inherits.isEmpty()) {
+        qCInfo(logLoader) << QStringLiteral("拍平跳过（已是独立版本）: %1").arg(versionId);
+        return;
+    }
+
+    qCInfo(logLoader) << QStringLiteral("拍平 OptiFine 版本: %1 (inheritsFrom=%2)").arg(versionId, inherits);
+
+    // 1. Flatten JSON (merge all parent data into child)
+    QJsonObject flattened = flattenVersionJson(m_gameDir, json);
+    flattened.remove(QStringLiteral("inheritsFrom"));
+
+    // 2. Copy inherited patched jar to the OptiFine version folder
+    QString inheritedJar = m_gameDir + QStringLiteral("/versions/") + inherits
+                           + QStringLiteral("/") + inherits + QStringLiteral(".jar");
+    QString localJarPath = verDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+    if (QFile::exists(inheritedJar) && !QFile::exists(localJarPath)) {
+        if (QFile::copy(inheritedJar, localJarPath)) {
+            qCInfo(logLoader) << QStringLiteral("拍平: 已复制 patched jar %1 -> %2")
+                .arg(inheritedJar, localJarPath);
+        }
+    }
+
+    // 3. Write flattened JSON
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qCWarning(logLoader) << QStringLiteral("拍平失败: 无法写入 %1").arg(jsonPath);
+        return;
+    }
+    QJsonDocument flatDoc(flattened);
+    f.write(flatDoc.toJson(QJsonDocument::Indented));
+    f.close();
+    qCInfo(logLoader) << QStringLiteral("拍平完成: %1 (独立版本)").arg(versionId);
+
+    // 4. Delete inherited MC version folder (it was only downloaded for this install)
+    QDir inheritedDir(m_gameDir + QStringLiteral("/versions/") + inherits);
+    if (inheritedDir.exists()) {
+        inheritedDir.removeRecursively();
+        qCInfo(logLoader) << QStringLiteral("拍平后已清理原版文件夹: %1").arg(inheritedDir.absolutePath());
+    }
 }
 
 void ModLoaderInstaller::cleanupAfterInstall(const QStringList& dirsToClean) {

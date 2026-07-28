@@ -97,8 +97,13 @@ private:
     // Temp .minecraft isolation for OptiFine standalone installer
     QString setupTempMc();
     void collectForgeOutput(const QString& tempMc, const QString& jarPath);
+    /// Copy entire temp .minecraft back to game dir (主流启动器-style, more reliable than selective copy)
+    void copyOptifineTempMc(const QString& tempMcPath);
     void cleanupTempMc(const QString& tempDir);
     void copyRecursive(const QString& srcDir, const QString& dstDir);
+    /// Flatten inheritsFrom chain for OptiFine installer output — removes parent dependency
+    /// so the vanilla MC version folder can be safely deleted.
+    void flattenOptifineVersion(const QString& versionId);
 
     // Forge/NeoForge
     /// Resolve a version ID to its actual directory path (handles name mismatch)
@@ -163,6 +168,10 @@ private:
 public:
     // OptiFine: resolve official download URL via adloadx (主流启动器-compatible flow)
     static QString resolveOptifineOfficialUrl(const QString& filename);
+    /// Quick validity check: data must start with ZIP magic (PK) and be >100KB
+    static bool isValidZip(const QByteArray& data) {
+        return data.size() > 100 * 1024 && data.size() >= 4
+            && static_cast<quint8>(data[0]) == 'P' && static_cast<quint8>(data[1]) == 'K';}
 
 private:
     // Optifine standalone

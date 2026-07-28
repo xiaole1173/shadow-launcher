@@ -6798,6 +6798,49 @@ void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QStrin
 
             QByteArray jarData = reply->readAll();
 
+            // Validate: BMCLAPI may return HTTP 200 with error body
+            if (!ModLoaderInstaller::isValidZip(jarData)) {
+                // Fallback to official
+                QString offUrl = ModLoaderInstaller::resolveOptifineOfficialUrl(filename);
+                if (offUrl.isEmpty()) {
+                    emit logMessage(tr("[失败] OptiFine 下载: BMCLAPI 返回无效数据，官方源也无法解析"));
+                    updateStep(installName, 3, QStringLiteral("failed"), 0);
+                    if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败（无效数据）"));
+                    setInstalling(false);
+                    nam->deleteLater();
+                    return;
+                }
+                auto* r2 = nam->get(QNetworkRequest(offUrl));
+                connect(r2, &QNetworkReply::downloadProgress, this,
+                    [this, installName](qint64 received, qint64 total) {
+                        int pct = total > 0 ? (int)(received * 100 / total) : 0;
+                        updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+                    });
+                connect(r2, &QNetworkReply::finished, this,
+                    [this, r2, nam, installName, mcVersion]() {
+                        r2->deleteLater();
+                        nam->deleteLater();
+                        if (r2->error() != QNetworkReply::NoError) {
+                            emit logMessage(tr("[失败] OptiFine 下载失败（所有源）"));
+                            updateStep(installName, 3, QStringLiteral("failed"), 0);
+                            if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
+                            setInstalling(false);
+                            return;
+                        }
+                        QByteArray jarData2 = r2->readAll();
+                        if (!ModLoaderInstaller::isValidZip(jarData2)) {
+                            emit logMessage(tr("[失败] OptiFine 官方源也返回了无效数据"));
+                            updateStep(installName, 3, QStringLiteral("failed"), 0);
+                            if (auto* ds2 = dlSession(installName)) ds2->markFailed(tr("OptiFine 下载失败（所有源返回无效数据）"));
+                            setInstalling(false);
+                            return;
+                        }
+                        updateStep(installName, 3, QStringLiteral("completed"), 100, jarData2.size(), jarData2.size());
+                        delegateOptifineInstall(mcVersion, installName, jarData2);
+                    });
+                return;  // don't fall through to the old success path
+            }
+
             updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
 
             nam->deleteLater();
@@ -6849,13 +6892,23 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
     *conn = connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
 
-        [this, conn, mcVersion](bool success, const QString&) {
+        [this, conn, mcVersion, installName](bool success, const QString&) {
 
             disconnect(*conn);
 
             delete conn;
 
             if (!success) return;
+
+            // flattenOptifineVersion has already deleted the inherited MC version folder.
+            // Clear the session's merged state NOW (before the main queued handler runs)
+            // so it won't attempt redundant cleanup or trigger a re-download.
+            if (auto* ds = dlSession(installName)) {
+                ds->setMerged(false);
+                ds->mcVersion.clear();
+                ds->loaderType.clear();
+                ds->loaderVer.clear();
+            }
 
             // Scan versions dir for the actual OptiFine folder name (Problem 3 fix)
 
@@ -6970,8 +7023,22 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                     return;
                 }
 
-                *won = true;
                 QByteArray jarData = reply->readAll();
+                // Validate: BMCLAPI may return HTTP 200 with non-JAR body ("File not found." etc.)
+                if (!ModLoaderInstaller::isValidZip(jarData)) {
+                    qCWarning(logApp) << QStringLiteral("OptiFine %1 返回无效数据: 大小=%2, 不是有效 ZIP")
+                        .arg(label).arg(jarData.size());
+                    (*pendingCount)--;
+                    if (*pendingCount <= 0) {
+                        *won = true;
+                        emit logMessage(tr("OptiFine 下载失败（所有源返回无效数据）"));
+                        updateStep(installName, 3, QStringLiteral("failed"), 0);
+                        if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
+                        setInstalling(false);
+                    }
+                    return;
+                }
+                *won = true;
                 updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
                 onParallelOptifineDone(installName, jarData);
             });

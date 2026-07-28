@@ -596,12 +596,9 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
     QStringList cp;
     QString libsDir = toShortPath(gameDir) + QStringLiteral("/libraries");
 
-    // Add version JAR first
+    // Precompute version jar path (added LAST — see end of function)
     QString versionJar = gameDir + QStringLiteral("/versions/") + versionId
                          + QStringLiteral("/") + versionId + QStringLiteral(".jar");
-    if (QFileInfo::exists(versionJar)) {
-        cp.append(versionJar);
-    }
 
     // Collect libraries from version JSON + all inheritsFrom parents
     QSet<QString> seenLibs;  // deduplicate by resolved path
@@ -692,6 +689,25 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
         if (parseErr.error != QJsonParseError::NoError) break;
         currentJson = parentDoc.object();
         currentId = parentId;
+    }
+
+    // Add version's own jar LAST (after all libraries), so that library JARs
+    // (like optifine:OptiFine which contains class-file-level patches) take
+    // precedence over the version jar's vanilla classes in the classpath.
+    //
+    // For standalone versions (regular MC / flattened OptiFine):
+    //   libraries + patched libs → version jar (vanilla copy)
+    //   The JVM loads each class from the first JAR in classpath order;
+    //   OptiFine's library must come first to provide GLX.isUsingFBOs().
+    //
+    // For inheriting versions (Forge, NeoForge, inheriting OptiFine):
+    //   The inherited parent jar is already added during the inheritsFrom walk
+    //   above. Adding the version's own jar here is harmless (it won't shadow
+    //   library patches since libraries were added before).
+    if (!cp.contains(versionJar)) {
+        if (QFileInfo::exists(versionJar)) {
+            cp.append(versionJar);
+        }
     }
 
     return cp;
