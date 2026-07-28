@@ -101,6 +101,7 @@ public:
     bool loaderFinishedWaitingMC = false;
     bool optifineJarParallel = false;
     bool optifineJarDone = false;
+    bool optifineInstallTriggered = false;
     QByteArray optifineJarData;
     QString bmclType;
     QString bmclPatch;

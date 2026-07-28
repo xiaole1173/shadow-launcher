@@ -6808,6 +6808,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
     ensureSession(installName);
 
     auto* ds = dlSession(installName);
+    if (ds) ds->optifineInstallTriggered = true;
 
     showStep(installName, 4);
 
@@ -6983,15 +6984,9 @@ void VersionBackend::onParallelOptifineDone(const QString& installName, const QB
 
     // Guard against double invocation (MC completion + pending loader both trigger)
 
+    // Guard against double invocation: if install was already triggered, skip
     if (ds->hasPendingLoader) ds->hasPendingLoader = false;
-
-    if (ds->optifineJarDone && ds->mcDownloadDone) {
-
-        // Already handled, skip regardless of jarData content
-
-        return;
-
-    }
+    if (ds->optifineInstallTriggered) return;
 
 
 

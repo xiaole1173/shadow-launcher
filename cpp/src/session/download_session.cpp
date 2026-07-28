@@ -117,6 +117,7 @@ void DownloadSession::reset() {
     loaderFinishedWaitingMC = false;
     optifineJarParallel = false;
     optifineJarDone = false;
+    optifineInstallTriggered = false;
     optifineJarData.clear();
     bmclType.clear();
     bmclPatch.clear();
