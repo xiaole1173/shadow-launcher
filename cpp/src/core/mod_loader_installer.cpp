@@ -512,30 +512,25 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     // Set mainClass to LaunchWrapper (OptiFine needs tweaker loading)
     versionJson[QStringLiteral("mainClass")] = QStringLiteral("net.minecraft.launchwrapper.Launch");
 
-    // Add --tweakClass optifine.OptiFineTweaker to launch arguments
+    // Determine if we need to add tweakClass (save the intent before flattening)
+    // Remove arguments from versionJson to avoid duplicate merge in flattenVersionJson.
+    // flattenVersionJson walks the inheritsFrom chain and merges parent arguments into child.
+    // If child already has parent's arguments (copied from MC JSON below), flatten creates duplicates.
+    bool needTweakClass = false;
     if (versionJson.contains(QStringLiteral("minecraftArguments"))) {
-        // Old format: append to string
-        QString args = versionJson[QStringLiteral("minecraftArguments")].toString();
-        if (!args.contains(QStringLiteral("optifine.OptiFineTweaker")))
-            args += QStringLiteral(" --tweakClass optifine.OptiFineTweaker");
-        versionJson[QStringLiteral("minecraftArguments")] = args;
+        QString mcArgs = versionJson[QStringLiteral("minecraftArguments")].toString();
+        needTweakClass = !mcArgs.contains(QStringLiteral("optifine.OptiFineTweaker"));
+        versionJson.remove(QStringLiteral("minecraftArguments"));
     } else {
-        // New format: add to arguments.game array
-        QJsonObject args = versionJson.value(QStringLiteral("arguments")).toObject();
-        QJsonArray gameArgs = args.value(QStringLiteral("game")).toArray();
-        // Check if already added
-        bool hasTweak = false;
+        QJsonObject argsObj = versionJson.value(QStringLiteral("arguments")).toObject();
+        QJsonArray gameArgs = argsObj.value(QStringLiteral("game")).toArray();
+        needTweakClass = true;
         for (const QJsonValue& gv : gameArgs) {
             if (gv.isString() && gv.toString() == QStringLiteral("optifine.OptiFineTweaker")) {
-                hasTweak = true; break;
+                needTweakClass = false; break;
             }
         }
-        if (!hasTweak) {
-            gameArgs.append(QStringLiteral("--tweakClass"));
-            gameArgs.append(QStringLiteral("optifine.OptiFineTweaker"));
-        }
-        args[QStringLiteral("game")] = gameArgs;
-        versionJson[QStringLiteral("arguments")] = args;
+        versionJson.remove(QStringLiteral("arguments"));
     }
 
     // Add libraries: OptiFine + launchwrapper (主流启动器 Path B)
@@ -557,8 +552,7 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     }
     versionJson[QStringLiteral("libraries")] = libraries;
 
-    // 3. Flatten to standalone (remove inheritsFrom, merge all parent libs + args)
-    //    This allows the launcher to delete the base MC version (version isolation).
+    // 3. Flatten to standalone — merge all parent data, strip inheritsFrom
     {
         QJsonObject flattened = flattenVersionJson(m_gameDir, versionJson);
         if (flattened != versionJson) {
@@ -567,8 +561,24 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
         }
     }
     // flattenVersionJson merges parent data but does NOT remove inheritsFrom.
-    // Keep it clean: remove inheritsFrom so launcher doesn't walk the chain again, causing duplicate args.
+    // Remove it so launcher doesn't walk the chain again (avoids duplicate args).
     versionJson.remove(QStringLiteral("inheritsFrom"));
+
+    // Now re-add the tweakClass to the freshly-merged (single-copy) arguments
+    if (needTweakClass) {
+        if (versionJson.contains(QStringLiteral("minecraftArguments"))) {
+            QString args = versionJson[QStringLiteral("minecraftArguments")].toString();
+            args += QStringLiteral(" --tweakClass optifine.OptiFineTweaker");
+            versionJson[QStringLiteral("minecraftArguments")] = args;
+        } else {
+            QJsonObject argsObj = versionJson.value(QStringLiteral("arguments")).toObject();
+            QJsonArray gameArgs = argsObj.value(QStringLiteral("game")).toArray();
+            gameArgs.append(QStringLiteral("--tweakClass"));
+            gameArgs.append(QStringLiteral("optifine.OptiFineTweaker"));
+            argsObj[QStringLiteral("game")] = gameArgs;
+            versionJson[QStringLiteral("arguments")] = argsObj;
+        }
+    }
 
     // 4. Copy base MC JAR to version folder
     QString baseJarPath;
