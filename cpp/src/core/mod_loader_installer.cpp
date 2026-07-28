@@ -413,18 +413,18 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     reader.close();
     buffer.close();
 
-    // ── Step B: For modern MC (>= 1.17), OptiFine no longer uses LaunchWrapper.
-    // Run the installer JAR if available; otherwise fall back to synthetic.
-    bool isModernMC = false;
+    // ── Step B: For MC >= 1.14, OptiFine uses its own class transformer (not LaunchWrapper-only).
+    // Run the installer JAR (主流启动器 方式 A). For < 1.14, use synthetic (主流启动器 方式 B).
+    bool useInstaller = false;
     {
         QStringList parts = m_mcVersion.split(QLatin1Char('.'));
         if (parts.size() >= 2) {
             int major = parts[0].toInt();
             int minor = parts[1].toInt();
-            isModernMC = (major > 1) || (major == 1 && minor >= 17);
+            useInstaller = (major > 1) || (major == 1 && minor >= 14);
         }
     }
-    if (isModernMC) {
+    if (useInstaller) {
         QBuffer buf2;
         buf2.setData(jarData);
         if (buf2.open(QIODevice::ReadOnly)) {
@@ -433,14 +433,14 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
             zr2.close();
             buf2.close();
             if (hasInstallerClass) {
-                qCInfo(logLoader) << QStringLiteral("OptiFine 现代 MC (%1) + Installer.class  → 使用安装器模式").arg(m_mcVersion);
+                qCInfo(logLoader) << QStringLiteral("OptiFine MC >= 1.14 (%1) + Installer.class → 使用安装器模式").arg(m_mcVersion);
                 runOptifineInstaller(jarData);
                 return;
             }
         }
-        qCInfo(logLoader) << QStringLiteral("OptiFine 现代 MC (%1) 但无 Installer.class，回退到合成模式").arg(m_mcVersion);
+        qCInfo(logLoader) << QStringLiteral("OptiFine MC >= 1.14 (%1) 但无 Installer.class，回退到合成模式").arg(m_mcVersion);
     } else {
-        qCInfo(logLoader) << QStringLiteral("OptiFine 旧版 MC (%1) → 跳过安装器，直接使用合成模式").arg(m_mcVersion);
+        qCInfo(logLoader) << QStringLiteral("OptiFine MC < 1.14 (%1) → 跳过安装器，合成模式").arg(m_mcVersion);
     }
 
     // ── Step C: Synthetic version JSON (LaunchWrapper, no Java needed) ──

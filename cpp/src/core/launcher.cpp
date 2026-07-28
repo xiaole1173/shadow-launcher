@@ -1214,10 +1214,15 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             return -1;
         };
 
-        // HARDCODE: disable rename for testing - verify OptiFineForgeTweaker source
-        bool hasForge = false;
-        qCInfo(logLaunch) << QStringLiteral("tweakClass 修复: versionId=%1 mainClass=%2 hasForge=HARDCODED_FALSE")
-            .arg(versionId, versionJson.value(QStringLiteral("mainClass")).toString());
+        // Only rename OptiFineTweaker → OptiFineForgeTweaker when Forge is present.
+        // Check: version ID contains "forge", or there's >1 --tweakClass (non-OptiFine).
+        int tweakCount = 0;
+        for (int j = 0; j < args.size(); ++j) {
+            if (args[j] == QStringLiteral("--tweakClass")) ++tweakCount;
+        }
+        bool hasForge = versionId.contains(QStringLiteral("forge")) || tweakCount > 1;
+        qCInfo(logLaunch) << QStringLiteral("tweakClass 修复: versionId=%1 tweakCount=%2 hasForge=%3")
+            .arg(versionId).arg(tweakCount).arg(hasForge);
 
         // 修复错误的 OptiFineTweaker 名称（仅当 Forge 存在时）
         if (hasForge) {
