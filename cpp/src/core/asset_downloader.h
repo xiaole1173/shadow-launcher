@@ -155,6 +155,7 @@ private:
         int  mirrorIndex = 0;
         int  namIndex = 0;                 // which QNAM handled it
         qint64 startMs = 0;                // for timing
+        qint64 progressBytes = 0;          // bytes tracked via downloadProgress (增量)
     };
     QMap<QNetworkReply*, InFlight> m_inFlight;
     int  m_failedCount = 0;

@@ -127,7 +127,9 @@ void FileDownloader::start()
     m_phase = PhaseFirstThread;
 
     m_speedTimer.start();
-    m_lastSpeedBytes = 0;
+    // 初始化 lastSpeedBytes 为当前 m_downloadedBytes（可能已包含 cache hit 的文件），
+    // 避免首次 speedTick 将缓存文件计入瞬时速度
+    m_lastSpeedBytes = m_downloadedBytes.loadRelaxed();
     m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
     m_speedRecords.clear();
 

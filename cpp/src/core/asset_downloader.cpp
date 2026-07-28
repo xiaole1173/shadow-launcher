@@ -140,7 +140,9 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     m_state = Running;
     m_lastProgressEmit.start();
     m_speedTimer.start();
-    m_lastSampleBytes.storeRelaxed(0);
+    // 初始化 lastSampleBytes 为当前已加载的缓存字节，避免首次测速将
+    // 所有 cache hit 的文件大小算作瞬时速度
+    m_lastSampleBytes.storeRelaxed(m_downloadedBytes.loadRelaxed());
 
     emit logMessage(QString("AssetDownloader v2: %1 files (%2), %3 hosts")
                         .arg(tasks.size()).arg(fmtSize(totalEst)).arg(hosts.size()));
@@ -282,6 +284,18 @@ do_download:
     ift.startMs = QDateTime::currentMSecsSinceEpoch();
     m_inFlight.insert(reply, ift);
 
+    // 增量跟踪下载字节，避免在 onReplyFinished 中整批累加导致测速尖峰
+    connect(reply, &QNetworkReply::downloadProgress, this,
+            [this, reply](qint64 received, qint64) {
+        auto it = m_inFlight.find(reply);
+        if (it == m_inFlight.end()) return;
+        qint64 delta = received - it->progressBytes;
+        if (delta > 0) {
+            m_downloadedBytes.fetchAndAddRelaxed(delta);
+            it->progressBytes = received;
+        }
+    });
+
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         onReplyFinished(reply);
     });
@@ -381,10 +395,8 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
         }
     }
 
-    // Track bytes for real-time speed/progress (data arrived from network).
-    // This is the SINGLE source of truth for downloaded bytes.
-    // finishDownload() does NOT add bytes again — it only tracks file completion.
-    m_downloadedBytes.fetchAndAddRelaxed(data.size());
+    // 字节已在 downloadProgress 增量累加，这里不再重复累加。
+    // onReplyFinished 只负责 I/O（写盘、SHA1 校验）。
 
     // I/O offload: SHA1 + disk write in thread pool
     enqueueIO(task, data);
