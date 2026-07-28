@@ -354,8 +354,9 @@ void ModLoaderInstaller::installOptifineFromJar(const QByteArray& jarData, const
     m_mcVersion = mcVersion;
     m_installName = installName;
     // Extract OptiFine version from installName: "1.21.11-OptiFine_HD_U_J9" → "HD_U_J9"
+    // "OptiFine_" is 9 chars, so skip ofIdx + 9 to drop the trailing underscore
     int ofIdx = installName.indexOf(QStringLiteral("OptiFine_"));
-    m_loaderVersion = (ofIdx >= 0) ? installName.mid(ofIdx + 8) : mcVersion;
+    m_loaderVersion = (ofIdx >= 0) ? installName.mid(ofIdx + 9) : mcVersion;
     m_loaderType = "optifine";
     m_optifineBmclType = bmclType;
     m_optifineBmclPatch = bmclPatch;
