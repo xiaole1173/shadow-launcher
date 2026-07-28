@@ -304,12 +304,13 @@ void JavaBackend::downloadJavaFileTo(const QString &filename, const QString &out
     }
 
     m_downloader = new FileDownloader(this);
-    m_downloader->setMaxThreads(64);
+    m_downloader->setMaxThreads(4);  // 单文件下载不宜开过多线程，防止进度爆表
 
     connect(m_downloader, &FileDownloader::progressChanged, this,
             [this](int, int, qint64 dl, qint64 total) {
                 double speed = m_downloader->currentSpeedMBps();
-                int pct = total > 0 ? (int)(dl * 100 / total) : 0;
+                // 在下载过程中，线程分裂可能导致临时超量计数，cap 防止爆进度
+                int pct = total > 0 ? qMin(100, (int)(dl * 100 / total)) : 0;
                 emit downloadProgress(pct, dl, total, speed);
             });
 

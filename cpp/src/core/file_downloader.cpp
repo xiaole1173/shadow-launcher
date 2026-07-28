@@ -514,13 +514,17 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             // may return more data than this thread's current (reduced) range.
             // Clip to the allocated range to avoid overlapping temp files during merge,
             // which would corrupt the final file (same bytes counted twice).
+            // IMPORTANT: use mid(downloadStart, threadRange), NOT left(threadRange),
+            // because split threads start at a non-zero offset. If the server ignores
+            // Range header and returns the full file, left() would grab bytes 0..N
+            // when we need bytes downloadStart..downloadStart+threadRange.
             {
                 qint64 threadRange = th->downloadEnd - th->downloadStart;
                 if (threadRange > 0 && data.size() > threadRange) {
                     qint64 excess = data.size() - threadRange;
-                    qCInfo(logDownload) << QStringLiteral("截断多余数据 文件=%1 预期=%2 实际=%3 超额=%4")
-                        .arg(file->localName).arg(threadRange).arg(data.size()).arg(excess);
-                    data = data.left(threadRange);
+                    qCInfo(logDownload) << QStringLiteral("截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
+                        .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess);
+                    data = data.mid(th->downloadStart, threadRange);
                     // Adjust byte counters: the excess was already counted via downloadProgress
                     th->downloadDone = threadRange;
                     m_downloadedBytes.fetchAndAddRelaxed(-excess);
@@ -621,9 +625,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 qint64 threadRange = th->downloadEnd - th->downloadStart;
                 if (threadRange > 0 && data.size() > threadRange) {
                     qint64 excess = data.size() - threadRange;
-                    qCInfo(logDownload) << QStringLiteral("截断多余数据(重试) 文件=%1 预期=%2 实际=%3 超额=%4")
-                        .arg(file->localName).arg(threadRange).arg(data.size()).arg(excess);
-                    data = data.left(threadRange);
+                    qCInfo(logDownload) << QStringLiteral("截断多余数据(重试) 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
+                        .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess);
+                    data = data.mid(th->downloadStart, threadRange);
                     th->downloadDone = threadRange;
                     m_downloadedBytes.fetchAndAddRelaxed(-excess);
                 }
