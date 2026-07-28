@@ -337,7 +337,9 @@ Rectangle {
                                         defaultPath: defaultPath,
                                         displayName: (rpDetailTitle || rpDetailSlug) + " " + vn
                                     }
-                                    rpFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
+                                    // 默认定位到 versions 文件夹，方便用户选择安装到的游戏版本
+                                    var versionsFolder = backend ? backend.gameDir + "/versions" : "."
+                                    rpFileDialog.currentFolder = "file:///" + versionsFolder.replace(/\\/g, "/")
                                     rpFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                     rpFileDialog.open()
                                 }

@@ -753,44 +753,62 @@ Rectangle {
 
                 installPressBounce.start()
                 console.log("[install] floating button clicked: name=" + n)
+
+                // ═══ Navigate to progress page FIRST, defer download ═══
+                // This avoids UI freeze caused by synchronous I/O in installVersion/installModLoader.
+                root.navigateToProgress()
+
                 if (backend) {
-                    backend.logMessage("[install] download: " + n)
-                    backend.cancelModLoaderQueries()
-                    var hasLoaderInstalled = false
-                    if (selectedForge !== "") {
-                        backend.installModLoader(mcVersion, "forge", selectedForge, n)
-                        hasLoaderInstalled = true
-                    }
-                    if (selectedNeoForge !== "") {
-                        backend.installModLoader(mcVersion, "neoforge", selectedNeoForge, n)
-                        hasLoaderInstalled = true
-                    }
-                    if (selectedFabric !== "") {
-                        var gameDir = backend.getVersionGameDir(n) || ""
-                        if (selectedFabricApi !== "" && selectedFabricApiUrl !== "") {
-                            var apiPath = gameDir + "/mods/" + selectedFabricApiFile
-                            backend.installModLoader(mcVersion, "fabric", selectedFabric, n,
-                                selectedFabricApi, selectedFabricApiUrl, apiPath)
-                        } else {
-                            backend.installModLoader(mcVersion, "fabric", selectedFabric, n)
+                    // Defer the actual download start so the progress page renders immediately
+                    Qt.callLater(function() {
+                        backend.logMessage("[install] download: " + n)
+                        backend.cancelModLoaderQueries()
+                        var hasLoaderInstalled = false
+                        var dlName = n  // snapshot the vars for the closure
+                        var dlMcVersion = mcVersion
+                        var dlForge = selectedForge
+                        var dlNeoForge = selectedNeoForge
+                        var dlFabric = selectedFabric
+                        var dlFabricApi = selectedFabricApi
+                        var dlFabricApiUrl = selectedFabricApiUrl
+                        var dlFabricApiFile = selectedFabricApiFile
+                        var dlOptifine = selectedOptifine
+                        var dlOptifineType = selectedOptifineType
+                        var dlOptifinePatch = selectedOptifinePatch
+                        if (dlForge !== "") {
+                            backend.installModLoader(dlMcVersion, "forge", dlForge, dlName)
+                            hasLoaderInstalled = true
                         }
-                        hasLoaderInstalled = true
-                    }
-                    if (selectedOptifine !== "") {
-                        if (hasLoaderInstalled) {
-                            backend.installOptifineJar(mcVersion, selectedOptifine, selectedOptifineType, selectedOptifinePatch)
-                        } else {
-                            backend.installOptifine(mcVersion, selectedOptifine, "", n, selectedOptifineType, selectedOptifinePatch)
+                        if (dlNeoForge !== "") {
+                            backend.installModLoader(dlMcVersion, "neoforge", dlNeoForge, dlName)
+                            hasLoaderInstalled = true
                         }
-                    }
-                    if (!hasLoaderInstalled && selectedOptifine === "") {
-                        backend.installVersion(n)
-                    }
-                    // Set pending user data import
-                    if (root.importArchivePath !== "") {
-                        backend.setPendingUserDataImport(n, root.importArchivePath)
-                    }
-                    root.navigateToProgress()
+                        if (dlFabric !== "") {
+                            var gameDir = backend.getVersionGameDir(dlName) || ""
+                            if (dlFabricApi !== "" && dlFabricApiUrl !== "") {
+                                var apiPath = gameDir + "/mods/" + dlFabricApiFile
+                                backend.installModLoader(dlMcVersion, "fabric", dlFabric, dlName,
+                                    dlFabricApi, dlFabricApiUrl, apiPath)
+                            } else {
+                                backend.installModLoader(dlMcVersion, "fabric", dlFabric, dlName)
+                            }
+                            hasLoaderInstalled = true
+                        }
+                        if (dlOptifine !== "") {
+                            if (hasLoaderInstalled) {
+                                backend.installOptifineJar(dlMcVersion, dlOptifine, dlOptifineType, dlOptifinePatch)
+                            } else {
+                                backend.installOptifine(dlMcVersion, dlOptifine, "", dlName, dlOptifineType, dlOptifinePatch)
+                            }
+                        }
+                        if (!hasLoaderInstalled && dlOptifine === "") {
+                            backend.installVersion(dlName)
+                        }
+                        // Set pending user data import
+                        if (root.importArchivePath !== "") {
+                            backend.setPendingUserDataImport(dlName, root.importArchivePath)
+                        }
+                    })
                 }
             }
         }

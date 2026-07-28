@@ -304,7 +304,9 @@ Rectangle {
                                     defaultPath: defaultPath,
                                     displayName: (shaderDetailTitle || shaderDetailSlug) + " " + vn
                                 }
-                                shaderFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
+                                // 默认定位到 versions 文件夹，方便用户选择安装到的游戏版本
+                                var versionsFolder = backend ? backend.gameDir + "/versions" : "."
+                                shaderFileDialog.currentFolder = "file:///" + versionsFolder.replace(/\\/g, "/")
                                 shaderFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                 shaderFileDialog.open()
                             }

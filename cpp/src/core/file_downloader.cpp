@@ -509,6 +509,24 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
             }
 
+            // ── Truncate data if thread was split mid-download ──
+            // When tryAddThread splits a running thread, the in-flight HTTP request
+            // may return more data than this thread's current (reduced) range.
+            // Clip to the allocated range to avoid overlapping temp files during merge,
+            // which would corrupt the final file (same bytes counted twice).
+            {
+                qint64 threadRange = th->downloadEnd - th->downloadStart;
+                if (threadRange > 0 && data.size() > threadRange) {
+                    qint64 excess = data.size() - threadRange;
+                    qCInfo(logDownload) << QStringLiteral("截断多余数据 文件=%1 预期=%2 实际=%3 超额=%4")
+                        .arg(file->localName).arg(threadRange).arg(data.size()).arg(excess);
+                    data = data.left(threadRange);
+                    // Adjust byte counters: the excess was already counted via downloadProgress
+                    th->downloadDone = threadRange;
+                    m_downloadedBytes.fetchAndAddRelaxed(-excess);
+                }
+            }
+
             // SHA1 verification for full-download files
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
@@ -597,6 +615,19 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
             QByteArray data = reply->readAll();
             reply->deleteLater();
+
+            // ── Truncate data if thread was split mid-download (retry path) ──
+            {
+                qint64 threadRange = th->downloadEnd - th->downloadStart;
+                if (threadRange > 0 && data.size() > threadRange) {
+                    qint64 excess = data.size() - threadRange;
+                    qCInfo(logDownload) << QStringLiteral("截断多余数据(重试) 文件=%1 预期=%2 实际=%3 超额=%4")
+                        .arg(file->localName).arg(threadRange).arg(data.size()).arg(excess);
+                    data = data.left(threadRange);
+                    th->downloadDone = threadRange;
+                    m_downloadedBytes.fetchAndAddRelaxed(-excess);
+                }
+            }
 
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {

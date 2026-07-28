@@ -462,42 +462,7 @@ Rectangle {
                 elide: Text.ElideMiddle; Layout.maximumWidth: 320
             }
 
-            // 多角色选择
-            Rectangle {
-                Layout.fillWidth: true
-                visible: backend.yggdrasil.profiles.length > 1
-                height: visible ? (Math.min(backend.yggdrasil.profiles.length, 4) * 32 + 8) : 0
-                color: StyleTokens.bgSecondary; radius: StyleTokens.radiusMd; border.color: StyleTokens.bgElevated; border.width: 1; clip: true
-                ListView {
-                    anchors.fill: parent; anchors.margins: 4
-                    model: backend.yggdrasil.profiles
-                    spacing: 2
-                    delegate: Rectangle {
-                        width: ListView.view.width; height: 30; radius: StyleTokens.radiusSm
-                        color: model.index === backend.yggdrasil.profileIndex ? "#1a2a48" : (rowMouse.containsMouse ? StyleTokens.bgCard : "transparent")
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        RowLayout {
-                            anchors.fill: parent; anchors.leftMargin: 8; spacing: 6
-                            Rectangle {
-                                width: 6; height: 6; radius: 3
-                                color: model.index === backend.yggdrasil.profileIndex ? "#6080e8" : "transparent"
-                            }
-                            Text {
-                                text: modelData.name || ""
-                                color: model.index === backend.yggdrasil.profileIndex ? StyleTokens.textSecondary : "#9498a8"
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                font.weight: model.index === backend.yggdrasil.profileIndex ? Font.DemiBold : Font.Normal
-                            }
-                        }
-                        MouseArea {
-                            id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (backend) backend.yggdrasil.selectProfile(model.index) }
-                        }
-                    }
-                }
-            }
-
-            // 登出 + 角色列表
+            // 登出 + 角色列表（合并为一行，不再使用内联列表，统一走弹窗）
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter; spacing: 8
                 Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
@@ -508,11 +473,13 @@ Rectangle {
                     Row {
                         anchors.centerIn: parent; spacing: 4
                         Image { source: "icons/lucide/list.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: qsTr("角色"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
+                        Text { text: qsTr("角色"); font.pixelSize: StyleTokens.fontSizeSm; color: backend.yggdrasil && backend.yggdrasil.profiles.length > 1 ? StyleTokens.textPrimary : StyleTokens.textTertiary }
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: showProfilePopup = true
+                        enabled: backend && backend.yggdrasil && backend.yggdrasil.profiles.length > 0
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: { if (enabled) showProfilePopup = true }
                     }
                 }
 
@@ -547,6 +514,7 @@ Rectangle {
         width: 340; color: "transparent"
         visible: loginMode === 2 && backend && backend.yggdrasil && backend.yggdrasil.loggedIn
         height: yggServerColumn.height
+        z: 1
 
         Column {
             id: yggServerColumn

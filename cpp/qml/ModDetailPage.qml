@@ -567,7 +567,9 @@ Rectangle {
                                         sha1: d.sha1 || "", defaultPath: defaultPath,
                                         displayName: (modDetailTitle || modDetailSlug) + " " + vn
                                     }
-                                    modFileDialog.currentFolder = "file:///" + (mineDir || ".").replace(/\\/g, "/")
+                                    // 默认定位到 versions 文件夹，方便用户选择安装到的游戏版本
+                                    var versionsFolder = backend ? backend.gameDir + "/versions" : "."
+                                    modFileDialog.currentFolder = "file:///" + versionsFolder.replace(/\\/g, "/")
                                     modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                     modFileDialog.open()
                                 }
