@@ -30,6 +30,8 @@
 #include <QElapsedTimer>
 #include <QMutex>
 #include <QThread>
+#include <QRegularExpression>
+#include <functional>
 #include "account_backend.h"
 #include "yggdrasil_backend.h"
 #include "app_backend.h"
@@ -2715,75 +2717,335 @@ static void queryModLoaderApi(ShadowBackend* self, const QString& url,
     });  // QTimer::singleShot
 }
 
-void ShadowBackend::queryForgeVersions(const QString& mcVersion) {
-    m_modLoaderQueriesCancelled = false;  // fresh install page entry
-    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/forge/minecraft/") + mcVersion;
-    queryModLoaderApi(this, url, "Forge",
-        [this, mcVersion](const QByteArray& data) -> QVariantList {
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            if (!doc.isArray()) return {};
-            QJsonArray arr = doc.array();
-            QVariantList list;
-            for (const QJsonValue& v : arr) {
-                QJsonObject obj = v.toObject();
-                QString ver = obj.value("version").toString();
-                if (ver.isEmpty()) continue;
-                QString date = obj.value("modified").toString().left(10);
-                // Extract installer SHA1 from files[category=="installer"]
-                QString installerSha1;
-                if (obj.contains("files")) {
-                    for (const QJsonValue& fv : obj["files"].toArray()) {
-                        QJsonObject f = fv.toObject();
-                        if (f.value("category").toString() == QStringLiteral("installer")) {
-                            installerSha1 = f.value("hash").toString();
-                            break;
-                        }
-                    }
+// ── Forge 官方 HTML 版本列表解析（照搬 主流启动器 regex 提取方式）──
+// URL: https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_{mcVer}.html
+// 注意：- 需要替换为 _（兼容 1.7.10-pre4 等版本）
+static QVariantList parseForgeOfficialVersions(const QByteArray& html, const QString& filterMc) {
+    QString text = QString::fromUtf8(html);
+    if (text.length() < 1000) return {};
+
+    QVariantList result;
+
+    // Split by <td class="download-version" to get individual version blocks
+    QStringList versionBlocks = text.split(QStringLiteral("<td class=\"download-version"));
+    // First element is before the first version block
+    for (int blockIdx = 1; blockIdx < versionBlocks.size(); ++blockIdx) {
+        const QString& block = versionBlocks[blockIdx];
+
+        // Extract version name: e.g. "50.1.9"
+        QRegularExpression nameRe(QStringLiteral("[0-9]+(?:\\.[0-9]+)+"));
+        QString versionName;
+        QRegularExpressionMatch nameMatch = nameRe.match(block);
+        if (nameMatch.hasMatch())
+            versionName = nameMatch.captured();
+        if (versionName.isEmpty()) continue;
+
+        bool isRecommended = block.contains(QStringLiteral("fa promo-recommended"));
+
+        // Extract branch from URL: e.g. "forge-50.1.9-1.10.0-installer.jar" → "1.10.0"
+        QString branch;
+        QRegularExpression branchRe(QStringLiteral("-") + QRegularExpression::escape(versionName) + QStringLiteral("-([^\"]+?)(?=-[a-z]+\\.[a-z]{3})"));
+        QRegularExpressionMatch branchMatch = branchRe.match(block);
+        if (branchMatch.hasMatch())
+            branch = branchMatch.captured(1);
+        // Special cases for known problematic versions (matching 主流启动器)
+        if (versionName == QStringLiteral("11.15.1.2318") ||
+            versionName == QStringLiteral("11.15.1.1902") ||
+            versionName == QStringLiteral("11.15.1.1890"))
+            branch = QStringLiteral("1.8.9");
+        if (branch.isEmpty() && filterMc == QStringLiteral("1.7.10")) {
+            // For 1.7.10, branch is needed when version's fourth segment >= 1300
+            QStringList vParts = versionName.split(QLatin1Char('.'));
+            if (vParts.size() >= 4 && vParts[3].toInt() >= 1300)
+                branch = QStringLiteral("1.7.10");
+        }
+
+        // Extract release time: e.g. "2021-02-15 03:24:02"
+        QRegularExpression timeRe(QStringLiteral("(?<=download-time\" title=\")[^\"]+"));
+        QString releaseTime;
+        QRegularExpressionMatch timeMatch = timeRe.match(block);
+        if (timeMatch.hasMatch()) {
+            QString orig = timeMatch.captured();
+            // Convert "2021-02-15 03:24:02" → "2021-02-15"
+            releaseTime = orig.left(10);
+        }
+
+        // Determine category and extract hash
+        QString category;
+        QString fileHash;
+        if (block.contains(QStringLiteral("classifier-installer\""))) {
+            // installer.jar
+            QString sub = block.mid(block.indexOf(QStringLiteral("installer.jar")));
+            QRegularExpression hashRe(QStringLiteral("(?<=MD5:</strong> )[^<]+"));
+            QRegularExpressionMatch hashMatch = hashRe.match(sub);
+            if (hashMatch.hasMatch())
+                fileHash = hashMatch.captured().trimmed();
+            category = QStringLiteral("installer");
+        } else if (block.contains(QStringLiteral("classifier-universal\""))) {
+            QString sub = block.mid(block.indexOf(QStringLiteral("universal.zip")));
+            QRegularExpression hashRe(QStringLiteral("(?<=MD5:</strong> )[^<]+"));
+            QRegularExpressionMatch hashMatch = hashRe.match(sub);
+            if (hashMatch.hasMatch())
+                fileHash = hashMatch.captured().trimmed();
+            category = QStringLiteral("universal");
+        } else if (block.contains(QStringLiteral("client.zip"))) {
+            QString sub = block.mid(block.indexOf(QStringLiteral("client.zip")));
+            QRegularExpression hashRe(QStringLiteral("(?<=MD5:</strong> )[^<]+"));
+            QRegularExpressionMatch hashMatch = hashRe.match(sub);
+            if (hashMatch.hasMatch())
+                fileHash = hashMatch.captured().trimmed();
+            category = QStringLiteral("client");
+        } else {
+            // No downloadable file for this entry
+            continue;
+        }
+
+        QVariantMap m;
+        m[QStringLiteral("version")] = versionName;
+        m[QStringLiteral("type")] = isRecommended ? QStringLiteral("recommended") : QStringLiteral("release");
+        m[QStringLiteral("date")] = releaseTime;
+        m[QStringLiteral("branch")] = branch;
+        m[QStringLiteral("category")] = category;
+        m[QStringLiteral("hash")] = fileHash;
+        result.append(m);
+    }
+
+    return result;
+}
+
+// ── Forge BMCLAPI JSON 解析（抽取为独立函数供双源复用）──
+static QVariantList parseForgeBmclapiVersions(const QByteArray& data, const QString& mcVersion,
+                                                std::function<void(const QString&, const QString&, const QString&)> cacheBranchFn) {
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isArray()) return {};
+    QJsonArray arr = doc.array();
+    QVariantList list;
+    for (const QJsonValue& v : arr) {
+        QJsonObject obj = v.toObject();
+        QString ver = obj.value(QStringLiteral("version")).toString();
+        if (ver.isEmpty()) continue;
+        QString date = obj.value(QStringLiteral("modified")).toString().left(10);
+        QString installerSha1;
+        if (obj.contains(QStringLiteral("files"))) {
+            for (const QJsonValue& fv : obj[QStringLiteral("files")].toArray()) {
+                QJsonObject f = fv.toObject();
+                if (f.value(QStringLiteral("category")).toString() == QStringLiteral("installer")) {
+                    installerSha1 = f.value(QStringLiteral("hash")).toString();
+                    break;
                 }
-                // Extract branch for Maven URL construction (e.g. "1.10.0", "mc172", "1.7.10")
-                QString branch = obj.value("branch").toString();
-                if (!branch.isEmpty())
-                    cacheForgeInstallerBranch(mcVersion, ver, branch);
-                QVariantMap m;
-                m["version"] = ver;
-                m["type"] = QStringLiteral("release");
-                m["date"] = date;
-                if (!installerSha1.isEmpty())
-                    m["installerSha1"] = installerSha1;
-                list.append(m);
             }
-            return list;
-        },
-        [this](const QVariantList& list) { emit forgeVersionsReady(list); });
+        }
+        QString branch = obj.value(QStringLiteral("branch")).toString();
+        if (!branch.isEmpty() && cacheBranchFn)
+            cacheBranchFn(mcVersion, ver, branch);
+        QVariantMap m;
+        m[QStringLiteral("version")] = ver;
+        m[QStringLiteral("type")] = QStringLiteral("release");
+        m[QStringLiteral("date")] = date;
+        if (!installerSha1.isEmpty())
+            m[QStringLiteral("installerSha1")] = installerSha1;
+        m[QStringLiteral("branch")] = branch;
+        list.append(m);
+    }
+    return list;
+}
+
+void ShadowBackend::queryForgeVersions(const QString& mcVersion) {
+    m_modLoaderQueriesCancelled = false;
+
+    struct SourceReq { bool done = false; QByteArray data; };
+    struct DualState { SourceReq bmcl; SourceReq official; bool parsedBmcl = false; bool parsedOfficial = false; QVariantList bmclResult; QVariantList officialResult; bool emitted = false; };
+    auto state = std::make_shared<DualState>();
+
+    // Capture this for the BMCLAPI parser lambda (ShadowBackend member)
+    auto cacheBranch = [this](const QString& mc, const QString& ver, const QString& branch) {
+        cacheForgeInstallerBranch(mc, ver, branch);
+    };
+
+    auto checkSourceComplete = [this, state, mcVersion, cacheBranch](bool isBmcl) {
+        if (state->emitted) return;
+        SourceReq& src = isBmcl ? state->bmcl : state->official;
+        if (!src.done) return;
+
+        QVariantList list;
+        if (isBmcl) {
+            list = parseForgeBmclapiVersions(src.data, mcVersion, cacheBranch);
+            state->bmclResult = list;
+            state->parsedBmcl = true;
+        } else {
+            list = parseForgeOfficialVersions(src.data, mcVersion);
+            state->officialResult = list;
+            state->parsedOfficial = true;
+        }
+
+        if (!list.isEmpty()) {
+            state->emitted = true;
+            // Cache branch info from official source results too
+            if (!isBmcl) {
+                for (const QVariant& v : list) {
+                    QVariantMap m = v.toMap();
+                    QString ver = m.value(QStringLiteral("version")).toString();
+                    QString branch = m.value(QStringLiteral("branch")).toString();
+                    if (!ver.isEmpty() && !branch.isEmpty())
+                        cacheForgeInstallerBranch(mcVersion, ver, branch);
+                }
+            }
+            emit forgeVersionsReady(list);
+            return;
+        }
+        bool otherParsed = isBmcl ? state->parsedOfficial : state->parsedBmcl;
+        if (otherParsed) {
+            state->emitted = true;
+            const QVariantList& otherResult = isBmcl ? state->officialResult : state->bmclResult;
+            emit forgeVersionsReady(otherResult.isEmpty() ? QVariantList() : otherResult);
+        }
+    };
+
+    auto fireRequest = [this, state, checkSourceComplete, &mcVersion](bool isBmcl) {
+        // Official URL: replace - with _ for versions like 1.7.10-pre4
+        QString mcSanitized = mcVersion;
+        mcSanitized.replace(QLatin1Char('-'), QLatin1Char('_'));
+
+        QString url = isBmcl
+            ? QStringLiteral("https://bmclapi2.bangbang93.com/forge/minecraft/") + mcVersion
+            : QStringLiteral("https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_") + mcSanitized + QStringLiteral(".html");
+
+        auto* mgr = new QNetworkAccessManager(this);
+        QNetworkRequest req{QUrl(url)};
+        req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        QNetworkReply* reply = mgr->get(req);
+        qCInfo(logApp) << QStringLiteral("[加载器] 查询版本列表 加载器=Forge url=%1").arg(url);
+        m_modLoaderReplies.append(reply);
+
+        QObject::connect(reply, &QNetworkReply::finished, this,
+            [this, reply, mgr, isBmcl, state, checkSourceComplete]() {
+                m_modLoaderReplies.removeAll(reply);
+                if (m_modLoaderQueriesCancelled) {
+                    qCInfo(logApp) << QStringLiteral("[加载器] 查询已取消 加载器=Forge");
+                    reply->deleteLater(); mgr->deleteLater(); return;
+                }
+                if (reply->error() != QNetworkReply::NoError) {
+                    qCWarning(logApp) << QStringLiteral("[加载器] 查询失败 加载器=Forge 源=%1 错误=%2")
+                        .arg(isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("官方"))
+                        .arg(reply->errorString());
+                } else {
+                    SourceReq& src = isBmcl ? state->bmcl : state->official;
+                    src.data = reply->readAll();
+                    qCInfo(logApp) << QStringLiteral("[加载器] 获取版本数据 加载器=Forge 源=%1 大小=%2字节")
+                        .arg(isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("官方"))
+                        .arg(src.data.size());
+                }
+                SourceReq& src = isBmcl ? state->bmcl : state->official;
+                src.done = true;
+                reply->deleteLater();
+                mgr->deleteLater();
+                checkSourceComplete(isBmcl);
+            });
+    };
+
+    fireRequest(true);
+    fireRequest(false);
 }
 
 void ShadowBackend::queryFabricVersions(const QString& mcVersion) {
-    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/") + mcVersion;
-    queryModLoaderApi(this, url, "Fabric",
-        [](const QByteArray& data) -> QVariantList {
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            QJsonArray arr;
-            if (doc.isArray()) {
-                arr = doc.array();
-            } else if (doc.isObject()) {
-                arr = doc.object().value("versions").toArray();
-            } else return {};
-            QVariantList list;
-            for (const QJsonValue& v : arr) {
-                QJsonObject obj = v.toObject();
-                QJsonObject loader = obj.value("loader").toObject();
-                QString ver = loader.value("version").toString();
-                if (ver.isEmpty()) continue;
-                bool stable = loader.value("stable").toBool(true);
-                QVariantMap m;
-                m["version"] = ver;
-                m["type"] = stable ? QStringLiteral("release") : QStringLiteral("beta");
-                m["date"] = QString();
-                list.append(m);
-            }
-            return list;
-        },
-        [this](const QVariantList& list) { emit fabricVersionsReady(list); });
+    m_modLoaderQueriesCancelled = false;
+
+    struct SourceReq { bool done = false; QByteArray data; };
+    struct DualState { SourceReq bmcl; SourceReq official; bool parsedBmcl = false; bool parsedOfficial = false; QVariantList bmclResult; QVariantList officialResult; bool emitted = false; };
+    auto state = std::make_shared<DualState>();
+
+    auto checkSourceComplete = [this, state](bool isBmcl) {
+        if (state->emitted) return;
+        SourceReq& src = isBmcl ? state->bmcl : state->official;
+        if (!src.done) return;
+
+        // Parse Fabric versions (same JSON format for both BMCLAPI and official)
+        QJsonDocument doc = QJsonDocument::fromJson(src.data);
+        QJsonArray arr;
+        if (doc.isArray()) {
+            arr = doc.array();
+        } else if (doc.isObject()) {
+            arr = doc.object().value(QStringLiteral("versions")).toArray();
+        }
+
+        QVariantList list;
+        for (const QJsonValue& v : arr) {
+            QJsonObject obj = v.toObject();
+            QJsonObject loader = obj.value(QStringLiteral("loader")).toObject();
+            QString ver = loader.value(QStringLiteral("version")).toString();
+            if (ver.isEmpty()) continue;
+            bool stable = loader.value(QStringLiteral("stable")).toBool(true);
+            QVariantMap m;
+            m[QStringLiteral("version")] = ver;
+            m[QStringLiteral("type")] = stable ? QStringLiteral("release") : QStringLiteral("beta");
+            m[QStringLiteral("date")] = QString();
+            list.append(m);
+        }
+
+        if (isBmcl) {
+            state->bmclResult = list;
+            state->parsedBmcl = true;
+        } else {
+            state->officialResult = list;
+            state->parsedOfficial = true;
+        }
+
+        if (!list.isEmpty()) {
+            state->emitted = true;
+            emit fabricVersionsReady(list);
+            return;
+        }
+        // This source returned empty; check if the other source is ready
+        bool otherParsed = isBmcl ? state->parsedOfficial : state->parsedBmcl;
+        if (otherParsed) {
+            state->emitted = true;
+            const QVariantList& otherResult = isBmcl ? state->officialResult : state->bmclResult;
+            emit fabricVersionsReady(otherResult.isEmpty() ? QVariantList() : otherResult);
+        }
+    };
+
+    auto fireRequest = [this, state, checkSourceComplete, &mcVersion](bool isBmcl) {
+        QString url = isBmcl
+            ? QStringLiteral("https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/") + mcVersion
+            : QStringLiteral("https://meta.fabricmc.net/v2/versions/loader/") + mcVersion;
+
+        auto* mgr = new QNetworkAccessManager(this);
+        QNetworkRequest req{QUrl(url)};
+        req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        QNetworkReply* reply = mgr->get(req);
+        qCInfo(logApp) << QStringLiteral("[加载器] 查询版本列表 加载器=Fabric url=%1").arg(url);
+        m_modLoaderReplies.append(reply);
+
+        QObject::connect(reply, &QNetworkReply::finished, this,
+            [this, reply, mgr, isBmcl, state, checkSourceComplete]() {
+                m_modLoaderReplies.removeAll(reply);
+                if (m_modLoaderQueriesCancelled) {
+                    qCInfo(logApp) << QStringLiteral("[加载器] 查询已取消 加载器=Fabric");
+                    reply->deleteLater(); mgr->deleteLater(); return;
+                }
+                if (reply->error() != QNetworkReply::NoError) {
+                    qCWarning(logApp) << QStringLiteral("[加载器] 查询失败 加载器=Fabric 源=%1 错误=%2")
+                        .arg(isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("官方"))
+                        .arg(reply->errorString());
+                } else {
+                    SourceReq& src = isBmcl ? state->bmcl : state->official;
+                    src.data = reply->readAll();
+                    qCInfo(logApp) << QStringLiteral("[加载器] 获取版本数据 加载器=Fabric 源=%1 大小=%2字节")
+                        .arg(isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("官方"))
+                        .arg(src.data.size());
+                }
+                SourceReq& src = isBmcl ? state->bmcl : state->official;
+                src.done = true;
+                reply->deleteLater();
+                mgr->deleteLater();
+                checkSourceComplete(isBmcl);
+            });
+    };
+
+    fireRequest(true);
+    fireRequest(false);
 }
 
 
@@ -2943,36 +3205,189 @@ void ShadowBackend::queryNeoForgeVersions(const QString& mcVersion) {
 
 
 
+// ── OptiFine HTML 官方源解析 ──
+// 照搬 主流启动器 的 regex 提取方式
+static QVariantList parseOptifineOfficialVersions(const QByteArray& html, const QString& filterMc) {
+    QString text = QString::fromUtf8(html);
+    if (text.length() < 200) return {};
+
+    // Extract version names: e.g. "OptiFine_1.12.2_HD_U_C8.jar"
+    QRegularExpression nameRe(QStringLiteral("OptiFine_([0-9A-Za-z_.]+)(?=\\.jar\")"));
+    // Extract Forge compatibility: e.g. "Forge 61.0.8" or "Forge N/A"
+    QRegularExpression forgeRe(QStringLiteral("(?<=colForge'>)[^<]*"));
+    // Extract release dates: e.g. "2024.1.15"
+    QRegularExpression dateRe(QStringLiteral("(?<=colDate'>)[^<]+"));
+
+    QStringList names;
+    QRegularExpressionMatchIterator ni = nameRe.globalMatch(text);
+    while (ni.hasNext()) names.append(ni.next().captured(1));
+
+    QStringList forgeStrs;
+    QRegularExpressionMatchIterator fi = forgeRe.globalMatch(text);
+    while (fi.hasNext()) forgeStrs.append(fi.next().captured());
+
+    QStringList dates;
+    QRegularExpressionMatchIterator di = dateRe.globalMatch(text);
+    while (di.hasNext()) dates.append(di.next().captured());
+
+    if (names.isEmpty()) return {};
+
+    QVariantList result;
+    int count = qMin(names.size(), qMin(forgeStrs.size(), dates.size()));
+    if (count == 0) count = names.size();  // fallback if colCount mismatch
+
+    for (int i = 0; i < names.size(); ++i) {
+        QString rawName = names[i];  // e.g. "1.12.2_HD_U_C8"
+        QString spaced = rawName;
+        spaced.replace(QStringLiteral("_"), QStringLiteral(" "));  // "1.12.2 HD U C8"
+        QStringList parts = spaced.split(QStringLiteral(" "));
+        if (parts.isEmpty()) continue;
+        QString inherit = parts[0];  // MC version from the name
+        if (inherit.endsWith(QStringLiteral(".0")))
+            inherit.chop(2);
+
+        // Filter by requested MC version
+        if (inherit != filterMc) continue;
+
+        // Reconstruct version string like BMCLAPI: e.g. "HD_U_C8"
+        QString prefix = QStringLiteral("OptiFine_") + filterMc + QStringLiteral("_");
+        QString ver = rawName;
+        if (ver.startsWith(prefix))
+            ver = ver.mid(prefix.length());
+
+        QVariantMap m;
+        m[QStringLiteral("version")] = ver;
+        m[QStringLiteral("type")] = QStringLiteral("release");
+        // Parse date from 主流启动器 format "2024.1.15" → "2024/01/15"
+        QString dateStr;
+        if (i < dates.size()) {
+            QStringList d = dates[i].split(QLatin1Char('.'));
+            if (d.size() == 3)
+                dateStr = QStringLiteral("%1/%2/%3").arg(d[2], 2, QLatin1Char('0')).arg(d[1], 2, QLatin1Char('0')).arg(d[0], 2, QLatin1Char('0'));
+        }
+        m[QStringLiteral("date")] = dateStr;
+        // Official source doesn't have bmclType/bmclPatch; set empty
+        m[QStringLiteral("bmclType")] = QString();
+        m[QStringLiteral("bmclPatch")] = QString();
+        // Forge compatibility
+        if (i < forgeStrs.size()) {
+            QString f = forgeStrs[i];
+            if (f.contains(QStringLiteral("N/A")))
+                m[QStringLiteral("forge")] = QStringLiteral("Forge N/A");
+            else if (!f.isEmpty())
+                m[QStringLiteral("forge")] = f;
+            else
+                m[QStringLiteral("forge")] = QString();
+        } else {
+            m[QStringLiteral("forge")] = QString();
+        }
+        result.append(m);
+    }
+    return result;
+}
+
 void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
-    QString url = QStringLiteral("https://bmclapi2.bangbang93.com/optifine/") + mcVersion;
-    queryModLoaderApi(this, url, "Optifine",
-        [mcVersion](const QByteArray& data) -> QVariantList {
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            if (!doc.isArray()) return {};
-            QJsonArray arr = doc.array();
-            QVariantList list;
-            for (const QJsonValue& v : arr) {
-                QJsonObject obj = v.toObject();
-                QString fn = obj.value("filename").toString();
-                if (fn.isEmpty()) continue;
-                QString prefix = QStringLiteral("OptiFine_") + mcVersion + QStringLiteral("_");
-                QString ver = fn;
-                if (fn.startsWith(prefix)) ver = fn.mid(prefix.length());
-                if (ver.endsWith(".jar")) ver = ver.left(ver.length() - 4);
-                QVariantMap m;
-                m["version"] = ver;
-                m["type"] = QStringLiteral("release");
-                m["date"] = QString();
-                // Preserve BMCLAPI type/patch for correct download URL construction
-                m["bmclType"] = obj.value("type").toString();
-                m["bmclPatch"] = obj.value("patch").toString();
-                // Forge compatibility: "Forge 61.0.8", "Forge N/A", or empty
-                m["forge"] = obj.value("forge").toString();
-                list.append(m);
-            }
-            return list;
-        },
-        [this](const QVariantList& list) { emit optifineVersionsReady(list); });
+    m_modLoaderQueriesCancelled = false;
+
+    struct SourceReq { bool done = false; QByteArray data; };
+    struct DualState { SourceReq bmcl; SourceReq official; bool parsedBmcl = false; bool parsedOfficial = false; QVariantList bmclResult; QVariantList officialResult; bool emitted = false; };
+    auto state = std::make_shared<DualState>();
+
+    auto parseBmclJson = [mcVersion](const QByteArray& data) -> QVariantList {
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isArray()) return {};
+        QJsonArray arr = doc.array();
+        QVariantList list;
+        for (const QJsonValue& v : arr) {
+            QJsonObject obj = v.toObject();
+            QString fn = obj.value(QStringLiteral("filename")).toString();
+            if (fn.isEmpty()) continue;
+            QString prefix = QStringLiteral("OptiFine_") + mcVersion + QStringLiteral("_");
+            QString ver = fn;
+            if (fn.startsWith(prefix)) ver = fn.mid(prefix.length());
+            if (ver.endsWith(QStringLiteral(".jar"))) ver = ver.left(ver.length() - 4);
+            QVariantMap m;
+            m[QStringLiteral("version")] = ver;
+            m[QStringLiteral("type")] = QStringLiteral("release");
+            m[QStringLiteral("date")] = QString();
+            m[QStringLiteral("bmclType")] = obj.value(QStringLiteral("type")).toString();
+            m[QStringLiteral("bmclPatch")] = obj.value(QStringLiteral("patch")).toString();
+            m[QStringLiteral("forge")] = obj.value(QStringLiteral("forge")).toString();
+            list.append(m);
+        }
+        return list;
+    };
+
+    auto checkSourceComplete = [this, state, parseBmclJson, mcVersion](bool isBmcl) {
+        if (state->emitted) return;
+        SourceReq& src = isBmcl ? state->bmcl : state->official;
+        if (!src.done) return;
+
+        QVariantList list;
+        if (isBmcl) {
+            list = parseBmclJson(src.data);
+            state->bmclResult = list;
+            state->parsedBmcl = true;
+        } else {
+            list = parseOptifineOfficialVersions(src.data, mcVersion);
+            state->officialResult = list;
+            state->parsedOfficial = true;
+        }
+
+        if (!list.isEmpty()) {
+            state->emitted = true;
+            emit optifineVersionsReady(list);
+            return;
+        }
+        bool otherParsed = isBmcl ? state->parsedOfficial : state->parsedBmcl;
+        if (otherParsed) {
+            state->emitted = true;
+            const QVariantList& otherResult = isBmcl ? state->officialResult : state->bmclResult;
+            emit optifineVersionsReady(otherResult.isEmpty() ? QVariantList() : otherResult);
+        }
+    };
+
+    auto fireRequest = [this, state, checkSourceComplete, &mcVersion](bool isBmcl) {
+        QString url = isBmcl
+            ? QStringLiteral("https://bmclapi2.bangbang93.com/optifine/") + mcVersion
+            : QStringLiteral("https://optifine.net/downloads");
+
+        auto* mgr = new QNetworkAccessManager(this);
+        QNetworkRequest req{QUrl(url)};
+        req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        QNetworkReply* reply = mgr->get(req);
+        qCInfo(logApp) << QStringLiteral("[加载器] 查询版本列表 加载器=OptiFine url=%1").arg(url);
+        m_modLoaderReplies.append(reply);
+
+        QObject::connect(reply, &QNetworkReply::finished, this,
+            [this, reply, mgr, isBmcl, state, checkSourceComplete]() {
+                m_modLoaderReplies.removeAll(reply);
+                if (m_modLoaderQueriesCancelled) {
+                    qCInfo(logApp) << QStringLiteral("[加载器] 查询已取消 加载器=OptiFine");
+                    reply->deleteLater(); mgr->deleteLater(); return;
+                }
+                if (reply->error() != QNetworkReply::NoError) {
+                    qCWarning(logApp) << QStringLiteral("[加载器] 查询失败 加载器=OptiFine 源=%1 错误=%2")
+                        .arg(isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("官方"))
+                        .arg(reply->errorString());
+                } else {
+                    SourceReq& src = isBmcl ? state->bmcl : state->official;
+                    src.data = reply->readAll();
+                    qCInfo(logApp) << QStringLiteral("[加载器] 获取版本数据 加载器=OptiFine 源=%1 大小=%2字节")
+                        .arg(isBmcl ? QStringLiteral("BMCLAPI") : QStringLiteral("官方"))
+                        .arg(src.data.size());
+                }
+                SourceReq& src = isBmcl ? state->bmcl : state->official;
+                src.done = true;
+                reply->deleteLater();
+                mgr->deleteLater();
+                checkSourceComplete(isBmcl);
+            });
+    };
+
+    fireRequest(true);
+    fireRequest(false);
 }
 
 void ShadowBackend::queryFabricApiVersions(const QString& mcVersion) {

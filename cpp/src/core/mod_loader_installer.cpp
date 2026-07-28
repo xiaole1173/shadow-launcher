@@ -37,6 +37,7 @@
 
 #include <private/qzipreader_p.h>
 #include <private/qzipwriter_p.h>
+#include <QMutex>
 #include <QFutureWatcher>
 #include <QtConcurrent>
 
@@ -104,6 +105,54 @@ void ModLoaderInstaller::downloadToMemory(const QString& url,
         QFile::remove(tempPath);
         done(true, data);
     });
+}
+
+void ModLoaderInstaller::downloadToMemoryRace(const QStringList& urls,
+                                                     std::function<void(bool ok, const QByteArray& data)> done,
+                                                     const QString& fileNameHint) {
+    if (urls.isEmpty()) { done(false, QByteArray()); return; }
+    if (urls.size() == 1) {
+        downloadToMemory(urls[0], done, fileNameHint);
+        return;
+    }
+
+    // Shared race state: first success wins, all subsequent ignored
+    auto won = std::make_shared<bool>(false);
+    auto pending = std::make_shared<QAtomicInt>(urls.size());
+    auto lastError = std::make_shared<QString>();
+    auto errorMutex = std::make_shared<QMutex>();
+
+    for (const QString& url : urls) {
+        downloadToMemory(url,
+            [this, url, won, pending, lastError, errorMutex, done](bool ok, const QByteArray& data) {
+                if (*won) return;  // another download already won
+                if (m_cancelled) { *won = true; done(false, QByteArray()); return; }
+
+                if (ok) {
+                    *won = true;
+                    done(true, data);
+                    return;
+                }
+
+                // Record error for this URL
+                {
+                    QMutexLocker locker(errorMutex.get());
+                    if (lastError->isEmpty())
+                        *lastError = url;
+                    else
+                        *lastError = *lastError + QStringLiteral("; ") + url;
+                }
+
+                // All failed?
+                int remaining = pending->fetchAndAddRelaxed(-1) - 1;
+                if (remaining <= 0) {
+                    *won = true;
+                    qCWarning(logLoader) << QStringLiteral("所有下载源均失败: %1").arg(*lastError);
+                    done(false, QByteArray());
+                }
+            },
+            fileNameHint);
+    }
 }
 
 void ModLoaderInstaller::downloadSmall(const QString& url,
@@ -243,25 +292,20 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
         m_totalSteps = 2;
         m_currentStep = 1;
         emit progressChanged(1, m_totalSteps, "正在下载 OptiFine...");
-        downloadToMemory(url, [this, filename](bool ok, const QByteArray& data) {
-            if (!ok) {
-                qCInfo(logLoader) << QStringLiteral("BMCLAPI OptiFine 下载失败，尝试官方源...");
-                m_optifineUseOfficial = true;
-                // Fallback: download from official site
-                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
-                downloadToMemory(offUrl, [this, filename](bool ok2, const QByteArray& data2) {
-                    if (!ok2) {
-                        emit finished(false, "OptiFine 下载失败（BMCLAPI 和官方源均失败）");
-                        m_running = false;
-                        return;
-                    }
-                    optifineStep2_install(data2, filename);
-                });
-                return;
-            }
-            m_optifineUseOfficial = false;
-            optifineStep2_install(data, filename);
-        });
+
+        const QString bmclUrl = url;
+        const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
+        downloadToMemoryRace({bmclUrl, offUrl},
+            [this, filename](bool ok, const QByteArray& data) {
+                if (!ok) {
+                    emit finished(false, "OptiFine 下载失败（BMCLAPI 和官方源均失败）");
+                    m_running = false;
+                    return;
+                }
+                qCInfo(logLoader) << QStringLiteral("OptiFine 下载成功，大小=%1 字节").arg(data.size());
+                // Determine which source won (don't rely on m_optifineUseOfficial for race)
+                optifineStep2_install(data, filename);
+            });
     } else {
         // With Forge/NeoForge: just put JAR in mods/ (respects version isolation)
         m_totalSteps = 1;
@@ -270,26 +314,28 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
         QString savePath = md + "/" + filename;
         m_currentStep = 1;
         emit progressChanged(1, 1, "正在下载 OptiFine...");
-        downloadToFile(url, savePath, [this, filename, savePath](bool ok, const QString& error) {
-            if (!ok) {
-                qCInfo(logLoader) << QStringLiteral("BMCLAPI OptiFine 下载失败，尝试官方源...");
-                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
-                downloadToFile(offUrl, savePath, [this](bool ok2, const QString& err2) {
-                    if (!ok2) {
-                        emit finished(false, err2.isEmpty() ? "OptiFine 下载失败（BMCLAPI 和官方源均失败）" : err2);
-                        m_running = false;
-                        return;
-                    }
+
+        // Use TrueRace: download from both BMCLAPI and official concurrently
+        const QString bmclUrl = url;
+        const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
+        downloadToMemoryRace({bmclUrl, offUrl},
+            [this, savePath, filename](bool ok, const QByteArray& data) {
+                if (!ok) {
+                    emit finished(false, "OptiFine 下载失败（BMCLAPI 和官方源均失败）");
+                    m_running = false;
+                    return;
+                }
+                QFile f(savePath);
+                if (f.open(QIODevice::WriteOnly)) {
+                    f.write(data);
+                    f.close();
                     emit progressChanged(1, 1, "OptiFine 已安装 (mods/)");
                     emit finished(true, QString());
-                    m_running = false;
-                });
-                return;
-            }
-            emit progressChanged(1, 1, "OptiFine 已安装 (mods/)");
-            emit finished(true, QString());
-            m_running = false;
-        });
+                } else {
+                    emit finished(false, "OptiFine 写入失败: " + savePath);
+                }
+                m_running = false;
+            });
     }
 }
 
@@ -767,41 +813,54 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     if (!m_forgeBranch.isEmpty())
         vBranch = mc + "-" + fv + "-" + m_forgeBranch;
 
-    // Ordered fallback URLs: BMCLAPI branch→new→old → Official branch→new→old
-    QStringList urlList;
-    auto addUrl = [&](const QString& base, const QString& ver) {
-        urlList.append(QString("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver));
+    // TrueRace: fire all source × version × category patterns concurrently
+    // Categories: installer.jar (modern), universal.zip (MC 1.3.x-1.4.x), client.zip (MC 1.2.x)
+    const QStringList bases = {
+        QStringLiteral("https://bmclapi2.bangbang93.com/maven"),
+        QStringLiteral("https://maven.minecraftforge.net")
     };
-    if (!vBranch.isEmpty()) { addUrl("https://bmclapi2.bangbang93.com/maven", vBranch); }
-    addUrl("https://bmclapi2.bangbang93.com/maven", vNew);
-    addUrl("https://bmclapi2.bangbang93.com/maven", vOld);
-    if (!vBranch.isEmpty()) { addUrl("https://maven.minecraftforge.net", vBranch); }
-    addUrl("https://maven.minecraftforge.net", vNew);
-    addUrl("https://maven.minecraftforge.net", vOld);
-    auto urls = std::make_shared<QStringList>(urlList);
-    auto idx = std::make_shared<int>(0);
-    auto tryNext = std::make_shared<std::function<void()>>();
+    const QStringList versions = {
+        vBranch,  // may be empty
+        vNew,
+        vOld
+    };
+    const QStringList catExts = {
+        QStringLiteral("installer.jar"),
+        QStringLiteral("universal.zip"),
+        QStringLiteral("client.zip")
+    };
 
-    *tryNext = [this, urls, idx, tryNext]() {
-        if (*idx >= urls->size()) {
-            qCWarning(logLoader) << "Forge installer download failed after all fallbacks";
-            emit finished(false, "Forge 安装程序下载失败（所有镜像源均不可用）");
-            m_running = false;
-            return;
+    QStringList urlList;
+    for (const QString& base : bases) {
+        for (const QString& ver : versions) {
+            if (ver.isEmpty()) continue;
+            for (const QString& catExt : catExts) {
+                urlList.append(QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-%3").arg(base, ver, catExt));
+            }
         }
-        QString url = (*urls)[(*idx)++];
-        qCInfo(logLoader) << QStringLiteral("尝试下载 Forge installer [%1/%2]: %3").arg(*idx).arg(urls->size()).arg(url);
-        downloadToMemory(url, [this, tryNext](bool ok, const QByteArray& data) {
-            if (ok) {
-                forgeStep2_verify(data);
+    }
+
+    if (urlList.isEmpty()) {
+        emit finished(false, "Forge 安装程序下载失败（无法构建下载地址）");
+        m_running = false;
+        return;
+    }
+
+    qCInfo(logLoader) << QStringLiteral("Forge 并行下载: %1 个地址").arg(urlList.size());
+    for (const QString& u : urlList)
+        qCInfo(logLoader) << QStringLiteral("  %1").arg(u);
+
+    downloadToMemoryRace(urlList,
+        [this](bool ok, const QByteArray& data) {
+            if (!ok) {
+                emit finished(false, "Forge 安装程序下载失败（所有镜像源均不可用）");
+                m_running = false;
                 return;
             }
-            qCInfo(logLoader) << "Forge 下载失败，尝试下一个源...";
-            (*tryNext)();
-        }, "forge-installer.jar");
-    };
-
-    (*tryNext)();
+            qCInfo(logLoader) << QStringLiteral("Forge 安装程序下载成功，大小=%1 字节").arg(data.size());
+            forgeStep2_verify(data);
+        },
+        QStringLiteral("forge-installer.jar"));
 }
 
 void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
@@ -912,7 +971,8 @@ static QString mirrorMavenUrl(const QString& url) {
 void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     if (m_cancelled) return;
 
-    // 1. Open installer JAR as ZIP (needed early for Maven version in install_profile.json)
+    // 0. Check if this is a genuine installer JAR or a self-contained universal/client zip
+    //    For MC < 1.5 Forge (Leagcy 3), the file IS the game JAR, not an installer.
     QBuffer buffer;
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
@@ -921,28 +981,44 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         return;
     }
     QZipReader reader(&buffer);
+    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
+    if (profileData.isEmpty()) {
+        // No install_profile.json → not an installer JAR → universal/client zip (Legacy 3)
+        qCInfo(logLoader) << QStringLiteral("未找到 install_profile.json，走 Legacy 3（自包含 JAR 直装）");
+        reader.close();
+        installLegacy3(jarData);
+        return;
+    }
+    reader.close();
+
+    // ── Here onward: genuine installer JAR with install_profile.json ──
+
+    // Reopen for the real processing
+    QBuffer buffer2;
+    buffer2.setData(jarData);
+    if (!buffer2.open(QIODevice::ReadOnly)) {
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
+        return;
+    }
+    QZipReader reader2(&buffer2);
 
     // 2. Extract Maven version from install_profile.json data section
     //    (e.g. "1.18.2-20220404.173914" from [net.minecraft:client:1.18.2-20220404.173914:mappings@txt])
-    //    This is the definitive version Forge uses — NOT the MC version JSON "time" field.
-    QString mavenVer = m_mcVersion;  // fallback: plain MC version, no timestamp
+    QString mavenVer = m_mcVersion;
     {
-        QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
-        if (!profileData.isEmpty()) {
-            QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
-            if (!profileDoc.isNull()) {
-                QJsonObject data = profileDoc.object().value(QStringLiteral("data")).toObject();
-                // Try MOJMAPS (net.minecraft:client) first, then MAPPINGS (mcp_config)
-                for (const QString& key : {QStringLiteral("MOJMAPS"), QStringLiteral("MAPPINGS")}) {
-                    QJsonObject entry = data.value(key).toObject();
-                    QString clientRef = entry.value(QStringLiteral("client")).toString();
-                    if (!clientRef.isEmpty()) {
-                        QRegularExpression re(QStringLiteral("\\[[^:]+:[^:]+:([^:\\]]+):mappings@txt\\]"));
-                        QRegularExpressionMatch match = re.match(clientRef);
-                        if (match.hasMatch()) {
-                            mavenVer = match.captured(1);
-                            break;
-                        }
+        QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
+        if (!profileDoc.isNull()) {
+            QJsonObject data = profileDoc.object().value(QStringLiteral("data")).toObject();
+            for (const QString& key : {QStringLiteral("MOJMAPS"), QStringLiteral("MAPPINGS")}) {
+                QJsonObject entry = data.value(key).toObject();
+                QString clientRef = entry.value(QStringLiteral("client")).toString();
+                if (!clientRef.isEmpty()) {
+                    QRegularExpression re(QStringLiteral("\\[[^:]+:[^:]+:([^:\\]]+):mappings@txt\\]"));
+                    QRegularExpressionMatch match = re.match(clientRef);
+                    if (match.hasMatch()) {
+                        mavenVer = match.captured(1);
+                        break;
                     }
                 }
             }
@@ -1013,7 +1089,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     // 2. Extract bundled maven jars from installer to libraries/ (all paths benefit)
     QString libBase = m_gameDir + QStringLiteral("/libraries");
     int extractedCount = 0;
-    const auto& fileList = reader.fileInfoList();
+    const auto& fileList = reader2.fileInfoList();
     for (const auto& info : fileList) {
         QString fp = info.filePath;
         if (!fp.startsWith(QStringLiteral("maven/"))) continue;
@@ -1021,7 +1097,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
         QString relPath = fp.mid(6);
         QString target = libBase + QStringLiteral("/") + relPath;
         if (QFile::exists(target)) continue;
-        QByteArray jarBytes = reader.fileData(fp);
+        QByteArray jarBytes = reader2.fileData(fp);
         if (jarBytes.isEmpty()) continue;
         QDir().mkpath(QFileInfo(target).absolutePath());
         QFile jf(target);
@@ -1029,27 +1105,17 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     }
     qCInfo(logLoader) << QStringLiteral("已从安装程序解压 %1 个 JAR").arg(extractedCount);
 
-    // 3. Read install_profile.json
-    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
-    if (profileData.isEmpty()) {
-        qCWarning(logLoader) << QStringLiteral("未找到 install_profile.json，走 Bootstrapper");
-        reader.close();
-        runBootstrapperProcess(jarData);
-        // NB: 不要在此调用 finalizeBootstrapperInstall() — bootstrapper 是异步的
-        // onBootstrapperFinished 会在完成后自动调用它。
-        return;
-    }
-    QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
+    // 3. Read install_profile.json (re-read for routing)
+    QByteArray profileData2 = reader2.fileData(QStringLiteral("install_profile.json"));
+    QJsonDocument profileDoc = QJsonDocument::fromJson(profileData2);
     if (!profileDoc.isObject()) {
         qCWarning(logLoader) << QStringLiteral("install_profile.json 无效，走 Bootstrapper");
-        reader.close();
+        reader2.close();
         runBootstrapperProcess(jarData);
-        // Bootstrapper 异步运行，onBootstrapperFinished 接管后续
         return;
     }
     QJsonObject profileObj = profileDoc.object();
 
-    // LOG: install_profile.json spec
     int spec = profileObj.value(QStringLiteral("spec")).toInt(-1);
     int procCount = profileObj.value(QStringLiteral("processors")).toArray().size();
     bool hasInstall = profileObj.contains(QStringLiteral("install"));
@@ -1057,38 +1123,120 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     qCInfo(logLoader) << QStringLiteral("=== Forge install_profile 分析: spec=%1 processors=%2 install=%3 json=%4 ===")
         .arg(spec).arg(procCount).arg(hasInstall).arg(hasJson);
 
-    // ── Three-way branch ──
-    // Note: 主流启动器's ForgelikeInjector (forge-installer.jar / com.bangbang93.ForgeInstaller)
-    // handles BOTH Forge AND NeoForge identically via the bootstrapper path.
-    // We do the same: NeoForge falls through to Branch C / Bootstrapper.
+    // ── Four-way branch ──
     //
     // Branch A: has "install" → Legacy 2 (universal JAR + inheritsFrom)
     if (hasInstall) {
-        reader.close();
+        reader2.close();
         qCInfo(logLoader) << QStringLiteral("→ 走 Legacy 2（universal JAR + inheritsFrom）");
         installLegacy2(jarData, profileObj);
         return;
     }
 
-    // Branch B: has "json" AND no processors AND spec <= 0 → Legacy 1 (maven/ + version JSON only)
-    // IMPORTANT: if processors exist, Legacy 1 will skip them → missing client.lzma patches
-    // → Forge can't transform Minecraft classes → vanilla MC boots instead
+    // Branch B: has "json" AND no processors AND spec <= 0 → Legacy 1
     if (hasJson && procCount == 0 && spec <= 0) {
-        reader.close();
+        reader2.close();
         qCInfo(logLoader) << QStringLiteral("→ 走 Legacy 1（maven/ + version.json 直接写入）");
         installLegacy1(jarData, profileObj);
         return;
     }
 
     // Branch C: has processors OR spec >= 1 → Bootstrapper
-    // 主流启动器's ForgelikeInjector handles BOTH Forge and NeoForge identically.
-    // No separate fork for NeoForge — the bootstrapper JAR (com.bangbang93.ForgeInstaller)
-    // processes any Forgelike installer (Forge / NeoForge) the same way.
-    reader.close();
+    reader2.close();
     qCInfo(logLoader) << QStringLiteral("→ 走 Bootstrapper（Method A：Java 注入器）");
     runBootstrapperProcess(jarData);
-    // Bootstrapper 异步运行，onBootstrapperFinished 接管后续 finalize
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Legacy 3: no install_profile.json → universal/client zip IS the game JAR
+// For MC < 1.5 (Forge 3.x~6.x) where the "installer" is actually
+// a complete forge-patched Minecraft client.
+// The downloaded file IS the game JAR — copy it as-is and create
+// a self-contained version JSON with inheritsFrom for libraries.
+// ═══════════════════════════════════════════════════════════════
+void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
+    emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 3：自包含 JAR）..."));
+
+    // 1. Scan JAR contents to determine main class
+    QBuffer buffer;
+    buffer.setData(jarData);
+    buffer.open(QIODevice::ReadOnly);
+    QZipReader reader(&buffer);
+
+    bool hasFMLRelauncher = false;
+    bool hasLaunchwrapper = false;
+    const auto& entries = reader.fileInfoList();
+    for (const auto& e : entries) {
+        if (e.filePath == QStringLiteral("cpw/mods/fml/relauncher/FMLRelauncher.class"))
+            hasFMLRelauncher = true;
+        if (e.filePath == QStringLiteral("net/minecraft/launchwrapper/Launch.class"))
+            hasLaunchwrapper = true;
+    }
+    reader.close();
+
+    QString mainClass;
+    if (hasFMLRelauncher)
+        mainClass = QStringLiteral("cpw.mods.fml.relauncher.FMLRelauncher");
+    else if (hasLaunchwrapper)
+        mainClass = QStringLiteral("net.minecraft.launchwrapper.Launch");
+    else
+        mainClass = QStringLiteral("net.minecraft.client.Minecraft");
+
+    qCInfo(logLoader) << QStringLiteral("Legacy 3: mainClass=%1 (FML=%2, LaunchWrapper=%3)")
+        .arg(mainClass).arg(hasFMLRelauncher).arg(hasLaunchwrapper);
+
+    // 2. Create version directory
+    const QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
+    QDir().mkpath(verDir);
+
+    // 3. Copy JAR data to version folder (this IS the game JAR)
+    const QString jarPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+    {
+        QFile jf(jarPath);
+        if (jf.open(QIODevice::WriteOnly)) {
+            jf.write(jarData);
+            jf.close();
+            qCInfo(logLoader) << QStringLiteral("Legacy 3: 已写入版本 JAR %1 (%2 bytes)")
+                .arg(jarPath).arg(jarData.size());
+        } else {
+            emit finished(false, QStringLiteral("Legacy 3: 无法写入版本 JAR"));
+            m_running = false;
+            return;
+        }
+    }
+
+    // 4. Create version JSON with inheritsFrom (inherit MC's libraries)
+    //    but override jar and mainClass to use our Forge-patched JAR.
+    QJsonObject versionJson;
+    versionJson[QStringLiteral("id")] = m_installName;
+    versionJson[QStringLiteral("type")] = QStringLiteral("release");
+    versionJson[QStringLiteral("mainClass")] = mainClass;
+    versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
+    versionJson[QStringLiteral("jar")] = m_installName;  // use our JAR
+    versionJson[QStringLiteral("minimumLauncherVersion")] = 4;
+    versionJson[QStringLiteral("libraries")] = QJsonArray();  // all libraries from inheritsFrom
+
+    // 5. Write version JSON
+    const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
+    {
+        QFile jf(jsonPath);
+        if (jf.open(QIODevice::WriteOnly)) {
+            jf.write(QJsonDocument(versionJson).toJson(QJsonDocument::Indented));
+            jf.close();
+            qCInfo(logLoader) << QStringLiteral("Legacy 3: 已写入版本 JSON %1").arg(jsonPath);
+        } else {
+            emit finished(false, QStringLiteral("Legacy 3: 无法写入版本 JSON"));
+            m_running = false;
+            return;
+        }
+    }
+
+    qCInfo(logLoader) << QStringLiteral("Legacy 3 安装完成: %1（自包含 JAR，mainClass=%2）")
+        .arg(m_installName, mainClass);
+    emit finished(true, QString());
+    m_running = false;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
 // Legacy 2: has "install" field → universal JAR + standalone JSON
@@ -2593,25 +2741,22 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
     m_currentStep = 1;
     emit progressChanged(1, m_totalSteps, "正在下载 Fabric 配置...");
 
-    QString url = QString("https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/%1/%2/profile/json")
-                      .arg(m_mcVersion, m_loaderVersion);
+    const QString bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/%1/%2/profile/json")
+                                .arg(m_mcVersion, m_loaderVersion);
+    const QString officialUrl = QStringLiteral("https://meta.fabricmc.net/v2/versions/loader/%1/%2/profile/json")
+                                    .arg(m_mcVersion, m_loaderVersion);
 
-    downloadToMemory(url, [this](bool ok, const QByteArray& data) {
-        if (ok) {
-            
-            fabricStep2_downloadLibraries(data);  // Step 2: download Fabric libraries
-            return;
-        }
-        // Fallback to official Fabric meta
-        qCInfo(logLoader) << QStringLiteral("BMCLAPI Fabric 下载失败，尝试官方源...");
-        QString officialUrl = QString("https://meta.fabricmc.net/v2/versions/loader/%1/%2/profile/json")
-                                   .arg(m_mcVersion, m_loaderVersion);
-        downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
-            if (!ok2) { emit finished(false, "Fabric 配置下载失败（BMCLAPI 和官方源均失败）"); m_running = false; return; }
-            
-            fabricStep2_downloadLibraries(data2);
-        }, "fabric-profile.json");
-    }, "fabric-profile.json");
+    downloadToMemoryRace({bmclUrl, officialUrl},
+        [this](bool ok, const QByteArray& data) {
+            if (!ok) {
+                emit finished(false, "Fabric 配置下载失败（BMCLAPI 和官方源均失败）");
+                m_running = false;
+                return;
+            }
+            qCInfo(logLoader) << QStringLiteral("Fabric 配置下载成功，大小=%1 字节").arg(data.size());
+            fabricStep2_downloadLibraries(data);
+        },
+        QStringLiteral("fabric-profile.json"));
 }
 
 void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profileData) {
@@ -2909,34 +3054,28 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
     emit progressChanged(1, m_totalSteps, QStringLiteral("正在下载 NeoForge 安装程序..."));
 
     const QString ver = m_loaderVersion;
-    // 主流启动器: package name differs for 1.20.1 legacy (uses "forge" instead of "neoforge")
-    // DlNeoForgeListEntry.UrlBase: PackageName = If(Inherit = "1.20.1", "forge", "neoforge")
     bool isLegacy = (m_mcVersion == QStringLiteral("1.20.1"));
     const QString pkg = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
     const QString apiName = isLegacy ? QStringLiteral("1.20.1-%1").arg(ver) : ver;
 
-    // BMCLAPI mirror (主流启动器: Url.Replace("maven.neoforged.net/releases", "bmclapi2.bangbang93.com/maven"))
+    // TrueRace: BMCLAPI + Official concurrent
     const QString bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/%1/%2/%1-%2-installer.jar")
                                 .arg(pkg, apiName);
-    // Official Maven
     const QString officialUrl = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/%1/%2/%1-%2-installer.jar")
                                     .arg(pkg, apiName);
 
-    downloadToMemory(bmclUrl, [this, officialUrl](bool ok, const QByteArray& data) {
-        if (ok) {
-            neoStep2_verify(data);
-            return;
-        }
-        qCInfo(logLoader) << QStringLiteral("BMCLAPI NeoForge 下载失败，尝试官方 Maven...");
-        downloadToMemory(officialUrl, [this](bool ok2, const QByteArray& data2) {
-            if (!ok2) {
+    const QStringList urls = {bmclUrl, officialUrl};
+    downloadToMemoryRace(urls,
+        [this](bool ok, const QByteArray& data) {
+            if (!ok) {
                 emit finished(false, QStringLiteral("NeoForge 安装程序下载失败（BMCLAPI 和官方源均失败）"));
                 m_running = false;
                 return;
             }
-            neoStep2_verify(data2);
-        }, QStringLiteral("neoforge-installer.jar"));
-    }, QStringLiteral("neoforge-installer.jar"));
+            qCInfo(logLoader) << QStringLiteral("NeoForge 安装程序下载成功，大小=%1 字节").arg(data.size());
+            neoStep2_verify(data);
+        },
+        QStringLiteral("neoforge-installer.jar"));
 }
 
 void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {

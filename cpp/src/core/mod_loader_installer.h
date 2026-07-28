@@ -82,6 +82,10 @@ private:
     void downloadToMemory(const QString& url,
                           std::function<void(bool ok, const QByteArray& data)> done,
                           const QString& fileNameHint = QString());
+    /// TrueRace: fire multiple URLs concurrently, return first successful data
+    void downloadToMemoryRace(const QStringList& urls,
+                              std::function<void(bool ok, const QByteArray& data)> done,
+                              const QString& fileNameHint = QString());
     void downloadSmall(const QString& url,
                        std::function<void(bool ok, const QByteArray& data)> done);
 
@@ -104,8 +108,11 @@ private:
     void forgeStep2_verify(const QByteArray& jarData);
     void neoStep1_downloadInstaller();
     void neoStep2_verify(const QByteArray& jarData);
-    // Extract & install — three-way branch (Legacy2 / Legacy1 / Bootstrapper)
+    // Extract & install — four-way branch (Legacy3 / Legacy2 / Legacy1 / Bootstrapper)
     void forgeStep3_install(const QByteArray& jarData);
+    // Legacy 3: no install_profile.json → universal/client zip IS the game JAR
+    // For MC < 1.5 (Forge 3.x~6.x) where the "installer" is a complete forge-patched client
+    void installLegacy3(const QByteArray& jarData);
     // Legacy 2: has "install" field → universal JAR + inheritsFrom JSON
     void installLegacy2(const QByteArray& jarData, const QJsonObject& profile);
     // Legacy 1: has "json" field, no install, no processors → maven/ + version JSON

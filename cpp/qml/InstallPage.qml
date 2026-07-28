@@ -34,7 +34,11 @@ Rectangle {
     }
 
     onMcVersionChanged: {
-        if (mcVersion && backend) triggerQueries()
+        if (mcVersion && backend) {
+            // 刷新已安装版本列表，确保冲突检测基于最新数据
+            backend.refreshInstalled()
+            triggerQueries()
+        }
     }
 
     function triggerQueries() {
@@ -309,12 +313,18 @@ Rectangle {
     }
 
     onFullVersionNameChanged: {
-        checkVersionConflict(fullVersionName)
+        if (backend) {
+            // 加载器/版本改变时刷新 versions 文件夹，确保冲突检测基于最新数据
+            backend.refreshInstalled()
+            // refreshInstalled 会触发 onInstalledVersionsChanged，从而调用 checkVersionConflict
+        }
     }
 
     onCustomNameChanged: {
-        var n = customName !== "" ? customName : fullVersionName
-        checkVersionConflict(n)
+        if (backend) {
+            backend.refreshInstalled()
+            // refreshInstalled 已触发 onInstalledVersionsChanged → checkVersionConflict(n)，此处不需要重复调用
+        }
     }
 
     // TOP BAR
@@ -729,7 +739,8 @@ Rectangle {
             cursorShape: root.versionConflict ? Qt.ArrowCursor : Qt.PointingHandCursor
             enabled: !root.versionConflict
             onClicked: {
-                // 点击前再次检查命名冲突（用户可能在此期间修改了versions文件夹）
+                // 点击前刷新版本列表并检查命名冲突（用户可能在此期间修改了versions文件夹）
+                if (backend) backend.refreshInstalled()
                 var n = root.customName !== "" ? root.customName : root.fullVersionName
                 root.checkVersionConflict(n)
                 if (root.versionConflict) {
