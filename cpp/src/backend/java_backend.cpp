@@ -293,7 +293,10 @@ QString JavaBackend::javaInstallDir() const
 
 void JavaBackend::downloadJavaFileTo(const QString &filename, const QString &outDir, qint64 expectedSize)
 {
-    QString url = fileDownloadUrl(filename);
+    // 优先使用从 API 响应中直接提取的下载 URL（更可靠），
+    // 回退到 fileDownloadUrl() 重构
+    QString url = !m_downloadUrl.isEmpty() ? m_downloadUrl : fileDownloadUrl(filename);
+    m_downloadUrl.clear();  // 使用后清空
     QString outPath = outDir + "/" + filename;
     qCInfo(logJava) << QStringLiteral("开始下载Java url=%1 目标=%2").arg(url, outPath);
 

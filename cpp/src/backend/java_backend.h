@@ -17,6 +17,7 @@ class JavaBackend : public QObject
     Q_PROPERTY(QStringList javaOSes READ javaOSes NOTIFY javaOSesChanged)
     Q_PROPERTY(QVariantList javaFiles READ javaFiles NOTIFY javaFilesChanged)
     Q_PROPERTY(bool fetching READ fetching NOTIFY fetchingChanged)
+    Q_PROPERTY(QString downloadUrl WRITE setDownloadUrl NOTIFY downloadUrlChanged)
 
     Q_PROPERTY(QString selectedVersion READ selectedVersion WRITE setSelectedVersion NOTIFY selectedVersionChanged)
     Q_PROPERTY(QString selectedType READ selectedType WRITE setSelectedType NOTIFY selectedTypeChanged)
@@ -52,8 +53,11 @@ public:
     Q_INVOKABLE void downloadJavaFileTo(const QString &filename, const QString &outDir, qint64 expectedSize = 0);
     Q_INVOKABLE QString javaInstallDir() const;
     Q_INVOKABLE void cancelDownload();
+    void setDownloadUrl(const QString &url) { m_downloadUrl = url; }
+    QString downloadUrl() const { return m_downloadUrl; }
 
 signals:
+    void downloadUrlChanged();
     void javaVersionsChanged();
     void javaTypesChanged();
     void javaArchsChanged();
@@ -79,6 +83,7 @@ private:
     QString m_baseUrl;
     QNetworkAccessManager *m_nam;
     ShadowDownloader::FileDownloader *m_downloader = nullptr;
+    QString m_downloadUrl;  // 从 API 响应中提取的实际下载 URL，替代 fileDownloadUrl 重构
 
     QStringList m_versions;
     QStringList m_types;
