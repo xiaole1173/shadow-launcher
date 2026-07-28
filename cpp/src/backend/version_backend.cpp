@@ -6738,9 +6738,8 @@ void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QStrin
 
             if (reply->error() != QNetworkReply::NoError) {
 
-                // Fallback to official
-
-                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+                // Fallback to official (resolve via adloadx)
+                QString offUrl = ModLoaderInstaller::resolveOptifineOfficialUrl(filename);
 
                 auto* r2 = nam->get(QNetworkRequest(offUrl));
 
@@ -6921,7 +6920,7 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
         filename = QStringLiteral("OptiFine_%1_%2_%3.jar").arg(mcVersion, t, p);
     }
 
-    const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
+    const QString offUrl = ModLoaderInstaller::resolveOptifineOfficialUrl(filename);
 
     emit logMessage(tr("并行下载 OptiFine: %1").arg(filename));
 
@@ -7102,7 +7101,7 @@ void VersionBackend::installOptifineJar(const QString& mcVersion, const QString&
 
             qDebug() << "[OptiFineJar] BMCLAPI failed, trying official...";
 
-            QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
+            QString offUrl = ModLoaderInstaller::resolveOptifineOfficialUrl(filename);
 
             auto* r2 = nam->get(QNetworkRequest(offUrl));
 

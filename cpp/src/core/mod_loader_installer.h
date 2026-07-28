@@ -160,6 +160,11 @@ private:
     void fabricStep2_downloadLibraries(const QByteArray& profileData);
     void fabricStep3_writeVersion(const QByteArray& profileData);
 
+public:
+    // OptiFine: resolve official download URL via adloadx (主流启动器-compatible flow)
+    static QString resolveOptifineOfficialUrl(const QString& filename);
+
+private:
     // Optifine standalone
     void optifineStep2_install(const QByteArray& jarData, const QString& filename);
     void runOptifineInstaller(const QByteArray& jarData);  // javaw fallback

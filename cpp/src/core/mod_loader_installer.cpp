@@ -300,7 +300,7 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
         emit progressChanged(1, m_totalSteps, "正在下载 OptiFine...");
 
         const QString bmclUrl = url;
-        const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
+        const QString offUrl = resolveOptifineOfficialUrl(filename);
         downloadToMemoryRace({bmclUrl, offUrl},
             [this, filename](bool ok, const QByteArray& data) {
                 if (!ok) {
@@ -323,7 +323,7 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
 
         // Use TrueRace: download from both BMCLAPI and official concurrently
         const QString bmclUrl = url;
-        const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
+        const QString offUrl = resolveOptifineOfficialUrl(filename);
         downloadToMemoryRace({bmclUrl, offUrl},
             [this, savePath, filename](bool ok, const QByteArray& data) {
                 if (!ok) {
@@ -667,6 +667,46 @@ void ModLoaderInstaller::installOptifineFromProfile(const QJsonObject& profile,
     emit finished(true, QString());
     m_running = false;
 }
+// ── Resolve official OptiFine download URL via adloadx (主流启动器-compatible flow) ──
+QString ModLoaderInstaller::resolveOptifineOfficialUrl(const QString& filename) {
+    // Step 1: fetch adloadx page to get the real download URL with session token
+    const QString adloadUrl = QStringLiteral("https://optifine.net/adloadx?f=%1").arg(filename);
+    QNetworkAccessManager nam;
+    QUrl qurl(adloadUrl);
+    QNetworkRequest req(qurl);
+    req.setRawHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    req.setTransferTimeout(15000);
+
+    QNetworkReply* reply = nam.get(req);
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timer.start(15000);
+    loop.exec();
+
+    QString result;
+    if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
+        timer.stop();
+        QByteArray body = reply->readAll();
+        QString html = QString::fromUtf8(body);
+        // Extract download URL: "downloadx?f=...&x=..."
+        QRegularExpression re(QStringLiteral("downloadx\\?f=[^\"'\\s]+"));
+        auto m = re.match(html);
+        if (m.hasMatch()) {
+            result = QStringLiteral("https://optifine.net/") + m.captured();
+            qCInfo(logLoader) << QStringLiteral("OptiFine 官方下载 URL（adloadx 解析）: %1").arg(result);
+        } else {
+            qCWarning(logLoader) << QStringLiteral("adloadx 页面中未找到 downloadx 链接");
+        }
+    } else {
+        qCWarning(logLoader) << QStringLiteral("adloadx 请求失败: %1").arg(reply->errorString());
+    }
+    reply->deleteLater();
+    return result;
+}
+
 // ── Fallback: run OptiFine installer via javaw (legacy / incompatible JAR) ──
 void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     qCInfo(logLoader) << QStringLiteral("OptiFine 解压失败，回退到 javaw 安装程序");
