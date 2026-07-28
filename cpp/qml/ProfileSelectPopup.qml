@@ -15,17 +15,14 @@ Item {
             backend.yggdrasil.preloadProfileSkins()
     }
 
-    // ── 遮罩（点击外部关闭）──
+    // ── 遮罩 ──
     Rectangle {
         anchors.fill: parent; z: 100
         color: "#80000000"
         opacity: root.opened ? 1 : 0
         visible: root.opened || opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.cancelled()
-        }
+        MouseArea { anchors.fill: parent }
     }
 
     // ── 主卡片 ──
