@@ -17,7 +17,6 @@ Item {
     property string progressSpeedText: ""
     property string pendingDownloadFile: ""
     property real pendingDownloadSize: 0
-    property string pendingDownloadUrl: ""
     property int toastStartCount: 0
     property int toastFinishCount: 0
 
@@ -155,7 +154,6 @@ Item {
                         }
                         pendingDownloadFile = modelData.name
                         pendingDownloadSize = modelData.size ? modelData.size : 0
-                        pendingDownloadUrl = modelData.url || ""
                         saveDirDialog.open()
                     }
                     progressPct: 0  // updated via Connections
@@ -262,15 +260,12 @@ Item {
                 var lastSlash = fullPath.lastIndexOf("/")
                 var dir = fullPath.substring(0, lastSlash)
                 var name = fullPath.substring(lastSlash + 1)
-                // 设置实际下载 URL（从 API 响应中提取），替代后端 URL 重构
-                if (pendingDownloadUrl) javaBackend.downloadUrl = pendingDownloadUrl
                 javaBackend.downloadJavaFileTo(name, dir, pendingDownloadSize)
                 pendingDownloadFile = ""
                 pendingDownloadSize = 0
-                pendingDownloadUrl = ""
             }
         }
-        onRejected: { pendingDownloadFile = ""; pendingDownloadUrl = "" }
+        onRejected: pendingDownloadFile = ""
     }
 
     // ════════════════════════════════════════════
