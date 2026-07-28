@@ -566,6 +566,9 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
             qCInfo(logLoader) << QStringLiteral("OptiFine JSON 已压平为独立版本（inheritsFrom 链已消解）");
         }
     }
+    // flattenVersionJson merges parent data but does NOT remove inheritsFrom.
+    // Keep it clean: remove inheritsFrom so launcher doesn't walk the chain again, causing duplicate args.
+    versionJson.remove(QStringLiteral("inheritsFrom"));
 
     // 4. Copy base MC JAR to version folder
     QString baseJarPath;
