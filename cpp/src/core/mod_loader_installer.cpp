@@ -277,14 +277,20 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
 
     QString filename;
     QString url;
-    if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
-        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
-    } else {
-        filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-            ? optifineVersion + ".jar"
-            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
+    {
+        QString t = bmclType;
+        QString p = bmclPatch;
+        if (t.isEmpty() || p.isEmpty()) {
+            if (optifineVersion.startsWith(QStringLiteral("HD_U_"))) {
+                t = QStringLiteral("HD_U");
+                p = optifineVersion.mid(5);
+            } else {
+                t = QStringLiteral("HD_U");
+                p = optifineVersion;
+            }
+        }
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, t, p);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, t, p);
     }
 
     if (standalone) {
@@ -552,18 +558,6 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     jsonFile.write(doc.toJson(QJsonDocument::Indented));
     jsonFile.close();
 
-    // 6. Clean up vanilla MC version folder (JSON is flattened, no inheritsFrom dependency)
-    {
-        const QString vanillaDir = versionsDir() + QStringLiteral("/") + m_mcVersion;
-        QDir vd(vanillaDir);
-        if (vd.exists()) {
-            if (vd.removeRecursively())
-                qCInfo(logLoader) << QStringLiteral("原版 MC 版本文件夹已清理: %1").arg(vanillaDir);
-            else
-                qCWarning(logLoader) << QStringLiteral("清理原版 MC 版本文件夹失败: %1").arg(vanillaDir);
-        }
-    }
-
     qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装完成 → %1（独立版本，mainClass=LaunchWrapper, tweaker=已添加）")
         .arg(versionId);
     emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
@@ -642,15 +636,6 @@ void ModLoaderInstaller::installOptifineFromProfile(const QJsonObject& profile,
     }
     qCInfo(logLoader) << QStringLiteral("OptiFine 已解压 %1 个内嵌 JAR").arg(copied);
 
-    // Write version JSON
-    QDir().mkpath(verDir);
-    QFile jsonFile(verDir + "/" + versionId + ".json");
-    if (jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QJsonDocument doc(versionInfo);
-        jsonFile.write(doc.toJson(QJsonDocument::Indented));
-        jsonFile.close();
-    }
-
     // Handle inheritsFrom: resolve directory and copy JAR
     QString inherits = versionInfo.value(QStringLiteral("inheritsFrom")).toString();
     if (!inherits.isEmpty() && inherits != versionId) {
@@ -660,21 +645,21 @@ void ModLoaderInstaller::installOptifineFromProfile(const QJsonObject& profile,
             QString dstJar = verDir + "/" + versionId + ".jar";
             if (QFile::exists(srcJar) && !QFile::exists(dstJar)) QFile::copy(srcJar, dstJar);
         }
-        // Remove inheritsFrom from written JSON (standalone now)
-        QString jsonPath2 = verDir + "/" + versionId + ".json";
-        QFile jf2(jsonPath2);
-        if (jf2.open(QIODevice::ReadOnly)) {
-            QJsonDocument jd2 = QJsonDocument::fromJson(jf2.readAll());
-            jf2.close();
-            if (jd2.isObject()) {
-                QJsonObject jo2 = jd2.object();
-                jo2.remove(QStringLiteral("inheritsFrom"));
-                if (jf2.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                    jf2.write(QJsonDocument(jo2).toJson(QJsonDocument::Indented));
-                    jf2.close();
-                }
-            }
+        // Flatten inheritsFrom chain: merge parent JSON into standalone version
+        QJsonObject flattened = flattenVersionJson(m_gameDir, versionInfo);
+        if (flattened != versionInfo) {
+            versionInfo = flattened;
+            qCInfo(logLoader) << QStringLiteral("OptiFine JSON 已压平为独立版本（profile 模式，inheritsFrom 链已消解）");
         }
+    }
+
+    // Write version JSON (already flattened if inheritsFrom was present)
+    QDir().mkpath(verDir);
+    QFile jsonFile(verDir + "/" + versionId + ".json");
+    if (jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument doc(versionInfo);
+        jsonFile.write(doc.toJson(QJsonDocument::Indented));
+        jsonFile.close();
     }
 
     qCInfo(logLoader) << QStringLiteral("OptiFine 安装完成（profile 模式）→ %1").arg(versionId);
@@ -698,6 +683,87 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     jarFile.write(jarData);
     jarFile.close();
 
+    // ── 检测所需 Java 版本（从 Installer.class 读取）──
+    int requiredJavaMajor = 21;  // 默认下限
+    {
+        QBuffer buf;
+        buf.setData(jarData);
+        if (buf.open(QIODevice::ReadOnly)) {
+            QZipReader zr(&buf);
+            QByteArray installerClass = zr.fileData(QStringLiteral("optifine/Installer.class"));
+            zr.close();
+            buf.close();
+            if (installerClass.size() >= 8) {
+                // Class file magic: CA FE BA BE at offset 0-3
+                // Minor version: offset 4-5, Major version: offset 6-7
+                quint8 b0 = static_cast<quint8>(installerClass[0]);
+                quint8 b1 = static_cast<quint8>(installerClass[1]);
+                quint8 b2 = static_cast<quint8>(installerClass[2]);
+                quint8 b3 = static_cast<quint8>(installerClass[3]);
+                if (b0 == 0xCA && b1 == 0xFE && b2 == 0xBA && b3 == 0xBE) {
+                    int classVersion = static_cast<quint8>(installerClass[6]) * 256
+                                       + static_cast<quint8>(installerClass[7]);
+                    if (classVersion >= 45) {
+                        requiredJavaMajor = classVersion - 44;
+                        qCInfo(logLoader) << QStringLiteral("OptiFine Installer.class 版本=%1 需要 Java %2")
+                            .arg(classVersion).arg(requiredJavaMajor);
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 查找合适的 Java ──
+    QString javaExe = QStringLiteral("javaw");
+    int foundJavaMajor = 0;
+    auto checkJavaVersion = [&](const QString& exePath) -> int {
+        QProcess jp;
+        jp.start(exePath, {QStringLiteral("-version")});
+        if (!jp.waitForFinished(5000)) return 0;
+        QString output = QString::fromLocal8Bit(jp.readAllStandardError());
+        if (output.isEmpty()) output = QString::fromLocal8Bit(jp.readAllStandardOutput());
+        QRegularExpression jre(QStringLiteral("version\\s+\"([^\"]+)\""));
+        auto m = jre.match(output);
+        if (!m.hasMatch()) return 0;
+        QString ver = m.captured(1);
+        ver.replace(QLatin1Char('_'), QLatin1Char('.'));
+        QStringList parts = ver.split(QLatin1Char('.'));
+        if (parts.isEmpty()) return 0;
+        int v = parts[0].toInt();
+        if (v == 1 && parts.size() >= 2) v = parts[1].toInt();
+        return v;
+    };
+
+    // Try javaw first, then java
+    QStringList candidates = {QStringLiteral("javaw"), QStringLiteral("java")};
+    // Also check JAVA_HOME
+    QString javaHome = qEnvironmentVariable("JAVA_HOME");
+    if (!javaHome.isEmpty()) {
+        candidates.prepend(javaHome + QStringLiteral("/bin/javaw"));
+        candidates.prepend(javaHome + QStringLiteral("/bin/java"));
+    }
+
+    for (const QString& cand : candidates) {
+        int mv = checkJavaVersion(cand);
+        if (mv >= requiredJavaMajor) {
+            javaExe = cand;
+            foundJavaMajor = mv;
+            break;
+        } else if (mv > 0) {
+            qCInfo(logLoader) << QStringLiteral("Java %1 (%2) 版本过低，需要 %3")
+                .arg(cand).arg(mv).arg(requiredJavaMajor);
+        }
+    }
+
+    if (foundJavaMajor < requiredJavaMajor) {
+        // setupTempMc 尚未调用，无需清理
+        QString msg = QStringLiteral("未找到满足版本要求的 Java（需要 %1+）").arg(requiredJavaMajor);
+        qCWarning(logLoader) << msg;
+        emit finished(false, msg);
+        m_running = false;
+        return;
+    }
+
     QDir tempMcDir = setupTempMc();
     QString tempMcRoot;
     {
@@ -710,7 +776,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     jargs << "-jar" << jarPath << "--installClient"
           << QDir::toNativeSeparators(tempMcDir.absolutePath());
 
-    qCInfo(logLoader) << QStringLiteral("OptiFine 安装（隔离模式）: javaw %1").arg(jargs.join(QStringLiteral(" ")));
+    qCInfo(logLoader) << QStringLiteral("OptiFine 安装（隔离模式）: %1 %2").arg(javaExe, jargs.join(QStringLiteral(" ")));
 
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this, proc, jarPath, tempMcRoot, tempMcDir](int exitCode, QProcess::ExitStatus) {
@@ -730,7 +796,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         m_running = false;
     });
 
-    proc->start("javaw", jargs);
+    proc->start(javaExe, jargs);
 }
 
 // ============================================================

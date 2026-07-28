@@ -3266,9 +3266,20 @@ static QVariantList parseOptifineOfficialVersions(const QByteArray& html, const 
                 dateStr = QStringLiteral("%1/%2/%3").arg(d[2], 2, QLatin1Char('0')).arg(d[1], 2, QLatin1Char('0')).arg(d[0], 2, QLatin1Char('0'));
         }
         m[QStringLiteral("date")] = dateStr;
-        // Official source doesn't have bmclType/bmclPatch; set empty
-        m[QStringLiteral("bmclType")] = QString();
-        m[QStringLiteral("bmclPatch")] = QString();
+        // Derive bmclType/bmclPatch from version string (consistent with BMCLAPI format)
+        // ver e.g. "HD_U_C8" → type="HD_U", patch="C8"
+        // ver e.g. "HD_U_J9_pre1" → type="HD_U", patch="J9_pre1"
+        {
+            QStringList vParts = ver.split(QLatin1Char('_'));
+            if (vParts.size() >= 2) {
+                m[QStringLiteral("bmclType")] = vParts[0] + QLatin1Char('_') + vParts[1];
+                vParts.removeFirst(); vParts.removeFirst();
+                m[QStringLiteral("bmclPatch")] = vParts.join(QLatin1Char('_'));
+            } else {
+                m[QStringLiteral("bmclType")] = QStringLiteral("HD_U");
+                m[QStringLiteral("bmclPatch")] = ver;
+            }
+        }
         // Forge compatibility
         if (i < forgeStrs.size()) {
             QString f = forgeStrs[i];

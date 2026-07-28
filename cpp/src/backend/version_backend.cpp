@@ -6688,27 +6688,22 @@ void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QStrin
 
 
     QString url;
-
     QString filename;
-
-    if (!ds->bmclType.isEmpty() && !ds->bmclPatch.isEmpty()) {
-
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, ds->bmclType, ds->bmclPatch);
-
-        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, ds->bmclType, ds->bmclPatch);
-
-    } else {
-
-        QString optifineVer = ds->loaderVer;
-
-        filename = optifineVer.startsWith("OptiFine_") || optifineVer.startsWith("preview_OptiFine_")
-
-            ? optifineVer + ".jar"
-
-            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVer);
-
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
-
+    {
+        QString t = ds->bmclType;
+        QString p = ds->bmclPatch;
+        if (t.isEmpty() || p.isEmpty()) {
+            QString optifineVer = ds->loaderVer;
+            if (optifineVer.startsWith(QStringLiteral("HD_U_"))) {
+                t = QStringLiteral("HD_U");
+                p = optifineVer.mid(5);
+            } else {
+                t = QStringLiteral("HD_U");
+                p = optifineVer;
+            }
+        }
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, t, p);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, t, p);
     }
 
 
@@ -6907,17 +6902,23 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
     ensureSession(installName);
 
 
-    // Build BMCLAPI URL
+    // Build BMCLAPI URL — normalize type/patch from optifineVersion if needed
     QString filename;
     QString bmclUrl;
-    if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
-        bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
-        filename = QStringLiteral("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
-    } else {
-        filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-            ? optifineVersion + QStringLiteral(".jar")
-            : QStringLiteral("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-        bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/com/optifine/%1/%2").arg(mcVersion, filename);
+    {
+        QString t = bmclType;
+        QString p = bmclPatch;
+        if (t.isEmpty() || p.isEmpty()) {
+            if (optifineVersion.startsWith(QStringLiteral("HD_U_"))) {
+                t = QStringLiteral("HD_U");
+                p = optifineVersion.mid(5);
+            } else {
+                t = QStringLiteral("HD_U");
+                p = optifineVersion;
+            }
+        }
+        bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, t, p);
+        filename = QStringLiteral("OptiFine_%1_%2_%3.jar").arg(mcVersion, t, p);
     }
 
     const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
@@ -7038,25 +7039,21 @@ void VersionBackend::installOptifineJar(const QString& mcVersion, const QString&
     // Lightweight: download OptiFine JAR to version's mods/ — no blocking, no installer process
 
     QString url;
-
     QString filename;
-
-    if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
-
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
-
-        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
-
-    } else {
-
-        filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-
-            ? optifineVersion + ".jar"
-
-            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/download").arg(mcVersion, filename);
-
+    {
+        QString t = bmclType;
+        QString p = bmclPatch;
+        if (t.isEmpty() || p.isEmpty()) {
+            if (optifineVersion.startsWith(QStringLiteral("HD_U_"))) {
+                t = QStringLiteral("HD_U");
+                p = optifineVersion.mid(5);
+            } else {
+                t = QStringLiteral("HD_U");
+                p = optifineVersion;
+            }
+        }
+        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, t, p);
+        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, t, p);
     }
 
 
