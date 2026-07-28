@@ -497,15 +497,22 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             reply->deleteLater();
 
             // Determine file size on first thread
+            // 始终以实际 Content-Length（或收到的数据大小）为准，
+            // 修正 addFile 时传入的 expectedSize 可能偏小的问题
             if (th->downloadStart == 0 && data.size() > 0) {
-                if (file->fileSize <= 0) {
-                    if (contentLen > 0) {
-                        file->fileSize = contentLen;
-                        file->isUnknownSize = false;
-                        file->isNoSplit = (contentLen < 50LL * 1024 * 1024);
-                        th->downloadEnd = contentLen;
-                        m_totalBytes.fetchAndAddRelaxed(contentLen);
+                qint64 actualSize = contentLen > 0 ? contentLen : data.size();
+                if (actualSize > 0 && actualSize != file->fileSize) {
+                    if (file->fileSize > 0) {
+                        // API 提供的 expectedSize 小于实际大小，补差
+                        m_totalBytes.fetchAndAddRelaxed(actualSize - file->fileSize);
+                    } else {
+                        // 未知大小的文件，首次发现大小
+                        m_totalBytes.fetchAndAddRelaxed(actualSize);
                     }
+                    file->fileSize = actualSize;
+                    file->isUnknownSize = false;
+                    file->isNoSplit = (actualSize < 50LL * 1024 * 1024);
+                    th->downloadEnd = actualSize;
                 }
             }
 
