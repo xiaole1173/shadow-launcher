@@ -485,9 +485,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             sourceOk = true;
             QByteArray data = reply->readAll();
             qint64 contentLen = reply->rawHeader("Content-Length").toLongLong();
-            qint64 expectedSize = (file->fileSize > 0) ? file->fileSize : contentLen;
+            // 优先用服务器返回的 Content-Length 做预期判断（它才是实际响应体大小）
+            // file->fileSize 是 API 解析值，可能偏大（如清华镜像 API 195.6MB 实际 195.0MB）
+            qint64 expectedSize = contentLen > 0 ? contentLen : (file->fileSize > 0 ? file->fileSize : 0);
             if (expectedSize > 0 && data.size() < expectedSize) {
-                qCWarning(logDownload) << QStringLiteral("下载数据不完整 URL=%1 预期=%2 实际=%3")
+                qCWarning(logDownload) << QStringLiteral("下载数据不完整 URL=%1 预期=%2(Content-Length) 实际=%3")
                     .arg(url).arg(expectedSize).arg(data.size());
                 sourceOk = false;
                 reply->deleteLater();
