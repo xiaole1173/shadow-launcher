@@ -138,9 +138,12 @@ private:
     bool m_isMerged = false;
     QString m_error;
 
-    qint64 m_speed = 0;
+    // ── Speed: EMA + 加权滑动窗口 ──
+    qint64 m_speed = 0;          // EMA 平滑后速度 (bytes/s)
+    double m_speedEMA = 0.0;
+    QList<qint64> m_speedRecords;
+    static constexpr int kMaxSpeedRecords = 20;
 
-    // 瞬时速度跟踪 (依赖 FileDownloader 100ms 定时器)
     qint64 m_lastRecvBytes = 0;
     qint64 m_lastRecvTime = 0;
 

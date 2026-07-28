@@ -47,11 +47,38 @@ void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
     m_lastRecvTime = now;
 
     if (deltaBytes > 0 && deltaMs > 0) {
-        // 瞬时速度: 不用 qMax — 速度可以自然升降
-        m_speed = (deltaBytes * 1000) / deltaMs;
+        qint64 instantBps = (deltaBytes * 1000) / deltaMs;
+
+        // 加权滑动窗口 (最新在前)
+        m_speedRecords.prepend(instantBps);
+        if (m_speedRecords.size() > kMaxSpeedRecords)
+            m_speedRecords.removeLast();
+
+        // 加权平均: 更新样本权重更高
+        qint64 weightedSum = 0;
+        int weightDiv = 0;
+        int w = m_speedRecords.size();
+        for (auto rec : m_speedRecords) {
+            weightedSum += rec * w;
+            weightDiv += w;
+            w--;
+        }
+        double avgBps = (weightDiv > 0)
+            ? static_cast<double>(weightedSum) / weightDiv
+            : static_cast<double>(instantBps);
+
+        // EMA 平滑: 0.4 历史 + 0.6 新值 (偏重实时)
+        if (m_speedEMA == 0.0) {
+            m_speedEMA = avgBps;
+        } else {
+            m_speedEMA = m_speedEMA * 0.4 + avgBps * 0.6;
+        }
+        m_speed = static_cast<qint64>(m_speedEMA);
     } else if (deltaBytes == 0 && deltaMs > 30000) {
-        // 30 秒无数据 → 速度归零
+        // 30 秒无数据 → 归零
         m_speed = 0;
+        m_speedEMA = 0.0;
+        m_speedRecords.clear();
     }
     // deltaBytes == 0 && within 30s: 保持上次速度不变
 
@@ -60,6 +87,8 @@ void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
 
 void DownloadSession::resetSpeed() {
     m_speed = 0;
+    m_speedEMA = 0.0;
+    m_speedRecords.clear();
     m_lastRecvBytes = 0;
     m_lastRecvTime = 0;
 }
@@ -80,6 +109,8 @@ void DownloadSession::cancel() {
     }
     m_failed = false;
     m_speed = 0;
+    m_speedEMA = 0.0;
+    m_speedRecords.clear();
     m_lastRecvBytes = 0;
     m_lastRecvTime = 0;
 }
@@ -94,6 +125,8 @@ void DownloadSession::reset() {
     m_failed = false;
     m_error.clear();
     m_speed = 0;
+    m_speedEMA = 0.0;
+    m_speedRecords.clear();
     m_lastRecvBytes = 0;
     m_lastRecvTime = 0;
     m_isMerged = false;
