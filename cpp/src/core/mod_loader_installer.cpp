@@ -842,6 +842,12 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     }
 
     QProcess* proc = new QProcess(this);
+#if defined(Q_OS_WIN)
+    // Suppress child process window (OptiFine installer may show GUI even with --installClient)
+    proc->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
+        args->flags |= 0x08000000;  // CREATE_NO_WINDOW
+    });
+#endif
     QStringList jargs;
     jargs << "-jar" << jarPath << "--installClient"
           << QDir::toNativeSeparators(tempMcDir.absolutePath());
