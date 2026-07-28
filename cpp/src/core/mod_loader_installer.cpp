@@ -412,8 +412,25 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     reader.close();
     buffer.close();
 
-    // ── Step B: Synthetic version JSON (no Java needed) ──
-    // Derive library suffix: prefer bmclType+bmclPatch, fallback to optifine version string
+    // ── Step B: Check for optifine/Installer.class → run installer (modern OptiFine 1.17+) ──
+    {
+        QBuffer buf2;
+        buf2.setData(jarData);
+        if (buf2.open(QIODevice::ReadOnly)) {
+            QZipReader zr2(&buf2);
+            bool hasInstallerClass = !zr2.fileData(QStringLiteral("optifine/Installer.class")).isEmpty();
+            zr2.close();
+            buf2.close();
+            if (hasInstallerClass) {
+                qCInfo(logLoader) << QStringLiteral("OptiFine JAR 包含 Installer.class，使用安装器模式");
+                runOptifineInstaller(jarData);
+                return;
+            }
+        }
+    }
+
+    // ── Step C: Synthetic version JSON (no Java needed, old OptiFine pre-1.13) ──
+    qCInfo(logLoader) << QStringLiteral("OptiFine JAR 无 Installer.class，使用合成模式");
     installOptifineSynthetic(jarData);
 }
 

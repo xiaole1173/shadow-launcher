@@ -6985,9 +6985,9 @@ void VersionBackend::onParallelOptifineDone(const QString& installName, const QB
 
     if (ds->hasPendingLoader) ds->hasPendingLoader = false;
 
-    if (ds->optifineJarDone && ds->mcDownloadDone && !jarData.isEmpty()) {
+    if (ds->optifineJarDone && ds->mcDownloadDone) {
 
-        // Already handled the first time, skip
+        // Already handled, skip regardless of jarData content
 
         return;
 
