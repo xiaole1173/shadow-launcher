@@ -552,6 +552,18 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     jsonFile.write(doc.toJson(QJsonDocument::Indented));
     jsonFile.close();
 
+    // 6. Clean up vanilla MC version folder (JSON is flattened, no inheritsFrom dependency)
+    {
+        const QString vanillaDir = versionsDir() + QStringLiteral("/") + m_mcVersion;
+        QDir vd(vanillaDir);
+        if (vd.exists()) {
+            if (vd.removeRecursively())
+                qCInfo(logLoader) << QStringLiteral("原版 MC 版本文件夹已清理: %1").arg(vanillaDir);
+            else
+                qCWarning(logLoader) << QStringLiteral("清理原版 MC 版本文件夹失败: %1").arg(vanillaDir);
+        }
+    }
+
     qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装完成 → %1（独立版本，mainClass=LaunchWrapper, tweaker=已添加）")
         .arg(versionId);
     emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
