@@ -304,7 +304,7 @@ void JavaBackend::downloadJavaFileTo(const QString &filename, const QString &out
     }
 
     m_downloader = new FileDownloader(this);
-    m_downloader->setMaxThreads(4);  // 单文件下载不宜开过多线程，防止进度爆表
+    m_downloader->setMaxThreads(1);  // 单线程下载，根本解决多线程 Range 分裂文件损坏问题
 
     connect(m_downloader, &FileDownloader::progressChanged, this,
             [this](int, int, qint64 dl, qint64 total) {
