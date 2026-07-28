@@ -432,24 +432,26 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
 
     qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装: library=%1 suffix=%2").arg(libName, libSuffix);
 
-    // 1. Copy JAR to libraries/
+    // 1. Copy JAR to libraries/optifine/OptiFine/
     QString libDir = m_gameDir + "/libraries/" + libPath;
     QDir().mkpath(libDir);
     QString libTarget = libDir + "/" + libJar;
-    QFile libFile(libTarget);
-    if (!libFile.open(QIODevice::WriteOnly)) {
-        emit finished(false, "无法写入 OptiFine 库文件");
-        m_running = false;
-        return;
+    {
+        QFile libFile(libTarget);
+        if (!libFile.open(QIODevice::WriteOnly)) {
+            emit finished(false, "无法写入 OptiFine 库文件");
+            m_running = false;
+            return;
+        }
+        libFile.write(jarData);
+        libFile.close();
     }
-    libFile.write(jarData);
-    libFile.close();
 
-    // 2. Create self-contained version JSON (no inheritsFrom → safe to delete base MC)
+    // 2. Build version JSON — use inheritsFrom (follow 主流启动器 Path B)
     QString versionId = m_installName;
     QJsonObject versionJson;
 
-    // Resolve MC version directory (handles name mismatch like 26.2 vs 1.21.5)
+    // Resolve MC version directory to inherit its JSON
     const QString mcOptifineDir = findVersionDir(m_mcVersion);
     if (!mcOptifineDir.isEmpty()) {
         QString baseJsonPath = mcOptifineDir + "/" + QDir(mcOptifineDir).dirName() + ".json";
@@ -461,36 +463,73 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
         }
     }
 
-    // Override/set id
-    versionJson["id"] = versionId;
-    // Remove inheritsFrom (self-contained, no parent dependency)
-    versionJson.remove(QStringLiteral("inheritsFrom"));
-    versionJson["type"] = QStringLiteral("release");
+    // Set version id and type
+    versionJson[QStringLiteral("id")] = versionId;
+    versionJson[QStringLiteral("type")] = QStringLiteral("release");
+    // Keep inheritsFrom — inherit MC version's libraries
+    if (!versionJson.contains(QStringLiteral("inheritsFrom")))
+        versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
 
-    // Add OptiFine library to the existing libraries array
+    // Set mainClass to LaunchWrapper (OptiFine needs tweaker loading)
+    versionJson[QStringLiteral("mainClass")] = QStringLiteral("net.minecraft.launchwrapper.Launch");
+
+    // Add --tweakClass optifine.OptiFineTweaker to launch arguments
+    if (versionJson.contains(QStringLiteral("minecraftArguments"))) {
+        // Old format: append to string
+        QString args = versionJson[QStringLiteral("minecraftArguments")].toString();
+        if (!args.contains(QStringLiteral("optifine.OptiFineTweaker")))
+            args += QStringLiteral(" --tweakClass optifine.OptiFineTweaker");
+        versionJson[QStringLiteral("minecraftArguments")] = args;
+    } else {
+        // New format: add to arguments.game array
+        QJsonObject args = versionJson.value(QStringLiteral("arguments")).toObject();
+        QJsonArray gameArgs = args.value(QStringLiteral("game")).toArray();
+        // Check if already added
+        bool hasTweak = false;
+        for (const QJsonValue& gv : gameArgs) {
+            if (gv.isString() && gv.toString() == QStringLiteral("optifine.OptiFineTweaker")) {
+                hasTweak = true; break;
+            }
+        }
+        if (!hasTweak) {
+            gameArgs.append(QStringLiteral("--tweakClass"));
+            gameArgs.append(QStringLiteral("optifine.OptiFineTweaker"));
+        }
+        args[QStringLiteral("game")] = gameArgs;
+        versionJson[QStringLiteral("arguments")] = args;
+    }
+
+    // Add libraries: OptiFine + launchwrapper (主流启动器 Path B)
     QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
-    QJsonObject libObj;
-    libObj["name"] = libName;
-    libraries.append(libObj);
-    versionJson["libraries"] = libraries;
+    // OptiFine library
+    QJsonObject ofLib;
+    ofLib[QStringLiteral("name")] = libName;
+    libraries.append(ofLib);
+    // launchwrapper (needed for OptiFineTweaker)
+    bool hasLw = false;
+    for (const QJsonValue& lv : libraries) {
+        if (lv.toObject().value(QStringLiteral("name")).toString().contains(QStringLiteral("launchwrapper")))
+        { hasLw = true; break; }
+    }
+    if (!hasLw) {
+        QJsonObject lwLib;
+        lwLib[QStringLiteral("name")] = QStringLiteral("net.minecraft:launchwrapper:1.12");
+        libraries.append(lwLib);
+    }
+    versionJson[QStringLiteral("libraries")] = libraries;
 
-    // 3. Copy base MC JAR to OptiFine version folder (self-contained, no inheritsFrom)
+    // 3. Copy base MC JAR to version folder (主流启动器 does this)
     QString baseJarPath;
     if (!mcOptifineDir.isEmpty())
         baseJarPath = mcOptifineDir + "/" + QDir(mcOptifineDir).dirName() + ".jar";
-    QString verDir = m_gameDir + "/versions/" + versionId;
+    QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
     QDir().mkpath(verDir);
-    QString optiJarPath = verDir + "/" + versionId + ".jar";
-    if (QFile::exists(baseJarPath) && !QFile::exists(optiJarPath)) {
+    QString optiJarPath = verDir + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+    if (QFile::exists(baseJarPath) && !QFile::exists(optiJarPath))
         QFile::copy(baseJarPath, optiJarPath);
-        versionJson["jar"] = versionId;  // use our own JAR, not base
-    } else if (QFile::exists(optiJarPath)) {
-        versionJson["jar"] = versionId;
-    }
 
-    // 4. Write to versions/
-    QDir().mkpath(verDir);
-    QFile jsonFile(verDir + "/" + versionId + ".json");
+    // 4. Write version JSON
+    QFile jsonFile(verDir + QStringLiteral("/") + versionId + QStringLiteral(".json"));
     if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         emit finished(false, "无法写入版本配置文件");
         m_running = false;
@@ -500,7 +539,8 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
     jsonFile.write(doc.toJson(QJsonDocument::Indented));
     jsonFile.close();
 
-    qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装完成 → %1").arg(versionId);
+    qCInfo(logLoader) << QStringLiteral("OptiFine 合成安装完成 → %1（inheritsFrom=%2, mainClass=LaunchWrapper, tweaker=已添加）")
+        .arg(versionId, versionJson.value(QStringLiteral("inheritsFrom")).toString());
     emit progressChanged(2, m_totalSteps, "OptiFine 安装完成");
     emit finished(true, QString());
     m_running = false;

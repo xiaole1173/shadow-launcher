@@ -6902,131 +6902,73 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                                                 const QString& bmclType, const QString& bmclPatch) {
 
     // Download OptiFine JAR in parallel with MC download
+    // TrueRace: try BMCLAPI + official concurrently
 
     ensureSession(installName);
 
-    auto* ds = dlSession(installName);
 
-
-
-    // Use BMCLAPI type/patch format when available (recommended API)
-
-    QString url;
-
+    // Build BMCLAPI URL
     QString filename;
-
+    QString bmclUrl;
     if (!bmclType.isEmpty() && !bmclPatch.isEmpty()) {
-
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
-
-        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
-
+        bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, bmclType, bmclPatch);
+        filename = QStringLiteral("OptiFine_%1_%2_%3.jar").arg(mcVersion, bmclType, bmclPatch);
     } else {
-
-        // Fallback: use Maven path (only works for standard OptiFine_ naming)
-
         filename = (optifineVersion.startsWith("OptiFine_") || optifineVersion.startsWith("preview_OptiFine_"))
-
-            ? optifineVersion + ".jar"
-
-            : QString("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
-
-        url = QString("https://bmclapi2.bangbang93.com/maven/com/optifine/%1/%2").arg(mcVersion, filename);
-
+            ? optifineVersion + QStringLiteral(".jar")
+            : QStringLiteral("OptiFine_%1_%2.jar").arg(mcVersion, optifineVersion);
+        bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/com/optifine/%1/%2").arg(mcVersion, filename);
     }
 
-
+    const QString offUrl = QStringLiteral("https://optifine.net/downloadx?f=%1").arg(filename);
 
     emit logMessage(tr("并行下载 OptiFine: %1").arg(filename));
 
+    // Shared TrueRace state
+    auto won = std::make_shared<bool>(false);
+    auto pendingCount = std::make_shared<int>(2);
 
+    auto fireUrl = [this, installName, won, pendingCount](const QString& url, const QString& label) {
+        auto* nam = new QNetworkAccessManager(this);
+        auto* reply = nam->get(QNetworkRequest(QUrl(url)));
 
-    auto* nam = new QNetworkAccessManager(this);
+        connect(reply, &QNetworkReply::downloadProgress, this,
+            [this, installName](qint64 received, qint64 total) {
+                if (total > 0) {
+                    int pct = (int)(received * 100 / total);
+                    updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+                }
+            });
 
-    auto* reply = nam->get(QNetworkRequest(url));
+        connect(reply, &QNetworkReply::finished, this,
+            [this, reply, nam, installName, won, pendingCount, label]() {
+                reply->deleteLater();
+                nam->deleteLater();
 
+                if (*won) return;  // another source already won
 
+                if (reply->error() != QNetworkReply::NoError) {
+                    qCInfo(logApp) << QStringLiteral("OptiFine %1 下载失败: %2").arg(label, reply->errorString());
+                    (*pendingCount)--;
+                    if (*pendingCount <= 0) {
+                        *won = true;
+                        emit logMessage(tr("OptiFine 下载失败（BMCLAPI 和官方源均失败）"));
+                        updateStep(installName, 3, QStringLiteral("failed"), 0);
+                        if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
+                        setInstalling(false);
+                    }
+                    return;
+                }
 
-    connect(reply, &QNetworkReply::downloadProgress, this,
+                *won = true;
+                QByteArray jarData = reply->readAll();
+                updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
+                onParallelOptifineDone(installName, jarData);
+            });
+    };
 
-        [this, installName](qint64 received, qint64 total) {
-
-            int pct = total > 0 ? (int)(received * 100 / total) : 0;
-
-            updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
-
-        });
-
-
-
-    connect(reply, &QNetworkReply::finished, this,
-
-        [this, reply, nam, installName, mcVersion, filename]() {
-
-            reply->deleteLater();
-
-            if (reply->error() != QNetworkReply::NoError) {
-
-                // Fallback to official
-
-                QString offUrl = QString("https://optifine.net/downloadx?f=%1").arg(filename);
-
-                auto* r2 = nam->get(QNetworkRequest(offUrl));
-
-                connect(r2, &QNetworkReply::downloadProgress, this,
-
-                    [this, installName](qint64 received, qint64 total) {
-
-                        int pct = total > 0 ? (int)(received * 100 / total) : 0;
-
-                        updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
-
-                    });
-
-                connect(r2, &QNetworkReply::finished, this,
-
-                    [this, r2, nam, installName, mcVersion]() {
-
-                        r2->deleteLater();
-
-                        nam->deleteLater();
-
-                        if (r2->error() != QNetworkReply::NoError) {
-
-                            emit logMessage(tr("[失败] OptiFine 下载失败（所有源）"));
-
-                            updateStep(installName, 3, QStringLiteral("failed"), 0);
-
-                            if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
-
-                            setInstalling(false);
-
-                            return;
-
-                        }
-
-                        QByteArray jarData = r2->readAll();
-
-                        updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
-
-                        onParallelOptifineDone(installName, jarData);
-
-                    });
-
-                return;
-
-            }
-
-            QByteArray jarData = reply->readAll();
-
-            updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
-
-            nam->deleteLater();
-
-            onParallelOptifineDone(installName, jarData);
-
-        });
-
+    fireUrl(bmclUrl, QStringLiteral("BMCLAPI"));
+    fireUrl(offUrl, QStringLiteral("官方"));
 }
 
 
