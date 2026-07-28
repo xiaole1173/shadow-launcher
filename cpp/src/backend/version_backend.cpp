@@ -2739,14 +2739,23 @@ auto* ds = dlSession(it.key());
 
             
 
-            // If loader was downloaded in parallel, the merged flow above already handled it
-
+            // If loader was downloaded in parallel, the merged flow above already handled it.
+            // Exception: OptiFine parallel flow needs mcDownloadDone set here so
+            // onParallelOptifineDone can proceed when JAR finishes before MC.
             if (ds->loaderDownloadReady || ds->isMerged()) {
 
-                qDebug() << "[install] Pending loader already parallel-downloaded, merged flow handles install";
+                // OptiFine parallel: mark MC done and check if JAR is ready
+                if (ds->optifineJarParallel && ds->pendingLoaderType == QStringLiteral("optifine")) {
+                    if (!ds->mcDownloadDone) {
+                        ds->mcDownloadDone = true;
+                        qCInfo(logApp) << QStringLiteral("OptiFine MC 下载完成，检查 JAR 状态");
+                        if (ds->optifineJarDone) {
+                            onParallelOptifineDone(ds->pendingLoaderName, QByteArray());
+                        }
+                    }
+                }
 
                 ds->hasPendingLoader = false;
-
                 continue;
 
             }
