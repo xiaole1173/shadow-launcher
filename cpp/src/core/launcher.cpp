@@ -1214,14 +1214,18 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             return -1;
         };
 
-        // Detect if Forge is present: check for Forge tweakClass or Forge mainClass
+        // Detect if Forge is present
         bool hasForge =
             hasTweakClass(QStringLiteral("net.minecraftforge.fml.common.launcher.FMLTweaker"))
             || hasTweakClass(QStringLiteral("net.minecraftforge.fml.common.launcher.FMLServerTweaker"))
             || versionJson.value(QStringLiteral("mainClass")).toString()
                    .contains(QStringLiteral("net.minecraftforge"))
             || versionId.contains(QStringLiteral("forge"));
+        qCInfo(logLaunch) << QStringLiteral("tweakClass 修复: versionId=%1 mainClass=%2 hasForge=%3")
+            .arg(versionId, versionJson.value(QStringLiteral("mainClass")).toString())
+            .arg(hasForge);
 
+        // 修复错误的 OptiFineTweaker 名称（仅当 Forge 存在时）
         if (hasForge) {
             // Only rename to ForgeTweaker when Forge is actually present
             int wrongIdx = hasTweakClass(QStringLiteral("optifine.OptiFineTweaker"));
