@@ -6691,6 +6691,14 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
             }
         }
 
+        // finishInstall must be called for the success fall-through path
+        // (Timeline B: MC finished before loader, so finishInstall wasn't
+        //  called from onVersionDownloadFinished). Timeline A is handled by
+        //  onVersionDownloadFinished calling finishInstall directly.
+        if (success) {
+            finishInstall(installId);
+        }
+
         destroyLoaderInstaller(installId);
         setInstalling(false);
         startNextFromQueue();
