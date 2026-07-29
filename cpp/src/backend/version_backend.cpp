@@ -34,7 +34,7 @@
 
 
 #include <QDir>
-
+#include <QDirIterator>
 #include <QFileInfo>
 
 #include <QDateTime>
@@ -697,7 +697,16 @@ void VersionBackend::installVersion(const QString& versionId)
 
             downloader->setMirror(mirror);
 
-            downloader->setMinecraftDir(m_versionMgr->gameDir());
+            // ── If this MC download is for a merged install, redirect to temp dir ──
+            QString mcDir = m_versionMgr->gameDir();
+            for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
+                if (cIt.value() && cIt.value()->mcVersion == versionId) {
+                    mcDir = cIt.value()->tempDir;
+                    qDebug() << "[install] Merged MC download redirected to temp:" << mcDir;
+                    break;
+                }
+            }
+            downloader->setMinecraftDir(mcDir);
 
 
 
@@ -1377,126 +1386,93 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
 
 
-    // ── Resolve session-id to mc-version-id (merged installs key by session id) ──
+    // ── Merged install card: clean only this task's resources ──
+    if (m_mergedContexts.contains(versionId)) {
+        auto* ctx = m_mergedContexts.value(versionId, nullptr);
+        if (ctx) {
+            // Stop installer
+            if (ctx->installer) ctx->installer->cancel();
+            // Cancel MC download if we're the last context using this MC version
+            bool mcInUse = false;
+            for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
+                if (it.key() != versionId && it.value() && it.value()->mcVersion == ctx->mcVersion) {
+                    mcInUse = true; break;
+                }
+            }
+            if (!mcInUse && m_downloaders.contains(ctx->mcVersion)) {
+                m_userCancelledIds.insert(ctx->mcVersion);
+                m_downloaders[ctx->mcVersion]->cancel();
+            }
+        }
+
+        // Clean up: temp dir + install-name version folder
+        destroyMergedContext(versionId);
+        if (!m_gameDir.isEmpty())
+            cleanupCanceledVersion(versionId, m_gameDir);
+
+        // Mark only this session as failed
+        auto* ds = dlSession(versionId);
+        if (ds) {
+            ds->markFailed(tr("已取消"));
+            ds->resetSpeed();
+            updateCardFromSession(versionId, versionId, QStringLiteral("mod_loader"));
+        }
+
+        emit logMessage(tr("已取消 %1 的安装").arg(versionId));
+        setInstalling(false);
+        startNextFromQueue();
+        return;
+    }
+
+
+    // ── Pure MC version card (existing logic) ──
 
     QString resolvedId = versionId;
 
     if (!m_downloaders.contains(versionId) && m_downloadSessions.contains(versionId)) {
-
-        // This is a merged-install session id — cancel the MC downloader
-
         auto* d = dlSession(versionId);
-
         const QString mcVer = d ? d->mcVersion : QString{};
-
         if (!mcVer.isEmpty() && m_downloaders.contains(mcVer)) {
-
             resolvedId = mcVer;
-
             qCDebug(logVersion).noquote() << "[cancelInstall] resolved " << versionId << " -> mc=" << mcVer;
-
         }
-
     }
-
-
 
     if (!m_downloaders.contains(resolvedId)) {
-
-        // Check queue
-
         for (int i = 0; i < m_installQueue.size(); ++i) {
-
             if (m_installQueue[i] == versionId || m_installQueue[i] == resolvedId) {
-
                 m_installQueue.removeAt(i);
-
                 emit logMessage(tr("已取消队列中的 %1").arg(versionId));
-
                 emit installStateChanged();
-
                 emit downloadQueueChanged();
-
                 return;
-
             }
-
         }
-
-        return;  // Not found
-
+        return;
     }
 
-
-
-    // Mark as user-cancelled (onVersionDownloadFinished handles full cleanup)
 
     m_userCancelledIds.insert(resolvedId);
-
-
-
-    // Cancel the downloader (just sets flag; downloader finishes naturally)
-
     auto dl = m_downloaders.value(resolvedId, nullptr);
-
-    if (dl) {
-
-        dl->cancel();
-
-    }
-
-
+    if (dl) dl->cancel();
 
     emit logMessage(tr("已取消 %1 的安装").arg(versionId));
 
-
-
-    // ── Update installing state (UI only; counts handled by finish handler) ──
-
     m_activeIds.removeOne(resolvedId);
-
-    if (m_activeIds.isEmpty()) {
-
-        setInstalling(false);
-
-    }
-
-
-
-    // ── Sync UI immediately ──
+    if (m_activeIds.isEmpty()) setInstalling(false);
 
     syncPrimaryProgress();
-
-    // ── Clean up partial files ──
     if (!m_gameDir.isEmpty())
         cleanupCanceledVersion(resolvedId, m_gameDir);
-    else
-        qCDebug(logVersion) << "[cancelInstall] 无法清理: 无游戏目录";
 
-    // ── Update DownloadSession for immediate card feedback ──
-    // Pure MC version
     auto* cancelDs = dlSession(resolvedId);
     if (cancelDs && !cancelDs->isMerged()) {
         cancelDs->markFailed(tr("已取消"));
         cancelDs->resetSpeed();
         updateCardFromSession(resolvedId, versionId, QStringLiteral("version"));
     }
-    // Merged installs (Forge/NeoForge/Fabric + MC): mark all sessions using this MC version
-    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-        auto* mergedDs = dlSession(it.key());
-        if (mergedDs && mergedDs->isMerged() && mergedDs->mcVersion == resolvedId) {
-            mergedDs->markFailed(tr("已取消"));
-            mergedDs->resetSpeed();
-            updateCardFromSession(it.key(), it.key(), QStringLiteral("mod_loader"));
-        }
-    }
-
-
-
-    // Try to start next from queue
 
     startNextFromQueue();
-
 }
 
 
@@ -2291,7 +2267,7 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
     auto* ctx = m_mergedContexts.value(installId, nullptr);
     if (ctx && ctx->installer) {
         ml = ctx->installer;
-        ml->setGameDir(m_gameDir);
+        ml->setGameDir(ctx->tempDir);
     } else if (!ml) {
         ml = createLoaderInstaller(installId);
     } else {
@@ -4844,7 +4820,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
     // ── Start loader in parallel ──
     if (loaderType == QStringLiteral("fabric")) {
-        ctx->installer->setGameDir(m_gameDir);
+        ctx->installer->setGameDir(ctx->tempDir);
         ctx->installer->setParallelMode(true);
         ctx->installer->installFabric(mcVersion, loaderVersion, installName);
 
@@ -4978,7 +4954,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         updateStep(installName, verifyStep, QStringLiteral("active"), 0);
                     }
 
-                    ctx->installer->setGameDir(m_gameDir);
+                    ctx->installer->setGameDir(ctx->tempDir);
                     ctx->installer->setForgeBranch(forgeInstallerBranch);
 
                     // CRITICAL: feed JAR data to installer BEFORE marking ready
@@ -5075,7 +5051,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
     auto* ctx = createMergedContext(installName, mcVersion, "optifine", optifineVersion);
     if (!ctx) return;
 
-    ctx->installer->setGameDir(m_gameDir);
+    ctx->installer->setGameDir(ctx->tempDir);
     if (m_isolation && m_isolation->isVersionIsolated(installName)) {
         ctx->installer->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
     } else {
@@ -7553,6 +7529,24 @@ void VersionBackend::startUserDataImport(const QString& installId)
 
 }
 
+// ── Helper: recursive copy skipping existing files ──
+static void copyRecursiveMissing(const QString& srcDir, const QString& dstDir)
+{
+    QDirIterator it(srcDir, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    QDir sDir(srcDir);
+    while (it.hasNext()) {
+        it.next();
+        const QString relPath = sDir.relativeFilePath(it.filePath());
+        const QString dstPath = dstDir + QStringLiteral("/") + relPath;
+        if (it.fileInfo().isDir()) {
+            QDir().mkpath(dstPath);
+        } else if (!QFileInfo::exists(dstPath)) {
+            QDir().mkpath(QFileInfo(dstPath).absolutePath());
+            QFile::copy(it.filePath(), dstPath);
+        }
+    }
+}
+
 
 
 // ── MergedInstallContext lifecycle ──
@@ -7575,15 +7569,17 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
     ctx->tempDir = QDir::tempPath() + QStringLiteral("/shadow-merged-") + uuid;
     QDir().mkpath(ctx->tempDir);
 
-    // Create ModLoaderInstaller
+    // Create ModLoaderInstaller (redirected to temp dir)
     ctx->installer = new ModLoaderInstaller(this);
-    ctx->installer->setGameDir(m_gameDir);
+    ctx->installer->setGameDir(ctx->tempDir);
 
     // ── Signal connections for merged context installers ──
 
-    // finished: bootstrapper done → call finishInstall + MC folder cleanup
+    // finished: bootstrapper done → copy results to game dir
+    // The installer writes everything to tempDir; we copy version + libs + assets on success.
+    // Cancel = just destroy tempDir, no orphaned files in game dir.
     connect(ctx->installer, &ModLoaderInstaller::finished, this,
-        [this, installId](bool success, const QString& errMsg) {
+        [this, installId, tempDir = ctx->tempDir](bool success, const QString& errMsg) {
             auto* ds = dlSession(installId);
             if (success) {
                 if (ds) {
@@ -7592,33 +7588,39 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                     ds->m_rawTotalProgress = 1.0;
                     ds->smoothProgress = 1.0;
                 }
+
+                // ── Copy installer output from temp dir to real game dir ──
+                // 1. Copy version folder (installName JSON + JAR)
+                const QString srcVer = tempDir + QStringLiteral("/versions/") + installId;
+                const QString dstVer = m_gameDir + QStringLiteral("/versions/") + installId;
+                if (QDir(srcVer).exists()) {
+                    QDir().mkpath(dstVer);
+                    copyRecursiveMissing(srcVer, dstVer);
+                    qDebug() << "[install] Copied version folder:" << srcVer << "->" << dstVer;
+                }
+
+                // 2. Copy libraries (skip existing)
+                const QString srcLib = tempDir + QStringLiteral("/libraries");
+                const QString dstLib = m_gameDir + QStringLiteral("/libraries");
+                if (QDir(srcLib).exists()) {
+                    QDir().mkpath(dstLib);
+                    copyRecursiveMissing(srcLib, dstLib);
+                    qDebug() << "[install] Copied libraries (missing only):" << srcLib;
+                }
+
+                // 3. Copy assets (skip existing)
+                const QString srcAssets = tempDir + QStringLiteral("/assets");
+                const QString dstAssets = m_gameDir + QStringLiteral("/assets");
+                if (QDir(srcAssets).exists()) {
+                    QDir().mkpath(dstAssets);
+                    copyRecursiveMissing(srcAssets, dstAssets);
+                    qDebug() << "[install] Copied assets (missing only):" << srcAssets;
+                }
+
                 emit logMessage(tr("安装完成"));
                 setInstallPhase(tr("完成"));
                 updateInstalledList();
-
-                // Clean up MC version folder if no other context needs it
-                qDebug() << "[cleanup] installId=" << installId << "ds=" << ds << "mcVersion=" << (ds ? ds->mcVersion : QStringLiteral("(null)"));
-                if (ds && !ds->mcVersion.isEmpty()) {
-                    bool otherUsingSameMC = false;
-                    for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
-                        qDebug() << "[cleanup]   ctx key=" << cIt.key() << "mcVersion=" << (cIt.value() ? cIt.value()->mcVersion : QStringLiteral("(null)"));
-                        if (cIt.key() != installId && cIt.value() && cIt.value()->mcVersion == ds->mcVersion) {
-                            otherUsingSameMC = true; break;
-                        }
-                    }
-                    qDebug() << "[cleanup]   otherUsingSameMC=" << otherUsingSameMC;
-                    if (!otherUsingSameMC) {
-                        QString cleanupPath = m_gameDir + QStringLiteral("/versions/") + ds->mcVersion;
-                        qDebug() << "[cleanup]   CALLING cleanupCanceledVersion path=" << cleanupPath;
-                        cleanupCanceledVersion(ds->mcVersion, m_gameDir);
-                        refreshInstalled();
-                    } else {
-                        qDebug() << "[cleanup]   SKIP (other context still using MC)";
-                    }
-                } else {
-                    qDebug() << "[cleanup]   SKIP (ds null or mcVersion empty)";
-                }
-
+                refreshInstalled();
                 finishInstall(installId);
             } else {
                 if (ds) {
