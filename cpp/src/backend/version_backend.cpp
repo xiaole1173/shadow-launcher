@@ -1419,11 +1419,17 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         if (ds) {
             ds->markFailed(tr("已取消"));
             ds->resetSpeed();
+            // Mark all steps as failed so the card shows proper state
+            for (int i = 0; i < ds->steps.size(); i++)
+                updateStep(versionId, i, QStringLiteral("failed"), 0);
             updateCardFromSession(versionId, versionId, QStringLiteral("mod_loader"));
         }
 
+        qDebug() << "[cancelVersionInstall] Merged card cancelled:" << versionId;
+        emit installComplete(versionId);
         emit logMessage(tr("已取消 %1 的安装").arg(versionId));
         setInstalling(false);
+        emit installStateChanged();
         startNextFromQueue();
         return;
     }
