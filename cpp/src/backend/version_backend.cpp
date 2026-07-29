@@ -2625,9 +2625,10 @@ void VersionBackend::setInstallPhase(const QString& phase)
     // ── 精准更新: 仅更新活跃 mod_loader 卡片的 PhaseRole ──
     if (m_installCardsModel && m_installCardsModel->count() > 0) {
         bool updated = false;
-        // 尝试用 installName 查找 (session key)
-        if (!installName.isEmpty()) {
-            int row = m_installCardsModel->findRowByIid(installName);
+        // 查找第一个活跃的 installer session key
+        if (!m_mlInstallers.isEmpty()) {
+            QString firstId = m_mlInstallers.keys().first();
+            int row = m_installCardsModel->findRowByIid(firstId);
             if (row >= 0) {
                 auto idx = m_installCardsModel->index(row, 0);
                 QString t = m_installCardsModel->data(idx, InstallCardModel::TypeRole).toString();
@@ -5034,6 +5035,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         } else {
 
+            // Standalone: MC already installed or being downloaded — track dependency
+            ds->mcVersion = mcVersion;
+
             // Forge/NeoForge: 7 steps (3 MC + 1 MC verify + 1 download + 1 verify + 1 install)
 
             rebuildSteps(installName, {
@@ -5421,12 +5425,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                             updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
                                         }
 
-                                        ml->setGameDir(m_gameDir);
-                                        ml->setForgeBranch(forgeInstallerBranch);
+                                        m_mlInstallers.value(installName)->setGameDir(m_gameDir);
+                                        m_mlInstallers.value(installName)->setForgeBranch(forgeInstallerBranch);
                                         if (loaderType == QStringLiteral("neoforge")) {
-                                            ml->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                                            m_mlInstallers.value(installName)->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                         } else {
-                                            ml->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                                            m_mlInstallers.value(installName)->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                         }
                                     });
                             };
@@ -5480,13 +5484,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                         // Start forge install immediately (parallel with ongoing MC download)
                         // If forge finishes first, loaderFinishedWaitingMC flag handles the handover
-                        ml->setGameDir(m_gameDir);
-                        ml->setForgeBranch(forgeInstallerBranch);
+                        m_mlInstallers.value(installName)->setGameDir(m_gameDir);
+                        m_mlInstallers.value(installName)->setForgeBranch(forgeInstallerBranch);
                         if (loaderType == QStringLiteral("neoforge")) {
                             emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-                            ml->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                            m_mlInstallers.value(installName)->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                         } else {
-                            ml->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                            m_mlInstallers.value(installName)->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                         }
 
                     });
@@ -5666,15 +5670,15 @@ auto* ds = dlSession(installName);
 
                     // Start verify+extract now (runs while MC still downloading)
 
-                    ml->setGameDir(m_gameDir);
+                    m_mlInstallers.value(installName)->setGameDir(m_gameDir);
 
                     if (loaderType == "neoforge")
 
-                        ml->installNeoForgeFromData(data, mcVersion, loaderVersion, installName);
+                        m_mlInstallers.value(installName)->installNeoForgeFromData(data, mcVersion, loaderVersion, installName);
 
                     else
 
-                        ml->installForgeFromData(data, mcVersion, loaderVersion, installName);
+                        m_mlInstallers.value(installName)->installForgeFromData(data, mcVersion, loaderVersion, installName);
 
 
 
@@ -5884,6 +5888,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
 
     // MC already installed — 2-step OptiFine only
+    ds->mcVersion = mcVersion;
 
     rebuildSteps(installName, {
 
@@ -5953,7 +5958,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
     connect(coord, &DownloadCoordinator::ready, this,
 
-            [this, mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch, coord](int /*sourceIndex*/, qint64) {
+            [this, ml, mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch, coord](int /*sourceIndex*/, qint64) {
 
         coord->deleteLater();
 
@@ -6404,7 +6409,8 @@ void VersionBackend::onParallelOptifineDone(const QString& installName, const QB
 
 void VersionBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion,
 
-                                          const QString& bmclType, const QString& bmclPatch) {
+                                          const QString& bmclType, const QString& bmclPatch,
+                                          const QString& installName) {
 
     // Lightweight: download OptiFine JAR to version's mods/ — no blocking, no installer process
 
@@ -6542,12 +6548,10 @@ void VersionBackend::cancelModLoaderInstall() {
 
     m_activeCount = 0;
 
-    // Clean up session state
+    // Clean up session state for all active installer sessions
 
-    if (!installName.isEmpty() && m_downloadSessions.contains(installName)) {
-
-        if (auto* ds = dlSession(installName)) ds->markFailed(tr("已取消"));
-
+    for (auto it = m_mlInstallers.begin(); it != m_mlInstallers.end(); ++it) {
+        if (auto* ds = dlSession(it.key())) ds->markFailed(tr("已取消"));
     }
 
     setInstalling(false);
@@ -6672,11 +6676,11 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
         }
 
         // MC version folder cleanup
-        if (success && ds->isMerged() && !ds->mcVersion.isEmpty()) {
+        if (success && !ds->mcVersion.isEmpty()) {
             bool otherUsingSameMC = false;
             for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
                 auto* d = dlSession(it.key());
-                if (it.key() != installId && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+                if (it.key() != installId && d && !d->mcVersion.isEmpty() && d->mcVersion == ds->mcVersion) {
                     otherUsingSameMC = true; break;
                 }
             }

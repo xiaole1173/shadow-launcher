@@ -191,7 +191,8 @@ public:
                                        const QString& forgeVersion, const QString& installName,
                                        const QString& bmclType = QString(), const QString& bmclPatch = QString());
     Q_INVOKABLE void installOptifineJar(const QString& mcVersion, const QString& optifineVersion,
-                                         const QString& bmclType = QString(), const QString& bmclPatch = QString());
+                                         const QString& bmclType = QString(), const QString& bmclPatch = QString(),
+                                         const QString& installName = QString());
     void finishOptifineMerged(const QString& mcVersion, const QString& installName);
     void delegateOptifineInstall(const QString& mcVersion, const QString& installName,
                                   const QByteArray& jarData);
