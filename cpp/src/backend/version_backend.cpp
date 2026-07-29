@@ -7581,12 +7581,11 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
 
     // ── Signal connections for merged context installers ──
 
-    // finished: bootstrapper done → call finishInstall
+    // finished: bootstrapper done → call finishInstall + MC folder cleanup
     connect(ctx->installer, &ModLoaderInstaller::finished, this,
         [this, installId](bool success, const QString& errMsg) {
             auto* ds = dlSession(installId);
             if (success) {
-                // Mark all steps complete
                 if (ds) {
                     for (int i = 0; i < ds->steps.size(); i++)
                         updateStep(installId, i, QStringLiteral("completed"), 100);
@@ -7596,6 +7595,21 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 emit logMessage(tr("安装完成"));
                 setInstallPhase(tr("完成"));
                 updateInstalledList();
+
+                // Clean up MC version folder if no other context needs it
+                if (ds && !ds->mcVersion.isEmpty()) {
+                    bool otherUsingSameMC = false;
+                    for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
+                        if (cIt.key() != installId && cIt.value() && cIt.value()->mcVersion == ds->mcVersion) {
+                            otherUsingSameMC = true; break;
+                        }
+                    }
+                    if (!otherUsingSameMC) {
+                        cleanupCanceledVersion(ds->mcVersion, m_gameDir);
+                        refreshInstalled();
+                    }
+                }
+
                 finishInstall(installId);
             } else {
                 if (ds) {
@@ -7610,12 +7624,18 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             emit installFinished(success);
         });
 
-    // stepProgress: update step percentage
+    // stepProgress: update step percentage (skip if already completed)
     connect(ctx->installer, &ModLoaderInstaller::stepProgress, this,
         [this, installId](int step, int percentage) {
             auto* ds = dlSession(installId);
             if (!ds) return;
             int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
+            // Don't overwrite already-completed steps (e.g. forgeStep1_verify maps to download step 4)
+            if (stepIdx >= 0 && stepIdx < ds->steps.size()) {
+                auto curStep = ds->steps[stepIdx].toMap();
+                if (curStep.value(QStringLiteral("status")).toString() == QStringLiteral("completed"))
+                    return;
+            }
             updateStep(installId, stepIdx, (percentage >= 100) ? QStringLiteral("completed") : QStringLiteral("active"), percentage);
             if (!ds->isMerged()) {
                 int totalSteps = qMax(ds->steps.size(), 1);
@@ -7625,15 +7645,31 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             }
         });
 
-    // progressChanged: update phase text
+    // progressChanged: update step display (compute idx from installer step)
     connect(ctx->installer, &ModLoaderInstaller::progressChanged, this,
-        [this, installId](int /*step*/, int /*totalSteps*/, const QString& desc) {
+        [this, installId](int step, int /*totalSteps*/, const QString& desc) {
             setInstallPhase(tr("模组加载器: ") + desc);
             auto* ds = dlSession(installId);
             if (!ds) return;
-            int stepIdx = ds->loaderStepIdx;
-            if (stepIdx >= 0)
-                updateStep(installId, stepIdx, QStringLiteral("active"), 0);
+            int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
+            if (stepIdx >= 0) {
+                // Mark previous step as completed (same logic as createLoaderInstaller)
+                if (step > 1) {
+                    int prevIdx = ds->isMerged() ? (step - 2 + 4) : (step - 2);
+                    if (prevIdx >= 0 && prevIdx < ds->steps.size())
+                        updateStep(installId, prevIdx, QStringLiteral("completed"), 100);
+                }
+                if (stepIdx < ds->steps.size()) {
+                    // Only show as active if not already completed
+                    auto curStep = ds->steps[stepIdx].toMap();
+                    if (curStep.value(QStringLiteral("status")).toString() != QStringLiteral("completed")) {
+                        if (!curStep.value(QStringLiteral("show")).toBool())
+                            showStep(installId, stepIdx);
+                        updateStep(installId, stepIdx, QStringLiteral("active"), 0);
+                        ds->loaderStepIdx = stepIdx;
+                    }
+                }
+            }
         });
 
     // byteProgress: download speed display
