@@ -1811,51 +1811,61 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     // isMerged + mcVersion in a re-entrant call (Fabric finalize is synchronous).
 
     bool isMergedInstall = false;
+    bool anyMergedLaunched = false;
 
 
+    qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Phase1 ENTER: finishedId=%1 activeCount=%2 sessions=%3")
+        .arg(finishedId).arg(m_activeCount).arg(m_downloadSessions.size());
 
-    if (m_activeCount == 0) {
+    // ── Phase 1: process merged sessions whose MC version just finished ──
+    // This runs for EVERY MC download completion, so isMergedInstall is
+    // correctly set and installComplete(finishedId) is suppressed.
+    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
 
-        // Check ALL sessions for merged installs waiting on this MC version
-
-        bool anyMergedLaunched = false;
-
-        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-
-            auto& ses = it.value();
+        auto& ses = it.value();
 auto* ds = dlSession(it.key());
 
-            if (ds->isMerged() && ds->mcVersion == finishedId) {
+        qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Phase1 iter: key=%1 merged=%2 mcVer=%3 mcDone=%4")
+            .arg(it.key()).arg(ds->isMerged() ? 1 : 0).arg(ds->mcVersion).arg(ds->mcDownloadDone ? 1 : 0);
 
-                isMergedInstall = true;
+        if (ds->isMerged() && ds->mcVersion == finishedId && !ds->mcDownloadDone) {
 
-                // Merged install: MC done, check if loader also done
+            isMergedInstall = true;
 
-                qDebug() << "[install] Merged: MC complete" << ds->loaderType;
+            // Merged install: MC done, check if loader also done
 
-                ds->mcBytesDl = ds->mcBytesAll;
+            qDebug() << "[install] Merged: MC complete" << ds->loaderType;
 
-                for (int i = 0; i < 3 && i < ds->steps.size(); i++) {
+            ds->mcBytesDl = ds->mcBytesAll;
 
-                    updateStep(it.key(), i, QStringLiteral("completed"), 100);
+            for (int i = 0; i < 3 && i < ds->steps.size(); i++) {
 
-                }
+                updateStep(it.key(), i, QStringLiteral("completed"), 100);
 
-                int verifyIdx = 3;
+            }
 
-                // Don't mark step 3 as done for OptiFine parallel mode (JAR still downloading)
+            int verifyIdx = 3;
 
-                if (verifyIdx < ds->steps.size() && !ds->optifineJarParallel) {
+            // Don't mark step 3 as done for OptiFine parallel mode (JAR still downloading)
 
-                    updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
+            if (verifyIdx < ds->steps.size() && !ds->optifineJarParallel) {
 
-                }
+                updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
 
-                ds->mcDownloadDone = true;
+            }
 
-                // For parallel OptiFine: check if JAR is also done
+            ds->mcDownloadDone = true;
 
-                if (ds->optifineJarParallel && ds->optifineJarDone) {
+            // Add trace for multi-MC concurrency diagnosis
+            qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Merged MC done (Phase1): id=%1 mcVer=%2 finishedId=%3 ldrReady=%4 ldrFinished=%5 isFailed=%6 ldrDataEmpty=%7 isMlInst=%8")
+                .arg(it.key()).arg(ds->mcVersion).arg(finishedId)
+                .arg(ds->loaderDownloadReady ? 1 : 0).arg(ds->loaderFinishedWaitingMC ? 1 : 0)
+                .arg(ds->isFailed() ? 1 : 0).arg(ds->loaderDownloadData.isEmpty() ? 1 : 0)
+                .arg(isModLoaderInstalling() ? 1 : 0);
+
+            // For parallel OptiFine: check if JAR is also done
+
+            if (ds->optifineJarParallel && ds->optifineJarDone) {
 
                     emit logMessage(tr("[完成] MC 和 OptiFine 均下载完成"));
 
@@ -1914,28 +1924,74 @@ auto* ds = dlSession(it.key());
 
         }
 
-        if (!anyMergedLaunched) {
+    // ── Phase 2: remaining merged sessions when all MC downloads done ──
+    // Catches merged sessions whose MC version finished earlier while
+    // m_activeCount was still > 0 (concurrent download scenario).
+    if (m_activeCount == 0) {
+        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+            auto* ds = dlSession(it.key());
+            if (ds->isMerged() && !ds->mcDownloadDone) {
+                isMergedInstall = true;
+                qDebug() << "[install] Merged (Phase2): MC complete" << ds->loaderType;
+                ds->mcBytesDl = ds->mcBytesAll;
+                for (int i = 0; i < 3 && i < ds->steps.size(); i++)
+                    updateStep(it.key(), i, QStringLiteral("completed"), 100);
+                int verifyIdx = 3;
+                if (verifyIdx < ds->steps.size() && !ds->optifineJarParallel)
+                    updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
+                ds->mcDownloadDone = true;
+                qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Merged MC done (Phase2): id=%1 mcVer=%2 ldrReady=%3 ldrFinished=%4")
+                    .arg(it.key()).arg(ds->mcVersion)
+                    .arg(ds->loaderDownloadReady ? 1 : 0).arg(ds->loaderFinishedWaitingMC ? 1 : 0);
 
-            setInstalling(false);
+                // same loader check logic (inline, no extracted helper needed)
+                if (ds->optifineJarParallel && ds->optifineJarDone) {
+                    emit logMessage(tr("[完成] MC 和 OptiFine 均下载完成"));
+                    onParallelOptifineDone(it.key(), QByteArray());
+                } else if (ds->loaderDownloadReady) {
+                    if (ds->isFailed()) {
+                        ds->loaderFinishedWaitingMC = false;
+                        finishInstall(it.key());
+                    } else if (ds->loaderFinishedWaitingMC) {
+                        ds->loaderFinishedWaitingMC = false;
+                        if (ds->isMerged() && !ds->mcVersion.isEmpty()) {
+                            bool cleanupOk = true;
+                            for (auto it2 = m_downloadSessions.begin(); it2 != m_downloadSessions.end(); ++it2) {
+                                auto* d = dlSession(it2.key());
+                                if (it2.key() != it.key() && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+                                    cleanupOk = false; break;
+                                }
+                            }
+                            if (cleanupOk) {
+                                QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
+                                QDir vd(vanillaVerDir);
+                                if (vd.exists()) {
+                                    vd.removeRecursively();
+                                    emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
+                                }
+                            }
+                        }
+                        finishInstall(it.key());
+                    } else if (!ds->loaderDownloadData.isEmpty() && !isModLoaderInstalling()) {
+                        proceedToLoaderInstall(it.key());
+                    }
+                } else {
+                    qDebug() << "[install] MC done (Phase2), waiting for loader download...";
+                }
 
-            setInstallPhase(tr("完成"));
-
-            emit logMessage(tr("[完成] 所有版本安装完成！"));
-
+                anyMergedLaunched = true;
+            }
         }
 
-        // When anyMergedLaunched is true, the OptiFine installer is still running
-
-        // — completion announcement is deferred to onModLoaderFinished
-
+        if (!anyMergedLaunched) {
+            setInstalling(false);
+            setInstallPhase(tr("完成"));
+            emit logMessage(tr("[完成] 所有版本安装完成！"));
+        }
     } else {
-
-        // Still have active downloads — sync primary display AND notify QML to re-read
-
+        // Still have active downloads — sync primary display
         syncPrimaryProgress();
-
         emit installStateChanged();
-
     }
 
 
@@ -2450,7 +2506,12 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
     ensureSession(installId);
 
-    auto* ds = dlSession(installId);    qDebug() << "[install] Both downloads complete, starting" << ds->loaderType << "verify/install";
+    auto* ds = dlSession(installId);
+
+    qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] proceedToLoaderInstall: id=%1 type=%2 merged=%3")
+        .arg(installId).arg(ds->loaderType).arg(ds->isMerged() ? 1 : 0);
+
+    qDebug() << "[install] Both downloads complete, starting" << ds->loaderType << "verify/install";
 
     emit logMessage(tr("MC 和 %1 下载完成，开始安装...").arg(ds->loaderType));
 
@@ -2486,6 +2547,10 @@ void VersionBackend::finishInstall(const QString& installName)
 {
 
     qCInfo(logVersion) << QStringLiteral("安装完成 版本=%1").arg(installName);
+    qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] finishInstall called: installName=%1 merged=%2 mlInstalling=%3")
+        .arg(installName)
+        .arg(dlSession(installName) ? (dlSession(installName)->isMerged() ? 1 : 0) : -1)
+        .arg(isModLoaderInstalling() ? 1 : 0);
 
     if (installName.isEmpty()) {
 
@@ -6633,9 +6698,15 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
 
         auto* ds = dlSession(installId);
         if (!ds || !m_downloadSessions.contains(installId)) {
+            qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] finished handler: session gone, destroying installer. id=%1 success=%2 err=%3")
+                .arg(installId).arg(success ? 1 : 0).arg(errMsg);
             destroyLoaderInstaller(installId);
             return;
         }
+
+        qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] finished handler ENTER: id=%1 success=%2 err=%3 merged=%4 mcDone=%5 fbPending=%6")
+            .arg(installId).arg(success ? 1 : 0).arg(errMsg)
+            .arg(ds->isMerged() ? 1 : 0).arg(ds->mcDownloadDone ? 1 : 0).arg(ds->fabricApiPending ? 1 : 0);
 
         if (success) {
             for (int i = 0; i < ds->steps.size(); i++) {
@@ -6708,8 +6779,14 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     // --- waitingForMC ---
     connect(ml, &ModLoaderInstaller::waitingForMC, this, [this, installId]() {
         setInstallPhase(tr("\u7b49\u5f85MC\u4e0b\u8f7d\u5b8c\u6210..."));
-        // Only affect the session associated with this installer
         auto* ds = dlSession(installId);
+        qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] waitingForMC fired: id=%1 dsFound=%2 merged=%3 mcDone=%4 ldrReady=%5")
+            .arg(installId)
+            .arg(ds ? 1 : 0)
+            .arg(ds ? (ds->isMerged() ? 1 : 0) : -1)
+            .arg(ds ? (ds->mcDownloadDone ? 1 : 0) : -1)
+            .arg(ds ? (ds->loaderDownloadReady ? 1 : 0) : -1);
+        // Only affect the session associated with this installer
         if (ds && ds->isMerged()) {
             // Mark verify step as completed (mirrors old constructor handler)
             int verifyStep = ds->loaderVerifyStep;
@@ -6717,7 +6794,10 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
                 updateStep(installId, verifyStep, QStringLiteral("completed"), 100);
             }
             ds->loaderDownloadReady = true;
-            ds->loaderFinishedWaitingMC = true;
+            // Do NOT set loaderFinishedWaitingMC here — that flag means "the installer
+            // has already finished its work (emit finished), just waiting for MC".
+            // waitingForMC means the installer is PAUSED at verify and needs
+            // proceedToLoaderInstall → forgeContinueInstall to continue.
             // If MC already finished, proceed to loader install immediately
             if (ds->mcDownloadDone) {
                 proceedToLoaderInstall(installId);
