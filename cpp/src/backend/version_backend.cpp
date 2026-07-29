@@ -1819,184 +1819,37 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Phase1 ENTER: finishedId=%1 activeCount=%2 sessions=%3")
         .arg(finishedId).arg(m_activeCount).arg(m_downloadSessions.size());
 
-    // ── Phase 1: process merged sessions whose MC version just finished ──
-    // This runs for EVERY MC download completion, so isMergedInstall is
-    // correctly set and installComplete(finishedId) is suppressed.
-    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-
-        auto& ses = it.value();
-auto* ds = dlSession(it.key());
-
-        qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Phase1 iter: key=%1 merged=%2 mcVer=%3 mcDone=%4")
-            .arg(it.key()).arg(ds->isMerged() ? 1 : 0).arg(ds->mcVersion).arg(ds->mcDownloadDone ? 1 : 0);
-
-        if (ds->isMerged() && ds->mcVersion == finishedId && !ds->mcDownloadDone) {
-
+    // ── Process merged sessions waiting for this MC version ──
+    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+        auto* ctx = it.value();
+        if (ctx->mcVersion == finishedId && !ctx->mcDownloadDone) {
+            ctx->mcDownloadDone = true;
             isMergedInstall = true;
+            qDebug() << "[install] Merged: MC complete for" << ctx->installId;
 
-            // Merged install: MC done, check if loader also done
-
-            qDebug() << "[install] Merged: MC complete" << ds->loaderType;
-
-            ds->mcBytesDl = ds->mcBytesAll;
-
-            for (int i = 0; i < 3 && i < ds->steps.size(); i++) {
-
-                updateStep(it.key(), i, QStringLiteral("completed"), 100);
-
-            }
-
-            int verifyIdx = 3;
-
-            // Don't mark step 3 as done for OptiFine parallel mode (JAR still downloading)
-
-            if (verifyIdx < ds->steps.size() && !ds->optifineJarParallel) {
-
-                updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
-
-            }
-
-            ds->mcDownloadDone = true;
-
-            // Add trace for multi-MC concurrency diagnosis
-            qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Merged MC done (Phase1): id=%1 mcVer=%2 finishedId=%3 ldrReady=%4 ldrFinished=%5 isFailed=%6 ldrDataEmpty=%7 isMlInst=%8")
-                .arg(it.key()).arg(ds->mcVersion).arg(finishedId)
-                .arg(ds->loaderDownloadReady ? 1 : 0).arg(ds->loaderFinishedWaitingMC ? 1 : 0)
-                .arg(ds->isFailed() ? 1 : 0).arg(ds->loaderDownloadData.isEmpty() ? 1 : 0)
-                .arg(isModLoaderInstalling() ? 1 : 0);
-
-            // For parallel OptiFine: check if JAR is also done
-
-            if (ds->optifineJarParallel && ds->optifineJarDone) {
-
-                    emit logMessage(tr("[完成] MC 和 OptiFine 均下载完成"));
-
-                    onParallelOptifineDone(it.key(), QByteArray());
-
-                } else if (ds->loaderDownloadReady) {
-
-                    // Forge/NeoForge download failed — skip to vanilla finalize
-                    if (ds->isFailed()) {
-                        qDebug() << "[install] MC done, loader previously failed — finalizing as vanilla" << it.key();
-                        ds->loaderFinishedWaitingMC = false;
-                        finishInstall(it.key());
-                    // Forge already finished (ran in parallel while MC was downloading)
-                    } else if (ds->loaderFinishedWaitingMC) {
-
-                        ds->loaderFinishedWaitingMC = false;
-
-                        qDebug() << "[install] MC done, loader already finished — finalizing";
-
-                        // Forge already ran (including Legacy 2 flatten) — clean up vanilla folder now
-                        // (mlInstaller::finished returned early because MC wasn't done at that point)
-                        if (ds->isMerged() && !ds->mcVersion.isEmpty()) {
-                            bool cleanupOk = true;
-                            for (auto it2 = m_downloadSessions.begin(); it2 != m_downloadSessions.end(); ++it2) {
-                                auto* d = dlSession(it2.key());
-                                if (it2.key() != it.key() && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
-                                    cleanupOk = false; break;
-                                }
-                            }
-                            if (cleanupOk) {
-                                QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
-                                QDir vd(vanillaVerDir);
-                                if (vd.exists()) {
-                                    vd.removeRecursively();
-                                    emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
-                                }
-                            }
-                        }
-
-                        finishInstall(it.key());
-
-                    // Data downloaded, forge not yet started — start now
-                    } else if (!ds->loaderDownloadData.isEmpty() && !isModLoaderInstalling()) {
-                        proceedToLoaderInstall(it.key());
-                    }
-
-                } else {
-
-                    qDebug() << "[install] MC done, waiting for loader download...";
-
-                }
-
-                anyMergedLaunched = true;
-
-            }
-
-        }
-
-    // ── Phase 2: remaining merged sessions when all MC downloads done ──
-    // Catches merged sessions whose MC version finished earlier while
-    // m_activeCount was still > 0 (concurrent download scenario).
-    if (m_activeCount == 0) {
-        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-            auto* ds = dlSession(it.key());
-            if (ds->isMerged() && !ds->mcDownloadDone) {
-                isMergedInstall = true;
-                qDebug() << "[install] Merged (Phase2): MC complete" << ds->loaderType;
-                ds->mcBytesDl = ds->mcBytesAll;
-                for (int i = 0; i < 3 && i < ds->steps.size(); i++)
-                    updateStep(it.key(), i, QStringLiteral("completed"), 100);
+            // Update session steps
+            auto* sessionDs = dlSession(ctx->installId);
+            if (sessionDs) {
+                sessionDs->mcBytesDl = sessionDs->mcBytesAll;
+                for (int i = 0; i < 3 && i < sessionDs->steps.size(); i++)
+                    updateStep(ctx->installId, i, QStringLiteral("completed"), 100);
                 int verifyIdx = 3;
-                if (verifyIdx < ds->steps.size() && !ds->optifineJarParallel)
-                    updateStep(it.key(), verifyIdx, QStringLiteral("completed"), 100);
-                ds->mcDownloadDone = true;
-                qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Merged MC done (Phase2): id=%1 mcVer=%2 ldrReady=%3 ldrFinished=%4")
-                    .arg(it.key()).arg(ds->mcVersion)
-                    .arg(ds->loaderDownloadReady ? 1 : 0).arg(ds->loaderFinishedWaitingMC ? 1 : 0);
+                if (verifyIdx < sessionDs->steps.size() && !sessionDs->optifineJarParallel)
+                    updateStep(ctx->installId, verifyIdx, QStringLiteral("completed"), 100);
+            }
 
-                // same loader check logic (inline, no extracted helper needed)
-                if (ds->optifineJarParallel && ds->optifineJarDone) {
-                    emit logMessage(tr("[完成] MC 和 OptiFine 均下载完成"));
-                    onParallelOptifineDone(it.key(), QByteArray());
-                } else if (ds->loaderDownloadReady) {
-                    if (ds->isFailed()) {
-                        ds->loaderFinishedWaitingMC = false;
-                        finishInstall(it.key());
-                    } else if (ds->loaderFinishedWaitingMC) {
-                        ds->loaderFinishedWaitingMC = false;
-                        if (ds->isMerged() && !ds->mcVersion.isEmpty()) {
-                            bool cleanupOk = true;
-                            for (auto it2 = m_downloadSessions.begin(); it2 != m_downloadSessions.end(); ++it2) {
-                                auto* d = dlSession(it2.key());
-                                if (it2.key() != it.key() && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
-                                    cleanupOk = false; break;
-                                }
-                            }
-                            if (cleanupOk) {
-                                QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
-                                QDir vd(vanillaVerDir);
-                                if (vd.exists()) {
-                                    vd.removeRecursively();
-                                    emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
-                                }
-                            }
-                        }
-                        finishInstall(it.key());
-                    } else if (!ds->loaderDownloadData.isEmpty() && !isModLoaderInstalling()) {
-                        proceedToLoaderInstall(it.key());
-                    }
+            // Check if loader is ready
+            if (ctx->loaderJarReady) {
+                if (ctx->failed) {
+                    qDebug() << "[install] MC done, loader previously failed — finalizing as vanilla" << ctx->installId;
+                    finishInstall(ctx->installId);
                 } else {
-                    qDebug() << "[install] MC done (Phase2), waiting for loader download...";
+                    qDebug() << "[install] MC done, loader ready — proceeding to install";
+                    proceedToLoaderInstall(ctx->installId);
                 }
-
-                anyMergedLaunched = true;
             }
         }
-
-        if (!anyMergedLaunched) {
-            setInstalling(false);
-            setInstallPhase(tr("完成"));
-            emit logMessage(tr("[完成] 所有版本安装完成！"));
-        }
-    } else {
-        // Still have active downloads — sync primary display
-        syncPrimaryProgress();
-        emit installStateChanged();
     }
-
-
 
     // Emit installComplete for non-merged installs ONLY.
 
