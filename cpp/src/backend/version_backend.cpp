@@ -5063,372 +5063,49 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
         const QString& bmclType, const QString& bmclPatch) {
 
-    auto* ml = createLoaderInstaller(installName);
-    if (!ml) return;
+    // Create MergedInstallContext
+    auto* ctx = createMergedContext(installName, mcVersion, "optifine", optifineVersion);
+    if (!ctx) return;
 
-
-
-    // FIX: Set installName so progress signals are not dropped
-
+    ctx->installer->setGameDir(m_gameDir);
+    if (m_isolation && m_isolation->isVersionIsolated(installName)) {
+        ctx->installer->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
+    } else {
+        ctx->installer->setModsDir(QString());
+    }
 
     ensureSession(installName);
     auto* ds = dlSession(installName);
     if (ds) ds->clearFailure();
 
-
-
-    // Ensure vanilla MC is installed first
-
-    if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
-
-        qDebug() << "[install] Vanilla MC" << mcVersion << "not installed for Optifine, downloading first...";
-
-        ds->setMerged(true);
-
-        ds->mcVersion = mcVersion;
-
-        ds->loaderType = QStringLiteral("optifine");
-
-        ds->loaderVer = optifineVersion;
-
-        ds->bmclType = bmclType;
-
-        ds->bmclPatch = bmclPatch;
-
-        ds->hasPendingLoader = true;
-
-        ds->pendingLoaderMc = mcVersion;
-
-        ds->pendingLoaderType = QStringLiteral("optifine");
-
-        ds->pendingLoaderVer = optifineVersion;
-
-        ds->pendingLoaderName = installName;
-
-        // Reset byte accumulators for merged install
-
-        for (int i = 0; i < 3; i++) { ds->mcStepDone[i] = 0; ds->mcStepTotal[i] = 0; }
-
-        ds->mcFileAdded.clear();
-
-
-
-        // Build 5-step card: MC JSON + MC libs + MC assets + OptiFine JAR + Install
-
-        rebuildSteps(installName, {
-
-            tr("下载原版 JSON 文件"),
-
-            tr("下载原版支持库文件"),
-
-            tr("下载原版资源文件"),
-
-            tr("下载 OptiFine 主文件"),
-
-            tr("安装 OptiFine")
-
-        }, {1.0, 8.0, 5.0, 3.0, 1.0},
-
-         {true, true, true, true, false});  // step 4 (install) hidden until downloads done
-
-
-
-        updateStep(installName, 0, QStringLiteral("active"), 0);
-
-        ds->loadedStep = 1;
-
-
-
-        setInstalling(true);
-
-        setInstallPhase(tr("下载中..."));
-
-
-
-        // Start MC and OptiFine JAR downloads in parallel
-
-        ds->optifineJarParallel = true;
-
-        installVersion(mcVersion);
-
-        startOptifineJarParallel(installName, mcVersion, optifineVersion, bmclType, bmclPatch);
-
-        return;
-
-    }
-
-
-
-    // MC already installed — 2-step OptiFine only
+    ds->setMerged(true);
     ds->mcVersion = mcVersion;
+    ds->loaderType = QStringLiteral("optifine");
+    ds->loaderVer = optifineVersion;
+    ds->bmclType = bmclType;
+    ds->bmclPatch = bmclPatch;
+
+    for (int i = 0; i < 3; i++) { ds->mcStepDone[i] = 0; ds->mcStepTotal[i] = 0; }
+    ds->mcFileAdded.clear();
 
     rebuildSteps(installName, {
-
+        tr("下载原版 JSON 文件"),
+        tr("下载原版支持库文件"),
+        tr("下载原版资源文件"),
         tr("下载 OptiFine 主文件"),
-
         tr("安装 OptiFine")
-
-    }, {3.0, 1.0}, {true, true});
+    }, {1.0, 8.0, 5.0, 3.0, 1.0},
+     {true, true, true, true, false});
 
     updateStep(installName, 0, QStringLiteral("active"), 0);
-
-
-
-    ml->setGameDir(m_gameDir);
-
-    // Respect version isolation for mods/ output
-
-    if (m_isolation && m_isolation->isVersionIsolated(installName)) {
-
-        ml->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
-
-    } else {
-
-        ml->setModsDir(QString());  // reset to default (gameDir/mods)
-
-    }
-
-
-
-    // Preflight: connectivity test (use manifestUrl, not the actual download URL — HEAD blocked by CDN)
-
-    auto* sb = qobject_cast<ShadowBackend*>(parent());
-
-    auto* coord = new DownloadCoordinator(this);
-
-    int listSrc = sb ? sb->listDownloadSource() : 1;  // 0=镜像, 1=官方, 2=自动(双源)
-
-
-
-    if (listSrc == 0) {
-
-        // 仅镜像
-
-        coord->addSource(QStringLiteral("bmclapi"), MirrorSource::bmclapi().manifestUrl);
-
-    } else if (listSrc == 1) {
-
-        // 仅官方
-
-        coord->addSource(QStringLiteral("mojang"), MirrorSource::mojang().manifestUrl);
-
-    } else {
-
-        // 双源竞速（默认行为）
-
-        coord->addSource(QStringLiteral("bmclapi"), MirrorSource::bmclapi().manifestUrl);
-
-        coord->addSource(QStringLiteral("mojang"), MirrorSource::mojang().manifestUrl);
-
-    }
-
-    setInstallPhase(tr("连通性测试中..."));
-
+    ds->loadedStep = 1;
     setInstalling(true);
+    setInstallPhase(tr("下载中..."));
 
-
-
-    connect(coord, &DownloadCoordinator::ready, this,
-
-            [this, ml, mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch, coord](int /*sourceIndex*/, qint64) {
-
-        coord->deleteLater();
-
-        emit logMessage(tr("[完成] OptiFine 连通性测试通过"));
-
-        ml->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
-
-    });
-
-    connect(coord, &DownloadCoordinator::connectivityFailed, this,
-
-            [this, coord, installName](const QString& taskId, const QString& reason) {
-
-        coord->deleteLater();
-
-        emit logMessage(tr("[失败] OptiFine 连通性测试失败: %1").arg(reason));
-
-        ensureSession(installName);
-
-        if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 网络不可达"));
-
-        setInstalling(false);
-
-    });
-
-    coord->start();
-
-    return;
-
+    ds->optifineJarParallel = true;
+    installVersion(mcVersion);
+    startOptifineJarParallel(installName, mcVersion, optifineVersion, bmclType, bmclPatch);
 }
-
-
-
-void VersionBackend::finishOptifineMerged(const QString& mcVersion, const QString& installName) {
-
-    // MC steps 0-2 done. Download OptiFine JAR (step 3), then delegate to ModLoaderInstaller (step 4).
-
-    ensureSession(installName);
-
-    auto* ds = dlSession(installName);
-
-
-
-    QString url;
-    QString filename;
-    {
-        QString t = ds->bmclType;
-        QString p = ds->bmclPatch;
-        if (t.isEmpty() || p.isEmpty()) {
-            QString optifineVer = ds->loaderVer;
-            if (optifineVer.startsWith(QStringLiteral("HD_U_"))) {
-                t = QStringLiteral("HD_U");
-                p = optifineVer.mid(5);
-            } else {
-                t = QStringLiteral("HD_U");
-                p = optifineVer;
-            }
-        }
-        url = QString("https://bmclapi2.bangbang93.com/optifine/%1/%2/%3").arg(mcVersion, t, p);
-        filename = QString("OptiFine_%1_%2_%3.jar").arg(mcVersion, t, p);
-    }
-
-
-
-    showStep(installName, 3);
-
-    updateStep(installName, 3, QStringLiteral("active"), 0, 0, 0);
-
-    setInstallPhase(tr("下载 OptiFine 主文件..."));
-
-
-
-    auto* nam = new QNetworkAccessManager(this);
-
-    auto* reply = nam->get(QNetworkRequest(url));
-
-    connect(reply, &QNetworkReply::downloadProgress, this,
-
-        [this, installName](qint64 received, qint64 total) {
-
-            int pct = total > 0 ? (int)(received * 100 / total) : 0;
-
-            updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
-
-        });
-
-    connect(reply, &QNetworkReply::finished, this,
-
-        [this, reply, nam, installName, mcVersion, filename]() {
-
-            reply->deleteLater();
-
-            if (reply->error() != QNetworkReply::NoError) {
-
-                // Fallback to official (resolve via adloadx)
-                QString offUrl = ModLoaderInstaller::resolveOptifineOfficialUrl(filename);
-
-                auto* r2 = nam->get(QNetworkRequest(offUrl));
-
-                connect(r2, &QNetworkReply::downloadProgress, this,
-
-                    [this, installName](qint64 received, qint64 total) {
-
-                        int pct = total > 0 ? (int)(received * 100 / total) : 0;
-
-                        updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
-
-                    });
-
-                connect(r2, &QNetworkReply::finished, this,
-
-                    [this, r2, nam, installName, mcVersion]() {
-
-                        r2->deleteLater();
-
-                        nam->deleteLater();
-
-                        if (r2->error() != QNetworkReply::NoError) {
-
-                            emit logMessage(tr("[失败] OptiFine 下载失败（所有源）"));
-
-                            updateStep(installName, 3, QStringLiteral("failed"), 0);
-
-                            if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
-
-                            setInstalling(false);
-
-                            return;
-
-                        }
-
-                        QByteArray jarData = r2->readAll();
-
-                        updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
-
-                        delegateOptifineInstall(mcVersion, installName, jarData);
-
-                    });
-
-                return;
-
-            }
-
-            QByteArray jarData = reply->readAll();
-
-            // Validate: BMCLAPI may return HTTP 200 with error body
-            if (!ModLoaderInstaller::isValidZip(jarData)) {
-                // Fallback to official
-                QString offUrl = ModLoaderInstaller::resolveOptifineOfficialUrl(filename);
-                if (offUrl.isEmpty()) {
-                    emit logMessage(tr("[失败] OptiFine 下载: BMCLAPI 返回无效数据，官方源也无法解析"));
-                    updateStep(installName, 3, QStringLiteral("failed"), 0);
-                    if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败（无效数据）"));
-                    setInstalling(false);
-                    nam->deleteLater();
-                    return;
-                }
-                auto* r2 = nam->get(QNetworkRequest(offUrl));
-                connect(r2, &QNetworkReply::downloadProgress, this,
-                    [this, installName](qint64 received, qint64 total) {
-                        int pct = total > 0 ? (int)(received * 100 / total) : 0;
-                        updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
-                    });
-                connect(r2, &QNetworkReply::finished, this,
-                    [this, r2, nam, installName, mcVersion]() {
-                        r2->deleteLater();
-                        nam->deleteLater();
-                        if (r2->error() != QNetworkReply::NoError) {
-                            emit logMessage(tr("[失败] OptiFine 下载失败（所有源）"));
-                            updateStep(installName, 3, QStringLiteral("failed"), 0);
-                            if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
-                            setInstalling(false);
-                            return;
-                        }
-                        QByteArray jarData2 = r2->readAll();
-                        if (!ModLoaderInstaller::isValidZip(jarData2)) {
-                            emit logMessage(tr("[失败] OptiFine 官方源也返回了无效数据"));
-                            updateStep(installName, 3, QStringLiteral("failed"), 0);
-                            if (auto* ds2 = dlSession(installName)) ds2->markFailed(tr("OptiFine 下载失败（所有源返回无效数据）"));
-                            setInstalling(false);
-                            return;
-                        }
-                        updateStep(installName, 3, QStringLiteral("completed"), 100, jarData2.size(), jarData2.size());
-                        delegateOptifineInstall(mcVersion, installName, jarData2);
-                    });
-                return;  // don't fall through to the old success path
-            }
-
-            updateStep(installName, 3, QStringLiteral("completed"), 100, jarData.size(), jarData.size());
-
-            nam->deleteLater();
-
-            delegateOptifineInstall(mcVersion, installName, jarData);
-
-        });
-
-}
-
 
 
 void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QString& installName,
@@ -5630,51 +5307,30 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
 void VersionBackend::onParallelOptifineDone(const QString& installName, const QByteArray& jarData) {
 
     ensureSession(installName);
-
     auto* ds = dlSession(installName);
 
-
-
-    // Guard against double invocation (MC completion + pending loader both trigger)
-
-    // Guard against double invocation: if install was already triggered, skip
-    if (ds->hasPendingLoader) ds->hasPendingLoader = false;
+    // Guard against double invocation
     if (ds->optifineInstallTriggered) return;
-
-
-
-    // Store JAR data (in case MC is still downloading)
-
-    if (!jarData.isEmpty()) {
-
-        ds->optifineJarData = jarData;
-
-    }
-
+    ds->optifineInstallTriggered = true;
     ds->optifineJarDone = true;
+    if (!jarData.isEmpty()) ds->optifineJarData = jarData;
 
-
-
-    // Check if MC is also done
-
-    if (!ds->mcDownloadDone) {
-
+    // Use merged context for coordination
+    auto* ctx = mergedContext(installName);
+    if (ctx) {
+        ctx->loaderJarReady = true;
+        if (!ctx->mcDownloadDone) {
+            emit logMessage(tr("OptiFine JAR 下载完成，等待 MC 下载..."));
+            return;
+        }
+    } else if (!ds->mcDownloadDone) {
         emit logMessage(tr("OptiFine JAR 下载完成，等待 MC 下载..."));
-
         return;
-
     }
-
-
-
-    // Both MC and OptiFine JAR are done
 
     emit logMessage(tr("[完成] MC 和 OptiFine 均下载完成，开始安装..."));
-
     QByteArray data = ds->optifineJarData.isEmpty() ? jarData : ds->optifineJarData;
-
     delegateOptifineInstall(ds->mcVersion, installName, data);
-
 }
 
 
