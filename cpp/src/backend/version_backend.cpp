@@ -6698,12 +6698,21 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     });
 
     // --- waitingForMC ---
-    connect(ml, &ModLoaderInstaller::waitingForMC, this, [this]() {
+    connect(ml, &ModLoaderInstaller::waitingForMC, this, [this, installId]() {
         setInstallPhase(tr("\u7b49\u5f85MC\u4e0b\u8f7d\u5b8c\u6210..."));
-        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-            auto* ds = dlSession(it.key());
-            if (ds && ds->isMerged() && ds->loaderDownloadReady) {
-                ds->loaderFinishedWaitingMC = true;
+        // Only affect the session associated with this installer
+        auto* ds = dlSession(installId);
+        if (ds && ds->isMerged()) {
+            // Mark verify step as completed (mirrors old constructor handler)
+            int verifyStep = ds->loaderVerifyStep;
+            if (verifyStep >= 0 && verifyStep < ds->steps.size()) {
+                updateStep(installId, verifyStep, QStringLiteral("completed"), 100);
+            }
+            ds->loaderDownloadReady = true;
+            ds->loaderFinishedWaitingMC = true;
+            // If MC already finished, proceed to loader install immediately
+            if (ds->mcDownloadDone) {
+                proceedToLoaderInstall(installId);
             }
         }
     });
