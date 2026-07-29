@@ -6853,7 +6853,11 @@ auto* ds = dlSession(it.key());
 
             if (!mlPending) {
 
-                bool mcActive = m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone;
+                // Check both session flag (legacy) and merged context for mc-download-done
+                bool mcDoneOnSession = ds->mcDownloadDone;
+                bool mcDoneOnCtx = false;
+                if (auto* mctx = mergedContext(sid)) mcDoneOnCtx = mctx->mcDownloadDone;
+                bool mcActive = m_dlStates.contains(ds->mcVersion) && !mcDoneOnSession && !mcDoneOnCtx;
 
                 if (mcActive)  s += m_dlStates[ds->mcVersion].speed;
 
@@ -6877,11 +6881,36 @@ auto* ds = dlSession(it.key());
 
         }
 
-        c.phase = mlFailed ? QStringLiteral("失败")
-
-            : (mlPending ? tr("等待原版 %1 下载完成").arg(ds->pendingLoaderMc)
-
-            : m_installPhase);
+        // Per-task phase from session's own step state (not shared m_installPhase)
+        if (mlFailed) {
+            c.phase = QStringLiteral("失败");
+        } else if (mlPending) {
+            c.phase = tr("等待原版 %1 下载完成").arg(ds->pendingLoaderMc);
+        } else if (ds) {
+            // Find the first active or pending step
+            QString computedPhase;
+            bool hasActive = false;
+            for (int si = 0; si < ds->steps.size(); si++) {
+                auto st = ds->steps[si].toMap();
+                QString stStatus = st.value("status").toString();
+                if (stStatus == QStringLiteral("active")) {
+                    computedPhase = st.value("name").toString();
+                    hasActive = true;
+                    break;
+                }
+                if (stStatus == QStringLiteral("pending") && computedPhase.isEmpty()) {
+                    computedPhase = st.value("name").toString();
+                }
+            }
+            if (hasActive) {
+                c.phase = computedPhase;
+            } else {
+                // Fall back to global phase (for non-step-based status like "校验中" / "连通性测试中")
+                c.phase = m_installPhase;
+            }
+        } else {
+            c.phase = m_installPhase;
+        }
 
         c.remaining = mlPending ? 0 : installRemainingSteps(sid);
 
