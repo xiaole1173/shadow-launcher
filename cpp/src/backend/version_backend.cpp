@@ -7540,6 +7540,77 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
 
     // Create ModLoaderInstaller
     ctx->installer = new ModLoaderInstaller(this);
+    ctx->installer->setGameDir(m_gameDir);
+
+    // ── Signal connections for merged context installers ──
+
+    // finished: bootstrapper done → call finishInstall
+    connect(ctx->installer, &ModLoaderInstaller::finished, this,
+        [this, installId](bool success, const QString& errMsg) {
+            auto* ds = dlSession(installId);
+            if (success) {
+                // Mark all steps complete
+                if (ds) {
+                    for (int i = 0; i < ds->steps.size(); i++)
+                        updateStep(installId, i, QStringLiteral("completed"), 100);
+                    ds->m_rawTotalProgress = 1.0;
+                    ds->smoothProgress = 1.0;
+                }
+                emit logMessage(tr("安装完成"));
+                setInstallPhase(tr("完成"));
+                updateInstalledList();
+                finishInstall(installId);
+            } else {
+                if (ds) {
+                    for (int i = 0; i < ds->steps.size(); i++)
+                        updateStep(installId, i, QStringLiteral("failed"), 0);
+                    ds->markFailed(errMsg.isEmpty() ? tr("模组加载器安装失败") : errMsg);
+                }
+                emit logMessage(tr("[失败] 模组加载器安装失败: %1").arg(errMsg));
+            }
+            setInstalling(false);
+            startNextFromQueue();
+            emit installFinished(success);
+        });
+
+    // stepProgress: update step percentage
+    connect(ctx->installer, &ModLoaderInstaller::stepProgress, this,
+        [this, installId](int step, int percentage) {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
+            updateStep(installId, stepIdx, (percentage >= 100) ? QStringLiteral("completed") : QStringLiteral("active"), percentage);
+            if (!ds->isMerged()) {
+                int totalSteps = qMax(ds->steps.size(), 1);
+                qreal raw = (qMin(stepIdx, totalSteps - 1) + percentage / 100.0) / totalSteps;
+                ds->m_rawTotalProgress = raw;
+                ds->smoothProgress = ds->smoothProgress <= 0.0 ? raw * 0.7 : ds->smoothProgress * 0.3 + raw * 0.7;
+            }
+        });
+
+    // progressChanged: update phase text
+    connect(ctx->installer, &ModLoaderInstaller::progressChanged, this,
+        [this, installId](int /*step*/, int /*totalSteps*/, const QString& desc) {
+            setInstallPhase(tr("模组加载器: ") + desc);
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            int stepIdx = ds->loaderStepIdx;
+            if (stepIdx >= 0)
+                updateStep(installId, stepIdx, QStringLiteral("active"), 0);
+        });
+
+    // byteProgress: download speed display
+    connect(ctx->installer, &ModLoaderInstaller::byteProgress, this,
+        [this, installId](const QString& /*file*/, qint64 received, qint64 total, qint64 speed) {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            ds->mlBytesDl = received;
+            ds->mlBytesAll = total;
+            ds->mlSpeed = speed;
+        });
+
+    // logMessage: forward
+    connect(ctx->installer, &ModLoaderInstaller::logMessage, this, &VersionBackend::logMessage);
 
     m_mergedContexts[installId] = ctx;
     return ctx;
