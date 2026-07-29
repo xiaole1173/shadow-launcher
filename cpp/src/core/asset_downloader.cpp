@@ -519,10 +519,15 @@ void AssetDownloader::accelTick()
     int inflight = currentInflight();
     int target = m_targetInflight;
 
-    if (inflight >= target || (m_pendingQueue.isEmpty() && m_pendingPreCheck.isEmpty())) {
-        if (inflight >= m_maxConcurrent || (m_pendingQueue.isEmpty() && m_pendingPreCheck.isEmpty()))
-            m_accelTimer->stop();  // either fully loaded or no more work
+    // Keep timer running even when full — logSpeed() + adjustHostLimits()
+    // need to fire periodically to increase per-host limits.
+    // Only stop when there's genuinely no work left.
+    if (m_pendingQueue.isEmpty() && m_pendingPreCheck.isEmpty()) {
+        m_accelTimer->stop();
         return;
+    }
+    if (inflight >= target) {
+        return;  // at capacity, but keep timer for limit adjustment
     }
 
     // Fire more requests up to target
@@ -714,6 +719,11 @@ void AssetDownloader::finishDownload(const AssetTask& task, bool success)
         emit fileProgress(task.mirrors.first(), task.sha1,
                           task.size, task.size, task.savePath);
     }
+
+    // Adjust per-host limits on every file completion so the dynamic
+    // limit can ramp up even when accelTick is busy dispatching.
+    // (Was only called from logSpeed() which stops if accelTimer is off.)
+    adjustHostLimits();
 
     // Don't fireNext directly if at capacity — let accelTick pace requests.
     // This prevents inflight from growing unboundedly when finishDownload
