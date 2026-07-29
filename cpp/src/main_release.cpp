@@ -16,6 +16,7 @@
 // 3D geometry
 #include <QJsonObject>
 #include <QProcess>
+#include <QProgressDialog>
 #include <QWindow>
 #include <QQuickWindow>
 #include <QAbstractNativeEventFilter>
@@ -40,6 +41,7 @@
 #include "backend/shadow_backend.h"
 #include "multiplayer/elevated_session.h"
 #include "core/http_client.h"
+#include "core/migration_manager.h"
 #include "core/screenshot_server.h"
 
 // ── Remove CEF references ──
@@ -407,7 +409,50 @@ int main(int argc, char *argv[])
     QDir().mkpath(dataDir);
     checkpoint(QStringLiteral("Data directory created"));
 
-    // Create unified backend — owns all 7 sub-backends
+    // ── v0.4.0-beta directory migration ──
+    if (MigrationManager::needsMigration()) {
+        qCInfo(logApp) << QStringLiteral("[迁移] 检测到旧目录结构，开始迁移...");
+        auto* migrator = new MigrationManager(&app);
+        migrator->setRepoUrl(QStringLiteral("https://gitee.com/xiaole1173/shadow-launcher/releases"));
+
+        QProgressDialog dlg(QStringLiteral("准备迁移到新版目录结构..."),
+                             QString(), 0, 100, nullptr);
+        dlg.setWindowTitle(QStringLiteral("Shadow Launcher 更新"));
+        dlg.setWindowFlags(dlg.windowFlags() & ~Qt::WindowCloseButtonHint);
+        dlg.setMinimumDuration(0);
+        dlg.setValue(0);
+        dlg.show();
+
+        QObject::connect(migrator, &MigrationManager::progressChanged,
+                         &app, [&dlg](const QString& stage, int pct) {
+            dlg.setLabelText(stage);
+            dlg.setValue(pct);
+        });
+
+        QString errorMsg;
+        bool ok = migrator->runMigration(errorMsg);
+        dlg.close();
+
+        if (ok) {
+            qCInfo(logApp) << QStringLiteral("[迁移] 成功，重启启动器以加载新目录结构");
+            QString exePath = QCoreApplication::applicationDirPath()
+                              + QStringLiteral("/launcher/SLUpdater.exe");
+            QString oldExe = QCoreApplication::applicationFilePath();
+            QString newExe = oldExe;
+            if (QFileInfo::exists(exePath)) {
+                QProcess::startDetached(exePath, {
+                    QString::number(QCoreApplication::applicationPid()),
+                    oldExe, newExe
+                });
+                qApp->quit();
+                return 0;
+            } else {
+                qCWarning(logApp) << QStringLiteral("[迁移] SLUpdater.exe 不存在，手动重启");
+            }
+        } else {
+            qCWarning(logApp) << QStringLiteral("[迁移] 失败: %1").arg(errorMsg);
+        }
+    }
 
     // Modrinth API: uniquely-identifying User-Agent header (mandatory)
     HttpClient::instance().setUserAgent(

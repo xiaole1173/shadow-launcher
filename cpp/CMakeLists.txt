@@ -72,6 +72,7 @@ set(SOURCES
     src/core/local_mod_manager.cpp
     src/core/modpack_importer.cpp
     src/core/update_manager.cpp
+    src/core/migration_manager.cpp
     src/utils/lzma/LzmaDec.c
     src/core/download_coordinator.cpp
     src/core/crash_detector.cpp
@@ -120,6 +121,7 @@ set(HEADERS
     src/core/local_mod_manager.h
     src/core/modpack_importer.h
     src/core/update_manager.h
+    src/core/migration_manager.h
     src/core/version_isolation.h
     src/core/yggdrasil_auth.h
     src/core/crash_detector.h

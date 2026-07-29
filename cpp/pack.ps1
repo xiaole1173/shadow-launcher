@@ -178,8 +178,8 @@ if (Test-Path $exePath) {
     $sha256 = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
     $compat = @{
         version           = $VersionTag
-        update_mode       = "force_full"
-        force_reason      = "v0.4.0-beta 目录结构重组，需要全量更新"
+        update_mode       = "exe"
+        force_reason      = ""
         qt_version        = "6.8.3"
         resource_epoch    = 1
         exe_sha256        = $sha256
@@ -247,7 +247,8 @@ $SevenZip = "C:\Program Files\7-Zip\7z.exe"
 if (Test-Path $SevenZip) {
     Write-Host "  Compressing with 7-Zip..." -ForegroundColor Yellow
     $archive = "$ProjectRoot\dist\ShadowLauncher_$VersionTag.7z"
-    & $SevenZip a -mx9 -mmt=on $archive $DistDir 2>&1 | Select-Object -Last 1
+    & $SevenZip a -mx9 -mmt=on $archive $DistDir `
+        -x!ShadowLauncher.exe 2>&1 | Select-Object -Last 1
     $archiveSizeMB = [math]::Round((Get-Item $archive).Length / $OneMB, 1)
     Write-Host "  Archive: $archive  ($archiveSizeMB MB)" -ForegroundColor Green
 } else {
