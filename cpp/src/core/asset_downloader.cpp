@@ -268,38 +268,53 @@ void AssetDownloader::fireNext()
 {
     if (m_state != Running || m_pendingQueue.isEmpty()) return;
 
-    AssetTask task = m_pendingQueue.dequeue();
-
-    if (task.mirrors.isEmpty()) {
-        QTimer::singleShot(0, this, [this, task]() {
-            finishDownload(task, false);
-        });
-        return;
-    }
-
-    // Ensure parent dir exists
-    QDir().mkpath(QFileInfo(task.savePath).absolutePath());
-
-    // Pick source: skip degraded hosts. Respect per-host limits —
-    // if no mirror can accept, requeue and let accelTick retry later.
-    const QStringList& mirrors = task.mirrors;
+    // Scan the queue to find a file whose host can accept.
+    // Previously we only checked the first file — if it was blocked
+    // by per-host limits, it would be prepended and block ALL files
+    // behind it, causing the pipeline to stall at ~90% completion.
+    // Now we move blocked files to the back of the queue and try
+    // the next file, ensuring dispatch doesn't stall.
+    AssetTask dispatchTask;
     int selectedMirror = -1;
-    for (int i = 0; i < mirrors.size(); ++i) {
-        QString host = extractHost(mirrors[i]);
-        if (hostCanAccept(host)) {
-            selectedMirror = i;
-            break;
+    int totalTried = 0;
+    while (totalTried < m_pendingQueue.size()) {
+        dispatchTask = m_pendingQueue.dequeue();
+        totalTried++;
+
+        if (dispatchTask.mirrors.isEmpty()) {
+            QTimer::singleShot(0, this, [this, dispatchTask]() {
+                finishDownload(dispatchTask, false);
+            });
+            continue;
         }
+
+        // Pick source: skip degraded hosts, respect per-host limits
+        selectedMirror = -1;
+        for (int i = 0; i < dispatchTask.mirrors.size(); ++i) {
+            QString host = extractHost(dispatchTask.mirrors[i]);
+            if (hostCanAccept(host)) {
+                selectedMirror = i;
+                break;
+            }
+        }
+        if (selectedMirror < 0) {
+            // All mirrors at capacity — move to back and try next file
+            m_pendingQueue.enqueue(dispatchTask);
+            continue;
+        }
+        break;  // found a dispatchable file
     }
+
     if (selectedMirror < 0) {
-        // All mirrors at capacity — requeue and try later via accelTick
-        m_pendingQueue.prepend(task);
+        // All files tried, none dispatchable — let accelTick retry later
         if (!m_accelTimer->isActive())
             m_accelTimer->start();
         return;
     }
 
-    const QString& url = mirrors[selectedMirror];
+    // ── Dispatch the found file ──
+    QDir().mkpath(QFileInfo(dispatchTask.savePath).absolutePath());
+    const QString& url = dispatchTask.mirrors[selectedMirror];
     // ── Source selection log (throttled: every 5s or on fallback) ──
     {
         static int logCounter = 0;
@@ -308,7 +323,7 @@ void AssetDownloader::fireNext()
             QString srcLabel = selectedMirror == 0
                 ? QStringLiteral("primary")
                 : QStringLiteral("fallback[%1]").arg(selectedMirror);
-            qCInfo(logAsset) << "  [source]" << srcLabel << host << task.sha1.left(12) << "...";
+            qCInfo(logAsset) << "  [source]" << srcLabel << host << dispatchTask.sha1.left(12) << "...";
         }
     }
     QUrl qurl(url);
@@ -347,7 +362,7 @@ void AssetDownloader::fireNext()
     QNetworkReply* reply = m_nam[namIdx]->get(req);
 
     InFlight ift;
-    ift.task = task;
+    ift.task = dispatchTask;
     ift.mirrorIndex = selectedMirror;
     ift.namIndex = namIdx;
     ift.startMs = QDateTime::currentMSecsSinceEpoch();
