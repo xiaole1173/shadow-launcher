@@ -19,7 +19,7 @@
 #include <QJsonObject>
 
 #include "../utils/types.h"
-#include "../session/download_session.h
+#include "../session/download_session.h"
 
 namespace ShadowLauncher {
 

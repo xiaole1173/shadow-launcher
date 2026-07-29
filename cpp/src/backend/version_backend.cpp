@@ -39,6 +39,8 @@
 
 #include <QDateTime>
 
+#include <QUuid>
+
 #include <QJsonDocument>
 
 #include <QJsonObject>
@@ -4985,871 +4987,301 @@ QString VersionBackend::copyVersionPath(const QString& versionId)
 
 
 void VersionBackend::installModLoader(const QString& mcVersion, const QString& loaderType,
-
                                        const QString& loaderVersion, const QString& installName,
-
                                        const QString& fabricApiVersion,
-
                                        const QString& fabricApiUrl,
-
                                        const QString& fabricApiSavePath,
-
                                        const QString& forgeInstallerSha1,
                                        const QString& forgeInstallerBranch) {
-
-    auto* ml = createLoaderInstaller(installName);
-    if (!ml) return;
-
-
-    ensureSession(installName);
-    auto* ds = dlSession(installName);
-    if (ds) ds->clearFailure();
-
     // Build the full Forge Maven version: {mc}-{forge} or {mc}-{forge}-{branch}
     QString m_forgeMavenVer = mcVersion + QStringLiteral("-") + loaderVersion;
     if (!forgeInstallerBranch.isEmpty())
         m_forgeMavenVer += QStringLiteral("-") + forgeInstallerBranch;
 
-    // Step 0: Ensure vanilla MC is installed first
-
-    if (!installedIds().contains(mcVersion) && !m_activeIds.contains(mcVersion)) {
-
-        // ── Merged install: MC + loader in ONE card ──
-
-        qDebug() << "[install] Merged install: MC" << mcVersion << "+" << loaderType << loaderVersion;
-
-        ds->setMerged(true);
-
-        ds->mcVersion = mcVersion;
-
-        ds->loaderType = loaderType;
-
-        ds->loaderVer = loaderVersion;
-
-        ds->hasPendingLoader = false;
-
-        // Reset byte accumulators for new merged install
-
-        ds->mcBytesDl = 0;
-
-        ds->mcBytesAll = 0;
-
-        ds->mlBytesDl = 0;
-
-        ds->mlBytesAll = 0;
-
-        ds->mlBytesDone = 0;
-
-        ds->mlFileTotal = 0;
-
-        // Reset cumulative byte tracking for merged install steps
-
-        for (int i = 0; i < 3; i++) { ds->mcStepDone[i] = 0; ds->mcStepTotal[i] = 0; }
-
-        ds->mcFileAdded.clear();
-
-
-
-        // Build step list — Forge/NeoForge: 7 steps, Fabric: 7 (profile + libs + install)
-
-        QString loaderLabel = QStringLiteral("Forge");
-
-        if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
-
-        else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
-
-
-
-        if (loaderType == QStringLiteral("fabric")) {
-
-            // Fabric: 7+1 steps (3 MC download + 1 MC verify + 1 profile + 1 libs + 1 install + 1 API)
-
-            QStringList stepNames = {
-
-                tr("下载原版 JSON 文件"),
-
-                tr("下载原版支持库文件"),
-
-                tr("下载原版资源文件"),
-
-                tr("校验游戏资源完整性"),
-
-                tr("下载 Fabric 配置"),
-
-                tr("下载 Fabric 依赖库"),
-
-                tr("安装 Fabric")
-
-            };
-
-            QVector<qreal> weights = {3.0, 8.0, 5.0, 0.5, 0.1, 2.0, 0.5};
-
-            QVector<bool> shows = {true, true, true, true, true, true, true};
-
-            if (!fabricApiUrl.isEmpty()) {
-
-                stepNames.append(tr("下载 Fabric API"));
-
-                weights.append(0.05);
-
-                shows.append(false);  // hidden until step 3 finishes
-
-            }
-
-            rebuildSteps(installName, stepNames, weights, shows);
-
-        } else {
-
-            // Standalone: MC already installed or being downloaded — track dependency
-            ds->mcVersion = mcVersion;
-
-            // Forge/NeoForge: 7 steps (3 MC + 1 MC verify + 1 download + 1 verify + 1 install)
-
-            rebuildSteps(installName, {
-
-                tr("下载原版 JSON 文件"),
-
-                tr("下载原版支持库文件"),
-
-                tr("下载原版资源文件"),
-
-                tr("校验游戏资源完整性"),
-
-                tr("下载 %1 主文件").arg(loaderLabel),
-
-                tr("校验 %1 完整性").arg(loaderLabel),
-
-                tr("安装 %1").arg(loaderLabel)
-
-            }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
-
-             {true, true, true, true, true, true, true});
-
-        }
-
-        updateStep(installName, 0, QStringLiteral("active"), 0);
-        // Show card immediately — don't wait for first progress signal
-        updateCardFromSession(installName, installName, QStringLiteral("mod_loader"));
-
-        ds->loadedStep = 1;
-
-
-
-        // ── Start MC download + loader in parallel (no preflight) ──
-
-        setInstalling(true);
-
-
-
-        // ── Fabric: start MC + Fabric + Fabric API all at once ──
-
-        if (loaderType == QStringLiteral("fabric")) {
-
-            ml->setGameDir(m_gameDir);
-
-            ml->setParallelMode(true);
-
-            ml->installFabric(mcVersion, loaderVersion, installName);
-
-
-
-            if (!fabricApiUrl.isEmpty()) {
-
-                auto* ds2 = ensureSession(installName);
-
-                ds2->fabricApiPending = true;
-
-                // Save original final path, use temp for download
-
-                ds2->fabricApiFinalPath = fabricApiSavePath;
-
-                QString tempDir = QDir::tempPath() + QStringLiteral("/shadow-fabric-api");
-
-                QDir().mkpath(tempDir);
-
-                QString tempApiPath = tempDir + QStringLiteral("/") + QFileInfo(fabricApiSavePath).fileName();
-
-                ds2->fabricApiSavePath = tempApiPath;
-
-
-
-                showStep(installName, 7);
-
-                updateStep(installName, 7, QStringLiteral("active"), 0);
-
-
-
-                auto* apiNam = new QNetworkAccessManager(this);
-
-                QUrl apiUrlObj(fabricApiUrl);
-
-                QNetworkRequest apiReq(apiUrlObj);
-
-                QNetworkReply* apiReply = apiNam->get(apiReq);
-
-
-
-                connect(apiReply, &QNetworkReply::downloadProgress, this,
-
-                        [this, installName](qint64 recv, qint64 total) {
-
-                    int pct = total > 0 ? (int)(recv * 100 / total) : 0;
-
-                    updateStep(installName, 7, QStringLiteral("active"), pct);
-
-                    // Track Fabric API download speed
-
-                    auto* ds = dlSession(installName);
-
-                    if (ds) {
-
-                        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-
-                        qint64 delta = recv - ds->fabSpeedLastBytes;
-
-                        qint64 timeDelta = nowMs - ds->fabSpeedLastMs;
-
-                        if (delta > 0 && timeDelta >= 200) {
-
-                            ds->fabSpeed = delta * 1000 / timeDelta;
-
-                            ds->fabSpeedLastBytes = recv;
-
-                            ds->fabSpeedLastMs = nowMs;
-
-                        }
-
-                    }
-
-                });
-
-
-
-                connect(apiReply, &QNetworkReply::finished, this, [this, apiReply, apiNam, installName, tempApiPath]() {
-
-                    apiReply->deleteLater();
-
-                    apiNam->deleteLater();
-
-                    ensureSession(installName);
-
-                    auto* ds = dlSession(installName);
-
-                    ds->fabricApiPending = false;
-
-                    if (apiReply->error() != QNetworkReply::NoError) {
-
-                        qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
-
-                        updateStep(installName, 7, QStringLiteral("error"), 0);
-
-                        setInstallPhase(tr("Fabric API 下载失败"));
-
-                    } else {
-
-                        QByteArray data = apiReply->readAll();
-
-                        QFile f(tempApiPath);
-
-                        if (f.open(QIODevice::WriteOnly)) {
-
-                            f.write(data);
-
-                            f.close();
-
-                        }
-
-                        qDebug() << "[install] Fabric API downloaded to temp:" << tempApiPath << data.size() << "bytes";
-
-                        updateStep(installName, 7, QStringLiteral("completed"), 100);
-
-                        if (!ds->hasPendingLoader && !isModLoaderInstalling() && ds->mcDownloadDone) {
-
-                            finishInstall(installName);
-
-                        }
-
-                    }
-
-                });
-
-            }
-
-
-
-            installVersion(mcVersion);
-
-            return;
-
-        }
-
-
-
-        // ── Forge/NeoForge: start MC download + loader download in parallel ──
-
-        installVersion(mcVersion);
-
-
-
-        QString verArg = mcVersion + "-" + loaderVersion;
-        // Use branch-aware Maven version (handles 1.10->1.10.0, 1.7.2->mc172 etc.)
-        QString fmv = m_forgeMavenVer;
-
-        QString loaderDlUrl;
-
-        if (loaderType == QStringLiteral("forge")) {
-            // Use BMCLAPI Maven mirror (mirrors maven.minecraftforge.net)
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv);
-
-        } else if (loaderType == QStringLiteral("neoforge")) {
-
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
-
-        }
-
-
-
-                        if (!loaderDlUrl.isEmpty()) {
-
-                // Shared downloader: try BMCLAPI, fall back to official on failure
-
-                auto* nam = new QNetworkAccessManager(this);
-
-                int loaderDlStepIdx = (ds->steps.size() >= 5) ? 4 : 4;
-
-
-
-                // Phase 1: try BMCLAPI
-
-                qDebug() << "[Coordinator] Loader download:" << loaderDlUrl;
-
-                {
-
-                    QUrl qurl(loaderDlUrl);
-
-                    QNetworkRequest req(qurl);
-
-                    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-
-                    req.setTransferTimeout(300000);
-
-                    req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
-
-                    QNetworkReply* reply = nam->get(req);
-
-
-
-                    auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0,0);  // lastBytes, lastTimeMs
-
-
-
-                    connect(reply, &QNetworkReply::downloadProgress, this,
-
-                            [this, installName, loaderDlStepIdx, speedState](qint64 recv, qint64 total) {
-
-                        updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-
-                                   total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
-
-                        // Feed speed to card display
-
-                        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-
-                        qint64 delta = recv - speedState->first;
-
-                        qint64 timeDelta = nowMs - speedState->second;
-
-                        if (timeDelta >= 200 && speedState->second > 0 && delta > 0) {
-
-                            qint64 instant = delta * 1000 / timeDelta;
-
-                            ensureSession(installName);
-
-                            auto* ds = dlSession(installName);
-
-                        }
-
-                        speedState->first = recv;
-
-                        speedState->second = nowMs;
-
-                    });
-
-
-
-                    connect(reply, &QNetworkReply::finished, this,
-
-                            [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx]() {
-
-                        reply->deleteLater();
-
-                        if (reply->error() != QNetworkReply::NoError) {
-
-                            // Phase 2: build fallback URL list
-                            QStringList fallbackUrls;
-                            {
-                                if (loaderType == QStringLiteral("forge")) {
-                                    // Priority: BMCLAPI old-format -> Official branch-aware -> Official old-format
-                                    QString baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
-                                    auto addFb = [&](const QString& base, const QString& ver) {
-                                        fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
-                                    };
-                                    // 1. BMCLAPI old format ({mc}-{forge}-{mc})
-                                    addFb(QStringLiteral("https://bmclapi2.bangbang93.com/maven"), baseVer + QStringLiteral("-") + mcVersion);
-                                    // 2. Official branch-aware format
-                                    QString branchVer = baseVer;
-                                    if (!forgeInstallerBranch.isEmpty())
-                                        branchVer += QStringLiteral("-") + forgeInstallerBranch;
-                                    addFb(QStringLiteral("https://maven.minecraftforge.net"), branchVer);
-                                    // 3. Official old format
-                                    addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer + QStringLiteral("-") + mcVersion);
-                                } else if (loaderType == QStringLiteral("neoforge")) {
-                                    fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
-                                }
-                            }
-
-                            // Try each fallback in sequence
-                            auto fbIdx = QSharedPointer<int>::create(0);
-                            auto tryFb = QSharedPointer<std::function<void()>>::create();
-                            *tryFb = [=]() {
-                                if (*fbIdx >= fallbackUrls.size()) {
-                                    // All fallbacks exhausted
-                                    qWarning() << "[Coordinator] Loader download FAILED (all fallbacks exhausted)";
-                                    emit logMessage(QStringLiteral(" %1 下载失败: 所有源均不可用").arg(loaderType));
-                                    emit logMessage(tr("\u26a0 %1 下载失败\uff0c将以原版安装").arg(loaderType));
-
-                                    nam->deleteLater();
-                                    updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
-
-                                    if (m_downloadSessions.contains(installName)) {
-                                        ensureSession(installName);
-                                        auto* ds = dlSession(installName);
-                                        if (ds) {
-                                            ds->loaderDownloadReady = true;
-                                            ds->markFailed(QStringLiteral("所有源均不可用"));
-                                            if (ds->mcDownloadDone) finishInstall(installName);
-                                        }
-                                    }
-                                    return;
-                                }
-
-                                QString url = fallbackUrls[(*fbIdx)++];
-                                qWarning() << "[Coordinator] Trying fallback:" << url;
-
-                                QUrl qurlFb(url);
-                                QNetworkRequest reqFb(qurlFb);
-                                reqFb.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-                                reqFb.setTransferTimeout(300000);
-
-                                QNetworkReply* r = nam->get(reqFb);
-
-                                auto speedStateFb = QSharedPointer<QPair<qint64,qint64>>::create(0, 0);
-                                connect(r, &QNetworkReply::downloadProgress, this,
-                                    [this, installName, loaderDlStepIdx, speedStateFb](qint64 recv, qint64 total) {
-                                        updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-                                                   total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
-                                        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-                                        qint64 delta = recv - speedStateFb->first;
-                                        if (delta > 0) {
-                                            speedStateFb->first = recv;
-                                            speedStateFb->second = nowMs;
-                                        }
-                                    });
-
-                                connect(r, &QNetworkReply::finished, this,
-                                    [=]() {
-                                        r->deleteLater();
-                                        if (r->error() != QNetworkReply::NoError) {
-                                            qWarning() << "[Coordinator] Fallback failed:" << r->errorString();
-                                            (*tryFb)();  // try next
-                                            return;
-                                        }
-
-                                        QByteArray data = r->readAll();
-                                        qDebug() << "[Coordinator] Fallback download complete:" << data.size() << "bytes";
-
-                                        // Reject too-small responses
-                                        if (data.size() < 102400) {
-                                            qWarning() << "[Coordinator] Fallback response too small:" << data.size();
-                                            (*tryFb)();  // try next
-                                            return;
-                                        }
-
-                                        nam->deleteLater();
-
-                                        if (!m_downloadSessions.contains(installName)) return;
-                                        ensureSession(installName);
-                                        auto* ds = dlSession(installName);
-                                        ds->loaderDownloadData = data;
-                                        updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
-                                        ds->loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
-                                        ds->loaderDownloadReady = true;
-
-                                        if (ds->steps.size() > ds->loaderVerifyStep) {
-                                            showStep(installName, ds->loaderVerifyStep);
-                                            updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
-                                        }
-
-                                        m_mlInstallers.value(installName)->setGameDir(m_gameDir);
-                                        m_mlInstallers.value(installName)->setForgeBranch(forgeInstallerBranch);
-                                        if (loaderType == QStringLiteral("neoforge")) {
-                                            m_mlInstallers.value(installName)->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                                        } else {
-                                            m_mlInstallers.value(installName)->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                                        }
-                                    });
-                            };
-                            (*tryFb)();
-                            return;
-
-                        }
-
-                        QByteArray data = reply->readAll();
-
-                        qDebug() << "[Coordinator] Loader download complete:" << data.size() << "bytes";
-
-                        // Reject obviously invalid responses (error pages, empty body, etc.)
-                        // Forge/NeoForge installer JARs are at least several MB
-                        if (data.size() < 102400) {  // < 100KB is definitely not a real installer
-                            qWarning() << "[Coordinator] Loader download too small (" << data.size() << "bytes), likely error page";
-                            emit logMessage(tr(" %1 下载的文件异常小(%2字节)，可能源站不可用").arg(loaderType).arg(data.size()));
-                            updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
-                            if (m_downloadSessions.contains(installName)) {
-                                auto* ds2 = dlSession(installName);
-                                if (ds2) {
-                                    ds2->loaderDownloadReady = true;
-                                    ds2->markFailed(tr("下载文件异常"));
-                                    if (ds2->mcDownloadDone) finishInstall(installName);
-                                }
-                            }
-                            nam->deleteLater();
-                            return;
-                        }
-
-                        nam->deleteLater();
-
-                        if (!m_downloadSessions.contains(installName)) return;
-
-                        ensureSession(installName);
-
-                        auto* ds = dlSession(installName);
-
-                        ds->loaderDownloadData = data;
-
-                        updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
-
-                        ds->loaderVerifyStep = (loaderDlStepIdx == 4) ? 5 : loaderDlStepIdx + 1;
-                        ds->loaderDownloadReady = true;
-
-                        // Activate the verify step in the pipeline so the QML shows it
-                        if (ds->steps.size() > ds->loaderVerifyStep) {
-                            showStep(installName, ds->loaderVerifyStep);
-                            updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
-                        }
-
-                        // Start forge install immediately (parallel with ongoing MC download)
-                        // If forge finishes first, loaderFinishedWaitingMC flag handles the handover
-                        m_mlInstallers.value(installName)->setGameDir(m_gameDir);
-                        m_mlInstallers.value(installName)->setForgeBranch(forgeInstallerBranch);
-                        if (loaderType == QStringLiteral("neoforge")) {
-                            emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-                            m_mlInstallers.value(installName)->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                        } else {
-                            m_mlInstallers.value(installName)->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                        }
-
-                    });
-
-                }
-
-
-
-        }
-
-
-
-        return;
-
-    }
-
-
-
-    // MC is downloading → download loader in PARALLEL, install when MC finishes
-
-    if (m_activeIds.contains(mcVersion)) {
-
-        qDebug() << "[install] MC" << mcVersion << "is downloading, starting parallel" << loaderType << "download";
-
-        ds->hasPendingLoader = true;
-
-        ds->setMerged(true);  // reuse merged install completion logic
-
-        ds->pendingLoaderMc = mcVersion;
-
-        ds->pendingLoaderType = loaderType;
-
-        ds->pendingLoaderVer = loaderVersion;
-
-        ds->pendingLoaderName = installName;
-
-        ds->mcVersion = mcVersion;
-
-        ds->loaderType = loaderType;
-
-        ds->loaderVer = loaderVersion;
-
-        ds->mcDownloadDone = false;
-
-        ds->loaderDownloadReady = false;
-
-        ds->forgeInstallerSha1 = forgeInstallerSha1;
-
-        ds->fabricApiVersion = fabricApiVersion;
-
-        ds->fabricApiUrl = fabricApiUrl;
-
-        ds->fabricApiSavePath = fabricApiSavePath;
-
-
-
-        // Build steps: wait MC + download loader + verify + install
-
-        QString loaderLabel = loaderType == "neoforge" ? "NeoForge" : (loaderType == "fabric" ? "Fabric" : "Forge");
-
-        rebuildSteps(installName, {
-
-            tr("等待原版 %1 下载完成").arg(mcVersion),
-
-            tr("下载 %1 主文件").arg(loaderLabel),
-
-            tr("校验 %1 完整性").arg(loaderLabel),
-
-            tr("安装 %1").arg(loaderLabel)
-
-        }, {0.0, 6.0, 0.5, 10.0}, {true, true, false, false});
-
-        updateStep(installName, 0, QStringLiteral("pending"), 0);
-
-        updateStep(installName, 1, QStringLiteral("active"), 0);
-
-        ds->loaderStepIdx = 1;
-
-
-
-        // Start loader download in background (same URL logic as merged install)
-
-        QString loaderDlUrl;
-
-        QString verArg = mcVersion + "-" + loaderVersion;
-
-        if (loaderType == "forge") {
-
-            // Use branch-aware Maven version
-            QString dv = m_forgeMavenVer;
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(dv);
-
-        } else if (loaderType == "neoforge") {
-
-            loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
-
-        } else if (loaderType == "fabric") {
-
-            // Fabric: download profile + libs via ModLoaderInstaller (parallel mode)
-
-            ml->setGameDir(m_gameDir);
-
-            ml->setParallelMode(true);
-
-            ml->installFabric(mcVersion, loaderVersion, installName);
-
-            // Fabric API in parallel
-
-            if (!fabricApiUrl.isEmpty()) { ds->fabricApiPending = true; /* simplified for pending */ }
-
-            emit logMessage(tr("Fabric 配置和依赖库下载中，等待原版 %1 完成...").arg(mcVersion));
-
-            return;
-
-        }
-
-
-
-        if (!loaderDlUrl.isEmpty()) {
-
-            auto* nam = new QNetworkAccessManager(this);
-
-            QUrl qurl(loaderDlUrl);
-
-            QNetworkRequest req(qurl);
-
-            req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-
-            req.setTransferTimeout(300000);
-
-            QNetworkReply* reply = nam->get(req);
-
-
-
-            connect(reply, &QNetworkReply::downloadProgress, this,
-
-                    [this, installName](qint64 recv, qint64 total) {
-
-                updateStep(installName, 1, QStringLiteral("active"),
-
-                           total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
-
-            });
-
-
-
-            connect(reply, &QNetworkReply::finished, this, [this, reply, nam, installName, mcVersion, loaderType, loaderVersion, forgeInstallerSha1]() {
-
-                reply->deleteLater();
-
-                nam->deleteLater();
-
-                ensureSession(installName);
-auto* ds = dlSession(installName);
-
-                if (reply->error() != QNetworkReply::NoError) {
-
-                    qWarning() << "[pending] Loader download FAILED:" << reply->errorString();
-
-                    updateStep(installName, 1, QStringLiteral("error"), 0);
-
-                    if (auto* ds = dlSession(installName)) ds->markFailed(reply->errorString());
-
-                } else {
-
-                    QByteArray data = reply->readAll();
-
-                    qDebug() << "[pending] Loader download complete:" << data.size() << "bytes";
-
-                    updateStep(installName, 1, QStringLiteral("completed"), 100);
-
-                    ds->loaderDownloadData = data;
-
-                    ds->loaderDownloadReady = true;
-
-                    
-
-                    // Start verify+extract now (runs while MC still downloading)
-
-                    m_mlInstallers.value(installName)->setGameDir(m_gameDir);
-
-                    if (loaderType == "neoforge")
-
-                        m_mlInstallers.value(installName)->installNeoForgeFromData(data, mcVersion, loaderVersion, installName);
-
-                    else
-
-                        m_mlInstallers.value(installName)->installForgeFromData(data, mcVersion, loaderVersion, installName);
-
-
-
-                    // If MC already finished, finalize immediately
-
-                    if (ds->mcDownloadDone) {
-
-                        proceedToLoaderInstall(installName);
-
-                    } else {
-
-                        qDebug() << "[pending] Loader verify/extract started, waiting for MC" << mcVersion;
-
-                    }
-
-                }
-
-            });
-
-        }
-
-
-
-        emit logMessage(tr("[等待] %1 下载中，将在原版 %2 下载完成后自动安装")
-
-                            .arg(loaderType).arg(mcVersion));
-
-        return;
-
-    }
-
-
-
-    // MC is installed — proceed with standalone loader
-
-    ml->setGameDir(m_gameDir);
-
-    qDebug() << "[install] installModLoader ENTRY" << loaderType << mcVersion << loaderVersion << "->" << installName;
-
-
+    // Create MergedInstallContext for this install
+    auto* ctx = createMergedContext(installName, mcVersion, loaderType, loaderVersion);
+    if (!ctx) return;
+
+    ensureSession(installName);
+    auto* ds = dlSession(installName);
+    if (ds) ds->clearFailure();
+
+    // ── Merged install: always MC + loader ──
+    qDebug() << "[install] Merged install: MC" << mcVersion << "+" << loaderType << loaderVersion;
+
+    ds->setMerged(true);
+    ds->mcVersion = mcVersion;
+    ds->loaderType = loaderType;
+    ds->loaderVer = loaderVersion;
+
+    // Reset byte accumulators
+    ds->mcBytesDl = 0; ds->mcBytesAll = 0;
+    ds->mlBytesDl = 0; ds->mlBytesAll = 0; ds->mlBytesDone = 0; ds->mlFileTotal = 0;
+    for (int i = 0; i < 3; i++) { ds->mcStepDone[i] = 0; ds->mcStepTotal[i] = 0; }
+    ds->mcFileAdded.clear();
 
     // Build step list
+    QString loaderLabel = QStringLiteral("Forge");
+    if (loaderType == QStringLiteral("neoforge")) loaderLabel = QStringLiteral("NeoForge");
+    else if (loaderType == QStringLiteral("fabric")) loaderLabel = QStringLiteral("Fabric");
 
-    if (loaderType == QStringLiteral("forge") || loaderType == QStringLiteral("neoforge")) {
-
-        rebuildSteps(installName, {tr("下载 %1 安装程序").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge")),
-
-                      tr("校验安装程序完整性"),
-
-                      tr("安装 %1").arg(loaderType == QStringLiteral("forge") ? QStringLiteral("Forge") : QStringLiteral("NeoForge"))},
-
-                     {3.0, 0.5, 10.0},  // installer 重量级10
-
-                     {true, false, true});  // verify hidden until download completes
-
-    } else if (loaderType == QStringLiteral("fabric")) {
-
-        // Fabric: 3 steps (download profile + download libraries + install)
-
-        rebuildSteps(installName, {tr("下载 Fabric 配置"),
-
-                      tr("下载 Fabric 依赖库"),
-
-                      tr("安装 Fabric")},
-
-                     {0.1, 2.0, 0.5},
-
-                     {true, true, true});
-
+    if (loaderType == QStringLiteral("fabric")) {
+        QStringList stepNames = {
+            tr("下载原版 JSON 文件"),
+            tr("下载原版支持库文件"),
+            tr("下载原版资源文件"),
+            tr("校验游戏资源完整性"),
+            tr("下载 Fabric 配置"),
+            tr("下载 Fabric 依赖库"),
+            tr("安装 Fabric")
+        };
+        QVector<qreal> weights = {3.0, 8.0, 5.0, 0.5, 0.1, 2.0, 0.5};
+        QVector<bool> shows = {true, true, true, true, true, true, true};
+        if (!fabricApiUrl.isEmpty()) {
+            stepNames.append(tr("下载 Fabric API"));
+            weights.append(0.05);
+            shows.append(false);
+        }
+        rebuildSteps(installName, stepNames, weights, shows);
     } else {
-
-        rebuildSteps(installName, {tr("安装 %1").arg(installName)});
-
+        rebuildSteps(installName, {
+            tr("下载原版 JSON 文件"),
+            tr("下载原版支持库文件"),
+            tr("下载原版资源文件"),
+            tr("校验游戏资源完整性"),
+            tr("下载 %1 主文件").arg(loaderLabel),
+            tr("校验 %1 完整性").arg(loaderLabel),
+            tr("安装 %1").arg(loaderLabel)
+        }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
+         {true, true, true, true, true, true, true});
     }
 
     updateStep(installName, 0, QStringLiteral("active"), 0);
-
-
-
-    qDebug() << "[install] installModLoader calling install" << loaderType << ", m_running before:" << ml->isRunning();
-
-    if (loaderType == QStringLiteral("forge")) {
-
-        ml->setForgeBranch(forgeInstallerBranch);
-        ml->installForge(mcVersion, loaderVersion, installName, forgeInstallerSha1);
-
-    } else if (loaderType == QStringLiteral("fabric")) {
-
-        ml->installFabric(mcVersion, loaderVersion, installName);
-
-    } else if (loaderType == QStringLiteral("neoforge")) {
-
-        ml->installNeoForge(mcVersion, loaderVersion, installName);
-
-    }
-
-    qDebug() << "[install] installModLoader after install, m_running:" << ml->isRunning() << "m_steps:" << ds->steps.size();
-
+    updateCardFromSession(installName, installName, QStringLiteral("mod_loader"));
+    ds->loadedStep = 1;
     setInstalling(true);
 
-    qDebug() << "[install] installModLoader after setInstalling, m_installing:" << m_installing;
+    // ── Start MC download ──
+    installVersion(mcVersion);
+    
+    // ── Record ctx under mcVersion for onVersionDownloadFinished routing ──
+    // (m_activeIds already checked inside installVersion)
 
+    // ── Start loader in parallel ──
+    if (loaderType == QStringLiteral("fabric")) {
+        ctx->installer->setGameDir(m_gameDir);
+        ctx->installer->setParallelMode(true);
+        ctx->installer->installFabric(mcVersion, loaderVersion, installName);
+
+        if (!fabricApiUrl.isEmpty()) {
+            auto* ds2 = ensureSession(installName);
+            ds2->fabricApiPending = true;
+            ds2->fabricApiFinalPath = fabricApiSavePath;
+            QString tempDir = QDir::tempPath() + QStringLiteral("/shadow-fabric-api");
+            QDir().mkpath(tempDir);
+            QString tempApiPath = tempDir + QStringLiteral("/") + QFileInfo(fabricApiSavePath).fileName();
+            ds2->fabricApiSavePath = tempApiPath;
+
+            showStep(installName, 7);
+            updateStep(installName, 7, QStringLiteral("active"), 0);
+
+            auto* apiNam = new QNetworkAccessManager(this);
+            QUrl apiUrlObj(fabricApiUrl);
+            QNetworkRequest apiReq(apiUrlObj);
+            QNetworkReply* apiReply = apiNam->get(apiReq);
+
+            connect(apiReply, &QNetworkReply::downloadProgress, this,
+                    [this, installName](qint64 recv, qint64 total) {
+                int pct = total > 0 ? (int)(recv * 100 / total) : 0;
+                updateStep(installName, 7, QStringLiteral("active"), pct);
+                auto* ds = dlSession(installName);
+                if (ds) {
+                    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                    qint64 delta = recv - ds->fabSpeedLastBytes;
+                    qint64 timeDelta = nowMs - ds->fabSpeedLastMs;
+                    if (delta > 0 && timeDelta >= 200) {
+                        ds->fabSpeed = delta * 1000 / timeDelta;
+                        ds->fabSpeedLastBytes = recv;
+                        ds->fabSpeedLastMs = nowMs;
+                    }
+                }
+            });
+
+            connect(apiReply, &QNetworkReply::finished, this, [this, apiReply, apiNam, installName, tempApiPath]() {
+                apiReply->deleteLater();
+                apiNam->deleteLater();
+                ensureSession(installName);
+                auto* ds = dlSession(installName);
+                ds->fabricApiPending = false;
+                if (apiReply->error() != QNetworkReply::NoError) {
+                    qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
+                    updateStep(installName, 7, QStringLiteral("error"), 0);
+                    setInstallPhase(tr("Fabric API 下载失败"));
+                } else {
+                    QByteArray data = apiReply->readAll();
+                    QFile f(tempApiPath);
+                    if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+                    qDebug() << "[install] Fabric API downloaded to temp:" << tempApiPath << data.size() << "bytes";
+                    updateStep(installName, 7, QStringLiteral("completed"), 100);
+                    // Check if we can finalize
+                    auto* mcCtx = mergedContext(installName);
+                    if (mcCtx && mcCtx->mcDownloadDone && !mcCtx->bootstrapperDone) {
+                        finishInstall(installName);
+                    }
+                }
+            });
+        }
+        return;
+    }
+
+    // ── Forge/NeoForge: download installer JAR ──
+    QString verArg = mcVersion + "-" + loaderVersion;
+    QString fmv = m_forgeMavenVer;
+    QString loaderDlUrl;
+    if (loaderType == QStringLiteral("forge")) {
+        loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv);
+    } else if (loaderType == QStringLiteral("neoforge")) {
+        loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+    }
+
+    if (!loaderDlUrl.isEmpty()) {
+        auto* nam = new QNetworkAccessManager(this);
+        int loaderDlStepIdx = 4;
+
+        qDebug() << "[Coordinator] Loader download:" << loaderDlUrl;
+        {
+            QUrl qurl(loaderDlUrl);
+            QNetworkRequest req(qurl);
+            req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+            req.setTransferTimeout(300000);
+            req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+            QNetworkReply* reply = nam->get(req);
+
+            auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0,0);
+
+            connect(reply, &QNetworkReply::downloadProgress, this,
+                    [this, installName, loaderDlStepIdx, speedState](qint64 recv, qint64 total) {
+                updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
+                           total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
+                qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                qint64 delta = recv - speedState->first;
+                qint64 timeDelta = nowMs - speedState->second;
+                if (timeDelta >= 200 && speedState->second > 0 && delta > 0) {
+                    qint64 instant = delta * 1000 / timeDelta;
+                    ensureSession(installName);
+                }
+                speedState->first = recv;
+                speedState->second = nowMs;
+            });
+
+            connect(reply, &QNetworkReply::finished, this,
+                    [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx, ctx]() {
+                reply->deleteLater();
+
+                auto handleLoaderData = [this, nam, installName, loaderType, mcVersion, loaderVersion, forgeInstallerBranch, loaderDlStepIdx, ctx](const QByteArray& data) {
+                    if (data.size() < 102400) {
+                        qWarning() << "[Coordinator] Loader download too small:" << data.size();
+                        nam->deleteLater();
+                        updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
+                        ctx->failed = true;
+                        ctx->errorMessage = tr("下载文件异常");
+                        if (ctx->mcDownloadDone) finishInstall(installName);
+                        return;
+                    }
+
+                    nam->deleteLater();
+                    if (!m_downloadSessions.contains(installName)) return;
+
+                    ensureSession(installName);
+                    auto* ds = dlSession(installName);
+                    ds->loaderDownloadData = data;
+
+                    updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
+                    int verifyStep = loaderDlStepIdx + 1;
+                    if (ds->steps.size() > verifyStep) {
+                        showStep(installName, verifyStep);
+                        updateStep(installName, verifyStep, QStringLiteral("active"), 0);
+                    }
+
+                    ctx->installer->setGameDir(m_gameDir);
+                    ctx->installer->setForgeBranch(forgeInstallerBranch);
+                    ctx->loaderJarReady = true;
+
+                    // Wait for MC download if not done yet
+                    if (ctx->mcDownloadDone) {
+                        proceedToLoaderInstall(installName);
+                    }
+                };
+
+                if (reply->error() != QNetworkReply::NoError) {
+                    // Build fallback URLs
+                    QStringList fallbackUrls;
+                    if (loaderType == QStringLiteral("forge")) {
+                        QString baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
+                        auto addFb = [&](const QString& base, const QString& ver) {
+                            fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
+                        };
+                        addFb(QStringLiteral("https://bmclapi2.bangbang93.com/maven"), baseVer + QStringLiteral("-") + mcVersion);
+                        QString branchVer = baseVer;
+                        if (!forgeInstallerBranch.isEmpty()) branchVer += QStringLiteral("-") + forgeInstallerBranch;
+                        addFb(QStringLiteral("https://maven.minecraftforge.net"), branchVer);
+                        addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer + QStringLiteral("-") + mcVersion);
+                    } else if (loaderType == QStringLiteral("neoforge")) {
+                        fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+                    }
+
+                    auto fbIdx = QSharedPointer<int>::create(0);
+                    auto tryFb = QSharedPointer<std::function<void()>>::create();
+                    *tryFb = [=]() {
+                        if (*fbIdx >= fallbackUrls.size()) {
+                            qWarning() << "[Coordinator] Loader download FAILED (all fallbacks)";
+                            emit logMessage(QStringLiteral(" %1 下载失败: 所有源均不可用").arg(loaderType));
+                            emit logMessage(tr("\u26a0 %1 下载失败，将以原版安装").arg(loaderType));
+                            nam->deleteLater();
+                            updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
+                            ctx->failed = true;
+                            ctx->errorMessage = tr("所有源均不可用");
+                            if (ctx->mcDownloadDone) finishInstall(installName);
+                            return;
+                        }
+
+                        QString url = fallbackUrls[(*fbIdx)++];
+                        qWarning() << "[Coordinator] Trying fallback:" << url;
+                        QUrl qurlFb(url);
+                        QNetworkRequest reqFb(qurlFb);
+                        reqFb.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+                        reqFb.setTransferTimeout(300000);
+                        QNetworkReply* r = nam->get(reqFb);
+
+                        auto speedStateFb = QSharedPointer<QPair<qint64,qint64>>::create(0, 0);
+                        connect(r, &QNetworkReply::downloadProgress, this,
+                            [this, installName, loaderDlStepIdx, speedStateFb](qint64 recv, qint64 total) {
+                                updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
+                                           total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
+                                qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                                qint64 delta = recv - speedStateFb->first;
+                                if (delta > 0) { speedStateFb->first = recv; speedStateFb->second = nowMs; }
+                            });
+
+                        connect(r, &QNetworkReply::finished, this,
+                            [=]() {
+                                r->deleteLater();
+                                if (r->error() != QNetworkReply::NoError) { (*tryFb)(); return; }
+                                QByteArray data = r->readAll();
+                                if (data.size() < 102400) { (*tryFb)(); return; }
+                                handleLoaderData(data);
+                            });
+                    };
+                    (*tryFb)();
+                    return;
+                }
+
+                QByteArray data = reply->readAll();
+                handleLoaderData(data);
+            });
+        }
+    }
 }
-
-
-
 void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,
 
         const QString& forgeVersion, const QString& installName,
@@ -8639,5 +8071,56 @@ void VersionBackend::startUserDataImport(const QString& installId)
 }
 
 
+
+// ── MergedInstallContext lifecycle ──
+
+MergedInstallContext* VersionBackend::createMergedContext(const QString& installId,
+                                                          const QString& mcVersion,
+                                                          const QString& loaderType,
+                                                          const QString& loaderVersion)
+{
+    destroyMergedContext(installId);
+
+    auto* ctx = new MergedInstallContext;
+    ctx->installId = installId;
+    ctx->mcVersion = mcVersion;
+    ctx->loaderType = loaderType;
+    ctx->loaderVersion = loaderVersion;
+
+    // Create unique temp directory
+    QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    ctx->tempDir = QDir::tempPath() + QStringLiteral("/shadow-merged-") + uuid;
+    QDir().mkpath(ctx->tempDir);
+
+    // Create ModLoaderInstaller
+    ctx->installer = new ModLoaderInstaller(this);
+
+    m_mergedContexts[installId] = ctx;
+    return ctx;
+}
+
+void VersionBackend::destroyMergedContext(const QString& installId)
+{
+    auto* ctx = m_mergedContexts.take(installId);
+    if (!ctx) return;
+
+    // Clean up temp directory
+    if (!ctx->tempDir.isEmpty()) {
+        QDir d(ctx->tempDir);
+        if (d.exists()) d.removeRecursively();
+    }
+
+    // Delete owned children
+    if (ctx->mcDownloader) {
+        ctx->mcDownloader->disconnect();
+        ctx->mcDownloader->deleteLater();
+    }
+    if (ctx->installer) {
+        ctx->installer->disconnect();
+        ctx->installer->deleteLater();
+    }
+
+    delete ctx;
+}
 
 } // namespace ShadowLauncher
