@@ -301,10 +301,10 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
 
         const QString bmclUrl = url;
         const QString offUrl = resolveOptifineOfficialUrl(filename);
-        downloadToMemoryRace({bmclUrl, offUrl},
+        downloadToMemoryRace({offUrl, bmclUrl},
             [this, filename](bool ok, const QByteArray& data) {
                 if (!ok) {
-                    emit finished(false, "OptiFine 下载失败（BMCLAPI 和官方源均失败）");
+                    emit finished(false, "OptiFine 下载失败（官方源和BMCLAPI均失败）");
                     m_running = false;
                     return;
                 }
@@ -324,10 +324,10 @@ void ModLoaderInstaller::installOptifine(const QString& mcVersion, const QString
         // Use TrueRace: download from both BMCLAPI and official concurrently
         const QString bmclUrl = url;
         const QString offUrl = resolveOptifineOfficialUrl(filename);
-        downloadToMemoryRace({bmclUrl, offUrl},
+        downloadToMemoryRace({offUrl, bmclUrl},
             [this, savePath, filename](bool ok, const QByteArray& data) {
                 if (!ok) {
-                    emit finished(false, "OptiFine 下载失败（BMCLAPI 和官方源均失败）");
+                    emit finished(false, "OptiFine 下载失败（官方源和BMCLAPI均失败）");
                     m_running = false;
                     return;
                 }
@@ -1286,8 +1286,8 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     // TrueRace: fire all source × version × category patterns concurrently
     // Categories: installer.jar (modern), universal.zip (MC 1.3.x-1.4.x), client.zip (MC 1.2.x)
     const QStringList bases = {
-        QStringLiteral("https://bmclapi2.bangbang93.com/maven"),
-        QStringLiteral("https://maven.minecraftforge.net")
+        QStringLiteral("https://maven.minecraftforge.net"),
+        QStringLiteral("https://bmclapi2.bangbang93.com/maven")
     };
     const QStringList versions = {
         vBranch,  // may be empty
@@ -1320,8 +1320,12 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     for (const QString& u : urlList)
         qCInfo(logLoader) << QStringLiteral("  %1").arg(u);
 
+    // Use browser UA for Forge Maven (Cloudflare blocks ShadowLauncher/1.0)
+    const std::string oldUA = HttpClient::instance().config().userAgent;
+    HttpClient::instance().setUserAgent(QString::fromLatin1(ShadowLauncher::kDefaultUserAgent));
     downloadToMemoryRace(urlList,
-        [this](bool ok, const QByteArray& data) {
+        [this, oldUA](bool ok, const QByteArray& data) {
+            HttpClient::instance().setUserAgent(QString::fromStdString(oldUA));
             if (!ok) {
                 emit finished(false, "Forge 安装程序下载失败（所有镜像源均不可用）");
                 m_running = false;
@@ -2517,19 +2521,20 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     // Build download URLs
                     QStringList urls;
                     if (!officialUrl.isEmpty()) {
-                        // Use the exact URL from install_profile.json (mirror to BMCLAPI too)
-                        urls << bmclapiMirror(officialUrl);
+                        // Official first, BMCLAPI as fallback
                         urls << officialUrl;
+                        urls << bmclapiMirror(officialUrl);
                     } else {
                         // Reconstruct URL from Maven coordinate
                         QString fileName = artifactName + QStringLiteral("-") + version + classifierSuffix + QStringLiteral(".") + ext;
-                        urls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
+                        // Official Forge Maven
+                        if (group.startsWith(QLatin1String("net/minecraftforge")))
+                            urls << QStringLiteral("https://files.minecraftforge.net/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
                         // Official NeoForge Maven
                         if (group.startsWith(QLatin1String("net/neoforged")))
                             urls << QStringLiteral("https://maven.neoforged.net/releases/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
-                        // Official Forge Maven
-                        else if (group.startsWith(QLatin1String("net/minecraftforge")))
-                            urls << QStringLiteral("https://files.minecraftforge.net/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
+                        // BMCLAPI as last resort
+                        urls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
                     }
 
                     bool libOk = false;
@@ -2538,6 +2543,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                         QDir().mkpath(libDir);
                         QNetworkRequest req;
                         req.setUrl(QUrl(url));
+                        req.setRawHeader("User-Agent", ShadowLauncher::kDefaultUserAgent);
                         QNetworkReply* reply = nam->get(req);
                         QEventLoop loop;
                         QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
@@ -3216,10 +3222,10 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
     const QString officialUrl = QStringLiteral("https://meta.fabricmc.net/v2/versions/loader/%1/%2/profile/json")
                                     .arg(m_mcVersion, m_loaderVersion);
 
-    downloadToMemoryRace({bmclUrl, officialUrl},
+    downloadToMemoryRace({officialUrl, bmclUrl},
         [this](bool ok, const QByteArray& data) {
             if (!ok) {
-                emit finished(false, "Fabric 配置下载失败（BMCLAPI 和官方源均失败）");
+                emit finished(false, "Fabric 配置下载失败（官方源和BMCLAPI均失败）");
                 m_running = false;
                 return;
             }
@@ -3528,15 +3534,19 @@ void ModLoaderInstaller::neoStep1_downloadInstaller() {
     const QString pkg = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
     const QString apiName = isLegacy ? QStringLiteral("1.20.1-%1").arg(ver) : ver;
 
-    // TrueRace: BMCLAPI + Official concurrent
-    const QString bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/%1/%2/%1-%2-installer.jar")
-                                .arg(pkg, apiName);
+    // TrueRace: Official first, BMCLAPI as fallback
     const QString officialUrl = QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/%1/%2/%1-%2-installer.jar")
                                     .arg(pkg, apiName);
+    const QString bmclUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/%1/%2/%1-%2-installer.jar")
+                                .arg(pkg, apiName);
 
-    const QStringList urls = {bmclUrl, officialUrl};
+    const QStringList urls = {officialUrl, bmclUrl};
+    // Use browser UA for NeoForge Maven (Cloudflare blocks ShadowLauncher/1.0)
+    const std::string oldUA = HttpClient::instance().config().userAgent;
+    HttpClient::instance().setUserAgent(QString::fromLatin1(ShadowLauncher::kDefaultUserAgent));
     downloadToMemoryRace(urls,
-        [this](bool ok, const QByteArray& data) {
+        [this, oldUA](bool ok, const QByteArray& data) {
+            HttpClient::instance().setUserAgent(QString::fromStdString(oldUA));
             if (!ok) {
                 emit finished(false, QStringLiteral("NeoForge 安装程序下载失败（BMCLAPI 和官方源均失败）"));
                 m_running = false;

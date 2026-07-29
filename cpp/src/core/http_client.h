@@ -22,6 +22,10 @@ namespace ShadowLauncher {
 // Shared config: all network layers must use these
 // ============================================================
 
+// Browser-like UA for Forge Maven / Cloudflare-protected CDNs
+static constexpr const char* kDefaultUserAgent =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ShadowLauncher/1.0 Chrome/125.0.0.0 Safari/537.36";
+
 struct NetworkConfig {
     std::string userAgent = "ShadowLauncher/1.0";
     std::string proxyHost;       // empty = no proxy
