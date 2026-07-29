@@ -7597,17 +7597,26 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 updateInstalledList();
 
                 // Clean up MC version folder if no other context needs it
+                qDebug() << "[cleanup] installId=" << installId << "ds=" << ds << "mcVersion=" << (ds ? ds->mcVersion : QStringLiteral("(null)"));
                 if (ds && !ds->mcVersion.isEmpty()) {
                     bool otherUsingSameMC = false;
                     for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
+                        qDebug() << "[cleanup]   ctx key=" << cIt.key() << "mcVersion=" << (cIt.value() ? cIt.value()->mcVersion : QStringLiteral("(null)"));
                         if (cIt.key() != installId && cIt.value() && cIt.value()->mcVersion == ds->mcVersion) {
                             otherUsingSameMC = true; break;
                         }
                     }
+                    qDebug() << "[cleanup]   otherUsingSameMC=" << otherUsingSameMC;
                     if (!otherUsingSameMC) {
+                        QString cleanupPath = m_gameDir + QStringLiteral("/versions/") + ds->mcVersion;
+                        qDebug() << "[cleanup]   CALLING cleanupCanceledVersion path=" << cleanupPath;
                         cleanupCanceledVersion(ds->mcVersion, m_gameDir);
                         refreshInstalled();
+                    } else {
+                        qDebug() << "[cleanup]   SKIP (other context still using MC)";
                     }
+                } else {
+                    qDebug() << "[cleanup]   SKIP (ds null or mcVersion empty)";
                 }
 
                 finishInstall(installId);
