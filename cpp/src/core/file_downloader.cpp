@@ -185,10 +185,37 @@ void FileDownloader::cancel()
     m_managerTimer->stop();
     m_speedTimer2->stop();
     m_threadPool.clear();
+
+    // Abort ALL in-flight HTTP replies immediately.
+    // IMPORTANT: QNetworkReply::abort() is only thread-safe when called from the
+    // thread that owns the reply. Workers run in QThreadPool threads, so we MUST
+    // invoke abort() on the worker's event loop via QueuedConnection.
+    // Direct reply->abort() from the main thread is UNDEFINED BEHAVIOR.
+    {
+        QMutexLocker lock(&m_inflightMutex);
+        for (auto* reply : m_inflightReplies) {
+            // Queue abort() on the worker thread's event loop
+            QMetaObject::invokeMethod(reply, "abort", Qt::QueuedConnection);
+        }
+        m_inflightReplies.clear();
+    }
+
     emit logMessage(QString::fromUtf8("[失败] 下载已取消"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+
+// ── In-flight reply tracking (for immediate abort on cancel) ──
+void FileDownloader::addInFlightReply(QNetworkReply* reply) {
+    QMutexLocker lock(&m_inflightMutex);
+    m_inflightReplies.append(reply);
+}
+
+void FileDownloader::removeInFlightReply(QNetworkReply* reply) {
+    QMutexLocker lock(&m_inflightMutex);
+    m_inflightReplies.removeOne(reply);
+}
+
 // Manager tick — phase-based scheduling (主流启动器-style)
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -471,7 +498,27 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
             });
 
+            // Register reply for thread-safe abort on cancel
+            // QMetaObject::invokeMethod("abort", QueuedConnection) from the main
+            // thread triggers reply->abort() on THIS worker thread (the owner).
+            addInFlightReply(reply);
+
+            // NOTE: QTimer cancelGuard is NOT used here — QThreadPool threads
+            // have no event dispatcher, so QTimer never fires. Instead we rely on:
+            //   1. addInFlightReply() + cancel() queuing abort() to this thread
+            //   2. loop.exec() returning when reply finishes (naturally or aborted)
+            //   3. The m_cancelled check below to discard data if cancelled
+
             loop.exec();
+
+            removeInFlightReply(reply);
+
+            // Cancel check: discard data immediately if cancelled
+            if (m_cancelled.loadRelaxed()) {
+                reply->abort();
+                reply->deleteLater();
+                goto cleanup;
+            }
 
             if (timedOut || reply->error() != QNetworkReply::NoError) {
                 qCWarning(logDownload) << QStringLiteral("请求失败 URL=%1 错误=%2 重试=%3")
@@ -620,7 +667,19 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
             });
 
+            // Register reply for thread-safe abort on cancel
+            addInFlightReply(reply);
+
             loop.exec();
+
+            removeInFlightReply(reply);
+
+            // Cancel check: discard data immediately if cancelled
+            if (m_cancelled.loadRelaxed()) {
+                reply->abort();
+                reply->deleteLater();
+                goto cleanup;
+            }
 
             if (timedOut || reply->error() != QNetworkReply::NoError) {
                 reply->abort();

@@ -180,6 +180,8 @@ void AssetDownloader::cancel()
         reply->deleteLater();
     }
 
+    m_ioPool.clear();
+
     emit logMessage("AssetDownloader: cancelled");
     emit allFinished(false, m_failedCount, m_failedFiles);
 }
@@ -787,6 +789,7 @@ void AssetDownloader::enqueueIO(const AssetTask& task, const QByteArray& data)
     worker->callback = [self](const AssetDownloader::AssetTask& t, bool ok) {
         if (self) {
             QMetaObject::invokeMethod(self, [self, t, ok]() {
+                if (self->m_state == AssetDownloader::Cancelled) return;
                 self->finishDownload(t, ok);
             });
         }

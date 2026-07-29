@@ -667,7 +667,12 @@ void VersionBackend::installVersion(const QString& versionId)
 
             QJsonObject versionJson = doc.object();
 
-
+            // ── Check if this MC version was cancelled (async JSON fetch completed after cancel) ──
+            if (m_userCancelledIds.contains(versionId)) {
+                qCInfo(logVersion).noquote() << "[cancel] version" << versionId << "was cancelled, aborting downloader creation";
+                cancelActiveDownload(versionId);
+                return;
+            }
 
             // ── Notify that MC version JSON is ready ──
 
@@ -676,16 +681,12 @@ void VersionBackend::installVersion(const QString& versionId)
 
 
             // ── Cancel any existing downloader ──
-
+            // take() prevents re-entrancy; let natural signal chain handle cleanup.
             if (m_downloaders.contains(versionId)) {
 
-                m_downloaders[versionId]->cancel();
+                auto* oldDl = m_downloaders.take(versionId);
 
-                m_downloaders[versionId]->disconnect();
-
-                m_downloaders[versionId]->deleteLater();
-
-                m_downloaders.remove(versionId);
+                oldDl->cancel();
 
             }
 
@@ -1061,11 +1062,10 @@ void VersionBackend::installVersion(const QString& versionId)
 
                         {
 
-                            QMutexLocker lock(&raceCtx->mtx);
-
-                            if (raceCtx->hasWinner) return;
-
                         }
+
+                        // Cancel check: if version was cancelled during JSON fetch, skip progress update
+                        if (m_userCancelledIds.contains(versionId)) return;
 
                         int pct = total > 0 ? (int)(recv * 100 / total) : 0;
 
@@ -1120,6 +1120,11 @@ void VersionBackend::installVersion(const QString& versionId)
                                 return;  // already decided
 
 
+
+
+                                // Cancel check: don't declare winner if version was cancelled
+                                if (m_userCancelledIds.contains(versionId))
+                                    return;
 
                             if (reply->error() == QNetworkReply::NoError) {
 
@@ -1317,28 +1322,21 @@ void VersionBackend::cancelCurrentInstall()
 void VersionBackend::cancelActiveDownload(const QString& versionId)
 
 {
+    qCDebug(logVersion).noquote() << "[cancelDbg] cancelActiveDownload ENTER versionId=" << versionId << " inMap=" << m_downloaders.contains(versionId);
 
     // Rollback an active download that has no downloader yet
-
     // (used when version JSON fetch fails before downloader is created)
-
+    // NOTE: We do NOT take() from m_downloaders here — the natural signal chain
+    // (FileDownloader -> VersionDownloader -> onVersionDownloadFinished) handles
+    // all state cleanup (m_dlStates, m_activeIds, m_activeCount). take() causes
+    // onVersionDownloadFinished to not find the sender in m_downloaders → return
+    // early → userCancelledIds never cleaned, cancellation silently lost.
+    //
+    // All signal connections are Qt::QueuedConnection, so cancel() does not
+    // synchronously trigger onVersionDownloadFinished → no re-entrancy risk.
     if (m_downloaders.contains(versionId)) {
-
         m_downloaders[versionId]->cancel();
-
-        m_downloaders[versionId]->disconnect();
-
-        m_downloaders[versionId]->deleteLater();
-
-        m_downloaders.remove(versionId);
-
     }
-
-    m_dlStates.remove(versionId);
-
-    m_activeIds.removeOne(versionId);
-
-    if (m_activeCount > 0) m_activeCount--;
 
     if (m_activeCount == 0) {
 
@@ -1397,23 +1395,52 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
             if (ctx->installer) ctx->installer->cancel();
         }
 
-        destroyMergedContext(versionId);  // temp dir deleted if last user
-        if (!m_gameDir.isEmpty())
-            cleanupCanceledVersion(versionId, m_gameDir);  // install-name version folder
+        // CRITICAL: Cancel MC download BEFORE destroying temp dir.
+        // FileDownloader may be writing to {tempDir}/versions/, and removing
+        // the directory while files are open causes access violation (0xc0000005).
+        //
+        // BUGFIX: Exclude the current context itself from the "still needed" check.
+        // The context hasn't been removed from m_mergedContexts yet, so the old loop
+        // always found itself and never cancelled the MC download.
+        ctx->failed = true;
+        ctx->failReason = tr("已取消");
 
-        // If no other context uses this MC version, cancel the MC download too
         bool mcStillNeeded = false;
+        bool mcDownloadInProgress = false;
         if (!mcVer.isEmpty()) {
+            int otherUsers = 0;
             for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
-                if (it.value() && it.value()->mcVersion == mcVer) {
-                    mcStillNeeded = true; break;
+                if (it.key() != versionId && it.value() && it.value()->mcVersion == mcVer) {
+                    otherUsers++;
                 }
             }
-            if (!mcStillNeeded && m_downloaders.contains(mcVer)) {
+            mcStillNeeded = (otherUsers > 0);
+            mcDownloadInProgress = m_downloaders.contains(mcVer);
+        }
+
+        if (!mcStillNeeded) {
+            // ── This is the last context using this MC version — stop the download ──
+            if (!mcVer.isEmpty())
                 m_userCancelledIds.insert(mcVer);
-                m_downloaders[mcVer]->cancel();
+
+            if (mcDownloadInProgress) {
+                // MC download is in progress: cancelActiveDownload queues abort to
+                // worker threads via QueuedConnection. Workers may still be writing to
+                // tempDir — defer cleanup to onVersionDownloadFinished (which fires after
+                // all workers have actually stopped).
+                if (!mcVer.isEmpty())
+                    cancelActiveDownload(mcVer);
+            } else {
+                // MC download is already done (e.g. Forge installer running), or no
+                // MC version to download. No worker threads writing to tempDir —
+                // safe to destroy the merged context immediately.
+                destroyMergedContext(versionId);
+                if (!m_gameDir.isEmpty())
+                    cleanupCanceledVersion(versionId, m_gameDir);
             }
         }
+        // else: MC still needed by other contexts. Keep context alive (shared tempDir).
+        // No cleanup needed. The installer was cancelled above.
 
         auto* ds = dlSession(versionId);
         if (ds) {
@@ -1425,10 +1452,6 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
                 updateStep(versionId, i, QStringLiteral("failed"), 0);
         }
 
-        // Clear download state so card speed display drops to 0
-        if (!mcVer.isEmpty() && m_dlStates.contains(mcVer) && !mcStillNeeded)
-            m_dlStates[mcVer].speed = 0;
-
         // Bypass throttle: force immediate card rebuild so QML poll picks up the failed state
         m_cardsRebuildPending = false;
         m_cardsTimer.restart();
@@ -1438,8 +1461,9 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         rebuildInstallCards();
 
         qDebug() << "[cancelVersionInstall] Merged card cancelled:" << versionId;
+        // Do NOT emit installComplete here — that would trigger "下载完成" toast in QML.
+        // cancelNotification already shows the correct cancel toast.
         emit cancelNotification(versionId, tr("已取消 %1 的安装").arg(versionId));
-        emit installComplete(versionId);
         emit logMessage(tr("已取消 %1 的安装").arg(versionId));
         setInstalling(false);
         emit installStateChanged();
@@ -1658,9 +1682,9 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     m_dlStates.remove(finishedId);
 
-    m_activeIds.removeOne(finishedId);
-
-    m_activeCount--;
+    // removeOne returns true if item was present → guard against double-decrement
+    if (m_activeIds.removeOne(finishedId))
+        m_activeCount--;
 
 
 
@@ -1734,6 +1758,29 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         qCInfo(logVersion).noquote() << "onVersionDownloadFinished: user cancelled" << finishedId;
 
+        // ── Deferred merged context cleanup ──
+        // cancelVersionInstall defers destroyMergedContext because the worker threads
+        // may still be writing to the temp dir. Now that the download is fully stopped
+        // (all workers done, allFinished emitted), it's safe to delete temp dirs.
+        // Find any merged contexts that were waiting on this MC version download.
+        {
+            auto contextKeys = m_mergedContexts.keys();
+            for (const auto& installId : contextKeys) {
+                auto* mergeCtx = m_mergedContexts.value(installId);
+                if (mergeCtx && mergeCtx->failed && mergeCtx->mcVersion == finishedId) {
+                    // mcDownloader inside ctx is the same object as finishedDl —
+                    // already disconnected and deleteLater'd in the cleanup block above.
+                    // destroyMergedContext handles this gracefully (extra disconnect/deleteLater is harmless).
+                    destroyMergedContext(installId);
+                    if (!m_gameDir.isEmpty())
+                        cleanupCanceledVersion(installId, m_gameDir);
+                }
+            }
+        }
+
+        // Also clean up the MC version folder from gameDir (it was downloaded to tempDir,
+        // so this is a no-op if never copied; safety cleanup if partially copied).
+        // NOTE: Use m_versionMgr->gameDir() for the pure-MC version folder (tempDir is same path).
         cleanupCanceledVersion(finishedId, m_versionMgr->gameDir());
 
         setInstallPhase(tr("取消"));
@@ -2602,6 +2649,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
 {
 
+    // Silently ignore stale queued signals from a cancelled download.
+    if (m_userCancelledIds.contains(versionId)) return;
+
     // ── Update per-download state ──
 
     auto& st = m_dlStates[versionId];
@@ -2967,6 +3017,10 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
 {
 
+    // Silently ignore stale queued signals from a cancelled download.
+    // Qt QueuedConnection delivers already-queued events even after disconnect().
+    if (m_userCancelledIds.contains(versionId)) return;
+
     auto& st = m_dlStates[versionId];
 
     st.file = fileName;
@@ -3027,11 +3081,7 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
             // Log completed file (always, even on dedup, for debugging)
             emit logMessage(QStringLiteral("[下载] ") + fileName + QStringLiteral(" (%1 KB)").arg(total/1024));
 
-            // DEBUG: check category accumulation
 
-            qCInfo(logVersion) << QStringLiteral("[catDbg] ver=%1 cat=%2 file=%3 catBytesDl=%4KB catBytesTotal=%5KB%6")
-                .arg(versionId).arg(cat).arg(fileName).arg(catDone/1024).arg(st.catBytesTotal[cat]/1024)
-                .arg(firstTime ? QString() : QStringLiteral(" DEDUP"));
 
         }
 

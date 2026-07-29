@@ -26,6 +26,7 @@
 #include <QThreadPool>
 #include <memory>
 #include <QTimer>
+#include <QNetworkReply>
 
 class QHostInfo;
 
@@ -84,6 +85,8 @@ public:
     void pause();
     void resume();
     void cancel();
+    void addInFlightReply(QNetworkReply* reply);
+    void removeInFlightReply(QNetworkReply* reply);
 
     void setMaxThreads(int n) { m_maxThreads = qBound(1, n, 128); }
     int maxThreads() const { return m_maxThreads; }
@@ -133,6 +136,10 @@ private:
     QAtomicInteger<qint64> m_totalBytes{0};
     QAtomicInt m_activeThreads{0};
     QAtomicInt m_nextUuid{0};
+
+    // ── In-flight reply tracking (for immediate abort on cancel) ──
+    mutable QMutex m_inflightMutex;
+    QList<QNetworkReply*> m_inflightReplies;
 
     // ── Phase-based scheduling (主流启动器 style) ──
     enum Phase { PhaseFirstThread, PhaseAccelerate, PhaseSteady };

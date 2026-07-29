@@ -385,7 +385,7 @@ void VersionDownloader::resume()
 
 void VersionDownloader::cancel()
 {
-    if (m_state != Running && m_state != Paused) return;
+    if (m_state == Idle || m_state == Done || m_state == Failed) return;
     m_state = Cancelled;
     if (m_downloader) m_downloader->cancel();
     if (m_assetDownloader) m_assetDownloader->cancel();
