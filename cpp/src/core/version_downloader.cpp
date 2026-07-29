@@ -104,7 +104,7 @@ VersionDownloader::VersionDownloader(QObject* parent)
 
     // ── Asset-dedicated downloader v2 (2× HTTP/1.1 QNAMs, adaptive concurrency) ──
     m_assetDownloader = new AssetDownloader(this);
-    m_assetDownloader->setMaxConcurrent(64);
+    m_assetDownloader->setMaxConcurrent(m_maxWorkers);
     if (m_downloadCfg.speedLimitMB > 0)
         m_assetDownloader->setSpeedLimitMB(m_downloadCfg.speedLimitMB);
 
@@ -166,6 +166,7 @@ void VersionDownloader::setMaxWorkers(int workers)
     m_maxWorkers = qBound(1, workers, 128);
     m_downloadCfg.maxWorkers = m_maxWorkers;
     if (m_downloader) m_downloader->setMaxThreads(m_maxWorkers);
+    if (m_assetDownloader) m_assetDownloader->setMaxConcurrent(m_maxWorkers);
 }
 
 void VersionDownloader::setDownloadConfig(const DownloadConfig& config)
@@ -176,8 +177,11 @@ void VersionDownloader::setDownloadConfig(const DownloadConfig& config)
         m_downloader->setMaxThreads(m_maxWorkers);
         m_downloader->setSpeedLimitMB(config.speedLimitMB);
     }
-    if (m_assetDownloader && config.speedLimitMB > 0)
-        m_assetDownloader->setSpeedLimitMB(config.speedLimitMB);
+    if (m_assetDownloader) {
+        m_assetDownloader->setMaxConcurrent(m_maxWorkers);
+        if (config.speedLimitMB > 0)
+            m_assetDownloader->setSpeedLimitMB(config.speedLimitMB);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -338,7 +342,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         // Start AssetDownloader v2 (2× HTTP/1.1, adaptive concurrency)
         if (hasAssetTasks) {
             emit logMessage(tr("启动资源文件下载器 v2 (%1 个文件, 2×HTTP/1.1)").arg(assetTasks.size()));
-            m_assetDownloader->startDownload(assetTasks, 64);
+            m_assetDownloader->startDownload(assetTasks, m_maxWorkers);
         }
 
         // Both done immediately? (no tasks at all)

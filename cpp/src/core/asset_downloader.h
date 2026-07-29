@@ -51,10 +51,10 @@ public:
     explicit AssetDownloader(QObject* parent = nullptr);
     ~AssetDownloader() override;
 
-    void setMaxConcurrent(int n) { m_maxConcurrent = qBound(16, n, 256); }
+    void setMaxConcurrent(int n) { m_maxConcurrent = qBound(4, n, 256); }
     void setSpeedLimitMB(double mbps) { m_speedLimitMB = mbps; }
 
-    void startDownload(const QVector<AssetTask>& tasks, int maxConcurrent = 64);
+    void startDownload(const QVector<AssetTask>& tasks, int maxConcurrent = 16);
     void cancel();
     bool isRunning() const { return m_state == Running; }
 
@@ -100,11 +100,16 @@ private:
         int  totalSuccess = 0;
         qint64 avgFirstByteMs = 15000;     // running average, start conservative
         bool  degraded = false;            // skip if too many fails
+        int  dynamicLimit = 4;             // current dynamic per-host limit
     };
     QString extractHost(const QString& url) const;
     HostStats& hostStats(const QString& host);
     bool hostCanAccept(const QString& host) const;
     void recordHostResult(const QString& host, bool ok, qint64 firstByteMs);
+    /// Per-host connection limit — dynamically adjusted.
+    /// BMCLAPI: separate limit; others use host-specific dynamic limit.
+    int  getHostLimit(const QString& host) const;
+    void adjustHostLimits();              // called periodically to tune limits
 
     // ── DNS + IP reliability ──
     struct IPInfo {
@@ -112,11 +117,12 @@ private:
         QMap<QString, double> reliability; // IP → score (-1..+0.5)
         qint64 lastResolveMs = 0;
     };
-    QStringList resolveHost(const QString& host);
 
     // ── Speed monitoring ──
     void sampleSpeed();
     void updateSpeedFloor();
+    /// Reset speed baseline after burst cache-hits, so initial reading is correct
+    void resetSpeedBaseline();
 
     // ── I/O offload (thread pool) ──
     struct IOTask {
@@ -125,24 +131,45 @@ private:
     };
     void enqueueIO(const AssetTask& task, const QByteArray& data);
 
+    // ── Async SHA1 pre-check (offloaded to IO pool, avoids main-thread blocking) ──
+    void enqueuePreCheck(const AssetTask& task);
+    struct PreCheckPending {
+        AssetTask task;
+        qint64 enqueueAtMs = 0;
+    };
+    QMap<QString, PreCheckPending> m_pendingPreCheck;  // sha1 → task
+    void onPreCheckResult(const AssetTask& task, bool sha1Match);
+
+    // ── Async DNS resolution ──
+    struct DnsPending {
+        QString host;
+        int refCount = 0;
+    };
+    QMap<QString, DnsPending> m_dnsToResolve;  // host → pending state
+    int  m_dnsPendingCount = 0;
+    bool m_dnsAllResolved = false;
+    void startAsyncDns();
+    void checkAllDnsResolved();
+
     // ── State ──
     enum State { Idle, Running, Cancelled, Done };
     State m_state = Idle;
     int   m_totalTaskCount = 0;
 
-    // ── Phase management (replaces dumb ramp timer) ──
-    enum Phase { PhaseBurst, PhaseAccelerate, PhaseSteady, PhaseCooldown };
-    Phase m_phase = PhaseBurst;
+    // ── Phase management ──
+    enum Phase { PhaseInit, PhaseBurst, PhaseAccelerate, PhaseSteady, PhaseCooldown };
+    Phase m_phase = PhaseInit;
     QTimer* m_accelTimer = nullptr;        // fires every 50ms during accel
     static constexpr int kAccelIntervalMs = 50;
 
     // ── Concurrency ──
-    int  m_maxConcurrent = 64;
+    int  m_maxConcurrent = 16;
     int  m_targetInflight = 0;             // computed by schedulePhase()
     int  m_burstSent = 0;                  // count of initial burst requests
-    static constexpr int kBurstSize = 20;  // immediate burst
-    static constexpr int kAccelStep = 8;   // add per tick during accelerate
-    static constexpr int kMaxPerHost = 10; // max concurrent per host
+    int  m_preCheckQueued = 0;             // count of async SHA1 pre-checks in flight
+    static constexpr int kBurstSize = 4;   // immediate burst (reduced from 12, servers throttle >4)
+    static constexpr int kAccelStep = 2;   // add per tick during accelerate (reduced from 4)
+    static constexpr int kMaxPerHost = 4;  // max concurrent per host (reduced from 8)
 
     // ── Network managers (2 × HTTP/1.1 to avoid HTTP/2 stream limits) ──
     QNetworkAccessManager* m_nam[2] = {nullptr, nullptr};
@@ -168,6 +195,7 @@ private:
     QAtomicInteger<qint64> m_totalBytes{0};
     QAtomicInteger<qint64> m_downloadedBytes{0};
     QAtomicInteger<qint64> m_lastSampleBytes{0};
+    QAtomicInteger<qint64> m_cacheBytes{0};  // bytes from cache hits (excluded from speed calc)
     QElapsedTimer m_speedTimer;
 
     // ── Speed floor (adaptive, 85 % of weighted peak) ──
@@ -183,11 +211,10 @@ private:
     mutable QMutex m_hostMutex;
     QMap<QString, HostStats> m_hostStats;
 
-    // ── DNS / IP reliability ──
+    // ── DNS / IP reliability (built-up async from lookupHost results) ──
     mutable QMutex m_dnsMutex;
     QMap<QString, IPInfo> m_dnsCache;
     static constexpr qint64 kDnsCacheMs = 300000;     // 5 min
-    static constexpr qint64 kDnsFailureBackoffMs = 60000; // 1 min
 
     // ── I/O thread pool ──
     QThreadPool m_ioPool;
@@ -196,4 +223,10 @@ private:
     // ── Throttle progress signals ──
     QElapsedTimer m_lastProgressEmit;
     static constexpr int kProgressThrottleMs = 150;
+
+    // ── Detailed logging ──
+    QElapsedTimer m_downloadTimer;
+    void logState(const char* event);
+    void logSpeed();  // rate-limited speed snapshot (1s interval)
+    QElapsedTimer m_speedLogTimer;
 };

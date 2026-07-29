@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 //
-// Asset-dedicated download engine v2.
+// Asset-dedicated download engine v2 (performance-tuned 2026-07-29).
 //
-// Key improvements over v1:
-//   - 2 × HTTP/1.1 QNAM (255 conn/host each) → avoids HTTP/2 RST_STREAM issues
-//   - Three-phase acceleration (burst → accelerate → steady)
-//   - Speed-based adaptive concurrency with sliding-window speed floor
-//   - SHA1+disk I/O offloaded to QThreadPool
-//   - Per-host health tracking + DNS IP reliability scoring
+// Performance fixes:
+//   - Async SHA1 pre-check (IO pool instead of blocking main thread)
+//   - Async DNS resolution (QHostInfo::lookupHost instead of fromName)
+//   - Fixed cache-hit speed spike corrupting speed floor
+//   - Reduced default concurrency (burst 12, max 32, per-host 8)
+//   - Added detailed logging for diagnostics
 //
-// Principle ("phased acceleration" inspired by 主流启动器):
-//   1. Burst: fire ~20 requests immediately (bypass SHA1 precheck for speed)
-//   2. Accelerate: every 50ms, check throughput. If speed < floor → add 8 more.
+// Design:
+//   1. Init: async DNS pre-resolution, brief size-based cache check
+//   2. Burst: fire ~12 requests immediately
+//   3. Accelerate: every 50ms, check throughput. If speed < floor → add 4 more.
 //      Speed floor starts at 256KB/s, rises to 85% of weighted peak.
-//   3. Steady: when speed >= floor, stop adding. Replace finished requests.
-//   4. Cooldown: if speed drops sharply, reduce inflight to avoid congestion.
+//   4. Steady: when speed >= floor, stop adding. Replace finished requests.
+//   5. Cooldown: if speed drops sharply, reduce inflight to avoid congestion.
 
 #include "asset_downloader.h"
 
@@ -30,6 +31,7 @@
 #include <QHttp1Configuration>
 #include <QDateTime>
 #include <QPointer>
+#include <QHostInfo>
 
 Q_LOGGING_CATEGORY(logAsset, "ShadowDownloader.Asset")
 
@@ -74,8 +76,11 @@ void AssetDownloader::setupNam()
     m_accelTimer->stop();
     m_burstSent = 0;
     m_targetInflight = 0;
-    m_phase = PhaseBurst;
+    m_phase = PhaseInit;
 
+    // Two QNAMs for HTTP/1.1 — each with 255 connections per host max.
+    // Per-request we set Http2AllowedAttribute=false to prevent ALPN
+    // from negotiating HTTP/2, which causes RST_STREAM issues on BMCLAPI.
     for (int i = 0; i < 2; ++i) {
         if (m_nam[i]) {
             m_nam[i]->disconnect();
@@ -83,15 +88,9 @@ void AssetDownloader::setupNam()
             m_nam[i] = nullptr;
         }
         m_nam[i] = new QNetworkAccessManager(this);
-        // HTTP/1.1 with 255 max connections per host — avoids HTTP/2
-        // stream-multiplexing issues that BMCLAPI triggers (RST_STREAM).
-        // Two QNAMs × 255 = 510 concurrent connections max.
-        // HTTP/1.1 connections — we set per-request config in fireNext()
-        // because QNetworkAccessManager::setHttp1Configuration may not be
-        // available across all Qt 6 minor versions. Per-request is fine.
     }
 
-    qCInfo(logAsset) << "AssetDownloader v2: 2× HTTP/1.1 QNAMs (255 conn/host)";
+    qCInfo(logAsset) << "AssetDownloader v2+: 2× QNAMs ready";
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -105,11 +104,18 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
         return;
     }
 
-    m_maxConcurrent = qBound(16, maxConcurrent, 256);
+    m_maxConcurrent = qBound(4, maxConcurrent, 256);
     m_targetInflight = 0;
-    m_phase = PhaseBurst;
+    m_phase = PhaseInit;
     m_burstSent = 0;
     m_cacheHitCount = 0;
+    m_preCheckQueued = 0;
+    m_cacheBytes.storeRelaxed(0);
+    m_dnsPendingCount = 0;
+    m_dnsAllResolved = false;
+    m_pendingPreCheck.clear();
+    m_dnsToResolve.clear();
+    m_hostStats.clear();  // Clear stale degradation from previous runs
 
     m_pendingQueue.clear();
     m_inFlight.clear();
@@ -128,35 +134,101 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     for (const auto& t : tasks)
         m_pendingQueue.enqueue(t);
 
-    // Pre-resolve DNS for all unique hosts
+    m_state = Running;
+    m_lastProgressEmit.start();
+    m_downloadTimer.start();
+    m_speedLogTimer.start();
+
+    // Log the first few task's mirror sources to verify which source is being used
+    if (!tasks.isEmpty()) {
+        const auto& first = tasks.first();
+        QString sampleUrls;
+        for (int i = 0; i < qMin(first.mirrors.size(), 4); ++i) {
+            if (i > 0) sampleUrls += QStringLiteral(" | ");
+            sampleUrls += first.mirrors[i];
+        }
+        emit logMessage(QStringLiteral("AssetDownloader v2+ : %1 files (%2) starting")
+                            .arg(tasks.size()).arg(fmtSize(totalEst)));
+        emit logMessage(QStringLiteral("  [source] sample mirrors: %1").arg(sampleUrls));
+    } else {
+        emit logMessage(QStringLiteral("AssetDownloader v2+ : 0 files"));
+    }
+    emit progressChanged(0, tasks.size(), 0, totalEst);
+
+    // ════════════════════════════════════════════════════════════════
+    // Phase Init: async DNS + pre-check already-cached files
+    // ════════════════════════════════════════════════════════════════
+    // Collect unique hosts for async DNS resolution
     QSet<QString> hosts;
     for (const auto& t : tasks) {
         for (const auto& m : t.mirrors)
             hosts.insert(extractHost(m));
     }
-    for (const auto& h : hosts)
-        resolveHost(h);
+    // Store them for async resolution
+    for (const auto& h : hosts) {
+        DnsPending dp;
+        dp.host = h;
+        dp.refCount = 0;
+        m_dnsToResolve.insert(h, dp);
+    }
+    m_dnsPendingCount = m_dnsToResolve.size();
 
-    m_state = Running;
-    m_lastProgressEmit.start();
-    m_speedTimer.start();
-    // 初始化 lastSampleBytes 为当前已加载的缓存字节，避免首次测速将
-    // 所有 cache hit 的文件大小算作瞬时速度
-    m_lastSampleBytes.storeRelaxed(m_downloadedBytes.loadRelaxed());
-
-    emit logMessage(QString("AssetDownloader v2: %1 files (%2), %3 hosts")
-                        .arg(tasks.size()).arg(fmtSize(totalEst)).arg(hosts.size()));
-    emit progressChanged(0, tasks.size(), 0, totalEst);
-
-    // ── Phase 1: Burst — fire kBurstSize immediately ──
-    int burst = qMin(kBurstSize, m_maxConcurrent);
-    for (int i = 0; i < burst && !m_pendingQueue.isEmpty(); ++i) {
-        fireNext();
-        m_burstSent++;
+    if (!m_dnsToResolve.isEmpty()) {
+        emit logMessage(QStringLiteral("  [dns] resolving %1 hosts...").arg(m_dnsToResolve.size()));
+        startAsyncDns();
+    } else {
+        m_dnsAllResolved = true;
     }
 
-    if (m_inFlight.size() < m_maxConcurrent && !m_pendingQueue.isEmpty())
-        m_accelTimer->start();  // enter Phase 2: accelerate
+    // Pre-scan for cache hits: quick file-exists + size check (no SHA1 I/O).
+    // Dispatch async SHA1 pre-check for files that pass the fast check.
+    int fastCacheHits = 0;
+    QQueue<AssetTask> downloadQueue;
+    while (!m_pendingQueue.isEmpty()) {
+        AssetTask task = m_pendingQueue.dequeue();
+        if (!task.sha1.isEmpty()) {
+            QFileInfo fi(task.savePath);
+            if (fi.exists() && fi.size() > 0) {
+                // Quick size match check
+                if (task.size <= 0 || fi.size() == task.size) {
+                    // Dispatch async SHA1 pre-check
+                    enqueuePreCheck(task);
+                    fastCacheHits++;
+                    continue;  // don't put in downloadQueue yet
+                }
+            }
+        }
+        // Needs download
+        downloadQueue.enqueue(task);
+    }
+    m_pendingQueue = downloadQueue;
+
+    if (fastCacheHits > 0) {
+        emit logMessage(QStringLiteral("  [pre-check] %1 files queued for async SHA1 verification on IO pool")
+                            .arg(fastCacheHits));
+    }
+
+    // ── Phase 1: Burst — fire kBurstSize immediately ──
+    // (Only for files that definitely need downloading, pre-checks run in parallel)
+    m_phase = PhaseBurst;
+    int burst = qMin(kBurstSize, m_pendingQueue.size());
+    burst = qMin(burst, m_maxConcurrent);
+    if (burst > 0) {
+        emit logMessage(QStringLiteral("  [burst] firing %1 requests (pending=%2, pre-check=%3)")
+                            .arg(burst).arg(m_pendingQueue.size()).arg(m_pendingPreCheck.size()));
+        for (int i = 0; i < burst && !m_pendingQueue.isEmpty(); ++i) {
+            fireNext();
+            m_burstSent++;
+        }
+    }
+
+    // Initialize speed baseline AFTER counting pre-check cache hits
+    resetSpeedBaseline();
+
+    if (m_inFlight.size() < m_maxConcurrent && (!m_pendingQueue.isEmpty() || !m_pendingPreCheck.isEmpty()))
+        m_accelTimer->start();
+
+    logState("startDownload complete");
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -174,6 +246,7 @@ void AssetDownloader::cancel()
         toAbort.append(it.key());
     m_inFlight.clear();
     m_pendingQueue.clear();
+    m_pendingPreCheck.clear();
 
     for (auto* reply : toAbort) {
         reply->abort();
@@ -183,6 +256,7 @@ void AssetDownloader::cancel()
     m_ioPool.clear();
 
     emit logMessage("AssetDownloader: cancelled");
+    logState("cancelled");
     emit allFinished(false, m_failedCount, m_failedFiles);
 }
 
@@ -203,60 +277,53 @@ void AssetDownloader::fireNext()
         return;
     }
 
-    // SHA1 pre-check: skip if file exists with matching hash
-    if (!task.sha1.isEmpty()) {
-        QFileInfo fi(task.savePath);
-        if (fi.exists() && fi.size() > 0) {
-            // Quick size-match check first
-            if (task.size > 0 && fi.size() != task.size)
-                goto do_download;
-
-            QFile f(task.savePath);
-            if (f.open(QIODevice::ReadOnly)) {
-                QCryptographicHash hash(QCryptographicHash::Sha1);
-                hash.addData(&f);
-                f.close();
-                if (hash.result().toHex() == task.sha1) {
-                    // Cache hit — count bytes immediately for smooth progress
-                    m_cacheHitCount++;
-                    m_downloadedBytes.fetchAndAddRelaxed(task.size);
-                    QTimer::singleShot(0, this, [this, task]() {
-                        finishDownload(task, true);
-                    });
-                    return;
-                }
-            }
-        }
-    }
-
-do_download:
     // Ensure parent dir exists
     QDir().mkpath(QFileInfo(task.savePath).absolutePath());
 
-    // Pick source: skip degraded hosts
+    // Pick source: skip degraded hosts. Respect per-host limits —
+    // if no mirror can accept, requeue and let accelTick retry later.
     const QStringList& mirrors = task.mirrors;
-    int selectedMirror = 0;
+    int selectedMirror = -1;
     for (int i = 0; i < mirrors.size(); ++i) {
         QString host = extractHost(mirrors[i]);
         if (hostCanAccept(host)) {
             selectedMirror = i;
             break;
         }
-        // Last resort: use it anyway
-        if (i == mirrors.size() - 1)
-            selectedMirror = i;
+    }
+    if (selectedMirror < 0) {
+        // All mirrors at capacity — requeue and try later via accelTick
+        m_pendingQueue.prepend(task);
+        if (!m_accelTimer->isActive())
+            m_accelTimer->start();
+        return;
     }
 
     const QString& url = mirrors[selectedMirror];
+    // ── Source selection log (throttled: every 5s or on fallback) ──
+    {
+        static int logCounter = 0;
+        if (++logCounter % 100 == 1 || selectedMirror > 0) {
+            QString host = extractHost(url);
+            QString srcLabel = selectedMirror == 0
+                ? QStringLiteral("primary")
+                : QStringLiteral("fallback[%1]").arg(selectedMirror);
+            qCInfo(logAsset) << "  [source]" << srcLabel << host << task.sha1.left(12) << "...";
+        }
+    }
     QUrl qurl(url);
     QNetworkRequest req(qurl);
     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
-    // HTTP/1.1: allow up to 255 connections per host per manager (×2 = 510)
+    // Disable HTTP/2 — BMCLAPI and Mojang CDN send RST_STREAM under
+    // concurrent HTTP/2 streams. HTTP/1.1 with multiple connections is
+    // more reliable for asset downloads.
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    // Per-request HTTP/1.1 config: 255 connections per host per QNAM
     {
         QHttp1Configuration h1cfg;
-        h1cfg.setNumberOfConnectionsPerHost(255);
+        h1cfg.setNumberOfConnectionsPerHost(128);
         req.setHttp1Configuration(h1cfg);
     }
     // Per-source adaptive timeout:
@@ -415,9 +482,17 @@ void AssetDownloader::accelTick()
         return;
     }
 
+    // Wait for DNS to finish before accelerating
+    if (!m_dnsAllResolved) {
+        return;
+    }
+
     // Sample speed every tick
     sampleSpeed();
     updateSpeedFloor();
+
+    // Log speed once per second regardless of dispatch state
+    logSpeed();
 
     // Speed limit gate: if user set a limit and we're at/above it, don't add more
     if (m_speedLimitMB > 0.0 && m_emaMbps >= m_speedLimitMB) {
@@ -429,8 +504,8 @@ void AssetDownloader::accelTick()
     int inflight = currentInflight();
     int target = m_targetInflight;
 
-    if (inflight >= target || m_pendingQueue.isEmpty()) {
-        if (inflight >= m_maxConcurrent || m_pendingQueue.isEmpty())
+    if (inflight >= target || (m_pendingQueue.isEmpty() && m_pendingPreCheck.isEmpty())) {
+        if (inflight >= m_maxConcurrent || (m_pendingQueue.isEmpty() && m_pendingPreCheck.isEmpty()))
             m_accelTimer->stop();  // either fully loaded or no more work
         return;
     }
@@ -440,9 +515,14 @@ void AssetDownloader::accelTick()
     for (int i = 0; i < toSend && !m_pendingQueue.isEmpty(); ++i)
         fireNext();
 
+    // accelTick: debug-level (every 50ms would flood log file)
+    // Enable with: setFilterRules(\"ShadowDownloader.Asset.debug=true\")
+    // and remove the 'if (type == QtDebugMsg) return;' in shadowMessageHandler
     qCDebug(logAsset) << "  accel: phase=" << m_phase
         << "inflight=" << inflight << "target=" << target
-        << "floor=" << fmtSize(m_speedFloorBps.loadRelaxed()) << "/s";
+        << "floor=" << fmtSize(m_speedFloorBps.loadRelaxed()) << "/s"
+        << "pending=" << m_pendingQueue.size()
+        << "preCheck=" << m_pendingPreCheck.size();
 }
 
 void AssetDownloader::schedulePhase()
@@ -457,34 +537,41 @@ void AssetDownloader::schedulePhase()
 
     int inflight = currentInflight();
     int pending = m_pendingQueue.size();
+    int preChecking = m_pendingPreCheck.size();
+    bool hasWork = (pending > 0 || preChecking > 0);
 
     switch (m_phase) {
+
+    case PhaseInit:
+        // Should not normally reach here; handled in startDownload
+        m_phase = PhaseBurst;
+        m_targetInflight = qMin(kBurstSize, m_maxConcurrent);
+        break;
 
     case PhaseBurst:
         // After burst sent, immediately go to accelerate
         m_phase = PhaseAccelerate;
-        m_targetInflight = qMin(kBurstSize + kAccelStep, m_maxConcurrent);
+        m_targetInflight = qMin(m_burstSent + kAccelStep, m_maxConcurrent);
         break;
 
     case PhaseAccelerate:
-        if (inflight >= m_maxConcurrent || pending == 0) {
+        if (inflight >= m_maxConcurrent || !hasWork) {
             m_phase = PhaseSteady;
-            m_targetInflight = m_maxConcurrent;
-        } else if (speed >= floor) {
+            m_targetInflight = qMin(inflight, m_maxConcurrent);
+        } else if (speed >= floor && inflight > 0) {
             // Saturated — stop adding, let speed floor catch up
             m_phase = PhaseSteady;
             m_targetInflight = inflight;
         } else {
-            // Speed < floor — add more
+            // Speed < floor — add more (but keep some headroom for I/O)
             m_targetInflight = qMin(inflight + kAccelStep, m_maxConcurrent);
         }
         break;
 
     case PhaseSteady:
-        if (pending == 0) {
-            // No more work — wind down
+        if (!hasWork) {
             m_targetInflight = inflight;
-        } else if (speed < floor && inflight < m_maxConcurrent) {
+        } else if (speed < floor && inflight < m_maxConcurrent && pending > 0) {
             // Speed dropped below floor — try adding more
             m_phase = PhaseAccelerate;
             m_targetInflight = qMin(inflight + kAccelStep, m_maxConcurrent);
@@ -492,9 +579,9 @@ void AssetDownloader::schedulePhase()
             // Complete stall — reduce inflight to avoid congestion collapse
             m_phase = PhaseCooldown;
             m_targetInflight = qMax(4, inflight / 2);
-        } else {
+        } else if (pending > 0) {
             // Steady state: replace finished requests
-            m_targetInflight = qMin(m_maxConcurrent, inflight + (pending > 0 ? 1 : 0));
+            m_targetInflight = qMin(m_maxConcurrent, inflight + 1);
         }
         break;
 
@@ -502,7 +589,7 @@ void AssetDownloader::schedulePhase()
         if (speed > 0) {
             m_phase = PhaseAccelerate;
             m_targetInflight = qMin(inflight + kAccelStep, m_maxConcurrent);
-        } else if (inflight <= 4 || pending == 0) {
+        } else if (inflight <= 4 || !hasWork) {
             m_phase = PhaseSteady;
             m_targetInflight = qMin(8, m_maxConcurrent);
         }
@@ -524,13 +611,22 @@ void AssetDownloader::sampleSpeed()
     qint64 elapsed = m_speedTimer.elapsed();
     if (elapsed < 50) return;
 
+    // Exclude cache-hit bytes from speed calculation
     qint64 now = m_downloadedBytes.loadRelaxed();
-    qint64 last = m_lastSampleBytes.loadRelaxed();
-    qint64 bytes = now - last;
-    m_lastSampleBytes.storeRelaxed(now);
+    qint64 cacheNow = m_cacheBytes.loadRelaxed();
+    qint64 base = m_lastSampleBytes.loadRelaxed();
+    qint64 netBytes = (now - cacheNow) - base;
+
+    if (netBytes < 0) {
+        // Safety: if cache count caught up after reset baseline, re-sync
+        m_lastSampleBytes.storeRelaxed(now - cacheNow);
+        netBytes = 0;
+    }
+
+    m_lastSampleBytes.storeRelaxed(now - cacheNow);
     m_speedTimer.restart();
 
-    qint64 bps = bytes * 1000 / qMax(elapsed, 1LL);
+    qint64 bps = netBytes * 1000 / qMax(elapsed, 1LL);
 
     {
         QMutexLocker lock(&m_speedMutex);
@@ -566,8 +662,8 @@ void AssetDownloader::updateSpeedFloor()
     qint64 currentFloor = m_speedFloorBps.loadRelaxed();
     if (newFloor > currentFloor) {
         m_speedFloorBps.storeRelaxed(newFloor);
-        qCDebug(logAsset) << "  floor ↑" << fmtSize(currentFloor) << "/s →"
-                          << fmtSize(newFloor) << "/s";
+        qCInfo(logAsset) << "  floor ↑" << fmtSize(currentFloor) << "/s →"
+                        << fmtSize(newFloor) << "/s";
     }
 }
 
@@ -604,7 +700,15 @@ void AssetDownloader::finishDownload(const AssetTask& task, bool success)
                           task.size, task.size, task.savePath);
     }
 
-    fireNext();
+    // Don't fireNext directly if at capacity — let accelTick pace requests.
+    // This prevents inflight from growing unboundedly when finishDownload
+    // fires faster than the server can handle, which caused RST_STREAM on
+    // BMCLAPI / Mojang CDN when 5000+ files were all dispatched at once.
+    if (m_inFlight.size() < m_maxConcurrent) {
+        fireNext();
+    } else if (!m_accelTimer->isActive()) {
+        m_accelTimer->start();  // re-activate to dispatch when slots free
+    }
     checkAllFinished();
 }
 
@@ -615,7 +719,8 @@ void AssetDownloader::finishDownload(const AssetTask& task, bool success)
 void AssetDownloader::checkAllFinished()
 {
     if (m_state != Running && m_state != Cancelled) return;
-    if (!m_pendingQueue.isEmpty() || !m_inFlight.isEmpty()) return;
+    if (!m_pendingQueue.isEmpty() || !m_inFlight.isEmpty() || !m_pendingPreCheck.isEmpty()) return;
+    if (m_preCheckQueued > 0) return;
 
     m_accelTimer->stop();
     m_state = (m_state == Cancelled) ? Cancelled : Done;
@@ -630,7 +735,7 @@ void AssetDownloader::checkAllFinished()
         emit allFinished(false, m_failedCount, m_failedFiles);
     } else {
         bool ok = (m_failedCount == 0);
-        emit logMessage(QString("AssetDownloader v2: %1/%2 done, %3 cache hits, "
+        emit logMessage(QString("AssetDownloader v2+: %1/%2 done, %3 cache hits, "
                                 "%4 failed, peak %5 MB/s, floor %6/s")
                             .arg(m_totalTaskCount - m_failedCount)
                             .arg(m_totalTaskCount)
@@ -639,6 +744,34 @@ void AssetDownloader::checkAllFinished()
                             .arg(m_emaMbps, 0, 'f', 1)
                             .arg(fmtSize(m_speedFloorBps.loadRelaxed())));
         emit allFinished(ok, m_failedCount, m_failedFiles);
+        logState("all done");
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Dynamic per-host limit adjustment (TCP slow-start style)
+// ═════════════════════════════════════════════════════════════════════════════
+
+void AssetDownloader::adjustHostLimits()
+{
+    // Slight lock risk — keep it quick
+    QMutexLocker lock(&m_hostMutex);
+    for (auto it = m_hostStats.begin(); it != m_hostStats.end(); ++it) {
+        if (it.key().contains(QStringLiteral("bmclapi")))
+            continue;  // BMCLAPI uses fixed limit
+        auto& st = it.value();
+        if (st.consecutiveFails > 0)
+            continue;  // recent failure — don't increase
+        if (st.totalSuccess < 1)
+            continue;  // need at least 1 success
+        // If we consistently fill the current limit, try increasing
+        if (st.activeRequests >= st.dynamicLimit * 0.8) {
+            int oldLimit = st.dynamicLimit;
+            st.dynamicLimit = qMin(st.dynamicLimit + 1, 32);
+            if (st.dynamicLimit != oldLimit)
+                qCInfo(logAsset) << "  [limit]" << it.key() << "↑" << oldLimit << "→" << st.dynamicLimit
+                                 << "(good)";
+        }
     }
 }
 
@@ -657,14 +790,25 @@ AssetDownloader::HostStats& AssetDownloader::hostStats(const QString& host)
     return m_hostStats[host];
 }
 
+int AssetDownloader::getHostLimit(const QString& host) const
+{
+    // BMCLAPI: fixed at 8 (known to handle this well)
+    if (host.contains(QStringLiteral("bmclapi")))
+        return 8;
+    // Other hosts: use dynamically adjusted per-host limit
+    QMutexLocker lock(&m_hostMutex);
+    auto it = m_hostStats.find(host);
+    if (it == m_hostStats.end()) return 4;  // start conservative for unknown hosts
+    return qBound(2, it->dynamicLimit, 32);
+}
+
 bool AssetDownloader::hostCanAccept(const QString& host) const
 {
     QMutexLocker lock(&m_hostMutex);
     auto it = m_hostStats.find(host);
     if (it == m_hostStats.end()) return true;  // unknown = accept
-    // degraded is set by recordHostResult() — pure read here
     if (it->degraded) return false;
-    if (it->activeRequests >= kMaxPerHost) return false;
+    if (it->activeRequests >= getHostLimit(host)) return false;
     return true;
 }
 
@@ -688,64 +832,88 @@ void AssetDownloader::recordHostResult(const QString& host, bool ok, qint64 firs
             st.degraded = true;
         // Increase timeout estimate (host is slow)
         st.avgFirstByteMs = qMin(st.avgFirstByteMs * 2, 30000LL);
+        // Failure → reduce dynamic limit (TCP congestion control style)
+        int oldLimit = st.dynamicLimit;
+        st.dynamicLimit = qMax(2, st.dynamicLimit / 2);
+        if (st.dynamicLimit != oldLimit)
+            qCInfo(logAsset) << "  [limit]" << host << "↓" << oldLimit << "→" << st.dynamicLimit
+                             << "(failure)";
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// DNS + IP reliability
+// Async DNS resolution — uses QHostInfo::lookupHost() instead of blocking fromName()
 // ═════════════════════════════════════════════════════════════════════════════
 
-QStringList AssetDownloader::resolveHost(const QString& host)
+void AssetDownloader::startAsyncDns()
 {
-    QMutexLocker lock(&m_dnsMutex);
-    auto it = m_dnsCache.find(host);
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-
-    if (it != m_dnsCache.end()) {
-        // Check cache expiry
-        if (now - it->lastResolveMs < kDnsCacheMs)
-            return it->addresses;
-        // If last resolve failed and backoff hasn't expired, skip
-        if (it->addresses.isEmpty() && now - it->lastResolveMs < kDnsFailureBackoffMs)
-            return {};
+    if (m_dnsToResolve.isEmpty()) {
+        m_dnsAllResolved = true;
+        return;
     }
 
-    // Perform DNS resolution (synchronous but fast for cached/nearby records)
-    QHostInfo info = QHostInfo::fromName(host);
-    IPInfo& ipi = m_dnsCache[host];
-    ipi.lastResolveMs = now;
+    for (auto it = m_dnsToResolve.begin(); it != m_dnsToResolve.end(); ++it) {
+        const QString& host = it.key();
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
 
-    if (info.error() != QHostInfo::NoError) {
-        qCWarning(logAsset) << "  [dns] resolve failed:" << host << info.errorString();
-        ipi.addresses.clear();
-        return {};
-    }
+        // Check cache
+        {
+            QMutexLocker lock(&m_dnsMutex);
+            auto cacheIt = m_dnsCache.find(host);
+            if (cacheIt != m_dnsCache.end()) {
+                if (now - cacheIt->lastResolveMs < kDnsCacheMs) {
+                    // Cache hit — count as resolved immediately
+                    qCInfo(logAsset) << "  [dns] cache hit:" << host << cacheIt->addresses;
+                    m_dnsPendingCount--;
+                    checkAllDnsResolved();
+                    continue;
+                }
+            }
+        }
 
-    // Sort: prefer IPv4 over IPv6 (IPv6 often has worse routing in China)
-    QStringList ipv4, ipv6;
-    for (const auto& addr : info.addresses()) {
-        if (addr.protocol() == QAbstractSocket::IPv4Protocol)
-            ipv4.append(addr.toString());
-        else
-            ipv6.append(addr.toString());
-    }
+        // Async lookup
+        QHostInfo::lookupHost(host, this, [this, host](const QHostInfo& info) {
+            if (m_state != Running && m_state != Idle) return;
 
-    // Mix: put higher-reliability IPs first
-    auto sortByReliability = [&](QStringList& list) {
-        std::sort(list.begin(), list.end(), [&](const QString& a, const QString& b) {
-            return ipi.reliability.value(a, 0.0) > ipi.reliability.value(b, 0.0);
+            QMutexLocker lock(&m_dnsMutex);
+            IPInfo& ipi = m_dnsCache[host];
+            ipi.lastResolveMs = QDateTime::currentMSecsSinceEpoch();
+
+            if (info.error() != QHostInfo::NoError) {
+                qCWarning(logAsset) << "  [dns] async resolve failed:" << host << info.errorString();
+                ipi.addresses.clear();
+            } else {
+                QStringList ipv4, ipv6;
+                for (const auto& addr : info.addresses()) {
+                    if (addr.protocol() == QAbstractSocket::IPv4Protocol)
+                        ipv4.append(addr.toString());
+                    else
+                        ipv6.append(addr.toString());
+                }
+                auto sortByReliability = [&](QStringList& list) {
+                    std::sort(list.begin(), list.end(), [&](const QString& a, const QString& b) {
+                        return ipi.reliability.value(a, 0.0) > ipi.reliability.value(b, 0.0);
+                    });
+                };
+                sortByReliability(ipv4);
+                sortByReliability(ipv6);
+                ipi.addresses = ipv4 + ipv6;
+                qCInfo(logAsset) << "  [dns]" << host << "→" << ipi.addresses;
+            }
+            lock.unlock();
+
+            m_dnsPendingCount--;
+            checkAllDnsResolved();
         });
-    };
-    sortByReliability(ipv4);
-    sortByReliability(ipv6);
-
-    ipi.addresses = ipv4 + ipv6;
-    if (ipi.addresses.isEmpty()) {
-        qCWarning(logAsset) << "  [dns] no addresses for:" << host;
-    } else {
-        qCDebug(logAsset) << "  [dns]" << host << "→" << ipi.addresses;
     }
-    return ipi.addresses;
+}
+
+void AssetDownloader::checkAllDnsResolved()
+{
+    if (!m_dnsAllResolved && m_dnsPendingCount <= 0) {
+        m_dnsAllResolved = true;
+        qCInfo(logAsset) << "  [dns] all hosts resolved";
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -767,7 +935,8 @@ public:
             if (f.open(QIODevice::WriteOnly)) {
                 f.write(data);
                 f.close();
-                qCDebug(logAsset) << "  [io-ok]" << task.sha1 << fmtSize(data.size());
+                // Write results are logged via finishDownload signal; keep lightweight here.
+        // qCDebug is available for per-file debugging.
                 writeOk = true;
             } else {
                 qCWarning(logAsset) << "  [io-write]" << task.sha1 << f.errorString();
@@ -802,4 +971,176 @@ void AssetDownloader::enqueueIO(const AssetTask& task, const QByteArray& data)
 QString AssetDownloader::sha1HexOf(const QByteArray& data)
 {
     return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex());
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Async SHA1 pre-check — offloaded to IO thread pool to avoid blocking main thread.
+// ═════════════════════════════════════════════════════════════════════════════
+
+class PreCheckWorker : public QRunnable {
+public:
+    AssetDownloader::AssetTask task;
+    std::function<void(const AssetDownloader::AssetTask&, bool)> callback;
+
+    void run() override {
+        qint64 t0 = QDateTime::currentMSecsSinceEpoch();
+        bool sha1Match = false;
+        {
+            QFile f(task.savePath);
+            if (f.open(QIODevice::ReadOnly)) {
+                QCryptographicHash hash(QCryptographicHash::Sha1);
+                hash.addData(&f);
+                f.close();
+                if (hash.result().toHex() == task.sha1) {
+                    sha1Match = true;
+                }
+            }
+        }
+        qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - t0;
+        if (elapsed > 5) {
+            qCInfo(logAsset) << "  [pre-check]" << task.sha1 << (sha1Match ? "HIT" : "MISMATCH")
+                             << fmtSize(task.size) << "took" << elapsed << "ms";
+        }
+        if (callback)
+            callback(task, sha1Match);
+    }
+};
+
+void AssetDownloader::enqueuePreCheck(const AssetTask& task)
+{
+    if (m_pendingPreCheck.contains(task.sha1)) return;  // already queued
+
+    PreCheckPending pcp;
+    pcp.task = task;
+    pcp.enqueueAtMs = QDateTime::currentMSecsSinceEpoch();
+    m_pendingPreCheck.insert(task.sha1, pcp);
+    m_preCheckQueued++;
+
+    auto* worker = new PreCheckWorker();
+    worker->task = task;
+
+    QPointer<AssetDownloader> self(this);
+    worker->callback = [self](const AssetDownloader::AssetTask& t, bool sha1Match) {
+        if (self) {
+            QMetaObject::invokeMethod(self, [self, t, sha1Match]() {
+                if (self->m_state == AssetDownloader::Cancelled) return;
+                self->onPreCheckResult(t, sha1Match);
+            });
+        }
+    };
+
+    m_ioPool.start(worker);
+}
+
+void AssetDownloader::onPreCheckResult(const AssetTask& task, bool sha1Match)
+{
+    m_pendingPreCheck.remove(task.sha1);
+    m_preCheckQueued--;
+
+    if (m_state != Running) return;
+
+    if (sha1Match) {
+        // Cache hit: count bytes, finish, and fire next
+        m_cacheHitCount++;
+        m_downloadedBytes.fetchAndAddRelaxed(task.size);
+        m_cacheBytes.fetchAndAddRelaxed(task.size);
+        finishDownload(task, true);
+        logState("pre-check cache HIT");
+    } else {
+        // Size matched but SHA1 didn't: must download
+        m_pendingQueue.prepend(task);
+        if (m_inFlight.size() < m_maxConcurrent) {
+            fireNext();
+        } else {
+            // accelTick will handle when slots free up
+            if (!m_accelTimer->isActive())
+                m_accelTimer->start();
+        }
+        logState("pre-check cache MISS → download");
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Reset speed baseline — called after burst is sent to avoid cache-hit spike.
+// ═════════════════════════════════════════════════════════════════════════════
+
+void AssetDownloader::resetSpeedBaseline()
+{
+    m_speedTimer.restart();
+    // Subtract cache-hit bytes so the first speed reading reflects only network I/O
+    m_lastSampleBytes.storeRelaxed(
+        m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed());
+    m_emaMbps = 0.0;
+    {
+        QMutexLocker lock(&m_speedMutex);
+        m_speedRecords.clear();
+    }
+    m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Detailed logging
+// ═════════════════════════════════════════════════════════════════════════════
+
+void AssetDownloader::logState(const char* event)
+{
+    qint64 elapsed = m_downloadTimer.elapsed();
+    int inflight = m_inFlight.size();
+    int pending = m_pendingQueue.size();
+    int preCheckLeft = m_pendingPreCheck.size();
+    int done = m_completedFiles.loadRelaxed();
+    int total = m_totalFiles.loadRelaxed();
+    qint64 bytes = m_downloadedBytes.loadRelaxed();
+    double speed = m_emaMbps;
+
+    // State transitions always go to info-level (visible in log file)
+    qCInfo(logAsset) << "[state]" << event
+        << "elapsed=" << elapsed << "ms"
+        << "phase=" << m_phase
+        << "inflight=" << inflight
+        << "pending=" << pending
+        << "preCheck=" << preCheckLeft
+        << "done=" << done << "/" << total
+        << "bytes=" << fmtSize(bytes)
+        << "speed=" << QString::number(speed, 'f', 1) << "MB/s"
+        << "floor=" << fmtSize(m_speedFloorBps.loadRelaxed()) << "/s"
+        << "cacheHits=" << m_cacheHitCount;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Periodic speed logging — 1-second interval, info-level (visible in log file)
+// ═════════════════════════════════════════════════════════════════════════════
+
+void AssetDownloader::logSpeed()
+{
+    if (m_speedLogTimer.elapsed() < 1000)
+        return;  // rate limit to 1 second
+    m_speedLogTimer.restart();
+
+    qint64 elapsed = m_downloadTimer.elapsed();
+    qint64 bytes = m_downloadedBytes.loadRelaxed();
+    qint64 cacheBytes = m_cacheBytes.loadRelaxed();
+    int inflight = m_inFlight.size();
+    int pending = m_pendingQueue.size();
+    int done = m_completedFiles.loadRelaxed();
+    int total = m_totalFiles.loadRelaxed();
+    double speed = m_emaMbps;
+
+    // Also compute a simple average-overall speed for comparison
+    double avgMbps = (elapsed > 0 && bytes > 0)
+        ? (bytes - cacheBytes) / (1024.0 * 1024.0) / (elapsed / 1000.0)
+        : 0.0;
+
+    qCInfo(logAsset) << "[speed]"
+        << "ema=" << QString::number(speed, 'f', 2) << "MB/s"
+        << "avg=" << QString::number(avgMbps, 'f', 2) << "MB/s"
+        << "floor=" << fmtSize(m_speedFloorBps.loadRelaxed()) << "/s"
+        << "phase=" << m_phase
+        << "inflight=" << inflight
+        << "pending=" << pending
+        << "done=" << done << "/" << total
+        << "elapsed=" << elapsed / 1000 << "s";
+
+    // Adjust per-host limits periodically
+    adjustHostLimits();
 }
