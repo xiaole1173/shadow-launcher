@@ -108,7 +108,7 @@ public:
 
     QVariantList versionInfoList() const;
     QVector<McVersion> cachedMcVersions() const;
-    QString installVersionId() const { return m_modLoaderInstallId.isEmpty() ? (m_activeIds.isEmpty() ? QString() : m_activeIds.first()) : m_modLoaderInstallId; }
+    QString installVersionId() const { return m_activeIds.isEmpty() ? QString() : m_activeIds.first(); }
     QString installPhase() const { return m_installPhase; }
     QString activeInstallId() const { return m_activeIds.isEmpty() ? QString() : m_activeIds.first(); }
     int installRemainingSteps(const QString& sessionId) const;
@@ -124,8 +124,7 @@ public:
         for (const QString& v : m_activeIds) {
             if (!names.contains(v)) names.append(v);
         }
-        if (!m_modLoaderInstallId.isEmpty() && !names.contains(m_modLoaderInstallId))
-            names.append(m_modLoaderInstallId);
+
         for (const auto& key : m_downloadSessions.keys()) {
             auto* ds = m_downloadSessions[key];
             if (ds && ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty()
@@ -243,7 +242,7 @@ private:
     class VersionIsolation* m_isolation = nullptr;
     int m_autoLangMode = 1;
     QString m_detectedRegion;
-    ModLoaderInstaller* m_mlInstaller = nullptr;
+    QMap<QString, ModLoaderInstaller*> m_mlInstallers;
     QString m_gameDir;
 
     QStringList m_versionIds;
@@ -253,9 +252,9 @@ private:
 
     int m_activeCount = 0;
     bool m_installing = false;
-    QString m_modLoaderInstallId;
+
     static constexpr int MAX_CONCURRENT = 5;
-    QVector<QString> m_activeIds;
+    QStringList m_activeIds;
     QSet<QString> m_userCancelledIds;  // versions cancelled by user (suppress error in finish handler)
 
     struct DlState {
@@ -297,6 +296,11 @@ private:
     DownloadSession* ensureSession(const QString& installId);
     DownloadSession* dlSession(const QString& installId) const;
     void updateCardFromSession(const QString& installId, const QString& name = QString(), const QString& type = QString());
+
+    // Per-task ModLoaderInstaller lifecycle
+    ModLoaderInstaller* createLoaderInstaller(const QString& installId);
+    void destroyLoaderInstaller(const QString& installId);
+    ModLoaderInstaller* loaderInstaller(const QString& installId) const { return m_mlInstallers.value(installId, nullptr); }
     void updateCardProgressSpeed(const QString& installId);  // 轻量：仅 progress + speed
 
     bool m_cardsRebuildPending = false;

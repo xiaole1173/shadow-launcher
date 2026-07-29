@@ -181,707 +181,7 @@ VersionBackend::VersionBackend(QObject* parent)
 
     // ModLoaderInstaller init
 
-    m_mlInstaller = new ModLoaderInstaller(this);
-
-    connect(m_mlInstaller, &ModLoaderInstaller::progressChanged, this,
-
-            [this](int step, int totalSteps, const QString& desc) {
-
-                setInstallPhase(tr("模组加载器: ") + desc);
-
-        const QString mlId = m_modLoaderInstallId;
-
-        if (mlId.isEmpty()) return;
-
-        ensureSession(mlId);
-
-        auto* ds = dlSession(mlId);        // Merged: MC steps 0-2, MC verify step 3, loader steps 4+ (offset=4)
-
-        // Standalone: loader steps start at 0 (offset=0)
-
-        int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
-
-        // ── Mark previous step as completed when advancing ──
-
-        if (step > 1) {
-
-            int prevIdx = ds->isMerged() ? (step - 2 + 4) : (step - 2);
-
-            updateStep(mlId, prevIdx, QStringLiteral("completed"), 100);
-
-        }
-
-        // Only reset to 0% if this step wasn't already active
-
-        // (prevents progress dip during prefetch→installer transition)
-
-        QVariantMap curStep = (stepIdx >= 0 && stepIdx < ds->steps.size()) ? ds->steps[stepIdx].toMap() : QVariantMap{};
-
-        QString curStatus = curStep.value(QStringLiteral("status")).toString();
-
-        if (curStatus != QStringLiteral("active") && curStatus != QStringLiteral("completed")) {
-
-            // If step was hidden (verify step), make it visible first
-
-            if (!curStep.value(QStringLiteral("show")).toBool()) {
-
-                showStep(mlId, stepIdx);
-
-            }
-
-            updateStep(mlId, stepIdx, QStringLiteral("active"), 0);
-
-            ds->loaderStepIdx = stepIdx;
-
-        }
-
-    });
-
-    connect(m_mlInstaller, &ModLoaderInstaller::stepProgress, this,
-
-            [this](int step, int percentage) {
-
-        const QString mlId = m_modLoaderInstallId;
-
-        if (mlId.isEmpty()) return;
-
-        ensureSession(mlId);
-
-        auto* ds = dlSession(mlId);
-
-        // Merged: MC steps 0-2, MC verify 3, loader steps 4+ (offset=4)
-
-        int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
-
-        QString st = (percentage >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
-
-        qCDebug(logVersion).noquote()
-
-            << QString("[stepProg] mlStep=%1 mapped=%2 pct=%3 status=%4 merged=%5")
-
-               .arg(step).arg(stepIdx).arg(percentage).arg(st).arg(ds->isMerged() ? 1 : 0);
-
-        updateStep(mlId, stepIdx, st, percentage);
-
-
-
-        // Non-merged installs: stepProgress drives smoothProgress during install phases.
-        // Fix: stepProgress(3,27) means "step 3 at 27%", NOT "total at 27%".
-        // Correct: total = (completed_steps + current_step_progress) / total_steps
-        // Example: stepProgress(3,27) with 3 steps: (2 + 0.27) / 3 = 0.757
-
-        if (!ds->isMerged()) {
-
-            int totalSteps = qMax(ds->steps.size(), 1);
-
-            int completedSteps = qMin(stepIdx, totalSteps - 1); // 0-indexed, stepIdx steps already done
-
-            qreal raw = (completedSteps + percentage / 100.0) / totalSteps;
-
-            ds->m_rawTotalProgress = raw;
-
-            if (ds->smoothProgress <= 0.0)
-
-                ds->smoothProgress = raw * 0.7;
-
-            else
-
-                ds->smoothProgress = ds->smoothProgress * 0.3 + raw * 0.7;
-
-        }
-
-    });
-
-    connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
-
-            [this](bool success, const QString& errMsg) {
-
-        const QString mlId = m_modLoaderInstallId;
-
-        auto* ses = ensureSession(mlId);
-        auto* ds = mlId.isEmpty() ? nullptr : dlSession(mlId);
-
-        if (!mlId.isEmpty() && !m_downloadSessions.contains(mlId))
-
-            return;
-
-        if (success) {
-
-            // Mark all steps completed
-
-            for (int i = 0; i < ds->steps.size(); i++) {
-
-                // Skip step 7 (Fabric API) if still pending — let API callback mark it
-
-                if (i == 7 && ds->fabricApiPending) continue;
-
-                updateStep(mlId, i, QStringLiteral("completed"), 100);
-
-            }
-
-            // Force progress to 1.0 (EMA may lag on instant/cached completion)
-
-            ds->m_rawTotalProgress = 1.0;
-
-            ds->smoothProgress = 1.0;
-
-            emit logMessage(tr("[ModLoader] 安装完成"));
-
-            setInstallPhase(tr("完成"));
-
-            updateInstalledList();
-
-
-
-            // Only emit "all done" if all sessions are complete
-
-            bool allDone = true;
-
-            for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-                auto* ds2 = dlSession(it.key());
-                if (ds2->hasPendingLoader || (ds->optifineJarParallel && ds2->isMerged())) {
-                    allDone = false; break;
-                }
-            }
-
-            if (allDone) {
-
-                emit logMessage(tr("[完成] 所有版本安装完成！"));
-
-            }
-
-
-
-            // If Fabric API is still downloading in parallel, don't finalize yet
-
-            if (ds->fabricApiPending) {
-
-                qDebug() << "[install] Fabric loader done, waiting for parallel API download";
-
-                return;
-
-            }
-
-            // For merged Fabric install: MC may still be downloading
-
-            // when the loader finishes (Fabric starts immediately in parallel).
-
-            if (ds->isMerged() && !ds->mcDownloadDone) {
-
-                qDebug() << "[install] Loader done, waiting for MC download to complete";
-
-                ds->loaderFinishedWaitingMC = true;
-
-                return;
-
-            }
-
-
-
-            // Merged install complete — delete residual vanilla MC version folder
-
-            // (Moved here AFTER fabricApiPending/mcDownloadDone checks so isMerged stays true
-
-            //  while sub-items like Fabric API are still in progress, keeping the card alive)
-
-            // Safety: scan all version JSONs first — skip if any still inherits from this version
-
-            if (ds->isMerged()) {
-
-                bool otherUsingSameMC = false;
-
-                for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-
-                    auto* d = dlSession(it.key());
-
-                    if (it.key() != mlId && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
-
-                        otherUsingSameMC = true;
-
-                        break;
-
-                    }
-
-                }
-
-                if (!otherUsingSameMC) {
-
-                    // Double-check: scan all version JSONs for inheritsFrom pointing at mcVersion
-
-                    bool inheritsFound = false;
-
-                    QDir vDir(m_gameDir + QStringLiteral("/versions"));
-
-                    const QStringList subDirs = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-
-                    for (const QString& sub : subDirs) {
-
-                        QString jsonPath = m_gameDir + QStringLiteral("/versions/") + sub
-
-                            + QStringLiteral("/") + sub + QStringLiteral(".json");
-
-                        QFile jf(jsonPath);
-
-                        if (jf.open(QIODevice::ReadOnly)) {
-
-                            QJsonDocument jdoc = QJsonDocument::fromJson(jf.readAll());
-
-                            jf.close();
-
-                            if (jdoc.isObject()) {
-
-                                QJsonObject jObj = jdoc.object();
-
-                                if (jObj.value(QStringLiteral("inheritsFrom")).toString() == ds->mcVersion) {
-
-                                    inheritsFound = true;
-
-                                    break;
-
-                                }
-
-                            }
-
-                        }
-
-                    }
-
-                    if (!inheritsFound) {
-
-                        QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
-
-                        QDir vd(vanillaVerDir);
-
-                        if (vd.exists()) {
-
-                            vd.removeRecursively();
-
-                            emit logMessage(tr("[完成] 原版版本文件夹已清理: %1").arg(vanillaVerDir));
-
-                        }
-
-                    } else {
-
-                        qCDebug(logVersion) << "Skipping MC cleanup:" << ds->mcVersion << "inheritsFrom still in use by existing version";
-
-                    }
-
-                } else {
-
-                    qCDebug(logVersion) << "Skipping MC cleanup:" << ds->mcVersion << "still in use by other install";
-
-                }
-
-                ds->setMerged(false);
-
-                ds->mcVersion.clear();
-
-                ds->loaderType.clear();
-
-                ds->loaderVer.clear();
-
-            }
-
-        } else {
-
-            emit logMessage(tr("[ModLoader] 安装失败: ") + errMsg);
-
-            // Mark last step as failed, keep card visible for diagnostics
-
-            for (int i = ds->steps.size() - 1; i >= 0; i--) {
-
-                QVariantMap s = ds->steps[i].toMap();
-
-                if (s["status"].toString() == QStringLiteral("active")) {
-
-                    s["status"] = QStringLiteral("failed");
-
-                    s["percentage"] = 0;
-
-                    ds->steps[i] = s;
-
-                    if (auto* ds = dlSession(mlId)) ds->markFailed(errMsg);
-
-                                        break;
-
-                }
-
-            }
-
-            if (ds->isMerged()) {
-
-                // Clean up residual vanilla MC version folder on failure — only if no
-
-                // other active merged install still uses this MC version
-
-                // Safety: skip if this is forge/neoforge (inheritsFrom needs the base version)
-
-                if (!QStringLiteral("forge,neoforge").split(QStringLiteral(",")).contains(ds->loaderType)) {
-
-                    bool otherUsingSameMC = false;
-
-                    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-
-                        auto* d = dlSession(it.key());
-
-                        if (it.key() != mlId && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
-
-                            otherUsingSameMC = true;
-
-                            break;
-
-                        }
-
-                    }
-
-                    if (!otherUsingSameMC) {
-
-                        QString vanillaVerDir = m_gameDir + "/versions/" + ds->mcVersion;
-
-                        QDir vd(vanillaVerDir);
-
-                        if (vd.exists()) {
-
-                            vd.removeRecursively();
-
-                            emit logMessage(tr("清理残留原版文件夹: %1").arg(vanillaVerDir));
-
-                        }
-
-                    }
-
-                }
-
-                ds->setMerged(false);
-
-                ds->mcVersion.clear();
-
-                ds->loaderType.clear();
-
-                ds->loaderVer.clear();
-
-                // Clean up temp Fabric API download on installation failure
-
-                if (!ds->fabricApiSavePath.isEmpty() && QFile::exists(ds->fabricApiSavePath)) {
-
-                    QFile::remove(ds->fabricApiSavePath);
-
-                }
-
-            }
-
-        }
-
-        setInstalling(false);
-
-        emit installFinished(success);
-
-        if (success) {
-
-            // Ensure version isolation for new OptiFine versions
-
-            ensureSession(mlId);
-
-            auto* ds = dlSession(mlId);
-
-            if (ds->loaderType == QStringLiteral("optifine") && m_isolation) {
-
-                m_isolation->migrateToIsolated(mlId);
-
-            }
-
-            finishInstall(mlId);
-
-        }
-
-    });
-
-
-
-    // Pause between verify and install (merged install: wait for MC)
-
-    connect(m_mlInstaller, &ModLoaderInstaller::waitingForMC, this, [this]() {
-
-        setInstallPhase(tr("等待MC下载完成..."));
-
-        // Traverse all sessions so we don't rely on m_modLoaderInstallId
-
-        // being stable across async boundaries.
-
-        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-
-            auto& ses = it.value();
-
-            auto* ds = dlSession(it.key());
-
-            if (!ds->isMerged()) continue;
-
-            int verifyStep = ds->loaderVerifyStep;
-
-            if (verifyStep >= 0 && verifyStep < ds->steps.size()) {
-
-                updateStep(it.key(), verifyStep, QStringLiteral("completed"), 100);
-
-            }
-
-            ds->loaderDownloadReady = true;
-
-            if (ds->mcDownloadDone) {
-
-                proceedToLoaderInstall(it.key());
-
-            }
-
-        }
-
-    });
-
-
-
-    // Byte-level download progress → update current active step
-
-    connect(m_mlInstaller, &ModLoaderInstaller::byteProgress, this,
-
-            [this](const QString& file, qint64 received, qint64 total, qint64 speed) {
-
-                
-
-        const QString mlId = m_modLoaderInstallId;
-
-        auto* ses = ensureSession(mlId);
-        auto* ds = mlId.isEmpty() ? nullptr : dlSession(mlId);
-
-
-
-                // ── Merged install: accumulate ML phase bytes (cross-file aggregation) ──
-
-        if (ds->isMerged()) {
-
-            // Detect file transition: total changes → previous file completed
-
-            if (total > 0 && total != ds->mlFileTotal && ds->mlFileTotal > 0) {
-
-                ds->mlBytesDone += ds->mlFileTotal;
-
-            }
-
-
-
-            // ── Tier (a)/(b): real Content-Length available ──
-
-            if (total > 0) {
-
-                ds->mlFileTotal = total;
-
-                ds->mlBytesAll = ds->mlBytesDone + total;
-
-            }
-
-            // ── Tier (c): dynamic adaptive — no Content-Length, estimate from downloaded bytes ──
-
-            else if (received > 0) {
-
-                // Estimate: assume file is ~1.2× what we've downloaded (shrinks as download progresses)
-
-                qint64 dynEst = received + qMax(received / 5, qint64(524288));  // at least 512KB headroom
-
-                if (dynEst > ds->mlBytesAll)
-
-                    ds->mlBytesAll = ds->mlBytesDone + dynEst;
-
-                ds->mlFileTotal = dynEst;
-
-            }
-
-
-
-            ds->mlSpeed = speed;  // store ML download speed
-            ds->mlBytesDl = ds->mlBytesDone + received;
-
-            // Push byte progress to the active ML step
-
-            if (ds->loaderStepIdx >= 0 && ds->loaderStepIdx < ds->steps.size() && ds->mlBytesAll > 0) {
-
-                int pct = (int)(ds->mlBytesDl * 100 / ds->mlBytesAll);
-
-                QString st = (pct >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
-
-                updateStep(mlId, ds->loaderStepIdx, st, pct, ds->mlBytesDl, ds->mlBytesAll);
-
-            }
-
-            // Weighted total progress: MC phase 50/50 cat1+cat2, ML phase byte-weighted
-
-            qreal mcPct1 = ds->mcStepTotal[1] > 0 ? (qreal)ds->mcStepDone[1] / ds->mcStepTotal[1] : 0.0;
-
-            qreal mcPct2 = ds->mcStepTotal[2] > 0 ? (qreal)ds->mcStepDone[2] / ds->mcStepTotal[2] : 0.0;
-
-            qreal mcRaw = qMin(1.0, 0.5 * mcPct1 + 0.5 * mcPct2);
-
-            qreal mlRaw = ds->mlBytesAll > 0 ? qMin(1.0, (qreal)ds->mlBytesDl / ds->mlBytesAll) : 0.0;
-
-            qreal raw = mlRaw > 0.0 ? qMin(1.0, (mcRaw + mlRaw) / 2.0) : mcRaw;
-
-            ds->m_rawTotalProgress = raw;
-
-            // EMA smoothing
-
-            if (ds->smoothProgress <= 0.0) {
-
-                ds->smoothProgress = raw * 0.3;
-
-            } else {
-
-                ds->smoothProgress = ds->smoothProgress * 0.7 + raw * 0.3;
-
-            }
-
-
-        } else {
-
-            m_installBytesDl = received;
-
-            m_installBytesTotal = total;
-
-                        // Non-merged byte-weighted smoothProgress (download phases only)
-
-            if (total > 0) {
-
-                qreal raw = qMin(1.0, (qreal)received / total);
-
-                ds->m_rawTotalProgress = raw;
-
-                if (ds->smoothProgress <= 0.0)
-
-                    ds->smoothProgress = raw * 0.3;
-
-                else
-
-                    ds->smoothProgress = ds->smoothProgress * 0.7 + raw * 0.3;
-
-            }
-
-        }
-
-
-
-        // Update the active step card (display only) from byte progress during download phases.
-
-        // In install phases, stepProgress from ModLoaderInstaller is the canonical percentage source.
-
-        {
-
-            int activeIdx = -1;
-
-            for (int i = ds->steps.size() - 1; i >= 0; i--) {
-
-                if (ds->steps[i].toMap()["status"].toString() == QStringLiteral("active")) {
-
-                    activeIdx = i;
-
-                    break;
-
-                }
-
-            }
-
-            if (activeIdx >= 0) {
-
-                QString stepName = ds->steps[activeIdx].toMap()["name"].toString();
-
-                // Only for download/verify steps — install steps use stepProgress
-
-                if (stepName.contains(QStringLiteral("\u4e0b\u8f7d"))       // 下载
-
-                    || stepName.contains(QStringLiteral("\u6821\u9a8c"))    // 校验
-
-                    || stepName.contains(QStringLiteral("Downloading"))
-
-                    || stepName.contains(QStringLiteral("Verifying"))) {
-
-                    int pct = total > 0 ? (int)(received * 100 / total) : 0;
-
-                    QString st = (pct >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
-
-                    updateStep(mlId, activeIdx, st, pct, received, total);
-
-                }
-
-            }
-
-        }
-
-    });
-
-
-
-    // Verification
-
-    connect(m_mlInstaller, &ModLoaderInstaller::verifyStarted, this,
-
-            [this]() {
-
-        setInstallPhase(tr("校验中"));
-
-        m_verifyChecked = 0;
-
-        m_verifyTotal = 1;
-
-        emit verifyStarted();
-
-        emit verifyProgress(0, 1);
-
-        const QString mlId = m_modLoaderInstallId;
-
-        if (!mlId.isEmpty()) {
-
-            ensureSession(mlId);
-
-            auto* ds = dlSession(mlId);
-
-            // Reset byte accumulators for verify phase (SHA1 is ~40B, independent of JAR download)
-
-            ds->mlBytesDl = 0;
-
-            ds->mlBytesDone = 0;
-
-            ds->mlBytesAll = 0;
-
-            ds->mlFileTotal = 0;
-
-            updateStep(mlId, ds->loaderStepIdx, QStringLiteral("active"), 0);
-
-        }
-
-    });
-
-    connect(m_mlInstaller, &ModLoaderInstaller::verifyFinished, this,
-
-            [this](bool ok) {
-
-        Q_UNUSED(ok);
-
-        m_verifyChecked = 1;
-
-        emit verifyProgress(1, 1);
-
-        emit verifyFinished(ok);
-
-        const QString mlId = m_modLoaderInstallId;
-
-        if (!mlId.isEmpty()) {
-
-            ensureSession(mlId);
-
-            auto* ds = dlSession(mlId);
-
-            updateStep(mlId, ds->loaderStepIdx, QStringLiteral("completed"), 100);
-
-        }
-
-    });
-
-
+    // ModLoaderInstaller instances are created per-task via createLoaderInstaller()
 
     // Defer initial fetch until setGameDir() sets m_dataDir
 
@@ -2028,7 +1328,7 @@ void VersionBackend::cancelActiveDownload(const QString& versionId)
 
         // Don't close the UI if a loader install is still in progress
 
-        bool loaderRunning = m_mlInstaller && m_mlInstaller->isRunning();
+        bool loaderRunning = isModLoaderInstalling();
 
         bool anyMergedPending = false;
 
@@ -2598,7 +1898,7 @@ auto* ds = dlSession(it.key());
                         finishInstall(it.key());
 
                     // Data downloaded, forge not yet started — start now
-                    } else if (!ds->loaderDownloadData.isEmpty() && !m_mlInstaller->isRunning()) {
+                    } else if (!ds->loaderDownloadData.isEmpty() && !isModLoaderInstalling()) {
                         proceedToLoaderInstall(it.key());
                     }
 
@@ -3146,7 +2446,7 @@ void VersionBackend::updateInstalledList()
 
 void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
-    if (!m_mlInstaller || !m_downloadSessions.contains(installId)) return;
+    if (!m_downloadSessions.contains(installId)) return;
 
     ensureSession(installId);
 
@@ -3156,19 +2456,24 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
 
 
-    m_mlInstaller->setGameDir(m_gameDir);
+    auto* ml = m_mlInstallers.value(installId, nullptr);
+    if (!ml) {
+        ml = createLoaderInstaller(installId);
+    } else {
+        ml->setGameDir(m_gameDir);
+    }
 
     if (ds->loaderType == QStringLiteral("forge")) {
 
-        m_mlInstaller->forgeContinueInstall();
+        ml->forgeContinueInstall();
 
     } else if (ds->loaderType == QStringLiteral("neoforge")) {
 
-        m_mlInstaller->neoForgeContinueInstall();
+        ml->neoForgeContinueInstall();
 
     } else if (ds->loaderType == QStringLiteral("fabric")) {
 
-        m_mlInstaller->fabricFinalize();
+        ml->fabricFinalize();
 
     }
 
@@ -3320,9 +2625,9 @@ void VersionBackend::setInstallPhase(const QString& phase)
     // ── 精准更新: 仅更新活跃 mod_loader 卡片的 PhaseRole ──
     if (m_installCardsModel && m_installCardsModel->count() > 0) {
         bool updated = false;
-        // 尝试用 m_modLoaderInstallId 查找 (session key)
-        if (!m_modLoaderInstallId.isEmpty()) {
-            int row = m_installCardsModel->findRowByIid(m_modLoaderInstallId);
+        // 尝试用 installName 查找 (session key)
+        if (!installName.isEmpty()) {
+            int row = m_installCardsModel->findRowByIid(installName);
             if (row >= 0) {
                 auto idx = m_installCardsModel->index(row, 0);
                 QString t = m_installCardsModel->data(idx, InstallCardModel::TypeRole).toString();
@@ -5626,9 +4931,9 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                        const QString& forgeInstallerSha1,
                                        const QString& forgeInstallerBranch) {
 
-    if (!m_mlInstaller) return;
+    auto* ml = createLoaderInstaller(installName);
+    if (!ml) return;
 
-    m_modLoaderInstallId = installName;
 
     ensureSession(installName);
     auto* ds = dlSession(installName);
@@ -5771,13 +5076,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
         if (loaderType == QStringLiteral("fabric")) {
 
-            m_modLoaderInstallId = installName;
+            ml->setGameDir(m_gameDir);
 
-            m_mlInstaller->setGameDir(m_gameDir);
+            ml->setParallelMode(true);
 
-            m_mlInstaller->setParallelMode(true);
-
-            m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
+            ml->installFabric(mcVersion, loaderVersion, installName);
 
 
 
@@ -5891,7 +5194,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                         updateStep(installName, 7, QStringLiteral("completed"), 100);
 
-                        if (!ds->hasPendingLoader && !m_mlInstaller->isRunning() && ds->mcDownloadDone) {
+                        if (!ds->hasPendingLoader && !isModLoaderInstalling() && ds->mcDownloadDone) {
 
                             finishInstall(installName);
 
@@ -6118,12 +5421,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                             updateStep(installName, ds->loaderVerifyStep, QStringLiteral("active"), 0);
                                         }
 
-                                        m_mlInstaller->setGameDir(m_gameDir);
-                                        m_mlInstaller->setForgeBranch(forgeInstallerBranch);
+                                        ml->setGameDir(m_gameDir);
+                                        ml->setForgeBranch(forgeInstallerBranch);
                                         if (loaderType == QStringLiteral("neoforge")) {
-                                            m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                                            ml->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                         } else {
-                                            m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                                            ml->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                                         }
                                     });
                             };
@@ -6177,13 +5480,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                         // Start forge install immediately (parallel with ongoing MC download)
                         // If forge finishes first, loaderFinishedWaitingMC flag handles the handover
-                        m_mlInstaller->setGameDir(m_gameDir);
-                        m_mlInstaller->setForgeBranch(forgeInstallerBranch);
+                        ml->setGameDir(m_gameDir);
+                        ml->setForgeBranch(forgeInstallerBranch);
                         if (loaderType == QStringLiteral("neoforge")) {
                             emit logMessage(QStringLiteral("[加载器] NeoForge安装程序下载完成 %1 MB").arg(data.size()/1024/1024.0, 0, 'f', 1));
-                            m_mlInstaller->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                            ml->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                         } else {
-                            m_mlInstaller->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                            ml->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                         }
 
                     });
@@ -6284,11 +5587,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
             // Fabric: download profile + libs via ModLoaderInstaller (parallel mode)
 
-            m_mlInstaller->setGameDir(m_gameDir);
+            ml->setGameDir(m_gameDir);
 
-            m_mlInstaller->setParallelMode(true);
+            ml->setParallelMode(true);
 
-            m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
+            ml->installFabric(mcVersion, loaderVersion, installName);
 
             // Fabric API in parallel
 
@@ -6363,17 +5666,15 @@ auto* ds = dlSession(installName);
 
                     // Start verify+extract now (runs while MC still downloading)
 
-                    m_modLoaderInstallId = installName;
-
-                    m_mlInstaller->setGameDir(m_gameDir);
+                    ml->setGameDir(m_gameDir);
 
                     if (loaderType == "neoforge")
 
-                        m_mlInstaller->installNeoForgeFromData(data, mcVersion, loaderVersion, installName);
+                        ml->installNeoForgeFromData(data, mcVersion, loaderVersion, installName);
 
                     else
 
-                        m_mlInstaller->installForgeFromData(data, mcVersion, loaderVersion, installName);
+                        ml->installForgeFromData(data, mcVersion, loaderVersion, installName);
 
 
 
@@ -6409,7 +5710,7 @@ auto* ds = dlSession(installName);
 
     // MC is installed — proceed with standalone loader
 
-    m_mlInstaller->setGameDir(m_gameDir);
+    ml->setGameDir(m_gameDir);
 
     qDebug() << "[install] installModLoader ENTRY" << loaderType << mcVersion << loaderVersion << "->" << installName;
 
@@ -6453,24 +5754,24 @@ auto* ds = dlSession(installName);
 
 
 
-    qDebug() << "[install] installModLoader calling install" << loaderType << ", m_running before:" << m_mlInstaller->isRunning();
+    qDebug() << "[install] installModLoader calling install" << loaderType << ", m_running before:" << ml->isRunning();
 
     if (loaderType == QStringLiteral("forge")) {
 
-        m_mlInstaller->setForgeBranch(forgeInstallerBranch);
-        m_mlInstaller->installForge(mcVersion, loaderVersion, installName, forgeInstallerSha1);
+        ml->setForgeBranch(forgeInstallerBranch);
+        ml->installForge(mcVersion, loaderVersion, installName, forgeInstallerSha1);
 
     } else if (loaderType == QStringLiteral("fabric")) {
 
-        m_mlInstaller->installFabric(mcVersion, loaderVersion, installName);
+        ml->installFabric(mcVersion, loaderVersion, installName);
 
     } else if (loaderType == QStringLiteral("neoforge")) {
 
-        m_mlInstaller->installNeoForge(mcVersion, loaderVersion, installName);
+        ml->installNeoForge(mcVersion, loaderVersion, installName);
 
     }
 
-    qDebug() << "[install] installModLoader after install, m_running:" << m_mlInstaller->isRunning() << "m_steps:" << ds->steps.size();
+    qDebug() << "[install] installModLoader after install, m_running:" << ml->isRunning() << "m_steps:" << ds->steps.size();
 
     setInstalling(true);
 
@@ -6486,13 +5787,13 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
         const QString& bmclType, const QString& bmclPatch) {
 
-    if (!m_mlInstaller) return;
+    auto* ml = createLoaderInstaller(installName);
+    if (!ml) return;
 
 
 
-    // FIX: Set m_modLoaderInstallId so progress signals are not dropped
+    // FIX: Set installName so progress signals are not dropped
 
-    m_modLoaderInstallId = installName;
 
     ensureSession(installName);
     auto* ds = dlSession(installName);
@@ -6596,17 +5897,17 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
 
 
-    m_mlInstaller->setGameDir(m_gameDir);
+    ml->setGameDir(m_gameDir);
 
     // Respect version isolation for mods/ output
 
     if (m_isolation && m_isolation->isVersionIsolated(installName)) {
 
-        m_mlInstaller->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
+        ml->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
 
     } else {
 
-        m_mlInstaller->setModsDir(QString());  // reset to default (gameDir/mods)
+        ml->setModsDir(QString());  // reset to default (gameDir/mods)
 
     }
 
@@ -6658,7 +5959,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
 
         emit logMessage(tr("[完成] OptiFine 连通性测试通过"));
 
-        m_mlInstaller->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
+        ml->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
 
     });
 
@@ -6868,17 +6169,18 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
     setInstallPhase(tr("安装 OptiFine..."));
 
+    auto* ml = createLoaderInstaller(installName);
+    if (!ml) return;
 
-
-    m_mlInstaller->setGameDir(m_gameDir);
+    ml->setGameDir(m_gameDir);
 
     if (m_isolation && m_isolation->isVersionIsolated(installName)) {
 
-        m_mlInstaller->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
+        ml->setModsDir(m_isolation->getVersionGameDir(installName) + "/mods");
 
     } else {
 
-        m_mlInstaller->setModsDir(QString());
+        ml->setModsDir(QString());
 
     }
 
@@ -6886,11 +6188,11 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
     // Connect BEFORE calling installOptifineFromJar so our callback fires first
 
-    // and updates m_modLoaderInstallId before the main handler emits installComplete
+    // and updates installName before the main handler emits installComplete
 
     QMetaObject::Connection* conn = new QMetaObject::Connection;
 
-    *conn = connect(m_mlInstaller, &ModLoaderInstaller::finished, this,
+    *conn = connect(ml, &ModLoaderInstaller::finished, this,
 
         [this, conn, mcVersion, installName](bool success, const QString&) {
 
@@ -6926,9 +6228,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
             }
 
-            if (!actualId.isEmpty() && actualId != m_modLoaderInstallId) {
-
-                m_modLoaderInstallId = actualId;
+            if (!actualId.isEmpty() && actualId != installName) {
 
                 emit logMessage(tr("[完成] OptiFine 版本 ID: %1").arg(actualId));
 
@@ -6938,7 +6238,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
             if (m_isolation) {
 
-                m_isolation->migrateToIsolated(actualId.isEmpty() ? m_modLoaderInstallId : actualId);
+                m_isolation->migrateToIsolated(actualId.isEmpty() ? installName : actualId);
 
             }
 
@@ -6946,7 +6246,7 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
 
 
-    m_mlInstaller->installOptifineFromJar(jarData, mcVersion, installName, ds->bmclType, ds->bmclPatch);
+    ml->installOptifineFromJar(jarData, mcVersion, installName, ds->bmclType, ds->bmclPatch);
 
 }
 
@@ -7130,9 +6430,9 @@ void VersionBackend::installOptifineJar(const QString& mcVersion, const QString&
 
     QString targetDir = m_gameDir + "/mods";
 
-    if (m_isolation && m_isolation->isVersionIsolated(m_modLoaderInstallId)) {
+    if (m_isolation && m_isolation->isVersionIsolated(installName)) {
 
-        targetDir = m_isolation->getVersionGameDir(m_modLoaderInstallId) + "/mods";
+        targetDir = m_isolation->getVersionGameDir(installName) + "/mods";
 
     }
 
@@ -7216,9 +6516,11 @@ void VersionBackend::installOptifineJar(const QString& mcVersion, const QString&
 
 void VersionBackend::cancelModLoaderInstall() {
 
-    // Cancel ModLoaderInstaller if running
+    // Cancel all active ModLoaderInstaller instances
 
-    if (m_mlInstaller) m_mlInstaller->cancel();
+    for (auto it = m_mlInstallers.begin(); it != m_mlInstallers.end(); ++it) {
+        if (it.value()) it.value()->cancel();
+    }
 
     // Also cancel any active VersionDownloader (merged install MC download phase)
 
@@ -7242,9 +6544,9 @@ void VersionBackend::cancelModLoaderInstall() {
 
     // Clean up session state
 
-    if (!m_modLoaderInstallId.isEmpty() && m_downloadSessions.contains(m_modLoaderInstallId)) {
+    if (!installName.isEmpty() && m_downloadSessions.contains(installName)) {
 
-        if (auto* ds = dlSession(m_modLoaderInstallId)) ds->markFailed(tr("已取消"));
+        if (auto* ds = dlSession(installName)) ds->markFailed(tr("已取消"));
 
     }
 
@@ -7258,9 +6560,239 @@ void VersionBackend::cancelModLoaderInstall() {
 
 
 
+
+ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& installId)
+{
+    destroyLoaderInstaller(installId);
+
+    auto* ml = new ModLoaderInstaller(this);
+    m_mlInstallers[installId] = ml;
+
+    ml->setGameDir(m_gameDir);
+
+    // --- progressChanged: step-level progress ---
+    connect(ml, &ModLoaderInstaller::progressChanged, this,
+            [this, installId](int step, int totalSteps, const QString& desc) {
+
+                setInstallPhase(tr("\u6a21\u7ec4\u52a0\u8f7d\u5668: ") + desc);
+
+        auto* ds = dlSession(installId);
+        if (!ds) return;
+
+        int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
+
+        if (step > 1) {
+            int prevIdx = ds->isMerged() ? (step - 2 + 4) : (step - 2);
+            updateStep(installId, prevIdx, QStringLiteral("completed"), 100);
+        }
+
+        QVariantMap curStep = (stepIdx >= 0 && stepIdx < ds->steps.size()) ? ds->steps[stepIdx].toMap() : QVariantMap{};
+        QString curStatus = curStep.value(QStringLiteral("status")).toString();
+        if (curStatus != QStringLiteral("active") && curStatus != QStringLiteral("completed")) {
+            if (!curStep.value(QStringLiteral("show")).toBool()) {
+                showStep(installId, stepIdx);
+            }
+            updateStep(installId, stepIdx, QStringLiteral("active"), 0);
+            ds->loaderStepIdx = stepIdx;
+        }
+    });
+
+    // --- stepProgress: step-level percentage ---
+    connect(ml, &ModLoaderInstaller::stepProgress, this,
+            [this, installId](int step, int percentage) {
+
+        auto* ds = dlSession(installId);
+        if (!ds) return;
+
+        int stepIdx = ds->isMerged() ? (step - 1 + 4) : (step - 1);
+        QString st = (percentage >= 100) ? QStringLiteral("completed") : QStringLiteral("active");
+        qCDebug(logVersion).noquote()
+            << QString("[stepProg] mlStep=%1 mapped=%2 pct=%3 status=%4 merged=%5")
+               .arg(step).arg(stepIdx).arg(percentage).arg(st).arg(ds->isMerged() ? 1 : 0);
+        updateStep(installId, stepIdx, st, percentage);
+
+        if (!ds->isMerged()) {
+            int totalSteps = qMax(ds->steps.size(), 1);
+            int completedSteps = qMin(stepIdx, totalSteps - 1);
+            qreal raw = (completedSteps + percentage / 100.0) / totalSteps;
+            ds->m_rawTotalProgress = raw;
+            if (ds->smoothProgress <= 0.0)
+                ds->smoothProgress = raw * 0.7;
+            else
+                ds->smoothProgress = ds->smoothProgress * 0.3 + raw * 0.7;
+        }
+    });
+
+    // --- finished: loader install complete ---
+    connect(ml, &ModLoaderInstaller::finished, this,
+            [this, installId](bool success, const QString& errMsg) {
+
+        auto* ds = dlSession(installId);
+        if (!ds || !m_downloadSessions.contains(installId)) {
+            destroyLoaderInstaller(installId);
+            return;
+        }
+
+        if (success) {
+            for (int i = 0; i < ds->steps.size(); i++) {
+                if (i == 7 && ds->fabricApiPending) continue;
+                updateStep(installId, i, QStringLiteral("completed"), 100);
+            }
+            ds->m_rawTotalProgress = 1.0;
+            ds->smoothProgress = 1.0;
+            emit logMessage(tr("[ModLoader] \u5b89\u88c5\u5b8c\u6210"));
+            setInstallPhase(tr("\u5b8c\u6210"));
+            updateInstalledList();
+
+            bool allDone = true;
+            for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+                auto* ds2 = dlSession(it.key());
+                if (ds2->hasPendingLoader || (ds->optifineJarParallel && ds2->isMerged())) {
+                    allDone = false; break;
+                }
+            }
+            if (allDone) {
+                emit logMessage(tr("[\u5b8c\u6210] \u6240\u6709\u7248\u672c\u5b89\u88c5\u5b8c\u6210\uff01"));
+            }
+
+            if (ds->fabricApiPending) {
+                qDebug() << "[install] Fabric loader done, waiting for parallel API download";
+                return;
+            }
+            if (ds->isMerged() && !ds->mcDownloadDone) {
+                qDebug() << "[install] Loader done, waiting for MC download to complete";
+                ds->loaderFinishedWaitingMC = true;
+                return;
+            }
+        } else {
+            for (int i = 0; i < ds->steps.size(); i++)
+                updateStep(installId, i, QStringLiteral("failed"), 0);
+            ds->markFailed(errMsg.isEmpty() ? tr("\u6a21\u7ec4\u52a0\u8f7d\u5668\u5b89\u88c5\u5931\u8d25") : errMsg);
+            emit logMessage(tr("[\u5931\u8d25] \u6a21\u7ec4\u52a0\u8f7d\u5668\u5b89\u88c5\u5931\u8d25: %1").arg(errMsg));
+        }
+
+        // MC version folder cleanup
+        if (success && ds->isMerged() && !ds->mcVersion.isEmpty()) {
+            bool otherUsingSameMC = false;
+            for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+                auto* d = dlSession(it.key());
+                if (it.key() != installId && d && d->isMerged() && d->mcVersion == ds->mcVersion) {
+                    otherUsingSameMC = true; break;
+                }
+            }
+            if (!otherUsingSameMC) {
+                qCInfo(logVersion) << QStringLiteral("MC \u7248\u672c\u6587\u4ef6\u5939\u6e05\u7406: %1 (\u65e0\u5176\u4ed6 session \u4f9d\u8d56)").arg(ds->mcVersion);
+                cleanupCanceledVersion(ds->mcVersion, m_gameDir);
+                refreshInstalled();
+            }
+        }
+
+        destroyLoaderInstaller(installId);
+        setInstalling(false);
+        startNextFromQueue();
+        emit installFinished(success);
+    });
+
+    // --- waitingForMC ---
+    connect(ml, &ModLoaderInstaller::waitingForMC, this, [this]() {
+        setInstallPhase(tr("\u7b49\u5f85MC\u4e0b\u8f7d\u5b8c\u6210..."));
+        for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
+            auto* ds = dlSession(it.key());
+            if (ds && ds->isMerged() && ds->loaderDownloadReady) {
+                ds->loaderFinishedWaitingMC = true;
+            }
+        }
+    });
+
+    // --- byteProgress ---
+    connect(ml, &ModLoaderInstaller::byteProgress, this,
+            [this, installId](const QString& file, qint64 received, qint64 total, qint64 speed) {
+
+        auto* ds = dlSession(installId);
+        if (!ds) return;
+
+        int stepIdx = ds->loaderStepIdx;
+        if (stepIdx < 0) {
+            for (int i = 0; i < ds->steps.size(); i++) {
+                auto st = ds->steps[i].toMap();
+                QString name = st.value(QStringLiteral("name")).toString();
+                if (name.contains(QStringLiteral("loader"), Qt::CaseInsensitive) ||
+                    name.contains(QStringLiteral("\u52a0\u8f7d\u5668"), Qt::CaseInsensitive) ) {
+                    stepIdx = i;
+                    break;
+                }
+            }
+        }
+        qint64 pct = (total > 0) ? qMin((received * 100) / total, qint64(100)) : 0;
+        if (stepIdx < 0) return;
+        updateStep(installId, stepIdx, QStringLiteral("active"), static_cast<int>(pct));
+        ds->mlBytesDl = received;
+        ds->mlBytesAll = total;
+        ds->mlSpeed = speed;
+        if (total > 0 && received >= total) {
+            if (!ds->loaderDownloadReady) {
+                ds->loaderDownloadReady = true;
+            }
+        }
+    });
+
+    // --- verifyStarted ---
+    connect(ml, &ModLoaderInstaller::verifyStarted, this,
+            [this, installId]() {
+
+        setInstallPhase(tr("\u6821\u9a8c\u4e2d"));
+        auto* ds = dlSession(installId);
+        if (!ds) return;
+
+        int loaderStepIdx = ds->loaderStepIdx;
+        if (loaderStepIdx < 0) {
+            for (int i = 0; i < ds->steps.size(); i++) {
+                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
+                    .contains(QStringLiteral("verify"), Qt::CaseInsensitive)) {
+                    loaderStepIdx = i;
+                    break;
+                }
+            }
+        }
+        if (loaderStepIdx >= 0) {
+            updateStep(installId, loaderStepIdx, QStringLiteral("active"), 0);
+            ds->loaderStepIdx = loaderStepIdx;
+        }
+    });
+
+    // --- verifyFinished ---
+    connect(ml, &ModLoaderInstaller::verifyFinished, this,
+            [this, installId](bool ok) {
+
+        auto* ds = dlSession(installId);
+        if (ds) {
+            updateStep(installId, ds->loaderStepIdx, QStringLiteral("completed"), 100);
+        }
+    });
+
+    // --- logMessage ---
+    connect(ml, &ModLoaderInstaller::logMessage, this, &VersionBackend::logMessage);
+
+    return ml;
+}
+
+void VersionBackend::destroyLoaderInstaller(const QString& installId)
+{
+    auto* ml = m_mlInstallers.take(installId);
+    if (ml) {
+        ml->disconnect();
+        ml->deleteLater();
+    }
+}
+
+
+
 bool VersionBackend::isModLoaderInstalling() const {
 
-    return m_mlInstaller && m_mlInstaller->isRunning();
+    for (auto it = m_mlInstallers.constBegin(); it != m_mlInstallers.constEnd(); ++it) {
+        if (it.value() && it.value()->isRunning()) return true;
+    }
+    return false;
 
 }
 
@@ -7322,7 +6854,7 @@ void VersionBackend::updateCardProgressSpeed(const QString& installId) {
     if (ds->isMerged()) {
         if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
             newSpeed += m_dlStates[ds->mcVersion].speed;
-        if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+        if (isModLoaderInstalling() && ds->mlSpeed > 0)
             newSpeed += ds->mlSpeed;
         if (ds->fabricApiPending && ds->fabSpeed > 0)
             newSpeed += ds->fabSpeed;
@@ -7396,7 +6928,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             qint64 ts = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
                 ts += m_dlStates[ds->mcVersion].speed;
-            if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+            if (isModLoaderInstalling() && ds->mlSpeed > 0)
                 ts += ds->mlSpeed;
             if (ds->fabricApiPending && ds->fabSpeed > 0)
                 ts += ds->fabSpeed;
@@ -7436,7 +6968,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             qint64 s = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
                 s += m_dlStates[ds->mcVersion].speed;
-            if (m_mlInstaller && m_mlInstaller->isRunning() && ds->mlSpeed > 0)
+            if (isModLoaderInstalling() && ds->mlSpeed > 0)
                 s += ds->mlSpeed;
             if (ds->fabricApiPending && ds->fabSpeed > 0)
                 s += ds->fabSpeed;
@@ -8315,7 +7847,7 @@ auto* ds = dlSession(it.key());
 
         bool mlPending = ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty();
 
-        bool mlActive = m_mlInstaller && m_mlInstaller->isRunning() && m_modLoaderInstallId == sid;
+        bool mlActive = m_mlInstallers.contains(sid) && m_mlInstallers.value(sid)->isRunning();
 
         bool mlMerged = ds->isMerged();
 
@@ -8353,7 +7885,7 @@ auto* ds = dlSession(it.key());
 
             // Add ML installer download speed (while actively running)
 
-            bool mlActive = m_mlInstaller && m_mlInstaller->isRunning();
+            bool mlActive = isModLoaderInstalling();
 
             if (mlActive && ds->mlSpeed > 0)
 

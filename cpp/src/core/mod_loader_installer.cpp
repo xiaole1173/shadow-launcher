@@ -13,6 +13,7 @@
 #include <QStandardPaths>
 #include <QProcess>
 #include <QThread>
+#include <QLockFile>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
 #include <QRegularExpression>
@@ -2007,8 +2008,8 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
 // ═══════════════════════════════════════════════════════════════
 QString ModLoaderInstaller::extractBootstrapperPath() {
     // Extract forge-installer.jar (helper, contains com.bangbang93.ForgeInstaller)
-    QString dst = QDir::tempPath() + QStringLiteral("/forge-installer.jar");
-    if (QFile::exists(dst)) return dst;
+    // Use unique temp name so multiple concurrent tasks don't collide
+    QString dst = QDir::tempPath() + QStringLiteral("/forge-installer-") + QString::number(QRandomGenerator::global()->generate()) + QStringLiteral(".jar");
     QFile res(QStringLiteral(":/resources/tools/forge-installer.jar"));
     if (!res.open(QIODevice::ReadOnly)) {
         qCWarning(logLoader) << "无法打开嵌入式 forge-installer.jar 资源";
@@ -2029,8 +2030,8 @@ QString ModLoaderInstaller::extractBootstrapperPath() {
 
 QString ModLoaderInstaller::extractJavaWrapperPath() {
     // Extract java-wrapper.jar (oolloo.jlw.Wrapper, fixes CJK encoding on Windows)
-    QString dst = QDir::tempPath() + QStringLiteral("/java-wrapper.jar");
-    if (QFile::exists(dst)) return dst;
+    // Use unique temp name so multiple concurrent tasks don't collide
+    QString dst = QDir::tempPath() + QStringLiteral("/java-wrapper-") + QString::number(QRandomGenerator::global()->generate()) + QStringLiteral(".jar");
     QFile res(QStringLiteral(":/resources/tools/java-wrapper.jar"));
     if (!res.open(QIODevice::ReadOnly)) {
         qCWarning(logLoader) << "无法打开嵌入式 java-wrapper.jar 资源";
@@ -2133,6 +2134,20 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
     // Already downloaded?
     if (QFile::exists(javaExe)) {
         qCInfo(logLoader) << QStringLiteral("Java %1 已存在于 java_cache: %2").arg(minVersion).arg(javaExe);
+        return javaExe;
+    }
+
+    // File lock to prevent concurrent downloads to the same cache dir
+    QDir().mkpath(baseDir);
+    QLockFile lockFile(baseDir + QStringLiteral("/jdk-%1.lock").arg(minVersion));
+    lockFile.setStaleLockTime(300000); // 5 min stale lock timeout
+    if (!lockFile.tryLock(60000)) {
+        qCWarning(logLoader) << QStringLiteral("Java %1 下载被其他进程锁定，等待超时").arg(minVersion);
+        return {};
+    }
+    // Re-check after acquiring lock (other instance may have completed download)
+    if (QFile::exists(javaExe)) {
+        qCInfo(logLoader) << QStringLiteral("Java %1 在等待锁期间已被其他进程下载").arg(minVersion);
         return javaExe;
     }
 
