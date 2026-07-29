@@ -302,10 +302,18 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
 
     // Pick a healthy source
     int sourceIdx = 0;
+    int srcLabel = 0;
     for (int i = 0; i < file->orderedSources.size(); ++i) {
         QString host = extractHost(file->orderedSources[i]);
-        if (hostCanAccept(host)) { sourceIdx = i; break; }
-        if (i == file->orderedSources.size() - 1) sourceIdx = i; // last resort
+        if (hostCanAccept(host)) { sourceIdx = i; srcLabel = (i == 0) ? 0 : i; break; }
+        if (i == file->orderedSources.size() - 1) { sourceIdx = i; srcLabel = i; } // last resort
+    }
+
+    // Source selection log (sampled)
+    static int s_srcLogCtr = 0;
+    if (srcLabel > 0 || (++s_srcLogCtr % 20 == 0)) {
+        qCInfo(logDownload) << QStringLiteral("[source] primary=%1 file=%2")
+            .arg(extractHost(file->orderedSources[sourceIdx]), file->localName);
     }
 
     auto th = std::make_shared<DownloadThread>();
@@ -354,7 +362,14 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     for (int i = 0; i < file->orderedSources.size(); ++i) {
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; break; }
-        if (i == file->orderedSources.size() - 1) sourceIdx = i;
+        if (i == file->orderedSources.size() - 1) { sourceIdx = i; } // last resort
+    }
+
+    // Source selection log (sampled per 20 addition threads)
+    static int s_addSrcLogCtr = 0;
+    if (sourceIdx > 0 || (++s_addSrcLogCtr % 20 == 0)) {
+        qCInfo(logDownload) << QStringLiteral("[source] addition file=%1 host=%2")
+            .arg(file->localName, extractHost(file->orderedSources[sourceIdx]));
     }
 
     auto th = std::make_shared<DownloadThread>();
@@ -524,9 +539,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 qCWarning(logDownload) << QStringLiteral("请求失败 URL=%1 错误=%2 重试=%3")
                     .arg(url, timedOut ? QStringLiteral("超时") : reply->errorString())
                     .arg(attempt + 1);
+                qCInfo(logDownload) << QStringLiteral("[fail] host=%1 file=%2 retry=%3")
+                    .arg(extractHost(url), file->localName).arg(attempt + 1);
                 reply->abort();
                 reply->deleteLater();
-                if (attempt >= 2) break;
+                if (attempt >= 2 && !file->expectedSha1.isEmpty()) break;
                 th->downloadDone = 0;
                 continue;
             }
@@ -597,6 +614,8 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     qCWarning(logDownload) << QStringLiteral("SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
                         .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
                         .arg(attempt + 1);
+                    qCInfo(logDownload) << QStringLiteral("[fail] SHA1 host=%1 file=%2")
+                        .arg(extractHost(url), file->localName);
                     sourceOk = false;
                     if (attempt >= 5) break;
                     continue;
@@ -893,10 +912,30 @@ void FileDownloader::speedTick()
 
     m_emaMbps = m_emaMbps * 0.5 + (currentBps / (1024.0 * 1024.0)) * 0.5;
 
+    // ── Speed floor: up on growth, decay on stagnation ──
     qint64 floorLimit = static_cast<qint64>(currentBps * 0.85);
     qint64 currentFloor = m_speedFloorBps.loadRelaxed();
+    const qint64 nowMs = getElapsedMs();
     if (currentBps >= kMinSpeedFloorBps && floorLimit > currentFloor) {
         m_speedFloorBps.storeRelaxed(floorLimit);
+        m_lastFloorIncreaseMs = nowMs;
+    } else if (nowMs - m_lastFloorIncreaseMs > 5000 && currentFloor > kMinSpeedFloorBps) {
+        // 5s without growth: decay floor by 50%
+        qint64 newFloor = qMax(kMinSpeedFloorBps, currentFloor / 2);
+        m_speedFloorBps.storeRelaxed(newFloor);
+        m_lastFloorIncreaseMs = nowMs;
+    }
+
+    // ── Speed log (rate-limited to 1s) ──
+    if (nowMs - m_lastSpeedLogMs >= 1000) {
+        m_lastSpeedLogMs = nowMs;
+        double avgMbps = currentBps / (1024.0 * 1024.0);
+        qCInfo(logDownload) << QStringLiteral("[speed] EMA=%1 MB/s AVG=%2 MB/s floor=%3 KB/s active=%4/%5")
+            .arg(m_emaMbps, 0, 'f', 1)
+            .arg(avgMbps, 0, 'f', 1)
+            .arg(currentFloor / 1024)
+            .arg(m_activeThreads.loadRelaxed())
+            .arg(m_maxThreads);
     }
 
     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
@@ -946,6 +985,7 @@ bool FileDownloader::hostCanAccept(const QString& host) const
     auto it = m_hostStats.find(host);
     if (it == m_hostStats.end()) return true;
     if (it->degraded) return false;
+    if (it->activeRequests >= kMaxPerHost) return false;
     return true;
 }
 

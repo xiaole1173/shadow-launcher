@@ -118,7 +118,7 @@ private:
     QAtomicInt m_cancelled{0};
 
     // ── Config ──
-    int m_maxThreads = 64;
+    int m_maxThreads = 12;
     QAtomicInteger<qint64> m_speedLimitBps{-1};
 
     // ── Thread pool (replaces QThread::create) ──
@@ -157,6 +157,8 @@ private:
     mutable QMutex m_hostMutex;
     QMap<QString, HostStats> m_hostStats;
 
+    static constexpr int kMaxPerHost = 4;
+
     static QString extractHost(const QString& url);
     bool hostCanAccept(const QString& host) const;
     void recordHostResult(const QString& host, bool ok);
@@ -190,6 +192,8 @@ private:
     mutable QMutex m_speedMutex;
     double m_emaMbps = 0.0;
     QAtomicInteger<qint64> m_speedFloorBps{256 * 1024};
+    qint64 m_lastFloorIncreaseMs = 0;
+    qint64 m_lastSpeedLogMs = 0;
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;
 
     // ── Timers ──
