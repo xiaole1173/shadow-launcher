@@ -2433,13 +2433,13 @@ void VersionBackend::setInstalling(bool v)
 
 {
 
-    bool wasInstalling = m_installing || (m_activeCount > 0);
+    bool wasInstalling = m_installing || (m_activeCount > 0) || !m_mergedContexts.isEmpty();
 
     m_installing = v;
 
-    bool isNowInstalling = m_installing || (m_activeCount > 0);
+    bool isNowInstalling = m_installing || (m_activeCount > 0) || !m_mergedContexts.isEmpty();
 
-    qCInfo(logVersion) << QStringLiteral("安装状态变更 安装中=%1 活跃任务=%2").arg(v ? QStringLiteral("是") : QStringLiteral("否")).arg(m_activeCount);
+    qCInfo(logVersion) << QStringLiteral("安装状态变更 安装中=%1 活跃任务=%2 合并上下文=%3").arg(v ? QStringLiteral("是") : QStringLiteral("否")).arg(m_activeCount).arg(m_mergedContexts.size());
 
     if (wasInstalling != isNowInstalling) {
 
@@ -7638,6 +7638,15 @@ void VersionBackend::destroyMergedContext(const QString& installId)
     }
 
     delete ctx;
+
+    // If this was the last merged context, update installing state
+    if (m_mergedContexts.isEmpty()) {
+        bool wasInstalling = true;
+        bool isNowInstalling = m_installing || (m_activeCount > 0);
+        if (wasInstalling != isNowInstalling) {
+            emit installStateChanged();
+        }
+    }
 }
 
 } // namespace ShadowLauncher

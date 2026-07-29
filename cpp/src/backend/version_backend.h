@@ -128,7 +128,7 @@ public:
     explicit VersionBackend(QObject* parent = nullptr);
     ~VersionBackend() override;
 
-    bool isInstalling() const { return m_installing || (m_activeCount > 0); }
+    bool isInstalling() const { return m_installing || (m_activeCount > 0) || !m_mergedContexts.isEmpty(); }
     int activeCount() const { return m_activeCount; }
 
     QVariantList versionInfoList() const;
