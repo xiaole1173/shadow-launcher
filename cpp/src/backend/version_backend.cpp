@@ -4980,6 +4980,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
                     ctx->installer->setGameDir(m_gameDir);
                     ctx->installer->setForgeBranch(forgeInstallerBranch);
+
+                    // CRITICAL: feed JAR data to installer BEFORE marking ready
+                    if (loaderType == QStringLiteral("neoforge")) {
+                        ctx->installer->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                    } else {
+                        ctx->installer->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+                    }
+
                     ctx->loaderJarReady = true;
 
                     // Wait for MC download if not done yet
