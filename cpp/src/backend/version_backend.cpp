@@ -1935,96 +1935,6 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     qCDebug(logLaunch) << "[DOWNLOAD] finished=" << finishedId << " active=" << m_activeCount << "/" << MAX_CONCURRENT << " queue=" << m_installQueue.size();
 
-
-
-    // Check ALL sessions for pending loaders waiting for this MC version
-
-    for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
-
-        auto& ses = it.value();
-auto* ds = dlSession(it.key());
-
-        if (ds->hasPendingLoader && success && ds->pendingLoaderMc == finishedId) {
-
-            qDebug() << "[install] MC" << finishedId << "installed, checking pending loader:" << ds->pendingLoaderName;
-
-            
-
-            // If loader was downloaded in parallel, the merged flow above already handled it.
-            // Exception: OptiFine parallel flow needs mcDownloadDone set here so
-            // onParallelOptifineDone can proceed when JAR finishes before MC.
-            if (ds->loaderDownloadReady || ds->isMerged()) {
-
-                // OptiFine parallel: mark MC done and check if JAR is ready
-                if (ds->optifineJarParallel && ds->pendingLoaderType == QStringLiteral("optifine")) {
-                    if (!ds->mcDownloadDone) {
-                        ds->mcDownloadDone = true;
-                        qCInfo(logApp) << QStringLiteral("OptiFine MC 下载完成，检查 JAR 状态");
-                        if (ds->optifineJarDone) {
-                            onParallelOptifineDone(ds->pendingLoaderName, QByteArray());
-                        }
-                    }
-                }
-
-                ds->hasPendingLoader = false;
-                continue;
-
-            }
-
-            if (ds->pendingLoaderType == QStringLiteral("optifine")) {
-
-                if (ds->isMerged()) {
-
-                    if (ds->optifineJarParallel) {
-
-                        // Parallel mode: MC just finished, check if OptiFine JAR is also done
-
-                        if (!ds->mcDownloadDone) {
-
-                            ds->mcDownloadDone = true;
-
-                            if (ds->optifineJarDone) {
-
-                                onParallelOptifineDone(ds->pendingLoaderName, QByteArray());
-
-                            }
-
-                        }
-
-                    } else {
-
-                        // Sequential mode: MC done, now download OptiFine JAR
-
-                        finishOptifineMerged(ds->pendingLoaderMc, ds->pendingLoaderName);
-
-                    }
-
-                } else {
-
-                    installOptifine(ds->pendingLoaderMc, ds->pendingLoaderVer, QString(), ds->pendingLoaderName);
-
-                }
-
-            } else {
-
-                // Forge / NeoForge / Fabric: call installModLoader with stored params
-
-                installModLoader(ds->pendingLoaderMc, ds->pendingLoaderType,
-
-                                 ds->pendingLoaderVer, ds->pendingLoaderName,
-
-                                 ds->fabricApiVersion, ds->fabricApiUrl,
-
-                                 ds->fabricApiSavePath, ds->forgeInstallerSha1);
-
-            }
-
-            break;  // Only one pending loader per MC version
-
-        }
-
-    }
-
 }
 
 
@@ -5878,6 +5788,12 @@ void VersionBackend::cancelModLoaderInstall() {
         if (it.value()) it.value()->cancel();
     }
 
+    // Cancel merged context installers
+    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+        if (it.value() && it.value()->installer) it.value()->installer->cancel();
+        if (it.value() && it.value()->mcDownloader) it.value()->mcDownloader->cancel();
+    }
+
     // Also cancel any active VersionDownloader (merged install MC download phase)
 
     for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
@@ -5901,6 +5817,9 @@ void VersionBackend::cancelModLoaderInstall() {
     // Clean up session state for all active installer sessions
 
     for (auto it = m_mlInstallers.begin(); it != m_mlInstallers.end(); ++it) {
+        if (auto* ds = dlSession(it.key())) ds->markFailed(tr("已取消"));
+    }
+    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
         if (auto* ds = dlSession(it.key())) ds->markFailed(tr("已取消"));
     }
 
@@ -6177,6 +6096,9 @@ bool VersionBackend::isModLoaderInstalling() const {
 
     for (auto it = m_mlInstallers.constBegin(); it != m_mlInstallers.constEnd(); ++it) {
         if (it.value() && it.value()->isRunning()) return true;
+    }
+    for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
+        if (it.value() && it.value()->installer && it.value()->installer->isRunning()) return true;
     }
     return false;
 
