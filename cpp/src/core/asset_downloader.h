@@ -53,6 +53,9 @@ public:
 
     void setMaxConcurrent(int n) { m_maxConcurrent = qBound(4, n, 256); }
     void setSpeedLimitMB(double mbps) { m_speedLimitMB = mbps; }
+    /// If a file is not found in the working dir (tempDir), check this fallback
+    /// dir (gameDir) for a matching SHA1 and copy it locally instead of re-downloading.
+    void setFallbackCacheDir(const QString& dir) { m_fallbackCacheDir = dir; }
 
     void startDownload(const QVector<AssetTask>& tasks, int maxConcurrent = 16);
     void cancel();
@@ -63,6 +66,10 @@ public:
     int totalFiles() const { return m_totalFiles.loadRelaxed(); }
     qint64 downloadedBytes() const { return m_downloadedBytes.loadRelaxed(); }
     qint64 totalBytes() const { return m_totalBytes.loadRelaxed(); }
+    /// Bytes from cache hits (excluded from speed calculation).
+    qint64 cachedBytes() const { return m_cacheBytes.loadRelaxed(); }
+    /// Network-only bytes (total - cache).
+    qint64 networkBytes() const { return m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed(); }
     double currentSpeedMBps() const { return m_emaMbps; }
 
 signals:
@@ -132,7 +139,9 @@ private:
     void enqueueIO(const AssetTask& task, const QByteArray& data);
 
     // ── Async SHA1 pre-check (offloaded to IO pool, avoids main-thread blocking) ──
-    void enqueuePreCheck(const AssetTask& task);
+    /// checkPath: path to verify SHA1 at (default: task.savePath).
+    /// If checkPath != task.savePath and SHA1 matches, copies checkPath → savePath.
+    void enqueuePreCheck(const AssetTask& task, const QString& checkPath = QString());
     struct PreCheckPending {
         AssetTask task;
         qint64 enqueueAtMs = 0;
@@ -196,6 +205,7 @@ private:
     QAtomicInteger<qint64> m_downloadedBytes{0};
     QAtomicInteger<qint64> m_lastSampleBytes{0};
     QAtomicInteger<qint64> m_cacheBytes{0};  // bytes from cache hits (excluded from speed calc)
+    QString m_fallbackCacheDir;            // gameDir to check for existing files before downloading
     QElapsedTimer m_speedTimer;
 
     // ── Speed floor (adaptive, 85 % of weighted peak) ──

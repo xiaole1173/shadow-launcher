@@ -67,6 +67,7 @@ public:
     // Configuration
     void setMirror(const MirrorSource& mirror);
     void setMinecraftDir(const QString& dir);
+    void setCacheFallbackDir(const QString& dir);
     void setMaxWorkers(int workers);
     void setDownloadConfig(const DownloadConfig& config);
 
@@ -83,6 +84,10 @@ public:
     int totalFiles() const;
     qint64 downloadedBytes() const;
     qint64 totalBytes() const;
+    /// Bytes from cache hits (excluded from speed calculation).
+    qint64 cachedBytes() const;
+    /// Network-only bytes (total - cache).
+    qint64 networkBytes() const { return m_downloadedBytes.loadRelaxed() - cachedBytes(); }
     QString stateStr() const;
     bool isRunning() const;
 
@@ -150,6 +155,7 @@ private:
     // --- Members ---
     MirrorSource m_mirror;
     QString m_minecraftDir;
+    QString m_cacheFallbackDir;  // real gameDir for cache lookups (used when m_minecraftDir is a tempDir)
     DownloadConfig m_downloadCfg;
     int m_maxWorkers = 64;  // ≈ 65
 

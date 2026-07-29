@@ -118,6 +118,28 @@ Rectangle {
         return m ? m[1] : v
     }
 
+    // ── Loader tag colors (unified with VersionSettingsOverlay top bar) ──
+    function _tagColor(loader) {
+        // All known loaders use white text (StyleTokens.textPrimary)
+        if (loader === "fabric" || loader === "forge" || loader === "neoforge"
+            || loader === "quilt" || loader === "liteloader" || loader === "optifine")
+            return StyleTokens.textPrimary
+        return StyleTokens.accentLink
+    }
+    function _tagBg(loader) {
+        if (loader === "fabric") return "#3a7a9a"
+        if (loader === "forge") return "#c05050"
+        if (loader === "neoforge") return "#c08050"
+        if (loader === "quilt") return "#3a8a7a"
+        if (loader === "liteloader") return "#7070a0"
+        if (loader === "optifine") return "#8a8a5a"
+        return StyleTokens.accentSubtle
+    }
+    function _capLoader(loader) {
+        if (!loader) return ""
+        return loader.charAt(0).toUpperCase() + loader.slice(1)
+    }
+
     property bool showTestVersions: false
 
     property var grouped: {
@@ -528,7 +550,12 @@ Rectangle {
                                     var d = getVersionDetail(modelData)
                                     if (d && d.loaders) {
                                         for (var li = 0; li < d.loaders.length; li++) {
-                                            result.push({text: d.loaders[li], color: StyleTokens.accentLink, bg: StyleTokens.accentSubtle})
+                                            var rawLoader = d.loaders[li].toLowerCase()
+                                            result.push({
+                                                text: root._capLoader(rawLoader),
+                                                color: root._tagColor(rawLoader),
+                                                bg: root._tagBg(rawLoader)
+                                            })
                                         }
                                     }
                                     var gvClean = d ? (d.gameVersion || "") : ""

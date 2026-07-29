@@ -187,14 +187,26 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     while (!m_pendingQueue.isEmpty()) {
         AssetTask task = m_pendingQueue.dequeue();
         if (!task.sha1.isEmpty()) {
+            // Check 1: working dir (tempDir)
             QFileInfo fi(task.savePath);
             if (fi.exists() && fi.size() > 0) {
-                // Quick size match check
                 if (task.size <= 0 || fi.size() == task.size) {
-                    // Dispatch async SHA1 pre-check
-                    enqueuePreCheck(task);
+                    enqueuePreCheck(task, task.savePath);
                     fastCacheHits++;
-                    continue;  // don't put in downloadQueue yet
+                    continue;
+                }
+            }
+            // Check 2: fallback cache dir (gameDir) — avoid re-downloading
+            if (!m_fallbackCacheDir.isEmpty()) {
+                const QString fallbackPath = m_fallbackCacheDir + QStringLiteral("/assets/objects/")
+                    + task.sha1.left(2) + QStringLiteral("/") + task.sha1;
+                QFileInfo ffi(fallbackPath);
+                if (ffi.exists() && ffi.size() > 0) {
+                    if (task.size <= 0 || ffi.size() == task.size) {
+                        enqueuePreCheck(task, fallbackPath);
+                        fastCacheHits++;
+                        continue;
+                    }
                 }
             }
         }
@@ -1005,19 +1017,54 @@ QString AssetDownloader::sha1HexOf(const QByteArray& data)
 class PreCheckWorker : public QRunnable {
 public:
     AssetDownloader::AssetTask task;
+    QString checkPath;              // path to check SHA1 at; empty = use task.savePath
+    bool copyOnHit = false;         // if SHA1 matches and copyOnHit, copy checkPath → task.savePath
     std::function<void(const AssetDownloader::AssetTask&, bool)> callback;
 
     void run() override {
         qint64 t0 = QDateTime::currentMSecsSinceEpoch();
+        const QString targetPath = checkPath.isEmpty() ? task.savePath : checkPath;
         bool sha1Match = false;
         {
-            QFile f(task.savePath);
+            QFile f(targetPath);
             if (f.open(QIODevice::ReadOnly)) {
                 QCryptographicHash hash(QCryptographicHash::Sha1);
                 hash.addData(&f);
                 f.close();
                 if (hash.result().toHex() == task.sha1) {
                     sha1Match = true;
+                }
+            }
+        }
+        // If hit came from a fallback cache path, copy to working dir
+        if (sha1Match && copyOnHit && targetPath != task.savePath) {
+            QDir().mkpath(QFileInfo(task.savePath).absolutePath());
+            if (!QFile::copy(targetPath, task.savePath)) {
+                // Copy can fail if destination already exists (duplicate SHA1 task
+                // from a different asset index entry — same content, same hash).
+                if (QFileInfo::exists(task.savePath)) {
+                    // Verify existing file has the right content
+                    QFile f(task.savePath);
+                    if (f.open(QIODevice::ReadOnly)) {
+                        QCryptographicHash h(QCryptographicHash::Sha1);
+                        h.addData(&f);
+                        f.close();
+                        if (h.result().toHex() == task.sha1) {
+                            sha1Match = true;  // already there, count as hit
+                        } else {
+                            qCWarning(logAsset) << "  [cache] copy FAILED (conflict):"
+                                                 << task.sha1.left(12);
+                            sha1Match = false;
+                        }
+                    } else {
+                        qCWarning(logAsset) << "  [cache] copy FAILED (can't verify):"
+                                             << task.sha1.left(12);
+                        sha1Match = false;
+                    }
+                } else {
+                    qCWarning(logAsset) << "  [cache] copy FAILED (no dest):"
+                                         << task.sha1.left(12) << targetPath;
+                    sha1Match = false;
                 }
             }
         }
@@ -1031,9 +1078,13 @@ public:
     }
 };
 
-void AssetDownloader::enqueuePreCheck(const AssetTask& task)
+void AssetDownloader::enqueuePreCheck(const AssetTask& task, const QString& checkPath)
 {
-    if (m_pendingPreCheck.contains(task.sha1)) return;  // already queued
+    // NOTE: Deliberately NOT de-duplicating by SHA1 here. Multiple asset index entries
+    // CAN share the same SHA1 (different virtual paths, identical content). The first
+    // PreCheckWorker that hits copies the file to savePath; subsequent workers for the
+    // same SHA1 will find the file already there and count as cache hit via the
+    // copy-fallback logic below. Removing dedup avoids the silent-drop bug.
 
     PreCheckPending pcp;
     pcp.task = task;
@@ -1043,6 +1094,8 @@ void AssetDownloader::enqueuePreCheck(const AssetTask& task)
 
     auto* worker = new PreCheckWorker();
     worker->task = task;
+    worker->checkPath = checkPath.isEmpty() ? task.savePath : checkPath;
+    worker->copyOnHit = !checkPath.isEmpty() && checkPath != task.savePath;
 
     QPointer<AssetDownloader> self(this);
     worker->callback = [self](const AssetDownloader::AssetTask& t, bool sha1Match) {

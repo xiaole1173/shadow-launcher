@@ -159,6 +159,15 @@ void VersionDownloader::setMirror(const MirrorSource& mirror)
 void VersionDownloader::setMinecraftDir(const QString& dir)
 {
     m_minecraftDir = dir;
+    // FileDownloader needs the working dir to compute cache fallback paths
+    if (m_downloader) m_downloader->setMinecraftDir(dir);
+}
+
+void VersionDownloader::setCacheFallbackDir(const QString& dir)
+{
+    m_cacheFallbackDir = dir;
+    if (m_downloader) m_downloader->setCacheFallbackDir(dir);
+    if (m_assetDownloader) m_assetDownloader->setFallbackCacheDir(dir);
 }
 
 void VersionDownloader::setMaxWorkers(int workers)
@@ -427,6 +436,15 @@ qint64 VersionDownloader::totalBytes() const
     return m_totalBytes.loadRelaxed();
 }
 
+qint64 VersionDownloader::cachedBytes() const
+{
+    qint64 bytes = 0;
+    if (m_assetDownloader)
+        bytes += m_assetDownloader->cachedBytes();
+    // Note: FileDownloader cachedBytes() is inline in header
+    return bytes;
+}
+
 QString VersionDownloader::stateStr() const
 {
     switch (m_state) {
@@ -454,6 +472,13 @@ bool VersionDownloader::isRunning() const
 
 void VersionDownloader::checkBothDownloadersDone()
 {
+    qCInfo(logVersion).noquote() << QStringLiteral("[checkBoth] libDone=%1 assetDone=%2 fdAlive=%3 fdTotal=%4 fdDone=%5 fdFail=%6")
+        .arg(m_libTasksDone).arg(m_assetTasksDone)
+        .arg(m_downloader ? (m_downloader->isRunning() ? 1 : 0) : -1)
+        .arg(m_downloader ? m_downloader->totalFiles() : -1)
+        .arg(m_downloader ? m_downloader->completedFiles() : -1)
+        .arg(m_downloader ? m_downloader->failedFiles() : -1);
+
     if (!m_libTasksDone || !m_assetTasksDone)
         return;
     if (m_state == Cancelled) {
@@ -789,6 +814,8 @@ void VersionDownloader::retryWithNextMirror()
     m_downloader = new ShadowDownloader::FileDownloader(this);
     m_downloader->setMaxThreads(m_maxWorkers);
     m_downloader->setSpeedLimitMB(m_downloadCfg.speedLimitMB);
+    m_downloader->setMinecraftDir(m_minecraftDir);
+    m_downloader->setCacheFallbackDir(m_cacheFallbackDir);
     connect(m_downloader, &ShadowDownloader::FileDownloader::progressChanged,
             this, [this](int completed, int total, qint64 rx, qint64 totalBytes) {
         int assetCompleted = m_assetDownloader ? m_assetDownloader->completedFiles() : 0;
@@ -1319,3 +1346,4 @@ void VersionDownloader::AsyncVerifyWorker::process() {
 }
 
 } // namespace ShadowLauncher
+ 

@@ -91,12 +91,21 @@ public:
     void setMaxThreads(int n) { m_maxThreads = qBound(1, n, 128); }
     int maxThreads() const { return m_maxThreads; }
     void setSpeedLimitMB(double mb) { m_speedLimitBps.storeRelaxed(static_cast<qint64>(mb * 1024 * 1024)); }
+    /// Set the working Minecraft directory (used for cache fallback path computation).
+    void setMinecraftDir(const QString& dir) { m_minecraftDir = dir; }
+    /// If a file is not found in the working dir, check this fallback dir for
+    /// a matching SHA1 and copy locally instead of re-downloading.
+    void setCacheFallbackDir(const QString& dir) { m_cacheFallbackDir = dir; }
 
     int completedFiles() const { return m_completedFiles.loadRelaxed(); }
     int totalFiles() const { return m_totalFiles.loadRelaxed(); }
     int failedFiles() const { return m_failedFiles.loadRelaxed(); }
     qint64 downloadedBytes() const { return m_downloadedBytes.loadRelaxed(); }
     qint64 totalBytes() const { return m_totalBytes.loadRelaxed(); }
+    /// Bytes from cache hits (excluded from speed calculation).
+    qint64 cachedBytes() const { return m_cacheBytes.loadRelaxed(); }
+    /// Network-only bytes (total - cache).
+    qint64 networkBytes() const { return m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed(); }
     int activeThreads() const { return m_activeThreads.loadRelaxed(); }
 
     double currentSpeedMBps() const;
@@ -121,6 +130,10 @@ private:
     int m_maxThreads = 12;
     QAtomicInteger<qint64> m_speedLimitBps{-1};
 
+    // ── Cache fallback (gameDir cache for tempDir downloads) ──
+    QString m_minecraftDir;       // working dir where files are downloaded to (tempDir for merged)
+    QString m_cacheFallbackDir;   // real gameDir cache to check before downloading
+
     // ── Thread pool (replaces QThread::create) ──
     QThreadPool m_threadPool;
 
@@ -133,6 +146,7 @@ private:
     QAtomicInt m_completedFiles{0};
     QAtomicInt m_failedFiles{0};
     QAtomicInteger<qint64> m_downloadedBytes{0};
+    QAtomicInteger<qint64> m_cacheBytes{0};  // bytes from cache hits (excluded from speed calc)
     QAtomicInteger<qint64> m_totalBytes{0};
     QAtomicInt m_activeThreads{0};
     QAtomicInt m_nextUuid{0};
@@ -141,7 +155,7 @@ private:
     mutable QMutex m_inflightMutex;
     QList<QNetworkReply*> m_inflightReplies;
 
-    // ── Phase-based scheduling (主流启动器 style) ──
+    // ── 分阶段调度 ──
     enum Phase { PhaseFirstThread, PhaseAccelerate, PhaseSteady };
     Phase m_phase = PhaseFirstThread;
     int filesWithoutThread();

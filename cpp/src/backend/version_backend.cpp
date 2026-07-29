@@ -709,6 +709,9 @@ void VersionBackend::installVersion(const QString& versionId)
             }
             downloader->setMinecraftDir(mcDir);
 
+            // For merged installs (mcDir is a tempDir), set the real gameDir
+            // as cache fallback so already-downloaded files are reused.
+            downloader->setCacheFallbackDir(m_versionMgr->gameDir());
 
 
             // Sync download settings from parent ShadowBackend
@@ -2660,35 +2663,37 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     st.total = tf;
 
-
-
-    
-
-    qint64 delta = db - st.bytesDl;
-
-
-    // ── Per-State speed: instantaneous from real network deltas only ──
-    //    First progressChanged carries ALL cached bytes (short elapsed → huge speed).
-    //    Skip it. Only compute speed when we have a real delta/time window.
-    //    Formula: speed = delta_bytes / (nowMs - speedLastTimeMs) * 1000
-    //    No qMax — speed always reflects most recent window, avoids stuck-at-peak.
+    // ── Speed: use network-only bytes (excl. cache) with EMA smoothing ──
+    //    Cache hits (local SHA1 match, fallback cache) still count in st.bytesDl
+    //    for progress bar accuracy, but are subtracted from the speed calculation.
+    //    EMA formula: smoothSpeed = kAlpha * instant + (1-kAlpha) * smoothSpeed
+    //    kAlpha=0.15 matches AssetDownloader's internal EMA.
 
     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
 
-    if (delta > 0) {
+    // Query network bytes from the downloader (excludes cached bytes)
+    auto* dl = m_downloaders.value(versionId);
+    qint64 cacheBytes = dl ? dl->cachedBytes() : 0;
+    qint64 netDb = db - cacheBytes;
+    qint64 netDelta = netDb - st.networkBytesDl;
+
+    if (netDelta > 0) {
         qint64 dt = st.speedLastTimeMs > 0 ? (nowMs - st.speedLastTimeMs) : 0;
         if (dt > 0) {
-            // Real data: instantaneous speed = delta / elapsed_ms
-            st.speed = (delta * 1000) / dt;
+            double instantBps = double(netDelta) * 1000.0 / double(dt);
+            constexpr double kAlpha = 0.15;
+            st.smoothSpeed = kAlpha * instantBps + (1.0 - kAlpha) * st.smoothSpeed;
+            st.speed = static_cast<qint64>(st.smoothSpeed);
+        } else {
+            // First real network delta: seed EMA, don't show speed yet
+            st.smoothSpeed = 0.0;
         }
-        // Always update timestamp — even on first pulse (dt==0) we need
-        // a reference for the NEXT delta's elapsed time.
         st.speedLastTimeMs = nowMs;
+        st.networkBytesDl = netDb;
     } else if (st.speed > 0 && st.speedLastTimeMs > 0 && (nowMs - st.speedLastTimeMs) > 30000) {
         st.speed = 0;
+        st.smoothSpeed = 0.0;
     }
-
-
 
     st.bytesDl = db;
 
@@ -6719,6 +6724,8 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
 {
 
+    qCInfo(logVersion) << QStringLiteral("[verify-scan] 检查下载完成状态 version=%1").arg(versionId);
+
     // Check merged install sessions
 
     for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
@@ -6726,6 +6733,12 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
         auto* d = dlSession(it.key());
 
         if (d && d->isMerged() && d->mcVersion == versionId) {
+
+            qCInfo(logVersion).noquote() << QStringLiteral("[verify-scan]  merged session=%1").arg(it.key())
+                << QStringLiteral("mcStepTotal=[%1,%2,%3]")
+                    .arg(d->mcStepTotal[0]).arg(d->mcStepTotal[1]).arg(d->mcStepTotal[2])
+                << QStringLiteral("mcStepDone=[%1,%2,%3]")
+                    .arg(d->mcStepDone[0]).arg(d->mcStepDone[1]).arg(d->mcStepDone[2]);
 
             bool allDone = true;
 
@@ -6757,6 +6770,8 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
                     QVariantMap vstep = d->steps[verifyIdx].toMap();
 
+                    qCInfo(logVersion) << QStringLiteral("[verify-scan]  allDone=true step.show=%1").arg(vstep.value("show").toBool() ? "true" : "false");
+
                     if (!vstep.value("show").toBool()) {
 
                         showStep(it.key(), verifyIdx);
@@ -6765,9 +6780,17 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
                         qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已激活 session=%1").arg(it.key());
 
+                    } else {
+
+                        qCInfo(logVersion) << QStringLiteral("[verify-scan]  步骤已可见(show=true) 跳过激活");
+
                     }
 
                 }
+
+            } else {
+
+                qCInfo(logVersion) << QStringLiteral("[verify-scan]  未满足条件 allDone=%1 anyCategory=%2").arg(allDone).arg(anyCategory);
 
             }
 

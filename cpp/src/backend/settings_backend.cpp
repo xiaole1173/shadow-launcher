@@ -268,7 +268,7 @@ QVariantList SettingsBackend::scanJavaInstallations()
     // Use std::thread::detach() — NOT std::async whose future destructor blocks!
     std::thread([this]() {
         QVector<JavaInfo> results = findAllJava();
-        // 主流启动器-style sort: prefer JDKs in candidate dirs, then by proximity to Java 21
+        // 优先候选目录中的 JDK，然后按与 Java 21 的接近程度排序
         std::sort(results.begin(), results.end(),
                   [this](const JavaInfo& a, const JavaInfo& b) {
                       bool aInCand = isPathInCandidateDir(QFileInfo(a.path).absolutePath());
@@ -371,7 +371,7 @@ QString SettingsBackend::findJavaForVersion(int requiredMajor)
     
     if (results.isEmpty()) {
         qCWarning(logLaunch) << QStringLiteral("[JAVA] 缓存中未找到Java安装，触发重新扫描...");
-        // 主流启动器-style two-pass: trigger async re-scan, results ready next call
+        // 异步重新扫描，结果在下次调用时准备就绪
         emit logMessage(tr("Java 列表为空，正在后台重新扫描..."));
         scanJavaInstallations();
         return {};
@@ -964,7 +964,7 @@ SettingsBackend::JavaInfo SettingsBackend::getJavaInfo(const QString& exePath)
     if (output.isEmpty()) output = QString::fromLocal8Bit(proc.readAllStandardOutput());
     if (output.isEmpty()) return info;
 
-    // 主流启动器-style sanity checks
+    // 输出检查
     QString lower = output.toLower();
     if (lower.contains(QStringLiteral("/lib/ext exists"))) {
         qCWarning(logJava) << QStringLiteral("Java rejected (/lib/ext exists): %1").arg(exePath);

@@ -99,7 +99,7 @@ private:
     // Temp .minecraft isolation for OptiFine standalone installer
     QString setupTempMc();
     void collectForgeOutput(const QString& tempMc, const QString& jarPath);
-    /// Copy entire temp .minecraft back to game dir (主流启动器-style, more reliable than selective copy)
+    /// 将整个临时 .minecraft 复制回游戏目录（比选择性复制更可靠）
     void copyOptifineTempMc(const QString& tempMcPath);
     void cleanupTempMc(const QString& tempDir);
     void copyRecursive(const QString& srcDir, const QString& dstDir);
@@ -160,7 +160,7 @@ private:
     /// Auto-download Java from Tuna Adoptium mirror (ZIP), extract to java_cache/
     QString downloadAndExtractJava(int minVersion);
 
-    // Post-bootstrapper: flatten JSON + copy JAR (主流启动器 MergeJson equivalent)
+    // Post-bootstrapper: 扁平化 JSON + 复制 JAR
     void finalizeBootstrapperInstall();
 
     // Fabric
@@ -169,7 +169,7 @@ private:
     void fabricStep3_writeVersion(const QByteArray& profileData);
 
 public:
-    // OptiFine: resolve official download URL via adloadx (主流启动器-compatible flow)
+    // OptiFine: 通过 adloadx 解析官方下载地址
     static QString resolveOptifineOfficialUrl(const QString& filename);
     /// Quick validity check: data must start with ZIP magic (PK) and be >100KB
     static bool isValidZip(const QByteArray& data) {
@@ -217,7 +217,7 @@ private:
     int m_fabricLibIndex = 0;
     QByteArray m_fabricProfileData;  // held between parallel download and finalize
 
-    // Bootstrapper result (主流启动器: copy JSON first, flatten via MergeJson in a separate step)
+    // Bootstrapper 结果（先复制 JSON，再在单独步骤中扁平化）
     bool m_bootstrapperOk = false;
     QString m_bootstrapperError;
     QString m_postJsonPath;

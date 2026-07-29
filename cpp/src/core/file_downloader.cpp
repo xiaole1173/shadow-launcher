@@ -73,7 +73,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
 {
     qCInfo(logDownload) << QStringLiteral("添加下载任务 名称=%1 大小=%2").arg(localName, formatSize(expectedSize));
 
-    // Pre-check SHA1 cache hit
+    // Pre-check SHA1 cache hit in working dir (tempDir for merged installs)
     if (!sha1.isEmpty()) {
         QFileInfo fi(localPath);
         if (fi.exists() && fi.size() > 0) {
@@ -86,12 +86,48 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                     m_completedFiles.fetchAndAddRelaxed(1);
                     m_totalBytes.fetchAndAddRelaxed(fi.size());
                     m_downloadedBytes.fetchAndAddRelaxed(fi.size());
+                    m_cacheBytes.fetchAndAddRelaxed(fi.size());
                     emit logMessage(QString::fromUtf8("[完成] 缓存命中: %1 (%2)")
                                         .arg(localName, formatSize(fi.size())));
                     emit fileProgress(localPath, localName, fi.size(), fi.size(), localPath);
                     m_totalFiles.fetchAndAddRelaxed(1);
                     emit fileFinished(localPath, true);
                     return;
+                }
+            }
+        }
+
+        // Fallback cache check: if file not in working dir, check gameDir cache
+        if (!m_cacheFallbackDir.isEmpty() && !m_minecraftDir.isEmpty()
+            && localPath.startsWith(m_minecraftDir)) {
+            QString relative = localPath.mid(m_minecraftDir.length());
+            QString fallbackPath = m_cacheFallbackDir + relative;
+            QFileInfo ffi(fallbackPath);
+            if (ffi.exists() && ffi.size() > 0) {
+                QFile f(fallbackPath);
+                if (f.open(QIODevice::ReadOnly)) {
+                    QCryptographicHash hash(QCryptographicHash::Sha1);
+                    hash.addData(&f);
+                    f.close();
+                    if (hash.result().toHex() == sha1) {
+                        // Cache hit from gameDir! Copy to working dir.
+                        QDir().mkpath(QFileInfo(localPath).absolutePath());
+                        if (QFile::copy(fallbackPath, localPath)) {
+                            m_completedFiles.fetchAndAddRelaxed(1);
+                            m_totalBytes.fetchAndAddRelaxed(ffi.size());
+                            m_downloadedBytes.fetchAndAddRelaxed(ffi.size());
+                            m_cacheBytes.fetchAndAddRelaxed(ffi.size());
+                            emit logMessage(QString::fromUtf8("[完成] 缓存命中(gameDir): %1 (%2)")
+                                                .arg(localName, formatSize(ffi.size())));
+                            emit fileProgress(localPath, localName, ffi.size(), ffi.size(), localPath);
+                            m_totalFiles.fetchAndAddRelaxed(1);
+                            emit fileFinished(localPath, true);
+                            return;
+                        } else {
+                            qCWarning(logDownload) << QString::fromUtf8("[cache] 复制失败: %1 → %2")
+                                .arg(fallbackPath, localPath);
+                        }
+                    }
                 }
             }
         }
@@ -216,7 +252,7 @@ void FileDownloader::removeInFlightReply(QNetworkReply* reply) {
     m_inflightReplies.removeOne(reply);
 }
 
-// Manager tick — phase-based scheduling (主流启动器-style)
+// Manager tick — 分阶段调度
 // ═════════════════════════════════════════════════════════════════════════════
 
 void FileDownloader::managerTick()

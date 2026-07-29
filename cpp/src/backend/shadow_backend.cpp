@@ -919,12 +919,15 @@ void ShadowBackend::refreshVersionDetails()
 
         // Parse JSON to get the real version id
         QFile jf(jsonPath);
+        QByteArray jsonBytes;
         QJsonObject verJson;
         if (jf.open(QIODevice::ReadOnly)) {
-            QJsonDocument doc = QJsonDocument::fromJson(jf.readAll());
+            jsonBytes = jf.readAll();
             jf.close();
+            QJsonDocument doc = QJsonDocument::fromJson(jsonBytes);
             if (doc.isObject()) verJson = doc.object();
         }
+        QString jsonText = QString::fromUtf8(jsonBytes);
 
         // === Find the main JAR (flexible static helper) ===
         QString jarPath = VersionBackend::findVersionJar(verPath, versionId);
@@ -939,7 +942,7 @@ void ShadowBackend::refreshVersionDetails()
             baseMcVersion = verJson.value(QStringLiteral("id")).toString();
         }
 
-        // ── Detect mod loader (directory-based + versionId-based) ──
+        // ── 从版本 JSON 内容检测加载器类型 ──
         QString loaderType = tr("原版");
         QString loaderVersion;
 
@@ -951,30 +954,69 @@ void ShadowBackend::refreshVersionDetails()
             loaderVersion = loaderMatch.captured(3);
         }
 
-        // Directory-based loader detection (more reliable than versionId parsing)
-        // Check for NeoForge first (has dedicated neoforge/ subdir)
-        if (QFileInfo::exists(verPath + QStringLiteral("/neoforge"))) {
-            loaderType = QStringLiteral("NeoForge");
-        }
-        // Check for Fabric
-        QString fabricJson = verPath + QStringLiteral("/fabric-installer.json");
-        if (QFileInfo::exists(fabricJson)) {
-            loaderType = QStringLiteral("Fabric");
-        }
-        // Check for Forge (mods dir exists AND no Fabric/NeoForge markers)
-        QString forgeDir = verPath + QStringLiteral("/mods");
-        if (QDir(forgeDir).exists()
-            && !QFileInfo::exists(fabricJson)
-            && !QFileInfo::exists(verPath + QStringLiteral("/neoforge"))
-            && !QFileInfo::exists(verPath + QStringLiteral("/quilt"))) {
-            loaderType = QStringLiteral("Forge");
-        }
-        // Check for Quilt
-        if (QFileInfo::exists(verPath + QStringLiteral("/quilt"))) {
-            loaderType = QStringLiteral("Quilt");
+        // 基于 JSON 内容的加载器检测
+        // This is more reliable than filesystem markers — a NeoForge version with
+        // a mods/ dir but without neoforge/ marker would be misidentified as Forge.
+        if (!jsonText.isEmpty()) {
+            // Order matters: OptiFine/LiteLoader are standalone; NeoForge must be
+            // checked BEFORE Forge (Forge check explicitly excludes "net.neoforge").
+            if (jsonText.contains(QStringLiteral("optifine"), Qt::CaseInsensitive)) {
+                loaderType = QStringLiteral("OptiFine");
+                static const QRegularExpression ofVerRe(QStringLiteral("HD_U_([^\":/]+)"));
+                QRegularExpressionMatch ofM = ofVerRe.match(jsonText);
+                if (ofM.hasMatch())
+                    loaderVersion = ofM.captured(1);
+            } else if (jsonText.contains(QStringLiteral("liteloader"), Qt::CaseInsensitive)) {
+                loaderType = QStringLiteral("LiteLoader");
+            } else if (jsonText.contains(QStringLiteral("net.fabricmc:fabric-loader"))
+                       || jsonText.contains(QStringLiteral("org.quiltmc:quilt-loader"))) {
+                loaderType = jsonText.contains(QStringLiteral("org.quiltmc:quilt-loader"))
+                    ? QStringLiteral("Quilt") : QStringLiteral("Fabric");
+                static const QRegularExpression fabricVerRe(
+                    QStringLiteral("(?:net\\.fabricmc:fabric-loader|org\\.quiltmc:quilt-loader):([\\d\\.]+(?:\\+build\\.\\d+)?)"));
+                QRegularExpressionMatch fM = fabricVerRe.match(jsonText);
+                if (fM.hasMatch())
+                    loaderVersion = fM.captured(1);
+            } else if (jsonText.contains(QStringLiteral("net.neoforge"))) {
+                loaderType = QStringLiteral("NeoForge");
+                // 查找 --fml.forgeVersion 或 --fml.neoForgeVersion
+                static const QRegularExpression neoVerRe1(QStringLiteral("\"forgeVersion\"\\s*,\\s*\"([^\"]+)\""));
+                QRegularExpressionMatch nM1 = neoVerRe1.match(jsonText);
+                if (nM1.hasMatch()) {
+                    loaderVersion = nM1.captured(1);
+                } else {
+                    static const QRegularExpression neoVerRe2(QStringLiteral("\"neoForgeVersion\"\\s*,\\s*\"([^\"]+)\""));
+                    QRegularExpressionMatch nM2 = neoVerRe2.match(jsonText);
+                    if (nM2.hasMatch())
+                        loaderVersion = nM2.captured(1);
+                }
+            } else if (jsonText.contains(QStringLiteral("minecraftforge"))
+                       && !jsonText.contains(QStringLiteral("net.neoforge"))) {
+                loaderType = QStringLiteral("Forge");
+                // 依次尝试 forge:MCVER-BUILD、net.minecraftforge:minecraftforge:VER、fmlloader
+                static const QRegularExpression forgeVerRe1(
+                    QStringLiteral("forge:[\\d\\.]+(?:_pre\\d*)?-([\\d\\.]+)"));
+                QRegularExpressionMatch fgM = forgeVerRe1.match(jsonText);
+                if (fgM.hasMatch()) {
+                    loaderVersion = fgM.captured(1);
+                } else {
+                    static const QRegularExpression forgeVerRe2(
+                        QStringLiteral("net\\.minecraftforge:minecraftforge:([\\d\\.]+)"));
+                    fgM = forgeVerRe2.match(jsonText);
+                    if (fgM.hasMatch()) {
+                        loaderVersion = fgM.captured(1);
+                    } else {
+                        static const QRegularExpression forgeVerRe3(
+                            QStringLiteral("net\\.minecraftforge:fmlloader:[\\d\\.]+-([\\d\\.]+)"));
+                        fgM = forgeVerRe3.match(jsonText);
+                        if (fgM.hasMatch())
+                            loaderVersion = fgM.captured(1);
+                    }
+                }
+            }
         }
 
-        // Fallback: detect loader from versionId pattern when dir check fails
+        // Fallback: versionId pattern when JSON detection didn't match
         if (loaderType == tr("原版") && loaderMatch.hasMatch()) {
             QString key = loaderMatch.captured(2);
             if (key == QStringLiteral("neoforge")) loaderType = QStringLiteral("NeoForge");
@@ -1033,8 +1075,9 @@ void ShadowBackend::refreshVersionDetails()
 
         // Count mods
         int modCount = 0;
-        if (QDir(forgeDir).exists()) {
-            QDirIterator modIt(forgeDir, QStringList() << QStringLiteral("*.jar"), QDir::Files);
+        QString modsDir = verPath + QStringLiteral("/mods");
+        if (QDir(modsDir).exists()) {
+            QDirIterator modIt(modsDir, QStringList() << QStringLiteral("*.jar"), QDir::Files);
             while (modIt.hasNext()) { modIt.next(); modCount++; }
         }
         detail[QStringLiteral("modCount")] = modCount;
@@ -2717,7 +2760,7 @@ static void queryModLoaderApi(ShadowBackend* self, const QString& url,
     });  // QTimer::singleShot
 }
 
-// ── Forge 官方 HTML 版本列表解析（照搬 主流启动器 regex 提取方式）──
+// ── Forge 官方 HTML 版本列表解析 ──
 // URL: https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_{mcVer}.html
 // 注意：- 需要替换为 _（兼容 1.7.10-pre4 等版本）
 static QVariantList parseForgeOfficialVersions(const QByteArray& html, const QString& filterMc) {
@@ -2748,7 +2791,7 @@ static QVariantList parseForgeOfficialVersions(const QByteArray& html, const QSt
         QRegularExpressionMatch branchMatch = branchRe.match(block);
         if (branchMatch.hasMatch())
             branch = branchMatch.captured(1);
-        // Special cases for known problematic versions (matching 主流启动器)
+        // 已知有问题的特殊版本
         if (versionName == QStringLiteral("11.15.1.2318") ||
             versionName == QStringLiteral("11.15.1.1902") ||
             versionName == QStringLiteral("11.15.1.1890"))
@@ -3206,7 +3249,7 @@ void ShadowBackend::queryNeoForgeVersions(const QString& mcVersion) {
 
 
 // ── OptiFine HTML 官方源解析 ──
-// 照搬 主流启动器 的 regex 提取方式
+
 static QVariantList parseOptifineOfficialVersions(const QByteArray& html, const QString& filterMc) {
     QString text = QString::fromUtf8(html);
     if (text.length() < 200) return {};
@@ -3258,7 +3301,7 @@ static QVariantList parseOptifineOfficialVersions(const QByteArray& html, const 
         QVariantMap m;
         m[QStringLiteral("version")] = ver;
         m[QStringLiteral("type")] = QStringLiteral("release");
-        // Parse date from 主流启动器 format "2024.1.15" → "2024/01/15"
+        // 解析日期格式 "2024.1.15" → "2024/01/15"
         QString dateStr;
         if (i < dates.size()) {
             QStringList d = dates[i].split(QLatin1Char('.'));

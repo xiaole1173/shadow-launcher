@@ -157,9 +157,11 @@ Rectangle {
                             if (backend.versionDetails[i].id === currentSelectedVersion) {
                                 var t = backend.versionDetails[i].loaderType
                                 if (t === "Forge") return "#c05050"
-                                if (t === "Fabric") return "#50a0c0"
+                                if (t === "Fabric") return "#3a7a9a"
                                 if (t === "NeoForge") return "#c08050"
-                                if (t === "Quilt") return "#50c0a0"
+                                if (t === "Quilt") return "#3a8a7a"
+                                if (t === "LiteLoader") return "#7070a0"
+                                if (t === "OptiFine") return "#8a8a5a"
                                 return "#4a6a8a"
                             }
                         }
@@ -657,12 +659,15 @@ Rectangle {
                                             Rectangle {
                                                 visible: model.loader && model.loader !== "unknown"
                                                 width: loaderText.implicitWidth + 10; height: 16; radius: StyleTokens.radiusXs
-                                                color: model.loader === "fabric" ? "#1a3620" : (model.loader === "neoforge" ? "#2a2020" : "#202036")
+                                                property string _l: (model.loader || "").toLowerCase()
+                                                color: _l === "forge" ? "#c05050" : (_l === "fabric" ? "#3a7a9a" : (_l === "neoforge" ? "#c08050" : (_l === "quilt" ? "#3a8a7a" : (_l === "liteloader" ? "#7070a0" : (_l === "optifine" ? "#8a8a5a" : "#4a6a8a")))))
                                                 Text {
                                                     id: loaderText
                                                     anchors.centerIn: parent
-                                                    text: model.loader || ""
-                                                    font.pixelSize: StyleTokens.fontSizeXs; color: model.loader === "fabric" ? "#4cc94c" : (model.loader === "neoforge" ? "#cc6644" : "#4466cc")
+                                                    property string _raw: model.loader || ""
+                                                    text: _raw ? _raw.charAt(0).toUpperCase() + _raw.slice(1) : ""
+                                                    font.pixelSize: StyleTokens.fontSizeXs
+                                                    color: StyleTokens.textPrimary
                                                 }
                                             }
                                         }

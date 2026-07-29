@@ -42,7 +42,7 @@ static const char* DEFAULT_JVM_ARGS[] = {
 
 // ── 短路径转换（Windows 8.3 短文件名）──
 // 缓解非 ASCII 路径下 LWJGL/JNI 加载 native DLL 失败的问题
-// 参考：主流启动器 PathUtils.ToShortPath
+// 使用短路径规避非 ASCII path 问题
 #ifdef Q_OS_WIN
 static QString toShortPath(const QString& path)
 {
@@ -79,7 +79,7 @@ static QString toShortPath(const QString& path) { return path; }
 #endif
 
 // ── 智能 GC 策略选择 ──
-// 参考 主流启动器 McLaunchArgumentsJVM G1GC/ZGC 自动切换
+// Java 21+ → 分代 ZGC, Java 15-20 → ZGC, Java 14- → G1GC
 // 策略: Java 21+ → 分代 ZGC (性能最优), Java 15-20 → ZGC, Java 14- → G1GC
 // ZGC 需要 Windows 10 1809+ (build 17763)，不支持时回退到 G1GC
 static QStringList collectGcArgs(int javaMajor, bool debugMode)
@@ -778,7 +778,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // Replace NeoForge template variables (${library_directory}, ${classpath_separator}, etc.)
     // Minecraft 26.2+ also uses ${natives_directory}, ${classpath}, etc.
     // Convert to short paths on Windows to mitigate non-ASCII path issues with LWJGL/JNI
-    // (参考：主流启动器 PathUtils.ToShortPath 策略)
+    // (短路径策略)
     const QString gameDirShort = toShortPath(m_gameDir);
     const QString libDir = gameDirShort + QStringLiteral("/libraries");
     const QString nativesDir = gameDirShort + QStringLiteral("/versions/") + versionId
@@ -1074,8 +1074,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         gameArgs = chainArgs;
     }
 
-    // ── Forge/NeoForge 1.16.5+ safety net: inject --mavenRoots --mods ──
-    // Reference: 主流启动器 McLaunchArgumentsGame Forge safety net
+    // ── Forge/NeoForge 1.16.5+ 安全网: 注入 --mavenRoots --mods ──
     // FMLClientLaunchProvider.setup() should add these, but if setup() fails silently
     // MavenDirectoryLocator gets empty modCoords and forge mod won't register.
     if (versionId.contains(QStringLiteral("forge")) || versionId.contains(QStringLiteral("neoforge"))) {
@@ -1217,7 +1216,6 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // ── OptiFine + Forge/LiteLoader tweakClass 顺序修复 ──
     // OptiFineForgeTweaker 必须在 --tweakClass 链的末尾，否则 Forge 找不到
     // 同时修复常见的错误名称: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker
-    // 参考: 主流启动器 McLaunchArgumentsGame OptiFineForge 处理
     // 注意: 独立 OptiFine（无 Forge）不应改名，否则 OptiFineForgeTweaker 可能
     // 改变 LaunchWrapper 的参数传递行为，导致游戏收不到 --accessToken 等参数。
     {
@@ -1431,7 +1429,6 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     qCInfo(logLaunch) << QStringLiteral("natives解压完成 JAR数=%1 文件数=%2 目标=%3").arg(jarCount).arg(extractedCount).arg(nativesDir);
 
     // ── 清理旧版本残留的 DLL（防止版本切换时加载错误的 native）──
-    // 参考：主流启动器 在解压后删除不在当前版本 native 列表中的文件
     {
         QDir nd(nativesDir);
         const auto files = nd.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
@@ -1491,8 +1488,7 @@ void Launcher::ensureOptionsTxt()
 {
     if (m_versionGameDir.isEmpty()) return;
 
-    // ── Yosbr Mod 兼容：yoabr 允许整合包作者预设配置 ──
-    // 参考 主流启动器: 如果 config/yosbr/options.txt 存在，使用它而不是根目录的
+    // ── Yosbr Mod 兼容：如果 config/yosbr/options.txt 存在，使用它而不是根目录的
     QString optionsDir = m_versionGameDir;
     if (QFileInfo::exists(m_versionGameDir + QStringLiteral("/config/yosbr/options.txt"))) {
         optionsDir = m_versionGameDir + QStringLiteral("/config/yosbr");

@@ -454,7 +454,7 @@ void ModLoaderInstaller::optifineStep2_install(const QByteArray& jarData, const 
     buffer.close();
 
     // ── Step B: For MC >= 1.14, OptiFine uses its own class transformer (not LaunchWrapper-only).
-    // Run the installer JAR (主流启动器 方式 A). For < 1.14, use synthetic (主流启动器 方式 B).
+    // 运行安装器 JAR（方式 A）。< 1.14 使用合成方式（方式 B）。
     bool useInstaller = false;
     {
         QStringList parts = m_mcVersion.split(QLatin1Char('.'));
@@ -526,7 +526,7 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
         libFile.close();
     }
 
-    // 2. Build version JSON — use inheritsFrom (follow 主流启动器 Path B)
+    // 2. 构建版本 JSON — 使用 inheritsFrom 方式
     QString versionId = m_installName;
     QJsonObject versionJson;
 
@@ -573,7 +573,7 @@ void ModLoaderInstaller::installOptifineSynthetic(const QByteArray& jarData) {
         versionJson.remove(QStringLiteral("arguments"));
     }
 
-    // Add libraries: OptiFine + launchwrapper (主流启动器 Path B)
+    // 添加库: OptiFine + launchwrapper
     QJsonArray libraries = versionJson.value(QStringLiteral("libraries")).toArray();
     // OptiFine library
     QJsonObject ofLib;
@@ -750,7 +750,7 @@ void ModLoaderInstaller::installOptifineFromProfile(const QJsonObject& profile,
     emit finished(true, QString());
     m_running = false;
 }
-// ── Resolve official OptiFine download URL via adloadx (主流启动器-compatible flow) ──
+// ── 通过 adloadx 解析官方 OptiFine 下载地址 ──
 QString ModLoaderInstaller::resolveOptifineOfficialUrl(const QString& filename) {
     // Step 1: fetch adloadx page to get the real download URL with session token
     const QString adloadUrl = QStringLiteral("https://optifine.net/adloadx?f=%1").arg(filename);
@@ -889,7 +889,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
 
     QDir tempMcDir(setupTempMc()); // .minecraft path
     const QString tempMcPath = tempMcDir.absolutePath();  // save for collectForgeOutput
-    // 主流启动器: -Duser.home must point to PARENT of .minecraft, not .minecraft itself
+    // -Duser.home 必须指向 .minecraft 的父目录，而非 .minecraft 自身
     // tempMcDir.absolutePath() on Windows uses backslashes, so .endsWith("/.minecraft")
     // would always fail. Use dirName() instead, which is platform-independent.
     QString tempMcRoot = tempMcPath;
@@ -898,14 +898,14 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         tempMcRoot = tempMcDir.absolutePath();
     }
 
-    // Follow 主流启动器's approach: set -Duser.home and run optifine.Installer directly
+    // 设置 -Duser.home 并直接运行 optifine.Installer
     // The installer auto-detects .minecraft under user.home, no GUI needed.
     QStringList jargs;
     jargs << QStringLiteral("-Duser.home=%1").arg(QDir::toNativeSeparators(tempMcRoot))
           << QStringLiteral("-cp") << QDir::toNativeSeparators(jarPath)
           << QStringLiteral("optifine.Installer");
 
-    qCInfo(logLoader) << QStringLiteral("OptiFine 安装（隔离模式，主流启动器 方案）: %1 %2").arg(javaExe, jargs.join(QStringLiteral(" ")));
+    qCInfo(logLoader) << QStringLiteral("OptiFine 安装（隔离模式）: %1 %2").arg(javaExe, jargs.join(QStringLiteral(" ")));
 
     QProcess* proc = new QProcess(this);
 #if defined(Q_OS_WIN)
@@ -914,17 +914,17 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     });
 #endif
 
-    // Set environment: 主流启动器 sets both user.home AND APPDATA to the temp root
+    // 设置环境变量: user.home 和 APPDATA 都指向临时根目录
     // OptiFine installer on Windows may check %%APPDATA%%/.minecraft directly
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString nativeTempMcRoot = QDir::toNativeSeparators(tempMcRoot);
     env.insert(QStringLiteral("APPDATA"), nativeTempMcRoot);
     proc->setProcessEnvironment(env);
 
-    // Set working directory to temp root (主流启动器 does this)
+    // 设置工作目录为临时根目录
     proc->setWorkingDirectory(tempMcRoot);
 
-    // Capture installer output for validation (主流启动器 checks output length > 1000)
+    // 捕获安装器输出用于验证（检查输出长度 > 1000）
     proc->setProcessChannelMode(QProcess::MergedChannels);
     // Use shared_ptr so the output buffer outlives runOptifineInstaller.
     // capturedOutput is a local variable — capturing by reference (&) in the
@@ -945,8 +945,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
             capturedOutput->append(QString::fromUtf8(proc->readAllStandardOutput()).trimmed());
         proc->deleteLater();
 
-        // 主流启动器-style validation: check output length >= 1000, and the LAST line
-        // must not be a Java stack trace (i.e. start with "at "). 主流启动器 only checks
+        // 验证: 检查输出长度 >= 1000，且最后一行不是 Java 堆栈（不以 "at " 开头）
         // the last line (LastResult.Contains("at ")), NOT the entire output — the
         // installer may print normal messages containing "at" during progress.
         QString fullOutput = capturedOutput->join(QStringLiteral("\n"));
@@ -990,7 +989,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
             }
         }
 
-        // ── 主流启动器 方式: 将整个 temp .minecraft 复制回游戏目录 ──
+        // ── 将整个 temp .minecraft 复制回游戏目录 ──
         // 这确保了所有文件（打过补丁的 jar、新版本 JSON、库、资源等）都被正确复制。
         // 选择性复制（collectForgeOutput）可能漏掉某些文件或复制不完整。
         copyOptifineTempMc(tempMcPath);
@@ -1068,7 +1067,7 @@ QString ModLoaderInstaller::setupTempMc() {
             .arg(srcVerDir).arg(files.size()).arg(files.join(QStringLiteral(", ")));
     }
 
-    // Create launcher_profiles.json (主流启动器-compatible format — OptiFine installer may check it)
+    // 创建 launcher_profiles.json（OptiFine 安装器可能检查它）
     QFile lpj(tempMc + "/launcher_profiles.json");
     if (lpj.open(QIODevice::WriteOnly | QIODevice::Text)) {
         lpj.write(
@@ -1083,7 +1082,7 @@ QString ModLoaderInstaller::setupTempMc() {
     return tempMc;
 }
 
-/// Copy entire temp .minecraft back to game dir (主流启动器-style).
+/// 将整个临时 .minecraft 复制回游戏目录。
 /// This is more reliable than selective copy for OptiFine installs.
 void ModLoaderInstaller::copyOptifineTempMc(const QString& tempMcPath) {
     // Copy versions: first remove the pre-existing MC version folder so the
@@ -2332,7 +2331,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         qCInfo(logLoader) << QStringLiteral("自动下载/解压 Java 完成: %1").arg(javaPath);
     }
 
-    // 2. Extract bootstrapper JAR (same bootstrapper for Forge and NeoForge, matching 主流启动器's ForgelikeInjector)
+    // 2. 提取 bootstrapper JAR（Forge 和 NeoForge 共用同一份）
     QString bootstrapperJar = extractBootstrapperPath();
     if (bootstrapperJar.isEmpty()) {
         emit finished(false, "无法释放 Bootstrapper JAR");
@@ -2343,15 +2342,15 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     QString installerJarPath;
 
     // 3. Write installer JAR to temp
-    //    主流启动器 does NOT patch --skipIfExists on DOWNLOAD_MOJMAPS.
+    //    不修补 --skipIfExists on DOWNLOAD_MOJMAPS。
     //    The DOWNLOAD_MOJMAPS processor natively checks whether the .txt mapping exists
     //    and skips the download if it does (but still runs the TSRG conversion internally).
     //    Patching --skipIfExists was harmful: it made DOWNLOAD_MOJMAPS check for .tsrg (not .txt),
     //    skip even when .txt existed, and never produce .tsrg — crashing FART.
-    //    We write the installer JAR as-is, matching 主流启动器's approach.
+    //    按原样写入安装器 JAR。
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     if (!isNeoForge) {
-        // ── Forge: write installer JAR as-is (no patching, matching 主流启动器) ──
+        // ── Forge: 按原样写入安装器 JAR（不打补丁）──
         QBuffer buf;
         buf.setData(jarData);
         if (!buf.open(QIODevice::ReadOnly)) {
@@ -2416,7 +2415,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         buffer.setData(jarData);
         if (buffer.open(QIODevice::ReadOnly)) {
             QZipReader reader(&buffer);
-            // 主流启动器: read BOTH install_profile.json AND version.json, merge them, extract libs
+            // 同时读取 install_profile.json 和 version.json，合并后提取库
             QByteArray profData = reader.fileData(QStringLiteral("install_profile.json"));
             QByteArray verData = reader.fileData(QStringLiteral("version.json"));
             reader.close();
@@ -2424,7 +2423,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                 QJsonObject merged = QJsonDocument::fromJson(profData).object();
                 if (!verData.isEmpty()) {
                     QJsonObject verObj = QJsonDocument::fromJson(verData).object();
-                    // Merge version.json fields into install_profile.json (主流启动器: Json.Merge(Json2))
+                    // 将 version.json 字段合并到 install_profile.json 中
                     for (auto it = verObj.begin(); it != verObj.end(); ++it) {
                         if (!merged.contains(it.key()))
                             merged[it.key()] = it.value();
@@ -2539,7 +2538,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     }
 
                     // Skip pre-download for Forge main artifacts when URL is empty (embedded in installer JAR).
-                    // Matches 主流启动器's removal: "forge-{ver}.jar" and "forge-{ver}-client.jar" from the library list.
+                    // 从库列表中移除 "forge-{ver}.jar" 和 "forge-{ver}-client.jar"
                     // These files are NOT published on Maven — the bootstrapper extracts them from the installer JAR.
                     if (officialUrl.isEmpty()
                         && m_loaderType == QStringLiteral("forge")
@@ -2850,9 +2849,9 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         }
     }
 
-    // 5. Run bootstrapper (matching 主流启动器's ForgelikeInjector)
+    // 5. 运行 bootstrapper
     QStringList args;
-    // Note: 主流启动器 adds --add-exports cpw.mods.bootstraplauncher/... for Java 9+,
+    // 注: 对于 Java 9+ 添加 --add-exports cpw.mods.bootstraplauncher/...，
     // but on Java 25+ that module is removed from the JDK (it was inside bootstrapper JAR on classpath, not a system module).
     // The flag is unnecessary here — bootstrapper JAR is on -cp (unnamed module).
     args << QStringLiteral("-cp")
@@ -2862,12 +2861,12 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 
     qCInfo(logLoader) << QStringLiteral("运行 Bootstrapper: %1 %2").arg(javaPath, args.join(QStringLiteral(" ")));
 
-    // 5. Take snapshot of versions/ before running bootstrapper (matching 主流启动器's OldList)
+    // 5. 运行 bootstrapper 前对 versions/ 目录拍照
     QStringList oldVersions = QDir(versionsDir()).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     QString loaderName = isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge");
 
-    // 6. Run bootstrapper (matching 主流启动器's ForgelikeInjector).
-    //    Retry once: 主流启动器 tries JavaWrapper first, falls back to bare Java.
+    // 6. 运行 bootstrapper。
+    //    失败时重试一次：先尝试 JavaWrapper，回退到纯 Java。
     int retryAttempt = 0;
     const int maxRetries = 2;
     int bootExitCode = -1;
@@ -3007,7 +3006,7 @@ ModLoaderInstaller::runBootstrapperSync(
                 for (const QString& line : lines) {
                     if (line.trimmed().isEmpty()) continue;
                     outputLines.append(line);
-                    // 主流启动器 keyword → stepProgress mapping
+                    // 关键词 → 步骤进度映射
                     if (onStepProgress) {
                         if (line == QStringLiteral("Extracting json"))
                             onStepProgress(27);
@@ -3061,7 +3060,7 @@ ModLoaderInstaller::runBootstrapperSync(
         return result;
     }
 
-    // 主流启动器: check if output contains "true" in the last 5 lines
+    // 检查输出最后 5 行是否包含 "true"
     bool hasTrue = outputLines.contains(QStringLiteral("true"));
     if (!hasTrue) {
         for (int i = qMax(0, outputLines.size() - 5); i < outputLines.size(); ++i) {
@@ -3145,8 +3144,8 @@ void ModLoaderInstaller::onBootstrapperFinished()
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Post-bootstrapper: flatten JSON + copy JAR (主流启动器's MergeJson equivalent)
-// 主流启动器 does this as a SEPARATE step after the bootstrapper returns,
+// Post-bootstrapper: 扁平化 JSON + 复制 JAR
+// 这是在 bootstrapper 返回后的一个独立步骤，
 // NOT inside the bootstrapper itself.
 // ═══════════════════════════════════════════════════════════════
 void ModLoaderInstaller::finalizeBootstrapperInstall()
@@ -3159,7 +3158,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
     }
 
     const bool isNeo = (m_loaderType == QStringLiteral("neoforge"));
-    // 主流启动器: DlNeoForgeListEntry.UrlBase -> PackageName = If(Inherit = "1.20.1", "forge", "neoforge")
+    // DlNeoForgeListEntry: Inherit = "1.20.1" 时用 forge，否则 neoforge
     bool isLegacy = (m_mcVersion == QStringLiteral("1.20.1"));
     const QString neoPkg = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
     const QString ver = isNeo
@@ -3170,7 +3169,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
         : QStringLiteral("net/minecraftforge/forge");
     const QString filePrefix = isNeo ? neoPkg : QStringLiteral("forge");
 
-    // Flatten version JSON (resolve inheritsFrom chain) — 主流启动器's MergeJson equivalent
+    // 扁平化版本 JSON（解析 inheritsFrom 链）
     if (!m_postJsonPath.isEmpty()) {
         QFile jf(m_postJsonPath);
         if (jf.open(QIODevice::ReadOnly)) {
@@ -3243,7 +3242,7 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
         }
     }
 
-    // Copy vanilla MC client JAR to version folder (主流启动器's MergeJson FileUtils.Copy equivalent)
+    // 将原版 MC client JAR 复制到版本文件夹
     // Needed by launcher for classpath; source: libraries/net/minecraft/client/{ver}/client-{ver}.jar
     {
         QString mcClientSrc = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion
@@ -3656,7 +3655,7 @@ void ModLoaderInstaller::neoStep2_verify(const QByteArray& jarData) {
 // ============================================================
 // Post-install: rename version folder to user's chosen name
 // ============================================================
-// NeoForge — now handled by runBootstrapperProcess (主流启动器's ForgelikeInjector)
+// NeoForge — 现在由 runBootstrapperProcess 处理
 // The old ~870-line manual parser has been removed.
 // ============================================================
 
@@ -3665,7 +3664,7 @@ void ModLoaderInstaller::installNeoForge(const QByteArray& jarData, const QJsonO
 {
     Q_UNUSED(jarData)
     // This path should never be reached — NeoForge now routes through
-    // runBootstrapperProcess() which matches 主流启动器's ForgelikeInjector.
+    // runBootstrapperProcess() 处理。
     qCWarning(logLoader) << QStringLiteral("installNeoForge(const QByteArray&) called unexpectedly — bootstrapper handles NeoForge");
     emit finished(false, QStringLiteral("内部错误：NeoForge 安装路径异常"));
     m_running = false;

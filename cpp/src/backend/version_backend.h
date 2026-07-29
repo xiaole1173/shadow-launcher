@@ -292,7 +292,9 @@ private:
         int verifyTotal = 0;         // verify phase: total items to check
         qint64 bytesDl = 0;
         qint64 bytesTotal = 0;
-        qint64 speed = 0;
+        qint64 networkBytesDl = 0;   // bytes from network only (excl. cache), for speed
+        qint64 speed = 0;              // EMA-smoothed speed (bytes/s)
+        double smoothSpeed = 0.0;      // EMA accumulator (bytes/s float, avoids int truncation)
         QString file;
         QString phase = QStringLiteral("idle");
         qint64 speedLastTimeMs = 0;

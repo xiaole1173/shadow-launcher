@@ -28,6 +28,14 @@ Rectangle {
     property string _stepsJson: ''  // 步骤缓存，用于检测变化
     // 从 panel 传入的模型引用 (防止 scope 问题)
     property var cardModel: null
+    
+    // ── 呼吸点动画（独立于 Repeater 生命周期，不受 poll 重建影响）──
+    property real breathePhase: 0
+    NumberAnimation on breathePhase {
+        from: 0; to: 2 * Math.PI
+        duration: 1200
+        loops: Animation.Infinite
+    }
 
     // 获取 C++ 模型对象的辅助函数
     // 优先级: cardModel > model.model > ListView.view.model
@@ -247,11 +255,27 @@ Rectangle {
                     Layout.fillWidth: true
                 }
 
+                // Percentage text (only shown when there's actual progress)
                 Text {
-                    text: modelData.status === "active" ? (Math.round(stepSmoothPct) + "%") : ""
+                    text: stepSmoothPct > 0 ? (Math.round(stepSmoothPct) + "%") : ""
                     font.pixelSize: StyleTokens.fontSizeXs
                     color: StyleTokens.textMuted
-                    visible: modelData.status === "active"
+                    visible: modelData.status === "active" && stepSmoothPct > 0
+                }
+                // Breathing dots animation for loader install steps (active at 0%)
+                Row {
+                    visible: modelData.status === "active" && stepSmoothPct === 0
+                    spacing: 3
+                    Repeater {
+                        model: 3
+                        Rectangle {
+                            width: 5; height: 5; radius: 2.5
+                            color: "#788090"
+                            // Continuous sine wave driven by root-level animation
+                            // (independent of delegate lifecycle — survives poll recreations)
+                            opacity: 0.3 + 0.7 * Math.abs(Math.sin(root.breathePhase + index * 2.094))
+                        }
+                    }
                 }
             }
         }

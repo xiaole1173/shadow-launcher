@@ -687,7 +687,7 @@ void LaunchBackend::runNextCheck()
         }
 
         // ── 写入 launcher_profiles.json（官方启动器兼容）──
-        // 某些 Mod 会读取此文件来获取玩家身份，参考 主流启动器 McLaunchPrerun
+        // 某些 Mod 会读取此文件来获取玩家身份
         if (m_authIsOnline && !m_authName.isEmpty()) {
             writeLauncherProfilesJson();
         }
@@ -1273,12 +1273,12 @@ QVariantList LaunchBackend::runningGames() const
 }
 
 // ── 写入 launcher_profiles.json（官方启动器兼容）──
-// 一些 Mod 会读取此文件来获取玩家身份，参考 主流启动器 McLaunchPrerun
+// 一些 Mod 会读取此文件来获取玩家身份
 void LaunchBackend::writeLauncherProfilesJson()
 {
     QString path = m_gameDir + QStringLiteral("/launcher_profiles.json");
 
-    // 固定 ID（参照 主流启动器 的做法，使用固定值避免每次写入不同的 ID）
+    // 固定 ID（使用固定值避免每次写入不同的 ID）
     const QString accountId  = QStringLiteral("00000111112222233333444445555566");
     const QString profileId  = QStringLiteral("66666555554444433333222221111100");
     const QString clientToken = QStringLiteral("23323323323323323323323323323333");
