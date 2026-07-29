@@ -1387,30 +1387,34 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
 
     // ── Merged install card: clean only this task's resources ──
+    // MC downloads to a shared temp dir (shared across contexts with same mcVersion).
+    // destroyMergedContext deletes temp dir only when last user goes.
     if (m_mergedContexts.contains(versionId)) {
+        QString mcVer;
         auto* ctx = m_mergedContexts.value(versionId, nullptr);
         if (ctx) {
-            // Stop installer
+            mcVer = ctx->mcVersion;
             if (ctx->installer) ctx->installer->cancel();
-            // Cancel MC download if we're the last context using this MC version
-            bool mcInUse = false;
+        }
+
+        destroyMergedContext(versionId);  // temp dir deleted if last user
+        if (!m_gameDir.isEmpty())
+            cleanupCanceledVersion(versionId, m_gameDir);  // install-name version folder
+
+        // If no other context uses this MC version, cancel the MC download too
+        if (!mcVer.isEmpty()) {
+            bool mcStillNeeded = false;
             for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
-                if (it.key() != versionId && it.value() && it.value()->mcVersion == ctx->mcVersion) {
-                    mcInUse = true; break;
+                if (it.value() && it.value()->mcVersion == mcVer) {
+                    mcStillNeeded = true; break;
                 }
             }
-            if (!mcInUse && m_downloaders.contains(ctx->mcVersion)) {
-                m_userCancelledIds.insert(ctx->mcVersion);
-                m_downloaders[ctx->mcVersion]->cancel();
+            if (!mcStillNeeded && m_downloaders.contains(mcVer)) {
+                m_userCancelledIds.insert(mcVer);
+                m_downloaders[mcVer]->cancel();
             }
         }
 
-        // Clean up: temp dir + install-name version folder
-        destroyMergedContext(versionId);
-        if (!m_gameDir.isEmpty())
-            cleanupCanceledVersion(versionId, m_gameDir);
-
-        // Mark only this session as failed
         auto* ds = dlSession(versionId);
         if (ds) {
             ds->markFailed(tr("已取消"));
@@ -7564,10 +7568,18 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
     ctx->loaderType = loaderType;
     ctx->loaderVersion = loaderVersion;
 
-    // Create unique temp directory
+    // Create or share temp directory with another context using the same MC version
     QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
     ctx->tempDir = QDir::tempPath() + QStringLiteral("/shadow-merged-") + uuid;
-    QDir().mkpath(ctx->tempDir);
+    for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
+        if (cIt.value() && cIt.value()->mcVersion == mcVersion && !cIt.value()->tempDir.isEmpty()) {
+            ctx->tempDir = cIt.value()->tempDir;
+            qDebug() << "[install] Shared temp dir" << ctx->tempDir << "for MC" << mcVersion;
+            break;
+        }
+    }
+    if (!QDir(ctx->tempDir).exists())
+        QDir().mkpath(ctx->tempDir);
 
     // Create ModLoaderInstaller (redirected to temp dir)
     ctx->installer = new ModLoaderInstaller(this);
@@ -7705,8 +7717,14 @@ void VersionBackend::destroyMergedContext(const QString& installId)
     auto* ctx = m_mergedContexts.take(installId);
     if (!ctx) return;
 
-    // Clean up temp directory
-    if (!ctx->tempDir.isEmpty()) {
+    // Only delete temp dir if no other context uses it (shared when same mcVersion)
+    bool lastUser = true;
+    for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
+        if (cIt.value() && cIt.value()->tempDir == ctx->tempDir) {
+            lastUser = false; break;
+        }
+    }
+    if (!ctx->tempDir.isEmpty() && lastUser) {
         QDir d(ctx->tempDir);
         if (d.exists()) d.removeRecursively();
     }
