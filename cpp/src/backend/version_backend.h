@@ -16,9 +16,10 @@
 #include <QVector>
 #include <QAbstractListModel>
 #include <memory>
+#include <QJsonObject>
 
 #include "../utils/types.h"
-#include "../session/download_session.h"
+#include "../session/download_session.h
 
 namespace ShadowLauncher {
 
@@ -84,6 +85,30 @@ class VersionManager;
 class VersionDownloader;
 class VersionIsolation;
 class ModLoaderInstaller;
+
+// ── MergedInstallContext: per-task lifecycle for MC+loader combined install ──
+struct MergedInstallContext {
+    QString installId;
+    QString mcVersion;
+    QString tempDir;              // UUID-based unique temp directory
+    QString loaderType;           // forge / neoforge / fabric / optifine
+    QString loaderVersion;
+    QJsonObject versionJson;      // Cached version manifest for MC download
+
+    // Independent state flags
+    bool mcDownloadDone = false;
+    bool loaderJarReady = false;  // loader JAR downloaded + verified
+    bool bootstrapperDone = false;
+    bool failed = false;
+    QString failReason;
+
+    // Owned children (deleted in ~VersionBackend via destroyMergedContext)
+    VersionDownloader* mcDownloader = nullptr;
+    ModLoaderInstaller* installer = nullptr;
+
+    // Error handling
+    QString errorMessage;
+};
 
 class VersionBackend : public QObject {
     Q_OBJECT
@@ -244,6 +269,7 @@ private:
     int m_autoLangMode = 1;
     QString m_detectedRegion;
     QMap<QString, ModLoaderInstaller*> m_mlInstallers;
+    QMap<QString, MergedInstallContext*> m_mergedContexts;
     QString m_gameDir;
 
     QStringList m_versionIds;
@@ -298,10 +324,18 @@ private:
     DownloadSession* dlSession(const QString& installId) const;
     void updateCardFromSession(const QString& installId, const QString& name = QString(), const QString& type = QString());
 
-    // Per-task ModLoaderInstaller lifecycle
+    // Per-task ModLoaderInstaller lifecycle (legacy, kept for non-merged paths)
     ModLoaderInstaller* createLoaderInstaller(const QString& installId);
     void destroyLoaderInstaller(const QString& installId);
     ModLoaderInstaller* loaderInstaller(const QString& installId) const { return m_mlInstallers.value(installId, nullptr); }
+
+    // MergedInstallContext lifecycle
+    MergedInstallContext* createMergedContext(const QString& installId,
+                                               const QString& mcVersion,
+                                               const QString& loaderType,
+                                               const QString& loaderVersion);
+    void destroyMergedContext(const QString& installId);
+    MergedInstallContext* mergedContext(const QString& installId) const { return m_mergedContexts.value(installId, nullptr); }
     void updateCardProgressSpeed(const QString& installId);  // 轻量：仅 progress + speed
 
     bool m_cardsRebuildPending = false;
