@@ -9,6 +9,7 @@
 #include <QNetworkReply>
 #include <QTimer>
 #include <QFile>
+#include <QElapsedTimer>
 
 #include "utils/types.h"
 
@@ -59,6 +60,8 @@ private:
     int          m_retryIntervalMs = 2000;   // 2 s between retries
     bool         m_cancelled = false;
     bool         m_downloading = false;
+
+    QElapsedTimer m_downloadTimer;
 };
 
 } // namespace ShadowLauncher

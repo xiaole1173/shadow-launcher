@@ -58,7 +58,7 @@ static QString toShortPath(const QString& path)
 
     DWORD len = GetShortPathNameW(reinterpret_cast<LPCWSTR>(path.utf16()), nullptr, 0);
     if (len == 0) {
-        qCWarning(logLaunch) << QStringLiteral("短路径转换失败(GetShortPathNameW) 路径=%1 err=%2")
+        qCWarning(logLaunch) << QStringLiteral("[启动] 短路径转换失败 路径=%1 错误=%2")
                              .arg(path).arg(GetLastError());
         return QDir::toNativeSeparators(path); // 回退到原生路径
     }
@@ -66,7 +66,7 @@ static QString toShortPath(const QString& path)
     DWORD written = GetShortPathNameW(reinterpret_cast<LPCWSTR>(path.utf16()),
                                        buf.data(), len + 1);
     if (written == 0 || written > len) {
-        qCWarning(logLaunch) << QStringLiteral("短路径转换写入失败 路径=%1 err=%2")
+        qCWarning(logLaunch) << QStringLiteral("[启动] 短路径转换写入失败 路径=%1 错误=%2")
                              .arg(path).arg(GetLastError());
         return QDir::toNativeSeparators(path);
     }
@@ -111,7 +111,7 @@ static QStringList collectGcArgs(int javaMajor, bool debugMode)
         if (javaMajor >= 24) {
             gc << QStringLiteral("-XX:+UseCompactObjectHeaders");
         }
-        qCInfo(logLaunch) << QStringLiteral("GC策略: ZGC Java=%1").arg(javaMajor);
+        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: ZGC (Java=%1)").arg(javaMajor);
     } else {
         // G1GC (optimized)
         gc << QStringLiteral("-XX:+UseG1GC");
@@ -127,7 +127,7 @@ static QStringList collectGcArgs(int javaMajor, bool debugMode)
         if (javaMajor == 8) {
             gc << QStringLiteral("-XX:+ParallelRefProcEnabled");
         }
-        qCInfo(logLaunch) << QStringLiteral("GC策略: G1GC (ZGC不可用 Win10=%1 Java=%2)")
+        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: G1GC (ZGC不可用, Win10=%1, Java=%2)")
                            .arg(canUseZgc).arg(javaMajor);
     }
 
@@ -298,7 +298,8 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         m_process->setProcessEnvironment(env);
     }
 
-    qCInfo(logLaunch) << QStringLiteral("JVM args: %1").arg(args.join(QLatin1Char(' ')));
+    qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数: %1").arg(args.join(QLatin1Char(' ')));
+    qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数共 %1 个").arg(args.size());
 
     m_process->start(javaPath, args);
 }
@@ -307,7 +308,7 @@ void Launcher::cancel()
 {
     if (!isRunning()) return;
 
-    qCInfo(logLaunch) << QStringLiteral("停止游戏 版本=%1 pid=%2").arg(m_currentVersionId).arg(m_process ? m_process->processId() : -1);
+    qCInfo(logLaunch) << QStringLiteral("[启动] 停止游戏 版本=%1 PID=%2").arg(m_currentVersionId).arg(m_process ? m_process->processId() : -1);
     m_cancelling = true;
     emit launchProgress(tr("正在停止 Minecraft..."));
 
@@ -346,6 +347,7 @@ void Launcher::onProcessStarted()
     emit launchStarted();
     emit launchProgress(tr("Minecraft 进程已启动 (PID: %1)")
                         .arg(m_pid));
+    qCInfo(logLaunch) << QStringLiteral("[启动] 游戏启动完成 版本=%1").arg(m_currentVersionId);
 }
 
 void Launcher::onReadyReadStdout()
@@ -353,7 +355,7 @@ void Launcher::onReadyReadStdout()
     QByteArray data = m_process->readAllStandardOutput();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
-        qCInfo(logLaunch) << QStringLiteral("[JVM stdout] %1").arg(text);
+        qCInfo(logLaunch) << QStringLiteral("[启动] [JVM 标准输出] %1").arg(text);
         emit launchProgress(text);
     }
 }
@@ -363,7 +365,7 @@ void Launcher::onReadyReadStderr()
     QByteArray data = m_process->readAllStandardError();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
-        qCInfo(logLaunch) << QStringLiteral("[JVM stderr] %1").arg(text);
+        qCInfo(logLaunch) << QStringLiteral("[启动] [JVM 错误输出] %1").arg(text);
         emit launchProgress(text);
     }
 }
@@ -678,7 +680,7 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
         if (QFileInfo::exists(parentJar) && !seenLibs.contains(parentJar)) {
             seenLibs.insert(parentJar);
             cp.append(parentJar);
-            qCInfo(logLaunch) << QStringLiteral("添加父版本 JAR: %1").arg(parentJar);
+            qCInfo(logLaunch) << QStringLiteral("[启动] 添加父版本 JAR: %1").arg(parentJar);
         }
 
         QFile pf(parentJsonPath);
@@ -824,7 +826,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             args << gcArg;
         }
     } else {
-        qCInfo(logLaunch) << QStringLiteral("版本JSON已指定GC策略，跳过自动选择");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 版本 JSON 已指定 GC 策略，跳过自动选择");
     }
 
     // ── JVM encoding params (prevent CJK log garbling) ──
@@ -1163,7 +1165,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                 }
             }
             if (resCopied > 0)
-                qCInfo(logLaunch) << QStringLiteral("游戏资源已复制 数量=%1 目标=%2").arg(resCopied).arg(gameResDir);
+                qCInfo(logLaunch) << QStringLiteral("[启动] 游戏资源已复制 数量=%1 目标=%2").arg(resCopied).arg(gameResDir);
         }
     }
 
@@ -1235,7 +1237,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             if (args[j] == QStringLiteral("--tweakClass")) ++tweakCount;
         }
         bool hasForge = versionId.contains(QStringLiteral("forge")) || tweakCount > 1;
-        qCInfo(logLaunch) << QStringLiteral("tweakClass 修复: versionId=%1 tweakCount=%2 hasForge=%3")
+        qCInfo(logLaunch) << QStringLiteral("[启动] TweakClass 修复: 版本=%1, 数量=%2, 含Forge=%3")
             .arg(versionId).arg(tweakCount).arg(hasForge);
 
         // 修复错误的 OptiFineTweaker 名称（仅当 Forge 存在时）
@@ -1244,7 +1246,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             int wrongIdx = hasTweakClass(QStringLiteral("optifine.OptiFineTweaker"));
             if (wrongIdx >= 0) {
                 args[wrongIdx + 1] = QStringLiteral("optifine.OptiFineForgeTweaker");
-                qCInfo(logLaunch) << QStringLiteral("修正 tweakClass: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker");
+                qCInfo(logLaunch) << QStringLiteral("[启动] 修正 TweakClass: optifine.OptiFineTweaker → optifine.OptiFineForgeTweaker");
             }
             // 将 OptiFineForgeTweaker 移到 --tweakClass 链末尾
             int forgeIdx = hasTweakClass(QStringLiteral("optifine.OptiFineForgeTweaker"));
@@ -1252,7 +1254,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
                 QString tweakClass = args.takeAt(forgeIdx);     // --tweakClass
                 QString className = args.takeAt(forgeIdx);       // optifine.OptiFineForgeTweaker
                 args << tweakClass << className;
-                qCInfo(logLaunch) << QStringLiteral("OptiFineForgeTweaker 已移至参数末尾");
+                qCInfo(logLaunch) << QStringLiteral("[启动] OptiFineForgeTweaker 已移至参数末尾");
             }
         }
     }
@@ -1291,7 +1293,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     QString nativesDir = m_gameDir + QStringLiteral("/versions/") + versionId
                          + QStringLiteral("/natives");
 
-    qCInfo(logLaunch) << QStringLiteral("开始解压natives 版本=%1 目标=%2").arg(versionId, nativesDir);
+    qCInfo(logLaunch) << QStringLiteral("[启动] 开始解压运行库 版本=%1 目标=%2").arg(versionId, nativesDir);
 
     // Always extract — idempotent per-file comparison, not whole-directory skip
     QDir().mkpath(nativesDir);
@@ -1311,7 +1313,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
     const QString nativePrefix = QStringLiteral("natives-linux");
 #endif
 
-    qCInfo(logLaunch) << QStringLiteral("扫描natives库 数量=%1 平台=%2").arg(libraries.size()).arg(nativePrefix);
+    qCInfo(logLaunch) << QStringLiteral("[启动] 扫描运行库 数量=%1 平台=%2").arg(libraries.size()).arg(nativePrefix);
 
     int extractedCount = 0;
     int jarCount = 0;
@@ -1369,7 +1371,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
 
             QZipReader zipReader(jarPath);
             if (zipReader.status() != QZipReader::NoError) {
-                qCWarning(logLaunch) << QStringLiteral("无法打开natives JAR 路径=%1").arg(jarPath);
+                qCWarning(logLaunch) << QStringLiteral("[启动] 无法打开运行库 JAR 路径=%1").arg(jarPath);
                 continue;
             }
 
@@ -1417,7 +1419,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
                         destFile.close();
                         extractedCount++;
                     } else {
-                        qCWarning(logLaunch) << QStringLiteral("Natives写入失败 :%1 err:%2")
+                        qCWarning(logLaunch) << QStringLiteral("[启动] 运行库写入失败 文件=%1 错误=%2")
                                              .arg(baseName, destFile.errorString());
                     }
                 }
@@ -1426,7 +1428,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
         }
     }
 
-    qCInfo(logLaunch) << QStringLiteral("natives解压完成 JAR数=%1 文件数=%2 目标=%3").arg(jarCount).arg(extractedCount).arg(nativesDir);
+    qCInfo(logLaunch) << QStringLiteral("[启动] 运行库解压完成 JAR数=%1 文件数=%2 目标=%3").arg(jarCount).arg(extractedCount).arg(nativesDir);
 
     // ── 清理旧版本残留的 DLL（防止版本切换时加载错误的 native）──
     {
@@ -1442,7 +1444,7 @@ bool Launcher::extractNatives(const QString& versionId, const QJsonObject& versi
             }
         }
         if (cleaned > 0) {
-            qCInfo(logLaunch) << QStringLiteral("Natives清理完成 残留文件数=%1").arg(cleaned);
+            qCInfo(logLaunch) << QStringLiteral("[启动] 运行库清理完成 残留文件数=%1").arg(cleaned);
         }
     }
 
@@ -1492,7 +1494,7 @@ void Launcher::ensureOptionsTxt()
     QString optionsDir = m_versionGameDir;
     if (QFileInfo::exists(m_versionGameDir + QStringLiteral("/config/yosbr/options.txt"))) {
         optionsDir = m_versionGameDir + QStringLiteral("/config/yosbr");
-        qCInfo(logLaunch) << QStringLiteral("检测到 Yosbr Mod config/yosbr/options.txt");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 检测到 Yosbr Mod options.txt");
     }
     QString mcLang;
     if (m_autoLangMode == 2 && !m_detectedRegion.isEmpty()) {
@@ -1574,7 +1576,7 @@ void Launcher::ensureLegacyAssets(const QString& assetIndexId)
 
     // Check if the index file exists (skip re-build if nothing to read)
     if (!QFileInfo::exists(indexFile)) {
-        qCWarning(logLaunch) << QStringLiteral("旧版资源索引不存在 路径=%1").arg(indexFile);
+        qCWarning(logLaunch) << QStringLiteral("[启动] 旧版资源索引不存在 路径=%1").arg(indexFile);
         return;
     }
 
@@ -1582,7 +1584,7 @@ void Launcher::ensureLegacyAssets(const QString& assetIndexId)
 
     QFile file(indexFile);
     if (!file.open(QIODevice::ReadOnly)) {
-        qCWarning(logLaunch) << QStringLiteral("无法打开旧版资源索引JSON");
+        qCWarning(logLaunch) << QStringLiteral("[启动] 无法打开旧版资源索引文件");
         return;
     }
 
@@ -1596,7 +1598,7 @@ void Launcher::ensureLegacyAssets(const QString& assetIndexId)
     QString objectsDir = m_gameDir + QStringLiteral("/assets/objects");
     int created = 0;
 
-    qCInfo(logLaunch) << QStringLiteral("开始构建旧版资源虚拟目录");
+    qCInfo(logLaunch) << QStringLiteral("[启动] 开始构建旧版资源虚拟目录");
 
     for (auto it = objects.begin(); it != objects.end(); ++it) {
         QString virtualPath = it.key();  // e.g. "minecraft/lang/zh_cn.lang"
@@ -1617,7 +1619,7 @@ void Launcher::ensureLegacyAssets(const QString& assetIndexId)
         }
     }
 
-    qCInfo(logLaunch) << QStringLiteral("旧版资源构建完成 文件数=%1 目标=%2").arg(created).arg(legacyDir);
+    qCInfo(logLaunch) << QStringLiteral("[启动] 旧版资源构建完成 文件数=%1 目标=%2").arg(created).arg(legacyDir);
 }
 
 } // namespace ShadowLauncher

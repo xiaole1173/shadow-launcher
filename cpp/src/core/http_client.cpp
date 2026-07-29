@@ -122,6 +122,9 @@ void HttpClient::get(const QString& url,
                      std::function<void(int, const QByteArray&)> callback,
                      std::function<void(const QString&)> onError)
 {
+    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 发起网络请求 %1 方式=GET 超时=%2ms")
+                                     .arg(url).arg(m_config.totalTimeoutMs);
+
     QNetworkRequest req = buildRequest(m_config, QUrl(url));
     QNetworkReply* reply = m_manager->get(req);
 
@@ -132,16 +135,17 @@ void HttpClient::get(const QString& url,
     QObject::connect(reply, &QNetworkReply::finished, this,
         [reply, callback = std::move(callback), onError = std::move(onError), timer, url]() {
             qint64 elapsed = timer->elapsed();
+            const int status = reply->attribute(
+                QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (reply->error() != QNetworkReply::NoError) {
-                qCInfo(logDownload).noquote() << QStringLiteral("[NET] GET %1 → ERROR (%2ms): %3")
-                                 .arg(url, QString::number(elapsed), reply->errorString());
+                qCInfo(logDownload).noquote() << QStringLiteral("[网络] 请求失败 %1 状态码=%2 耗时=%3ms")
+                                 .arg(url, QString::number(status),
+                                      QString::number(elapsed));
                 if (onError)
                     onError(reply->errorString());
             } else {
-                const int status = reply->attribute(
-                    QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 const QByteArray body = reply->readAll();
-                qCInfo(logDownload).noquote() << QStringLiteral("[NET] GET %1 → %2 (%3ms, %4B)")
+                qCInfo(logDownload).noquote() << QStringLiteral("[网络] 请求完成 %1 状态码=%2 耗时=%3ms 数据量=%4")
                                  .arg(url, QString::number(status),
                                       QString::number(elapsed),
                                       QString::number(body.size()));
@@ -211,15 +215,20 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
     QString mirror = mirrorUrl(url);
     QString primaryUrl = mirror.isEmpty() ? url : mirror;
 
+    auto dlTimer = std::make_shared<QElapsedTimer>();
+    dlTimer->start();
+
     QNetworkRequest req = buildRequest(cfg, QUrl(primaryUrl), true, timeoutMs);
     QNetworkReply* reply = mgr->get(req);
+
+    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 开始下载 %1 超时=%2ms").arg(primaryUrl).arg(timeoutMs);
 
     auto* file = new QFile(tmpPath);
     if (!file->open(QIODevice::WriteOnly)) {
         reply->abort();
         reply->deleteLater();
         delete file;
-        if (done) done(false, QStringLiteral("Cannot open file: %1").arg(tmpPath));
+        if (done) done(false, QStringLiteral("无法打开文件: %1").arg(tmpPath));
         return;
     }
 
@@ -236,25 +245,29 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
 
     QObject::connect(reply, &QNetworkReply::finished, mgr,
         [mgr, primaryUrl, mirror, url, reply, file, savePath, tmpPath,
-         sharedProg, sharedDone, cfg, timeoutMs]() mutable {
+         sharedProg, sharedDone, cfg, timeoutMs, dlTimer]() mutable {
             file->close();
             delete file;
 
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool ok = (reply->error() == QNetworkReply::NoError);
             const QString errStr = reply->errorString();
+            qint64 elapsed = dlTimer->elapsed();
             reply->deleteLater();
 
             if (ok && status == 200) {
                 QFile::remove(savePath);
                 if (QFile::rename(tmpPath, savePath)) {
+                    qint64 fileSize = QFileInfo(savePath).size();
+                    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 下载完成 %1 文件大小=%2 耗时=%3ms")
+                                                     .arg(savePath).arg(fileSize).arg(elapsed);
                     if (*sharedDone) (*sharedDone)(true, {});
                 } else {
                     QFile::remove(tmpPath);
-                    if (*sharedDone) (*sharedDone)(false, QStringLiteral("Rename failed: %1").arg(tmpPath));
+                    if (*sharedDone) (*sharedDone)(false, QStringLiteral("重命名失败: %1").arg(tmpPath));
                 }
             } else if (!mirror.isEmpty() && primaryUrl == mirror) {
-                qCInfo(logDownload) << "[NET] Mirror failed:" << errStr << "→ official:" << url;
+                qCInfo(logDownload).noquote() << QStringLiteral("[网络] 镜像源失败 %1，切换到官方源 %2").arg(errStr, url);
                 QFile::remove(tmpPath);
                 downloadImpl(mgr, cfg, url, savePath,
                              sharedProg ? *sharedProg : nullptr,
@@ -278,7 +291,7 @@ static void downloadRetry(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
                           int attempt, qint64 startTimeMs)
 {
     if (attempt >= 3) {
-        if (done) done(false, QStringLiteral("Download failed after 3 attempts: %1").arg(url));
+        if (done) done(false, QStringLiteral("下载失败（已重试3次）: %1").arg(url));
         return;
     }
 
@@ -292,7 +305,7 @@ static void downloadRetry(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
     if (attempt >= 2) {
         qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startTimeMs;
         if (elapsed < 5500) {
-            if (done) done(false, QStringLiteral("Download failed too fast to retry: %1").arg(url));
+            if (done) done(false, QStringLiteral("下载失败（耗时过短，跳过重试）: %1").arg(url));
             return;
         }
     }
@@ -347,7 +360,7 @@ void HttpClient::getWithFallback(const QString& url,
             get(targetUrl,
                 [hasWinner, targetUrl, cb](int status, const QByteArray& body) {
                     if (hasWinner->testAndSetRelaxed(0, 1)) {
-                        qCInfo(logDownload) << QStringLiteral("[NET] 竞速胜出 url=%1 HTTP状态=%2").arg(targetUrl).arg(status);
+                        qCInfo(logDownload).noquote() << QStringLiteral("[网络] 竞速完成 胜出URL=%1 状态码=%2").arg(targetUrl).arg(status);
                         if (*cb) (*cb)(status, body);
                     }
                 },
@@ -386,6 +399,11 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
     // Only remove stale tmp on fresh download; keep on resume
     if (resumeFrom <= 0) QFile::remove(tmpPath);
 
+    auto dlTimer = std::make_shared<QElapsedTimer>();
+    dlTimer->start();
+
+    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 开始下载 %1").arg(url);
+
     QNetworkRequest req = buildRequest(m_config, QUrl(url), false);
     if (resumeFrom > 0) {
         req.setRawHeader("Range", QStringLiteral("bytes=%1-").arg(resumeFrom).toUtf8());
@@ -398,7 +416,7 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
         reply->abort();
         reply->deleteLater();
         delete file;
-        if (done) done(false, QStringLiteral("Cannot open file: %1").arg(tmpPath));
+        if (done) done(false, QStringLiteral("无法打开文件: %1").arg(tmpPath));
         return nullptr;
     }
 
@@ -413,8 +431,9 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
     }
 
     QObject::connect(reply, &QNetworkReply::finished, this,
-        [this, reply, file, tmpPath, savePath, done = std::move(done)]() {
+        [this, reply, file, tmpPath, savePath, done = std::move(done), dlTimer]() {
             file->close();
+            qint64 elapsed = dlTimer->elapsed();
             reply->deleteLater();
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool networkOk = (reply->error() == QNetworkReply::NoError);
@@ -424,12 +443,15 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
             if (httpOk) {
                 QFile::remove(savePath);
                 if (QFile::rename(tmpPath, savePath)) {
+                    qint64 fileSize = QFileInfo(savePath).size();
+                    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 下载完成 %1 文件大小=%2 耗时=%3ms")
+                                                     .arg(savePath).arg(fileSize).arg(elapsed);
                     delete file;
                     if (done) done(true, QString());
                 } else {
                     QFile::remove(tmpPath);
                     delete file;
-                    if (done) done(false, QStringLiteral("Unable to rename downloaded file"));
+                    if (done) done(false, QStringLiteral("重命名下载文件失败"));
                 }
             } else {
                 QFile::remove(tmpPath);
@@ -447,7 +469,7 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
             file->deleteLater();
             QFile::remove(tmpPath);
             if (done) {
-                const QString err = QStringLiteral("Network error: %1").arg(reply->errorString());
+                const QString err = QStringLiteral("网络错误: %1").arg(reply->errorString());
                 done(false, err);
             }
         });

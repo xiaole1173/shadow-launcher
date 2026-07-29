@@ -37,7 +37,7 @@ namespace ShadowLauncher {
 LaunchBackend::LaunchBackend(QObject* parent)
     : QObject(parent)
 {
-    qCInfo(logLaunch) << QStringLiteral("启动模块已初始化");
+    qCInfo(logLaunch) << QStringLiteral("[启动] 启动模块已初始化");
 }
 
 LaunchBackend::~LaunchBackend()
@@ -91,7 +91,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
 
     m_launchStatus = tr("正在准备...");
     emit launchStateChanged();
-    qCInfo(logLaunch) << QStringLiteral("收到启动请求 版本=%1 Java=%2 内存=%3MB").arg(versionId, javaPath).arg(maxMemoryMB);
+    qCInfo(logLaunch) << QStringLiteral("[启动] 开始启动 版本=%1 Java=%2 内存=%3MB").arg(versionId, javaPath).arg(maxMemoryMB);
     emit logMessage(tr("启动 %1 | %2 | JVM: %3").arg(versionId, username,
                       jvmArgs.isEmpty() ? tr("默认G1GC") : jvmArgs));
 
@@ -264,7 +264,7 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
     emit launchProgressChanged(0, reason);
     emit launchCheckFailed(phase, reason);
     emit launchStateChanged();
-    qCCritical(logLaunch) << QStringLiteral("启动前检查失败 phase=%1 原因=%2").arg(phase, reason);
+    qCCritical(logLaunch) << QStringLiteral("[启动] 启动前检查失败 阶段=%1 原因=%2").arg(phase, reason);
     emit logMessage(tr("启动失败: %1").arg(reason));
 }
 
@@ -289,7 +289,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
     // Timeout handler
     connect(m_refreshTimeoutTimer, &QTimer::timeout, this, [this]() {
         if (m_cancelled) return;
-        qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token刷新超时 重试次数=%1").arg(m_refreshRetryCount);
+        qCWarning(logLaunch) << QStringLiteral("[启动] 令牌刷新超时 重试次数=%1").arg(m_refreshRetryCount);
 
         if (m_refreshRetryCount < 2) {
             m_refreshRetryCount++;
@@ -303,7 +303,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
             return;
         }
 
-        qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token刷新超时 重试耗尽 阻止启动");
+        qCWarning(logLaunch) << QStringLiteral("[启动] 令牌刷新超时，重试耗尽，阻止启动");
         abortCheck(tr("登录状态"), tr("网络超时，无法验证正版登录状态"));
     });
 
@@ -316,7 +316,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
             m_refreshTimeoutTimer->stop();
             disconnect(m_account, &AccountBackend::tokenRefreshFailed, this, nullptr);
 
-            qCInfo(logLaunch) << QStringLiteral("[启动前检查] Token刷新成功");
+            qCInfo(logLaunch) << QStringLiteral("[启动] 令牌刷新成功");
             m_authToken = m_account->mcToken();
 
             emit launchCheckProgress(tr("正版授权验证通过"));
@@ -335,7 +335,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
             m_refreshTimeoutTimer->stop();
 
             if (tokenExpired) {
-                qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token已过期 阻止启动");
+                qCWarning(logLaunch) << QStringLiteral("[启动] 令牌已过期，阻止启动");
                 abortCheck(tr("登录状态"), tr("正版登录已过期，请重新登录"));
                 return;
             }
@@ -353,7 +353,7 @@ void LaunchBackend::beginTokenRefreshAttempt()
             }
 
             // Max retries reached — proceed with cached token
-            qCWarning(logLaunch) << QStringLiteral("[启动前检查] Token刷新重试耗尽 使用缓存Token继续 原因=%1").arg(reason);
+            qCWarning(logLaunch) << QStringLiteral("[启动] 令牌刷新重试耗尽，使用缓存令牌继续 原因=%1").arg(reason);
             emit logMessage(tr("令牌刷新失败(%1)，重试耗尽，使用本地令牌继续").arg(reason));
             emit launchCheckProgress(tr("令牌刷新失败，使用本地令牌继续"));
             emit launchProgressChanged(9, tr("令牌刷新失败，使用本地令牌继续"));
@@ -395,9 +395,9 @@ void LaunchBackend::runNextCheck()
         // For online auth: refresh the Minecraft token before launching
         // (skip for yggdrasil mode - authlib-injector handles token validation)
         if (m_authIsOnline && m_account && !m_yggdrasilMode) {
-            qCInfo(logLaunch) << QStringLiteral("[启动前检查] 正在刷新在线Token");
+            qCInfo(logLaunch) << QStringLiteral("[启动] 正在刷新登录令牌");
             if (m_account->msRefreshToken().isEmpty()) {
-                qCInfo(logLaunch) << QStringLiteral("[启动前检查] 无刷新Token 跳过");
+                qCInfo(logLaunch) << QStringLiteral("[启动] 无刷新令牌，跳过");
             } else {
                 m_checkTimer->stop();  // Pause until refresh completes
                 m_refreshRetryCount = 0;
@@ -417,7 +417,7 @@ void LaunchBackend::runNextCheck()
                 return;  // Don't advance; wait for callback
             }
         }
-        qCInfo(logLaunch) << QStringLiteral("[启动前检查] 登录状态通过");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 登录状态通过");
         break;
     }
     case 1: {
@@ -438,7 +438,7 @@ void LaunchBackend::runNextCheck()
                 emit launchCheckWarning(tr("检测到 32 位 Java，已限制内存 1536MB"));
             }
         }
-        qCInfo(logLaunch) << QStringLiteral("[启动前检查] Java可执行文件通过");
+        qCInfo(logLaunch) << QStringLiteral("[启动] Java 检查通过");
         break;
     }
     case 2: {
@@ -484,18 +484,18 @@ void LaunchBackend::runNextCheck()
                 abortCheck(tr("核心 Jar"), tr("未找到版本 jar 文件，且无继承来源")); return;
             }
             // 有 inheritsFrom 则放行
-            qCInfo(logLaunch) << QStringLiteral("[启动前检查] 无独立 jar 文件，将继承原版 jar");
+            qCInfo(logLaunch) << QStringLiteral("[启动] 无独立核心文件，将继承原版核心");
         }
 
         // JSON id 与目录名不一致时仅警告（自定义版本可能不同名）
         if (jsonDoc.isObject()) {
             QString jsonId = jsonDoc.object().value(QStringLiteral("id")).toString();
             if (!jsonId.isEmpty() && jsonId != m_pendingVersionId) {
-                qCInfo(logLaunch) << QStringLiteral("[启动前检查] 版本目录名和 JSON id 不一致：") + m_pendingVersionId + QStringLiteral(" vs ") + jsonId;
+                qCInfo(logLaunch) << QStringLiteral("[启动] 版本目录名与 JSON id 不一致: %1 vs %2").arg(m_pendingVersionId, jsonId);
                 emit launchCheckWarning(tr("版本名 \"%1\" 与 JSON 内 id 不一致").arg(m_pendingVersionId));
             }
         }
-        qCInfo(logLaunch) << QStringLiteral("[启动前检查] 版本目录和JAR文件通过");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 版本目录和核心文件检查通过");
         break;
     }
     case 3: {
@@ -518,7 +518,7 @@ void LaunchBackend::runNextCheck()
             if (missingNatives.size() > 5) detail += tr(" ...共%1个").arg(missingNatives.size());
             abortCheck(tr("运行库文件"), detail); return;
         }
-        qCInfo(logLaunch) << QStringLiteral("[启动前检查] 依赖库文件全部通过");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 依赖库检查通过");
         break;
     }
     case 4: {
@@ -551,7 +551,7 @@ void LaunchBackend::runNextCheck()
                     return;
                 }
                 r->deleteLater();
-                qCInfo(logLaunch) << "外置登录服务器可达 OK:" << m_yggApiRoot;
+                qCInfo(logLaunch) << QStringLiteral("[启动] 外置登录服务器可达: %1").arg(m_yggApiRoot);
             }
 
             QString jarPath = m_gameDir + QStringLiteral("/authlib-injector.jar");
@@ -561,7 +561,7 @@ void LaunchBackend::runNextCheck()
                 m_pendingJvmArgs += QStringLiteral(" ");
             m_pendingJvmArgs += agentArg;
             m_pendingJvmArgs += QStringLiteral(" -Dauthlibinjector.side=client");
-            qCInfo(logLaunch) << "已添加 authlib-injector JVM 参数";
+            qCInfo(logLaunch) << QStringLiteral("[启动] 已添加 authlib-injector 参数");
 
             if (!QFileInfo::exists(jarPath)) {
                 emit launchCheckWarning(tr("正在下载 authlib-injector.jar..."));
@@ -616,7 +616,7 @@ void LaunchBackend::runNextCheck()
                                 file.write(jarReply->readAll());
                                 file.close();
                                 dlOk = true;
-                                qCInfo(logLaunch) << "已下载 authlib-injector.jar 到" << jarPath;
+                                qCInfo(logLaunch) << QStringLiteral("[启动] 已下载 authlib-injector.jar: %1").arg(jarPath);
                                 jarReply->deleteLater();
                                 break;
                             }
@@ -672,7 +672,7 @@ void LaunchBackend::runNextCheck()
                                     file.write(jarReply->readAll());
                                     file.close();
                                     dlOk = true;
-                                    qCInfo(logLaunch) << "已从 GitHub 下载 authlib-injector.jar";
+                                    qCInfo(logLaunch) << QStringLiteral("[启动] 已从 GitHub 下载 authlib-injector.jar");
                                 }
                             }
                             jarReply->deleteLater();
@@ -692,7 +692,7 @@ void LaunchBackend::runNextCheck()
             writeLauncherProfilesJson();
         }
 
-        qCInfo(logLaunch) << QStringLiteral("[启动前检查] 全部通过 开始启动Minecraft");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 全部检查通过，准备启动 Minecraft");
         break;
     }
     case 5: {
@@ -775,7 +775,7 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
         m_launchStatus = tr("启动完成");
         emit launchProgressChanged(100, m_launchStatus);
         qCDebug(logLaunch) << "[PROGRESS] 100% - 启动完成 (窗口就绪)";
-        qCInfo(logLaunch) << QStringLiteral("Minecraft启动流程完成");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 游戏启动完成 版本=%1").arg(launcher->property("launchVersion").toString());
         emit logMessage(tr("Minecraft 启动完成"));
         m_activeLauncher = nullptr;  // release progress isolation
         // Delay m_launching=false until after overlay animation
@@ -846,14 +846,14 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
         m_launchProgress = 100;
         m_launchStatus = tr("启动完成");
         emit launchProgressChanged(100, tr("启动完成"));
-        qCInfo(logLaunch) << QStringLiteral("Minecraft启动成功");
+        qCInfo(logLaunch) << QStringLiteral("[启动] Minecraft 启动成功");
         emit logMessage(tr("Minecraft 启动成功"));
     } else {
         m_launchProgress = 0;
         m_launchStatus.clear();
         emit launchProgressChanged(0, errorMsg);
         emit launchCheckFailed(tr("启动失败"), errorMsg);
-        qCCritical(logLaunch) << QStringLiteral("Minecraft启动失败 原因=%1").arg(errorMsg);
+        qCCritical(logLaunch) << QStringLiteral("[启动] Minecraft 启动失败 原因=%1").arg(errorMsg);
         emit logMessage(tr("启动失败: %1").arg(errorMsg));
 
         // ── Crash detection: scan for crash reports ──
@@ -1083,10 +1083,10 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
     }
 
     if (!missing.isEmpty()) {
-        qCWarning(logLaunch) << QStringLiteral("[启动前检查] 缺少依赖库 数量=%1 版本=%2").arg(missing.size()).arg(versionId);
+        qCWarning(logLaunch) << QStringLiteral("[启动] 缺少依赖库 数量=%1 版本=%2").arg(missing.size()).arg(versionId);
         emit logMessage(tr("[警告] 缺少 %1 个依赖库文件").arg(missing.size()));
     } else {
-        qCInfo(logLaunch) << QStringLiteral("[启动前检查] 依赖库文件完整 版本=%1").arg(versionId);
+        qCInfo(logLaunch) << QStringLiteral("[启动] 依赖库检查通过 版本=%1").arg(versionId);
         emit logMessage(tr("[完成] 所有依赖库文件完整"));
     }
 
@@ -1234,7 +1234,7 @@ void LaunchBackend::killGameByPid(qint64 pid)
             return;
         }
     }
-    qCWarning(logLaunch) << QStringLiteral("[进程] 按PID强制结束失败 PID=%1 未找到").arg(pid);
+    qCWarning(logLaunch) << QStringLiteral("[启动] 按 PID 强制结束失败 PID=%1 未找到").arg(pid);
 }
 
 // ============================================================
@@ -1294,7 +1294,7 @@ void LaunchBackend::writeLauncherProfilesJson()
             root = QJsonDocument::fromJson(f.readAll(), &err).object();
             f.close();
             if (err.error != QJsonParseError::NoError) {
-                qCWarning(logLaunch) << QStringLiteral("launcher_profiles.json 解析失败 将重建 err=%1").arg(err.errorString());
+                qCWarning(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 解析失败，正在重建 错误=%1").arg(err.errorString());
                 root = QJsonObject();
             }
         }
@@ -1325,9 +1325,9 @@ void LaunchBackend::writeLauncherProfilesJson()
         QJsonDocument doc(root);
         f.write(doc.toJson(QJsonDocument::Indented));
         f.close();
-        qCInfo(logLaunch) << QStringLiteral("已更新 launcher_profiles.json 玩家=%1").arg(m_authName);
+        qCInfo(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 已写入 玩家=%1").arg(m_authName);
     } else {
-        qCWarning(logLaunch) << QStringLiteral("写入 launcher_profiles.json 失败 err=%1").arg(f.errorString());
+        qCWarning(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 写入失败 错误=%1").arg(f.errorString());
     }
 }
 

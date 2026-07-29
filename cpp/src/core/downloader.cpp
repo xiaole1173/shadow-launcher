@@ -48,9 +48,9 @@ void Downloader::start(const DownloadTask& task)
     m_cancelled   = false;
     m_downloading = true;
 
-    qCInfo(logDownload) << QStringLiteral("下载任务已创建 文件=%1").arg(task.name)
-                        << "url:" << task.url
-                        << "sha1:" << (task.sha1.isEmpty() ? QStringLiteral("(none)") : task.sha1.left(16) + QStringLiteral("..."));
+    qCInfo(logDownload) << QStringLiteral("[下载] 下载任务已创建 文件=%1 地址=%2 SHA1=%3")
+        .arg(task.name, task.url,
+             task.sha1.isEmpty() ? QStringLiteral("无") : task.sha1.left(16) + QStringLiteral("..."));
 
     doStart();
 }
@@ -109,6 +109,8 @@ void Downloader::doStart()
                          QNetworkRequest::NoLessSafeRedirectPolicy);
 
     m_reply = m_manager->get(request);
+
+    m_downloadTimer.start();
 
     // Wire signals
     connect(m_reply, &QNetworkReply::readyRead,
@@ -185,7 +187,7 @@ void Downloader::onFinished()
             return;
         }
 
-        qCCritical(logDownload) << QStringLiteral("下载失败 文件=%1 错误=%2").arg(m_task.name, errorMsg);
+        qCCritical(logDownload) << QStringLiteral("[下载] 下载失败 文件=%1 错误=%2").arg(m_task.name, errorMsg);
         emit downloadFinished(m_task.name, false, errorMsg);
         cleanup();
         m_downloading = false;
@@ -217,7 +219,13 @@ void Downloader::onFinished()
         }
     }
 
-    qCInfo(logDownload) << QStringLiteral("下载完成 文件=%1").arg(m_task.name);
+    qint64 elapsedMs = m_downloadTimer.elapsed();
+    qint64 fileSize = m_file ? m_file->size() : 0;
+    QString speedStr = elapsedMs > 0
+        ? QStringLiteral("%1 MB/s").arg(fileSize * 1000.0 / elapsedMs / 1048576.0, 0, 'f', 1)
+        : QStringLiteral("N/A");
+    qCInfo(logDownload) << QStringLiteral("[下载] %1 下载完成 大小=%2字节 用时=%3ms 速度=%4")
+        .arg(m_task.name).arg(fileSize).arg(elapsedMs).arg(speedStr);
     // Success
     emit downloadFinished(m_task.name, true, QString());
     cleanup();
@@ -238,7 +246,7 @@ void Downloader::onNetworkError(QNetworkReply::NetworkError /*error*/)
         return;
     }
 
-    qCCritical(logDownload) << QStringLiteral("下载失败 文件=%1 错误=%2").arg(m_task.name, errorMsg);
+    qCCritical(logDownload) << QStringLiteral("[下载] 下载失败 文件=%1 错误=%2").arg(m_task.name, errorMsg);
     emit downloadFinished(m_task.name, false, errorMsg);
     cleanup();
     m_downloading = false;
@@ -256,9 +264,8 @@ void Downloader::onDownloadProgress(qint64 received, qint64 total)
         int milestone = (pct / 20) * 20; // 0, 20, 40, 60, 80
         if (milestone > lastMilestone && milestone > 0) {
             lastMilestone = milestone;
-            qCInfo(logDownload) << QStringLiteral("下载进度 文件=%1").arg(m_task.name)
-                                << milestone << "% (" << received / 1048576
-                                << "/" << total / 1048576 << "MB)";
+            qCInfo(logDownload) << QStringLiteral("[下载] 下载进度 %1 %2% (%3/%4 MB)")
+                .arg(m_task.name).arg(milestone).arg(received / 1048576).arg(total / 1048576);
         }
         if (pct == 0) lastMilestone = 0;
         if (pct >= 100) lastMilestone = 0;
