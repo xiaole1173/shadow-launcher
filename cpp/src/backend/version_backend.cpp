@@ -2629,12 +2629,11 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     if (auto* ds = dlSession(versionId)) {
         ds->recordBytes(db, tb);
     }
-    // Also route to merged install sessions keyed by loader session id
+    // Route speed to ALL merged sessions sharing this MC version
     for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
         auto* d = dlSession(it.key());
         if (d && d->isMerged() && d->mcVersion == versionId) {
             d->recordBytes(db, tb);
-            break;
         }
     }
 
@@ -2872,61 +2871,52 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
 
 
-        // ── Route MC step progress to merged session pipeline ──
-        if (!mergedSessionId.isEmpty()) {
-            if (auto* mDs = dlSession(mergedSessionId)) {
-                auto& mst = m_dlStates[versionId];
-                bool mVerifying = (mst.phase == tr("校验中..."));
-                if (!mVerifying && !mDs->isFailed() && mDs->steps.size() >= 4) {
-                    if (mst.bytesDl > 0) {
-                        auto step0map = mDs->steps[0].toMap();
-                        if (step0map["status"].toString() != QStringLiteral("completed")) {
-                            updateStep(mergedSessionId, 0, QStringLiteral("completed"), 100,
-                                       mst.catBytesDl[0], mst.catBytesTotal[0]);
-                        }
+        // ── Route MC step progress to ALL merged session pipelines ──
+        for (auto sit = m_downloadSessions.begin(); sit != m_downloadSessions.end(); ++sit) {
+            auto* mDs = dlSession(sit.key());
+            if (!mDs || !mDs->isMerged() || mDs->mcVersion != versionId) continue;
+
+            auto& mst = m_dlStates[versionId];
+            bool mVerifying = (mst.phase == tr("校验中..."));
+            if (!mVerifying && !mDs->isFailed() && mDs->steps.size() >= 4) {
+                if (mst.bytesDl > 0) {
+                    auto step0map = mDs->steps[0].toMap();
+                    if (step0map["status"].toString() != QStringLiteral("completed")) {
+                        updateStep(sit.key(), 0, QStringLiteral("completed"), 100,
+                                   mst.catBytesDl[0], mst.catBytesTotal[0]);
                     }
-                    {
-                        QString s1 = (mst.catBytesTotal[1] <= 0)
-                            ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
-                            : ((mst.catBytesDl[1] >= mst.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active"));
-                        int mraw1 = mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : (mst.bytesDl > 0 ? 100 : 0);
-                        if (mraw1 > 100)
-                            qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=1 rawPct=%2 dl=%3KB total=%4KB")
-                                .arg(mergedSessionId).arg(mraw1).arg(mst.catBytesDl[1]/1024).arg(mst.catBytesTotal[1]/1024);
-                        updateStep(mergedSessionId, 1, s1, qMin(mraw1, 100),
-                            mst.catBytesDl[1], mst.catBytesTotal[1]);
-                    }
-                    {
-                        QString s2 = (mst.catBytesTotal[2] <= 0)
-                            ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
-                            : ((mst.catBytesDl[2] >= mst.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active"));
-                        int mraw2 = mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : (mst.bytesDl > 0 ? 100 : 0);
-                        if (mraw2 > 100)
-                            qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=2 rawPct=%2 dl=%3KB total=%4KB")
-                                .arg(mergedSessionId).arg(mraw2).arg(mst.catBytesDl[2]/1024).arg(mst.catBytesTotal[2]/1024);
-                        updateStep(mergedSessionId, 2, s2, qMin(mraw2, 100),
-                            mst.catBytesDl[2], mst.catBytesTotal[2]);
-                    }
+                }
+                {
+                    QString s1 = (mst.catBytesTotal[1] <= 0)
+                        ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
+                        : ((mst.catBytesDl[1] >= mst.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active"));
+                    int mraw1 = mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : (mst.bytesDl > 0 ? 100 : 0);
+                    if (mraw1 > 100)
+                        qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=1 rawPct=%2 dl=%3KB total=%4KB")
+                            .arg(sit.key()).arg(mraw1).arg(mst.catBytesDl[1]/1024).arg(mst.catBytesTotal[1]/1024);
+                    updateStep(sit.key(), 1, s1, qMin(mraw1, 100),
+                        mst.catBytesDl[1], mst.catBytesTotal[1]);
+                }
+                {
+                    QString s2 = (mst.catBytesTotal[2] <= 0)
+                        ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
+                        : ((mst.catBytesDl[2] >= mst.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active"));
+                    int mraw2 = mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : (mst.bytesDl > 0 ? 100 : 0);
+                    if (mraw2 > 100)
+                        qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=2 rawPct=%2 dl=%3KB total=%4KB")
+                            .arg(sit.key()).arg(mraw2).arg(mst.catBytesDl[2]/1024).arg(mst.catBytesTotal[2]/1024);
+                    updateStep(sit.key(), 2, s2, qMin(mraw2, 100),
+                        mst.catBytesDl[2], mst.catBytesTotal[2]);
                 }
             }
 
-            auto* mSes = m_downloadSessions[mergedSessionId];
-            auto* ds = dlSession(mergedSessionId);
-
-            ds->m_rawTotalProgress = rawTotalProgress;
-
-            // ── EMA smoothing ──
-
-            if (ds->smoothProgress <= 0.0 || rawTotalProgress > ds->smoothProgress + 0.5) {
-
-                ds->smoothProgress = rawTotalProgress;
-
+            // ── EMA smoothing for each merged session ──
+            mDs->m_rawTotalProgress = rawTotalProgress;
+            if (mDs->smoothProgress <= 0.0 || rawTotalProgress > mDs->smoothProgress + 0.5) {
+                mDs->smoothProgress = rawTotalProgress;
             } else {
-
-                ds->smoothProgress = ds->smoothProgress * 0.7 + rawTotalProgress * 0.3;
-
+                mDs->smoothProgress = mDs->smoothProgress * 0.7 + rawTotalProgress * 0.3;
             }
-
         }
 
 
