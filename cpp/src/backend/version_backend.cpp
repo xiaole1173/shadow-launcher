@@ -1262,6 +1262,11 @@ void VersionBackend::cancelInstall()
 
     }
 
+    // Clean up merged contexts (temp dirs + installers)
+    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+        destroyMergedContext(it.key());
+    }
+
 }
 
 
@@ -2280,10 +2285,14 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
     emit logMessage(tr("MC 和 %1 下载完成，开始安装...").arg(ds->loaderType));
 
-
-
+    // Use merged context installer if available (new architecture),
+    // otherwise fall back to m_mlInstallers (legacy optifine path).
     auto* ml = m_mlInstallers.value(installId, nullptr);
-    if (!ml) {
+    auto* ctx = m_mergedContexts.value(installId, nullptr);
+    if (ctx && ctx->installer) {
+        ml = ctx->installer;
+        ml->setGameDir(m_gameDir);
+    } else if (!ml) {
         ml = createLoaderInstaller(installId);
     } else {
         ml->setGameDir(m_gameDir);
@@ -2404,6 +2413,9 @@ void VersionBackend::finishInstall(const QString& installName)
     emit installComplete(installName);
 
     emit installFinished(true);
+
+    // Clean up merged context (temp dir + children) if this was a merged install
+    destroyMergedContext(installName);
 
     // Defer hiding install card so installComplete signal reaches QML first
 
@@ -7622,6 +7634,9 @@ void VersionBackend::dismissCard(const QString& installId)
         if (row >= 0)
             m_installCardsModel->removeRow(row);
     }
+
+    // Clean up merged context if present
+    destroyMergedContext(installId);
 
 }
 
