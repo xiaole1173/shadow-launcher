@@ -1,0 +1,11 @@
+{
+    "version": "v0.4.0-beta",
+    "update_mode": "force_full",
+    "force_reason": "v0.4.0-beta 目录结构重组，需要全量更新",
+    "qt_version": "6.8.3",
+    "resource_epoch": 1,
+    "exe_sha256": "927738ecf84570f178ba5dbed10e271b17d8069bf21c7a5f8b0ae7a18ec9d87c",
+    "full_sha256": "",
+    "build_date": "2026-07-30",
+    "release_notes_url": "https://gitee.com/xiaole1173/shadow-launcher/releases"
+}

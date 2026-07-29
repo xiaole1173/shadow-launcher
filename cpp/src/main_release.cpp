@@ -425,9 +425,7 @@ int main(int argc, char *argv[])
 
     // Add exe dir to import path so module can find qmldir
     engine.addImportPath(QCoreApplication::applicationDirPath());
-    if (!qEnvironmentVariableIsSet("SHADOW_DEV")) {
-        engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
-    }
+    engine.addImportPath(QStringLiteral("qrc:/ShadowLauncher/qml"));
     checkpoint(QStringLiteral("QML engine created"));
 
     // 注册自定义 3D 几何体
@@ -472,70 +470,38 @@ int main(int argc, char *argv[])
                 }, Qt::SingleShotConnection);
         }, Qt::QueuedConnection);
 
-    // Load QML — dev mode (file://) when SHADOW_DEV=1, otherwise qrc precompiled
-    bool devMode = qEnvironmentVariableIsSet("SHADOW_DEV");
-    // Filesystem import path: always added, but dev mode prioritizes it
+    // Release mode: always load from precompiled qrc
     engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/launcher/qml"));
-    // QRC import path: only in release mode (dev mode forces filesystem resolution)
-    if (!devMode) {
-        engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
-    } else {
-        // Dev mode: add Qt's QML path so built-in modules (QtQuick3D etc.) resolve plugins
-            engine.addImportPath(QStringLiteral("YOUR_QT_QML_PATH"));
-    }
+    engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
 
     QUrl url;
-    if (devMode) {
-        QString devPath = QCoreApplication::applicationDirPath() + QStringLiteral("/launcher/qml/MainWindow.qml");
-        if (QFile::exists(devPath)) {
-            checkpoint(QStringLiteral("Loading QML (filesystem dev mode)..."));
-            url = QUrl::fromLocalFile(devPath);
-            qCInfo(logApp) << QStringLiteral("[DEV MODE] 从文件系统加载MainWindow 路径=%1").arg(devPath);
-            qCInfo(logApp) << QStringLiteral("[DEV MODE] 全部QML从文件系统加载 (QRC导入路径已禁用)");
-        } else {
-            qCWarning(logApp) << QStringLiteral("SHADOW_DEV已设置但路径不存在 路径=%1 回退到QRC").arg(devPath);
-            url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
-        }
-    } else {
-        checkpoint(QStringLiteral("Loading QML (precompiled qrc)..."));
-        url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
-    }
+    checkpoint(QStringLiteral("Loading QML (precompiled qrc)..."));
+    url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
 
     // ── Beta key gate ──
-    // Skipped in dev mode or with SHADOW_SKIP_BETA env var
     bool loadedBetaDialog = false;
-    if (!qEnvironmentVariableIsSet("SHADOW_SKIP_BETA")) {
-        checkpoint(QStringLiteral("Checking beta key..."));
-        QString savedKey = ShadowBackend::loadBetaKey();
+    checkpoint(QStringLiteral("Checking beta key..."));
+    QString savedKey = ShadowBackend::loadBetaKey();
 
-        if (savedKey.isEmpty() || !ShadowBackend::validateBetaKey(savedKey)) {
-            if (!savedKey.isEmpty()) {
-                qCWarning(logApp) << QStringLiteral("[Beta] 保存的密钥无效 显示对话框");
-            }
-
-            // Load BetaKeyDialog; betaVerified signal will reload MainWindow
-            QUrl betaUrl;
-            if (devMode) {
-                QString devPath = QCoreApplication::applicationDirPath() + "/launcher/qml/BetaKeyDialog.qml";
-                betaUrl = QFile::exists(devPath) ? QUrl::fromLocalFile(devPath)
-                                                  : QUrl("qrc:/qt/qml/ShadowLauncher/qml/BetaKeyDialog.qml");
-            } else {
-                betaUrl = QUrl("qrc:/qt/qml/ShadowLauncher/qml/BetaKeyDialog.qml");
-            }
-            checkpoint(QStringLiteral("Loading beta key dialog..."));
-            engine.load(betaUrl);
-            checkpoint(QStringLiteral("Waiting for beta key input..."));
-
-            // On successful verification, reload MainWindow
-            QObject::connect(backend, &ShadowBackend::betaVerified, &app, [&engine, url]() {
-                qCInfo(logApp) << QStringLiteral("[Beta] 密钥验证通过 加载MainWindow");
-                engine.load(url);
-            });
-
-            loadedBetaDialog = true;
-        } else {
-            qCInfo(logApp) << QStringLiteral("[Beta] 密钥有效 继续启动");
+    if (savedKey.isEmpty() || !ShadowBackend::validateBetaKey(savedKey)) {
+        if (!savedKey.isEmpty()) {
+            qCWarning(logApp) << QStringLiteral("[Beta] 保存的密钥无效 显示对话框");
         }
+
+        // Load BetaKeyDialog from QRC; betaVerified signal will reload MainWindow
+        QUrl betaUrl("qrc:/qt/qml/ShadowLauncher/qml/BetaKeyDialog.qml");
+        checkpoint(QStringLiteral("Loading beta key dialog..."));
+        engine.load(betaUrl);
+        checkpoint(QStringLiteral("Waiting for beta key input..."));
+
+        QObject::connect(backend, &ShadowBackend::betaVerified, &app, [&engine, url]() {
+            qCInfo(logApp) << QStringLiteral("[Beta] 密钥验证通过 加载MainWindow");
+            engine.load(url);
+        });
+
+        loadedBetaDialog = true;
+    } else {
+        qCInfo(logApp) << QStringLiteral("[Beta] 密钥有效 继续启动");
     }
 
     if (!loadedBetaDialog) {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ShadowLauncher VERSION 0.3.1 LANGUAGES CXX C)
+project(ShadowLauncher VERSION 0.4.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)  # Qt default
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -44,10 +44,11 @@ target_include_directories(nlohmann_json INTERFACE src/third_party/nlohmann)
 # ============================================================
 
 set(SOURCES
-    src/main.cpp
+    src/main_release.cpp
 
     # Utilities (Phase 4 鈥?structured logging)
     src/utils/logger.cpp
+    src/utils/temp_tracker.cpp
     src/utils/token_crypto.cpp
 
     # Core services (Phase 2 鈥?added progressively)
@@ -100,6 +101,7 @@ set(SOURCES
 set(HEADERS
     src/utils/types.h
     src/utils/logger.h
+    src/utils/temp_tracker.h
     src/core/http_client.h
     src/core/logger.h
     src/core/version_manager.h
@@ -252,6 +254,10 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/ShadowDropdown.qml
         qml/ShadowIconButton.qml
         qml/VersionCard.qml
+        qml/InputBox.qml
+        qml/InstallProgressPage.qml
+        qml/LoadingSpinner.qml
+        qml/SettingsExperimentalPage.qml
         qml/animation_tokens.json
         qml/qmldir
 )
@@ -430,7 +436,7 @@ target_link_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/lib")
 # Define WEBP_STATIC_LINK for static lib (needed on Windows)
 target_compile_definitions(ShadowLauncher PRIVATE
     WEBP_STATIC_LINK
-    SHADOW_DISPLAY_VERSION="v0.3.1-beta"
+    SHADOW_DISPLAY_VERSION="v0.4.0-beta"
     SHADOW_QT_VERSION="${Qt6_VERSION}"
     SHADOW_RESOURCE_EPOCH=1
 )
@@ -501,30 +507,6 @@ install(TARGETS ShadowLauncher
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
-# ============================================================
-# Java Download Speed Test (standalone)
-# ============================================================
-add_executable(java_dl_test
-    tests/java_dl_test.cpp
-    src/core/file_downloader.cpp
-)
-target_include_directories(java_dl_test PRIVATE src)
-target_link_libraries(java_dl_test PRIVATE
-    Qt6::Core
-    Qt6::Network
-)
-if(WIN32)
-    set_target_properties(java_dl_test PROPERTIES
-        WIN32_EXECUTABLE FALSE
-    )
-    add_custom_command(TARGET java_dl_test POST_BUILD
-        COMMAND "${CMAKE_PREFIX_PATH}/bin/windeployqt.exe"
-            "$<TARGET_FILE:java_dl_test>"
-            --no-translations --no-compiler-runtime --no-plugins
-        COMMENT "Deploying Qt runtime for java_dl_test..."
-    )
-endif()
 
 # ============================================================
 # SLUpdater — standalone self-update helper (no Qt dependency)

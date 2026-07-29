@@ -41,6 +41,7 @@
 #include "resource_backend.h"
 #include "settings_backend.h"
 #include "version_backend.h"
+#include "../utils/temp_tracker.h"
 #include "stats_backend.h"
 #include "java_backend.h"
 
@@ -559,6 +560,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
     bp("UpdateManager");
 
     bp("Constructor done");
+
+    // ── Clean up orphaned temp dirs from previous (crashed) sessions ──
+    qCInfo(logApp) << QStringLiteral("[追踪] 检查残留临时目录...");
+    TempTracker::cleanupOrphans();
 
     // Sync m_currentLang from saved settings (prevents switchLanguage early-return bug)
     const QStringList codes = { QStringLiteral("zh_CN"), QStringLiteral("zh_HK"), QStringLiteral("zh_TW") };

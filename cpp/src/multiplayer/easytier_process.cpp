@@ -43,6 +43,7 @@ QString EasyTierProcess::findEasyTierExe() const
 {
     // Look in bin/ next to the executable
     QStringList paths = {
+        QCoreApplication::applicationDirPath() + "/launcher/bin/easytier-core.exe",
         QCoreApplication::applicationDirPath() + "/bin/easytier-core.exe",
         QCoreApplication::applicationDirPath() + "/../../bin/easytier-core.exe",
         QCoreApplication::applicationDirPath() + "/easytier-core.exe",
@@ -58,6 +59,7 @@ QString EasyTierProcess::findEasyTierExe() const
 QString EasyTierProcess::findEasyTierCli() const
 {
     QStringList paths = {
+        QCoreApplication::applicationDirPath() + "/launcher/bin/easytier-cli.exe",
         QCoreApplication::applicationDirPath() + "/bin/easytier-cli.exe",
         QCoreApplication::applicationDirPath() + "/../../bin/easytier-cli.exe",
         QCoreApplication::applicationDirPath() + "/easytier-cli.exe",

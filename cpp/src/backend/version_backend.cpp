@@ -17,6 +17,7 @@
 #include "userdata_backend.h"
 
 #include "../utils/logger.h"
+#include "../utils/temp_tracker.h"
 
 #include "../core/version_manager.h"
 
@@ -3085,8 +3086,10 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
             catDone = st.catBytesDoneBase[cat];
 
-            // Log completed file (always, even on dedup, for debugging)
-            emit logMessage(QStringLiteral("[下载] ") + fileName + QStringLiteral(" (%1 KB)").arg(total/1024));
+            // Log completed file (throttled: only every 20th file or files > 1MB)
+            // Avoids flooding the UI thread with 5000+ QML binding updates from DebugLogger
+            if (total > 1024 * 1024 || (st.logFileCounter++ % 20) == 0)
+                emit logMessage(QStringLiteral("[下载] ") + fileName + QStringLiteral(" (%1 KB)").arg(total/1024));
 
 
 
@@ -7660,8 +7663,12 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             break;
         }
     }
-    if (!QDir(ctx->tempDir).exists())
+    bool isNewTempDir = !QDir(ctx->tempDir).exists();
+    if (isNewTempDir) {
         QDir().mkpath(ctx->tempDir);
+        TempTracker::record(ctx->tempDir);
+        qCInfo(logVersion) << QStringLiteral("[追踪] 新建临时目录: %1").arg(ctx->tempDir);
+    }
 
     // Create ModLoaderInstaller (redirected to temp dir)
     ctx->installer = new ModLoaderInstaller(this);
@@ -7809,6 +7816,8 @@ void VersionBackend::destroyMergedContext(const QString& installId)
     if (!ctx->tempDir.isEmpty() && lastUser) {
         QDir d(ctx->tempDir);
         if (d.exists()) d.removeRecursively();
+        TempTracker::forget(ctx->tempDir);
+        qCInfo(logVersion) << QStringLiteral("[追踪] 清理临时目录: %1").arg(ctx->tempDir);
     }
 
     // Delete owned children
