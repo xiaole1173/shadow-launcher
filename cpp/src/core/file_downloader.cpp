@@ -950,6 +950,7 @@ void FileDownloader::speedTick()
     if (currentBps >= kMinSpeedFloorBps && floorLimit > currentFloor) {
         m_speedFloorBps.storeRelaxed(floorLimit);
         m_lastFloorIncreaseMs = nowMs;
+        qCInfo(logDownload) << QStringLiteral("速度下限已提升到 %1 M").arg(floorLimit / (1024.0 * 1024.0), 0, 'f', 2);
     } else if (nowMs - m_lastFloorIncreaseMs > 5000 && currentFloor > kMinSpeedFloorBps) {
         // 5s without growth: decay floor by 50%
         qint64 newFloor = qMax(kMinSpeedFloorBps, currentFloor / 2);

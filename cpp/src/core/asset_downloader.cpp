@@ -685,12 +685,12 @@ void AssetDownloader::updateSpeedFloor()
     qint64 avgBps = (weightDiv > 0) ? (weightedSum / weightDiv) : 0;
     if (avgBps < kMinSpeedFloorBps) return;
 
-    // Floor = 85% of weighted average
+    // Floor = 85% of weighted average (architecture unchanged)
     qint64 newFloor = static_cast<qint64>(avgBps * 0.85);
     qint64 currentFloor = m_speedFloorBps.loadRelaxed();
     if (newFloor > currentFloor) {
         m_speedFloorBps.storeRelaxed(newFloor);
-        qCInfo(logAsset) << QStringLiteral("  [资源] 速度阈值 ↑ %1/s → %2/s").arg(fmtSize(currentFloor), fmtSize(newFloor));
+        qCInfo(logAsset) << QStringLiteral("速度下限已提升到 %1 M").arg(newFloor / (1024.0 * 1024.0), 0, 'f', 2);
     }
 }
 
@@ -797,8 +797,9 @@ void AssetDownloader::adjustHostLimits()
         if (st.activeRequests >= st.dynamicLimit * 0.8) {
             int oldLimit = st.dynamicLimit;
             st.dynamicLimit = qMin(st.dynamicLimit + 1, 32);
+            // Per-host limit increase: debug-only (too verbose at info level)
             if (st.dynamicLimit != oldLimit)
-                qCInfo(logAsset) << QStringLiteral("  [资源] 限制 %1 ↑ %2 → %3 (良好)").arg(it.key()).arg(oldLimit).arg(st.dynamicLimit);
+                qCDebug(logAsset) << QStringLiteral("  [资源] 限制 %1 ↑ %2 → %3 (良好)").arg(it.key()).arg(oldLimit).arg(st.dynamicLimit);
         }
     }
 }
@@ -863,8 +864,9 @@ void AssetDownloader::recordHostResult(const QString& host, bool ok, qint64 firs
         // Failure → reduce dynamic limit (TCP congestion control style)
         int oldLimit = st.dynamicLimit;
         st.dynamicLimit = qMax(2, st.dynamicLimit / 2);
+        // Per-host limit decrease: debug-only
         if (st.dynamicLimit != oldLimit)
-            qCInfo(logAsset) << QStringLiteral("  [资源] 限制 %1 ↓ %2 → %3 (失败)").arg(host).arg(oldLimit).arg(st.dynamicLimit);
+            qCDebug(logAsset) << QStringLiteral("  [资源] 限制 %1 ↓ %2 → %3 (失败)").arg(host).arg(oldLimit).arg(st.dynamicLimit);
     }
 }
 
@@ -1056,8 +1058,9 @@ public:
             }
         }
         qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - t0;
-        if (elapsed > 5) {
-            qCInfo(logAsset) << QStringLiteral("  [资源] 预检查 %1 %2 %3 用时 %4ms").arg(task.sha1, sha1Match ? QStringLiteral("命中") : QStringLiteral("不匹配"), fmtSize(task.size)).arg(elapsed);
+        // Per-file pre-check result: debug-only (too verbose at info level when 5000+ files)
+        if (elapsed > 50) {
+            qCDebug(logAsset) << QStringLiteral("  [资源] 预检查 %1 %2 %3 用时 %4ms").arg(task.sha1, sha1Match ? QStringLiteral("命中") : QStringLiteral("不匹配"), fmtSize(task.size)).arg(elapsed);
         }
         if (callback)
             callback(task, sha1Match);
@@ -1109,18 +1112,16 @@ void AssetDownloader::onPreCheckResult(const AssetTask& task, bool sha1Match)
         m_downloadedBytes.fetchAndAddRelaxed(task.size);
         m_cacheBytes.fetchAndAddRelaxed(task.size);
         finishDownload(task, true);
-        logState("pre-check cache HIT");
     } else {
         // Size matched but SHA1 didn't: must download
         m_pendingQueue.prepend(task);
         if (m_inFlight.size() < m_maxConcurrent) {
             fireNext();
         } else {
-            // accelTick will handle when slots free up
+            // If all slots full, re-activate timer to dispatch when slots free up
             if (!m_accelTimer->isActive())
                 m_accelTimer->start();
         }
-        logState("pre-check cache MISS → download");
     }
 }
 
@@ -1174,8 +1175,9 @@ void AssetDownloader::logState(const char* event)
 
 void AssetDownloader::logSpeed()
 {
-    if (m_speedLogTimer.elapsed() < 1000)
-        return;  // rate limit to 1 second
+    // Rate-limited: log every 5 seconds instead of every second to reduce log volume
+    if (m_speedLogTimer.elapsed() < 5000)
+        return;
     m_speedLogTimer.restart();
 
     qint64 elapsed = m_downloadTimer.elapsed();

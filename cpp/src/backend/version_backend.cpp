@@ -1870,7 +1870,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
     bool anyMergedLaunched = false;
 
 
-    qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] Phase1 ENTER: finishedId=%1 activeCount=%2 sessions=%3")
+    qCDebug(logVersion).noquote() << QStringLiteral("[TRACE] Phase1 ENTER: finishedId=%1 activeCount=%2 sessions=%3")
         .arg(finishedId).arg(m_activeCount).arg(m_downloadSessions.size());
 
     // ── Process merged sessions waiting for this MC version ──
@@ -2327,7 +2327,7 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
     auto* ds = dlSession(installId);
 
-    qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] proceedToLoaderInstall: id=%1 type=%2 merged=%3")
+    qCDebug(logVersion).noquote() << QStringLiteral("[TRACE] proceedToLoaderInstall: id=%1 type=%2 merged=%3")
         .arg(installId).arg(ds->loaderType).arg(ds->isMerged() ? 1 : 0);
 
     qDebug() << "[install] Both downloads complete, starting" << ds->loaderType << "verify/install";
@@ -2693,6 +2693,8 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     } else if (st.speed > 0 && st.speedLastTimeMs > 0 && (nowMs - st.speedLastTimeMs) > 30000) {
         st.speed = 0;
         st.smoothSpeed = 0.0;
+        st.speedLastTimeMs = nowMs;
+        st.networkBytesDl = netDb;
     }
 
     st.bytesDl = db;
@@ -3157,7 +3159,8 @@ void VersionBackend::updateDownloadFile(const QString& versionId,
 
             if (ct > 0) {
 
-                qCInfo(logVersion) << QStringLiteral("下载步骤 cat=%1 文件=%2 总计=%3KB 已下载=%4/%5KB (%6%)")
+                // Per-category step progress: debug-only (fires on every file progress update)
+                qCDebug(logVersion) << QStringLiteral("下载步骤 cat=%1 文件=%2 总计=%3KB 已下载=%4/%5KB (%6%)")
 
                        .arg(cat).arg(fileName).arg(total/1024)
 
@@ -5622,13 +5625,13 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
 
         auto* ds = dlSession(installId);
         if (!ds || !m_downloadSessions.contains(installId)) {
-            qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] finished handler: session gone, destroying installer. id=%1 success=%2 err=%3")
+            qCDebug(logVersion).noquote() << QStringLiteral("[TRACE] finished handler: session gone, destroying installer. id=%1 success=%2 err=%3")
                 .arg(installId).arg(success ? 1 : 0).arg(errMsg);
             destroyLoaderInstaller(installId);
             return;
         }
 
-        qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] finished handler ENTER: id=%1 success=%2 err=%3 merged=%4 mcDone=%5 fbPending=%6")
+        qCDebug(logVersion).noquote() << QStringLiteral("[TRACE] finished handler ENTER: id=%1 success=%2 err=%3 merged=%4 mcDone=%5 fbPending=%6")
             .arg(installId).arg(success ? 1 : 0).arg(errMsg)
             .arg(ds->isMerged() ? 1 : 0).arg(ds->mcDownloadDone ? 1 : 0).arg(ds->fabricApiPending ? 1 : 0);
 
@@ -5704,7 +5707,7 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     connect(ml, &ModLoaderInstaller::waitingForMC, this, [this, installId]() {
         setInstallPhase(tr("\u7b49\u5f85MC\u4e0b\u8f7d\u5b8c\u6210..."));
         auto* ds = dlSession(installId);
-        qCInfo(logVersion).noquote() << QStringLiteral("[TRACE] waitingForMC fired: id=%1 dsFound=%2 merged=%3 mcDone=%4 ldrReady=%5")
+        qCDebug(logVersion).noquote() << QStringLiteral("[TRACE] waitingForMC fired: id=%1 dsFound=%2 merged=%3 mcDone=%4 ldrReady=%5")
             .arg(installId)
             .arg(ds ? 1 : 0)
             .arg(ds ? (ds->isMerged() ? 1 : 0) : -1)
@@ -6262,27 +6265,24 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
         percentage = (int)((bytesRecv * 100) / bytesTotal);
     }
 
+    QString oldStatus = step["status"].toString();
     step["status"] = status;
     step["percentage"] = percentage;
     step["bytesReceived"] = QVariant::fromValue<qint64>(bytesRecv);
     step["bytesTotal"] = QVariant::fromValue<qint64>(bytesTotal);
     ds->steps[index] = step;
 
-
-
-    qCInfo(logVersion).noquote()
-
-        << QStringLiteral("步骤 id=%1 idx=%2 名称=%3 状态=%4 进度=%5% 字节=%6/%7KB")
-
-           .arg(installId).arg(index)
-
-           .arg(step["name"].toString())
-
-           .arg(status)
-
-           .arg(percentage)
-
-           .arg(bytesRecv / 1024).arg(bytesTotal / 1024);
+    // Only log on actual state transitions (pending→active→completed→failed)
+    // to avoid repeating identical completed-step info hundreds of times per second
+    if (oldStatus != status) {
+        qCInfo(logVersion).noquote()
+            << QStringLiteral("步骤 id=%1 idx=%2 名称=%3 状态=%4 进度=%5% 字节=%6/%7KB")
+               .arg(installId).arg(index)
+               .arg(step["name"].toString())
+               .arg(status)
+               .arg(percentage)
+               .arg(bytesRecv / 1024).arg(bytesTotal / 1024);
+    }
 
 
 
@@ -6724,8 +6724,6 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
 {
 
-    qCInfo(logVersion) << QStringLiteral("[verify-scan] 检查下载完成状态 version=%1").arg(versionId);
-
     // Check merged install sessions
 
     for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
@@ -6734,7 +6732,7 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
         if (d && d->isMerged() && d->mcVersion == versionId) {
 
-            qCInfo(logVersion).noquote() << QStringLiteral("[verify-scan]  merged session=%1").arg(it.key())
+            qCDebug(logVersion).noquote() << QStringLiteral("[verify-scan]  merged session=%1").arg(it.key())
                 << QStringLiteral("mcStepTotal=[%1,%2,%3]")
                     .arg(d->mcStepTotal[0]).arg(d->mcStepTotal[1]).arg(d->mcStepTotal[2])
                 << QStringLiteral("mcStepDone=[%1,%2,%3]")
@@ -6770,7 +6768,7 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
                     QVariantMap vstep = d->steps[verifyIdx].toMap();
 
-                    qCInfo(logVersion) << QStringLiteral("[verify-scan]  allDone=true step.show=%1").arg(vstep.value("show").toBool() ? "true" : "false");
+                    qCDebug(logVersion) << QStringLiteral("[verify-scan]  allDone=true step.show=%1").arg(vstep.value("show").toBool() ? "true" : "false");
 
                     if (!vstep.value("show").toBool()) {
 
@@ -6782,7 +6780,8 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
                     } else {
 
-                        qCInfo(logVersion) << QStringLiteral("[verify-scan]  步骤已可见(show=true) 跳过激活");
+                        // Step already visible — no action needed
+                        qCDebug(logVersion) << QStringLiteral("[verify-scan]  步骤已可见(show=true) 跳过激活");
 
                     }
 
@@ -6790,7 +6789,8 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
             } else {
 
-                qCInfo(logVersion) << QStringLiteral("[verify-scan]  未满足条件 allDone=%1 anyCategory=%2").arg(allDone).arg(anyCategory);
+                // Not yet all done — will re-check on next progress update
+                qCDebug(logVersion) << QStringLiteral("[verify-scan]  未满足条件 allDone=%1 anyCategory=%2").arg(allDone).arg(anyCategory);
 
             }
 

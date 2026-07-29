@@ -130,6 +130,12 @@ static void shadowMessageHandler(QtMsgType type,
     if (cleanMsg.startsWith(QStringLiteral("ShadowLauncher::")))
         cleanMsg = cleanMsg.mid(16);
 
+    // Strip surrounding quotes (Qt's QDebug adds them when streaming strings)
+    if (cleanMsg.size() >= 2 && cleanMsg.startsWith(QChar('"')) && cleanMsg.endsWith(QChar('"')))
+        cleanMsg = cleanMsg.mid(1, cleanMsg.size() - 2);
+
+    // Add thread ID for multi-threaded download diagnostics
+    const QString threadTag = QStringLiteral("[T]");
     const QString formatted =
         QStringLiteral("%1 %2 [%3] %4")
             .arg(timestamp, levelStr, module, cleanMsg);
