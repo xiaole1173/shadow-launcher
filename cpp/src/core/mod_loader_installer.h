@@ -13,6 +13,8 @@ class QZipReader;
 #include <QAtomicInt>
 #include <QFutureWatcher>
 #include <functional>
+#include <memory>
+#include <atomic>
 
 namespace ShadowLauncher {
 
@@ -141,7 +143,8 @@ private:
         const QString& javaPath, const QStringList& launchArgs,
         const QString& installerJarPath, const QString& loaderName,
         const QStringList& oldVersions, const QString& versionsDirPath,
-        int timeoutMs, std::function<void(int)> onStepProgress);
+        int timeoutMs, std::function<void(int)> onStepProgress,
+        std::shared_ptr<std::atomic<bool>> cancelledFlag = nullptr);
 
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
@@ -223,6 +226,9 @@ private:
     qint64 m_bytesReceived = 0;
     qint64 m_bytesLast = 0;
     QElapsedTimer m_speedTimer;
+
+    // Cancellation flag shared with bootstrapper background thread
+    std::shared_ptr<std::atomic<bool>> m_bootstrapperCancelled;
 
     // Async bootstrapper watcher
     QFutureWatcher<BootstrapperResult>* m_bootstrapperWatcher = nullptr;

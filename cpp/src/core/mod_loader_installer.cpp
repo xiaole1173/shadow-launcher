@@ -49,7 +49,29 @@ using namespace ShadowLauncher;
 ModLoaderInstaller::ModLoaderInstaller(QObject* parent) : QObject(parent) {}
 ModLoaderInstaller::~ModLoaderInstaller() = default;
 
-void ModLoaderInstaller::cancel() { m_cancelled = true; m_running = false; }
+void ModLoaderInstaller::cancel() {
+    m_cancelled = true;
+    m_running = false;
+
+    // Kill any running QProcess children (OptiFine installer).
+    // QProcess destructor blocks until the process exits, so we must
+    // explicitly kill() first to avoid blocking the main thread.
+    for (auto* child : children()) {
+        auto* proc = qobject_cast<QProcess*>(child);
+        if (proc && proc->state() != QProcess::NotRunning) {
+            qCInfo(logLoader) << QStringLiteral("取消: 正在终止子进程 %1").arg(proc->program());
+            proc->kill();
+            if (!proc->waitForFinished(5000))
+                qCWarning(logLoader) << QStringLiteral("取消: 子进程未能及时终止");
+        }
+    }
+
+    // Signal the bootstrapper background thread to cancel
+    // (Forge/NeoForge Bootstrapper in runBootstrapperSync)
+    if (m_bootstrapperCancelled) {
+        m_bootstrapperCancelled->store(true);
+    }
+}
 
 QString ModLoaderInstaller::computeSha1(const QByteArray& data) {
     return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex());
@@ -2898,21 +2920,24 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         launchArgsRaw << gameDirNative;
 
 
+        // Shared cancellation flag — cancel() sets it, runBootstrapperSync checks it
+        m_bootstrapperCancelled = std::make_shared<std::atomic<bool>>(false);
+
         QFuture<BootstrapperResult> future = QtConcurrent::run(
             [javaPath, launchArgsWrapper, launchArgsRaw, hasWrapper,
              installerJarPath, loaderName, oldVersionsSnapshot,
-             versionsDirSnapshot]() -> BootstrapperResult {
+             versionsDirSnapshot, cancelledFlag = m_bootstrapperCancelled]() -> BootstrapperResult {
             // Attempt 1: with JavaWrapper (if available)
             if (hasWrapper) {
                 BootstrapperResult r = runBootstrapperSync(
                     javaPath, launchArgsWrapper, installerJarPath, loaderName,
-                    oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr);
+                    oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr, cancelledFlag);
                 if (r.success) return r;
             }
             // Attempt 2: raw Java (fallback)
             return runBootstrapperSync(
                 javaPath, launchArgsRaw, installerJarPath, loaderName,
-                oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr);
+                oldVersionsSnapshot, versionsDirSnapshot, 180000, nullptr, cancelledFlag);
         });
 
         m_bootstrapperWatcher->setFuture(future);
@@ -2935,7 +2960,8 @@ ModLoaderInstaller::runBootstrapperSync(
     const QString& javaPath, const QStringList& launchArgs,
     const QString& installerJarPath, const QString& loaderName,
     const QStringList& oldVersions, const QString& versionsDirPath,
-    int timeoutMs, std::function<void(int)> onStepProgress)
+    int timeoutMs, std::function<void(int)> onStepProgress,
+    std::shared_ptr<std::atomic<bool>> cancelledFlag)
 {
     BootstrapperResult result;
     result.installerJarPath = installerJarPath;
@@ -2959,6 +2985,14 @@ ModLoaderInstaller::runBootstrapperSync(
     bool procFinished = false;
 
     while (!procFinished && !result.timedOut) {
+        // Check if cancellation was requested from the main thread
+        if (cancelledFlag && cancelledFlag->load()) {
+            result.success = false;
+            result.errorMsg = QStringLiteral("用户取消");
+            proc.kill();
+            proc.waitForFinished(3000);
+            return result;
+        }
         if (elapsed.elapsed() > timeoutMs) {
             result.timedOut = true;
             proc.kill();
