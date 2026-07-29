@@ -247,6 +247,7 @@ signals:
     void verifyProgress(int checked, int total);
     void verifyProgressChanged(int checked, int total);
     void verifyFinished(bool allPassed);
+    void cancelNotification(const QString& installId, const QString& message);
     void verifyFailedFiles(const QStringList& failedFiles);
     void verifyCancelled();
     void repairRunningChanged();

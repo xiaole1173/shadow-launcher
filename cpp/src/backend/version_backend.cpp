@@ -1402,8 +1402,8 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
             cleanupCanceledVersion(versionId, m_gameDir);  // install-name version folder
 
         // If no other context uses this MC version, cancel the MC download too
+        bool mcStillNeeded = false;
         if (!mcVer.isEmpty()) {
-            bool mcStillNeeded = false;
             for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
                 if (it.value() && it.value()->mcVersion == mcVer) {
                     mcStillNeeded = true; break;
@@ -1419,13 +1419,26 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         if (ds) {
             ds->markFailed(tr("已取消"));
             ds->resetSpeed();
+            ds->mlSpeed = 0;
             // Mark all steps as failed so the card shows proper state
             for (int i = 0; i < ds->steps.size(); i++)
                 updateStep(versionId, i, QStringLiteral("failed"), 0);
-            updateCardFromSession(versionId, versionId, QStringLiteral("mod_loader"));
         }
 
+        // Clear download state so card speed display drops to 0
+        if (!mcVer.isEmpty() && m_dlStates.contains(mcVer) && !mcStillNeeded)
+            m_dlStates[mcVer].speed = 0;
+
+        // Bypass throttle: force immediate card rebuild so QML poll picks up the failed state
+        m_cardsRebuildPending = false;
+        m_cardsTimer.restart();
+        doRebuildInstallCards();
+
+        // Also queue a throttled update for safety (covers deferred/throttled paths)
+        rebuildInstallCards();
+
         qDebug() << "[cancelVersionInstall] Merged card cancelled:" << versionId;
+        emit cancelNotification(versionId, tr("已取消 %1 的安装").arg(versionId));
         emit installComplete(versionId);
         emit logMessage(tr("已取消 %1 的安装").arg(versionId));
         setInstalling(false);

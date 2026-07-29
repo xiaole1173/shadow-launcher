@@ -54,6 +54,9 @@ Rectangle {
         function onDownloadQueueFull(displayName) {
             if (toastManager) toastManager.show("当前并行任务已达到上限（" + displayName + "），请稍后再试")
         }
+        function onCancelNotification(installId, message) {
+            if (toastManager) toastManager.show(message)
+        }
     }
 
 
