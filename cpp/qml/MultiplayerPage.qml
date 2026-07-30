@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// 联机主页面 — 集成所有联机组件的全功能页面
+// 联机主页面 — 全功能集成 + 逐层入场动画 + 弹窗过渡
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -12,26 +12,34 @@ Rectangle {
     property var mp: backend ? backend.multiplayer : null
     property var toastManager: null
 
+    // ── Page entrance animation ──
     opacity: 0
-    Component.onCompleted: root.opacity = 1
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+    Component.onCompleted: pageEnterAnim.start()
+    NumberAnimation { id: pageEnterAnim; target: root; property: "opacity"; to: 1; duration: AnimationTokens.pageDuration; easing.type: AnimationTokens.pageEasing }
 
     Connections {
         target: mp
         function onErrorOccurred(msg) {
             if (root.toastManager && msg)
                 root.toastManager.show(msg)
+            // Error shake feedback
+            errorShakeAnim.restart()
         }
         function onMinecraftPortReady(port) {
             if (root.toastManager)
                 root.toastManager.show("MC 端口已就绪: " + port)
         }
-        function onScanResultsChanged() {
-            // Scan results available — could show in page if needed
-        }
-        function onConnectionDifficultyChanged() {
-            // Handled via binding on connectionDifficulty property
-        }
+        function onConnectionDifficultyChanged() {}
+    }
+
+    // Error shake animation
+    SequentialAnimation {
+        id: errorShakeAnim
+        NumberAnimation { target: root; property: "x"; to: -4; duration: 40 }
+        NumberAnimation { target: root; property: "x"; to: 4; duration: 40 }
+        NumberAnimation { target: root; property: "x"; to: -2; duration: 40 }
+        NumberAnimation { target: root; property: "x"; to: 2; duration: 40 }
+        NumberAnimation { target: root; property: "x"; to: 0; duration: 40 }
     }
 
     Flickable {
@@ -42,6 +50,9 @@ Rectangle {
         clip: true
         interactive: true
         boundsBehavior: Flickable.StopAtBounds
+        // Smooth scroll inertia
+        flickDeceleration: 1500
+        maximumFlickVelocity: 3000
 
         ColumnLayout {
             id: contentCol
@@ -49,39 +60,29 @@ Rectangle {
             x: 40
             spacing: 16
 
-            // ── Page header ──
+            // ── Page header with entry delay ──
             Text {
                 text: "多人联机"
                 font.pixelSize: 28; font.bold: true; color: StyleTokens.textSecondary
                 Layout.topMargin: 40
+                opacity: 0
+                Component.onCompleted: opacity = 1
+                Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
             }
 
-            // ── Help panel (collapsed by default) ──
-            MultiplayerHelpPanel {
-                Layout.fillWidth: true
-                expanded: false
-            }
+            // ── Help panel (collapsed) ──
+            MultiplayerHelpPanel { Layout.fillWidth: true; expanded: false }
 
             // ── State indicator ──
-            MultiplayerStateIndicator {
-                Layout.fillWidth: true
-                mp: root.mp
-            }
+            MultiplayerStateIndicator { Layout.fillWidth: true; mp: root.mp }
 
-            // ── Room code card (host only) ──
-            MultiplayerRoomCodeCard {
-                Layout.fillWidth: true
-                mp: root.mp
-                toastManager: root.toastManager
-            }
+            // ── Room code card ──
+            MultiplayerRoomCodeCard { Layout.fillWidth: true; mp: root.mp; toastManager: root.toastManager }
 
             // ── Network monitoring panel ──
-            MultiplayerNetworkPanel {
-                Layout.fillWidth: true
-                mp: root.mp
-            }
+            MultiplayerNetworkPanel { Layout.fillWidth: true; mp: root.mp }
 
-            // ── Player list ──
+            // ── Player list with grouped animation ──
             Rectangle {
                 id: playerListCard
                 Layout.fillWidth: true
@@ -90,8 +91,9 @@ Rectangle {
                 border.color: StyleTokens.bgElevated; border.width: 1
                 radius: StyleTokens.radiusLg
                 visible: mp ? (mp.players && mp.players.length > 0) : false
+
                 opacity: visible ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: AnimationTokens.panelEnterDuration; easing.type: AnimationTokens.panelEnterEasing } }
                 Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
                 ColumnLayout {
@@ -114,8 +116,7 @@ Rectangle {
 
                     Repeater {
                         model: mp ? mp.players : []
-
-                        MultiplayerPlayerCard {
+                        delegate: MultiplayerPlayerCard {
                             width: playerCol.width
                             playerData: modelData
                             entryIndex: index
@@ -124,9 +125,9 @@ Rectangle {
                 }
             }
 
-            // ── Action buttons (idle state) ──
+            // ── Action buttons with press feedback ──
             RowLayout {
-                Layout.alignment: Qt.AlignHCenter; spacing: 12
+                Layout.alignment: Qt.AlignHCenter; spacing: 16
                 visible: mp ? mp.state === 0 : true
                 opacity: visible ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
@@ -137,6 +138,7 @@ Rectangle {
                     bold: true
                     btnRadius: StyleTokens.radiusLg
                     iconSource: "icons/lucide/gamepad-2.svg"
+                    hoverScale: 1.05; pressScale: 0.93
                     onClicked: { if (mp) mp.createRoom() }
                 }
 
@@ -146,13 +148,14 @@ Rectangle {
                     bold: true
                     btnRadius: StyleTokens.radiusLg
                     iconSource: "icons/lucide/log-in.svg"
+                    hoverScale: 1.05; pressScale: 0.93
                     onClicked: joinDialog.open()
                 }
             }
 
-            // ── Disconnect / cancel button (active states) ──
+            // ── Disconnect button ──
             RowLayout {
-                Layout.alignment: Qt.AlignHCenter; spacing: 12
+                Layout.alignment: Qt.AlignHCenter
                 visible: mp ? mp.state > 0 : false
                 opacity: visible ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
@@ -164,28 +167,38 @@ Rectangle {
                     accentColor: StyleTokens.error
                     btnRadius: StyleTokens.radiusLg
                     iconSource: "icons/lucide/log-out.svg"
+                    hoverScale: 1.05; pressScale: 0.93
                     onClicked: { if (mp) mp.leaveRoom() }
                 }
             }
 
-            // Bottom padding
             Item { Layout.preferredHeight: 20 }
         }
     }
 
-    // ── Join Room Dialog ──
+    // ── Join Room Dialog with smooth open/close ──
     Popup {
         id: joinDialog
         anchors.centerIn: parent; width: 420; height: 280
         modal: true; closePolicy: Popup.CloseOnEscape
-        background: Rectangle { color: StyleTokens.bgPrimary; radius: StyleTokens.radiusXl; border.color: StyleTokens.bgElevated; border.width: 1 }
+        background: Rectangle {
+            color: StyleTokens.bgPrimary; radius: StyleTokens.radiusXl
+            border.color: StyleTokens.bgElevated; border.width: 1
+        }
 
         enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "scale"; from: 0.92; to: 1; duration: 250; easing.type: Easing.OutBack }
         }
         exit: Transition {
-            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 150; easing.type: Easing.InCubic }
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 140; easing.type: Easing.InCubic }
+            NumberAnimation { property: "scale"; from: 1; to: 0.95; duration: 140; easing.type: Easing.InCubic }
+        }
+
+        // Overlay dim with fade
+        Overlay.modal: Rectangle {
+            color: "#60000000"
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         }
 
         ColumnLayout {
@@ -197,7 +210,6 @@ Rectangle {
                 font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.accentLight
             }
 
-            // ── Player name input ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 4
                 Text {
@@ -206,15 +218,13 @@ Rectangle {
                 }
                 InputBox {
                     id: nameInput
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
+                    Layout.fillWidth: true; Layout.preferredHeight: 40
                     placeholderText: "输入昵称（可选）"
                     text: mp ? mp.playerName : ""
                     onTextChanged: { if (mp) mp.setPlayerName(text) }
                 }
             }
 
-            // ── Room code input ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 4
                 Text {
@@ -223,14 +233,13 @@ Rectangle {
                 }
                 InputBox {
                     id: joinInput
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
+                    Layout.fillWidth: true; Layout.preferredHeight: 40
                     placeholderText: "U/XXXX-XXXX-XXXX-XXXX"
                 }
             }
 
             RowLayout {
-                Layout.alignment: Qt.AlignHCenter; spacing: 12
+                Layout.alignment: Qt.AlignHCenter; spacing: 14
                 ShadowButton {
                     Layout.preferredWidth: 140; Layout.preferredHeight: 40
                     text: "返回"
@@ -238,6 +247,7 @@ Rectangle {
                     accentColor: StyleTokens.textTertiary
                     btnRadius: StyleTokens.radiusLg
                     iconSource: "icons/lucide/arrow-left.svg"
+                    hoverScale: 1.05; pressScale: 0.93
                     onClicked: joinDialog.close()
                 }
                 ShadowButton {
@@ -246,6 +256,7 @@ Rectangle {
                     bold: true
                     btnRadius: StyleTokens.radiusLg
                     iconSource: "icons/lucide/log-in.svg"
+                    hoverScale: 1.05; pressScale: 0.93
                     onClicked: {
                         if (joinInput.text && mp) {
                             joinDialog.close()
