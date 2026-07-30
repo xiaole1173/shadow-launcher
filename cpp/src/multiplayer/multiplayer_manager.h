@@ -9,6 +9,7 @@
 #include <QProcess>
 #include <QTimer>
 #include <QJsonArray>
+#include <QUdpSocket>
 #include <memory>
 #include "room_code.h"
 #include "easytier_process.h"
@@ -135,6 +136,11 @@ private:
 
     void broadcastPlayers();
 
+    // FakeServer: UDP LAN multicast (224.0.2.60:4445) for MC auto-discovery
+    // Sends [MOTD]...[/MOTD][AD]{port}[/AD] every 1.5s on guest side
+    void startFakeServer(quint16 port);
+    void stopFakeServer();
+
     EasyTierProcess* m_easyTier = nullptr;
     ConnectionGuard* m_guard = nullptr;
 
@@ -152,6 +158,8 @@ private:
 
     QTcpSocket* m_socket = nullptr;       // guest mode
     QTimer* m_heartbeatTimer = nullptr;
+    QTimer* m_fakeServerTimer = nullptr;  // FakeServer broadcast timer
+    QUdpSocket* m_fakeServerSocket = nullptr;
     QTimer* m_discoverTimer = nullptr;
     QTimer* m_discoverTimeoutTimer = nullptr;  // 60s discovery timeout
     QTimer* m_idleTimer = nullptr;             // 5min idle timeout (host only)

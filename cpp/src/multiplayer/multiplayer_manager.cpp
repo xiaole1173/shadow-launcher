@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QRegularExpression>
+#include <QUdpSocket>
 #include <QDebug>
 #include "../utils/logger.h"
 #include "elevated_session.h"
@@ -327,6 +328,8 @@ void MultiplayerManager::leaveRoom()
     emit roomCodeChanged();
     emit playersChanged();
 
+    stopFakeServer();
+
     // Defer heavy cleanup to avoid UI freeze
     QTimer::singleShot(0, this, [this]() {
         for (auto* sock : m_guests) {
@@ -419,6 +422,16 @@ void MultiplayerManager::prepareServerProperties(const QString& gameDir, const Q
         content.replace(reSecure, QStringLiteral("enforce-secure-profile=false"));
     else
         content += QStringLiteral("enforce-secure-profile=false\n");
+
+    // Bind only to 127.0.0.1 (not exposed to physical LAN)
+    static QRegularExpression reServerIp(
+        QStringLiteral(R"(^\s*server-ip\s*=\s*\S+)"),
+        QRegularExpression::MultilineOption
+    );
+    if (content.contains(reServerIp))
+        content.replace(reServerIp, QStringLiteral("server-ip=127.0.0.1"));
+    else
+        content += QStringLiteral("server-ip=127.0.0.1\n");
 
     QFile out(path);
     if (out.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
@@ -514,7 +527,9 @@ void MultiplayerManager::startHostServer()
     m_server = new QTcpServer(this);
     connect(m_server, &QTcpServer::newConnection, this, &MultiplayerManager::onNewConnection);
 
-    if (!m_server->listen(QHostAddress::Any, m_centerPort)) {
+    // With --no-tun, EasyTier delivers port-forward traffic to 127.0.0.1.
+    // Binding only to localhost prevents physical LAN access.
+    if (!m_server->listen(QHostAddress(QStringLiteral("127.0.0.1")), m_centerPort)) {
         emit errorOccurred(QStringLiteral("无法启动联机服务: %1").arg(m_server->errorString()));
         return;
     }
@@ -1023,6 +1038,11 @@ void MultiplayerManager::handleGuestServerPort(const QByteArray& body)
 
         qCInfo(logNet) << QStringLiteral("[联机] MC端口转发已建立 本地端口=%1").arg(localMcPort);
         emit minecraftPortReady(static_cast<int>(localMcPort));
+
+        // ── Start FakeServer: broadcast MC LAN discovery packets ──
+        // Periodically sends UDP multicast announcements so the guest's
+        // MC client auto-discovers the server in the multiplayer LAN tab.
+        startFakeServer(localMcPort);
     }
     // spec: 0xFFFF = server not started, ignore for now
 }
@@ -1195,6 +1215,44 @@ void MultiplayerManager::handlePlayerProfilesResponse(const QByteArray& body)
 // ─────────────────────────────────────────
 // Broadcast
 // ─────────────────────────────────────────
+
+void MultiplayerManager::startFakeServer(quint16 port)
+{
+    stopFakeServer();
+
+    m_fakeServerSocket = new QUdpSocket(this);
+    m_fakeServerSocket->setSocketOption(QAbstractSocket::MulticastTtlOption, 4);
+
+    // MC LAN discovery: UDP multicast 224.0.2.60:4445
+    // Format: [MOTD]server_name[/MOTD][AD]port[/AD]
+    QByteArray data = QStringLiteral("[MOTD]\u8054\u673A MC\u670D\u52A1\u5668[/MOTD][AD]%1[/AD]")
+                         .arg(port).toUtf8();
+
+    m_fakeServerTimer = new QTimer(this);
+    connect(m_fakeServerTimer, &QTimer::timeout, this, [this, data]() {
+        if (!m_fakeServerSocket)
+            return;
+        // Broadcast to MC LAN discovery multicast address
+        m_fakeServerSocket->writeDatagram(data,
+            QHostAddress(QStringLiteral("224.0.2.60")), 4445);
+    });
+
+    qCInfo(logNet) << QStringLiteral("[联机] FakeServer已启动 端口=%1").arg(port);
+    m_fakeServerTimer->start(1500);  // every 1.5s per MC protocol
+}
+
+void MultiplayerManager::stopFakeServer()
+{
+    if (m_fakeServerTimer) {
+        m_fakeServerTimer->stop();
+        m_fakeServerTimer->deleteLater();
+        m_fakeServerTimer = nullptr;
+    }
+    if (m_fakeServerSocket) {
+        m_fakeServerSocket->deleteLater();
+        m_fakeServerSocket = nullptr;
+    }
+}
 
 void MultiplayerManager::broadcastPlayers()
 {
