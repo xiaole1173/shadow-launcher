@@ -86,6 +86,7 @@ Rectangle {
 
     // Helper component for section headers
     component Section: Text {
+        property string title
         text: "▸ " + title
         font.pixelSize: StyleTokens.fontSizeSm
         font.bold: true
