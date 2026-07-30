@@ -124,6 +124,12 @@ private slots:
     void checkMcServerHealth();
     // ── Host MC server presence detection (probe until MC responds) ──
     void checkMcPresence();
+    // ── Async probe callbacks (non-blocking, no waitFor*) ──
+    void onProbeConnected();
+    void onProbeDataReady();
+    void onProbeError(QAbstractSocket::SocketError err);
+    void onProbeTimeout();
+    void handleHealthCheckFailure();
 
     // ── Guest MC connection verification (0xFE handshake) ──
     void verifyMcConnection();
@@ -220,9 +226,15 @@ private:
     QTimer* m_discoverTimer = nullptr;
     QTimer* m_discoverTimeoutTimer = nullptr;  // 60s discovery timeout
     QTimer* m_idleTimer = nullptr;             // 5min idle timeout (host only)
+    // ── Async MC probe (non-blocking, replaces sync waitFor* calls) ──
     QTimer* m_mcHealthTimer = nullptr;   // Host MC server health check (5s, after MC confirmed alive)
     QTimer* m_mcPresenceTimer = nullptr; // Host MC server presence probe (2s, before health check)
     QTimer* m_mcPresenceTimeoutTimer = nullptr; // Host MC presence timeout (2 min)
+    QTcpSocket* m_probeSocket = nullptr;        // Reusable async probe socket (no waitFor*)
+    QTimer* m_probeTimeoutTimer = nullptr;      // Async probe timeout guard
+    enum ProbeMode { ProbeNone, ProbePresence, ProbeHealth };
+    ProbeMode m_probeMode = ProbeNone;
+    int m_probeRetries = 0;
     QTimer* m_profileSyncTimer = nullptr; // Guest profile sync
     QProcess* m_peerQuery = nullptr;      // easyTier peer list query
 

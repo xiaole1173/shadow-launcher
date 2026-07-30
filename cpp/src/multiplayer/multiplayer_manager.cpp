@@ -120,6 +120,17 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     m_mcPresenceTimer->setInterval(kMcPresenceIntervalMs);
     connect(m_mcPresenceTimer, &QTimer::timeout, this, &MultiplayerManager::checkMcPresence);
 
+    // ── Async probe socket (fully non-blocking, replaces sync waitFor* calls) ──
+    m_probeSocket = new QTcpSocket(this);
+    m_probeSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+    connect(m_probeSocket, &QTcpSocket::connected, this, &MultiplayerManager::onProbeConnected);
+    connect(m_probeSocket, &QTcpSocket::readyRead, this, &MultiplayerManager::onProbeDataReady);
+    connect(m_probeSocket, &QTcpSocket::errorOccurred, this, &MultiplayerManager::onProbeError);
+
+    m_probeTimeoutTimer = new QTimer(this);
+    m_probeTimeoutTimer->setSingleShot(true);
+    connect(m_probeTimeoutTimer, &QTimer::timeout, this, &MultiplayerManager::onProbeTimeout);
+
     // Guest profile sync timer (pull from host every 5s, align with Terracotta)
     m_profileSyncTimer = new QTimer(this);
     m_profileSyncTimer->setInterval(5000);
@@ -354,6 +365,9 @@ void MultiplayerManager::leaveRoom()
         m_mcPresenceTimeoutTimer = nullptr;
     }
     m_mcHealthTimer->stop();
+    m_probeSocket->abort();
+    m_probeTimeoutTimer->stop();
+    m_probeMode = ProbeNone;
     m_profileSyncTimer->stop();
     m_mcHealthFailures = 0;
     m_connectionDifficulty = DiffUnknown;
@@ -647,7 +661,8 @@ void MultiplayerManager::startHostServer()
         }
     });
     m_mcPresenceTimeoutTimer->start();
-    emit minecraftPortReady(static_cast<int>(m_mcPort));
+    // minecraftPortReady emitted ONLY from checkMcPresence() success path — MC confirmed alive
+    // (Removed from here to fix port-before-ready contradiction)
 
     // Host adds self to player list
     QVariantMap hostPlayer;
@@ -1588,38 +1603,13 @@ void MultiplayerManager::checkMcServerHealth()
     if (m_role != Host || m_state == Idle || m_state == Error || m_state == WaitingForMcServer)
         return;
 
-    // Try TCP connect to local MC server port
-    QTcpSocket testSocket;
-    testSocket.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
-    // Reduced timeout from 2000ms to 500ms to minimize main thread blocking (periodic stutter)
-    bool connected = testSocket.waitForConnected(500);
-
-    if (connected) {
-        // Send 0xFE (legacy server list ping) and expect 0xFF response
-        testSocket.write(QByteArray(1, static_cast<char>(0xFE)));
-        testSocket.waitForBytesWritten(200);
-        if (testSocket.waitForReadyRead(500)) {
-            QByteArray response = testSocket.read(1);
-            if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
-                m_mcHealthFailures = 0;
-                testSocket.disconnectFromHost();
-                return;
-            }
-        }
-        testSocket.disconnectFromHost();
-    }
-
-    // Connection failed
-    m_mcHealthFailures++;
-    qCWarning(logNet) << QStringLiteral("[联机] MC服务器健康检查失败 (#%1) port=%2")
-        .arg(m_mcHealthFailures).arg(m_mcPort);
-
-    if (m_mcHealthFailures >= kMcHealthMaxFailures) {
-        qCWarning(logNet) << QStringLiteral("[联机] MC服务器已断开，终止联机会话");
-        m_mcHealthTimer->stop();
-        emit errorOccurred(QStringLiteral("MC服务器连接已断开，联机会话结束"));
-        leaveRoom();
-    }
+    // Abort any previous probe and start new async connection (no waitFor* blocking)
+    m_probeSocket->abort();
+    m_probeTimeoutTimer->stop();
+    m_probeMode = ProbeHealth;
+    m_probeTimeoutTimer->setInterval(3500);
+    m_probeTimeoutTimer->start();
+    m_probeSocket->connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
 }
 
 // ── Host MC server presence detection (probe until MC responds, then start health check) ──
@@ -1632,40 +1622,89 @@ void MultiplayerManager::checkMcPresence()
         return;
     }
 
-    // Probe MC server with 0xFE legacy ping, expect 0xFF response (same as Terracotta check_mc_conn)
-    QTcpSocket probe;
-    probe.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
-    bool alive = false;
-    if (probe.waitForConnected(500)) {
-        probe.write(QByteArray(1, static_cast<char>(0xFE)));
-        probe.waitForBytesWritten(200);
-        if (probe.waitForReadyRead(500)) {
-            QByteArray resp = probe.read(1);
-            if (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF) {
-                alive = true;
+    // Abort any previous probe and start new async connection
+    m_probeSocket->abort();
+    m_probeTimeoutTimer->stop();
+    m_probeMode = ProbePresence;
+    m_probeTimeoutTimer->setInterval(1500);
+    m_probeTimeoutTimer->start();
+    m_probeSocket->connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
+    // Result via onProbeConnected -> onProbeDataReady or onProbeError/onProbeTimeout
+}// ── Async probe result handlers (non-blocking, no waitFor*) ──
+void MultiplayerManager::onProbeConnected()
+{
+    m_probeTimeoutTimer->stop();
+    QByteArray ping(1, static_cast<char>(0xFE));
+    m_probeSocket->write(ping);
+    m_probeTimeoutTimer->setInterval(1000);
+    m_probeTimeoutTimer->start();
+}
+
+void MultiplayerManager::onProbeDataReady()
+{
+    m_probeTimeoutTimer->stop();
+    QByteArray resp = m_probeSocket->read(1);
+    bool alive = (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF);
+    m_probeSocket->disconnectFromHost();
+
+    if (m_probeMode == ProbePresence) {
+        if (alive) {
+            qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 切换至健康检查").arg(m_mcPort);
+            m_mcPresenceTimer->stop();
+            m_mcHealthFailures = 0;
+            m_mcHealthTimer->start();
+            emit minecraftPortReady(static_cast<int>(m_mcPort));
+            if (m_state == WaitingForMcServer) {
+                setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
             }
+        } else {
+            qCInfo(logNet) << QStringLiteral("[联机] MC服务器响应异常 port=%1").arg(m_mcPort);
         }
-        probe.disconnectFromHost();
+    } else if (m_probeMode == ProbeHealth) {
+        if (alive) {
+            m_mcHealthFailures = 0;
+        } else {
+            handleHealthCheckFailure();
+        }
     }
+    m_probeMode = ProbeNone;
+}
 
-    if (alive) {
-        qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 切换至健康检查").arg(m_mcPort);
-        m_mcPresenceTimer->stop();
-        m_mcHealthFailures = 0;
-        m_mcHealthTimer->start();
+void MultiplayerManager::onProbeError(QAbstractSocket::SocketError err)
+{
+    Q_UNUSED(err);
+    m_probeTimeoutTimer->stop();
+    m_probeSocket->abort();
 
-        // Update state now that MC is confirmed running
-        if (m_state == WaitingForMcServer) {
-            setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
-        }
-    } else {
-        // MC not yet running - keep probing every 2s
+    if (m_probeMode == ProbePresence) {
         qCInfo(logNet) << QStringLiteral("[联机] MC服务器尚未就绪 port=%1 继续探测...").arg(m_mcPort);
+    } else if (m_probeMode == ProbeHealth) {
+        handleHealthCheckFailure();
+    }
+    m_probeMode = ProbeNone;
+}
+
+void MultiplayerManager::onProbeTimeout()
+{
+    m_probeSocket->abort();
+    onProbeError(QAbstractSocket::SocketTimeoutError);
+}
+
+void MultiplayerManager::handleHealthCheckFailure()
+{
+    m_mcHealthFailures++;
+    qCWarning(logNet) << QStringLiteral("[联机] MC服务器健康检查失败 (#%1) port=%2")
+        .arg(m_mcHealthFailures).arg(m_mcPort);
+
+    if (m_mcHealthFailures >= kMcHealthMaxFailures) {
+        qCWarning(logNet) << QStringLiteral("[联机] MC服务器已断开，终止联机会话");
+        m_mcHealthTimer->stop();
+        emit errorOccurred(QStringLiteral("MC服务器连接已断开，联机会话结束"));
+        leaveRoom();
     }
 }
 
-// ─────────────────────────────────────────
-// Guest MC connection verification (0xFE handshake, align with Terracotta)
+// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──Guest MC connection verification (0xFE handshake, align with Terracotta)
 // ─────────────────────────────────────────
 
 void MultiplayerManager::verifyMcConnection()
