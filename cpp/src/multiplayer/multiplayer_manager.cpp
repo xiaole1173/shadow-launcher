@@ -1665,6 +1665,12 @@ void MultiplayerManager::onProbeDataReady()
     bool alive = (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF);
     m_probeSocket->disconnectFromHost();
 
+    // Guard: if MC already confirmed via scanner, discard stale probe results
+    if (m_state == WaitingForGuests && m_probeMode == ProbePresence) {
+        m_probeMode = ProbeNone;
+        return;
+    }
+
     if (m_probeMode == ProbePresence) {
         if (alive) {
             qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 切换至健康检查").arg(m_mcPort);
@@ -1676,7 +1682,10 @@ void MultiplayerManager::onProbeDataReady()
                 setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
             }
         } else {
-            qCInfo(logNet) << QStringLiteral("[联机] MC服务器响应异常 port=%1").arg(m_mcPort);
+            // Skip logging when MC already confirmed via scanner
+            if (m_state != WaitingForGuests) {
+                qCInfo(logNet) << QStringLiteral("[联机] MC服务器响应异常 port=%1").arg(m_mcPort);
+            }
         }
     } else if (m_probeMode == ProbeHealth) {
         if (alive) {
@@ -1694,8 +1703,11 @@ void MultiplayerManager::onProbeError(QAbstractSocket::SocketError err)
     m_probeTimeoutTimer->stop();
     m_probeSocket->abort();
 
+    // Guard: if MC already confirmed, skip stale error logs
     if (m_probeMode == ProbePresence) {
-        qCInfo(logNet) << QStringLiteral("[联机] MC服务器尚未就绪 port=%1 继续探测...").arg(m_mcPort);
+        if (m_state != WaitingForGuests) {
+            qCInfo(logNet) << QStringLiteral("[联机] MC服务器尚未就绪 port=%1 继续探测...").arg(m_mcPort);
+        }
     } else if (m_probeMode == ProbeHealth) {
         handleHealthCheckFailure();
     }
@@ -1745,13 +1757,24 @@ void MultiplayerManager::onHostMcDetected()
     qCInfo(logNet) << QStringLiteral("[联机] MC扫描器检测到真实MC服务端口: 生成=%1 实际=%2").arg(m_mcPort).arg(realMcPort);
     m_mcPort = realMcPort;
 
-    // Stop scanner (no longer needed)
-    m_hostMcScanner->stop();
+    // CRITICAL: Disconnect scanner signal BEFORE stop to prevent re-entrant calls
+    if (m_hostMcScanner) {
+        m_hostMcScanner->disconnect();
+        m_hostMcScanner->stop();
+    }
+
+    // CRITICAL: Abort any in-flight async TCP probe (old port) to prevent dangling callbacks
+    m_probeSocket->abort();
+    m_probeTimeoutTimer->stop();
+    m_probeMode = ProbeNone;
+
+    // Stop old presence timers immediately
+    m_mcPresenceTimer->stop();
+    if (m_mcPresenceTimeoutTimer)
+        m_mcPresenceTimeoutTimer->stop();
 
     // Signal MC confirmed alive via scanner
     qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 (扫描器检测)").arg(m_mcPort);
-    m_mcPresenceTimer->stop();
-    m_mcPresenceTimeoutTimer->stop();
     m_mcHealthFailures = 0;
     m_mcHealthTimer->start();
     emit minecraftPortReady(static_cast<int>(m_mcPort));
@@ -1760,7 +1783,7 @@ void MultiplayerManager::onHostMcDetected()
     }
 }
 
-// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──Guest MC connection verification (0xFE handshake, align with Terracotta)
+// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──
 // ─────────────────────────────────────────
 
 void MultiplayerManager::verifyMcConnection()
