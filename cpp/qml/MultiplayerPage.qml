@@ -17,9 +17,25 @@ Rectangle {
     Component.onCompleted: pageEnterAnim.start()
     NumberAnimation { id: pageEnterAnim; target: root; property: "opacity"; to: 1; duration: AnimationTokens.pageDuration; easing.type: AnimationTokens.pageEasing }
 
+    // Track whether backend initialization is complete (room ready for sharing)
+    property bool _backendReady: false
+
     Connections {
         target: mp
+        function onStateChanged() {
+            // Aligned with C++ enum: 0=Idle, 6=WaitingForGuests (host ready), 9=Error
+            if (mp) {
+                if (mp.state === 0) {
+                    root._backendReady = false;
+                } else if (mp.state === 6 || mp.state === 8) {
+                    root._backendReady = true;
+                } else if (mp.state === 9) {
+                    root._backendReady = false;
+                }
+            }
+        }
         function onErrorOccurred(msg) {
+            root._backendReady = false;
             if (root.toastManager && msg)
                 root.toastManager.show(msg)
             // Error shake feedback
@@ -76,10 +92,15 @@ Rectangle {
             // ── State indicator ──
             MultiplayerStateIndicator { Layout.fillWidth: true; mp: root.mp }
 
-            // ── Room code card ──
-            MultiplayerRoomCodeCard { Layout.fillWidth: true; mp: root.mp; toastManager: root.toastManager }
+            // ── Room code card (visible only after backend signals room is ready) ──
+            MultiplayerRoomCodeCard {
+                Layout.fillWidth: true
+                mp: root.mp
+                toastManager: root.toastManager
+                visible: mp && mp.role === 1 && mp.roomCode !== "" && root._backendReady
+            }
 
-            // ── Network monitoring panel ──
+            // ── Network monitoring panel (visible only during/after active session) ──
             MultiplayerNetworkPanel { Layout.fillWidth: true; mp: root.mp }
 
             // ── Player list with grouped animation ──
@@ -125,6 +146,37 @@ Rectangle {
                 }
             }
 
+            // ── Loading state during backend initialization ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 80
+                color: "transparent"
+                visible: mp && (mp.state === 1 || mp.state === 7) && mp.role === 1
+                opacity: visible ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Image {
+                        Layout.alignment: Qt.AlignHCenter
+                        source: "icons/lucide/refresh-cw.svg"
+                        width: 24; height: 24
+                        NumberAnimation on rotation {
+                            from: 0; to: 360
+                            duration: 1200
+                            loops: Animation.Infinite
+                        }
+                    }
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: "正在启动局域网、初始化联机服务..."
+                        font.pixelSize: StyleTokens.fontSizeMd
+                        color: StyleTokens.textTertiary
+                    }
+                }
+            }
+
             // ── Action buttons with press feedback ──
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter; spacing: 16
@@ -162,7 +214,7 @@ Rectangle {
 
                 ShadowButton {
                     Layout.preferredWidth: 220; Layout.preferredHeight: 44
-                    text: mp && mp.state <= 4 ? "取消" : "断开连接"
+                    text: mp && (mp.state <= 4 || mp.state === 7) ? "取消" : "断开连接"
                     bold: true
                     accentColor: StyleTokens.error
                     btnRadius: StyleTokens.radiusLg

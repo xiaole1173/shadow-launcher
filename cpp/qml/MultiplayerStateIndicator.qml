@@ -80,7 +80,8 @@ Rectangle {
             Layout.preferredHeight: 3
             radius: 2
             color: StyleTokens.bgElevated
-            visible: mp && mp.state >= 1 && mp.state <= 4
+            // Show progress bar during initialization phases: CreatingRoom(1) through Connecting(4), plus WaitingForMcServer(7)
+            visible: mp && ((mp.state >= 1 && mp.state <= 4) || mp.state === 7)
 
             Rectangle {
                 id: progressBar
