@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
-// Multiplayer Manager — orchestrates EasyTier + Scaffolding protocol
+// Copyright (C) 2025-2026 �?/ Shadow / xiaole1173
+// Multiplayer Manager �?orchestrates EasyTier + Scaffolding protocol
 #pragma once
 #include <QObject>
 #include <QVariantList>
@@ -38,6 +38,7 @@ public:
         Connecting,
         Connected,
         WaitingForGuests,
+        WaitingForMcServer,   // Host: MC server not yet detected
         VerifyingConnection,  // Guest: verifying MC server connection
         Error
     };
@@ -121,6 +122,8 @@ private slots:
 
     // ── Host MC server health check ──
     void checkMcServerHealth();
+    // ── Host MC server presence detection (probe until MC responds) ──
+    void checkMcPresence();
 
     // ── Guest MC connection verification (0xFE handshake) ──
     void verifyMcConnection();
@@ -186,6 +189,9 @@ private:
     // MC server health monitoring constants
     static constexpr int kMcHealthCheckIntervalMs = 5000;
     static constexpr int kMcHealthMaxFailures = 3;
+    // MC server presence detection (before health check starts)
+    static constexpr int kMcPresenceIntervalMs = 2000;
+    static constexpr int kMcPresenceTimeoutMs = 120000; // 2 minutes
 
     // FakeServer: UDP LAN multicast (224.0.2.60:4445) for MC auto-discovery
     // Sends [MOTD]...[/MOTD][AD]{port}[/AD] every 1.5s on guest side
@@ -197,9 +203,9 @@ private:
 
     // Latency measurement
     QTimer* m_pingTimer = nullptr;
-    QHash<QString, qint64> m_pingSentTimes;    // machineId → send timestamp ms
-    QHash<QString, int> m_latency;             // machineId → ms
-    QHash<QString, qint64> m_lastHeartbeat;   // machineId → last heartbeat ms
+    QHash<QString, qint64> m_pingSentTimes;    // machineId �?send timestamp ms
+    QHash<QString, int> m_latency;             // machineId �?ms
+    QHash<QString, qint64> m_lastHeartbeat;   // machineId �?last heartbeat ms
     QTimer* m_heartbeatWatchdog = nullptr;     // detects dead guests
     QTcpServer* m_server = nullptr;       // host mode
     QList<QTcpSocket*> m_guests;          // host mode: connected guest sockets
@@ -214,7 +220,8 @@ private:
     QTimer* m_discoverTimer = nullptr;
     QTimer* m_discoverTimeoutTimer = nullptr;  // 60s discovery timeout
     QTimer* m_idleTimer = nullptr;             // 5min idle timeout (host only)
-    QTimer* m_mcHealthTimer = nullptr;   // Host MC server health check
+    QTimer* m_mcHealthTimer = nullptr;   // Host MC server health check (5s, after MC confirmed alive)
+    QTimer* m_mcPresenceTimer = nullptr; // Host MC server presence probe (2s, before health check)
     QTimer* m_profileSyncTimer = nullptr; // Guest profile sync
     QProcess* m_peerQuery = nullptr;      // easyTier peer list query
 

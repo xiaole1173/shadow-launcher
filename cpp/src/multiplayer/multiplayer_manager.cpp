@@ -115,6 +115,11 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     m_mcHealthTimer->setInterval(kMcHealthCheckIntervalMs);
     connect(m_mcHealthTimer, &QTimer::timeout, this, &MultiplayerManager::checkMcServerHealth);
 
+    // Host MC server presence probe (2s interval until MC responds, then switch to health check)
+    m_mcPresenceTimer = new QTimer(this);
+    m_mcPresenceTimer->setInterval(kMcPresenceIntervalMs);
+    connect(m_mcPresenceTimer, &QTimer::timeout, this, &MultiplayerManager::checkMcPresence);
+
     // Guest profile sync timer (pull from host every 5s, align with Terracotta)
     m_profileSyncTimer = new QTimer(this);
     m_profileSyncTimer->setInterval(5000);
@@ -342,6 +347,7 @@ void MultiplayerManager::leaveRoom()
     if (m_discoverTimeoutTimer)
         m_discoverTimeoutTimer->stop();
     m_idleTimer->stop();
+    m_mcPresenceTimer->stop();
     m_mcHealthTimer->stop();
     m_profileSyncTimer->stop();
     m_mcHealthFailures = 0;
@@ -614,10 +620,13 @@ void MultiplayerManager::startHostServer()
         return;
     }
 
-    setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
+    // Terracotta-aligned: MC health check starts only after MC server responds to 0xFE ping.
+    // Terracotta's set_scanning polls scanner to confirm MC port before start_host.
+    // Our deterministic port means MC may not be running yet, so we probe first.
+    setState(WaitingForMcServer, QStringLiteral("等待MC服务器启动..."));
     m_idleTimer->start();
     m_mcHealthFailures = 0;
-    m_mcHealthTimer->start();
+    m_mcPresenceTimer->start();
     emit minecraftPortReady(static_cast<int>(m_mcPort));
 
     // Host adds self to player list
@@ -1552,7 +1561,7 @@ void MultiplayerManager::broadcastPlayers()
 
 void MultiplayerManager::checkMcServerHealth()
 {
-    if (m_role != Host || m_state == Idle || m_state == Error)
+    if (m_role != Host || m_state == Idle || m_state == Error || m_state == WaitingForMcServer)
         return;
 
     // Try TCP connect to local MC server port
@@ -1585,6 +1594,48 @@ void MultiplayerManager::checkMcServerHealth()
         m_mcHealthTimer->stop();
         emit errorOccurred(QStringLiteral("MC服务器连接已断开，联机会话结束"));
         leaveRoom();
+    }
+}
+
+// ── Host MC server presence detection (probe until MC responds, then start health check) ──
+// Terracotta achieves MC-confirmation via scanner polling in set_scanning.
+// Our deterministic port means MC may not be running yet, so we probe with 0xFE.
+void MultiplayerManager::checkMcPresence()
+{
+    if (m_role != Host || m_state == Idle || m_state == Error) {
+        m_mcPresenceTimer->stop();
+        return;
+    }
+
+    // Probe MC server with 0xFE legacy ping, expect 0xFF response (same as Terracotta check_mc_conn)
+    QTcpSocket probe;
+    probe.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
+    bool alive = false;
+    if (probe.waitForConnected(500)) {
+        probe.write(QByteArray(1, static_cast<char>(0xFE)));
+        probe.waitForBytesWritten(200);
+        if (probe.waitForReadyRead(500)) {
+            QByteArray resp = probe.read(1);
+            if (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF) {
+                alive = true;
+            }
+        }
+        probe.disconnectFromHost();
+    }
+
+    if (alive) {
+        qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 切换至健康检查").arg(m_mcPort);
+        m_mcPresenceTimer->stop();
+        m_mcHealthFailures = 0;
+        m_mcHealthTimer->start();
+
+        // Update state now that MC is confirmed running
+        if (m_state == WaitingForMcServer) {
+            setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
+        }
+    } else {
+        // MC not yet running - keep probing every 2s
+        qCInfo(logNet) << QStringLiteral("[联机] MC服务器尚未就绪 port=%1 继续探测...").arg(m_mcPort);
     }
 }
 
