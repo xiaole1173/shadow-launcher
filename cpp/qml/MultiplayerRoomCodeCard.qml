@@ -47,11 +47,11 @@ Rectangle {
                 font.family: StyleTokens.fontFamilyMono
                 Behavior on text {
                     SequentialAnimation {
-                        NumberAnimation { target: codePulse; property: "opacity"; to: 0.3; duration: 100 }
-                        NumberAnimation { target: codePulse; property: "opacity"; to: 0; duration: 300 }
+                        NumberAnimation { target: codePulse; property: "pulseOpacity"; to: 0.3; duration: 100 }
+                        NumberAnimation { target: codePulse; property: "pulseOpacity"; to: 0; duration: 300 }
                     }
                 }
-                Rectangle { id: codePulse; visible: false; property real opacity: 0 }
+                Rectangle { id: codePulse; visible: false; property real pulseOpacity: 0 }
             }
         }
 

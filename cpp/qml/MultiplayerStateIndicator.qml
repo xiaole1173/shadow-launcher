@@ -66,11 +66,11 @@ Rectangle {
                 elide: Text.ElideRight
                 Behavior on text {
                     SequentialAnimation {
-                        NumberAnimation { target: slideAnim; property: "opacity"; to: 0; duration: 80 }
-                        NumberAnimation { target: slideAnim; property: "opacity"; to: 1; duration: 120 }
+                        NumberAnimation { target: slideAnim; property: "animOpacity"; to: 0; duration: 80 }
+                        NumberAnimation { target: slideAnim; property: "animOpacity"; to: 1; duration: 120 }
                     }
                 }
-                Rectangle { id: slideAnim; visible: false; property real opacity: 1 }
+                Rectangle { id: slideAnim; visible: false; property real animOpacity: 1 }
             }
         }
 
