@@ -990,7 +990,7 @@ void MultiplayerManager::processPacket(const QByteArray& data, QTcpSocket* socke
         if (m_role == Host)
             handlePing(body, socket);
         else
-            ;  // guest gets ping response, already logged
+            handleGuestPingResponse(body);
     } else if (type == Scaffolding::kProtocols) {
         if (m_role == Host)
             handleProtocols(body, socket);
