@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // 联机网络监控面板 — 数据刷新缓动动画 + 高亮反馈
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 Rectangle {
