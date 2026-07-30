@@ -130,6 +130,8 @@ private slots:
     void onProbeError(QAbstractSocket::SocketError err);
     void onProbeTimeout();
     void handleHealthCheckFailure();
+    // ── Scanner-based MC server detection ──
+    void onHostMcDetected();
 
     // ── Guest MC connection verification (0xFE handshake) ──
     void verifyMcConnection();
@@ -182,8 +184,10 @@ private:
     // Guest profile sync: actively pull player profiles from host (align with Terracotta)
     void syncGuestProfiles();
 
-    // MC LAN scanner (align with Terracotta scanning.rs)
+    // MC LAN scanner for UI-facing LAN scan (align with Terracotta scanning.rs)
     McScanner* m_scanner = nullptr;
+    // MC LAN scanner for host MC auto-detection (Terracotta-aligned: detect real MC server port)
+    McScanner* m_hostMcScanner = nullptr;
 
     // Calculate connection difficulty from local and remote NAT types
     ConnectionDifficulty calcConnectionDifficulty(EasyTierNatType local, EasyTierNatType remote) const;

@@ -375,6 +375,13 @@ void MultiplayerManager::leaveRoom()
 
     stopScanning();
 
+    // Stop host MC scanner if active
+    if (m_hostMcScanner) {
+        m_hostMcScanner->stop();
+        m_hostMcScanner->deleteLater();
+        m_hostMcScanner = nullptr;
+    }
+
     m_roomCode.clear();
     m_centerIp.clear();
     m_centerPort = 0;
@@ -641,9 +648,20 @@ void MultiplayerManager::startHostServer()
     }
 
     // Terracotta-aligned: MC health check starts only after MC server responds to 0xFE ping.
-    // Terracotta's set_scanning polls scanner to confirm MC port before start_host.
-    // Our deterministic port means MC may not be running yet, so we probe first.
+    // Terracotta's set_scanning polls MC LAN multicast scanner to detect real server port.
+    // Start both scanner-based detection (primary) and async TCP probe (fallback).
     setState(WaitingForMcServer, QStringLiteral("等待MC服务器启动..."));
+
+    // Start MC LAN multicast scanner to detect real MC server ports
+    // Aligned with Terracotta: scanner detects [MOTD][AD]{port}[/AD] broadcasts on 224.0.2.60:4445
+    if (!m_hostMcScanner) {
+        m_hostMcScanner = new McScanner(this);
+        connect(m_hostMcScanner, &McScanner::serversChanged, this, &MultiplayerManager::onHostMcDetected);
+    }
+    static const QString kSelfMotd = QStringLiteral("\u8054\u673A MC\u670D\u52A1\u5668");
+    m_hostMcScanner->start([this](const QString& motd) -> bool {
+        return motd != kSelfMotd && !motd.trimmed().isEmpty();
+    });
     m_idleTimer->start();
     m_mcHealthFailures = 0;
     m_mcPresenceTimer->start();
@@ -1704,7 +1722,45 @@ void MultiplayerManager::handleHealthCheckFailure()
     }
 }
 
-// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──Guest MC connection verification (0xFE handshake, align with Terracotta)
+
+// ── Scanner-based MC server detection handler ──
+// Aligned with Terracotta set_scanning: real MC server port detected via LAN multicast.
+// Overrides the generated m_mcPort with the real scanner-detected port.
+void MultiplayerManager::onHostMcDetected()
+{
+    if (m_role != Host || m_state != WaitingForMcServer)
+        return;
+
+    if (!m_hostMcScanner)
+        return;
+
+    QList<quint16> ports = m_hostMcScanner->ports();
+    if (ports.isEmpty())
+        return;
+
+    quint16 realMcPort = ports.first();
+    if (realMcPort == 0 || realMcPort == m_mcPort)
+        return;
+
+    qCInfo(logNet) << QStringLiteral("[联机] MC扫描器检测到真实MC服务端口: 生成=%1 实际=%2").arg(m_mcPort).arg(realMcPort);
+    m_mcPort = realMcPort;
+
+    // Stop scanner (no longer needed)
+    m_hostMcScanner->stop();
+
+    // Signal MC confirmed alive via scanner
+    qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 (扫描器检测)").arg(m_mcPort);
+    m_mcPresenceTimer->stop();
+    m_mcPresenceTimeoutTimer->stop();
+    m_mcHealthFailures = 0;
+    m_mcHealthTimer->start();
+    emit minecraftPortReady(static_cast<int>(m_mcPort));
+    if (m_state == WaitingForMcServer) {
+        setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
+    }
+}
+
+// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──// ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──Guest MC connection verification (0xFE handshake, align with Terracotta)
 // ─────────────────────────────────────────
 
 void MultiplayerManager::verifyMcConnection()
