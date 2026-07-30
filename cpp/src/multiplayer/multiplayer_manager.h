@@ -11,6 +11,7 @@
 #include <QJsonArray>
 #include <QUdpSocket>
 #include <memory>
+#include <atomic>
 #include "room_code.h"
 #include "easytier_process.h"
 #include "scaffolding_protocol.h"
@@ -62,7 +63,7 @@ public:
     ~MultiplayerManager() override;
 
     QString roomCode() const { return m_roomCode; }
-    State state() const { return m_state; }
+    State state() const { return static_cast<State>(m_state.load()); }
     QString stateText() const { return m_stateText; }
     int maxPlayers() const { return kMaxPlayers; }
     QVariantList players() const { return m_players; }
@@ -120,15 +121,8 @@ private slots:
     void onNetworkReady(const QString& virtualIp);
     void onEasyTierError(const QString& msg);
 
-    // ── Host MC server health check ──
-    void checkMcServerHealth();
-    // ── Host MC server presence detection (probe until MC responds) ──
-    void checkMcPresence();
-    // ── Async probe callbacks (non-blocking, no waitFor*) ──
-    void onProbeConnected();
-    void onProbeDataReady();
-    void onProbeError(QAbstractSocket::SocketError err);
-    void onProbeTimeout();
+    // ── Host MC async health check (non-blocking, self-cleaning socket) ──
+    void checkMcHealth();
     void handleHealthCheckFailure();
     // ── Scanner-based MC server detection ──
     void onHostMcDetected();
@@ -230,15 +224,9 @@ private:
     QTimer* m_discoverTimer = nullptr;
     QTimer* m_discoverTimeoutTimer = nullptr;  // 60s discovery timeout
     QTimer* m_idleTimer = nullptr;             // 5min idle timeout (host only)
-    // ── Async MC probe (non-blocking, replaces sync waitFor* calls) ──
-    QTimer* m_mcHealthTimer = nullptr;   // Host MC server health check (5s, after MC confirmed alive)
-    QTimer* m_mcPresenceTimer = nullptr; // Host MC server presence probe (2s, before health check)
+    // ── Host MC server health check (5s, only after scanner confirms real MC port) ──
+    QTimer* m_mcHealthTimer = nullptr;
     QTimer* m_mcPresenceTimeoutTimer = nullptr; // Host MC presence timeout (2 min)
-    QTcpSocket* m_probeSocket = nullptr;        // Reusable async probe socket (no waitFor*)
-    QTimer* m_probeTimeoutTimer = nullptr;      // Async probe timeout guard
-    enum ProbeMode { ProbeNone, ProbePresence, ProbeHealth };
-    ProbeMode m_probeMode = ProbeNone;
-    int m_probeRetries = 0;
     QTimer* m_profileSyncTimer = nullptr; // Guest profile sync
     QProcess* m_peerQuery = nullptr;      // easyTier peer list query
 
@@ -252,7 +240,7 @@ private:
     // Connection difficulty (from NAT type analysis)
     ConnectionDifficulty m_connectionDifficulty = DiffUnknown;
 
-    State m_state = Idle;
+    std::atomic<int> m_state{0};
     Role m_role = None;
     QString m_stateText;
     QString m_roomCode;
