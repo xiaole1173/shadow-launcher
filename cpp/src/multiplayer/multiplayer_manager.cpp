@@ -1681,15 +1681,14 @@ void MultiplayerManager::handleHealthCheckFailure()
 // ── Scanner-based MC server detection handler ──
 // Aligned with Terracotta set_scanning: real MC server port detected via LAN multicast.
 // Overrides the generated m_mcPort with the real scanner-detected port.
-// ── Scanner-based MC server detection handler (4-layer safe execution) ──
-// Executed when MCScanner detects a real MC server broadcast on LAN multicast.
-// Layer 1: Block re-entrant signals before any mutation
-// Layer 2: Disconnect scanner signals to prevent signal queue replay
-// Layer 3: Clean up any dangling socket objects 
-// Layer 4: Atomic state transition via setState
+// ── Scanner-based MC server detection handler ──
+// Executed when MCScanner detects real MC server broadcast on LAN multicast.
+// CRITICAL: Scanner cleanup deferred via QTimer::singleShot to avoid
+// Qt6Network.dll access violation (0xc0000005) caused by synchronous
+// socket stop/delete + signal emit re-entry in the same event loop iteration.
 void MultiplayerManager::onHostMcDetected()
 {
-    // Layer 1: Block all signal re-entry for this object
+    // Block signal re-entry during detection
     blockSignals(true);
 
     if (m_role != Host || m_state != WaitingForMcServer) {
@@ -1717,28 +1716,32 @@ void MultiplayerManager::onHostMcDetected()
     qCInfo(logNet) << QStringLiteral("[联机] MC扫描器检测到真实MC服务端口: 生成=%1 实际=%2").arg(m_mcPort).arg(realMcPort);
     m_mcPort = realMcPort;
 
-    // Layer 2: Disconnect all scanner signal bindings before stopping
-    if (m_hostMcScanner) {
-        m_hostMcScanner->disconnect(this);
-        m_hostMcScanner->stop();
-    }
+    // Read port before deferred cleanup (may be last valid access to m_hostMcScanner)
+    quint16 detectedPort = realMcPort;
 
-    // Layer 3: Clean up presence timeout timer  
+    // Defer scanner cleanup to NEXT event loop iteration via QTimer::singleShot(0, ...)
+    // This avoids synchronous socket stop/deleteLater + signal emit re-entry in same tick.
+    // Safe because: m_hostMcScanner is on main thread (same as this), deleteLater runs async.
+    McScanner* scannerToClean = m_hostMcScanner;
+    m_hostMcScanner = nullptr;  // Prevent re-entry via secondary serversChanged
+    scannerToClean->disconnect(this);
+    QTimer::singleShot(0, this, [scannerToClean]() {
+        scannerToClean->stop();
+        scannerToClean->deleteLater();
+    });
+
+    // Clean up presence timeout timer
     if (m_mcPresenceTimeoutTimer)
         m_mcPresenceTimeoutTimer->stop();
 
-    // Layer 4: Transition to ready state
-    qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 (扫描器检测)").arg(m_mcPort);
+    // Transition to ready state
+    qCInfo(logNet) << QStringLiteral("[联机] MC服务器已就绪 port=%1 (扫描器检测)").arg(detectedPort);
     m_mcHealthFailures = 0;
     m_mcHealthTimer->start();
     blockSignals(false);
-    emit minecraftPortReady(static_cast<int>(m_mcPort));
+    emit minecraftPortReady(static_cast<int>(detectedPort));
     if (m_state == WaitingForMcServer) {
-        // Use m_state = directly since blockSignals prevents setState from emitting
-        // But setState emits stateChanged which QML needs. Emit after unblock.
-        m_state = static_cast<int>(WaitingForGuests);
-        emit stateChanged();
-        emit stateTextChanged();
+        setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
     }
 }
 
