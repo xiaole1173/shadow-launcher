@@ -73,7 +73,7 @@ QString EasyTierProcess::findEasyTierCli() const
 
 void EasyTierProcess::start(const QString& networkName, const QString& networkKey,
                             const QString& hostname,
-                            quint16 whitelistPort)
+                            const QList<quint16>& whitelistPorts)
 {
     stop();
 
@@ -149,12 +149,24 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     args << "--config-file" << m_peerConfigPath;
     args << "--no-tun";  // No TUN device — align with Terracotta
 
+    // Standard args (align with Terracotta defaults)
+    args << "--compression" << "zstd";
+    args << "--multi-thread";
+    args << "--latency-first";
+    args << "--enable-kcp-proxy";
+    args << "--p2p-only";
+    args << "-l" << QStringLiteral("udp://0.0.0.0:0");
+    args << "-l" << QStringLiteral("tcp://0.0.0.0:0");
+
     if (isHost) {
         args << "--ipv4" << QStringLiteral("10.144.144.1");
         args << "--hostname" << hostname;
-        if (whitelistPort > 0) {
-            args << "--tcp-whitelist" << QString::number(whitelistPort);
-            args << "--udp-whitelist" << QString::number(whitelistPort);
+        // Whitelist both scaffold port and MC port
+        for (quint16 p : whitelistPorts) {
+            if (p > 0) {
+                args << "--tcp-whitelist" << QString::number(p);
+                args << "--udp-whitelist" << QString::number(p);
+            }
         }
     }
 

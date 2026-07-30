@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QString>
+#include <QList>
 #include <QTimer>
 
 #ifdef Q_OS_WIN
@@ -24,7 +25,7 @@ public:
 
     void start(const QString& networkName, const QString& networkKey,
                const QString& hostname = QString(),
-               quint16 whitelistPort = 0);
+               const QList<quint16>& whitelistPorts = {});
 
     bool addPortForward(const QString& localAddr, quint16 localPort,
                         const QString& remoteAddr, quint16 remotePort,

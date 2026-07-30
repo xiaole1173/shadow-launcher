@@ -131,12 +131,18 @@ void MultiplayerManager::createRoom()
     m_networkKey = parts.networkKey;
     emit roomCodeChanged();
 
+    // MC server port: deterministic from network key
     QByteArray portSeed = m_networkKey.toUtf8();
     quint32 portHash = qChecksum(portSeed);
     m_mcPort = 1025 + (portHash % (65535 - 1025));
-    m_centerPort = m_mcPort;
 
-    QString hostname = Scaffolding::kCenterHostnamePrefix + QString::number(m_mcPort);
+    // Scaffold protocol port: separate from MC port (align with Terracotta)
+    QByteArray scaffoldHash = QCryptographicHash::hash(portSeed, QCryptographicHash::Sha256);
+    m_centerPort = 20000 + (static_cast<quint16>(scaffoldHash[0]) << 8 | scaffoldHash[1]) % 10000;
+    if (m_centerPort == m_mcPort)
+        m_centerPort++;  // ensure distinct
+
+    QString hostname = Scaffolding::kCenterHostnamePrefix + QString::number(m_centerPort);
 
     // If not elevated, save state and relaunch elevated
     if (!ElevatedSession::isActive()) {
@@ -451,7 +457,9 @@ void MultiplayerManager::startEasyTier(const QString& networkName, const QString
                                        const QString& hostname)
 {
     if (m_role == Host) {
-        m_easyTier->start(networkName, networkKey, hostname, m_mcPort);
+        // Whitelist both scaffold port and MC server port
+        m_easyTier->start(networkName, networkKey, hostname,
+                          {m_centerPort, m_mcPort});
     } else {
         m_easyTier->start(networkName, networkKey);
     }
