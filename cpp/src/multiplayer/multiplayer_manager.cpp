@@ -572,6 +572,8 @@ void MultiplayerManager::onNetworkReady(const QString& virtualIp)
         // Discover the center
         setState(Discovering, QStringLiteral("正在查找联机中心..."));
         m_discoverTimer->setInterval(2000);
+        // Disconnect first to prevent duplicate signal bindings when onNetworkReady fires multiple times
+        m_discoverTimer->disconnect();
         connect(m_discoverTimer, &QTimer::timeout, this, &MultiplayerManager::doDiscoverCenter);
         m_discoverTimer->start();
 
