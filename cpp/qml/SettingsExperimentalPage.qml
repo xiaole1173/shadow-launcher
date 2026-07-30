@@ -154,25 +154,27 @@ Flickable {
                 }
 
                 // Preview thumbnail (click to adjust crop)
-                Image {
-                    id: bgPreview
+                Item {
+                    id: bgPreviewWrap
                     Layout.fillWidth: true; Layout.preferredHeight: 100
                     visible: hasBg
-                    source: hasBg ? backend.customBgPath : ""
-                    fillMode: Image.PreserveAspectFit
-                    cache: false; asynchronous: true
-                }
-                MouseArea {
-                    anchors.fill: bgPreview; visible: hasBg
-                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: { bgCropOverlay.active = true }
-                    scale: containsMouse ? (pressed ? 0.95 : 1.05) : 1.0
-                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                }
-                Rectangle {
-                    opacity: hasBg ? 0 : 0
-                    anchors.fill: bgPreview
-                    color: "transparent"; border.color: "#3a5ed0"; border.width: 1.5; radius: StyleTokens.radiusSm
+                    Image {
+                        id: bgPreview
+                        anchors.fill: parent; fillMode: Image.PreserveAspectFit
+                        source: hasBg ? backend.customBgPath : ""
+                        cache: false; asynchronous: true
+                    }
+                    MouseArea {
+                        anchors.fill: parent; visible: hasBg
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: { bgCropOverlay.active = true }
+                        scale: containsMouse ? (pressed ? 0.95 : 1.05) : 1.0
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "transparent"; border.color: "#3a5ed0"; border.width: 1.5; radius: StyleTokens.radiusSm
+                    }
                 }
                 Rectangle { visible: hasBg; Layout.fillWidth: true; height: 1; color: StyleTokens.bgInput }
 

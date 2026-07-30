@@ -121,8 +121,14 @@ Window {
                 text: root.logLines.join('')
                 onTextChanged: {
                     Qt.callLater(function() {
-                        var bar = parent.parent.ScrollBar.vertical
-                        bar.position = 1.0 - bar.size
+                        // Navigate up the parent chain to find a ScrollView with a ScrollBar
+                        var item = parent
+                        while (item && !item.hasOwnProperty('ScrollBar'))
+                            item = item.parent
+                        if (!item) return
+                        var bar = item.ScrollBar.vertical
+                        if (bar)
+                            bar.position = 1.0 - bar.size
                     })
                 }
             }

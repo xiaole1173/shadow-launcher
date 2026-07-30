@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
                             }
                         }
 
-                        std::wstring updaterPath = appDirW + L"\\launcher\\SLUpdater.exe";
+                        std::wstring updaterPath = appDirW + L"\\SLUpdater.exe";
                         if (GetFileAttributesW(updaterPath.c_str()) != INVALID_FILE_ATTRIBUTES &&
                             GetFileAttributesW(newFileW.c_str()) != INVALID_FILE_ATTRIBUTES) {
                             // Create lock file to prevent concurrent installs
@@ -273,74 +273,6 @@ int main(int argc, char *argv[])
             } else {
                 CloseHandle(hFile);
             }
-        }
-    }
-
-    // ── v0.4.0-beta directory restructure: clean up old root files now in launcher/ ──
-    {
-        wchar_t exeBuf[MAX_PATH];
-        GetModuleFileNameW(nullptr, exeBuf, MAX_PATH);
-        std::wstring exeDir = std::wstring(exeBuf);
-        exeDir = exeDir.substr(0, exeDir.find_last_of(L"\\/"));
-
-        std::wstring launcherDir = exeDir + L"\\launcher";
-        DWORD launcherAttr = GetFileAttributesW(launcherDir.c_str());
-        bool hasNewStructure = (launcherAttr != INVALID_FILE_ATTRIBUTES &&
-                               (launcherAttr & FILE_ATTRIBUTE_DIRECTORY));
-        if (hasNewStructure) {
-            OutputDebugStringA("[PreInit] 检测到新目录结构，清理根目录残留旧文件...\n");
-
-            // Directories to remove recursively
-            const wchar_t* oldDirs[] = {
-                L"platforms", L"qml", L"styles", L"imageformats",
-                L"iconengines", L"tls", L"multimedia", L"texture",
-                L"bearer", L"audio", L"generic", L"canbus",
-                L"position", L"geoposition", L"sensorgestures",
-                L"sensors", L"playlistformats", L"mediaservice",
-                L"webview", L"qpa", L"scenegraph",
-            };
-            for (const wchar_t* dir : oldDirs) {
-                std::wstring fullPath = exeDir + L"\\" + dir;
-                // SHFileOperationW requires double-null terminated string
-                fullPath.push_back(L'\0');
-                SHFILEOPSTRUCTW sh = {};
-                sh.wFunc = FO_DELETE;
-                sh.pFrom = fullPath.c_str();
-                sh.fFlags = FOF_NO_UI | FOF_SILENT;
-                SHFileOperationW(&sh);
-            }
-
-            // Files to delete (globbing not available, so specific patterns)
-            // Qt DLLs: Qt6*.dll, D3Dcompiler*.dll, opengl32sw.dll
-            WIN32_FIND_DATAW ffd;
-            HANDLE hFind = FindFirstFileW((exeDir + L"\\Qt6*.dll").c_str(), &ffd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    std::wstring fp = exeDir + L"\\" + ffd.cFileName;
-                    DeleteFileW(fp.c_str());
-                } while (FindNextFileW(hFind, &ffd));
-                FindClose(hFind);
-            }
-            // D3Dcompiler DLLs
-            hFind = FindFirstFileW((exeDir + L"\\D3Dcompiler*.dll").c_str(), &ffd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    DeleteFileW((exeDir + L"\\" + ffd.cFileName).c_str());
-                } while (FindNextFileW(hFind, &ffd));
-                FindClose(hFind);
-            }
-            // Other known old files
-            const wchar_t* oldFiles[] = {
-                L"opengl32sw.dll", L"QtWebEngineProcess.exe",
-                L"SLUpdater.exe",
-                L"vcruntime140.dll", L"vcruntime140_1.dll",
-                L"msvcp140.dll", L"concrt140.dll",
-            };
-            for (const wchar_t* f : oldFiles) {
-                DeleteFileW((exeDir + L"\\" + f).c_str());
-            }
-
-            OutputDebugStringA("[PreInit] 根目录旧文件清理完成\n");
         }
     }
 
@@ -475,7 +407,7 @@ int main(int argc, char *argv[])
     // Load QML — dev mode (file://) when SHADOW_DEV=1, otherwise qrc precompiled
     bool devMode = qEnvironmentVariableIsSet("SHADOW_DEV");
     // Filesystem import path: always added, but dev mode prioritizes it
-    engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/launcher/qml"));
+    engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/qml"));
     // QRC import path: only in release mode (dev mode forces filesystem resolution)
     if (!devMode) {
         engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
@@ -486,7 +418,7 @@ int main(int argc, char *argv[])
 
     QUrl url;
     if (devMode) {
-        QString devPath = QCoreApplication::applicationDirPath() + QStringLiteral("/launcher/qml/MainWindow.qml");
+        QString devPath = QCoreApplication::applicationDirPath() + QStringLiteral("/qml/MainWindow.qml");
         if (QFile::exists(devPath)) {
             checkpoint(QStringLiteral("Loading QML (filesystem dev mode)..."));
             url = QUrl::fromLocalFile(devPath);
@@ -516,7 +448,7 @@ int main(int argc, char *argv[])
             // Load BetaKeyDialog; betaVerified signal will reload MainWindow
             QUrl betaUrl;
             if (devMode) {
-                QString devPath = QCoreApplication::applicationDirPath() + "/launcher/qml/BetaKeyDialog.qml";
+                QString devPath = QCoreApplication::applicationDirPath() + "/qml/BetaKeyDialog.qml";
                 betaUrl = QFile::exists(devPath) ? QUrl::fromLocalFile(devPath)
                                                   : QUrl("qrc:/qt/qml/ShadowLauncher/qml/BetaKeyDialog.qml");
             } else {

@@ -68,7 +68,7 @@ Item {
                 text: "来源：清华大学开源软件镜像站"
                 color: "#687080"
                 font.pixelSize: StyleTokens.fontSizeSm
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.alignment: Qt.AlignVCenter
             }
         }
 

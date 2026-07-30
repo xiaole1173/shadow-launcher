@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Shadow Launcher - One-click packager
+    Shadow Launcher - One-click packager (flat structure)
     Copies build artifacts, runs windeployqt, bundles EasyTier, cleans up, compresses.
 .NOTES
     i18n .qm files embedded in QRC via qt_add_translations; no manual deploy needed.
-    EasyTier binaries go to bin/ subdirectory (matches easytier_process.cpp lookup path).
+    EasyTier binaries go to bin/ subdirectory.
     SHADOW_DEV=1 auto-detected: clears env var and triggers Release rebuild before packaging.
 #>
 $ErrorActionPreference = "Stop"
@@ -29,7 +29,7 @@ if (Test-Path $cmakeFile) {
 }
 
 Write-Host "`n  ========================================" -ForegroundColor Cyan
-Write-Host "   Shadow Launcher Packager" -ForegroundColor Cyan
+Write-Host "   Shadow Launcher Packager (flat)" -ForegroundColor Cyan
 Write-Host "   $VersionTag" -ForegroundColor Cyan
 Write-Host "  ========================================`n" -ForegroundColor Cyan
 
@@ -44,7 +44,7 @@ if (-not (Test-Path "$BuildDir\ShadowLauncher.exe")) {
 $exeTime = (Get-Item "$BuildDir\ShadowLauncher.exe").LastWriteTime.ToString("yyyy-MM-dd HH:mm")
 Write-Host "       exe built : $exeTime" -ForegroundColor Gray
 
-# Auto-handle dev mode: unset env var + rebuild as Release
+# Auto-handle dev mode
 if ($env:SHADOW_DEV -eq "1") {
     Write-Host "  WARN: SHADOW_DEV=1 detected - clearing and rebuilding Release..." -ForegroundColor Yellow
     Remove-Item Env:\SHADOW_DEV -ErrorAction SilentlyContinue
@@ -80,28 +80,24 @@ Write-Host ""
 # ---- Step 2: Copy exe + updater ----
 Write-Host "[2/5] Copying binary files..." -ForegroundColor Yellow
 Copy-Item "$BuildDir\ShadowLauncher.exe" $DistDir
-New-Item -ItemType Directory -Force -Path "$DistDir\launcher" | Out-Null
 $up = "$BuildDir\SLUpdater.exe"
-if (Test-Path $up) { Copy-Item $up "$DistDir\launcher\"; Write-Host "       SLUpdater.exe" -ForegroundColor Gray }
+if (Test-Path $up) { Copy-Item $up $DistDir; Write-Host "       SLUpdater.exe" -ForegroundColor Gray }
 else { Write-Host "       WARN: SLUpdater.exe not found" -ForegroundColor Yellow }
-# qt.conf — tells Qt to look for plugins/qml in launcher/ subdir
-Copy-Item "$ProjectRoot\qt.conf" "$DistDir\qt.conf" -Force
-Write-Host "       qt.conf" -ForegroundColor Gray
 Write-Host ""
-# ---- Step 3: windeployqt (deploy to launcher/ subdir) ----
+
+# ---- Step 3: windeployqt (flat to dist root) ----
 Write-Host "[3/5] Running windeployqt..." -ForegroundColor Yellow
 Push-Location $DistDir
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 try {
     & $Windeployqt "ShadowLauncher.exe" `
-        --dir launcher `
         --qmldir "$ProjectRoot\qml" `
         --no-translations `
         --no-opengl-sw 2>&1 | ForEach-Object {
             if ($_ -match "Warning|error") { Write-Host "  $_" -ForegroundColor DarkGray }
         }
-    Write-Host "       windeployqt done" -ForegroundColor Gray
+    Write-Host "       windeployqt done (flat)" -ForegroundColor Gray
 }
 finally {
     $ErrorActionPreference = $prevEAP
@@ -112,26 +108,25 @@ Write-Host ""
 # ---- Step 4: Extra resources ----
 Write-Host "[4/5] Copying extra resources..." -ForegroundColor Yellow
 
-# 4a. MSVC CRT DLLs — check build dir first (user-placed), then VS redist
+# 4a. MSVC CRT DLLs
 $crtDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "concrt140.dll")
 $crtFound = 0
 foreach ($dll in $crtDlls) {
     $src = "$BuildDir\$dll"
     if (Test-Path $src) {
-        Copy-Item $src "$DistDir\launcher\$dll" -Force
+        Copy-Item $src "$DistDir\$dll" -Force
         Write-Host "       $dll (from build dir)" -ForegroundColor Gray
         $crtFound++
     }
 }
 if ($crtFound -eq 0) {
-    # Fallback: try VS redist
     $crtBase = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
     $crtDir = Get-ChildItem "$crtBase\*\x64\Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($crtDir) {
         foreach ($dll in $crtDlls) {
             $src = Join-Path $crtDir.FullName $dll
             if (Test-Path $src) {
-                Copy-Item $src "$DistDir\launcher\$dll" -Force
+                Copy-Item $src "$DistDir\$dll" -Force
                 Write-Host "       $dll (from VS redist)" -ForegroundColor Gray
                 $crtFound++
             }
@@ -139,39 +134,35 @@ if ($crtFound -eq 0) {
     }
 }
 if ($crtFound -eq 0) {
-    Write-Host "       WARN: VC++ CRT DLLs not found — app may crash on clean Windows" -ForegroundColor Yellow
-    Write-Host "         Place them in $BuildDir or install VS redist" -ForegroundColor DarkGray
+    Write-Host "       WARN: VC++ CRT DLLs not found" -ForegroundColor Yellow
 }
 
-# 4b. Skins (offline login head textures) — to launcher/skins
+# 4b. Skins
 if (Test-Path "$ProjectRoot\skins") {
-    New-Item -ItemType Directory -Force -Path "$DistDir\launcher\skins" | Out-Null
-    Copy-Item "$ProjectRoot\skins\*" "$DistDir\launcher\skins\" -Force
-    $skinFiles = (Get-ChildItem "$DistDir\launcher\skins" -File).Count
+    New-Item -ItemType Directory -Force -Path "$DistDir\skins" | Out-Null
+    Copy-Item "$ProjectRoot\skins\*" "$DistDir\skins\" -Force
+    $skinFiles = (Get-ChildItem "$DistDir\skins" -File).Count
     Write-Host "       skins/ : $skinFiles files" -ForegroundColor Gray
 } else {
-    Write-Host "       WARN: skins folder not found at $ProjectRoot\skins" -ForegroundColor Yellow
+    Write-Host "       WARN: skins folder not found" -ForegroundColor Yellow
 }
 
 # 4c. versions.json (optional)
 if (Test-Path "$ProjectRoot\package\versions.json") {
-    Copy-Item "$ProjectRoot\package\versions.json" "$DistDir\launcher\versions.json" -Force
+    Copy-Item "$ProjectRoot\package\versions.json" "$DistDir\versions.json" -Force
     Write-Host "       versions.json" -ForegroundColor Gray
-} else {
-    Write-Host "       versions.json: not found (optional, no package/ folder)" -ForegroundColor DarkGray
 }
 
-# 4d. EasyTier — to launcher/bin
+# 4d. EasyTier — to root bin/
 if (Test-Path "$ProjectRoot\build\Release\bin") {
-    New-Item -ItemType Directory -Force -Path "$DistDir\launcher\bin" | Out-Null
-    Copy-Item "$ProjectRoot\build\Release\bin\*" "$DistDir\launcher\bin\" -Recurse -Force
-    $binFiles = (Get-ChildItem "$DistDir\launcher\bin" -File).Count
-    $binSizeMB = [math]::Round((Get-ChildItem "$DistDir\launcher\bin" -Recurse -File | Measure-Object -Property Length -Sum).Sum / $OneMB, 1)
+    New-Item -ItemType Directory -Force -Path "$DistDir\bin" | Out-Null
+    Copy-Item "$ProjectRoot\build\Release\bin\*" "$DistDir\bin\" -Recurse -Force
+    $binFiles = (Get-ChildItem "$DistDir\bin" -File).Count
+    $binSizeMB = [math]::Round((Get-ChildItem "$DistDir\bin" -Recurse -File | Measure-Object -Property Length -Sum).Sum / $OneMB, 1)
     Write-Host "       bin/ : $binFiles files, $binSizeMB MB" -ForegroundColor Gray
 }
 
-# 4e. compat.json (update system metadata)
-Write-Host ""
+# 4e. compat.json
 Write-Host "[4e] Generating compat.json..." -ForegroundColor Yellow
 $exePath = "$DistDir\ShadowLauncher.exe"
 if (Test-Path $exePath) {
@@ -191,11 +182,11 @@ if (Test-Path $exePath) {
     $compatJson | Out-File -FilePath "$DistDir\compat.json" -Encoding utf8 -Force
     Write-Host "       compat.json ($sha256)" -ForegroundColor Gray
 } else {
-    Write-Host "       WARN: ShadowLauncher.exe not found in dist, skip compat.json" -ForegroundColor Yellow
+    Write-Host "       WARN: ShadowLauncher.exe not found" -ForegroundColor Yellow
 }
-$etIncluded = if (Test-Path "$DistDir\launcher\bin\easytier-core.exe") { "included" } else { "MISSING" }
+$etIncluded = if (Test-Path "$DistDir\bin\easytier-core.exe") { "included" } else { "MISSING" }
 $buildInfo = "Shadow Launcher`r`n  Packed   : $BuildDate`r`n  Tag      : $VersionTag`r`n  Qt       : 6.8.3 (msvc2022_64)`r`n  EasyTier : $etIncluded`r`n  i18n     : embedded in QRC zh_CN zh_HK zh_TW`r`n"
-$buildInfo | Out-File -FilePath "$DistDir\launcher\build_info.txt" -Encoding utf8
+$buildInfo | Out-File -FilePath "$DistDir\build_info.txt" -Encoding utf8
 Write-Host "       build_info.txt" -ForegroundColor Gray
 Write-Host ""
 
@@ -215,7 +206,6 @@ $junkPatterns = @(
 $removed = 0
 foreach ($pat in $junkPatterns) {
     Get-ChildItem $DistDir -Recurse -Filter $pat -ErrorAction SilentlyContinue | ForEach-Object {
-        # Don't delete inside .minecraft (user data)
         if ($_.FullName -match "\\.minecraft\\") { return }
         Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
         $removed++
@@ -226,15 +216,15 @@ Write-Host "       removed $removed junk files" -ForegroundColor Gray
 # ---- Summary ----
 Write-Host ""
 Write-Host "  ========================================" -ForegroundColor Green
-Write-Host "   Pack Complete" -ForegroundColor Green
+Write-Host "   Pack Complete (flat)" -ForegroundColor Green
 Write-Host "  ========================================" -ForegroundColor Green
 Write-Host ""
 
 $totalSizeMB  = [math]::Round((Get-ChildItem $DistDir -Recurse -File | Measure-Object -Property Length -Sum).Sum / $OneMB, 0)
 $fileCount    = (Get-ChildItem $DistDir -Recurse -File).Count
 $dllCount     = (Get-ChildItem $DistDir -Recurse -Filter "*.dll" -File).Count
-$binDirSizeMB = if (Test-Path "$DistDir\launcher\bin") {
-    [math]::Round((Get-ChildItem "$DistDir\launcher\bin" -Recurse -File | Measure-Object -Property Length -Sum).Sum / $OneMB, 1)
+$binDirSizeMB = if (Test-Path "$DistDir\bin") {
+    [math]::Round((Get-ChildItem "$DistDir\bin" -Recurse -File | Measure-Object -Property Length -Sum).Sum / $OneMB, 1)
 } else { 0 }
 
 Write-Host "  Output : $DistDir" -ForegroundColor White
@@ -247,8 +237,8 @@ $SevenZip = "C:\Program Files\7-Zip\7z.exe"
 if (Test-Path $SevenZip) {
     Write-Host "  Compressing with 7-Zip..." -ForegroundColor Yellow
     $archive = "$ProjectRoot\dist\ShadowLauncher_$VersionTag.7z"
-    & $SevenZip a -mx9 -mmt=on $archive $DistDir `
-        -x!ShadowLauncher.exe 2>&1 | Select-Object -Last 1
+    & $SevenZip a -mx9 -mmt=on $archive "$DistDir\*" `
+        "-x!ShadowLauncher.exe" 2>&1 | Select-Object -Last 1
     $archiveSizeMB = [math]::Round((Get-Item $archive).Length / $OneMB, 1)
     Write-Host "  Archive: $archive  ($archiveSizeMB MB)" -ForegroundColor Green
 } else {

@@ -98,6 +98,12 @@ static void shadowMessageHandler(QtMsgType type,
         QString cat = ctx.category ? QString::fromLatin1(ctx.category) : QString();
         if (cat == QStringLiteral("qml") || cat == QStringLiteral("default"))
             return;
+        // QML layout anchor warnings (cosmetic, Qt 6 false positives)
+        if (msg.contains(QStringLiteral("anchors on an item that is managed by a layout")))
+            return;
+        // Qt 6 false positive: signal DOES exist in C++
+        if (msg.contains(QStringLiteral("but no signal of the target matches the name")))
+            return;
     }
 
     // ── SHADOW_DISABLE_FILE_LOG: skip file I/O entirely (perf testing) ──
@@ -200,7 +206,10 @@ void installFileLogger(const QString& exeDir)
             "Shadow.*.info=true\n"
             "qml.info=true\n"
             "qml.debug=false\n"
-            "default.debug=false\n"));
+            "default.debug=false\n"
+            "qt.qpa.mime.warning=false\n"
+            "qt.network.ssl.warning=false\n"
+            "qt.core.qobject.connect.warning=false\n"));
 
     qCInfo(logApp) << QStringLiteral("日志系统已就绪");
 }

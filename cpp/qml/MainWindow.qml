@@ -1178,7 +1178,7 @@ Window {
         SequentialAnimation {
             id: fabPulse
             loops: Animation.Infinite
-            running: _hasDownloads && !downloadPanel.expanded
+            running: downloadFab._hasDownloads && !downloadPanel.expanded
             NumberAnimation { target: downloadFab; property: "scale"; to: 1.08; duration: 800; easing.type: Easing.InOutSine }
             NumberAnimation { target: downloadFab; property: "scale"; to: 1.0; duration: 800; easing.type: Easing.InOutSine }
             PauseAnimation { duration: 2000 }

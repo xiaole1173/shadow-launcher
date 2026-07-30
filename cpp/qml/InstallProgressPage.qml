@@ -24,12 +24,8 @@ Item {
         spacing: 8
         clip: true
 
-        // 彻底消除所有滚动条痕迹
-        ScrollBar.vertical: ScrollBar {
-            policy: ScrollBar.AlwaysOff
-            contentItem: Rectangle { implicitWidth: 0; color: "transparent" }
-            background: Rectangle { implicitWidth: 0; color: "transparent" }
-        }
+        // 消除滚动条
+        ScrollBar.vertical: null
 
         model: backend ? backend.installCardsModel : null
         delegate: DownloadQueueCard {

@@ -25,6 +25,7 @@ Rectangle {
 
     // Reference back to the main window (set by Loader onLoaded)
     property var mainWindow: null
+    property var toastManager: null
 
     // Signal for the flying ball animation — emitted to main window
     signal triggerDownloadBall(real sourceX, real sourceY)
@@ -54,8 +55,8 @@ Rectangle {
         function onDownloadQueueFull(displayName) {
             if (toastManager) toastManager.show("当前并行任务已达到上限（" + displayName + "），请稍后再试")
         }
-        function onCancelNotification(installId, message) {
-            if (toastManager) toastManager.show(message)
+        function onDownloadQueueChanged() {
+            // Notify when download queue changes
         }
     }
 

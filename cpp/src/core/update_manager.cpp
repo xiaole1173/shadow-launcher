@@ -66,8 +66,7 @@ void UpdateManager::saveState()
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         f.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
     } else {
-        qCWarning(logApp) << "[UpdateManager] 保存状态文件失败 path="
-                          << f.fileName() << "error=" << f.errorString();
+        qCWarning(logApp) << "[UpdateManager] 保存状态文件失败 error=" << f.errorString();
     }
 }
 
@@ -98,7 +97,7 @@ bool UpdateManager::hasPendingReady() const
 
     QString path = obj.value("download_path").toString();
     QString ver = obj.value("download_version").toString();
-    qCInfo(logApp) << "[UpdateManager] 发现待安装更新 version=" << ver << "file=" << path;
+    qCInfo(logApp) << "[UpdateManager] 发现待安装更新 version=" << ver;
     return QFileInfo::exists(path);
 }
 

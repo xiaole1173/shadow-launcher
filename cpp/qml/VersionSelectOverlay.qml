@@ -13,6 +13,7 @@ Rectangle {
     property var backend: null
     property var toastManager: null
     property var appWindow: null
+    property var mainWindow: null
 
     // backend is set by Loader.onLoaded AFTER Component.onCompleted
     // Must watch for backend change to trigger version scan

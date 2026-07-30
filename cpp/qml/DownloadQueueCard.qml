@@ -237,7 +237,7 @@ Rectangle {
 
                 Rectangle {
                     width: 6; height: 6; radius: 3
-                    anchors.verticalCenter: parent.verticalCenter
+                    Layout.alignment: Qt.AlignVCenter
                     color: {
                         var s = modelData.status || "pending"
                         if (s === "completed") return "#3fb950"

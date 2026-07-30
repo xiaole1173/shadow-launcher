@@ -57,6 +57,19 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     m_supportedProtocols << Scaffolding::kPlayerEasyTierId;
 
     connect(m_easyTier, &EasyTierProcess::networkReady, this, &MultiplayerManager::onNetworkReady);
+    connect(m_easyTier, &EasyTierProcess::virtualIpChanged, this, [this](const QString& ip) {
+        m_centerIp = ip;
+        qCInfo(logNet) << QStringLiteral("[联机] 虚拟IP修正 center_ip=%1").arg(ip);
+        // Update host player IP in QML player list too
+        if (m_role == Host && !m_players.isEmpty()) {
+            QVariantMap host = m_players[0].toMap();
+            if (host["kind"].toString() == QStringLiteral("HOST")) {
+                host["ip"] = ip;
+                m_players[0] = host;
+                emit playersChanged();
+            }
+        }
+    });
     connect(m_easyTier, &EasyTierProcess::errorOccurred, this, &MultiplayerManager::onEasyTierError);
 
     m_heartbeatTimer->setInterval(Scaffolding::kHeartbeatIntervalMs);

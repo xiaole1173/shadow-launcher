@@ -299,7 +299,7 @@ Rectangle {
                 placeholderText: qsTr("输入用户名")
                 historyEnabled: true
                 historyModel: backend ? backend.offlineUsernames : []
-                onTextEdited: { if (backend) backend.updateOfflineSkin(text) }
+                onTextEdited: function(text) { if (backend) backend.updateOfflineSkin(text) }
                 onHistoryItemDeleted: function(item) {
                     backend.removeOfflineUsername(item)
                     toastManager.show("玩家名\u201C" + item + "\u201D已删除")
@@ -1329,6 +1329,7 @@ Rectangle {
     }
     Connections {
         target: backend
+        enabled: backend !== null
         function onWardrobeError(error) {
             toastManager.show(error)
         }
@@ -1336,7 +1337,8 @@ Rectangle {
 
     // ══ Yggdrasil 信号 ══
     Connections {
-        target: backend.yggdrasil
+        target: backend ? backend.yggdrasil : null
+        enabled: backend && backend.yggdrasil
 
         function onStateChanged() {
             _yggStatusText = ""

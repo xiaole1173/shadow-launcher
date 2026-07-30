@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlError>
 #include <QIcon>
 #include <QDir>
 #include <QStandardPaths>
@@ -41,7 +42,7 @@
 #include "backend/shadow_backend.h"
 #include "multiplayer/elevated_session.h"
 #include "core/http_client.h"
-#include "core/migration_manager.h"
+
 #include "core/screenshot_server.h"
 
 // ── Remove CEF references ──
@@ -243,7 +244,7 @@ int main(int argc, char *argv[])
                             }
                         }
 
-                        std::wstring updaterPath = appDirW + L"\\launcher\\SLUpdater.exe";
+                        std::wstring updaterPath = appDirW + L"\\SLUpdater.exe";
                         if (GetFileAttributesW(updaterPath.c_str()) != INVALID_FILE_ATTRIBUTES &&
                             GetFileAttributesW(newFileW.c_str()) != INVALID_FILE_ATTRIBUTES) {
                             // Create lock file to prevent concurrent installs
@@ -275,74 +276,6 @@ int main(int argc, char *argv[])
             } else {
                 CloseHandle(hFile);
             }
-        }
-    }
-
-    // ── v0.4.0-beta directory restructure: clean up old root files now in launcher/ ──
-    {
-        wchar_t exeBuf[MAX_PATH];
-        GetModuleFileNameW(nullptr, exeBuf, MAX_PATH);
-        std::wstring exeDir = std::wstring(exeBuf);
-        exeDir = exeDir.substr(0, exeDir.find_last_of(L"\\/"));
-
-        std::wstring launcherDir = exeDir + L"\\launcher";
-        DWORD launcherAttr = GetFileAttributesW(launcherDir.c_str());
-        bool hasNewStructure = (launcherAttr != INVALID_FILE_ATTRIBUTES &&
-                               (launcherAttr & FILE_ATTRIBUTE_DIRECTORY));
-        if (hasNewStructure) {
-            OutputDebugStringA("[PreInit] 检测到新目录结构，清理根目录残留旧文件...\n");
-
-            // Directories to remove recursively
-            const wchar_t* oldDirs[] = {
-                L"platforms", L"qml", L"styles", L"imageformats",
-                L"iconengines", L"tls", L"multimedia", L"texture",
-                L"bearer", L"audio", L"generic", L"canbus",
-                L"position", L"geoposition", L"sensorgestures",
-                L"sensors", L"playlistformats", L"mediaservice",
-                L"webview", L"qpa", L"scenegraph",
-            };
-            for (const wchar_t* dir : oldDirs) {
-                std::wstring fullPath = exeDir + L"\\" + dir;
-                // SHFileOperationW requires double-null terminated string
-                fullPath.push_back(L'\0');
-                SHFILEOPSTRUCTW sh = {};
-                sh.wFunc = FO_DELETE;
-                sh.pFrom = fullPath.c_str();
-                sh.fFlags = FOF_NO_UI | FOF_SILENT;
-                SHFileOperationW(&sh);
-            }
-
-            // Files to delete (globbing not available, so specific patterns)
-            // Qt DLLs: Qt6*.dll, D3Dcompiler*.dll, opengl32sw.dll
-            WIN32_FIND_DATAW ffd;
-            HANDLE hFind = FindFirstFileW((exeDir + L"\\Qt6*.dll").c_str(), &ffd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    std::wstring fp = exeDir + L"\\" + ffd.cFileName;
-                    DeleteFileW(fp.c_str());
-                } while (FindNextFileW(hFind, &ffd));
-                FindClose(hFind);
-            }
-            // D3Dcompiler DLLs
-            hFind = FindFirstFileW((exeDir + L"\\D3Dcompiler*.dll").c_str(), &ffd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    DeleteFileW((exeDir + L"\\" + ffd.cFileName).c_str());
-                } while (FindNextFileW(hFind, &ffd));
-                FindClose(hFind);
-            }
-            // Other known old files
-            const wchar_t* oldFiles[] = {
-                L"opengl32sw.dll", L"QtWebEngineProcess.exe",
-                L"SLUpdater.exe",
-                L"vcruntime140.dll", L"vcruntime140_1.dll",
-                L"msvcp140.dll", L"concrt140.dll",
-            };
-            for (const wchar_t* f : oldFiles) {
-                DeleteFileW((exeDir + L"\\" + f).c_str());
-            }
-
-            OutputDebugStringA("[PreInit] 根目录旧文件清理完成\n");
         }
     }
 
@@ -409,50 +342,7 @@ int main(int argc, char *argv[])
     QDir().mkpath(dataDir);
     checkpoint(QStringLiteral("Data directory created"));
 
-    // ── v0.4.0-beta directory migration ──
-    if (MigrationManager::needsMigration()) {
-        qCInfo(logApp) << QStringLiteral("[迁移] 检测到旧目录结构，开始迁移...");
-        auto* migrator = new MigrationManager(&app);
-        migrator->setRepoUrl(QStringLiteral("https://gitee.com/xiaole1173/shadow-launcher/releases"));
 
-        QProgressDialog dlg(QStringLiteral("准备迁移到新版目录结构..."),
-                             QString(), 0, 100, nullptr);
-        dlg.setWindowTitle(QStringLiteral("Shadow Launcher 更新"));
-        dlg.setWindowFlags(dlg.windowFlags() & ~Qt::WindowCloseButtonHint);
-        dlg.setMinimumDuration(0);
-        dlg.setValue(0);
-        dlg.show();
-
-        QObject::connect(migrator, &MigrationManager::progressChanged,
-                         &app, [&dlg](const QString& stage, int pct) {
-            dlg.setLabelText(stage);
-            dlg.setValue(pct);
-        });
-
-        QString errorMsg;
-        bool ok = migrator->runMigration(errorMsg);
-        dlg.close();
-
-        if (ok) {
-            qCInfo(logApp) << QStringLiteral("[迁移] 成功，重启启动器以加载新目录结构");
-            QString exePath = QCoreApplication::applicationDirPath()
-                              + QStringLiteral("/launcher/SLUpdater.exe");
-            QString oldExe = QCoreApplication::applicationFilePath();
-            QString newExe = oldExe;
-            if (QFileInfo::exists(exePath)) {
-                QProcess::startDetached(exePath, {
-                    QString::number(QCoreApplication::applicationPid()),
-                    oldExe, newExe
-                });
-                qApp->quit();
-                return 0;
-            } else {
-                qCWarning(logApp) << QStringLiteral("[迁移] SLUpdater.exe 不存在，手动重启");
-            }
-        } else {
-            qCWarning(logApp) << QStringLiteral("[迁移] 失败: %1").arg(errorMsg);
-        }
-    }
 
     // Modrinth API: uniquely-identifying User-Agent header (mandatory)
     HttpClient::instance().setUserAgent(
@@ -516,7 +406,8 @@ int main(int argc, char *argv[])
         }, Qt::QueuedConnection);
 
     // Release mode: always load from precompiled qrc
-    engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/launcher/qml"));
+    // Add root qml/ import path for Qt built-in QML modules (deployed by windeployqt)
+    engine.addImportPath(QCoreApplication::applicationDirPath() + QStringLiteral("/qml"));
     engine.addImportPath(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml"));
 
     QUrl url;
@@ -550,6 +441,14 @@ int main(int argc, char *argv[])
     }
 
     if (!loadedBetaDialog) {
+        // Log QML engine warnings for debugging
+        QObject::connect(&engine, &QQmlEngine::warnings,
+                         &app, [](const QList<QQmlError>& errs) {
+            for (const auto& e : errs)
+                qCWarning(logApp) << QStringLiteral("[QML] %1:%2: %3")
+                    .arg(e.url().toString()).arg(e.line()).arg(e.description());
+        });
+
         engine.load(url);
     }
     checkpoint(QStringLiteral("QML engine.load() completed"));

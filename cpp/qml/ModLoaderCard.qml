@@ -145,7 +145,7 @@ Rectangle {
                     Rectangle {
                         visible: modelData.type !== undefined && modelData.type !== ""
                         height: 18; implicitWidth: tagImp.implicitWidth + 10; radius: StyleTokens.radiusXs; color: card.typeColor(modelData.type)
-                        Text { id: tagImp; anchors.centerIn: parent; text: card.typeLabel(modelData.type); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textPrimary }
+                        Text { id: tagImp; anchors.centerIn: parent; text: card.typeLabel(modelData.type) || ""; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textPrimary }
                     }
                     Text { text: modelData.date || ""; font.pixelSize: StyleTokens.fontSizeSm; color: "#787c90" }
                 }

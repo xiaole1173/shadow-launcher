@@ -22,7 +22,7 @@ EasyTierProcess::EasyTierProcess(QObject* parent)
     , m_outputTimer(new QTimer(this))
     , m_timeoutTimer(new QTimer(this))
 {
-    m_outputTimer->setInterval(2000);  // 初始2s轮询，就绪后5s
+    m_outputTimer->setInterval(500);  // 初始500ms轮询，就绪后5s
     connect(m_outputTimer, &QTimer::timeout, this, &EasyTierProcess::onTimerTick);
     m_timeoutTimer->setSingleShot(true);
     m_timeoutTimer->setInterval(60000); // 60s timeout
@@ -43,7 +43,7 @@ QString EasyTierProcess::findEasyTierExe() const
 {
     // Look in bin/ next to the executable
     QStringList paths = {
-        QCoreApplication::applicationDirPath() + "/launcher/bin/easytier-core.exe",
+        QCoreApplication::applicationDirPath() + "/bin/easytier-core.exe",
         QCoreApplication::applicationDirPath() + "/bin/easytier-core.exe",
         QCoreApplication::applicationDirPath() + "/../../bin/easytier-core.exe",
         QCoreApplication::applicationDirPath() + "/easytier-core.exe",
@@ -59,7 +59,7 @@ QString EasyTierProcess::findEasyTierExe() const
 QString EasyTierProcess::findEasyTierCli() const
 {
     QStringList paths = {
-        QCoreApplication::applicationDirPath() + "/launcher/bin/easytier-cli.exe",
+        QCoreApplication::applicationDirPath() + "/bin/easytier-cli.exe",
         QCoreApplication::applicationDirPath() + "/bin/easytier-cli.exe",
         QCoreApplication::applicationDirPath() + "/../../bin/easytier-cli.exe",
         QCoreApplication::applicationDirPath() + "/easytier-cli.exe",
@@ -91,44 +91,56 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         return;
     }
 
-    // ── Build TOML config in memory ──
+    // Kill any stale easytier-core processes to avoid port conflicts (default port 11010)
+    {
+        QProcess killer;
+        killer.start("taskkill", {"/f", "/im", "easytier-core.exe"});
+        killer.waitForFinished(3000);
+    }
+
     QString relayEp = Relay::relayEndpoint();
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 中继节点 endpoint=%1").arg(relayEp.isEmpty() ? QStringLiteral("(空)") : relayEp);
 
-    // Elevated: TOML via stdin with name/secret/dhcp only (no peers)
-    // Peers are added dynamically via easytier-cli connector add after start.
-    QByteArray tomlElevated;
-    tomlElevated.append("[network]\n");
-    tomlElevated.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
-    tomlElevated.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
-    tomlElevated.append("dhcp = true\n");
+    // Write TOML config to temp file (with peers + dhcp + network identity).
+    // Stdin TOML ignores peers at runtime per easytier 2.6 behavior.
+    // With peers in the config file, easytier connects to the relay at
+    // startup, gets a DHCP lease, and creates the TUN device automatically.
+    QByteArray tomlContent;
+    tomlContent.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
+    tomlContent.append("dhcp = true\n");
+    tomlContent.append("\n[network_identity]\n");
+    tomlContent.append(QStringLiteral("network_name = \"%1\"\n").arg(networkName).toUtf8());
+    tomlContent.append(QStringLiteral("network_secret = \"%1\"\n").arg(networkKey).toUtf8());
 
-    // Non-elevated: TOML saved to file with peers included
-    // (ShellExecuteEx can't pipe stdin; --peers CLI added as fallback)
-    QByteArray tomlFile;
-    tomlFile.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
-    tomlFile.append("[network]\n");
-    tomlFile.append(QStringLiteral("name = \"%1\"\n").arg(networkName).toUtf8());
-    tomlFile.append(QStringLiteral("secret = \"%1\"\n").arg(networkKey).toUtf8());
-    tomlFile.append("dhcp = true\n");
+    QTemporaryFile tmpFile(QDir::tempPath() + QStringLiteral("/shadow_easytier_XXXXXX.toml"));
+    tmpFile.setAutoRemove(false);
+    tmpFile.open();
+    tmpFile.write(tomlContent);
+    tmpFile.close();
+    m_peerConfigPath = tmpFile.fileName();
+    secureWipe(tomlContent);
 
     QStringList args;
-    args << "--config-file" << "-";       // read TOML from stdin
+    args << "--config-file" << m_peerConfigPath;
     if (!hostname.isEmpty())
         args << "--hostname" << hostname;
 
-    // ── Elevated: pipe TOML via QProcess stdin + dynamic connector add ──
-    // Daemon has zero relay IP exposure (not on CLI, not in env, not in config).
-    // Relay connector added ~3s after start via separate easytier-cli call.
+    // Start easytier-core with config file (peers, dhcp, name/secret).
+    // Connector add kept as fallback (3s delay) in case TOML peers don't work at runtime.
     if (ElevatedSession::isActive()) {
-        startViaQProcess(exe, args, tomlElevated, relayEp);
-        secureWipe(tomlElevated);
+        startViaQProcess(exe, args, QByteArray(), relayEp);
+        // Delete config file after easytier has read it (startup ~100ms, safe margin 1s)
+        QTimer::singleShot(1000, this, [this]() {
+            if (!m_peerConfigPath.isEmpty()) {
+                QFile::remove(m_peerConfigPath);
+                qCInfo(logNet) << QStringLiteral("[EasyTier] 临时配置文件已删除");
+                m_peerConfigPath.clear();
+            }
+        });
         return;
     }
 
     // ── Non-elevated: should never reach here (createRoom/joinRoom self-elevate) ──
-    // If we do, it means the self-elevation flow failed. Show error and bail.
-    emit errorOccurred(QStringLiteral("EasyTier 需要管理员权限"));
-    return;
 }
 
 void EasyTierProcess::stop()
@@ -205,9 +217,12 @@ void EasyTierProcess::addRelayConnector(const QString& relayEp)
 
     // Optional: wait briefly so we can log success/failure
     if (cliProc->waitForFinished(5000)) {
-        QString errOutput = QString::fromUtf8(cliProc->readAllStandardError());
-        if (!errOutput.isEmpty())
-            qCInfo(logNet) << QStringLiteral("[EasyTier] connector add 输出: %1").arg(errOutput);
+        QString out = QString::fromUtf8(cliProc->readAllStandardOutput()).trimmed();
+        QString err = QString::fromUtf8(cliProc->readAllStandardError()).trimmed();
+        if (!out.isEmpty())
+            qCInfo(logNet) << QStringLiteral("[EasyTier] connector add 输出: %1").arg(out);
+        if (!err.isEmpty())
+            qCWarning(logNet) << QStringLiteral("[EasyTier] connector add 错误: %1").arg(err);
     }
 }
 
@@ -288,6 +303,7 @@ void EasyTierProcess::onTimerTick()
     }
 #endif
     checkOutput();
+    pollPeerList();
 }
 
 void EasyTierProcess::onProcessStarted()
@@ -330,25 +346,28 @@ void EasyTierProcess::pollPeerList()
 
 void EasyTierProcess::parsePeerList(const QString& output)
 {
-    // Parse peer list for virtual IP
+    // Always update virtual IP from peer table (covers both initial and DHCP-assigned)
     QRegularExpression ipRx(QStringLiteral(R"(\|?\s*(\d+\.\d+\.\d+\.\d+)(?:/\d+)?\s*\|)"));
 
-    if (m_virtualIp.isEmpty()) {
-        auto m = ipRx.match(output);
-        if (m.hasMatch()) {
-            m_virtualIp = m.captured(1);
+    auto m = ipRx.match(output);
+    if (m.hasMatch()) {
+        QString newIp = m.captured(1);
+        if (newIp != m_virtualIp) {
+            m_virtualIp = newIp;
             qCInfo(logNet) << QStringLiteral("[EasyTier] 虚拟IP已获取 ip=%1").arg(m_virtualIp);
+            emit virtualIpChanged(m_virtualIp);
         }
-        // Also compute deterministic IP as fallback
-        if (m_virtualIp.isEmpty()) {
-            QByteArray hash = QCryptographicHash::hash(
-                m_networkName.toUtf8(), QCryptographicHash::Sha256
-            );
-            m_virtualIp = QStringLiteral("10.%1.%2.%3")
-                .arg(static_cast<quint8>(hash[0]))
-                .arg(static_cast<quint8>(hash[1]))
-                .arg(static_cast<quint8>(hash[2]));
-        }
+    }
+
+    // Deterministic IP as fallback if peer table has no entries yet
+    if (m_virtualIp.isEmpty()) {
+        QByteArray hash = QCryptographicHash::hash(
+            m_networkName.toUtf8(), QCryptographicHash::Sha256
+        );
+        m_virtualIp = QStringLiteral("10.%1.%2.%3")
+            .arg(static_cast<quint8>(hash[0]))
+            .arg(static_cast<quint8>(hash[1]))
+            .arg(static_cast<quint8>(hash[2]));
     }
 
     // Parse hostname for center port
@@ -366,7 +385,7 @@ void EasyTierProcess::parsePeerList(const QString& output)
         if (hasPeer) {
             m_ready = true;
             m_timeoutTimer->stop();
-            m_outputTimer->setInterval(5000);  // 就绪后降频到5秒
+            m_outputTimer->setInterval(5000);  // 就绪后降频到5秒，虚拟IP已通过virtualIpChanged信号更新
             qCInfo(logNet) << QStringLiteral("[EasyTier] 网络就绪 virtual_ip=%1").arg(m_virtualIp);
             emit networkReady(m_virtualIp);
         }
@@ -411,6 +430,11 @@ void EasyTierProcess::onProcessFinished(int exitCode, QProcess::ExitStatus statu
     m_outputTimer->stop();
     m_timeoutTimer->stop();
     m_ready = false;
+    // Log stderr for debugging (exit code 1 usually means config/startup error)
+    if (!m_outputBuffer.isEmpty()) {
+        qCInfo(logNet) << QStringLiteral("[EasyTier] 进程输出: %1").arg(m_outputBuffer);
+        m_outputBuffer.clear();
+    }
     if (exitCode != 0 && !m_ready) {
         emit errorOccurred(QString::fromUtf8("EasyTier 异常退出，请重试"));
     }
@@ -433,23 +457,8 @@ void EasyTierProcess::checkOutput()
 
 void EasyTierProcess::parseOutputLine(const QString& line)
 {
-    // 不逐行记录stdout（已在轮询或ready日志中体现）
-
-    // EasyTier virtual IP patterns: usually 10.x or 172.x or 192.168.x
-    static QRegularExpression ipRx(
-        QStringLiteral(R"(\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b)")
-    );
-
-    // Detect virtual IP (skip relay server IP)
-    if (!m_ready) {
-        auto m = ipRx.match(line);
-        if (m.hasMatch()) {
-            QString ip = m.captured(1);
-            QString prefix = Relay::relayPrefix();
-            if (!prefix.isEmpty() && !ip.startsWith(prefix))
-                m_virtualIp = ip;
-        }
-    }
+    // 不逐行记录stdout（虚拟IP从easytier-cli peer表格获取，不从stdout regex提取，
+    // 因为stdout中可能出现本机真实局域网IP导致误捕获）
 
     // EasyTier v2.6 says "peer added" instead of "ready"
     if (!m_ready && line.contains(QStringLiteral("peer added"), Qt::CaseInsensitive)) {

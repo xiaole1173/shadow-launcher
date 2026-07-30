@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(ShadowLauncher VERSION 0.4.0 LANGUAGES CXX C)
+project(ShadowLauncher VERSION 0.4.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)  # Qt default
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -343,6 +343,7 @@ qt6_add_resources(ShadowLauncher "icon_resources"
         icons/lucide/sliders-horizontal.svg
         icons/lucide/image.svg
         icons/lucide/sun.svg
+        icons/lucide/download-cloud.svg
 
         # ── Version type icons (Blocks) ──
         icons/blocks/Anvil.png
@@ -438,7 +439,7 @@ target_link_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/lib")
 # Define WEBP_STATIC_LINK for static lib (needed on Windows)
 target_compile_definitions(ShadowLauncher PRIVATE
     WEBP_STATIC_LINK
-    SHADOW_DISPLAY_VERSION="v0.4.0-beta"
+    SHADOW_DISPLAY_VERSION="v0.4.1-beta"
     SHADOW_QT_VERSION="${Qt6_VERSION}"
     SHADOW_RESOURCE_EPOCH=1
 )

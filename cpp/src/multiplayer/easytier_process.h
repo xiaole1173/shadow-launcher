@@ -42,6 +42,7 @@ public:
 
 signals:
     void networkReady(const QString& virtualIp);
+    void virtualIpChanged(const QString& ip);
     void errorOccurred(const QString& msg);
     void stateChanged(const QString& state);
 

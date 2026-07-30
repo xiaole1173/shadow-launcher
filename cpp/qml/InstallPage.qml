@@ -830,6 +830,7 @@ Rectangle {
 
     Connections {
         target: backend && backend.userDataBackend ? backend.userDataBackend : null
+        enabled: backend && backend.userDataBackend
         function onValidateFinished(success, archivePath, items, error) {
             if (success) {
                 root.importArchivePath = archivePath

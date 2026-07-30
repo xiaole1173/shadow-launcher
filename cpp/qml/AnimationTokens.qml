@@ -15,14 +15,19 @@ QtObject {
     property var tokens: ({})
 
     Component.onCompleted: {
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "animation_tokens.json", false)
-        xhr.send()
-        if (xhr.status === 200) {
-            tokens = JSON.parse(xhr.responseText)
-            console.log("[animation] Tokens loaded, elements:", Object.keys(tokens.elements || {}).length)
-        } else {
-            console.warn("[animation] Failed to load tokens, using defaults")
+        try {
+            var xhr = new XMLHttpRequest()
+            xhr.open("GET", "animation_tokens.json", false)
+            xhr.send()
+            if (xhr.status === 200) {
+                tokens = JSON.parse(xhr.responseText)
+                console.log("[animation] Tokens loaded, elements:", Object.keys(tokens.elements || {}).length)
+            } else {
+                console.warn("[animation] Failed to load tokens, using defaults")
+                loadDefaults()
+            }
+        } catch (e) {
+            console.warn("[animation] Failed to load tokens:", e, ", using defaults")
             loadDefaults()
         }
     }
