@@ -582,13 +582,14 @@ void MultiplayerManager::onNetworkReady(const QString& virtualIp)
     } else {
         // Discover the center
         setState(Discovering, QStringLiteral("正在查找联机中心..."));
-        m_discoverTimer->setInterval(2000);
+        // Increased from 2000ms to 5000ms to reduce process creation frequency (EasyTier CLI process creation is expensive)
+        m_discoverTimer->setInterval(5000);
         // Disconnect first to prevent duplicate signal bindings when onNetworkReady fires multiple times
         m_discoverTimer->disconnect();
         connect(m_discoverTimer, &QTimer::timeout, this, &MultiplayerManager::doDiscoverCenter);
         m_discoverTimer->start();
 
-        // 30s discovery timeout per protocol spec
+        // 60s discovery timeout per protocol spec
         if (!m_discoverTimeoutTimer) {
             m_discoverTimeoutTimer = new QTimer(this);
             m_discoverTimeoutTimer->setSingleShot(true);
@@ -787,7 +788,11 @@ void MultiplayerManager::doDiscoverCenter()
                 this, &MultiplayerManager::onPeerListReady);
     }
 
-    if (m_peerQuery->state() != QProcess::Running) {
+    // Skip if previous process is still running (prevents process creation spam)
+    if (m_peerQuery->state() == QProcess::Running)
+        return;
+
+    {
         // Find easytier-cli.exe
         QString cliDir = QCoreApplication::applicationDirPath();
         QStringList cliPaths = {
@@ -1586,13 +1591,14 @@ void MultiplayerManager::checkMcServerHealth()
     // Try TCP connect to local MC server port
     QTcpSocket testSocket;
     testSocket.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
-    bool connected = testSocket.waitForConnected(2000);
+    // Reduced timeout from 2000ms to 500ms to minimize main thread blocking (periodic stutter)
+    bool connected = testSocket.waitForConnected(500);
 
     if (connected) {
         // Send 0xFE (legacy server list ping) and expect 0xFF response
         testSocket.write(QByteArray(1, static_cast<char>(0xFE)));
-        testSocket.waitForBytesWritten(500);
-        if (testSocket.waitForReadyRead(2000)) {
+        testSocket.waitForBytesWritten(200);
+        if (testSocket.waitForReadyRead(500)) {
             QByteArray response = testSocket.read(1);
             if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
                 m_mcHealthFailures = 0;
