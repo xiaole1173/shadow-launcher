@@ -161,4 +161,27 @@ QtObject {
     readonly property int pageDuration: _ms("page_enter")
     readonly property int pageEasing: Easing.OutBack
 
+    // ── 联机模块专用动画别名 ──
+    readonly property int panelEnterDuration: _ms("page_enter")
+    readonly property int panelEnterEasing: Easing.OutCubic
+    readonly property int panelExitDuration: _ms("fast")
+    readonly property int panelExitEasing: Easing.InCubic
+
+    // 列表条目入场
+    readonly property int listItemEnterDuration: _ms("normal")
+    readonly property int listItemEnterEasing: Easing.OutCubic
+    readonly property int listItemScaleEnterEasing: Easing.OutBack
+
+    // 实时数据刷新（缓动数值过渡）
+    readonly property int dataFlushDuration: _ms("slow")
+    readonly property int dataFlushEasing: Easing.InOutSine
+
+    // 高亮反馈
+    readonly property int highlightDuration: _ms("normal")
+    readonly property int highlightEasing: Easing.OutQuad
+
+    // 进度条动画
+    readonly property int progressDuration: _ms("normal")
+    readonly property int progressEasing: Easing.InOutSine
+
 }
