@@ -80,7 +80,7 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     m_heartbeatTimer->setInterval(Scaffolding::kHeartbeatIntervalMs);
     connect(m_heartbeatTimer, &QTimer::timeout, this, &MultiplayerManager::sendHeartbeat);
 
-    // Heartbeat watchdog: remove guests with no heartbeat for 15s
+    // Heartbeat watchdog: remove guests with no heartbeat for 10s (align with Terracotta)
     m_heartbeatWatchdog = new QTimer(this);
     m_heartbeatWatchdog->setInterval(5000);
     connect(m_heartbeatWatchdog, &QTimer::timeout, this, [this]() {
@@ -91,7 +91,7 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
             if (p["kind"].toString() != QStringLiteral("GUEST")) continue;
             QString mid = p["machine_id"].toString();
             qint64 lastHb = m_lastHeartbeat.value(mid, 0);
-            if (lastHb > 0 && (now - lastHb) > 15000) {
+            if (lastHb > 0 && (now - lastHb) > 10000) {
                 qCWarning(logNet) << QStringLiteral("[联机] 宾客心跳超时 id=%1").arg(mid);
                 m_players.removeAt(i);
                 m_lastHeartbeat.remove(mid);
@@ -1333,12 +1333,146 @@ void MultiplayerManager::handlePlayerPong(const QByteArray& body, QTcpSocket* so
 void MultiplayerManager::handlePlayerProfilesResponse(const QByteArray& body)
 {
     QJsonDocument doc = QJsonDocument::fromJson(body);
-    if (doc.isArray()) {
-        m_players.clear();
-        for (const auto& v : doc.array()) {
-            QVariantMap player = v.toObject().toVariantMap();
-            m_players << player;
+    if (!doc.isArray()) return;
+
+    // ── Terracotta-style merge: sort server profiles, merge with local ──
+    // Parse server profiles
+    struct ServerProfile {
+        QString name;
+        QString machineId;
+        QString vendor;
+        QString kind;    // "HOST" or "GUEST"
+    };
+
+    QList<ServerProfile> serverProfiles;
+    for (const auto& item : doc.array()) {
+        QJsonObject obj = item.toObject();
+        ServerProfile sp;
+        sp.name = obj[QStringLiteral("name")].toString();
+        sp.machineId = obj[QStringLiteral("machine_id")].toString();
+        sp.vendor = obj[QStringLiteral("vendor")].toString();
+        sp.kind = obj[QStringLiteral("kind")].toString();
+        if (!sp.machineId.isEmpty())
+            serverProfiles.append(sp);
+    }
+
+    // Sort by machine_id (align with Terracotta: binary_search_by_key)
+    std::sort(serverProfiles.begin(), serverProfiles.end(),
+              [](const ServerProfile& a, const ServerProfile& b) {
+                  return a.machineId < b.machineId;
+              });
+
+    // Check no machine_id conflicts in server profiles
+    for (int i = 1; i < serverProfiles.size(); ++i) {
+        if (serverProfiles[i].machineId == serverProfiles[i-1].machineId) {
+            qCWarning(logNet) << QStringLiteral("[联机] 服务器profile列表存在machine_id冲突");
+            return;
         }
+    }
+
+    // Check HOST exists
+    bool hasHost = false;
+    for (const auto& sp : serverProfiles) {
+        if (sp.kind == QStringLiteral("HOST")) {
+            hasHost = true;
+            break;
+        }
+    }
+    if (!hasHost) {
+        qCWarning(logNet) << QStringLiteral("[联机] 服务器profile列表中无主机");
+        return;
+    }
+
+    // Merge: iterate local profiles, update/remove as needed
+    QList<bool> used(serverProfiles.size(), false);
+    bool changed = false;
+
+    for (int i = m_players.size() - 1; i >= 0; --i) {
+        QVariantMap local = m_players[i].toMap();
+        QString localMid = local[QStringLiteral("machine_id")].toString();
+        QString localKind = local[QStringLiteral("kind")].toString();
+
+        // Find by machine_id in server profiles (binary search since sorted)
+        int foundIdx = -1;
+        int lo = 0, hi = serverProfiles.size() - 1;
+        while (lo <= hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (serverProfiles[mid].machineId == localMid) {
+                foundIdx = mid;
+                break;
+            } else if (serverProfiles[mid].machineId < localMid) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+
+        if (localKind == QStringLiteral("HOST")) {
+            if (foundIdx >= 0 && serverProfiles[foundIdx].kind == QStringLiteral("HOST")) {
+                // Update host name if changed
+                if (local[QStringLiteral("name")].toString() != serverProfiles[foundIdx].name) {
+                    local[QStringLiteral("name")] = serverProfiles[foundIdx].name;
+                    m_players[i] = local;
+                    changed = true;
+                }
+                used[foundIdx] = true;
+            } else {
+                qCWarning(logNet) << QStringLiteral("[联机] HOST profile在服务器上失效");
+                return;
+            }
+        } else if (localKind == QStringLiteral("LOCAL")) {
+            used[foundIdx >= 0 ? foundIdx : 0] = false;  // don't consume
+            // Keep local profile as-is
+        } else if (localKind == QStringLiteral("GUEST")) {
+            if (foundIdx >= 0 && serverProfiles[foundIdx].kind == QStringLiteral("GUEST")) {
+                if (used[foundIdx]) {
+                    // Already consumed — duplicate entry, remove
+                    m_players.removeAt(i);
+                    changed = true;
+                } else {
+                    // Update name/vendor
+                    if (local[QStringLiteral("name")].toString() != serverProfiles[foundIdx].name) {
+                        local[QStringLiteral("name")] = serverProfiles[foundIdx].name;
+                        changed = true;
+                    }
+                    if (local[QStringLiteral("vendor")].toString() != serverProfiles[foundIdx].vendor) {
+                        local[QStringLiteral("vendor")] = serverProfiles[foundIdx].vendor;
+                        changed = true;
+                    }
+                    if (changed)
+                        m_players[i] = local;
+                    used[foundIdx] = true;
+                }
+            } else if (foundIdx >= 0 && serverProfiles[foundIdx].kind == QStringLiteral("HOST")) {
+                // Guest's machine_id now registered as host — remove local guest entry
+                m_players.removeAt(i);
+                changed = true;
+            } else {
+                // Guest not in server list — they disconnected, remove
+                m_players.removeAt(i);
+                changed = true;
+            }
+        }
+    }
+
+    // Add new profiles from server that aren't consumed
+    for (int i = 0; i < serverProfiles.size(); ++i) {
+        if (used[i]) continue;
+        if (serverProfiles[i].kind == QStringLiteral("GUEST")) {
+            if (serverProfiles[i].machineId == m_machineId) continue;  // don't add self
+
+            QVariantMap newPlayer;
+            newPlayer[QStringLiteral("name")] = serverProfiles[i].name;
+            newPlayer[QStringLiteral("machine_id")] = serverProfiles[i].machineId;
+            newPlayer[QStringLiteral("vendor")] = serverProfiles[i].vendor;
+            newPlayer[QStringLiteral("kind")] = QStringLiteral("GUEST");
+            newPlayer[QStringLiteral("latency")] = -1;
+            m_players.append(newPlayer);
+            changed = true;
+        }
+    }
+
+    if (changed) {
         emit playersChanged();
     }
 }
@@ -1465,6 +1599,16 @@ void MultiplayerManager::verifyMcConnection()
             if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
                 qCInfo(logNet) << QStringLiteral("[联机] MC连接验证通过 port=%1").arg(m_mcPort);
                 testSocket.disconnectFromHost();
+
+                // Add LOCAL profile for self (align with Terracotta ProfileKind::LOCAL)
+                QVariantMap localSelf;
+                localSelf[QStringLiteral("name")] = m_playerName;
+                localSelf[QStringLiteral("machine_id")] = m_machineId;
+                localSelf[QStringLiteral("hostname")] = QSysInfo::machineHostName();
+                localSelf[QStringLiteral("kind")] = QStringLiteral("LOCAL");
+                localSelf[QStringLiteral("latency")] = 0;
+                m_players << localSelf;
+                emit playersChanged();
 
                 // Connection OK — start FakeServer and proceed
                 startFakeServer(m_mcPort);
