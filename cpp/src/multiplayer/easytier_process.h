@@ -23,15 +23,19 @@ public:
     ~EasyTierProcess() override;
 
     void start(const QString& networkName, const QString& networkKey,
-               const QString& hostname = QString());
+               const QString& hostname = QString(),
+               quint16 whitelistPort = 0);
 
-    // Elevated mode: start easytier via QProcess
-    // Config sent via stdin (no peers), connector added dynamically after start
+    bool addPortForward(const QString& localAddr, quint16 localPort,
+                        const QString& remoteAddr, quint16 remotePort,
+                        const QString& proto = QStringLiteral("tcp"));
+
+    void stop();
+
+    // Elevated mode: start easytier via QProcess (config file already written)
     void startViaQProcess(const QString& exe, const QStringList& args,
                           const QByteArray& tomlData,
                           const QString& relayEp);
-
-    void stop();
 
     // Add relay connector dynamically (no --peers on CLI or env var needed)
     void addRelayConnector(const QString& relayEp);

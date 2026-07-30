@@ -73,7 +73,8 @@ QString EasyTierProcess::findEasyTierCli() const
 }
 
 void EasyTierProcess::start(const QString& networkName, const QString& networkKey,
-                            const QString& hostname)
+                            const QString& hostname,
+                            quint16 whitelistPort)
 {
     stop();
 
@@ -105,9 +106,22 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     // Stdin TOML ignores peers at runtime per easytier 2.6 behavior.
     // With peers in the config file, easytier connects to the relay at
     // startup, gets a DHCP lease, and creates the TUN device automatically.
+    // Align with Terracotta architecture:
+    //   Host: --no-tun --ipv4 10.144.144.1 --hostname ... --tcp-whitelist {port}
+    //   Guest: --no-tun (DHCP from TOML)
+    //   Both: peers / network_identity from TOML config file
+    //   Guest connects via port-forward to 127.0.0.1 instead of TUN virtual IP
+    bool isHost = !hostname.isEmpty();
+
     QByteArray tomlContent;
     tomlContent.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
-    tomlContent.append("dhcp = true\n");
+    if (isHost) {
+        // Host: fixed IP in --ipv4, no DHCP needed
+        tomlContent.append("dhcp = false\n");
+    } else {
+        // Guest: DHCP assigned by EasyTier
+        tomlContent.append("dhcp = true\n");
+    }
     tomlContent.append("\n[network_identity]\n");
     tomlContent.append(QStringLiteral("network_name = \"%1\"\n").arg(networkName).toUtf8());
     tomlContent.append(QStringLiteral("network_secret = \"%1\"\n").arg(networkKey).toUtf8());
@@ -122,8 +136,16 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
 
     QStringList args;
     args << "--config-file" << m_peerConfigPath;
-    if (!hostname.isEmpty())
+    args << "--no-tun";  // No TUN device — align with Terracotta
+
+    if (isHost) {
+        args << "--ipv4" << QStringLiteral("10.144.144.1");
         args << "--hostname" << hostname;
+        if (whitelistPort > 0) {
+            args << "--tcp-whitelist" << QString::number(whitelistPort);
+            args << "--udp-whitelist" << QString::number(whitelistPort);
+        }
+    }
 
     // Start easytier-core with config file (peers, dhcp, name/secret).
     // Connector add kept as fallback (3s delay) in case TOML peers don't work at runtime.
@@ -184,6 +206,44 @@ void EasyTierProcess::stop()
     m_virtualIp.clear();
     m_centerPort = 0;
     m_ready = false;
+}
+
+bool EasyTierProcess::addPortForward(const QString& localAddr, quint16 localPort,
+                                        const QString& remoteAddr, quint16 remotePort,
+                                        const QString& proto)
+{
+    QString cliExe = findEasyTierCli();
+    if (cliExe.isEmpty()) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 找不到 easytier-cli.exe，无法创建端口转发");
+        return false;
+    }
+
+    QStringList args;
+    args << QStringLiteral("port-forward") << QStringLiteral("add") << proto
+         << QStringLiteral("%1:%2").arg(localAddr).arg(localPort)
+         << QStringLiteral("%1:%2").arg(remoteAddr).arg(remotePort);
+
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 创建端口转发 %1 %2:%3 -> %4:%5")
+        .arg(proto).arg(localAddr).arg(localPort).arg(remoteAddr).arg(remotePort);
+
+    QProcess proc;
+    proc.start(cliExe, args);
+    if (!proc.waitForFinished(5000)) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 端口转发超时");
+        return false;
+    }
+
+    QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    QString err = QString::fromUtf8(proc.readAllStandardError()).trimmed();
+    if (!out.isEmpty())
+        qCInfo(logNet) << QStringLiteral("[EasyTier] port-forward 输出: %1").arg(out);
+    if (!err.isEmpty())
+        qCWarning(logNet) << QStringLiteral("[EasyTier] port-forward 错误: %1").arg(err);
+
+    bool ok = (proc.exitCode() == 0);
+    if (!ok)
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 端口转发失败 退出码=%1").arg(proc.exitCode());
+    return ok;
 }
 
 void EasyTierProcess::addRelayConnector(const QString& relayEp)
