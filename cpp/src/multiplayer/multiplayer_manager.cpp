@@ -1626,36 +1626,54 @@ void MultiplayerManager::checkMcHealth()
     QTcpSocket* sock = new QTcpSocket(this);
     sock->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 
+    // ── Connected: send 0xFE legacy ping, wait 1s for response ──
     connect(sock, &QTcpSocket::connected, this, [this, sock]() {
-        // Connection OK, send 0xFE legacy ping
         QByteArray ping(1, static_cast<char>(0xFE));
         sock->write(ping);
-        // Set up 1s response timeout
-        QTimer::singleShot(1000, sock, [sock]() {
-            sock->abort();
+        QTimer::singleShot(1000, sock, [this, sock]() {
+            // No readyRead within 1s = ping timeout, count as failure
+            qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 响应超时 port=%1").arg(m_mcPort);
+            handleHealthCheckFailure();
             sock->deleteLater();
         });
     });
 
+    // ── Data received: expect 0xFF response ──
     connect(sock, &QTcpSocket::readyRead, this, [this, sock]() {
         QByteArray resp = sock->read(1);
         if (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF) {
             m_mcHealthFailures = 0;
             qCInfo(logNet) << QStringLiteral("[联机] MC服务器健康检查正常 port=%1").arg(m_mcPort);
+            sock->deleteLater();
         } else {
+            qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 响应数据异常 port=%1").arg(m_mcPort);
             handleHealthCheckFailure();
+            sock->deleteLater();
         }
-        sock->deleteLater();
     });
 
-    connect(sock, &QTcpSocket::errorOccurred, this, [this, sock](QAbstractSocket::SocketError) {
+    // ── Connection error: port closed / connection refused / timeout ──
+    connect(sock, &QTcpSocket::errorOccurred, this, [this, sock](QAbstractSocket::SocketError err) {
+        qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接错误 err=%1 port=%2").arg(err).arg(m_mcPort);
         handleHealthCheckFailure();
         sock->deleteLater();
     });
 
-    // Set 3s total connect timeout
-    QTimer::singleShot(3000, sock, [sock]() {
+    // ── Disconnected after successful connection: MC server went away ──
+    connect(sock, &QTcpSocket::disconnected, this, [this, sock]() {
+        if (sock->bytesAvailable() == 0) {
+            // No data was received before disconnect = server dropped connection
+            qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接断开 port=%1").arg(m_mcPort);
+            handleHealthCheckFailure();
+            sock->deleteLater();
+        }
+    });
+
+    // ── 3s connect timeout: connection never established ──
+    QTimer::singleShot(3000, sock, [this, sock]() {
         if (sock->state() != QAbstractSocket::ConnectedState) {
+            qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接超时 port=%1").arg(m_mcPort);
+            handleHealthCheckFailure();
             sock->abort();
             sock->deleteLater();
         }
@@ -1673,8 +1691,9 @@ void MultiplayerManager::handleHealthCheckFailure()
         .arg(m_mcHealthFailures).arg(m_mcPort);
 
     if (m_mcHealthFailures >= kMcHealthMaxFailures) {
-        qCWarning(logNet) << QStringLiteral("[联机] MC服务器已断开，终止联机会话");
+        qCWarning(logNet) << QStringLiteral("[联机] MC服务器已断开，终止联机会话 port=%1").arg(m_mcPort);
         m_mcHealthTimer->stop();
+        m_mcHealthFailures = 0;
         emit errorOccurred(QStringLiteral("MC服务器连接已断开，联机会话结束"));
         leaveRoom();
     }
