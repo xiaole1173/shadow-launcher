@@ -220,6 +220,12 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/ModLoaderCard.qml
         qml/ModDetailPage.qml
         qml/MultiplayerPage.qml
+        qml/MultiplayerStateDot.qml
+        qml/MultiplayerStateIndicator.qml
+        qml/MultiplayerPlayerCard.qml
+        qml/MultiplayerRoomCodeCard.qml
+        qml/MultiplayerNetworkPanel.qml
+        qml/MultiplayerHelpPanel.qml
         qml/ResourcePackDetailPage.qml
         qml/SettingsGeneralPage.qml
         qml/SettingsJavaPage.qml
