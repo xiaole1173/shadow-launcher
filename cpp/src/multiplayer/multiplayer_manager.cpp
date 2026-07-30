@@ -226,7 +226,12 @@ void MultiplayerManager::restoreHostSession(const QString& networkName,
     m_networkName = networkName;
     m_networkKey = networkKey;
     m_mcPort = mcPort;
-    m_centerPort = mcPort;
+    // Parse scaffolding port from hostname (align with Terracotta: hostname = "scaffolding-mc-server-{port}")
+    static QRegularExpression scRx(QStringLiteral(R"(scaffolding-mc-server-(\d+))"));
+    auto scMatch = scRx.match(hostname);
+    m_centerPort = scMatch.hasMatch() ? static_cast<quint16>(scMatch.captured(1).toUShort()) : mcPort;
+    if (m_centerPort == m_mcPort && m_centerPort > 0)
+        m_centerPort++;  // ensure distinct like in createRoom
     emit roomCodeChanged();
 
     qCInfo(logNet) << QStringLiteral("[联机] 恢复主机会话 房间码=%1 MC端口=%2 (提权后)")
