@@ -32,10 +32,9 @@ public:
 
     void stop();
 
-    // Elevated mode: start easytier via QProcess (config file already written)
+    // Elevated mode: start easytier via QProcess (config file has public peers)
     void startViaQProcess(const QString& exe, const QStringList& args,
-                          const QByteArray& tomlData,
-                          const QString& relayEp);
+                          const QByteArray& tomlData);
 
     // Add relay connector dynamically (no --peers on CLI or env var needed)
     void addRelayConnector(const QString& relayEp);

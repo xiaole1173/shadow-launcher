@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "easytier_process.h"
-#include "relay_crypto.h"    // Decrypted relay endpoint
 #include "elevated_session.h"
 #include "../utils/secure_wipe.h"
 #include <QCoreApplication>
@@ -99,13 +98,18 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         killer.waitForFinished(3000);
     }
 
-    QString relayEp = Relay::relayEndpoint();
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 中继节点 endpoint=%1").arg(relayEp.isEmpty() ? QStringLiteral("(空)") : relayEp);
+    // Use EasyTier community public nodes (same as Terracotta/主流启动器).
+    // No private relay infrastructure needed — reduces legal surface.
+    // Public nodes: EasyTier community shared nodes sponsored by cloud providers.
+    static const auto kPublicPeers = {
+        QStringLiteral("tcp://public.easytier.top:11010"),
+        QStringLiteral("tcp://public2.easytier.cn:54321"),
+        QStringLiteral("https://etnode.zkitefly.eu.org/node1"),
+        QStringLiteral("https://etnode.zkitefly.eu.org/node2"),
+    };
 
-    // Write TOML config to temp file (with peers + dhcp + network identity).
-    // Stdin TOML ignores peers at runtime per easytier 2.6 behavior.
-    // With peers in the config file, easytier connects to the relay at
-    // startup, gets a DHCP lease, and creates the TUN device automatically.
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 使用社区公共中继节点");
+
     // Align with Terracotta architecture:
     //   Host: --no-tun --ipv4 10.144.144.1 --hostname ... --tcp-whitelist {port}
     //   Guest: --no-tun (DHCP from TOML)
@@ -114,7 +118,14 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     bool isHost = !hostname.isEmpty();
 
     QByteArray tomlContent;
-    tomlContent.append(QStringLiteral("peers = [\"%1\"]\n").arg(relayEp).toUtf8());
+    tomlContent.append("peers = [");
+    bool first = true;
+    for (const auto& peer : kPublicPeers) {
+        if (!first) tomlContent.append(", ");
+        tomlContent.append("\"" + peer.toUtf8() + "\"");
+        first = false;
+    }
+    tomlContent.append("]\n");
     if (isHost) {
         // Host: fixed IP in --ipv4, no DHCP needed
         tomlContent.append("dhcp = false\n");
@@ -148,9 +159,9 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     }
 
     // Start easytier-core with config file (peers, dhcp, name/secret).
-    // Connector add kept as fallback (3s delay) in case TOML peers don't work at runtime.
+    // Public nodes in TOML are sufficient — no connector add fallback needed.
     if (ElevatedSession::isActive()) {
-        startViaQProcess(exe, args, QByteArray(), relayEp);
+        startViaQProcess(exe, args, QByteArray());
         // Delete config file after easytier has read it (startup ~100ms, safe margin 1s)
         QTimer::singleShot(1000, this, [this]() {
             if (!m_peerConfigPath.isEmpty()) {
@@ -287,10 +298,10 @@ void EasyTierProcess::addRelayConnector(const QString& relayEp)
 }
 
 void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& args,
-                                       const QByteArray& tomlData,
-                                       const QString& relayEp)
+                                       const QByteArray& tomlData)
 {
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (无泄露管道)");
+    Q_UNUSED(tomlData);
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 通过QProcess启动 (配置文件中已含公共中继节点)");
 
     // Prevent duplicate start
     if (m_process && m_process->state() == QProcess::Running) {
@@ -310,18 +321,11 @@ void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& ar
             this, &EasyTierProcess::onProcessFinished);
 
     // No ET_* env vars set — easytier starts with zero sensitive data.
-    // Relay connector is added dynamically after process starts.
+    // Public peers in --config-file TOML are sufficient.
     m_process->start(exe, args);
 
-    if (m_process->waitForStarted(5000)) {
-        // Pipe TOML (name/secret/dhcp, no peers) via stdin
-        m_process->write(tomlData);
-        m_process->closeWriteChannel();
-
-        // Schedule dynamic connector add after easytier RPC portal is ready
-        QTimer::singleShot(3000, this, [this, relayEp]() {
-            addRelayConnector(relayEp);
-        });
+    if (!m_process->waitForStarted(5000)) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 进程启动超时");
     }
 
     m_ready = false;
