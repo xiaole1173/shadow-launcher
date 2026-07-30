@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// 联机玩家卡片 — 展示单个玩家信息（名字、延迟、角色、IP）
+// 联机玩家卡片 — 展示单个玩家信息 + 入场/退场/延迟动画
 import QtQuick
 import QtQuick.Layouts
 
@@ -14,12 +14,32 @@ Rectangle {
     property var playerData: ({})
     property int entryIndex: 0
 
-    // Entrance animation
+    // Entrance: fade + scale with staggered delay per index
     opacity: 0
-    scale: 0.9
-    Component.onCompleted: { root.opacity = 1; root.scale = 1 }
-    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-    Behavior on scale { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+    scale: 0.88
+    Component.onCompleted: {
+        staggerTimer.start()
+    }
+
+    Timer {
+        id: staggerTimer
+        interval: 40 * root.entryIndex
+        repeat: false
+        onTriggered: {
+            root.opacity = 1
+            root.scale = 1
+        }
+    }
+
+    Behavior on opacity {
+        NumberAnimation { duration: AnimationTokens.listItemEnterDuration; easing.type: AnimationTokens.listItemEnterEasing }
+    }
+    Behavior on scale {
+        NumberAnimation { duration: 350; easing.type: AnimationTokens.listItemScaleEnterEasing }
+    }
+
+    // Latency color transition
+    property color _lastLatColor: "transparent"
 
     RowLayout {
         anchors.fill: parent
@@ -51,24 +71,34 @@ Rectangle {
             }
         }
 
-        // Latency badge
+        // Latency badge with color transition
         Rectangle {
             visible: playerData.latency !== undefined && playerData.latency >= 0
             implicitWidth: latLabel.implicitWidth + 14
             implicitHeight: 22
             radius: StyleTokens.radiusMd
-            color: {
+            color: _latBgColor
+            Behavior on color {
+                ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
+            }
+
+            readonly property color _latBgColor: {
                 var lat = playerData.latency || 0
                 if (lat < 50) return "#2060c060"
                 if (lat < 150) return "#20f59e0b"
                 return "#20ef4444"
             }
+
             Text {
                 id: latLabel
                 anchors.centerIn: parent
                 text: (playerData.latency || 0) + "ms"
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: {
+                color: _latColor
+                Behavior on color {
+                    ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
+                }
+                readonly property color _latColor: {
                     var lat = playerData.latency || 0
                     if (lat < 50) return "#60c060"
                     if (lat < 150) return "#f59e0b"
