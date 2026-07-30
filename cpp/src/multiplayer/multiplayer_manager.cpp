@@ -1620,6 +1620,8 @@ void MultiplayerManager::checkMcHealth()
     if (m_role != Host || m_state == Idle || m_state == Error || m_state == WaitingForMcServer)
         return;
 
+    qCInfo(logNet) << QStringLiteral("[联机] 执行MC健康检测 port=%1").arg(m_mcPort);
+
     // Create a temporary heap-allocated socket (self-cleaning via deleteLater on completion/error/timeout)
     QTcpSocket* sock = new QTcpSocket(this);
     sock->setSocketOption(QAbstractSocket::LowDelayOption, 1);
@@ -1638,7 +1640,8 @@ void MultiplayerManager::checkMcHealth()
     connect(sock, &QTcpSocket::readyRead, this, [this, sock]() {
         QByteArray resp = sock->read(1);
         if (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF) {
-            m_mcHealthFailures = 0;  // Health OK
+            m_mcHealthFailures = 0;
+            qCInfo(logNet) << QStringLiteral("[联机] MC服务器健康检查正常 port=%1").arg(m_mcPort);
         } else {
             handleHealthCheckFailure();
         }
