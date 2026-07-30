@@ -1631,46 +1631,67 @@ void MultiplayerManager::checkMcHealth()
         QByteArray ping(1, static_cast<char>(0xFE));
         sock->write(ping);
         QTimer::singleShot(1000, sock, [this, sock]() {
-            // No readyRead within 1s = ping timeout, count as failure
+            if (sock->property("_probeDone").toBool())
+                return;
             qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 响应超时 port=%1").arg(m_mcPort);
             handleHealthCheckFailure();
+            sock->abort();
             sock->deleteLater();
         });
     });
 
     // ── Data received: expect 0xFF response ──
+    // Set a flag on the socket to mark intentional completion so error/disconnected handlers can skip.
     connect(sock, &QTcpSocket::readyRead, this, [this, sock]() {
         QByteArray resp = sock->read(1);
         if (resp.size() == 1 && static_cast<quint8>(resp[0]) == 0xFF) {
             m_mcHealthFailures = 0;
             qCInfo(logNet) << QStringLiteral("[联机] MC服务器健康检查正常 port=%1").arg(m_mcPort);
+            sock->setProperty("_probeDone", true);
+            sock->disconnect();
             sock->deleteLater();
         } else {
             qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 响应数据异常 port=%1").arg(m_mcPort);
             handleHealthCheckFailure();
+            sock->setProperty("_probeDone", true);
+            sock->disconnect();
             sock->deleteLater();
         }
     });
 
     // ── Connection error: port closed / connection refused / timeout ──
+    // Only count as failure if we haven't already completed the probe successfully.
     connect(sock, &QTcpSocket::errorOccurred, this, [this, sock](QAbstractSocket::SocketError err) {
+        if (sock->property("_probeDone").toBool()) {
+            // Probe already completed normally; this is just cleanup noise
+            sock->deleteLater();
+            return;
+        }
         qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接错误 err=%1 port=%2").arg(err).arg(m_mcPort);
+        if (err != QAbstractSocket::RemoteHostClosedError) {
+            handleHealthCheckFailure();
+        } else {
+            // RemoteHostClosedError = MC server actively closed connection = real failure
+            handleHealthCheckFailure();
+        }
+        sock->deleteLater();
+    });
+
+    // ── Disconnected after connection: check if intentional ──
+    connect(sock, &QTcpSocket::disconnected, this, [this, sock]() {
+        if (sock->property("_probeDone").toBool()) {
+            sock->deleteLater();
+            return;
+        }
+        qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 意外断开 port=%1").arg(m_mcPort);
         handleHealthCheckFailure();
         sock->deleteLater();
     });
 
-    // ── Disconnected after successful connection: MC server went away ──
-    connect(sock, &QTcpSocket::disconnected, this, [this, sock]() {
-        if (sock->bytesAvailable() == 0) {
-            // No data was received before disconnect = server dropped connection
-            qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接断开 port=%1").arg(m_mcPort);
-            handleHealthCheckFailure();
-            sock->deleteLater();
-        }
-    });
-
     // ── 3s connect timeout: connection never established ──
     QTimer::singleShot(3000, sock, [this, sock]() {
+        if (sock->property("_probeDone").toBool())
+            return;
         if (sock->state() != QAbstractSocket::ConnectedState) {
             qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接超时 port=%1").arg(m_mcPort);
             handleHealthCheckFailure();
