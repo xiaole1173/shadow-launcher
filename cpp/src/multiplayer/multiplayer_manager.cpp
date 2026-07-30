@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "multiplayer_manager.h"
 #include "mc_scanner.h"
+#include "port_request.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
@@ -839,22 +840,15 @@ void MultiplayerManager::onPeerListReady()
             emit connectionDifficultyChanged();
 
             // ── Terracotta-style: port-forward → connect via 127.0.0.1 ──
-            quint16 localPort = port;
+            // Try to keep the same port (Terracotta: request_specific); fallback to free
+            quint16 localPort = PortRequest::requestSpecific(port);
+            if (localPort == 0) {
+                localPort = PortRequest::requestFree(21234);
+            }
             if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localPort,
                                             ipv4, port, QStringLiteral("tcp"))) {
-                bool portOk = false;
-                for (quint16 alt = 20000; alt < 30000; alt++) {
-                    if (m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), alt,
-                                                    ipv4, port, QStringLiteral("tcp"))) {
-                        localPort = alt;
-                        portOk = true;
-                        break;
-                    }
-                }
-                if (!portOk) {
-                    emit errorOccurred(QStringLiteral("无法创建联机隧道端口"));
-                    return;
-                }
+                emit errorOccurred(QStringLiteral("无法创建联机隧道端口"));
+                return;
             }
 
             qCInfo(logNet) << QStringLiteral("[联机] 端口转发已建立 本地端口=%1").arg(localPort);
@@ -1148,42 +1142,35 @@ void MultiplayerManager::handleGuestServerPort(const QByteArray& body)
         m_mcPort = port;
         qCInfo(logNet) << QStringLiteral("[联机] 收到服务器端口 port=%1").arg(port);
 
-        // ── Terracotta-style: create port-forward for MC connection ──
-        // Forward a local port to the host's MC server port via EasyTier mesh.
+        // ── Terracotta-style: port request + port-forward for MC connection ──
+        // Aligns with Terracotta room.rs:
+        //   let local_port = PortRequest::request_specific(port)
+        //       .unwrap_or_else(|e| { PortRequest::Minecraft.request() });
         QString hostIp = m_centerIp;
-        quint16 localMcPort = port;  // try same port first
-
-        if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
-                                        hostIp, port, QStringLiteral("tcp"))) {
-            bool ok = false;
-            for (quint16 alt = 20000; alt < 30000; alt++) {
-                if (m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), alt,
-                                                hostIp, port, QStringLiteral("tcp"))) {
-                    localMcPort = alt;
-                    ok = true;
-                    break;
-                }
-            }
-            if (ok) {
-                // Also add UDP for mod compatibility (SimpleVoiceChat etc.)
-                m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
-                                           hostIp, port, QStringLiteral("udp"));
-            } else {
-                qCWarning(logNet) << QStringLiteral("[联机] 无法创建MC端口转发");
-                // Continue anyway — guest might still direct-connect
-            }
+        quint16 localMcPort = PortRequest::requestSpecific(port);
+        if (localMcPort == 0) {
+            // Requested port is occupied — fall back to any free ephemeral port
+            localMcPort = PortRequest::requestFree(21234);
+            qCInfo(logNet) << QStringLiteral("[联机] MC端口%1占位 使用动态端口%2").arg(port).arg(localMcPort);
         } else {
-            // Also add UDP
-            m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
-                                       hostIp, port, QStringLiteral("udp"));
+            qCInfo(logNet) << QStringLiteral("[联机] MC端口%1可用").arg(port);
         }
 
-        qCInfo(logNet) << QStringLiteral("[联机] MC端口转发已建立 本地端口=%1").arg(localMcPort);
+        // TCP port-forward
+        if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
+                                        hostIp, port, QStringLiteral("tcp"))) {
+            qCWarning(logNet) << QStringLiteral("[联机] 无法创建MC TCP端口转发");
+        }
+
+        // UDP port-forward for mod compatibility (SimpleVoiceChat etc.)
+        // Aligns with Terracotta: forwards both TCP and UDP
+        m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
+                                   hostIp, port, QStringLiteral("udp"));
+
+        qCInfo(logNet) << QStringLiteral("[联机] MC端口转发已建立 本地端口=%1 远程端口=%2").arg(localMcPort).arg(port);
         emit minecraftPortReady(static_cast<int>(localMcPort));
 
         // ── Terracotta-style: verify MC connection before declaring OK ──
-        // Send 0xFE ping to MC server, expect 0xFF response.
-        // Retry up to 8 times with ~1.5s interval.
         setState(VerifyingConnection, QStringLiteral("正在验证MC连接..."));
         m_mcVerifyRetries = 0;
         verifyMcConnection();

@@ -159,6 +159,8 @@ set(HEADERS
     src/multiplayer/elevated_session.h
     src/multiplayer/mc_scanner.cpp
     src/multiplayer/mc_scanner.h
+    src/multiplayer/port_request.cpp
+    src/multiplayer/port_request.h
 )
 
 # Encrypted blob fragments (scrambled, split across compilation units)
