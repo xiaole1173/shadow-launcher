@@ -147,16 +147,15 @@ void MultiplayerManager::createRoom()
     m_networkKey = parts.networkKey;
     emit roomCodeChanged();
 
-    // MC server port: deterministic from network key
-    QByteArray portSeed = m_networkKey.toUtf8();
-    quint32 portHash = qChecksum(portSeed);
-    m_mcPort = 1025 + (portHash % (65535 - 1025));
+    // MC server port: initially 0, will be set by MCScanner when real MC server is detected
+    m_mcPort = 0;
 
     // Scaffold protocol port: separate from MC port (align with Terracotta)
-    QByteArray scaffoldHash = QCryptographicHash::hash(portSeed, QCryptographicHash::Sha256);
+    QByteArray scaffoldSeed = m_networkKey.toUtf8();
+    QByteArray scaffoldHash = QCryptographicHash::hash(scaffoldSeed, QCryptographicHash::Sha256);
     m_centerPort = 20000 + (static_cast<quint16>(scaffoldHash[0]) << 8 | scaffoldHash[1]) % 10000;
-    if (m_centerPort == m_mcPort)
-        m_centerPort++;  // ensure distinct
+    if (m_centerPort < 20000)
+        m_centerPort = 20001;  // safety fallback
 
     QString hostname = Scaffolding::kCenterHostnamePrefix + QString::number(m_centerPort);
 
@@ -209,9 +208,10 @@ void MultiplayerManager::createRoom()
         return;
     }
 
-    qCInfo(logNet) << QStringLiteral("[联机] 创建房间(已提权) 房间码=%1 MC端口=%2").arg(m_roomCode).arg(m_mcPort);
+    qCInfo(logNet) << QStringLiteral("[联机] 创建房间(已提权) 房间码=%1").arg(m_roomCode);
 
     setState(CreatingRoom, QStringLiteral("正在创建房间..."));
+    // MC port unknown until scanner detects it; EasyTier starts with scaffold port only
     startEasyTier(m_networkName, m_networkKey, hostname);
 }
 
