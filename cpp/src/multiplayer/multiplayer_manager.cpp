@@ -682,7 +682,7 @@ void MultiplayerManager::doDiscoverCenter()
             return;
         }
 
-        m_peerQuery->start(cliPath, {"peer"});
+        m_peerQuery->start(cliPath, {QStringLiteral("peer"), QStringLiteral("-o"), QStringLiteral("json")});
     }
 }
 
@@ -691,21 +691,26 @@ void MultiplayerManager::onPeerListReady()
     if (!m_peerQuery) return;
 
     QString output = QString::fromUtf8(m_peerQuery->readAllStandardOutput());
-    output += QString::fromUtf8(m_peerQuery->readAllStandardError());
 
-    // Extract scaffolding-mc-server-{port} AND its IP from CLI table output
-    // Format: | 10.144.144.1/24 | scaffolding-mc-server-38181 | p2p | ...
-    QRegularExpression hostRx(
-        QStringLiteral(R"(\|?\s*(\d+\.\d+\.\d+\.\d+)(?:/\d+)?\s*\|[^|]*?)") +
-        QRegularExpression::escape(Scaffolding::kCenterHostnamePrefix) +
-        QStringLiteral(R"((\d+))")
-    );
+    QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
+    if (!doc.isArray()) {
+        qCInfo(logNet) << QStringLiteral("[联机] Peer列表JSON解析失败 重试中");
+        return;
+    }
 
-    auto m = hostRx.match(output);
-    if (m.hasMatch()) {
-        QString hostIp = m.captured(1);       // host's virtual IP from CLI table (10.144.144.1)
-        quint16 port = m.captured(2).toUShort();
-        if (port > 1024 && port <= 65535) {
+    for (const auto& item : doc.array()) {
+        QJsonObject obj = item.toObject();
+        QString hostname = obj[QStringLiteral("hostname")].toString();
+
+        if (hostname.startsWith(Scaffolding::kCenterHostnamePrefix)) {
+            QString hostIp = obj[QStringLiteral("ipv4")].toString();
+            if (hostIp.isEmpty()) continue;
+
+            bool ok = false;
+            QString portStr = hostname.mid(Scaffolding::kCenterHostnamePrefix.length());
+            quint16 port = portStr.toUShort(&ok);
+            if (!ok || port <= 1024 || port > 65535) continue;
+
             m_centerPort = port;
             m_centerIp = hostIp;
             m_discoverTimer->stop();
@@ -713,22 +718,19 @@ void MultiplayerManager::onPeerListReady()
             qCInfo(logNet) << QStringLiteral("[联机] 发现中心 ip=%1 端口=%2").arg(hostIp).arg(port);
 
             // ── Terracotta-style: port-forward → connect via 127.0.0.1 ──
-            // Instead of directly connecting to virtual IP through TUN,
-            // create a local port-forward through EasyTier mesh.
-            quint16 localPort = port;  // try same port first
+            quint16 localPort = port;
             if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localPort,
                                             hostIp, port, QStringLiteral("tcp"))) {
-                // Fallback: scan for a free port
-                bool ok = false;
+                bool portOk = false;
                 for (quint16 alt = 20000; alt < 30000; alt++) {
                     if (m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), alt,
                                                     hostIp, port, QStringLiteral("tcp"))) {
                         localPort = alt;
-                        ok = true;
+                        portOk = true;
                         break;
                     }
                 }
-                if (!ok) {
+                if (!portOk) {
                     emit errorOccurred(QStringLiteral("无法创建联机隧道端口"));
                     return;
                 }
@@ -740,8 +742,8 @@ void MultiplayerManager::onPeerListReady()
         }
     }
 
-    // Fallback: discovery failed — log and retry
-    qCInfo(logNet) << QStringLiteral("[联机] Peer列表为空 DHT中尚无主机 重试中");
+    // Fallback: no host found yet — retry
+    qCInfo(logNet) << QStringLiteral("[联机] Peer列表中无主机 重试中");
 }
 
 void MultiplayerManager::onDiscoverTimeout()
