@@ -791,6 +791,8 @@ void MultiplayerManager::onPeerListReady()
     // Parse all peers for NAT info and calculate connection difficulty (align with Terracotta)
     EasyTierNatType localNat = EasyTierNatType::Unknown;
     EasyTierNatType hostNat = EasyTierNatType::Unknown;
+    QString localNatStr;
+    QString hostNatStr;
 
     for (const auto& item : doc.array()) {
         QJsonObject obj = item.toObject();
@@ -815,11 +817,13 @@ void MultiplayerManager::onPeerListReady()
 
         if (isLocal) {
             localNat = parseNat(natTypeStr);
+            localNatStr = natTypeStr;
         }
 
         if (hostname.startsWith(Scaffolding::kCenterHostnamePrefix)) {
             if (ipv4.isEmpty()) continue;
             hostNat = parseNat(natTypeStr);
+            hostNatStr = natTypeStr;
 
             bool ok = false;
             QString portStr = hostname.mid(Scaffolding::kCenterHostnamePrefix.length());
@@ -835,7 +839,7 @@ void MultiplayerManager::onPeerListReady()
             m_connectionDifficulty = calcConnectionDifficulty(localNat, hostNat);
             qCInfo(logNet) << QStringLiteral("[联机] 发现中心 ip=%1 端口=%2 NAT=local:%3/host:%4 难度=%5")
                 .arg(ipv4).arg(port)
-                .arg(natTypeStr).arg(natTypeStr)
+                .arg(localNatStr).arg(hostNatStr)
                 .arg(static_cast<int>(m_connectionDifficulty));
             emit connectionDifficultyChanged();
 
