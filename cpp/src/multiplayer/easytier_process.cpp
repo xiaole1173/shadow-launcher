@@ -12,6 +12,9 @@
 #include <QFile>
 #include <QTemporaryFile>
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "../utils/logger.h"
 
 using namespace ShadowLauncher;
@@ -91,6 +94,13 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
         return;
     }
 
+    // Pick a deterministic RPC port from network key (align with Terracotta: PortRequest::EasyTierRPC)
+    QByteArray rpcSeed = m_networkKey.toUtf8();
+    quint32 rpcHash = qChecksum(rpcSeed);
+    m_rpcPort = 15880 + (rpcHash % (65535 - 15880));
+    // Ensure distinct from other ports
+    if (m_rpcPort == 11010) m_rpcPort++;
+
     // Kill any stale easytier-core processes to avoid port conflicts (default port 11010)
     {
         QProcess killer;
@@ -157,6 +167,8 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     args << "--p2p-only";
     args << "-l" << QStringLiteral("udp://0.0.0.0:0");
     args << "-l" << QStringLiteral("tcp://0.0.0.0:0");
+    // Explicit RPC port (align with Terracotta: PortRequest::EasyTierRPC)
+    args << "-r" << QString::number(m_rpcPort);
 
     if (isHost) {
         args << "--ipv4" << QStringLiteral("10.144.144.1");
@@ -242,6 +254,10 @@ bool EasyTierProcess::addPortForward(const QString& localAddr, quint16 localPort
     }
 
     QStringList args;
+    // Point CLI to our easytier-core RPC (align with Terracotta)
+    if (m_rpcPort > 0) {
+        args << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_rpcPort);
+    }
     args << QStringLiteral("port-forward") << QStringLiteral("add") << proto
          << QStringLiteral("%1:%2").arg(localAddr).arg(localPort)
          << QStringLiteral("%1:%2").arg(remoteAddr).arg(remotePort);
@@ -290,6 +306,9 @@ void EasyTierProcess::addRelayConnector(const QString& relayEp)
     // This process exits after ~100ms. The relay IP only appears on this
     // short-lived child's CLI — the easytier-core daemon has zero relay exposure.
     QStringList args;
+    if (m_rpcPort > 0) {
+        args << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_rpcPort);
+    }
     args << QStringLiteral("connector") << QStringLiteral("add") << relayEp;
 
     QProcess* cliProc = new QProcess(this);
@@ -417,7 +436,12 @@ void EasyTierProcess::pollPeerList()
     }
 
     // 轮询在后台进行，不输出日志避免刷屏
-    m_cliProcess->start(cliExe, {QStringLiteral("peer")});
+    QStringList cliArgs;
+    if (m_rpcPort > 0) {
+        cliArgs << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_rpcPort);
+    }
+    cliArgs << QStringLiteral("peer");
+    m_cliProcess->start(cliExe, cliArgs);
 }
 
 void EasyTierProcess::parsePeerList(const QString& output)
@@ -529,6 +553,47 @@ void EasyTierProcess::checkOutput()
         if (trimmed.isEmpty()) continue;
         parseOutputLine(trimmed);
     }
+}
+
+QList<EasyTierPeerInfo> EasyTierProcess::parsePeerListJson(const QString& jsonOutput) const
+{
+    QList<EasyTierPeerInfo> result;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonOutput.toUtf8());
+    if (!doc.isArray()) return result;
+
+    for (const auto& item : doc.array()) {
+        QJsonObject obj = item.toObject();
+        EasyTierPeerInfo info;
+        info.hostname = obj[QStringLiteral("hostname")].toString();
+        info.ipv4 = obj[QStringLiteral("ipv4")].toString();
+        info.isLocal = (obj[QStringLiteral("cost")].toString() == QStringLiteral("Local"));
+
+        // Parse NAT type (align with Terracotta mapping)
+        QString natStr = obj[QStringLiteral("nat_type")].toString();
+        if (natStr == QStringLiteral("OpenInternet"))
+            info.natType = EasyTierNatType::OpenInternet;
+        else if (natStr == QStringLiteral("NoPat"))
+            info.natType = EasyTierNatType::NoPAT;
+        else if (natStr == QStringLiteral("FullCone"))
+            info.natType = EasyTierNatType::FullCone;
+        else if (natStr == QStringLiteral("Restricted"))
+            info.natType = EasyTierNatType::Restricted;
+        else if (natStr == QStringLiteral("PortRestricted"))
+            info.natType = EasyTierNatType::PortRestricted;
+        else if (natStr == QStringLiteral("Symmetric"))
+            info.natType = EasyTierNatType::Symmetric;
+        else if (natStr == QStringLiteral("SymUdpFirewall"))
+            info.natType = EasyTierNatType::SymmetricUdpWall;
+        else if (natStr == QStringLiteral("SymmetricEasyInc"))
+            info.natType = EasyTierNatType::SymmetricEasyIncrease;
+        else if (natStr == QStringLiteral("SymmetricEasyDec"))
+            info.natType = EasyTierNatType::SymmetricEasyDecrease;
+        else
+            info.natType = EasyTierNatType::Unknown;
+
+        result.append(info);
+    }
+    return result;
 }
 
 void EasyTierProcess::parseOutputLine(const QString& line)

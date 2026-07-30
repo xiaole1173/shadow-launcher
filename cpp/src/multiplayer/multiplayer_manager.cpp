@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "multiplayer_manager.h"
+#include "mc_scanner.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QDataStream>
 #include <QIODevice>
 #include <QCryptographicHash>
@@ -17,6 +19,7 @@
 #include <QCoreApplication>
 #include <QRegularExpression>
 #include <QUdpSocket>
+#include <QDateTime>
 #include <QDebug>
 #include "../utils/logger.h"
 #include "elevated_session.h"
@@ -105,6 +108,18 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     m_idleTimer->setSingleShot(true);
     m_idleTimer->setInterval(5 * 60 * 1000);
     connect(m_idleTimer, &QTimer::timeout, this, &MultiplayerManager::onIdleTimeout);
+
+    // Host MC server health check (align with Terracotta: 5s loop, 3 failures = exception)
+    m_mcHealthTimer = new QTimer(this);
+    m_mcHealthTimer->setInterval(kMcHealthCheckIntervalMs);
+    connect(m_mcHealthTimer, &QTimer::timeout, this, &MultiplayerManager::checkMcServerHealth);
+
+    // Guest profile sync timer (pull from host every 5s, align with Terracotta)
+    m_profileSyncTimer = new QTimer(this);
+    m_profileSyncTimer->setInterval(5000);
+    connect(m_profileSyncTimer, &QTimer::timeout, this, &MultiplayerManager::syncGuestProfiles);
+
+    // MC LAN Scanner: initialize lazily when scanning starts
 }
 
 MultiplayerManager::~MultiplayerManager()
@@ -321,6 +336,13 @@ void MultiplayerManager::leaveRoom()
     if (m_discoverTimeoutTimer)
         m_discoverTimeoutTimer->stop();
     m_idleTimer->stop();
+    m_mcHealthTimer->stop();
+    m_profileSyncTimer->stop();
+    m_mcHealthFailures = 0;
+    m_connectionDifficulty = DiffUnknown;
+    m_fingerprintVerified = false;
+
+    stopScanning();
 
     m_roomCode.clear();
     m_centerIp.clear();
@@ -382,6 +404,48 @@ void MultiplayerManager::setPlayerName(const QString& name)
     m_playerName = trimmed;
     emit playerNameChanged();
     qCInfo(logNet) << QStringLiteral("[联机] 玩家名设置 name=%1").arg(m_playerName);
+}
+
+// ── MC LAN Scanning (align with Terracotta scanning.rs) ──
+
+void MultiplayerManager::startScanning()
+{
+    if (!m_scanner) {
+        m_scanner = new McScanner(this);
+        connect(m_scanner, &McScanner::serversChanged, this, [this]() {
+            emit scanResultsChanged();
+        });
+    }
+
+    // Filter out our own FakeServer announcements (align with Terracotta's filter: |m| m != MOTD)
+    static const QString kSelfMotd = QStringLiteral("\u8054\u673A MC\u670D\u52A1\u5668");  // "联机 MC服务器"
+    m_scanner->start([this](const QString& motd) -> bool {
+        return motd != kSelfMotd && !motd.trimmed().isEmpty();
+    });
+
+    qCInfo(logNet) << QStringLiteral("[联机] MC LAN扫描已启动");
+}
+
+void MultiplayerManager::stopScanning()
+{
+    if (m_scanner) {
+        m_scanner->stop();
+    }
+}
+
+QVariantList MultiplayerManager::scanResults() const
+{
+    QVariantList results;
+    if (!m_scanner) return results;
+
+    for (const auto& r : m_scanner->results()) {
+        QVariantMap entry;
+        entry[QStringLiteral("port")] = static_cast<int>(r.port);
+        entry[QStringLiteral("motd")] = r.motd;
+        entry[QStringLiteral("hostAddress")] = r.hostAddress;
+        results.append(entry);
+    }
+    return results;
 }
 
 void MultiplayerManager::prepareServerProperties(const QString& gameDir, const QString& versionId)
@@ -544,6 +608,8 @@ void MultiplayerManager::startHostServer()
 
     setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
     m_idleTimer->start();
+    m_mcHealthFailures = 0;
+    m_mcHealthTimer->start();
     emit minecraftPortReady(static_cast<int>(m_mcPort));
 
     // Host adds self to player list
@@ -721,13 +787,38 @@ void MultiplayerManager::onPeerListReady()
         return;
     }
 
+    // Parse all peers for NAT info and calculate connection difficulty (align with Terracotta)
+    EasyTierNatType localNat = EasyTierNatType::Unknown;
+    EasyTierNatType hostNat = EasyTierNatType::Unknown;
+
     for (const auto& item : doc.array()) {
         QJsonObject obj = item.toObject();
         QString hostname = obj[QStringLiteral("hostname")].toString();
+        QString ipv4 = obj[QStringLiteral("ipv4")].toString();
+        QString natTypeStr = obj[QStringLiteral("nat_type")].toString();
+        bool isLocal = (obj[QStringLiteral("cost")].toString() == QStringLiteral("Local"));
+
+        // Parse NAT type
+        auto parseNat = [](const QString& s) -> EasyTierNatType {
+            if (s == QStringLiteral("OpenInternet")) return EasyTierNatType::OpenInternet;
+            if (s == QStringLiteral("NoPat"))          return EasyTierNatType::NoPAT;
+            if (s == QStringLiteral("FullCone"))        return EasyTierNatType::FullCone;
+            if (s == QStringLiteral("Restricted"))      return EasyTierNatType::Restricted;
+            if (s == QStringLiteral("PortRestricted"))  return EasyTierNatType::PortRestricted;
+            if (s == QStringLiteral("Symmetric"))       return EasyTierNatType::Symmetric;
+            if (s == QStringLiteral("SymUdpFirewall"))  return EasyTierNatType::SymmetricUdpWall;
+            if (s == QStringLiteral("SymmetricEasyInc"))return EasyTierNatType::SymmetricEasyIncrease;
+            if (s == QStringLiteral("SymmetricEasyDec"))return EasyTierNatType::SymmetricEasyDecrease;
+            return EasyTierNatType::Unknown;
+        };
+
+        if (isLocal) {
+            localNat = parseNat(natTypeStr);
+        }
 
         if (hostname.startsWith(Scaffolding::kCenterHostnamePrefix)) {
-            QString hostIp = obj[QStringLiteral("ipv4")].toString();
-            if (hostIp.isEmpty()) continue;
+            if (ipv4.isEmpty()) continue;
+            hostNat = parseNat(natTypeStr);
 
             bool ok = false;
             QString portStr = hostname.mid(Scaffolding::kCenterHostnamePrefix.length());
@@ -735,19 +826,26 @@ void MultiplayerManager::onPeerListReady()
             if (!ok || port <= 1024 || port > 65535) continue;
 
             m_centerPort = port;
-            m_centerIp = hostIp;
+            m_centerIp = ipv4;
             m_discoverTimer->stop();
             m_discoverTimeoutTimer->stop();
-            qCInfo(logNet) << QStringLiteral("[联机] 发现中心 ip=%1 端口=%2").arg(hostIp).arg(port);
+
+            // Calculate connection difficulty (align with Terracotta)
+            m_connectionDifficulty = calcConnectionDifficulty(localNat, hostNat);
+            qCInfo(logNet) << QStringLiteral("[联机] 发现中心 ip=%1 端口=%2 NAT=local:%3/host:%4 难度=%5")
+                .arg(ipv4).arg(port)
+                .arg(natTypeStr).arg(natTypeStr)
+                .arg(static_cast<int>(m_connectionDifficulty));
+            emit connectionDifficultyChanged();
 
             // ── Terracotta-style: port-forward → connect via 127.0.0.1 ──
             quint16 localPort = port;
             if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localPort,
-                                            hostIp, port, QStringLiteral("tcp"))) {
+                                            ipv4, port, QStringLiteral("tcp"))) {
                 bool portOk = false;
                 for (quint16 alt = 20000; alt < 30000; alt++) {
                     if (m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), alt,
-                                                    hostIp, port, QStringLiteral("tcp"))) {
+                                                    ipv4, port, QStringLiteral("tcp"))) {
                         localPort = alt;
                         portOk = true;
                         break;
@@ -819,15 +917,14 @@ void MultiplayerManager::onSocketConnected()
     m_discoverTimer->stop();
     m_discoverTimeoutTimer->stop();
     setState(Connected, QStringLiteral("已连接"));
+    m_fingerprintVerified = false;
 
-    m_heartbeatTimer->start();
-    sendHeartbeat();
-
-    auto packet = Scaffolding::buildPacket(
-        Scaffolding::kProtocols,
-        Scaffolding::packProtocolList(m_supportedProtocols).toUtf8()
+    // ── Terracotta-style: verify scaffolding server identity with fingerprint ping ──
+    auto fp = Scaffolding::buildPacket(
+        Scaffolding::kPing,
+        scaffoldingFingerprint()
     );
-    m_socket->write(packet);
+    m_socket->write(fp);
 }
 
 void MultiplayerManager::onSocketDisconnected()
@@ -927,6 +1024,8 @@ void MultiplayerManager::processPacket(const QByteArray& data, QTcpSocket* socke
             handlePlayerProfilesList(body, socket);
         else
             handlePlayerProfilesResponse(body);
+    } else {
+        qCInfo(logNet) << QStringLiteral("[联机] 未知协议类型: %1").arg(type);
     }
 }
 
@@ -971,6 +1070,41 @@ void MultiplayerManager::handleServerPort(const QByteArray& /*body*/, QTcpSocket
     socket->write(packet);
 
     qCInfo(logNet) << QStringLiteral("[联机] 发送服务器端口 port=%1").arg(m_mcPort);
+}
+
+// ── Guest: ping response / fingerprint verification (align with Terracotta) ──
+void MultiplayerManager::handleGuestPingResponse(const QByteArray& body)
+{
+    // Verify 16-byte fingerprint echo
+    const QByteArray& expected = scaffoldingFingerprint();
+    if (body == expected) {
+        qCInfo(logNet) << QStringLiteral("[联机] 指纹验证通过");
+        m_fingerprintVerified = true;
+
+        // ── Step 2: protocol negotiation ──
+        m_heartbeatTimer->start();
+        sendHeartbeat();
+
+        auto packet = Scaffolding::buildPacket(
+            Scaffolding::kProtocols,
+            Scaffolding::packProtocolList(m_supportedProtocols).toUtf8()
+        );
+        m_socket->write(packet);
+    } else if (body.size() == expected.size()) {
+        // Fingerprint mismatch — log and continue (non-fatal for backwards compat)
+        qCWarning(logNet) << QStringLiteral("[联机] 指纹验证失败 (size正确但内容不匹配)");
+        m_fingerprintVerified = false;
+
+        m_heartbeatTimer->start();
+        sendHeartbeat();
+
+        auto packet = Scaffolding::buildPacket(
+            Scaffolding::kProtocols,
+            Scaffolding::packProtocolList(m_supportedProtocols).toUtf8()
+        );
+        m_socket->write(packet);
+    }
+    // If body doesn't match at all, ignore (might be a different kind of ping)
 }
 
 // ── Guest: protocol negotiation response ──
@@ -1047,10 +1181,12 @@ void MultiplayerManager::handleGuestServerPort(const QByteArray& body)
         qCInfo(logNet) << QStringLiteral("[联机] MC端口转发已建立 本地端口=%1").arg(localMcPort);
         emit minecraftPortReady(static_cast<int>(localMcPort));
 
-        // ── Start FakeServer: broadcast MC LAN discovery packets ──
-        // Periodically sends UDP multicast announcements so the guest's
-        // MC client auto-discovers the server in the multiplayer LAN tab.
-        startFakeServer(localMcPort);
+        // ── Terracotta-style: verify MC connection before declaring OK ──
+        // Send 0xFE ping to MC server, expect 0xFF response.
+        // Retry up to 8 times with ~1.5s interval.
+        setState(VerifyingConnection, QStringLiteral("正在验证MC连接..."));
+        m_mcVerifyRetries = 0;
+        verifyMcConnection();
     }
     // spec: 0xFFFF = server not started, ignore for now
 }
@@ -1276,6 +1412,153 @@ void MultiplayerManager::broadcastPlayers()
         );
         sock->write(packet);
     }
+}
+
+// ─────────────────────────────────────────
+// Host MC server health check (align with Terracotta)
+// ─────────────────────────────────────────
+
+void MultiplayerManager::checkMcServerHealth()
+{
+    if (m_role != Host || m_state == Idle || m_state == Error)
+        return;
+
+    // Try TCP connect to local MC server port
+    QTcpSocket testSocket;
+    testSocket.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
+    bool connected = testSocket.waitForConnected(2000);
+
+    if (connected) {
+        // Send 0xFE (legacy server list ping) and expect 0xFF response
+        testSocket.write(QByteArray(1, static_cast<char>(0xFE)));
+        testSocket.waitForBytesWritten(500);
+        if (testSocket.waitForReadyRead(2000)) {
+            QByteArray response = testSocket.read(1);
+            if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
+                m_mcHealthFailures = 0;
+                testSocket.disconnectFromHost();
+                return;
+            }
+        }
+        testSocket.disconnectFromHost();
+    }
+
+    // Connection failed
+    m_mcHealthFailures++;
+    qCWarning(logNet) << QStringLiteral("[联机] MC服务器健康检查失败 (#%1) port=%2")
+        .arg(m_mcHealthFailures).arg(m_mcPort);
+
+    if (m_mcHealthFailures >= kMcHealthMaxFailures) {
+        qCWarning(logNet) << QStringLiteral("[联机] MC服务器已断开，终止联机会话");
+        m_mcHealthTimer->stop();
+        emit errorOccurred(QStringLiteral("MC服务器连接已断开，联机会话结束"));
+        leaveRoom();
+    }
+}
+
+// ─────────────────────────────────────────
+// Guest MC connection verification (0xFE handshake, align with Terracotta)
+// ─────────────────────────────────────────
+
+void MultiplayerManager::verifyMcConnection()
+{
+    if (m_role != Guest || m_mcPort == 0)
+        return;
+
+    QTcpSocket testSocket;
+    testSocket.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
+    bool connected = testSocket.waitForConnected(2000);
+
+    if (connected) {
+        // Send 0xFE legacy ping, expect 0xFF response
+        testSocket.write(QByteArray(1, static_cast<char>(0xFE)));
+        testSocket.waitForBytesWritten(500);
+        if (testSocket.waitForReadyRead(2000)) {
+            QByteArray response = testSocket.read(1);
+            if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
+                qCInfo(logNet) << QStringLiteral("[联机] MC连接验证通过 port=%1").arg(m_mcPort);
+                testSocket.disconnectFromHost();
+
+                // Connection OK — start FakeServer and proceed
+                startFakeServer(m_mcPort);
+
+                // Start profile sync timer (pull profiles from host every 5s)
+                m_profileSyncTimer->start();
+                syncGuestProfiles();
+                return;
+            }
+        }
+        testSocket.disconnectFromHost();
+    }
+
+    // Retry
+    m_mcVerifyRetries++;
+    qCInfo(logNet) << QStringLiteral("[联机] MC连接验证中 尝试 #%1 port=%2")
+        .arg(m_mcVerifyRetries).arg(m_mcPort);
+
+    if (m_mcVerifyRetries >= kMcVerifyMaxRetries) {
+        qCWarning(logNet) << QStringLiteral("[联机] MC连接验证失败，已达最大重试次数");
+        m_mcVerifyRetries = 0;
+        emit errorOccurred(QStringLiteral("无法连接到联机服务器的MC端口"));
+        setState(Error, QStringLiteral("MC连接验证失败"));
+    } else {
+        // Retry after 1.5s
+        QTimer::singleShot(1500, this, &MultiplayerManager::verifyMcConnection);
+    }
+}
+
+// ─────────────────────────────────────────
+// Guest profile sync: actively pull from host (align with Terracotta)
+// ─────────────────────────────────────────
+
+void MultiplayerManager::syncGuestProfiles()
+{
+    if (m_role != Guest || !m_socket || m_socket->state() != QAbstractSocket::ConnectedState)
+        return;
+
+    // Send player_ping as heartbeat and profile sync request
+    sendHeartbeat();
+
+    // Also request full profile list
+    auto packet = Scaffolding::buildPacket(
+        Scaffolding::kPlayerProfilesList,
+        QByteArray()
+    );
+    m_socket->write(packet);
+}
+
+// ─────────────────────────────────────────
+// Connection difficulty from NAT types (align with Terracotta)
+// ─────────────────────────────────────────
+
+MultiplayerManager::ConnectionDifficulty MultiplayerManager::calcConnectionDifficulty(
+    EasyTierNatType local, EasyTierNatType remote) const
+{
+    auto isType = [&](const QList<EasyTierNatType>& types) -> bool {
+        return types.contains(local) || types.contains(remote);
+    };
+
+    if (isType({EasyTierNatType::OpenInternet}))
+        return DiffEasiest;
+    if (isType({EasyTierNatType::NoPAT, EasyTierNatType::FullCone}))
+        return DiffSimple;
+    if (isType({EasyTierNatType::Restricted, EasyTierNatType::PortRestricted}))
+        return DiffMedium;
+    return DiffTough;
+}
+
+// ─────────────────────────────────────────
+// Scaffolding fingerprint for ping verification (align with Terracotta)
+// The fingerprint is a 16-byte magic sequence used to verify the
+// scaffolding server identity before protocol negotiation.
+// ─────────────────────────────────────────
+
+const QByteArray& MultiplayerManager::scaffoldingFingerprint()
+{
+    static const QByteArray kFingerprint = QByteArray::fromHex(
+        QStringLiteral("41574844863740595744924396998501").toLatin1()
+    );
+    return kFingerprint;
 }
 
 // ── Static: offline player head path (Steve/Alex algorithm) ──

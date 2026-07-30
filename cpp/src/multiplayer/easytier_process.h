@@ -17,6 +17,28 @@
 #include <shellapi.h>
 #endif
 
+// NAT types from EasyTier peer JSON — declared before use
+enum class EasyTierNatType {
+    Unknown,
+    OpenInternet,
+    NoPAT,
+    FullCone,
+    Restricted,
+    PortRestricted,
+    Symmetric,
+    SymmetricUdpWall,
+    SymmetricEasyIncrease,
+    SymmetricEasyDecrease
+};
+
+// Peer member info parsed from CLI output
+struct EasyTierPeerInfo {
+    QString hostname;
+    QString ipv4;
+    bool isLocal = false;
+    EasyTierNatType natType = EasyTierNatType::Unknown;
+};
+
 class EasyTierProcess : public QObject {
     Q_OBJECT
 public:
@@ -43,6 +65,10 @@ public:
 
     QString virtualIp() const { return m_virtualIp; }
     quint16 centerPort() const { return m_centerPort; }
+    quint16 rpcPort() const { return m_rpcPort; }
+
+    // Parse peer list JSON from easytier-cli peer -o json and return structured info
+    QList<EasyTierPeerInfo> parsePeerListJson(const QString& jsonOutput) const;
 
 signals:
     void networkReady(const QString& virtualIp);
@@ -82,4 +108,7 @@ private:
 
     // CLI polling for peer status
     QProcess* m_cliProcess = nullptr;
+
+    // RPC port for easytier-cli communication
+    quint16 m_rpcPort = 0;
 };

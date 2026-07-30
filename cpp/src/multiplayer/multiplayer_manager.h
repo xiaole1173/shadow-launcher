@@ -15,6 +15,7 @@
 #include "easytier_process.h"
 #include "scaffolding_protocol.h"
 #include "connection_guard.h"
+#include "mc_scanner.h"
 
 namespace ShadowLauncher {
 
@@ -37,12 +38,22 @@ public:
         Connecting,
         Connected,
         WaitingForGuests,
+        VerifyingConnection,  // Guest: verifying MC server connection
         Error
     };
     Q_ENUM(State)
 
     enum Role { None, Host, Guest };
     Q_ENUM(Role)
+
+    enum ConnectionDifficulty {
+        DiffUnknown,
+        DiffEasiest,
+        DiffSimple,
+        DiffMedium,
+        DiffTough
+    };
+    Q_ENUM(ConnectionDifficulty)
 
     static constexpr int kMaxPlayers = 5;  // Including host
 
@@ -56,6 +67,7 @@ public:
     QVariantList players() const { return m_players; }
     Role role() const { return m_role; }
     QString playerName() const { return m_playerName; }
+    int connectionDifficulty() const { return static_cast<int>(m_connectionDifficulty); }
 
     // ── QML-callable ──
     Q_INVOKABLE static QString playerHeadPath(const QString& name, const QString& dataDir);
@@ -76,7 +88,13 @@ public:
     Q_INVOKABLE void prepareServerProperties(const QString& gameDir, const QString& versionId);
     Q_INVOKABLE void setPlayerName(const QString& name);
 
+    // MC LAN scanning (align with Terracotta scanning.rs)
+    Q_INVOKABLE void startScanning();
+    Q_INVOKABLE void stopScanning();
+    Q_INVOKABLE QVariantList scanResults() const;
+
     Q_PROPERTY(QString playerName READ playerName NOTIFY playerNameChanged)
+    Q_PROPERTY(int connectionDifficulty READ connectionDifficulty NOTIFY connectionDifficultyChanged)
 
 signals:
     void roomCodeChanged();
@@ -87,10 +105,25 @@ signals:
     void minecraftPortReady(int port);
     void errorOccurred(const QString& msg);
     void playerNameChanged();
+    void connectionDifficultyChanged();
+
+    // Emitted when FakeServer should announce a given MC port on the LAN multicast
+    // Used by the guest to make the MC client auto-discover the proxied server
+    void fakeServerStarted(int port);
+    void fakeServerStopped();
+
+    // MC LAN scan results changed (align with Terracotta scanning.rs)
+    void scanResultsChanged();
 
 private slots:
     void onNetworkReady(const QString& virtualIp);
     void onEasyTierError(const QString& msg);
+
+    // ── Host MC server health check ──
+    void checkMcServerHealth();
+
+    // ── Guest MC connection verification (0xFE handshake) ──
+    void verifyMcConnection();
 
     // ── Client (guest) mode ──
     void onSocketConnected();
@@ -130,11 +163,29 @@ private:
     void handlePlayerProfilesResponse(const QByteArray& body);
 
     // ── Guest protocol negotiation flow ──
+    void handleGuestPingResponse(const QByteArray& body);
     void handleGuestProtocolsResponse(const QByteArray& body);
     void requestServerPort();
     void handleGuestServerPort(const QByteArray& body);
 
     void broadcastPlayers();
+
+    // Guest profile sync: actively pull player profiles from host (align with Terracotta)
+    void syncGuestProfiles();
+
+    // MC LAN scanner (align with Terracotta scanning.rs)
+    McScanner* m_scanner = nullptr;
+
+    // Calculate connection difficulty from local and remote NAT types
+    ConnectionDifficulty calcConnectionDifficulty(EasyTierNatType local, EasyTierNatType remote) const;
+
+    // Fingerprint verification for scaffolding ping (16-byte challenge-response)
+    static constexpr int kScaffoldingFingerprintLen = 16;
+    static const QByteArray& scaffoldingFingerprint();
+
+    // MC server health monitoring constants
+    static constexpr int kMcHealthCheckIntervalMs = 5000;
+    static constexpr int kMcHealthMaxFailures = 3;
 
     // FakeServer: UDP LAN multicast (224.0.2.60:4445) for MC auto-discovery
     // Sends [MOTD]...[/MOTD][AD]{port}[/AD] every 1.5s on guest side
@@ -163,7 +214,19 @@ private:
     QTimer* m_discoverTimer = nullptr;
     QTimer* m_discoverTimeoutTimer = nullptr;  // 60s discovery timeout
     QTimer* m_idleTimer = nullptr;             // 5min idle timeout (host only)
+    QTimer* m_mcHealthTimer = nullptr;   // Host MC server health check
+    QTimer* m_profileSyncTimer = nullptr; // Guest profile sync
     QProcess* m_peerQuery = nullptr;      // easyTier peer list query
+
+    // MC connection verification (retry counter for 0xFE ping)
+    int m_mcVerifyRetries = 0;
+    static constexpr int kMcVerifyMaxRetries = 8;
+
+    // Host MC health tracking
+    int m_mcHealthFailures = 0;
+
+    // Connection difficulty (from NAT type analysis)
+    ConnectionDifficulty m_connectionDifficulty = DiffUnknown;
 
     State m_state = Idle;
     Role m_role = None;
@@ -180,6 +243,9 @@ private:
     QStringList m_supportedProtocols;
     QStringList m_centerProtocols;
     QByteArray m_readBuffer;
+
+    // Fingerprint verification state
+    bool m_fingerprintVerified = false;
 };
 
 } // namespace ShadowLauncher
