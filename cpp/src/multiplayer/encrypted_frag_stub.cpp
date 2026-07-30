@@ -1,4 +1,4 @@
-// encrypted_frag_stub.cpp — Placeholder for open source / CI builds.
+﻿// encrypted_frag_stub.cpp — Placeholder for open source / CI builds.
 // When the real encrypted fragment .cpp files are present (gitignored, local),
 // they override this stub. The build system conditionally selects sources.
 //

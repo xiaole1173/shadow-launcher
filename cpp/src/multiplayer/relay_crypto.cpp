@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 // AES-256-GCM decryption for flat opaque blob (relay server & Worker URL)
 // Uses Windows CNG (bcrypt.dll) — zero extra deps

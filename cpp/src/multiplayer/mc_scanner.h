@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 // Minecraft LAN Scanner — listens on 224.0.2.60:4445 for [MOTD]...[/MOTD][AD]port[/AD]
 // Aligns with Terracotta scanning.rs: multicast discovery with MOTD filter + 5s expiry

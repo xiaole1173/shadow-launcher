@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 �?/ Shadow / xiaole1173
 // Multiplayer Manager �?orchestrates EasyTier + Scaffolding protocol
 #pragma once
@@ -222,6 +222,7 @@ private:
     QTimer* m_idleTimer = nullptr;             // 5min idle timeout (host only)
     QTimer* m_mcHealthTimer = nullptr;   // Host MC server health check (5s, after MC confirmed alive)
     QTimer* m_mcPresenceTimer = nullptr; // Host MC server presence probe (2s, before health check)
+    QTimer* m_mcPresenceTimeoutTimer = nullptr; // Host MC presence timeout (2 min)
     QTimer* m_profileSyncTimer = nullptr; // Guest profile sync
     QProcess* m_peerQuery = nullptr;      // easyTier peer list query
 

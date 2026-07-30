@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "multiplayer_manager.h"
 #include "mc_scanner.h"
@@ -348,6 +348,11 @@ void MultiplayerManager::leaveRoom()
         m_discoverTimeoutTimer->stop();
     m_idleTimer->stop();
     m_mcPresenceTimer->stop();
+    if (m_mcPresenceTimeoutTimer) {
+        m_mcPresenceTimeoutTimer->stop();
+        m_mcPresenceTimeoutTimer->deleteLater();
+        m_mcPresenceTimeoutTimer = nullptr;
+    }
     m_mcHealthTimer->stop();
     m_profileSyncTimer->stop();
     m_mcHealthFailures = 0;
@@ -627,6 +632,20 @@ void MultiplayerManager::startHostServer()
     m_idleTimer->start();
     m_mcHealthFailures = 0;
     m_mcPresenceTimer->start();
+    // Presence timeout: if MC doesn't respond within 2 minutes, auto-close
+    // Use member timer instead of QTimer::singleShot to prevent use-after-free
+    m_mcPresenceTimeoutTimer = new QTimer(this);
+    m_mcPresenceTimeoutTimer->setSingleShot(true);
+    m_mcPresenceTimeoutTimer->setInterval(kMcPresenceTimeoutMs);
+    connect(m_mcPresenceTimeoutTimer, &QTimer::timeout, this, [this]() {
+        if (m_state == WaitingForMcServer) {
+            qCWarning(logNet) << QStringLiteral("[联机] MC服务器启动超时 %1秒 自动关闭").arg(kMcPresenceTimeoutMs / 1000);
+            m_mcPresenceTimer->stop();
+            emit errorOccurred(QStringLiteral("MC服务器启动超时，联机会话结束"));
+            leaveRoom();
+        }
+    });
+    m_mcPresenceTimeoutTimer->start();
     emit minecraftPortReady(static_cast<int>(m_mcPort));
 
     // Host adds self to player list

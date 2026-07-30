@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 // Port Request — probe a specific port for availability, or get any free port.
 // Aligns with Terracotta ports.rs: request_specific() + request()
