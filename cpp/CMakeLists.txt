@@ -71,7 +71,13 @@ set(SOURCES
     src/core/mod_loader_installer.cpp
     src/core/local_mod_manager.cpp
     src/core/modpack_importer.cpp
+    src/core/modpack/modpack_common.cpp
+    src/core/modpack/zip_archive.cpp
+    src/core/modpack/modpack_parser.cpp
+    src/core/modpack/modpack_downloader.cpp
+    src/core/modpack/modpack_install_task.cpp
     src/core/update_manager.cpp
+    thirdparty/miniz/miniz.c
     src/core/migration_manager.cpp
     src/utils/lzma/LzmaDec.c
     src/core/download_coordinator.cpp
@@ -120,6 +126,11 @@ set(HEADERS
     src/core/mod_manager.h
     src/core/local_mod_manager.h
     src/core/modpack_importer.h
+    src/core/modpack/modpack_common.h
+    src/core/modpack/zip_archive.h
+    src/core/modpack/modpack_parser.h
+    src/core/modpack/modpack_downloader.h
+    src/core/modpack/modpack_install_task.h
     src/core/update_manager.h
     src/core/migration_manager.h
     src/core/version_isolation.h
@@ -446,6 +457,9 @@ set(WEBP_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/libwebp")
 target_include_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/include")
 target_link_directories(ShadowLauncher PRIVATE "${WEBP_ROOT}/lib")
 
+# 鈹€鈹€ miniz (public domain, ZIP 解压 — 整合包导入用) 鈹€鈹€
+target_include_directories(ShadowLauncher PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/miniz")
+
 # Define WEBP_STATIC_LINK for static lib (needed on Windows)
 target_compile_definitions(ShadowLauncher PRIVATE
     WEBP_STATIC_LINK
@@ -510,6 +524,27 @@ if(WIN32)
             "$<TARGET_FILE_DIR:ShadowLauncher>/qml/agreements"
         COMMENT "Copying agreement HTMLs for dev-mode..."
     )
+endif()
+
+# ============================================================
+# Modpack 模块自测（可选目标，不参与主程序构建）
+#   cmake -S . -B build-test -DSHADOW_BUILD_MODPACK_SELFTEST=ON
+# ============================================================
+option(SHADOW_BUILD_MODPACK_SELFTEST "Build modpack self-test executable" OFF)
+if(SHADOW_BUILD_MODPACK_SELFTEST)
+    add_executable(ModpackSelfTest
+        tests/test_modpack.cpp
+        tests/test_zip_helper.cpp
+        src/core/modpack/modpack_common.cpp
+        src/core/modpack/zip_archive.cpp
+        src/core/modpack/modpack_parser.cpp
+        src/core/modpack/modpack_downloader.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+        thirdparty/miniz/miniz.c
+    )
+    target_include_directories(ModpackSelfTest PRIVATE src thirdparty/miniz)
+    target_link_libraries(ModpackSelfTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 endif()
 
 # ============================================================

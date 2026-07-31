@@ -8,36 +8,38 @@
 #include <QVariantMap>
 #include <QJsonObject>
 #include <QStringList>
-#include <QElapsedTimer>
-#include <QList>
-#include <QMap>
-#include <QPointer>
+
 #include <memory>
-#include <atomic>
-#include <functional>
 
 namespace ShadowLauncher {
-    class HttpClient;
-    class FileDownloader;
-    class DownloadQueue;
-    class VersionBackend;
-}
 
-// ── Modpack import engine ──
-// Handles parsing, installing, and downloading for Modrinth (.mrpack) and
-// CurseForge (.zip) modpack formats in a self-contained async flow.
-namespace ShadowLauncher {
+class ModpackInstallTask;
+class VersionBackend;
+class VersionIsolation;
+
+// ── Modpack import engine（门面）──
+//
+// 重构说明：旧实现（PowerShell 解压 / 硬编码路径 / 嵌套事件循环 / MCIM 镜像）
+// 整体废弃。本类保持 QML 既有接口面不变（busy/statusText/progress/currentFile/
+// hasResult/resultName/resultVersionId/modItems + startImport/cancelImport/
+// dismissResult + importFinished），实际流程委托给分层模块：
+//   ModpackParser（解析层）→ ZipArchive（文件工具）→ ModpackDownloader（网络层）
+//   → ModpackInstallTask（任务调度层）
+// 新增信号（logLine / stepChanged / fileProgressChanged）供后续 QML 使用，纯增量。
 class ModpackImporter : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool busy READ isBusy NOTIFY busyChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY progressChanged)
     Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
     Q_PROPERTY(QString currentFile READ currentFile NOTIFY progressChanged)
+    Q_PROPERTY(QString currentStep READ currentStep NOTIFY stepChanged)
     Q_PROPERTY(bool hasResult READ hasResult NOTIFY hasResultChanged)
     Q_PROPERTY(QString resultName READ resultName NOTIFY hasResultChanged)
     Q_PROPERTY(QString resultVersionId READ resultVersionId NOTIFY hasResultChanged)
     // Mod download list for QML display
     Q_PROPERTY(QVariantList modItems READ modItems NOTIFY modListChanged)
+    // 实时运行日志（供 QML 日志面板）
+    Q_PROPERTY(QString lastLogLine READ lastLogLine NOTIFY logLine)
 
 public:
     enum Format { Unknown = 0, Modrinth, CurseForge };
@@ -59,24 +61,32 @@ public:
     ~ModpackImporter() override;
 
     // ── Properties ──
-    bool isBusy() const { return m_busy; }
-    QString statusText() const { return m_statusText; }
-    qreal progress() const { return m_progress; }
-    QString currentFile() const { return m_currentFile; }
-    bool hasResult() const { return m_hasResult; }
-    QString resultName() const { return m_resultName; }
-    QString resultVersionId() const { return m_resultVersionId; }
-    QVariantList modItems() const { return m_modItems; }
+    bool isBusy() const;
+    QString statusText() const;
+    qreal progress() const;
+    QString currentFile() const;
+    QString currentStep() const;
+    bool hasResult() const;
+    QString resultName() const;
+    QString resultVersionId() const;
+    QVariantList modItems() const;
+    QString lastLogLine() const { return m_lastLogLine; }
 
-    // ── Public API ──
-    Q_INVOKABLE void startImport(const QString& zipFilePath);
+    // ── Public API（QML 既有接口，保持不变）──
+    Q_INVOKABLE void startImport(const QString& zipFilePath,
+                                 bool includeOptional = false);
     Q_INVOKABLE void cancelImport();
     Q_INVOKABLE void dismissResult();  // Called from QML after user dismisses success
 
-    // Set VersionBackend for loader installation
+    // ── 依赖注入 ──
     void setVersionBackend(VersionBackend* vb);
+    void setGameDir(const QString& dir);
+    void setIsolation(VersionIsolation* iso);
+    // CurseForge API Key（官方 x-api-key 鉴权）。为空时自动回退读取
+    // 环境变量 SHADOW_CF_API_KEY 与 {gameDir}/config/cf_api_key.json。
+    Q_INVOKABLE void setCurseForgeApiKey(const QString& key);
 
-    // Static helpers for modpack format detection
+    // Static helpers for modpack format detection（保留兼容）
     static Format detectFormat(const QString& zipPath);
     static QJsonObject parseManifest(const QString& zipPath, Format fmt);
 
@@ -85,74 +95,36 @@ signals:
     void progressChanged();
     void hasResultChanged();
     void modListChanged();
-    // Import completed/failed
+    // 新增（增量，供后续 QML）：
+    void stepChanged();
+    void logLine(const QString& msg);
+    void fileProgressChanged(const QString& fileName, qreal fileProgress);
+    // Import completed/failed（既有接口）
     void importFinished(bool success, const QString& versionName, const QString& error);
 
 private:
-    // Internal steps
-    void setStep(Step s);
-    void setProgress(qreal p, const QString& text, const QString& file = {});
-    void setError(const QString& message);
-    void finishImport(const QString& name, const QString& verId);
+    void loadApiKeyFromConfig();
+    void updateFromTask();
+    void clearResult();
 
-    // Parsing
-    struct ModpackMeta {
-        Format format = Unknown;
-        QString name;
-        QString versionId;
-        QString summary;
-        QString mcVersion;
-        QString loaderType;    // "forge", "fabric-loader", "neoforge", "quilt-loader"
-        QString loaderVersion;
-        QList<QVariantMap> mods;        // For download
-        bool hasOverrides = false;
-        QStringList overridesPaths;      // Files in overrides/ dir
-    };
-    bool parseZip(const QString& path);
+    ModpackInstallTask* m_task = nullptr;
+    VersionBackend* m_versionBackend = nullptr;
+    VersionIsolation* m_isolation = nullptr;
+    QString m_gameDir;
+    QString m_apiKey;
+    bool m_apiKeyLoaded = false;
 
-    // Installation helpers
-    bool installMcVersion(const QString& versionId, const QString& targetName);
-    bool installModLoader(const QString& mcVersion, const QString& loaderType,
-                          const QString& loaderVersion, const QString& targetName);
-    bool downloadMods();
-    bool extractOverrides(const QString& gameDir);
-
-
-    // Network
-    QByteArray downloadUrl(const QString& url);
-
-    // State
-    std::atomic<bool> m_cancelled{false};
+    // 转发用镜像状态
     bool m_busy = false;
     QString m_statusText;
     qreal m_progress = 0.0;
     QString m_currentFile;
+    QString m_currentStep;
     bool m_hasResult = false;
     QString m_resultName;
     QString m_resultVersionId;
-    QVariantList m_modItems;     // {name, size, status} for QML
-    Step m_currentStep = StepNone;
-
-    // Parsed metadata
-    ModpackMeta m_meta;
-    QString m_zipPath;
-    QString m_targetName;        // The final version folder name
-    QString m_mcDir;             // .minecraft root
-    QString m_versionsDir;       // .minecraft/versions/
-    QString m_modsDir;           // .minecraft/versions/targetName/mods/
-
-    // Internal flow control
-    void proceedToInstall();
-    void proceedToModDownload();
-    void proceedToOverlayExtract();
-
-    // VersionBackend for loader installation
-    VersionBackend* m_versionBackend = nullptr;
-
-    // Network helpers
-    HttpClient* m_http = nullptr;
-    DownloadQueue* m_downloadQueue = nullptr;
-    int m_modsTotal = 0;
+    QString m_lastLogLine;
+    QVariantList m_modItems;
 };
 
 } // namespace ShadowLauncher

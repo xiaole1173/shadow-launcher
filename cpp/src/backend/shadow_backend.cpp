@@ -137,7 +137,11 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_modpackImporter = new ModpackImporter(this);
     {
         auto* importer = qobject_cast<ModpackImporter*>(m_modpackImporter);
-        if (importer) importer->setVersionBackend(m_version);
+        if (importer) {
+            importer->setVersionBackend(m_version);
+            importer->setGameDir(m_app->gameDir());
+            importer->setIsolation(m_settings->isolation());
+        }
     }
     syncPlayerName();
     bp("IconCache");
