@@ -25,8 +25,32 @@ Item {
     property int doneCount: 0
     property int failedStep: 0
     property bool running: true
+    // 总进度（0..1）：>=0 时轨道填充与后端总进度同步（按阶段边界归一，见 _fill）
+    property real progress: -1
 
     readonly property int _n: steps.length
+
+    // 轨道填充比例：
+    //  - 失败：填充到失败阶段前（红色）
+    //  - 传入总进度：按阶段边界（解析5%/解压10%/下载55%/安装25%/收尾5%）分阶段归一
+    //  - 兜底：按 doneCount 分段填充
+    readonly property real _fill: {
+        if (root.failedStep > 0)
+            return root._n > 1 ? Math.min(1.0, root.doneCount / (root._n - 1)) : 1.0
+        if (root.progress >= 0.0 && root.progress <= 1.0) {
+            var bounds = [0.0, 0.05, 0.15, 0.70, 0.95, 1.0]
+            var p = root.progress
+            var stage = 1
+            for (var i = 1; i < bounds.length; ++i) {
+                if (p <= bounds[i]) { stage = i; break }
+            }
+            var s = bounds[stage - 1]
+            var e = bounds[stage]
+            var frac = (e > s) ? Math.max(0.0, Math.min(1.0, (p - s) / (e - s))) : 1.0
+            return root._n > 1 ? Math.min(1.0, ((stage - 1) + frac) / (root._n - 1)) : 1.0
+        }
+        return root._n > 1 ? Math.min(1.0, root.doneCount / (root._n - 1)) : 1.0
+    }
 
     // ── 轨道线（圆环中心高度，位于圆下方经背景贯穿）──
     Rectangle {
@@ -43,7 +67,7 @@ Item {
             id: trackFill
             height: 2
             radius: 1
-            width: track.width * Math.min(1.0, root._n > 1 ? root.doneCount / (root._n - 1) : 1.0)
+            width: track.width * root._fill
             color: root.failedStep > 0 ? StyleTokens.errorLight : StyleTokens.success
             Behavior on width { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
             Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }

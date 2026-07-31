@@ -42,6 +42,8 @@ public:
     void setFiles(QList<ModpackRemoteFile>* files) { m_files = files; }
     // 覆盖钩子：落盘前若目标已存在旧文件则回调（任务层用于回滚备份）
     void setOverwriteHook(const std::function<void(const QString& savePath)>& hook) { m_overwriteHook = hook; }
+    // 新建文件钩子：成功落盘（原子改名后）回调（任务层登记回滚，失败/取消时清理）
+    void setCreatedHook(const std::function<void(const QString& savePath)>& hook) { m_createdHook = hook; }
 
     // 启动：先解析 CF 下载地址，再并发下载。includeOptional=true 时连可选文件一起下。
     void start(bool includeOptional);
@@ -106,16 +108,15 @@ private:
     int m_total = 0;
     int m_completed = 0;
     int m_failed = 0;
-    int m_skipped = 0;
 
     int m_activeSlots = 0;
     static constexpr int kMaxConcurrent = 3;
 
     bool m_running = false;
     bool m_cancelled = false;
-    bool m_resolveDone = false;
     QList<int> m_downloadUrlPending;   // 待补解析 download-url 的条目（镜像优先）
     std::function<void(const QString&)> m_overwriteHook;   // 覆盖旧文件前的回调
+    std::function<void(const QString&)> m_createdHook;     // 新建文件落盘后的回调（回滚登记）
     QList<QPointer<QNetworkReply>> m_inflight;   // 在途请求（取消时 abort）
 };
 

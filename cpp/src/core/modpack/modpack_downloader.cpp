@@ -180,8 +180,6 @@ void ModpackDownloader::start(bool includeOptional)
     m_total = m_files->size();
     m_completed = 0;
     m_failed = 0;
-    m_skipped = 0;
-    m_resolveDone = false;
     m_items.clear();
     m_inflight.clear();
 
@@ -214,7 +212,6 @@ void ModpackDownloader::start(bool includeOptional)
         if (!rf.required && !m_includeOptional) {
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("可选文件已跳过");
-            m_skipped++;
             m_completed++;
             if (i < m_files->size()) {
                 m_files->operator[](i).status = QStringLiteral("skipped");
@@ -244,7 +241,6 @@ void ModpackDownloader::start(bool includeOptional)
         emit logLine(tr("解析 %1 个 CurseForge 文件下载地址").arg(cfIndexes.size()));
         resolveBatch(0);
     } else {
-        m_resolveDone = true;
         emit statusChanged(tr("开始下载模组…"));
         scheduleNext();
     }
@@ -262,7 +258,6 @@ void ModpackDownloader::resolveBatch(int startIndex)
             cfIndexes.append(i);
     }
     if (cfIndexes.isEmpty()) {
-        m_resolveDone = true;
         scheduleNext();
         return;
     }
@@ -315,9 +310,15 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
         byId.insert(o.value(QStringLiteral("id")).toInt(-1), o);
     }
 
-    for (int i = startIndex; i < m_total; ++i) {
+    // ⚠ 只处理本批次请求过的 CF 条目（与 resolveBatch 收集逻辑一致：
+    // 自 startIndex 起前 kCfBatchSize 个 CF 条目）。
+    // 修复：先前整段扫描到 m_total，响应只含本批 fileId，导致整合包 CF
+    // 文件数 > 50 时，后续批次被误判「文件已被删除」而全部失败。
+    int processed = 0;
+    for (int i = startIndex; i < m_total && processed < kCfBatchSize; ++i) {
         ModpackRemoteFile& rf = m_files->operator[](i);
         if (rf.source != QLatin1String("curseforge")) continue;
+        ++processed;
 
         const QJsonObject o = byId.value(rf.fileId);
         if (o.isEmpty()) {
@@ -387,7 +388,6 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
             emit statusChanged(tr("正在补全下载地址…"));
             resolveDownloadUrls();
         } else {
-            m_resolveDone = true;
             emit statusChanged(tr("开始下载模组…"));
             scheduleNext();
         }
@@ -399,7 +399,6 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
 void ModpackDownloader::resolveDownloadUrls()
 {
     if (m_cancelled || m_downloadUrlPending.isEmpty()) {
-        m_resolveDone = true;
         emit statusChanged(tr("开始下载模组…"));
         scheduleNext();
         return;
@@ -458,7 +457,6 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
         if (!m_downloadUrlPending.isEmpty()) {
             resolveDownloadUrls();  // 补位继续
         } else {
-            m_resolveDone = true;
             emit statusChanged(tr("开始下载模组…"));
             scheduleNext();
         }
@@ -570,7 +568,6 @@ void ModpackDownloader::startItem(int idx)
             // 取消路径：不逐文件报错，统一收尾
             if (!m_items[idx].finished) {
                 m_items[idx].finished = true;
-                m_skipped++;
                 m_completed++;
             }
             finishIfAllDone();
@@ -665,7 +662,8 @@ void ModpackDownloader::finalizeItem(int idx, bool ok, const QString& err)
     it.finished = true;
 
     if (ok) {
-        if (QFileInfo::exists(it.savePath)) {
+        const bool hadOld = QFileInfo::exists(it.savePath);
+        if (hadOld) {
             if (m_overwriteHook) m_overwriteHook(it.savePath);  // 先备份旧文件
             QFile::remove(it.savePath);
         }
@@ -673,6 +671,9 @@ void ModpackDownloader::finalizeItem(int idx, bool ok, const QString& err)
             QFile::remove(it.tmpPath);
             ok = false;
             it.error = tr("临时文件改名失败");
+        } else if (!hadOld && m_createdHook) {
+            // 新建文件登记回滚：任务失败/取消时清理（共享目录模式不残留）
+            m_createdHook(it.savePath);
         }
     } else {
         it.error = err;
@@ -728,7 +729,6 @@ void ModpackDownloader::cancel()
         if (!m_items[i].finished && !m_items[i].inFlight) {
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("已取消");
-            m_skipped++;
             m_completed++;
             if (i < m_files->size()) {
                 m_files->operator[](i).status = QStringLiteral("skipped");

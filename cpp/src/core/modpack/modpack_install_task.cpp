@@ -219,6 +219,12 @@ void ModpackInstallTask::runExtract()
                     fatalError = tr("解压整合包失败（文件损坏或磁盘错误）");
                     break;
                 }
+                if (n == -3) {
+                    // 致命写盘错误（磁盘满/权限拒绝）：必须中止导入，不能当作取消静默继续
+                    fatal = true;
+                    fatalError = tr("解压失败：磁盘空间不足或文件写入被拒绝");
+                    break;
+                }
                 if (n == -2) break;  // 取消
                 totalExtracted += qMax(0, n);
             }
@@ -296,6 +302,10 @@ void ModpackInstallTask::runDownload()
     m_downloader->setFiles(&m_meta.files);
     m_downloader->setOverwriteHook([this](const QString& savePath) {
         registerOverwrite(savePath);
+    });
+    m_downloader->setCreatedHook([this](const QString& savePath) {
+        // 新建文件登记回滚：任务失败/取消时清理，共享目录模式不残留
+        registerCreatedFile(savePath);
     });
     m_downloader->start(m_includeOptional);
 }

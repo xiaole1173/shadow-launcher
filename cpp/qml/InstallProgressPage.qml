@@ -38,7 +38,6 @@ Item {
     property int _activeStep: 0            // 1..5 当前阶段
     property int _doneCount: 0             // 已完成阶段数
     property int _failedStep: 0            // 失败阶段（0 = 无）
-    property bool _finished: false
     property bool _infoRevealed: false     // 解析信息面板是否已填充
     property bool _parsed: false           // 解析是否完成
     property var _info: ({ name: "", version: "", mc: "", loader: "", modCount: 0, fileCount: "", format: "", targetName: "" })
@@ -59,7 +58,6 @@ Item {
         root._activeStep = 1
         root._doneCount = 0
         root._failedStep = 0
-        root._finished = false
         root._progress = 0.0
         root._statusText = ""
         root._stepName = ""
@@ -80,7 +78,7 @@ Item {
         else if (s.indexOf(qsTr("下载")) >= 0) idx = 3
         else if (s.indexOf(qsTr("安装")) >= 0) idx = 4
         else if (s.indexOf(qsTr("整理")) >= 0) idx = 5
-        else if (s.indexOf(qsTr("完成")) >= 0) { idx = 5; root._finished = true }
+        else if (s.indexOf(qsTr("完成")) >= 0) idx = 5
         else if (s.indexOf(qsTr("失败")) >= 0) { root._failedStep = Math.max(1, root._activeStep); root._doneCount = root._failedStep - 1; idx = root._failedStep }
         else if (s.indexOf(qsTr("取消")) >= 0) idx = 5
         else idx = root._stepFromProgress()
@@ -252,7 +250,6 @@ Item {
                 root._entryState = 2
                 root._resultName = backend.modpackImporter.resultName || versionName
                 root._resultVersion = backend.modpackImporter.resultVersionId || error || ""
-                root._finished = true
                 root._doneCount = root._steps.length
                 importDoneTimer.restart()   // 成功：短暂展示后自动收拢（对齐普通下载卡片）
             } else {
@@ -374,6 +371,7 @@ Item {
                     doneCount: root._entryState === 2 ? root._steps.length : root._doneCount
                     failedStep: root._entryState === 3 ? root._failedStep : 0
                     running: root._entryState === 1
+                    progress: root._progress   // 轨道填充与后端总进度同步
                 }
 
                 // ── 全局进度（总进度由后端计算下发，QML 仅绑定）──
@@ -594,7 +592,6 @@ Item {
                     spacing: 8
 
                     Rectangle {
-                        id: errorBar
                         Layout.fillWidth: true
                         Layout.preferredHeight: 30
                         radius: StyleTokens.radiusSm

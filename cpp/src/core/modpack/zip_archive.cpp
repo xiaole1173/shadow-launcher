@@ -278,8 +278,10 @@ int ZipArchive::extractPrefixTo(const QString& prefix, const QString& destDir,
             if (got == 0) break;
             if (outFile.write(buf, static_cast<qint64>(got)) != static_cast<qint64>(got)) {
                 qCWarning(logMod) << "[zip] 写入失败（磁盘空间不足？）:" << destPath;
-                ok = false;
-                break;
+                mz_zip_reader_extract_iter_free(iter);
+                outFile.close();
+                outFile.remove();
+                return -3;  // 致命写盘错误（区别于取消 -2），任务层必须中止导入
             }
             chunkCounter += static_cast<qint64>(got);
             if (chunkCounter >= 4 * 1024 * 1024) {
