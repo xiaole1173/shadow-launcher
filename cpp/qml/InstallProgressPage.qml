@@ -286,6 +286,10 @@ Item {
         Rectangle {
             id: importEntry
             Layout.fillWidth: true
+            // ⚠ 修复：普通 Rectangle 的 implicitHeight=0，若不设高度外层 ColumnLayout
+            // 会分配 0 高度 → 卡片不可见（导入在后台正常跑但页面无渲染）。
+            // 高度绑定内容区隐式高度（+上下 margins 14*2），内容增减时自适应。
+            Layout.preferredHeight: Math.min(560, entryBody.implicitHeight + 28)
             Layout.leftMargin: 16
             Layout.rightMargin: 16
             Layout.topMargin: 12
@@ -300,6 +304,7 @@ Item {
             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
             ColumnLayout {
+                id: entryBody
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 10
