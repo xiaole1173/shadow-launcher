@@ -38,9 +38,6 @@ Rectangle {
         NumberAnimation { duration: 350; easing.type: AnimationTokens.listItemScaleEnterEasing }
     }
 
-    // Latency color transition
-    property color _lastLatColor: "transparent"
-
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 14; anchors.rightMargin: 14
@@ -77,16 +74,12 @@ Rectangle {
             implicitWidth: latLabel.implicitWidth + 14
             implicitHeight: 22
             radius: StyleTokens.radiusMd
-            color: _latBgColor
+            // Direct bindings — re-evaluate when playerData updates
+            color: (playerData.latency || 0) < 50 ? "#2060c060"
+                : (playerData.latency || 0) < 150 ? "#20f59e0b"
+                : "#20ef4444"
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
-            }
-
-            readonly property color _latBgColor: {
-                var lat = playerData.latency || 0
-                if (lat < 50) return "#2060c060"
-                if (lat < 150) return "#20f59e0b"
-                return "#20ef4444"
             }
 
             Text {
@@ -94,15 +87,11 @@ Rectangle {
                 anchors.centerIn: parent
                 text: (playerData.latency || 0) + "ms"
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: _latColor
+                color: (playerData.latency || 0) < 50 ? "#60c060"
+                    : (playerData.latency || 0) < 150 ? "#f59e0b"
+                    : StyleTokens.error
                 Behavior on color {
                     ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
-                }
-                readonly property color _latColor: {
-                    var lat = playerData.latency || 0
-                    if (lat < 50) return "#60c060"
-                    if (lat < 150) return "#f59e0b"
-                    return StyleTokens.error
                 }
             }
         }

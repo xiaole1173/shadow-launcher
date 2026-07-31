@@ -140,6 +140,7 @@ private slots:
 
     // ── Guest MC connection verification (0xFE handshake) ──
     void verifyMcConnection();
+    void scheduleMcVerifyRetry();
 
     // ── Client (guest) mode ──
     void onSocketConnected();

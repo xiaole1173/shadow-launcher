@@ -1648,6 +1648,7 @@ void MultiplayerManager::checkMcHealth()
             if (sock->property("_probeDone").toBool())
                 return;
             qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 响应超时 port=%1").arg(m_mcPort);
+            sock->setProperty("_probeDone", true);
             handleHealthCheckFailure();
             sock->abort();
             sock->deleteLater();
@@ -1666,8 +1667,8 @@ void MultiplayerManager::checkMcHealth()
             sock->deleteLater();
         } else {
             qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 响应数据异常 port=%1").arg(m_mcPort);
-            handleHealthCheckFailure();
             sock->setProperty("_probeDone", true);
+            handleHealthCheckFailure();
             sock->disconnect();
             sock->deleteLater();
         }
@@ -1675,19 +1676,18 @@ void MultiplayerManager::checkMcHealth()
 
     // ── Connection error: port closed / connection refused / timeout ──
     // Only count as failure if we haven't already completed the probe successfully.
+    // NOTE: _probeDone is set BEFORE handleHealthCheckFailure so the follow-up
+    // disconnected/abort signals from this same socket can never double-count.
     connect(sock, &QTcpSocket::errorOccurred, this, [this, sock](QAbstractSocket::SocketError err) {
         if (sock->property("_probeDone").toBool()) {
-            // Probe already completed normally; this is just cleanup noise
+            // Probe already completed (success or counted failure); this is just cleanup noise
             sock->deleteLater();
             return;
         }
         qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接错误 err=%1 port=%2").arg(err).arg(m_mcPort);
-        if (err != QAbstractSocket::RemoteHostClosedError) {
-            handleHealthCheckFailure();
-        } else {
-            // RemoteHostClosedError = MC server actively closed connection = real failure
-            handleHealthCheckFailure();
-        }
+        // RemoteHostClosedError = MC server actively closed connection = real failure, same as others
+        sock->setProperty("_probeDone", true);
+        handleHealthCheckFailure();
         sock->deleteLater();
     });
 
@@ -1698,6 +1698,7 @@ void MultiplayerManager::checkMcHealth()
             return;
         }
         qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 意外断开 port=%1").arg(m_mcPort);
+        sock->setProperty("_probeDone", true);
         handleHealthCheckFailure();
         sock->deleteLater();
     });
@@ -1708,6 +1709,7 @@ void MultiplayerManager::checkMcHealth()
             return;
         if (sock->state() != QAbstractSocket::ConnectedState) {
             qCWarning(logNet) << QStringLiteral("[联机] MC健康检测 连接超时 port=%1").arg(m_mcPort);
+            sock->setProperty("_probeDone", true);
             handleHealthCheckFailure();
             sock->abort();
             sock->deleteLater();
@@ -1823,43 +1825,93 @@ void MultiplayerManager::verifyMcConnection()
     if (m_role != Guest || m_mcPort == 0)
         return;
 
-    QTcpSocket testSocket;
-    testSocket.connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
-    bool connected = testSocket.waitForConnected(2000);
+    // Async 0xFE handshake with a per-call temporary socket (same self-cleaning
+    // pattern as checkMcHealth) — no waitFor* blocking on the main thread.
+    QTcpSocket* testSocket = new QTcpSocket(this);
+    testSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 
-    if (connected) {
-        // Send 0xFE legacy ping, expect 0xFF response
-        testSocket.write(QByteArray(1, static_cast<char>(0xFE)));
-        testSocket.waitForBytesWritten(500);
-        if (testSocket.waitForReadyRead(2000)) {
-            QByteArray response = testSocket.read(1);
-            if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
-                qCInfo(logNet) << QStringLiteral("[联机] MC连接验证通过 port=%1").arg(m_mcPort);
-                testSocket.disconnectFromHost();
-
-                // Add LOCAL profile for self (align with Terracotta ProfileKind::LOCAL)
-                QVariantMap localSelf;
-                localSelf[QStringLiteral("name")] = m_playerName;
-                localSelf[QStringLiteral("machine_id")] = m_machineId;
-                localSelf[QStringLiteral("hostname")] = QSysInfo::machineHostName();
-                localSelf[QStringLiteral("kind")] = QStringLiteral("LOCAL");
-                localSelf[QStringLiteral("latency")] = 0;
-                m_players << localSelf;
-                emit playersChanged();
-
-                // Connection OK — start FakeServer and proceed
-                startFakeServer(m_mcPort);
-
-                // Start profile sync timer (pull profiles from host every 5s)
-                m_profileSyncTimer->start();
-                syncGuestProfiles();
+    // Connected: send legacy 0xFE ping, expect 0xFF within 2s
+    connect(testSocket, &QTcpSocket::connected, this, [this, testSocket]() {
+        testSocket->write(QByteArray(1, static_cast<char>(0xFE)));
+        QTimer::singleShot(2000, testSocket, [this, testSocket]() {
+            if (testSocket->property("_verifyDone").toBool())
                 return;
-            }
-        }
-        testSocket.disconnectFromHost();
-    }
+            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 响应超时 port=%1").arg(m_mcPort);
+            testSocket->setProperty("_verifyDone", true);
+            testSocket->abort();
+            testSocket->deleteLater();
+            scheduleMcVerifyRetry();
+        });
+    });
 
-    // Retry
+    // Data received: expect first byte 0xFF (legacy server list ping response)
+    connect(testSocket, &QTcpSocket::readyRead, this, [this, testSocket]() {
+        QByteArray response = testSocket->read(1);
+        if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
+            qCInfo(logNet) << QStringLiteral("[联机] MC连接验证通过 port=%1").arg(m_mcPort);
+            testSocket->setProperty("_verifyDone", true);
+            testSocket->disconnect();
+            testSocket->deleteLater();
+
+            // Add LOCAL profile for self (align with Terracotta ProfileKind::LOCAL)
+            QVariantMap localSelf;
+            localSelf[QStringLiteral("name")] = m_playerName;
+            localSelf[QStringLiteral("machine_id")] = m_machineId;
+            localSelf[QStringLiteral("hostname")] = QSysInfo::machineHostName();
+            localSelf[QStringLiteral("kind")] = QStringLiteral("LOCAL");
+            localSelf[QStringLiteral("latency")] = 0;
+            m_players << localSelf;
+            emit playersChanged();
+
+            // Connection OK — start FakeServer and proceed
+            startFakeServer(m_mcPort);
+
+            // Start profile sync timer (pull profiles from host every 5s)
+            m_profileSyncTimer->start();
+            syncGuestProfiles();
+        } else {
+            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 响应数据异常 port=%1").arg(m_mcPort);
+            testSocket->setProperty("_verifyDone", true);
+            testSocket->disconnect();
+            testSocket->deleteLater();
+            scheduleMcVerifyRetry();
+        }
+    });
+
+    // Connection failed (refused / closed): real failure → retry
+    connect(testSocket, &QTcpSocket::errorOccurred, this, [this, testSocket]() {
+        if (testSocket->property("_verifyDone").toBool()) {
+            testSocket->deleteLater();
+            return;
+        }
+        qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 连接失败 port=%1").arg(m_mcPort);
+        testSocket->setProperty("_verifyDone", true);
+        testSocket->deleteLater();
+        scheduleMcVerifyRetry();
+    });
+
+    // 2s connect timeout
+    QTimer::singleShot(2000, testSocket, [this, testSocket]() {
+        if (testSocket->property("_verifyDone").toBool())
+            return;
+        if (testSocket->state() != QAbstractSocket::ConnectedState) {
+            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 连接超时 port=%1").arg(m_mcPort);
+            testSocket->setProperty("_verifyDone", true);
+            testSocket->abort();
+            testSocket->deleteLater();
+            scheduleMcVerifyRetry();
+        }
+    });
+
+    testSocket->connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
+}
+
+// Retry scheduling shared by all async failure paths (one count per attempt)
+void MultiplayerManager::scheduleMcVerifyRetry()
+{
+    if (m_role != Guest)
+        return;
+
     m_mcVerifyRetries++;
     qCInfo(logNet) << QStringLiteral("[联机] MC连接验证中 尝试 #%1 port=%2")
         .arg(m_mcVerifyRetries).arg(m_mcPort);
@@ -1870,7 +1922,6 @@ void MultiplayerManager::verifyMcConnection()
         emit errorOccurred(QStringLiteral("无法连接到联机服务器的MC端口"));
         setState(Error, QStringLiteral("MC连接验证失败"));
     } else {
-        // Retry after 1.5s
         QTimer::singleShot(1500, this, &MultiplayerManager::verifyMcConnection);
     }
 }

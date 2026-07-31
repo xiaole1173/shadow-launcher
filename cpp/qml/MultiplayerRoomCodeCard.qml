@@ -64,43 +64,32 @@ Rectangle {
             implicitWidth: diffLabel.implicitWidth + 12
             implicitHeight: 24
             radius: StyleTokens.radiusSm
-            color: _diffBg
+            // Direct bindings — re-evaluate on connectionDifficultyChanged (NOTIFY)
+            color: !mp ? "transparent"
+                : mp.connectionDifficulty === 1 ? "#1a4ade80"
+                : mp.connectionDifficulty === 2 ? "#1a3b82f6"
+                : mp.connectionDifficulty === 3 ? "#1af59e0b"
+                : "#1aef4444"
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
-            }
-
-            readonly property color _diffBg: {
-                if (!mp) return "transparent"
-                var d = mp.connectionDifficulty
-                if (d === 1) return "#1a4ade80"
-                if (d === 2) return "#1a3b82f6"
-                if (d === 3) return "#1af59e0b"
-                return "#1aef4444"
             }
 
             Text {
                 id: diffLabel
                 anchors.centerIn: parent
-                text: {
-                    if (!mp) return ""
-                    var d = mp.connectionDifficulty
-                    if (d === 1) return "直连"
-                    if (d === 2) return "简单"
-                    if (d === 3) return "中等"
-                    return "困难"
-                }
+                text: !mp ? ""
+                    : mp.connectionDifficulty === 1 ? "直连"
+                    : mp.connectionDifficulty === 2 ? "简单"
+                    : mp.connectionDifficulty === 3 ? "中等"
+                    : "困难"
                 font.pixelSize: StyleTokens.fontSizeXs
-                color: _diffText
+                color: !mp ? "transparent"
+                    : mp.connectionDifficulty === 1 ? "#4ade80"
+                    : mp.connectionDifficulty === 2 ? "#60a0f0"
+                    : mp.connectionDifficulty === 3 ? "#f59e0b"
+                    : "#ef4444"
                 Behavior on color {
                     ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
-                }
-                readonly property color _diffText: {
-                    if (!mp) return "transparent"
-                    var d = mp.connectionDifficulty
-                    if (d === 1) return "#4ade80"
-                    if (d === 2) return "#60a0f0"
-                    if (d === 3) return "#f59e0b"
-                    return "#ef4444"
                 }
             }
         }
