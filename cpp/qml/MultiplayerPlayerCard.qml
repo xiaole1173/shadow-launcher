@@ -14,6 +14,9 @@ Rectangle {
     property var playerData: ({})
     property int entryIndex: 0
 
+    // Guard: no data yet → hide the whole card (avoids reading undefined fields)
+    visible: playerData !== undefined
+
     // Entrance: fade + scale with staggered delay per index
     opacity: 0
     scale: 0.88
@@ -98,7 +101,7 @@ Rectangle {
 
         // Vendor badge
         Rectangle {
-            visible: playerData.vendor && playerData.vendor !== ""
+            visible: (playerData.vendor ?? "") !== ""
             implicitWidth: vendorLabel.implicitWidth + 10
             implicitHeight: 20
             radius: StyleTokens.radiusSm
@@ -106,7 +109,7 @@ Rectangle {
             Text {
                 id: vendorLabel
                 anchors.centerIn: parent
-                text: playerData.vendor
+                text: playerData.vendor ?? ""
                 font.pixelSize: StyleTokens.fontSizeXs
                 color: "#80a0e0"
             }
