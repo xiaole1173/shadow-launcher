@@ -11,7 +11,8 @@
 //      下载完成比对 sha1。
 //   3. 镜像优先 + 官方兜底（MCIM 镜像 / CF·MR 官方端点，429/5xx/超时降级）。
 //
-// 下载执行复用既有成熟引擎 ShadowDownloader::FileDownloader（多线程分片、断点续传、
+// 下载执行复用独立模组引擎 ShadowDownloader::ModDownloadEngine（小文件批量专属，
+// 与 MC 下载引擎 FileDownloader 物理隔离：线程/网络会话/队列互不争抢）
 // 多源自动降级、SHA1/大小校验、主机健康、限速、EMA 网速），本类只承担：
 //   - CF 批量地址解析（REST API，与文件下载正交，引擎不含）
 //   - 可选文件跳过 / 落盘路径编排 / 覆盖备份与新建登记钩子（任务级事务语义）
@@ -19,7 +20,7 @@
 // 对外接口（start/cancel/signals）保持不变，任务层与 QML 无感。
 //
 // 说明：不修改既有网络底层（HttpClient 为既有稳定模块），仅通过其公开
-// 异步 API 组装 CF API 请求；文件本体下载交给 FileDownloader 引擎实例
+// 异步 API 组装 CF API 请求；文件本体下载交给 ModDownloadEngine 引擎实例
 // （每次 start 新建，任务结束/取消即释放，与 MC 下载引擎实例完全隔离）。
 
 #pragma once
@@ -55,7 +56,7 @@ public:
     // 新建文件钩子：成功落盘后回调（任务层登记回滚，失败/取消时清理）
     void setCreatedHook(const std::function<void(const QString& savePath)>& hook) { m_createdHook = hook; }
 
-    // 启动：先解析 CF 下载地址，再经 FileDownloader 引擎并发下载。
+    // 启动：先解析 CF 下载地址，再经 ModDownloadEngine 引擎并发下载。
     // includeOptional=true 时连可选文件一起下。
     void start(bool includeOptional);
     void cancel();
@@ -96,7 +97,7 @@ private:
     void resolveDownloadUrls();                        // downloadUrl 缺失的条目逐个补解析
     void startDownloadUrlResolve(int idx);
 
-    // ── 引擎适配层（ShadowDownloader::FileDownloader）──
+    // ── 引擎适配层（ShadowDownloader::ModDownloadEngine）──
     void startEngineDownloads();   // 地址就绪 → 构造引擎 + addFile 编排 + 启动
     int findIndexBySavePath(const QString& path) const;
     void onEngineProgress(int completed, int total, qint64 bytes, qint64 allBytes);
