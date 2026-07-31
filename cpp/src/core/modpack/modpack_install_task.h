@@ -117,6 +117,7 @@ private:
     qint64 m_lastBytes = 0;
     qint64 m_lastBytesMs = 0;
     qint64 m_lastFileProgMs = 0; // fileProgress 回调节流（200ms）
+    qint64 m_lastSpeedLogMs = 0; // 聚合速度日志 1s 节流
     qreal m_modFrac = 0.0;       // 模组路完成比例（总进度合成用）
     QString m_mcSessionId;       // MC 阶段轮询的会话 id（merged=targetName / vanilla=mcVersion）
     QTimer* m_mcPollTimer = nullptr;     // MC 阶段 300ms 轮询进度/速度/步骤

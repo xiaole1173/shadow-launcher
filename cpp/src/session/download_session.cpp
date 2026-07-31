@@ -30,58 +30,10 @@ qreal DownloadSession::totalProgress() const {
 }
 
 void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
-    qint64 now = m_sessionTimer.elapsed();
-
-    // 首次调用：还没有基线，只记录当前值，不计算速度
-    if (m_lastRecvTime == 0 && m_lastRecvBytes == 0) {
-        m_lastRecvTime = now;
-        m_lastRecvBytes = bytesRecv;
-        emit progressUpdated();
-        return;
-    }
-
-    // ── 瞬时速度: delta / elapsed ──
-    qint64 deltaBytes = bytesRecv - m_lastRecvBytes;
-    qint64 deltaMs = now - m_lastRecvTime;
-    m_lastRecvBytes = bytesRecv;
-    m_lastRecvTime = now;
-
-    if (deltaBytes > 0 && deltaMs > 0) {
-        qint64 instantBps = (deltaBytes * 1000) / deltaMs;
-
-        // 加权滑动窗口 (最新在前)
-        m_speedRecords.prepend(instantBps);
-        if (m_speedRecords.size() > kMaxSpeedRecords)
-            m_speedRecords.removeLast();
-
-        // 加权平均: 更新样本权重更高
-        qint64 weightedSum = 0;
-        int weightDiv = 0;
-        int w = m_speedRecords.size();
-        for (auto rec : m_speedRecords) {
-            weightedSum += rec * w;
-            weightDiv += w;
-            w--;
-        }
-        double avgBps = (weightDiv > 0)
-            ? static_cast<double>(weightedSum) / weightDiv
-            : static_cast<double>(instantBps);
-
-        // EMA 平滑: 0.4 历史 + 0.6 新值 (偏重实时)
-        if (m_speedEMA == 0.0) {
-            m_speedEMA = avgBps;
-        } else {
-            m_speedEMA = m_speedEMA * 0.4 + avgBps * 0.6;
-        }
-        m_speed = static_cast<qint64>(m_speedEMA);
-    } else if (deltaBytes == 0 && deltaMs > 30000) {
-        // 30 秒无数据 → 归零
-        m_speed = 0;
-        m_speedEMA = 0.0;
-        m_speedRecords.clear();
-    }
-    // deltaBytes == 0 && within 30s: 保持上次速度不变
-
+    Q_UNUSED(bytesRecv);
+    Q_UNUSED(bytesTotal);
+    // 速度计算已移除：卡片速度由 VersionBackend 统一从引擎 EMA 推送（setSpeed），
+    // 此处仅保留进度刷新信号，避免第三套独立速度算法造成界面与日志不一致。
     emit progressUpdated();
 }
 

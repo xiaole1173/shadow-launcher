@@ -42,6 +42,9 @@ public:
     qreal totalProgress() const;        // weighted pipeline progress
     qint64 currentSpeed() const { return m_speed; }
     void recordBytes(qint64 bytesRecv, qint64 bytesTotal);
+    /// 由上层（VersionBackend）推送引擎 EMA 速度（唯一速度源），
+    /// 卡片速度一律取此值，前端不再自行差分计算。
+    void setSpeed(qint64 bps) { m_speed = qMax<qint64>(0, bps); }
     void resetSpeed();
 
     // ── 控制 ──

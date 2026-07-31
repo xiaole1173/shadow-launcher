@@ -2672,12 +2672,11 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     st.total = tf;
 
-    // ── Speed: use network-only bytes (excl. cache) with EMA smoothing ──
-    //    Cache hits (local SHA1 match, fallback cache) still count in st.bytesDl
-    //    for progress bar accuracy, but are subtracted from the speed calculation.
-    //    EMA formula: smoothSpeed = kAlpha * instant + (1-kAlpha) * smoothSpeed
-    //    kAlpha=0.15 matches AssetDownloader's internal EMA.
-
+    // ── Speed: 单一数据源——网络字节（排除 cache）EMA，带时间常数衰减 ──
+    //    updateDownloadProgress 由引擎 speedTick 每 100ms 持续驱动（停流也触发），
+    //    每次调用先做指数衰减：无数据时数值平滑回落归零（τ≈1.5s，替代旧的
+    //    "30s 无数据才跳零"——后者导致界面速度悬浮不落）。有数据时以 α=0.15
+    //    吸收瞬时速度。日志 [速度] MC= 与卡片推送同源同值。
     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
 
     // Query network bytes from the downloader (excludes cached bytes)
@@ -2686,38 +2685,46 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     qint64 netDb = db - cacheBytes;
     qint64 netDelta = netDb - st.networkBytesDl;
 
-    if (netDelta > 0) {
-        qint64 dt = st.speedLastTimeMs > 0 ? (nowMs - st.speedLastTimeMs) : 0;
-        if (dt > 0) {
-            double instantBps = double(netDelta) * 1000.0 / double(dt);
-            constexpr double kAlpha = 0.15;
-            st.smoothSpeed = kAlpha * instantBps + (1.0 - kAlpha) * st.smoothSpeed;
-            st.speed = static_cast<qint64>(st.smoothSpeed);
-        } else {
-            // First real network delta: seed EMA, don't show speed yet
-            st.smoothSpeed = 0.0;
+    if (st.speedLastTimeMs > 0) {
+        const double dtSec = double(nowMs - st.speedLastTimeMs) / 1000.0;
+        if (dtSec > 0) {
+            constexpr double kTau = 1.5;   // 时间常数 1.5s：停流后平滑回落
+            st.smoothSpeed *= std::exp(-dtSec / kTau);
+            if (netDelta > 0) {
+                double instantBps = double(netDelta) / dtSec;
+                constexpr double kAlpha = 0.15;
+                st.smoothSpeed = kAlpha * instantBps + (1.0 - kAlpha) * st.smoothSpeed;
+            }
+            st.speed = (st.smoothSpeed <= 1.0) ? 0 : static_cast<qint64>(st.smoothSpeed);
         }
-        st.speedLastTimeMs = nowMs;
-        st.networkBytesDl = netDb;
-    } else if (st.speed > 0 && st.speedLastTimeMs > 0 && (nowMs - st.speedLastTimeMs) > 30000) {
-        st.speed = 0;
-        st.smoothSpeed = 0.0;
-        st.speedLastTimeMs = nowMs;
-        st.networkBytesDl = netDb;
+    } else if (netDelta > 0) {
+        st.smoothSpeed = 0.0;   // 首个真实网络增量：先播种，不显示速度
+    }
+    st.speedLastTimeMs = nowMs;
+    st.networkBytesDl = netDb;
+
+    // 1s 节流日志：与卡片推送同源同值（单一数据源对外可见的基准）
+    if (nowMs - st.speedLogMs >= 1000) {
+        st.speedLogMs = nowMs;
+        qCInfo(logDownload) << QStringLiteral("[速度] MC=%1 MB/s")
+            .arg(double(st.speed) / (1024.0 * 1024.0), 0, 'f', 1);
     }
 
     st.bytesDl = db;
 
     st.bytesTotal = tb;
 
-    // ── Speed: let DownloadSession compute its own from raw bytes ──
+    // ── 会话速度同步：DownloadSession 不再自算（recordBytes 已去速度），
+    //    统一由本处推送引擎 EMA，保证所有 toCard 路径取值一致 ──
     if (auto* ds = dlSession(versionId)) {
+        ds->setSpeed(st.speed);
         ds->recordBytes(db, tb);
     }
     // Route speed to ALL merged sessions sharing this MC version
     for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
         auto* d = dlSession(it.key());
         if (d && d->isMerged() && d->mcVersion == versionId) {
+            d->setSpeed(st.speed);
             d->recordBytes(db, tb);
         }
     }

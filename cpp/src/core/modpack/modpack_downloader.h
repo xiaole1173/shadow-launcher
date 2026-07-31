@@ -60,6 +60,9 @@ public:
     void start(bool includeOptional);
     void cancel();
     bool isRunning() const { return m_running; }
+    /// 当前下载速度（MB/s）：转发动机全局 EMA（基于全局已下载字节，带平滑与衰减）。
+    /// 任务层应以此为准，不要用单文件 received 瞬时差（分片/多文件切换时跳变，会虚高）。
+    double currentSpeedMBps() const;
 
 signals:
     void statusChanged(const QString& text);          // 阶段文案（"正在解析下载地址…"）

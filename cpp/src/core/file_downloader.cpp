@@ -164,9 +164,9 @@ void FileDownloader::start()
     m_phase = PhaseFirstThread;
 
     m_speedTimer.start();
-    // 初始化 lastSpeedBytes 为当前 m_downloadedBytes（可能已包含 cache hit 的文件），
-    // 避免首次 speedTick 将缓存文件计入瞬时速度
-    m_lastSpeedBytes = m_downloadedBytes.loadRelaxed();
+    // 初始化 lastSpeedBytes 为当前网络字节（总字节 - cache 命中），
+    // 速度口径统一为网络字节：避免首次 speedTick 将缓存文件计入瞬时速度
+    m_lastSpeedBytes = m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed();
     m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
     m_speedRecords.clear();
 
@@ -208,7 +208,7 @@ void FileDownloader::resume()
     if (m_state != Paused) return;
     m_state = Running;
     m_speedTimer.restart();
-    m_lastSpeedBytes = m_downloadedBytes.loadRelaxed();
+    m_lastSpeedBytes = m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed();
     m_managerTimer->start(50);
     m_speedTimer2->start(100);
     emit logMessage(QStringLiteral("[下载] 下载已恢复"));
@@ -1008,7 +1008,8 @@ void FileDownloader::speedTick()
     qint64 elapsed = m_speedTimer.elapsed();
     if (elapsed < 100) return;
 
-    qint64 now = m_downloadedBytes.loadRelaxed();
+    qint64 now = m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed();
+    if (now < 0) now = 0;   // 分片重下/截断修正时瞬时回退 → 钳零
     qint64 bytes = now - m_lastSpeedBytes;
     if (bytes < 0) bytes = 0;   // 分片重下/截断修正时 m_downloadedBytes 瞬时回退 → 钳零，避免负速度
     m_lastSpeedBytes = now;
@@ -1031,7 +1032,11 @@ void FileDownloader::speedTick()
     }
     qint64 currentBps = (weightDiv > 0) ? (weightedSum / weightDiv) : actualBps;
 
-    m_emaMbps = m_emaMbps * 0.5 + (currentBps / (1024.0 * 1024.0)) * 0.5;
+    // 展示速度 = 滑动窗口线性加权值（30 条 × 100ms ≈ 3s 窗口）：
+    // 停流时窗口内连续 0 采样 → 数值 ~3s 内自然滑落归零（PCL 同款语义），
+    // 不再叠加 EMA 混合（0.5/0.5 在 100ms 节拍下衰减过陡、观感像跳变）。
+    // 日志 [速度] EMA= 与 currentSpeedMBps() 同源同值 → 界面与日志一致。
+    m_emaMbps = currentBps / (1024.0 * 1024.0);
 
     // ── Speed floor: up on growth, decay on stagnation ──
     qint64 floorLimit = static_cast<qint64>(currentBps * 0.85);

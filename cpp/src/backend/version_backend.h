@@ -325,6 +325,7 @@ private:
         QString file;
         QString phase = QStringLiteral("idle");
         qint64 speedLastTimeMs = 0;
+        qint64 speedLogMs = 0;         // [速度] MC= 日志 1s 节流
         // Per-category byte tracking (0=versions, 1=libraries, 2=assets)
         qint64 catBytesDl[3] = {};
         qint64 catBytesTotal[3] = {};

@@ -542,8 +542,12 @@ void ModpackDownloader::startEngineDownloads()
     m_fd->start();
 }
 
-int ModpackDownloader::findIndexBySavePath(const QString& path) const
+double ModpackDownloader::currentSpeedMBps() const
 {
+    return m_fd ? m_fd->currentSpeedMBps() : 0.0;
+}
+
+int ModpackDownloader::findIndexBySavePath(const QString& path) const{
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].savePath == path && !m_items[i].finished) return i;
     }
