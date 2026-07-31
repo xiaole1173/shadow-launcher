@@ -582,8 +582,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     lastProgressEmitMs = now;
                     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
+                    // 与 progressChanged 同节奏节流：高并发（模组 12 路 + MC 64 路）下
+                    // 每个数据包都跨线程 emit 会灌爆主线程事件队列 → UI 卡死无响应。
+                    emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
                 }
-                emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
             });
 
             // Register reply for thread-safe abort on cancel
@@ -772,8 +774,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     lastProgressEmitMs = now;
                     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
+                    // 同主请求：150ms 节流，避免跨线程信号风暴
+                    emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
                 }
-                emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
             });
 
             // Register reply for thread-safe abort on cancel

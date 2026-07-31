@@ -127,6 +127,7 @@ private:
     qint64 m_lastQueueEmitMs = 0;  // queueProgress 桥接限频（200ms）
     qint64 m_lastFileProgMs = 0;   // fileProgress 桥接限频（200ms）
     QString m_lastEngineError;     // 引擎最近一条失败/校验日志（失败详情透传卡片）
+    qint64 m_lastLogEmitMs = 0;    // 常规日志 500ms 合并限频（防日志风暴拖死主线程）
     // ── 队列级兜底重试（首轮完成后自动收集失败文件，按现有引擎规则跑第二遍）──
     bool m_retryRoundDone = false; // 兜底重试轮已执行（每任务最多一轮）
     int m_round1Done = 0;          // 首轮成功数（重试轮进度基数）

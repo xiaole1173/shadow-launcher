@@ -547,14 +547,22 @@ void ModpackDownloader::startEngineDownloads()
             this, &ModpackDownloader::onEngineAllFinished);
     connect(m_fd, &ShadowDownloader::FileDownloader::logMessage,
             this, [this](const QString& msg) {
-        emit logLine(msg);
         // 捕获引擎失败/校验详情（用于 fileFinished(false) 的错误文案透传，
-        // 消灭界面「详见日志」模糊提示）
-        if (msg.contains(QStringLiteral("失败"))
+        // 消灭界面「详见日志」模糊提示）——失败类日志永不节流，必须逐条保留
+        const bool isFailureLog = msg.contains(QStringLiteral("失败"))
             || msg.contains(QStringLiteral("校验"))
-            || msg.contains(QStringLiteral("SHA1"))) {
+            || msg.contains(QStringLiteral("SHA1"))
+            || msg.contains(QStringLiteral("超时"));
+        if (isFailureLog) {
             m_lastEngineError = msg;
         }
+        // 常规日志（启动线程/开始下载/线程完成/切源/速度）500ms 合并限频：
+        // 每条都透传 → 任务层 pushCardLog → QML 全量附件重建，高并发下
+        // （模组 12 路 + MC 64 路）日志风暴会拖死主线程事件循环（UI 卡死无响应）
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (!isFailureLog && now - m_lastLogEmitMs < 500) return;
+        if (!isFailureLog) m_lastLogEmitMs = now;
+        emit logLine(msg);
     });
 
     m_fd->start();
