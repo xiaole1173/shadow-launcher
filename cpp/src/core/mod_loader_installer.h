@@ -59,6 +59,9 @@ public:
 
     // Fabric parallel install: start downloading MC + Fabric at the same time
     void setParallelMode(bool v) { m_parallelMode = v; }
+    /// 下载源策略：true=官方源优先（maven/libraries 等资源按用户全局设置路由），
+    /// false=BMCLAPI 镜像优先（默认）。Fabric/Forge 库下载与安装器主文件生效。
+    void setPreferOfficial(bool v) { m_preferOfficial = v; }
     void fabricFinalize();  // Called after MC completes in parallel mode
 
 signals:
@@ -202,6 +205,7 @@ private:
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
     bool m_parallelMode = false;  // Fabric: don't auto-advance to write phase
+    bool m_preferOfficial = false; // 下载源策略：true=官方 maven 优先（镜像兜底）
 
     // Fabric library download state
     struct FabricLibTask {

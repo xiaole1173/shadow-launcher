@@ -4974,14 +4974,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         return;
     }
 
-    // ── Forge/NeoForge: download installer JAR ──
+    // ── Forge/NeoForge: download installer JAR（按下载源策略选主源，失败走下方 fallback 列表）──
     QString verArg = mcVersion + "-" + loaderVersion;
     QString fmv = m_forgeMavenVer;
     QString loaderDlUrl;
+    const bool preferOfficial = downloadPreferOfficial();
     if (loaderType == QStringLiteral("forge")) {
-        loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv);
+        loaderDlUrl = preferOfficial
+            ? QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv)
+            : QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv);
     } else if (loaderType == QStringLiteral("neoforge")) {
-        loaderDlUrl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+        loaderDlUrl = preferOfficial
+            ? QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion)
+            : QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
     }
 
     if (!loaderDlUrl.isEmpty()) {
@@ -5575,6 +5580,14 @@ void VersionBackend::cancelModLoaderInstall() {
 
 
 
+bool VersionBackend::downloadPreferOfficial() const
+{
+    auto* sb = qobject_cast<const ShadowBackend*>(parent());
+    const int s = sb ? sb->fileDownloadSource() : 1;
+    // PreferOfficial(1) / AutoSwitch(2) → 官方源优先；PreferMirror(0) → 镜像优先
+    return (s == 1 || s == 2);
+}
+
 ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& installId)
 {
     destroyLoaderInstaller(installId);
@@ -5583,6 +5596,7 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     m_mlInstallers[installId] = ml;
 
     ml->setGameDir(m_gameDir);
+    ml->setPreferOfficial(downloadPreferOfficial());
 
     // --- progressChanged: step-level progress ---
     connect(ml, &ModLoaderInstaller::progressChanged, this,
@@ -7906,6 +7920,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
     // Create ModLoaderInstaller (redirected to temp dir)
     ctx->installer = new ModLoaderInstaller(this);
     ctx->installer->setGameDir(ctx->tempDir);
+    ctx->installer->setPreferOfficial(downloadPreferOfficial());
 
     // ── Signal connections for merged context installers ──
 

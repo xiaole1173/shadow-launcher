@@ -1420,26 +1420,35 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
 // the version config to gameDir. No java process needed.
 // ═══════════════════════════════════════════════════════════════
 
-// ── Maven URL → BMCLAPI mirror helper ──
-static QString mirrorMavenUrl(const QString& url) {
-    if (url.isEmpty()) return url;
-    // Priority: BMCLAPI mirror first
-    QString result = url;
-    result.replace(QStringLiteral("https://maven.minecraftforge.net"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
-    result.replace(QStringLiteral("https://files.minecraftforge.net/maven"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
-    result.replace(QStringLiteral("https://maven.neoforged.net/releases"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
-    result.replace(QStringLiteral("https://libraries.minecraft.net"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/libraries"));
-    result.replace(QStringLiteral("https://repo1.maven.org/maven2"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
-    result.replace(QStringLiteral("https://repo.maven.apache.org/maven2"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
-    result.replace(QStringLiteral("https://maven.fabricmc.net"),
-                   QStringLiteral("https://bmclapi2.bangbang93.com/maven"));
-    return result;
+// ── Maven 下载源策略助手 ──
+// group 已为 '/' 分隔（如 net/minecraftforge）。返回该 group 的官方 maven 基址。
+static QString officialMavenBaseForGroup(const QString& group) {
+    if (group.startsWith(QLatin1String("net/minecraftforge")))
+        return QStringLiteral("https://maven.minecraftforge.net");
+    if (group.startsWith(QLatin1String("net/neoforged")))
+        return QStringLiteral("https://maven.neoforged.net/releases");
+    if (group.startsWith(QLatin1String("net/fabricmc")))
+        return QStringLiteral("https://maven.fabricmc.net");
+    if (group.startsWith(QLatin1String("com/mojang")) || group.startsWith(QLatin1String("com/google"))
+        || group.startsWith(QLatin1String("io/netty")) || group.startsWith(QLatin1String("org/apache"))
+        || group.startsWith(QLatin1String("org/ow2")) || group.startsWith(QLatin1String("org/slf4j"))
+        || group.startsWith(QLatin1String("com/ibm")) || group.startsWith(QLatin1String("org/lwjgl")))
+        return QStringLiteral("https://libraries.minecraft.net");
+    return QStringLiteral("https://repo1.maven.org/maven2");
+}
+
+// 按下载源策略返回候选列表：preferOfficial=true 官方 maven 优先，否则 BMCLAPI 镜像优先。
+static QStringList mavenCandidates(bool preferOfficial, const QString& group,
+                                   const QString& artifact, const QString& version,
+                                   const QString& ext, const QString& classifier = QString()) {
+    const QString fileName = artifact + QLatin1Char('-') + version
+        + (classifier.isEmpty() ? QString() : QLatin1Char('-') + classifier)
+        + QLatin1Char('.') + ext;
+    const QString rel = group + QLatin1Char('/') + artifact + QLatin1Char('/')
+        + version + QLatin1Char('/') + fileName;
+    const QString bmcl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/") + rel;
+    const QString official = officialMavenBaseForGroup(group) + QLatin1Char('/') + rel;
+    return preferOfficial ? QStringList{official, bmcl} : QStringList{bmcl, official};
 }
 
 void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
@@ -1810,32 +1819,36 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
                 QString libFile = libDir + QStringLiteral("/") + artifact
                     + QStringLiteral("-") + version + QStringLiteral(".") + ext;
                 if (QFile::exists(libFile)) continue;
-                QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.%4")
-                    .arg(group, artifact, version, ext);
+                // 按下载源策略取候选（官方 maven / BMCLAPI 镜像，顺序由全局设置决定）
+                const QStringList urls = mavenCandidates(m_preferOfficial, group, artifact, version, ext);
                 QDir().mkpath(libDir);
-                QNetworkRequest req;
-                req.setUrl(QUrl(url));
-                QNetworkReply* reply = nam->get(req);
-                QEventLoop loop;
-                QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                QTimer timer;
-                timer.setSingleShot(true);
-                QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-                timer.start(30000);
-                loop.exec();
-                if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
-                    timer.stop();
-                    QFile f(libFile);
-                    if (f.open(QIODevice::WriteOnly)) {
-                        f.write(reply->readAll());
-                        f.close();
-                        downloaded++;
+                for (const QString& url : urls) {
+                    QNetworkRequest req;
+                    req.setUrl(QUrl(url));
+                    QNetworkReply* reply = nam->get(req);
+                    QEventLoop loop;
+                    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    QTimer timer;
+                    timer.setSingleShot(true);
+                    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                    timer.start(30000);
+                    loop.exec();
+                    const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
+                    if (ok) {
+                        timer.stop();
+                        QFile f(libFile);
+                        if (f.open(QIODevice::WriteOnly)) {
+                            f.write(reply->readAll());
+                            f.close();
+                            downloaded++;
+                        }
+                    } else {
+                        qCWarning(logLoader) << QStringLiteral("[安装] Legacy 2 库下载失败: %1").arg(url);
+                        QFile::remove(libFile);
                     }
-                } else {
-                    qCWarning(logLoader) << QStringLiteral("[安装] Legacy 2 库下载失败: %1").arg(url);
-                    QFile::remove(libFile);
+                    reply->deleteLater();
+                    if (ok && QFile::exists(libFile)) break;
                 }
-                reply->deleteLater();
             }
             if (downloaded > 0)
                 qCInfo(logLoader) << QStringLiteral("[安装] 已为 Legacy 2 预下载 %1 个库").arg(downloaded);
@@ -1948,33 +1961,36 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
             QString libFile = libDir + QStringLiteral("/") + artifact
                 + QStringLiteral("-") + version + QStringLiteral(".") + ext;
             if (QFile::exists(libFile)) continue;
-            // Download from BMCLAPI mirror
-            QString url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%2-%3.%4")
-                .arg(group, artifact, version, ext);
+            // 按下载源策略取候选（官方 maven / BMCLAPI 镜像，顺序由全局设置决定）
+            const QStringList urls = mavenCandidates(m_preferOfficial, group, artifact, version, ext);
             QDir().mkpath(libDir);
-            QNetworkRequest req;
-            req.setUrl(QUrl(url));
-            QNetworkReply* reply = nam->get(req);
-            QEventLoop loop;
-            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-            QTimer timer;
-            timer.setSingleShot(true);
-            QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-            timer.start(30000);
-            loop.exec();
-            if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
-                timer.stop();
-                QFile f(libFile);
-                if (f.open(QIODevice::WriteOnly)) {
-                    f.write(reply->readAll());
-                    f.close();
-                    downloaded++;
+            for (const QString& url : urls) {
+                QNetworkRequest req;
+                req.setUrl(QUrl(url));
+                QNetworkReply* reply = nam->get(req);
+                QEventLoop loop;
+                QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                QTimer timer;
+                timer.setSingleShot(true);
+                QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                timer.start(30000);
+                loop.exec();
+                const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
+                if (ok) {
+                    timer.stop();
+                    QFile f(libFile);
+                    if (f.open(QIODevice::WriteOnly)) {
+                        f.write(reply->readAll());
+                        f.close();
+                        downloaded++;
+                    }
+                } else {
+                    qCWarning(logLoader) << QStringLiteral("[安装] Legacy 1 库下载失败: %1").arg(url);
+                    QFile::remove(libFile);
                 }
-            } else {
-                qCWarning(logLoader) << QStringLiteral("[安装] Legacy 1 库下载失败: %1").arg(url);
-                QFile::remove(libFile);
+                reply->deleteLater();
+                if (ok && QFile::exists(libFile)) break;
             }
-            reply->deleteLater();
         }
         if (downloaded > 0)
             qCInfo(logLoader) << QStringLiteral("[安装] 已为 Legacy 1 预下载 %1 个库").arg(downloaded);
@@ -3279,11 +3295,12 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
              + p[1] + QLatin1Char('-') + p[2] + QStringLiteral(".jar");
     };
 
-    // Mirror list: BMCLAPI first, official Fabric Maven as fallback
-    const QStringList mirrors = {
-        QStringLiteral("https://bmclapi2.bangbang93.com/maven/"),
-        QStringLiteral("https://maven.fabricmc.net/")
-    };
+    // Mirror list：按下载源策略排序（官方 Fabric Maven ↔ BMCLAPI）
+    const QStringList mirrors = m_preferOfficial
+        ? QStringList{QStringLiteral("https://maven.fabricmc.net/"),
+                      QStringLiteral("https://bmclapi2.bangbang93.com/maven/")}
+        : QStringList{QStringLiteral("https://bmclapi2.bangbang93.com/maven/"),
+                      QStringLiteral("https://maven.fabricmc.net/")};
 
     for (const QJsonValue& v : libs) {
         QJsonObject lib = v.toObject();
@@ -3293,8 +3310,8 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
 
         FabricLibTask task;
         task.savePath = m_gameDir + QStringLiteral("/libraries/") + relPath;
-        // Use BMCLAPI URL by default; fallback handled at download time
-        task.url = QStringLiteral("https://bmclapi2.bangbang93.com/maven/") + relPath;
+        // 首选源按策略（官方/镜像），fallback 由 tryMirror 顺序处理
+        task.url = mirrors[0] + relPath;
         m_fabricLibTasks.append(task);
     }
 

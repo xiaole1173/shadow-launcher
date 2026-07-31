@@ -359,6 +359,8 @@ private:
     // Per-task ModLoaderInstaller lifecycle (legacy, kept for non-merged paths)
     ModLoaderInstaller* createLoaderInstaller(const QString& installId);
     void destroyLoaderInstaller(const QString& installId);
+    /// 全局下载源策略：true=官方源优先（fileSource==PreferOfficial|AutoSwitch）
+    bool downloadPreferOfficial() const;
     ModLoaderInstaller* loaderInstaller(const QString& installId) const { return m_mlInstallers.value(installId, nullptr); }
 
     // MergedInstallContext lifecycle
