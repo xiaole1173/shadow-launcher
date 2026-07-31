@@ -37,7 +37,6 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     , m_easyTier(new EasyTierProcess(this))
     , m_guard(new ConnectionGuard(this))
     , m_playerName(QStringLiteral("Steve"))
-    , m_pingTimer(new QTimer(this))
     , m_heartbeatTimer(new QTimer(this))
     , m_discoverTimer(new QTimer(this))
     , m_idleTimer(new QTimer(this))
@@ -47,8 +46,6 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
         emit errorOccurred(reason);
     });
 
-    m_pingTimer->setInterval(3000);
-    connect(m_pingTimer, &QTimer::timeout, this, &MultiplayerManager::sendPing);
     QByteArray machineSeed = QSysInfo::machineUniqueId();
     if (machineSeed.isEmpty())
         machineSeed = QSysInfo::productType().toUtf8() + QSysInfo::productVersion().toUtf8();
@@ -360,8 +357,6 @@ void MultiplayerManager::leaveRoom()
     m_mcServerName.clear();
     emit mcServerInfoChanged();
 
-    stopScanning();
-
     // Stop host MC scanner if active
     if (m_hostMcScanner) {
         m_hostMcScanner->stop();
@@ -429,48 +424,6 @@ void MultiplayerManager::setPlayerName(const QString& name)
     m_playerName = trimmed;
     emit playerNameChanged();
     qCInfo(logNet) << QStringLiteral("[联机] 玩家名设置 name=%1").arg(m_playerName);
-}
-
-// ── MC LAN Scanning (align with Terracotta scanning.rs) ──
-
-void MultiplayerManager::startScanning()
-{
-    if (!m_scanner) {
-        m_scanner = new McScanner(this);
-        connect(m_scanner, &McScanner::serversChanged, this, [this]() {
-            emit scanResultsChanged();
-        });
-    }
-
-    // Filter out our own FakeServer announcements (align with Terracotta's filter: |m| m != MOTD)
-    static const QString kSelfMotd = QStringLiteral("\u8054\u673A MC\u670D\u52A1\u5668");  // "联机 MC服务器"
-    m_scanner->start([this](const QString& motd) -> bool {
-        return motd != kSelfMotd && !motd.trimmed().isEmpty();
-    });
-
-    qCInfo(logNet) << QStringLiteral("[联机] MC LAN扫描已启动");
-}
-
-void MultiplayerManager::stopScanning()
-{
-    if (m_scanner) {
-        m_scanner->stop();
-    }
-}
-
-QVariantList MultiplayerManager::scanResults() const
-{
-    QVariantList results;
-    if (!m_scanner) return results;
-
-    for (const auto& r : m_scanner->results()) {
-        QVariantMap entry;
-        entry[QStringLiteral("port")] = static_cast<int>(r.port);
-        entry[QStringLiteral("motd")] = r.motd;
-        entry[QStringLiteral("hostAddress")] = r.hostAddress;
-        results.append(entry);
-    }
-    return results;
 }
 
 void MultiplayerManager::prepareServerProperties(const QString& gameDir, const QString& versionId)
@@ -661,14 +614,11 @@ void MultiplayerManager::startHostServer()
     connect(m_mcPresenceTimeoutTimer, &QTimer::timeout, this, [this]() {
         if (m_state == WaitingForMcServer) {
             qCWarning(logNet) << QStringLiteral("[联机] MC服务器启动超时 %1秒 自动关闭").arg(kMcPresenceTimeoutMs / 1000);
-            // m_mcPresenceTimer removed;
             emit errorOccurred(QStringLiteral("MC服务器启动超时，联机会话结束"));
             leaveRoom();
         }
     });
     m_mcPresenceTimeoutTimer->start();
-    // minecraftPortReady emitted ONLY from checkMcPresence() success path — MC confirmed alive
-    // (Removed from here to fix port-before-ready contradiction)
 
     // Host adds self to player list
     QVariantMap hostPlayer;
@@ -1361,22 +1311,6 @@ void MultiplayerManager::sendHeartbeat()
     m_socket->write(packet);
 }
 
-void MultiplayerManager::sendPing()
-{
-    if (m_role != Host || m_state < Connected) return;
-
-    QJsonObject ping;
-    ping["ts"] = static_cast<double>(QDateTime::currentMSecsSinceEpoch());
-    auto packet = Scaffolding::buildPacket(
-        Scaffolding::kPlayerPing,
-        QJsonDocument(ping).toJson(QJsonDocument::Compact)
-    );
-    for (auto* guest : m_guests) {
-        if (guest->state() == QAbstractSocket::ConnectedState)
-            guest->write(packet);
-    }
-}
-
 void MultiplayerManager::handlePlayerPong(const QByteArray& body, QTcpSocket* socket)
 {
     QJsonDocument doc = QJsonDocument::fromJson(body);
@@ -1612,23 +1546,9 @@ void MultiplayerManager::broadcastPlayers()
 // Host MC server health check (align with Terracotta)
 // ─────────────────────────────────────────
 
-
-
-// ── Host MC server presence detection (probe until MC responds, then start health check) ──
-// Terracotta achieves MC-confirmation via scanner polling in set_scanning.
-// Our deterministic port means MC may not be running yet, so we probe with 0xFE.
-// ── Async probe result handlers (non-blocking, no waitFor*) ──
-
-
-
-
-
-
-
-
-// ── Host MC async health check (non-blocking, self-cleaning socket) ──
-// Uses per-call temporary QTcpSocket with signal/lambda cleanup, no member socket.
-// Fires every 5s via m_mcHealthTimer after scanner confirms real MC port.
+// Async 0xFE probe with a per-call temporary QTcpSocket (signal/lambda cleanup,
+// no member socket). Fires every 5s via m_mcHealthTimer after the scanner
+// confirms the real MC port. 3 consecutive failures → tear down the session.
 void MultiplayerManager::checkMcHealth()
 {
     if (m_role != Host || m_state == Idle || m_state == Error || m_state == WaitingForMcServer)

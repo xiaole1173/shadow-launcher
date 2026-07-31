@@ -116,21 +116,4 @@ Rectangle {
         }
     }
 
-    // Periodic refresh timer to catch late-binding updates (e.g. connectionDifficulty from async EasyTier query)
-    Timer {
-        interval: 3000
-        running: root.visible
-        repeat: true
-        onTriggered: {
-            // Force property refresh by re-reading from C++ backend
-            // The readonly property bindings should auto-update on NOTIFY signals,
-            // but this timer ensures eventual consistency for late-arriving data.
-            if (mp) {
-                // Touch the properties to force QML binding re-evaluation
-                var _forceDifficulty = mp.connectionDifficulty;
-                var _forceMcName = mp.mcServerName;
-                var _forceMcPort = mp.mcServerPort;
-            }
-        }
-    }
 }

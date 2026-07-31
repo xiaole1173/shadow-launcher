@@ -8,9 +8,7 @@
 #include <QTcpServer>
 #include <QProcess>
 #include <QTimer>
-#include <QJsonArray>
 #include <QUdpSocket>
-#include <memory>
 #include <atomic>
 #include "room_code.h"
 #include "easytier_process.h"
@@ -94,11 +92,6 @@ public:
     Q_INVOKABLE void prepareServerProperties(const QString& gameDir, const QString& versionId);
     Q_INVOKABLE void setPlayerName(const QString& name);
 
-    // MC LAN scanning (align with Terracotta scanning.rs)
-    Q_INVOKABLE void startScanning();
-    Q_INVOKABLE void stopScanning();
-    Q_INVOKABLE QVariantList scanResults() const;
-
     Q_PROPERTY(QString playerName READ playerName NOTIFY playerNameChanged)
     Q_PROPERTY(int connectionDifficulty READ connectionDifficulty NOTIFY connectionDifficultyChanged)
 
@@ -119,12 +112,6 @@ signals:
 
     // Emitted when FakeServer should announce a given MC port on the LAN multicast
     // Used by the guest to make the MC client auto-discover the proxied server
-    void fakeServerStarted(int port);
-    void fakeServerStopped();
-
-    // MC LAN scan results changed (align with Terracotta scanning.rs)
-    void scanResultsChanged();
-
 private slots:
     void onNetworkReady(const QString& virtualIp);
     void onEasyTierError(const QString& msg);
@@ -155,7 +142,6 @@ private slots:
 
     // ── Discovery + Heartbeat ──
     void sendHeartbeat();
-    void sendPing();
     void doDiscoverCenter();
     void onPeerListReady();
     void onDiscoverTimeout();
@@ -190,8 +176,6 @@ private:
     // Guest profile sync: actively pull player profiles from host (align with Terracotta)
     void syncGuestProfiles();
 
-    // MC LAN scanner for UI-facing LAN scan (align with Terracotta scanning.rs)
-    McScanner* m_scanner = nullptr;
     // MC LAN scanner for host MC auto-detection (Terracotta-aligned: detect real MC server port)
     McScanner* m_hostMcScanner = nullptr;
 
@@ -199,15 +183,13 @@ private:
     ConnectionDifficulty calcConnectionDifficulty(EasyTierNatType local, EasyTierNatType remote) const;
 
     // Fingerprint verification for scaffolding ping (16-byte challenge-response)
-    static constexpr int kScaffoldingFingerprintLen = 16;
     static const QByteArray& scaffoldingFingerprint();
 
     // MC server health monitoring constants
     static constexpr int kMcHealthCheckIntervalMs = 5000;
     static constexpr int kMcHealthMaxFailures = 3;
-    // MC server presence detection (before health check starts)
-    static constexpr int kMcPresenceIntervalMs = 2000;
-    static constexpr int kMcPresenceTimeoutMs = 120000; // 2 minutes
+    // Host MC presence timeout (2 minutes): auto-close if MC never detected
+    static constexpr int kMcPresenceTimeoutMs = 120000;
 
     // FakeServer: UDP LAN multicast (224.0.2.60:4445) for MC auto-discovery
     // Sends [MOTD]...[/MOTD][AD]{port}[/AD] every 1.5s on guest side
@@ -218,10 +200,8 @@ private:
     ConnectionGuard* m_guard = nullptr;
 
     // Latency measurement
-    QTimer* m_pingTimer = nullptr;
-    QHash<QString, qint64> m_pingSentTimes;    // machineId �?send timestamp ms
-    QHash<QString, int> m_latency;             // machineId �?ms
-    QHash<QString, qint64> m_lastHeartbeat;   // machineId �?last heartbeat ms
+    QHash<QString, int> m_latency;             // machineId → ms
+    QHash<QString, qint64> m_lastHeartbeat;   // machineId → last heartbeat ms
     QTimer* m_heartbeatWatchdog = nullptr;     // detects dead guests
     QTcpServer* m_server = nullptr;       // host mode
     QList<QTcpSocket*> m_guests;          // host mode: connected guest sockets
