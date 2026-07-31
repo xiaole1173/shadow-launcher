@@ -815,17 +815,16 @@ void ModpackInstallTask::cancel()
         m_downloader->cancel();   // 同步触发 allFinished(true) → 任务侧 tryCancelFinish 汇合
     }
     if (m_installingMc && m_vb) {
-        // MC/加载器安装中：调用版本后端定向取消（→ installFinished → 任务侧汇合）
+        // MC/加载器安装中：调用版本后端定向取消（→ installFinished → 任务侧汇合）。
+        // ⚠ 必须传会话 id（merged=targetName / vanilla=mcVersion）：纯原版路径
+        //   传 targetName 命中不到 vanilla 下载器（其 id 是 mcVersion），MC 下载不会停。
         emit logLine(tr("正在取消版本安装…"));
-        m_vb->cancelVersionInstall(m_targetName);
+        m_vb->cancelVersionInstall(m_mcSessionId);
     }
-    if (!dlRunning && !m_installingMc) {
-        // 解析/解压阶段：无并行两路，直接回滚收尾
-        rollback();
-        finishCancelled();
-        return;
-    }
-    // 兜底：若任一路回调因信号丢失未触发，5s 后强制回滚收尾
+    // 解析/解压阶段：不抢先回滚——工作线程检查 m_cancel 后自行收尾
+    // （onParsed/onExtracted 的 m_cancel 分支 rollback+finishCancelled），
+    // 立即回滚会与解压写盘并发竞态产生残留。
+    // 统一兜底：任一路回调未触发（信号丢失/工作线程异常），5s 后强制收尾。
     QTimer::singleShot(5000, this, [this]() {
         if (!m_busy) return;
         rollback();
@@ -846,7 +845,8 @@ void ModpackInstallTask::fail(const QString& error)
         m_pendingFailSet = true;
         m_pendingFail = error;
         emit logLine(tr("⚠ %1（等待版本安装停止后回滚）").arg(error));
-        m_vb->cancelVersionInstall(m_targetName);
+        // ⚠ 同 cancel()：用会话 id（merged=targetName / vanilla=mcVersion）
+        m_vb->cancelVersionInstall(m_mcSessionId);
         return;   // onMcInstallFinished 汇合后 fail(m_pendingFail) 统一出口
     }
 

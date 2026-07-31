@@ -13,6 +13,8 @@
 #include <QUrl>
 #include <QRegularExpression>
 #include <QDateTime>
+#include <QTimer>
+#include <QPointer>
 
 #include "../http_client.h"
 #include "../file_downloader.h"
@@ -594,11 +596,15 @@ void ModpackDownloader::onEngineFileFinished(const QString& localPath, bool succ
 
 void ModpackDownloader::onEngineAllFinished()
 {
-    if (!m_running) return;
+    // wasRunning 区分：正常完成路径 emit 收尾；取消后引擎若补发 allFinished
+    // （所有文件恰好都已启动并 abort 完）则不重复 emit，只做清理。
+    const bool wasRunning = m_running;
     m_running = false;
-    emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
-                       m_failed + (m_fd ? m_fd->failedFiles() : 0));
-    emit allFinished(m_cancelled);
+    if (wasRunning) {
+        emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
+                           m_failed + (m_fd ? m_fd->failedFiles() : 0));
+        emit allFinished(m_cancelled);
+    }
     if (m_fd) {
         // 析构会触发 cancel() 并 emit「下载已取消」噪音 → 先断开全部信号再释放
         m_fd->disconnect();
@@ -623,9 +629,13 @@ void ModpackDownloader::cancel()
     // 中止引擎（abort 所有在途分片请求）
     if (m_fd) m_fd->cancel();
 
-    // 未完成的条目标记为跳过
+    // 未完成的条目标记为跳过 + 清理可能残留的半截文件
+    // （引擎 isNoSplit 直接写最终路径，abort 中断会留半截；onEngineFileFinished
+    //   被 m_cancelled 守卫拦截不走正常清理路径，必须在此补删）
     for (int i = 0; i < m_total; ++i) {
         if (!m_items[i].finished) {
+            if (!m_items[i].savePath.isEmpty())
+                QFile::remove(m_items[i].savePath);
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("已取消");
             ++m_skippedCount;
@@ -638,10 +648,19 @@ void ModpackDownloader::cancel()
     m_running = false;
     emit statusChanged(tr("已取消下载"));
     emit allFinished(true);
+    // ⚠ 引擎 worker 异步 abort 中：不能立即 disconnect/deleteLater——
+    //   立即析构会触发 ~FileDownloader → waitForDone(10s) 阻塞主线程（UI 冻结），
+    //   且 cancel 后未启动文件永不计数、引擎 allFinished 不会来。
+    //   延后 2s 清理（abort 必然已完成、worker 已退出 → 析构不阻塞）。
     if (m_fd) {
-        // 析构会再 emit「下载已取消」→ 先断开全部信号再释放
-        m_fd->disconnect();
-        m_fd->deleteLater();
-        m_fd = nullptr;
+        QPointer<ModpackDownloader> self(this);
+        QTimer::singleShot(2000, self, [self]() {
+            if (!self) return;
+            if (self->m_fd) {
+                self->m_fd->disconnect();
+                self->m_fd->deleteLater();
+                self->m_fd = nullptr;
+            }
+        });
     }
 }
