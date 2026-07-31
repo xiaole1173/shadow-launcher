@@ -490,23 +490,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     QNetworkAccessManager mgr;
 
     bool sourceOk = false;
-    // 模组专项：单文件所有源尝试总时长预算（文件级，跨分片线程共享）——
-    // 失败文件反复换源/等超时/分片逐个重下会长期占用线程池名额，
-    // 导致正常排队文件无法调度（剩余文件数不变、进度停滞）。
-    // 预算 30s（PCL 语义：单文件快速失败 → 队列级多轮重试兜底）。
-    // 文件级而非线程级：分片重下（launchWorker 新 runWorker）不重置预算，
-    // 否则 12 片逐个重下各等 30s = 200s+（实测 fabric-api 卡 200s）。
-    const qint64 kModRetryBudgetMs = 30000;
-    if (m_modpackMode && file->modBudgetStartMs == 0)
-        file->modBudgetStartMs = getElapsedMs();
-    const bool budgetExceeded = m_modpackMode
-        && (getElapsedMs() - file->modBudgetStartMs > kModRetryBudgetMs);
+    bool modRetriedOnce = false;   // 模组专项：全部源耗尽后重置源列表整体重试一轮（PCL Retried 同款）
     for (int sourceIdx = 0; sourceIdx < file->orderedSources.size() && !sourceOk; ++sourceIdx) {
         if (m_cancelled.loadRelaxed()) goto cleanup;
-        if (budgetExceeded) {
-            qCWarning(logDownload) << QStringLiteral("[下载] 单文件重试预算耗尽，放弃: %1").arg(file->localName);
-            break;
-        }
 
         QString url = file->orderedSources[sourceIdx];
         th->sourceUrl = url;
@@ -516,11 +502,8 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
         sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
-        // 模组专项：每源每轮仅 1 次尝试（PCL「逐源试一次」语义）——
-        // 首次失败立即放弃本文件，交队列级多轮重试统一处理：
-        // 先把能正常下载的文件下完，失败文件逐轮整体重试，
-        // 避免单文件源级死磕（6 次/源 × 多源）长期占用线程。
-        const int attemptLimit = m_modpackMode ? 1 : 6;
+        // 模组专项：重置重试轮每源仅 1 次尝试（PCL「逐个重新尝试下载」语义）
+        const int attemptLimit = modRetriedOnce ? 1 : 6;
         for (int attempt = 0; attempt < attemptLimit && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
 
@@ -544,14 +527,6 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 req.setRawHeader("Accept-Encoding", "identity");
             }
             req.setTransferTimeout(timeoutMs);
-            if (m_modpackMode) {
-                // 模组专项双保险：QTimer 空闲超时（无数据 15s 断）是主机制；
-                // setTransferTimeout 是整体兜底（30s）——防止 QThreadPool 线程
-                // 事件循环异常时 QTimer 不触发导致请求无限挂起（实测 fabric-api
-                // 挂 200s 靠 TCP 层才断，拖死整队列）。慢速但持续有数据的文件
-                // 由 QTimer readyRead 重置机制保护，不受整体超时误杀。
-                req.setTransferTimeout(30000);
-            }
             req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);
             // HTTP/1.1 connection pooling
@@ -577,13 +552,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
             if (m_modpackMode) {
-                // 模组专项：空闲无数据超时——每次收到数据包重置，连续 15s 无数据才断；
-                // 慢速持续传输的大文件不被整体超时误杀（PCL「无数据才超时」语义，
-                // 动态超时 Min(Max(ConnectAvg,15s),30s)——镜像握手/无响应 15s 即断，
-                // 避免单文件长期挂起拖死整队列（实测 fabric-api 挂 200s 才失败）
-                timeout.start(15000);
+                // 模组专项：空闲无数据超时——每次收到数据包重置，连续 30s 无数据才断；
+                // 慢速持续传输的大文件不被整体超时误杀（PCL「无数据才超时」语义）
+                timeout.start(30000);
                 connect(reply, &QNetworkReply::readyRead, &timeout,
-                        [&timeout]() { timeout.start(15000); });
+                        [&timeout]() { timeout.start(30000); });
             } else {
                 timeout.start(timeoutMs);
             }
@@ -596,9 +569,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 if (delta > 0) {
                     // 首包数据到达 → 线程进入 downloading（state 2）。
                     // 分片调度（managerTick Phase2）以 state<2=prep / state==2=dl 判断
-                    // 是否可加片——原实现从未置 state=2，prep>dl 恒成立导致分片永不触发
-                    // （MC 与模组均受影响，MC 大文件从未真正分片过）。通用修复；
-                    // MC 分片阈值仍为 50MB（isNoSplit 判定不变），>50MB 文件多线程分片。
+                    // 是否可加片——6129062 基线仅模组模式置 state=2，MC 模式 prep>dl 恒成立
+                    // 导致 MC >50MB 文件分片永不触发（分片机制对 MC 是死代码）。
+                    // 豁免保留：放开为通用；模组路径行为与基线一致（基线模组本就置 state=2）。
                     if (th->state == 1) th->state = 2;
                     m_downloadedBytes.fetchAndAddRelaxed(delta);
                     th->downloadDone = received;
@@ -742,12 +715,18 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             goto worker_done;
         }
 
-        // 模组专项：源级不做重置重试——首次失败立即放弃本文件（每源 1 次尝试），
-        // 由 ModpackDownloader 队列级多轮重试统一处理（先把能下的下完，
-        // 失败文件逐轮整体重试）。避免单文件源级死磕占用线程池。
+        // 模组专项：全部源耗尽后，重置源列表整体重试一轮（PCL Retried 同款）。
+        // 第二轮每源仅 1 次尝试（attemptLimit 已按 modRetriedOnce 收窄）。
+        if (!sourceOk && m_modpackMode && !modRetriedOnce) {
+            modRetriedOnce = true;
+            sourceIdx = -1;   // for 循环 ++ 后回到 0，重走全部源
+            qCInfo(logDownload) << QStringLiteral("[下载] 全部源失败，重置源列表整体重试一轮: %1")
+                                   .arg(file->localName);
+            continue;
+        }
     }
 
-    // Last resort retry（模组专项不启用：失败交队列级多轮重试）
+    // Last resort retry（模组专项已重置重试一轮覆盖，跳过原兜底）
     if (!sourceOk && !m_modpackMode && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
         const QString url = file->orderedSources[0];
         qCInfo(logDownload) << QStringLiteral("[下载] 最终兜底重试 URL=%1").arg(url);
@@ -774,9 +753,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
             if (m_modpackMode) {
-                timeout.start(15000);
+                timeout.start(30000);
                 connect(reply, &QNetworkReply::readyRead, &timeout,
-                        [&timeout]() { timeout.start(15000); });
+                        [&timeout]() { timeout.start(30000); });
             } else {
                 int timeoutMs = (attempt == 0) ? 60000 : 30000;
                 timeout.start(timeoutMs);
@@ -907,43 +886,26 @@ cleanup:
         // 24 路并发下单片网络抖动不应导致整个大文件报废：
         // 失败分片（state=4 且未重试过）重置后重新下载其 range，
         // allDone 会因 state=0 重新计算，重试完成后再进入合并/终判。
-        // ⚠ 线程配额检查：线程池满员（active>=maxThreads）时不重下——
-        // 否则 activeThreads 虚高会让 managerTick 永不调度新文件，
-        // 正常排队文件全部饿死（剩余文件数不变的根因之一）。
         if (m_modpackMode && anyFailed) {
-            // 文件级预算耗尽：不再分片重下（交队列级多轮重试兜底），
-            // 避免 12 片逐个重下各等满超时 = 200s+ 拖死队列
-            const bool budgetExhausted = file->modBudgetStartMs > 0
-                && (getElapsedMs() - file->modBudgetStartMs > 30000);
-            if (budgetExhausted) {
-                qCWarning(logDownload) << QStringLiteral("[下载] 预算耗尽，跳过失败分片重下: %1").arg(file->localName);
-            } else {
-                bool launchedRetry = false;
-                {
-                    QMutexLocker lock(&m_filesMutex);
-                    for (auto& t : file->threads) {
-                        if (t->state == 4 && !t->retried) {
-                            t->retried = true;
-                            if (m_activeThreads.loadRelaxed() >= m_maxThreads) {
-                                // 无空闲线程：保留失败终判（文件整体失败，
-                                // 由 ModpackDownloader 队列级兜底重试轮统一重下）
-                                t->state = 4;
-                                continue;
-                            }
-                            t->state = 0;
-                            t->downloadDone = 0;
-                            if (!t->tempPath.isEmpty()) QFile::remove(t->tempPath);
-                            t->tempPath.clear();
-                            launchedRetry = true;
-                            m_activeThreads.fetchAndAddRelaxed(1);
-                            launchWorker(t, file);   // 重新下载该分片 range（源会重新选择）
-                        }
+            bool launchedRetry = false;
+            {
+                QMutexLocker lock(&m_filesMutex);
+                for (auto& t : file->threads) {
+                    if (t->state == 4 && !t->retried) {
+                        t->retried = true;
+                        t->state = 0;
+                        t->downloadDone = 0;
+                        if (!t->tempPath.isEmpty()) QFile::remove(t->tempPath);
+                        t->tempPath.clear();
+                        launchedRetry = true;
+                        m_activeThreads.fetchAndAddRelaxed(1);
+                        launchWorker(t, file);   // 重新下载该分片 range（源会重新选择）
                     }
                 }
-                if (launchedRetry) {
-                    qCInfo(logDownload) << QStringLiteral("[下载] 分片失败重下 %1").arg(file->localName);
-                    return;   // 等重试分片完成
-                }
+            }
+            if (launchedRetry) {
+                qCInfo(logDownload) << QStringLiteral("[下载] 分片失败重下 %1").arg(file->localName);
+                return;   // 等重试分片完成
             }
         }
 

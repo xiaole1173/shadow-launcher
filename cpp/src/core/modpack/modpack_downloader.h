@@ -60,10 +60,6 @@ public:
     void start(bool includeOptional);
     void cancel();
     bool isRunning() const { return m_running; }
-    /// 当前下载速度（MB/s）：转发引擎全局 EMA（基于全局已下载字节、
-    /// 带平滑与衰减）。任务层应以此为准，不要用单文件 received 瞬时差
-    /// （分片/多文件切换时跳变，会虚高）。
-    double currentSpeedMBps() const;
 
 signals:
     void statusChanged(const QString& text);          // 阶段文案（"正在解析下载地址…"）
@@ -100,7 +96,6 @@ private:
     // ── 引擎适配层（ShadowDownloader::FileDownloader）──
     void startEngineDownloads();   // 地址就绪 → 构造引擎 + addFile 编排 + 启动
     int findIndexBySavePath(const QString& path) const;
-    int countFinishedFailed() const;   // 已终判失败数（跳过/取消/重试中不计）
     void onEngineProgress(int completed, int total, qint64 bytes, qint64 allBytes);
     void onEngineFileProgress(const QString& url, const QString& fileName,
                               qint64 received, qint64 total);
@@ -132,13 +127,6 @@ private:
     qint64 m_lastQueueEmitMs = 0;  // queueProgress 桥接限频（200ms）
     qint64 m_lastFileProgMs = 0;   // fileProgress 桥接限频（200ms）
     QString m_lastEngineError;     // 引擎最近一条失败/校验日志（失败详情透传卡片）
-    qint64 m_lastLogEmitMs = 0;    // 常规日志 500ms 合并限频（防日志风暴拖死主线程）
-    // ── 队列级多轮重试（每轮引擎结束后收集失败文件，按现有引擎规则跑下一轮；
-    //    每轮每源仅 1 次尝试，失败文件逐轮整体重试直到全部成功或达轮次上限）──
-    static constexpr int kMaxRetryRounds = 5;   // 重试轮次上限（防永久失败文件无限循环）
-    int m_retryRound = 0;          // 当前重试轮次（0=首轮；>0 表示第 N 轮重试中）
-    int m_round1Done = 0;          // 已完成轮次累计成功数（进度基数）
-    int m_round1Failed = 0;        // 最近一轮失败数（文案展示用）
 };
 
 } // namespace ShadowLauncher

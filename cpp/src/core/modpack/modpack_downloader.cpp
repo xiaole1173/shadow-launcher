@@ -170,9 +170,6 @@ void ModpackDownloader::start(bool includeOptional)
     m_lastQueueEmitMs = 0;
     m_lastFileProgMs = 0;
     m_lastEngineError.clear();
-    m_retryRound = 0;
-    m_round1Done = 0;
-    m_round1Failed = 0;
 
     m_items.resize(m_total);
     for (int i = 0; i < m_total; ++i) {
@@ -477,33 +474,17 @@ void ModpackDownloader::startEngineDownloads()
 {
     if (m_cancelled) return;
 
-    // 每次任务/重试轮新建引擎实例（FileDownloader 无清空队列 API，不复用；
+    // 每次任务新建引擎实例（FileDownloader 无清空队列 API，不复用；
     // 实例级状态与 MC 下载引擎完全隔离，互不干扰）
     m_fd = new ShadowDownloader::FileDownloader(this);
-    // 重试轮并发隔离：只含失败文件，6 线程足够，避免失败重试
-    // 占满线程池与正常下载/MC 路竞争（正常轮 12 线程不变）
-    m_fd->setMaxThreads(m_retryRound > 0 ? 6 : 12);       // 模组专项：全局 12 线程（主流启动器 默认 9 同量级）——
+    m_fd->setMaxThreads(12);       // 模组专项：全局 12 线程（主流启动器 默认 9 同量级）——
     // 实测 24 路并发对 MCIM 镜像过于激进：高峰期镜像限流饿死部分连接 →
     // 30s 无数据超时 → 分片失败 → 大文件报废；12 路温和稳定且峰值仍可达 3MB/s+
     m_fd->setModpackMode(true);    // 模组专项：禁H2/1MB分片/空闲超时/立即换源（MC 下载不受影响）
-    m_preExisting.clear();
 
     for (int i = 0; i < m_total; ++i) {
         DlItem& it = m_items[i];
-        if (m_retryRound > 0) {
-            // 重试轮：只重试上一轮失败的文件（finished 且 !ok）
-            if (!(it.finished && !it.ok)) continue;
-            // 重置为 pending 重新排队（卡片显示重试中）
-            it.finished = false;
-            it.ok = false;
-            it.error.clear();
-            if (i < m_files->size()) {
-                m_files->operator[](i).status = QStringLiteral("pending");
-                m_files->operator[](i).error.clear();
-            }
-        } else if (it.finished) {
-            continue;   // 首轮：跳过已标记完成/跳过的
-        }
+        if (it.finished) continue;   // 解析失败 / 可选跳过已标记
         if (it.urls.isEmpty()) {
             // 无可用地址（双保险，正常情况下解析阶段已处理）
             it.finished = true;
@@ -528,12 +509,11 @@ void ModpackDownloader::startEngineDownloads()
     }
 
     if (m_fd->totalFiles() == 0) {
-        // 空队列（全部解析失败/跳过/无失败可重试）：直接收尾，不启动引擎
+        // 空队列（全部解析失败/跳过）：直接收尾，不启动引擎
         m_fd->deleteLater();
         m_fd = nullptr;
         m_running = false;
-        emit queueProgress(m_skippedCount + m_round1Done, m_total,
-                           countFinishedFailed());
+        emit queueProgress(m_skippedCount, m_total, m_failed);
         emit allFinished(m_cancelled);
         return;
     }
@@ -549,45 +529,17 @@ void ModpackDownloader::startEngineDownloads()
             this, &ModpackDownloader::onEngineAllFinished);
     connect(m_fd, &ShadowDownloader::FileDownloader::logMessage,
             this, [this](const QString& msg) {
+        emit logLine(msg);
         // 捕获引擎失败/校验详情（用于 fileFinished(false) 的错误文案透传，
-        // 消灭界面「详见日志」模糊提示）——失败类日志永不节流，必须逐条保留
-        const bool isFailureLog = msg.contains(QStringLiteral("失败"))
+        // 消灭界面「详见日志」模糊提示）
+        if (msg.contains(QStringLiteral("失败"))
             || msg.contains(QStringLiteral("校验"))
-            || msg.contains(QStringLiteral("SHA1"))
-            || msg.contains(QStringLiteral("超时"));
-        if (isFailureLog) {
+            || msg.contains(QStringLiteral("SHA1"))) {
             m_lastEngineError = msg;
         }
-        // 常规日志（启动线程/开始下载/线程完成/切源/速度）500ms 合并限频：
-        // 每条都透传 → 任务层 pushCardLog → QML 全量附件重建，高并发下
-        // （模组 12 路 + MC 64 路）日志风暴会拖死主线程事件循环（UI 卡死无响应）
-        const qint64 now = QDateTime::currentMSecsSinceEpoch();
-        if (!isFailureLog && now - m_lastLogEmitMs < 500) return;
-        if (!isFailureLog) m_lastLogEmitMs = now;
-        emit logLine(msg);
     });
 
     m_fd->start();
-}
-
-double ModpackDownloader::currentSpeedMBps() const
-{
-    return m_fd ? m_fd->currentSpeedMBps() : 0.0;
-}
-
-int ModpackDownloader::countFinishedFailed() const
-{
-    // 已终判失败数：解析阶段失败（无地址/API 错误） + 引擎下载失败。
-    // 可选跳过（error==跳过文案）与取消（error==已取消，计入 skippedCount）
-    // 不算失败；重试中（已重置 pending，finished=false）也不计。
-    int n = 0;
-    for (const DlItem& it : m_items) {
-        if (!it.finished || it.ok) continue;
-        if (it.error == QStringLiteral("可选文件已跳过")) continue;
-        if (it.error == QStringLiteral("已取消")) continue;
-        ++n;
-    }
-    return n;
 }
 
 int ModpackDownloader::findIndexBySavePath(const QString& path) const
@@ -605,13 +557,8 @@ void ModpackDownloader::onEngineProgress(int completed, int total, qint64 bytes,
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (now - m_lastQueueEmitMs < 200 && completed < total) return;
     m_lastQueueEmitMs = now;
-    // 总进度 = 已完成轮次成功数 + 本轮成功数；失败 = 已终判失败数（
-    // 含解析阶段失败与引擎失败；重试中被重置为 pending 的不计，
-    // 未下载/进行中的也不计——不能拿 total-done 当失败，否则首轮
-    // 一开始会把全部未下载文件误报为失败）
-    const int fdDone = m_fd ? m_fd->completedFiles() : 0;
-    const int done = m_skippedCount + m_round1Done + fdDone;
-    emit queueProgress(done, m_total, countFinishedFailed());
+    emit queueProgress(m_skippedCount + completed, m_total,
+                       m_failed + (m_fd ? m_fd->failedFiles() : 0));
 }
 
 void ModpackDownloader::onEngineFileProgress(const QString& url, const QString& fileName,
@@ -660,54 +607,19 @@ void ModpackDownloader::onEngineFileFinished(const QString& localPath, bool succ
         emit fileFinished(idx, false, it.error);
         emit logLine(tr("⚠ %1 下载失败: %2").arg(it.fileName, it.error));
     }
-    // 队列进度（含已完成轮次基数）
-    {
-        const int fdDone = m_fd ? m_fd->completedFiles() : 0;
-        const int done = m_skippedCount + m_round1Done + fdDone;
-        emit queueProgress(done, m_total, countFinishedFailed());
-    }
+    emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
+                       m_failed + (m_fd ? m_fd->failedFiles() : 0));
 }
 
 void ModpackDownloader::onEngineAllFinished()
 {
-    // 本轮引擎结束：累计成功数到基数，收集失败文件。
-    // 队列级多轮重试：先把能正常下载的文件下完（首轮），失败文件
-    // 逐轮整体重试（每轮每源仅 1 次尝试、快速失败），直到全部成功
-    // 或达轮次上限（kMaxRetryRounds 防永久失败文件无限循环）。
-    // 期间 m_running 保持 true：任务层收不到 allFinished，卡片以最终轮结果为终态。
-    const int fdDone = m_fd ? m_fd->completedFiles() : 0;
-    const int fdFailed = m_fd ? m_fd->failedFiles() : 0;
-    m_round1Done += fdDone;
-    m_round1Failed = fdFailed;
-
-    bool hasFailed = false;
-    int failCount = 0;
-    for (int i = 0; i < m_total; ++i) {
-        if (m_items[i].finished && !m_items[i].ok) { hasFailed = true; ++failCount; }
-    }
-
-    if (m_fd) {
-        m_fd->disconnect();
-        m_fd->deleteLater();
-        m_fd = nullptr;
-    }
-
-    if (hasFailed && !m_cancelled && m_retryRound < kMaxRetryRounds) {
-        ++m_retryRound;
-        emit statusChanged(tr("正在重试失败文件（第 %1/%2 轮，剩余 %3 个）…")
-                               .arg(m_retryRound).arg(kMaxRetryRounds).arg(failCount));
-        emit logLine(tr("本轮完成，%1 个文件失败，进入第 %2 轮重试…")
-                         .arg(failCount).arg(m_retryRound));
-        startEngineDownloads();   // 下一轮（只含失败文件）
-        return;   // 不 emit allFinished，等最终结果
-    }
-
-    // 最终收尾（全部成功，或达轮次上限仍失败 / 已取消）
+    // wasRunning 区分：正常完成路径 emit 收尾；取消后引擎若补发 allFinished
+    // （所有文件恰好都已启动并 abort 完）则不重复 emit，只做清理。
     const bool wasRunning = m_running;
     m_running = false;
     if (wasRunning) {
-        emit queueProgress(m_skippedCount + m_round1Done, m_total,
-                           countFinishedFailed());
+        emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
+                           m_failed + (m_fd ? m_fd->failedFiles() : 0));
         emit allFinished(m_cancelled);
     }
     if (m_fd) {

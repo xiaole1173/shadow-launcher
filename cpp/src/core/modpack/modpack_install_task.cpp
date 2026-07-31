@@ -360,13 +360,16 @@ void ModpackInstallTask::runDownload()
         m_lastFileProgMs = now;
         m_currentFile = name;
         emit fileProgressChanged(name, total > 0 ? (qreal)received / total : 0.0);
-        // 模组路速度：直接用引擎全局 EMA（基于全局已下载字节，带平滑衰减）——
-        // 旧实现用单文件 received 瞬时字节差：分片/多文件切换时 received 跳变
-        // （分片各自从 0 累计 / 文件切换后新文件从头算）→ 瞬时差虚高；
-        // 且停滞时无 fileProgress 事件 → 旧速度永不衰减 → 界面网速虚高常驻。
-        m_modEma = qMax<qint64>(0, qint64(m_downloader->currentSpeedMBps() * 1024.0 * 1024.0));
-        m_lastBytes = received;
-        m_lastBytesMs = now;
+        // 模组路 EMA 速度（500ms 窗口）
+        if (m_lastBytesMs > 0 && now - m_lastBytesMs >= 500) {
+            const qint64 db = received - m_lastBytes;
+            if (db > 0) m_modEma = qMax<qint64>(0, db * 1000 / (now - m_lastBytesMs));
+            m_lastBytes = received;
+            m_lastBytesMs = now;
+        } else if (m_lastBytesMs <= 0) {
+            m_lastBytes = received;
+            m_lastBytesMs = now;
+        }
         // 速度聚合：模组路 EMA + MC 路（并行期两路同跑时显示总和）
         m_mcSpeed = (!m_mcSessionId.isEmpty() && m_vb) ? m_vb->installSpeedOf(m_mcSessionId) : 0;
         m_cardSpeed = m_modEma + m_mcSpeed;
@@ -410,14 +413,6 @@ void ModpackInstallTask::runDownload()
     connect(m_downloader, &ModpackDownloader::queueProgress, this,
             [this](int completed, int total, int failed) {
                 if (total <= 0) return;
-                // 停滞期速度衰减：引擎 EMA 在无数据流入时自然衰减归零，
-                // 这里同步刷新（fileProgress 事件在停滞时不触发，只能靠
-                // 引擎持续心跳的 queueProgress 通道刷新）→ 界面网速回落真实值
-                m_modEma = qMax<qint64>(0, qint64(m_downloader->currentSpeedMBps() * 1024.0 * 1024.0));
-                m_mcSpeed = (!m_mcSessionId.isEmpty() && m_vb)
-                    ? m_vb->installSpeedOf(m_mcSessionId) : 0;
-                m_cardSpeed = m_modEma + m_mcSpeed;
-                syncCard();
                 m_modFrac = (qreal)completed / total;
                 // 步骤 2 动态文案：模组批量下载，剩余 XX 个文件
                 const int remain = qMax(0, total - completed - failed);
