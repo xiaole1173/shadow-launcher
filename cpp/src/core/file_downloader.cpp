@@ -567,11 +567,12 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     [&](qint64 received, qint64 total) {
                 qint64 delta = received - th->downloadDone;
                 if (delta > 0) {
-                    // 模组专项：首包数据到达 → 线程进入 downloading（state 2）。
+                    // 首包数据到达 → 线程进入 downloading（state 2）。
                     // 分片调度（managerTick Phase2）以 state<2=prep / state==2=dl 判断
-                    // 是否可加片——原实现从未置 state=2，prep>dl 恒成立导致分片永不触发。
-                    // 仅模组模式修复；MC 模式保持原行为（50MB 阈值 + 不分片）不变。
-                    if (th->state == 1 && m_modpackMode) th->state = 2;
+                    // 是否可加片——原实现从未置 state=2，prep>dl 恒成立导致分片永不触发
+                    // （MC 与模组均受影响，MC 大文件从未真正分片过）。通用修复；
+                    // MC 分片阈值仍为 50MB（isNoSplit 判定不变），>50MB 文件多线程分片。
+                    if (th->state == 1) th->state = 2;
                     m_downloadedBytes.fetchAndAddRelaxed(delta);
                     th->downloadDone = received;
                 }
