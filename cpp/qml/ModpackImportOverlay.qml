@@ -29,6 +29,11 @@ Rectangle {
     // ── 内部状态 ──
     property string _filePath: ""
     property string _fileName: ""
+    // 来源标识（Modrinth / CurseForge）：声明为真实属性供下载进度页经
+    // mainWindow.modpackImportOverlay 读取。切勿用动态属性赋值——
+    // Qt 6 qmlcachegen 编译模式下对 QML 对象运行时赋新属性会抛
+    // "Cannot assign to non-existent property"，直接中断 _startImport。
+    property string _modpackImportFormat: ""
 
     // ═══════════ 公共 API（强制保留）═══════════
     function show() {
@@ -59,14 +64,17 @@ Rectangle {
 
     // 开始导入：启动后端任务 → 永久关闭弹窗 → 路由到全局下载进度页
     function _startImport() {
+        console.log("[modpack-import] _startImport: file=", root._filePath)
         if (!root._filePath) return
-        // 来源标识经 appWindow 动态属性传给下载进度页的信息面板（本通道不改动任何源码）
-        if (root.appWindow)
-            root.appWindow._modpackImportFormat = /\.mrpack$/i.test(root._filePath) ? "Modrinth" : "CurseForge"
+        // 来源标识写入弹窗根属性（下载进度页经 mainWindow.modpackImportOverlay 读取）
+        root._modpackImportFormat = /\.mrpack$/i.test(root._filePath) ? "Modrinth" : "CurseForge"
+        // 1. 调用后端（同步触发 busyChanged → 下载进度页条目出现）
         backend.modpackImporter.startImport(root._filePath)
+        // 2. 永久关闭弹窗（本弹窗生命周期到此结束，不再二次弹出）
         root.hide()
+        // 3. 路由到下载进度页（导航第 5 项）
         if (root.appWindow && typeof root.appWindow.switchPage === "function")
-            root.appWindow.switchPage(5)  // 导航第 5 项 = 下载进度页（导入全过程载体）
+            root.appWindow.switchPage(5)
     }
 
     // ═══════════ 文件选择对话框 ═══════════
@@ -229,8 +237,8 @@ Rectangle {
                     DropArea {
                         id: dropArea
                         anchors.fill: parent
-                        onEntered: { if (drag.hasUrls) drag.accept(Qt.CopyAction) }
-                        onDropped: {
+                        onEntered: function(drag) { if (drag.hasUrls) drag.accept(Qt.CopyAction) }
+                        onDropped: function(drop) {
                             if (drop.hasUrls && drop.urls.length > 0) {
                                 var p = drop.urls[0].toString()
                                 if (p.startsWith("file:///")) p = p.substring(8)
@@ -280,12 +288,16 @@ Rectangle {
                         onClicked: root.hide()
                     }
                     ShadowButton {
+                        id: startImportBtn
                         text: qsTr("开始导入")
                         enabled: root._filePath.length > 0
                         accentColor: StyleTokens.accent
                         Layout.preferredWidth: 128
                         Layout.preferredHeight: 32
-                        onClicked: root._startImport()
+                        onClicked: {
+                            console.log("[modpack-import] 开始导入 clicked, file=", root._filePath)
+                            root._startImport()
+                        }
                     }
                 }
             }
@@ -299,6 +311,9 @@ Rectangle {
             event.accepted = true
         }
     }
+
+    // 供调试/自动化读取的按钮引用（/eval 测试用，不参与业务逻辑）
+    property alias startImportButton: startImportBtn
 
     focus: true
 }

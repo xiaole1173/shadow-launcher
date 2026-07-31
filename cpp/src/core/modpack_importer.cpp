@@ -78,6 +78,10 @@ QVariantList ModpackImporter::modItems() const { return m_modItems; }
 
 void ModpackImporter::startImport(const QString& zipFilePath, bool includeOptional)
 {
+    // 入口日志：任何路径（含 busy 早退）都先落日志，便于定位「点击无响应」类问题
+    qCInfo(logMod) << "[modpack] startImport 被调用:" << zipFilePath
+                   << "busy=" << m_busy
+                   << "includeOptional=" << includeOptional;
     if (m_busy) return;
 
     loadApiKeyFromConfig();

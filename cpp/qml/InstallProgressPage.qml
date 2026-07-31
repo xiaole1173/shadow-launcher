@@ -65,8 +65,11 @@ Item {
         root._cancelRequested = false
         root._entryDismissed = false
         root._entryState = 1
-        // 来源字段：弹窗启动时经 appWindow 动态属性传入（Modrinth / CurseForge）
-        root._setInfo("format", (root.mainWindow && root.mainWindow._modpackImportFormat) || "")
+        // 来源字段：弹窗根声明属性（mainWindow.modpackImportOverlay 公开引用），
+        // 避免动态属性赋值（Qt6 qmlcachegen 下会抛 Cannot assign to non-existent property）
+        root._setInfo("format",
+            (root.mainWindow && root.mainWindow.modpackImportOverlay)
+                ? root.mainWindow.modpackImportOverlay._modpackImportFormat : "")
     }
 
     // 后端步骤名 → 阶段序号（未知时按全局进度区间兜底）
