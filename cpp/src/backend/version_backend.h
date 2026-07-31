@@ -213,6 +213,9 @@ public:
                                        const QString& fabricApiSavePath = QString(),
                                        const QString& forgeInstallerSha1 = QString(),
                                        const QString& forgeInstallerBranch = QString());
+    /// 全局下载源策略：true=官方源优先（fileSource==PreferOfficial|AutoSwitch）。
+    /// 供加载器安装/整合包导入/版本清单等子流程读取源路由。
+    bool downloadPreferOfficial() const;
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName,
                                        const QString& bmclType = QString(), const QString& bmclPatch = QString());
@@ -359,8 +362,6 @@ private:
     // Per-task ModLoaderInstaller lifecycle (legacy, kept for non-merged paths)
     ModLoaderInstaller* createLoaderInstaller(const QString& installId);
     void destroyLoaderInstaller(const QString& installId);
-    /// 全局下载源策略：true=官方源优先（fileSource==PreferOfficial|AutoSwitch）
-    bool downloadPreferOfficial() const;
     ModLoaderInstaller* loaderInstaller(const QString& installId) const { return m_mlInstallers.value(installId, nullptr); }
 
     // MergedInstallContext lifecycle

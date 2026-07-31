@@ -726,9 +726,13 @@ void ModpackInstallTask::ensureVersionJsonFallback(int attempt)
         return;
     }
 
-    static const char* kManifestUrls[] = {
-        "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json",
-        "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+    // 按全局源策略排序：官方优先时 launchermeta 在前（另一源兜底）
+    static const char* kMirrorManifest = "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json";
+    static const char* kOfficialManifest = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+    const bool preferOfficial = m_vb && m_vb->downloadPreferOfficial();
+    const char* kManifestUrls[2] = {
+        preferOfficial ? kOfficialManifest : kMirrorManifest,
+        preferOfficial ? kMirrorManifest : kOfficialManifest
     };
     const QString mcVersion = m_meta.mcVersion;
     const QString jsonPath = m_versionDir + QLatin1Char('/') + m_targetName + QLatin1String(".json");

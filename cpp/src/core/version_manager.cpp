@@ -82,16 +82,19 @@ void VersionManager::fetchVersions()
 
 void VersionManager::doNetworkFetch()
 {
-    // 2) Request primary source (BMCLAPI) with Mojang fallback
-    QUrl primaryUrl(PRIMARY_URL);
+    // 按下载源策略选主源：官方优先时 launchermeta 在前，否则 BMCLAPI 在前（另一源兜底）
+    const char* primary = m_preferOfficial ? FALLBACK_URL : PRIMARY_URL;
+    const char* fallback = m_preferOfficial ? PRIMARY_URL : FALLBACK_URL;
+
+    QUrl primaryUrl(primary);
     QNetworkRequest request(primaryUrl);
     request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
     request.setTransferTimeout(8000);  // 8s timeout for primary
 
-    qCInfo(logMgr) << QStringLiteral("[版本管理] 网络请求 主源=%1").arg(PRIMARY_URL);
+    qCInfo(logMgr) << QStringLiteral("[版本管理] 网络请求 主源=%1 兜底=%2").arg(primary, fallback);
     QNetworkReply* reply = m_nam->get(request);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, fallback]() {
         reply->deleteLater();
 
         // Check if primary succeeded
@@ -107,14 +110,14 @@ void VersionManager::doNetworkFetch()
             }
         }
 
-        // Primary failed — fallback to Mojang official
-        qCWarning(logMgr) << QStringLiteral("[版本管理] 主源失败 错误=%1 回退到Mojang").arg(reply->errorString());
-        QUrl fallbackUrl(FALLBACK_URL);
+        // Primary failed — fallback to the other source（按策略选定的兜底源）
+        qCWarning(logMgr) << QStringLiteral("[版本管理] 主源失败 错误=%1 回退=%2").arg(reply->errorString(), QString::fromLatin1(fallback));
+        QUrl fallbackUrl(fallback);
         QNetworkRequest mirrorReq(fallbackUrl);
         mirrorReq.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
         mirrorReq.setTransferTimeout(15000);
 
-        qCInfo(logMgr) << QStringLiteral("[版本管理] 网络请求 回退源=%1").arg(FALLBACK_URL);
+        qCInfo(logMgr) << QStringLiteral("[版本管理] 网络请求 回退源=%1").arg(QString::fromLatin1(fallback));
         QNetworkReply* mirrorReply = m_nam->get(mirrorReq);
         connect(mirrorReply, &QNetworkReply::finished, this, [this, mirrorReply]() {
             mirrorReply->deleteLater();
@@ -154,7 +157,8 @@ QVector<McVersion> VersionManager::fetchVersionsSync()
     QVector<McVersion> result;
 
     QNetworkAccessManager nam;
-    QUrl syncUrl(PRIMARY_URL);
+    const char* syncSource = m_preferOfficial ? FALLBACK_URL : PRIMARY_URL;  // 按策略选源
+    QUrl syncUrl(syncSource);
     QNetworkRequest request(syncUrl);
     request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
     request.setTransferTimeout(15000);

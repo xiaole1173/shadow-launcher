@@ -236,6 +236,7 @@ private:
         QString sha1;
         qint64 received = 0;
         qint64 speedBytesPerSec = 0;
+        double speedEMA = 0.0;      // 速度 EMA（统一口径：引擎 EMA 同款，停滞自然衰减归零）
         qint64 lastSpeedBytes = 0;
         qint64 lastSpeedMs = 0;
         bool cancelled = false;

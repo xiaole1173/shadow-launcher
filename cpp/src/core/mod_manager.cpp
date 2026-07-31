@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QDateTime>
 #include <QFile>
+#include <cmath>
 #include <QFileInfo>
 #include <QCryptographicHash>
 #include <QNetworkReply>
@@ -350,15 +351,23 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
             auto it = m_activeModDownloads.find(id);
             if (it == m_activeModDownloads.end() || it->cancelled || it->finished || it->paused) return;
             it->received = received;
-            // ── 瞬时速度：delta bytes / delta time ──
+            // ── 速度：EMA 统一口径（与下载引擎一致）──
+            // 瞬时差分 + 0.5/0.5 EMA 平滑；无数据时按时间常数 τ=2s 指数衰减归零
+            // （替代旧的 30s 跳零——停滞期旧速度悬浮不落）。
             qint64 now = QDateTime::currentMSecsSinceEpoch();
             qint64 deltaB = received - it->lastSpeedBytes;
             qint64 deltaT = it->lastSpeedMs > 0 ? (now - it->lastSpeedMs) : 0;
             if (deltaB > 0 && deltaT > 0) {
-                it->speedBytesPerSec = (deltaB * 1000) / deltaT;
-            } else if (deltaT > 30000) {
-                it->speedBytesPerSec = 0;
+                const double instantBps = double(deltaB) * 1000.0 / double(deltaT);
+                it->speedEMA = it->speedEMA <= 0.0
+                    ? instantBps
+                    : it->speedEMA * 0.5 + instantBps * 0.5;
+            } else if (deltaT > 0) {
+                // 无数据：指数衰减归零
+                it->speedEMA *= std::exp(-double(deltaT) / 2000.0);
+                if (it->speedEMA < 1.0) it->speedEMA = 0.0;
             }
+            it->speedBytesPerSec = static_cast<qint64>(it->speedEMA);
             it->lastSpeedBytes = received;
             it->lastSpeedMs = now;
             emit modFileDownloadProgress(id, received, total, it->speedBytesPerSec);

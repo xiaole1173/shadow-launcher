@@ -22,6 +22,8 @@ public:
 
     // ── 配置 ──
     void setDataDir(const QString& path) { m_dataDir = path; }
+    /// 下载源策略：true=官方清单优先（BMCLAPI 兜底）；false=BMCLAPI 优先（默认）
+    void setPreferOfficial(bool v) { m_preferOfficial = v; }
     QString dataDir() const { return m_dataDir; }
 
     void setGameDir(const QString& path) { m_gameDir = path; }
@@ -80,6 +82,7 @@ private:
     QVector<McVersion> m_versions;
     QString m_dataDir;
     QString m_gameDir;
+    bool m_preferOfficial = false;   // 版本清单源策略（官方优先 / 镜像优先）
     std::future<void> m_cacheLoadFuture;
 };
 

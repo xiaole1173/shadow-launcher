@@ -1831,7 +1831,7 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
                     QTimer timer;
                     timer.setSingleShot(true);
                     QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-                    timer.start(30000);
+                    timer.start(15000);   // 主线程阻塞场景：单源 15s 上限（双候选最坏 30s，与基线持平）
                     loop.exec();
                     const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
                     if (ok) {
@@ -1973,7 +1973,7 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
                 QTimer timer;
                 timer.setSingleShot(true);
                 QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-                timer.start(30000);
+                timer.start(15000);   // 主线程阻塞场景：单源 15s 上限（双候选最坏 30s，与基线持平）
                 loop.exec();
                 const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
                 if (ok) {
@@ -2572,7 +2572,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                         QTimer timer;
                         timer.setSingleShot(true);
                         QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-                        timer.start(30000);
+                        timer.start(15000);   // 主线程阻塞场景：单源 15s（多候选最坏 45s，基线 3×30s 减半）
                         loop.exec();
                         if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
                             timer.stop();

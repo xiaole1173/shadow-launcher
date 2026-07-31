@@ -139,6 +139,7 @@ VersionBackend::VersionBackend(QObject* parent)
     // ── VersionManager: fetch + cache version manifest ──
 
     m_versionMgr = new VersionManager(this);
+    m_versionMgr->setPreferOfficial(downloadPreferOfficial());   // 版本清单跟随全局源策略
 
     
 

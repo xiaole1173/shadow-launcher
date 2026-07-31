@@ -582,23 +582,6 @@ static QString mavenNameToPath(const QString& mavenName)
            + version + QLatin1Char('/') + artifact + QLatin1Char('-') + version + QStringLiteral(".jar");
 }
 
-// Construct download URL from library entry (used by Fabric library downloader)
-//   url field  → "https://maven.fabricmc.net/"
-//   name field → "net.fabricmc:fabric-loader:0.19.3"
-//  Output     → "https://maven.fabricmc.net/net/fabricmc/fabric-loader/0.19.3/fabric-loader-0.19.3.jar"
-static QString mavenDownloadUrl(const QJsonObject& lib, const QString& bmclapiPrefix = QStringLiteral("https://bmclapi2.bangbang93.com/maven/"))
-{
-    QString mavenName = lib[QStringLiteral("name")].toString();
-    QString relPath = mavenNameToPath(mavenName);
-    if (relPath.isEmpty()) return {};
-    QString baseUrl = lib[QStringLiteral("url")].toString(QStringLiteral("https://maven.fabricmc.net/"));
-    // Replace official Maven with BMCLAPI mirror for faster download in China
-    baseUrl.replace(QStringLiteral("https://maven.fabricmc.net/"), bmclapiPrefix);
-    baseUrl.replace(QStringLiteral("https://maven.neoforged.net/"), bmclapiPrefix);
-    if (!baseUrl.endsWith(QLatin1Char('/'))) baseUrl += QLatin1Char('/');
-    return baseUrl + relPath;
-}
-
 static QString resolveLibraryPath(const QJsonObject& lib, const QString& librariesDir)
 {
     // Try artifact path first
