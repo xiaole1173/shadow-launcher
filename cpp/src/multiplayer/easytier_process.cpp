@@ -205,6 +205,11 @@ void EasyTierProcess::stop()
     qCInfo(logNet) << QStringLiteral("[EasyTier] 停止进程");
     m_outputTimer->stop();
     m_timeoutTimer->stop();
+    // Reset cached NAT so a fresh session starts from Unknown (peer gone → difficulty falls back)
+    if (m_currentNatType != EasyTierNatType::Unknown) {
+        m_currentNatType = EasyTierNatType::Unknown;
+        emit localNatTypeChanged(static_cast<int>(EasyTierNatType::Unknown));
+    }
 
     if (m_cliProcess) {
         m_cliProcess->disconnect();
@@ -444,8 +449,112 @@ void EasyTierProcess::pollPeerList()
     m_cliProcess->start(cliExe, cliArgs);
 }
 
+// Parse a table cell / string into a NAT type (specific patterns checked before generic ones)
+EasyTierNatType EasyTierProcess::parseNatCell(const QString& cell)
+{
+    const QString s = cell.trimmed();
+    if (s.isEmpty())
+        return EasyTierNatType::Unknown;
+
+    if (s.contains(QStringLiteral("OpenInternet")))       return EasyTierNatType::OpenInternet;
+    if (s.contains(QStringLiteral("SymmetricEasyInc")) ||
+        s.contains(QStringLiteral("SymmetricEasyIncrease"))) return EasyTierNatType::SymmetricEasyIncrease;
+    if (s.contains(QStringLiteral("SymmetricEasyDec")) ||
+        s.contains(QStringLiteral("SymmetricEasyDecrease"))) return EasyTierNatType::SymmetricEasyDecrease;
+    if (s.contains(QStringLiteral("SymUdpFirewall")) ||
+        s.contains(QStringLiteral("SymUdpWall")) ||
+        s.contains(QStringLiteral("SymmetricUdpWall")))     return EasyTierNatType::SymmetricUdpWall;
+    if (s.contains(QStringLiteral("Symmetric")))            return EasyTierNatType::Symmetric;
+    if (s.contains(QStringLiteral("PortRestricted")) ||
+        s.contains(QStringLiteral("Port Restricted")))      return EasyTierNatType::PortRestricted;
+    if (s.contains(QStringLiteral("Restricted")))           return EasyTierNatType::Restricted;
+    if (s.contains(QStringLiteral("FullCone")) ||
+        s.contains(QStringLiteral("Full Cone")))             return EasyTierNatType::FullCone;
+    if (s.contains(QStringLiteral("NoPat")) ||
+        s.contains(QStringLiteral("No Pat")) ||
+        s.contains(QStringLiteral("NoPAT")))                 return EasyTierNatType::NoPAT;
+    return EasyTierNatType::Unknown;
+}
+
 void EasyTierProcess::parsePeerList(const QString& output)
 {
+    // ── NAT extraction: find the LOCAL peer row and store its NAT type (not just log it) ──
+    // Peer table (easytier-cli 2.6.x) is pipe-separated:
+    //   | ipv4 | hostname | cost | lat(ms) | loss | rx | tx | tunnel | NAT | version |
+    // Scan all cells of each row so column order doesn't matter.
+    // Prefer the row whose IP matches our virtual IP; fall back to first cost="Local" row.
+    {
+        static QRegularExpression ipCellRx(QStringLiteral(R"((\d+\.\d+\.\d+\.\d+))"));
+
+        EasyTierNatType localNat = EasyTierNatType::Unknown;
+        EasyTierNatType firstLocalRowNat = EasyTierNatType::Unknown;
+        bool foundSelf = false;
+        bool foundAnyNatRow = false;
+
+        const QStringList lines = output.split(QLatin1Char('\n'));
+        for (const QString& line : lines) {
+            if (!line.contains(QLatin1Char('|')))
+                continue;
+            QStringList cells;
+            for (const QString& c : line.split(QLatin1Char('|'))) {
+                const QString t = c.trimmed();
+                if (!t.isEmpty())
+                    cells << t;
+            }
+            // Skip header/separator rows
+            if (cells.size() < 3)
+                continue;
+            if (cells.contains(QStringLiteral("No")) || cells.contains(QStringLiteral("IP")))
+                continue;  // header
+
+            bool isLocalRow = cells.contains(QStringLiteral("Local"));
+            QString rowIp;
+            for (const QString& cell : cells) {
+                auto m = ipCellRx.match(cell);
+                if (m.hasMatch()) {
+                    rowIp = m.captured(1);
+                    break;
+                }
+            }
+
+            EasyTierNatType rowNat = EasyTierNatType::Unknown;
+            for (const QString& cell : cells) {
+                EasyTierNatType t = parseNatCell(cell);
+                if (t != EasyTierNatType::Unknown) {
+                    rowNat = t;
+                    break;  // one NAT cell per row
+                }
+            }
+            if (rowNat == EasyTierNatType::Unknown)
+                continue;
+            foundAnyNatRow = true;
+
+            // Our own row: IP matches the virtual IP we already track
+            if (!m_virtualIp.isEmpty() && rowIp == m_virtualIp) {
+                localNat = rowNat;
+                foundSelf = true;
+                break;
+            }
+            // Fallback candidate: first cost="Local" row
+            if (isLocalRow && firstLocalRowNat == EasyTierNatType::Unknown)
+                firstLocalRowNat = rowNat;
+        }
+
+        if (!foundSelf)
+            localNat = firstLocalRowNat;
+
+        // Peer table no longer has any NAT rows (core gone / network dropped) → reset to Unknown
+        if (!foundAnyNatRow && m_currentNatType != EasyTierNatType::Unknown) {
+            m_currentNatType = EasyTierNatType::Unknown;
+            qCInfo(logNet) << QStringLiteral("[EasyTier] 对等列表消失 本地NAT重置为Unknown");
+            emit localNatTypeChanged(static_cast<int>(EasyTierNatType::Unknown));
+        } else if (localNat != EasyTierNatType::Unknown && localNat != m_currentNatType) {
+            m_currentNatType = localNat;
+            qCInfo(logNet) << QStringLiteral("[EasyTier] 本地NAT类型更新: %1").arg(static_cast<int>(m_currentNatType));
+            emit localNatTypeChanged(static_cast<int>(m_currentNatType));
+        }
+    }
+
     // Always update virtual IP from peer table (covers both initial and DHCP-assigned)
     QRegularExpression ipRx(QStringLiteral(R"(\|?\s*(\d+\.\d+\.\d+\.\d+)(?:/\d+)?\s*\|)"));
 

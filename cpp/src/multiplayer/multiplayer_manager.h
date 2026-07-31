@@ -129,6 +129,9 @@ private slots:
     void onNetworkReady(const QString& virtualIp);
     void onEasyTierError(const QString& msg);
 
+    // ── Reactive connection difficulty update from EasyTier local NAT changes ──
+    void onLocalNatTypeChanged(int natType);
+
     // ── Host MC async health check (non-blocking, self-cleaning socket) ──
     void checkMcHealth();
     void handleHealthCheckFailure();
@@ -247,6 +250,8 @@ private:
 
     // Connection difficulty (from NAT type analysis)
     ConnectionDifficulty m_connectionDifficulty = DiffUnknown;
+    // Guest: host peer's NAT type (captured during discovery, reused on local NAT changes)
+    EasyTierNatType m_hostNatType = EasyTierNatType::Unknown;
     QString m_mcServerName;
 
     std::atomic<int> m_state{0};

@@ -77,6 +77,10 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     });
     connect(m_easyTier, &EasyTierProcess::errorOccurred, this, &MultiplayerManager::onEasyTierError);
 
+    // Reactive difficulty: EasyTier peer-table poll re-detects local NAT → recompute + push to QML
+    connect(m_easyTier, &EasyTierProcess::localNatTypeChanged,
+            this, &MultiplayerManager::onLocalNatTypeChanged);
+
     m_heartbeatTimer->setInterval(Scaffolding::kHeartbeatIntervalMs);
     connect(m_heartbeatTimer, &QTimer::timeout, this, &MultiplayerManager::sendHeartbeat);
 
@@ -896,6 +900,9 @@ void MultiplayerManager::onPeerListReady()
             m_centerIp = ipv4;
             m_discoverTimer->stop();
             m_discoverTimeoutTimer->stop();
+
+            // Remember host NAT for reactive difficulty updates when local NAT changes
+            m_hostNatType = hostNat;
 
             // Calculate connection difficulty (align with Terracotta)
             m_connectionDifficulty = calcConnectionDifficulty(localNat, hostNat);
@@ -1895,6 +1902,10 @@ void MultiplayerManager::syncGuestProfiles()
 MultiplayerManager::ConnectionDifficulty MultiplayerManager::calcConnectionDifficulty(
     EasyTierNatType local, EasyTierNatType remote) const
 {
+    // Unknown / no peer connection → unknown difficulty (UI shows 未知)
+    if (local == EasyTierNatType::Unknown && remote == EasyTierNatType::Unknown)
+        return DiffUnknown;
+
     auto isType = [&](const QList<EasyTierNatType>& types) -> bool {
         return types.contains(local) || types.contains(remote);
     };
@@ -1920,6 +1931,33 @@ const QByteArray& MultiplayerManager::scaffoldingFingerprint()
         QStringLiteral("41574844863740595744924396998501").toLatin1()
     );
     return kFingerprint;
+}
+
+// ── Reactive difficulty update: EasyTier peer-table poll refreshed the local NAT type ──
+// Recomputes the difficulty and pushes it to QML via connectionDifficultyChanged.
+void MultiplayerManager::onLocalNatTypeChanged(int natType)
+{
+    // Only meaningful while inside a session with a role
+    if (m_role == None || m_state == Idle || m_state == Error)
+        return;
+
+    auto localNat = static_cast<EasyTierNatType>(natType);
+
+    ConnectionDifficulty prev = m_connectionDifficulty;
+    if (m_role == Host) {
+        // Host difficulty reflects how easy it is for guests to reach us
+        m_connectionDifficulty = calcConnectionDifficulty(localNat, localNat);
+    } else if (m_role == Guest) {
+        m_connectionDifficulty = calcConnectionDifficulty(localNat, m_hostNatType);
+    } else {
+        return;
+    }
+
+    if (m_connectionDifficulty != prev) {
+        qCInfo(logNet) << QStringLiteral("[联机] 连接难度响应式更新 NAT=%1 难度=%2")
+            .arg(static_cast<int>(localNat)).arg(static_cast<int>(m_connectionDifficulty));
+        emit connectionDifficultyChanged();
+    }
 }
 
 // ── Request connection difficulty update (host: query local NAT type via EasyTier CLI) ──

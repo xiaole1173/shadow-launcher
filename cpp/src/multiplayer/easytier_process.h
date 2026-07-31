@@ -70,11 +70,16 @@ public:
     // Parse peer list JSON from easytier-cli peer -o json and return structured info
     QList<EasyTierPeerInfo> parsePeerListJson(const QString& jsonOutput) const;
 
+    // Local peer NAT type, refreshed on every peer-list poll (text table parse)
+    EasyTierNatType currentNatType() const { return m_currentNatType; }
+
 signals:
     void networkReady(const QString& virtualIp);
     void virtualIpChanged(const QString& ip);
     void errorOccurred(const QString& msg);
     void stateChanged(const QString& state);
+    // Emitted when the local peer's NAT type is (re)detected from the peer table
+    void localNatTypeChanged(int natType);
 
 private slots:
     void onProcessStarted();
@@ -111,4 +116,10 @@ private:
 
     // RPC port for easytier-cli communication
     quint16 m_rpcPort = 0;
+
+    // Local peer NAT type (extracted from peer table text, NOT just logged)
+    EasyTierNatType m_currentNatType = EasyTierNatType::Unknown;
+
+    // Parse a single table cell / string into a NAT type (keyword scanning, order matters)
+    static EasyTierNatType parseNatCell(const QString& cell);
 };
