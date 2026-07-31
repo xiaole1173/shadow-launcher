@@ -45,15 +45,25 @@ ModpackInstallTask::ModpackInstallTask(QObject* parent)
     : QObject(parent)
     , m_downloader(new ModpackDownloader(this))
 {
-    // MC 阶段 300ms 轮询会话进度/速度 → 卡片子步骤 4（游戏本体下载）
+    // MC 阶段 300ms 轮询会话进度/速度/原子步骤 → 卡片（并行期同时做模组 EMA 衰减）
     m_mcPollTimer = new QTimer(this);
     m_mcPollTimer->setInterval(300);
     connect(m_mcPollTimer, &QTimer::timeout, this, [this]() {
         if (!m_vb || m_cardId.isEmpty() || m_mcSessionId.isEmpty()) return;
         const qreal p = m_vb->installProgressOf(m_mcSessionId);
-        setCardStep(3, QStringLiteral("active"), qRound(p * 100.0));
-        m_cardSpeed = m_vb->installSpeedOf(m_mcSessionId);
-        syncCard();
+        m_mcSpeed = m_vb->installSpeedOf(m_mcSessionId);
+        // 模组路 EMA 无数据衰减：长时间无字节流入 → 减半回落，不滞留旧速度
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (m_lastBytesMs > 0 && now - m_lastBytesMs > 800) {
+            m_modEma = m_modEma > 1024 ? m_modEma / 2 : 0;
+        }
+        m_cardSpeed = m_modEma + m_mcSpeed;
+        // 全量同步 MC 原子步骤（PCL 同款细分：JSON/库/资源/校验/loader 主文件/校验/安装）
+        syncMcSteps();
+        // 总进度合成：模组路权重 + MC 路权重（并行两路各自推进）
+        const qreal base = kParseWeight + kExtractWeight + kDownloadWeight * m_modFrac;
+        setProgress(base + kMcInstallWeight * p,
+                    tr("正在安装 Minecraft %1…").arg(m_meta.mcVersion), m_currentFile);
     });
     // 下载阶段 500ms 同步模组明细/日志附件（避免高频推送卡模型）
     m_attachSyncTimer = new QTimer(this);
@@ -99,6 +109,17 @@ void ModpackInstallTask::start(const QString& zipPath, bool includeOptional)
     m_installingMc = false;
     m_installedVanillaId.clear();
     m_vanillaPreinstalled = false;
+    // 并行汇合状态复位
+    m_modsDone = false;
+    m_mcDone = false;
+    m_pendingFailSet = false;
+    m_pendingFail.clear();
+    m_modEma = 0;
+    m_mcSpeed = 0;
+    m_lastBytes = 0;
+    m_lastBytesMs = 0;
+    m_lastFileProgMs = 0;
+    m_modFrac = 0.0;
 
     if (!m_backupDir.isEmpty()) {
         QDir(m_backupDir).removeRecursively();
@@ -134,20 +155,16 @@ void ModpackInstallTask::runParse()
             m_versionDir = m_gameDir + QStringLiteral("/versions/") + m_targetName;
             m_versionDirCreated = !QDir(m_versionDir).exists();
 
-            // 资源落盘目录：动态读取版本隔离开关（规格：禁止硬编码路径）
+            // 资源落盘目录：对齐项目现有目录规则（VersionIsolation::getVersionGameDir
+            // 方案 C：game/ 存在且非空 → game；否则版本根目录；隔离关闭 → 公共 gameDir）。
+            // 不硬编码迁移到 game 子文件夹——启动器读哪里，整合包就写哪里。
             if (m_iso) {
-                if (m_iso->isEnabled()) {
-                    // 隔离：{versions}/{name}/game 私有目录（与启动器 getVersionGameDir 规范一致）
-                    m_resourceDir = m_versionDir + QStringLiteral("/game");
-                    QDir().mkpath(m_resourceDir);
-                } else {
-                    // 共享：公共游戏根目录
-                    m_resourceDir = m_iso->gameDir();
-                    if (m_resourceDir.isEmpty()) m_resourceDir = m_gameDir;
-                }
+                m_resourceDir = m_iso->getVersionGameDir(m_targetName);
+                if (m_resourceDir.isEmpty()) m_resourceDir = m_gameDir;
             } else {
                 m_resourceDir = m_gameDir;
             }
+            QDir().mkpath(m_resourceDir);
             ok = true;
         }
 
@@ -178,6 +195,21 @@ void ModpackInstallTask::onParsed(bool ok, const QString& error)
     emit logLine(tr("目标版本目录: %1").arg(m_versionDir));
     emit logLine(tr("资源写入目录（版本隔离%1）: %2")
         .arg(m_iso && m_iso->isEnabled() ? tr("开启") : tr("关闭"), m_resourceDir));
+
+    // 纯原版 + 本机已装该 vanilla：复制路径会把源版本目录（含可能的 game/）整体复制到目标。
+    // 此时目标 game/ 的存在性取决于源目录结构——预判并重定向资源目录，
+    // 避免「mods 写在版本根目录、启动器却读 game/」的结构错位。
+    if (m_meta.loaderType.isEmpty() && m_iso && m_iso->isEnabled()
+        && m_vb && m_vb->versionManager()
+        && m_vb->versionManager()->isInstalled(m_meta.mcVersion)) {
+        const QString src = m_vb->versionManager()->getVersionPath(m_meta.mcVersion);
+        const QString srcGame = src + QStringLiteral("/game");
+        if (QDir(srcGame).exists() && !QDir(srcGame).isEmpty()) {
+            m_resourceDir = m_versionDir + QStringLiteral("/game");
+            QDir().mkpath(m_resourceDir);
+            emit logLine(tr("检测到预装版本含 game 目录，资源写入调整为: %1").arg(m_resourceDir));
+        }
+    }
 
     // 卡片：解析完成 → 步骤 0 完成；注册 MC 会话抑制目标（杜绝双卡）
     setCardStep(0, QStringLiteral("completed"), 100);
@@ -300,7 +332,10 @@ void ModpackInstallTask::runDownload()
     if (m_meta.files.isEmpty()) {
         emit logLine(tr("整合包不含远端模组，跳过下载"));
         setCardStep(2, QStringLiteral("completed"), 100);
-        onDownloadAllFinished(false);
+        m_modsDone = true;
+        // 并行：模组路已完成，直接启动 MC 路
+        runMcInstall();
+        tryFinalize();
         return;
     }
 
@@ -319,18 +354,37 @@ void ModpackInstallTask::runDownload()
     connect(m_downloader, &ModpackDownloader::fileProgress, this,
             [this](int index, const QString& name, qint64 received, qint64 total) {
         Q_UNUSED(index);
+        // 200ms 节流：避免 EMA/折算/卡片更新高频抖动
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - m_lastFileProgMs < 200) return;
+        m_lastFileProgMs = now;
         m_currentFile = name;
         emit fileProgressChanged(name, total > 0 ? (qreal)received / total : 0.0);
-        // 卡片：模组条目进度 + EMA 速度（500ms 粒度）
-        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        // 模组路 EMA 速度（500ms 窗口）
         if (m_lastBytesMs > 0 && now - m_lastBytesMs >= 500) {
             const qint64 db = received - m_lastBytes;
-            if (db > 0) m_cardSpeed = qMax<qint64>(0, db * 1000 / (now - m_lastBytesMs));
+            if (db > 0) m_modEma = qMax<qint64>(0, db * 1000 / (now - m_lastBytesMs));
             m_lastBytes = received;
             m_lastBytesMs = now;
         } else if (m_lastBytesMs <= 0) {
             m_lastBytes = received;
             m_lastBytesMs = now;
+        }
+        // 速度聚合：模组路 EMA + MC 路（并行期两路同跑时显示总和）
+        m_mcSpeed = (!m_mcSessionId.isEmpty() && m_vb) ? m_vb->installSpeedOf(m_mcSessionId) : 0;
+        m_cardSpeed = m_modEma + m_mcSpeed;
+        syncCard();
+        // 步骤 2 字节级折算：单大文件下载中百分比持续前进（修进度停滞观感）
+        int doneCount = 0, skipCount = 0;
+        for (const ModpackRemoteFile& rf : m_meta.files) {
+            if (rf.status == QLatin1String("done")) ++doneCount;
+            else if (rf.status == QLatin1String("skipped")) ++skipCount;
+        }
+        const int effective = qMax(0, m_meta.files.size() - skipCount);
+        if (effective > 0) {
+            const qreal frac = total > 0 ? (qreal)received / total : 0.0;
+            setCardStep(2, QStringLiteral("active"),
+                        qRound(100.0 * (doneCount + frac) / effective));
         }
         for (int i = 0; i < m_cardMods.size(); ++i) {
             QVariantMap mm = m_cardMods[i].toMap();
@@ -359,13 +413,23 @@ void ModpackInstallTask::runDownload()
     connect(m_downloader, &ModpackDownloader::queueProgress, this,
             [this](int completed, int total, int failed) {
                 if (total <= 0) return;
+                m_modFrac = (qreal)completed / total;
+                // 步骤 2 动态文案：模组批量下载，剩余 XX 个文件
+                const int remain = qMax(0, total - completed - failed);
+                const QString stepName = failed > 0
+                    ? tr("模组批量下载，剩余 %1 个文件（%2 个失败）").arg(remain).arg(failed)
+                    : tr("模组批量下载，剩余 %1 个文件").arg(remain);
+                setCardStepName(2, stepName);
                 const qreal base = kParseWeight + kExtractWeight;
-                const qreal frac = (qreal)completed / total;
                 const QString text = failed > 0
                     ? tr("正在下载模组 (%1/%2，%3 个失败)…").arg(completed).arg(total).arg(failed)
                     : tr("正在下载模组 (%1/%2)…").arg(completed).arg(total);
-                setProgress(base + kDownloadWeight * frac, text, m_currentFile);
-                setCardStep(2, QStringLiteral("active"), qRound(100.0 * completed / total));
+                // 并行总进度合成：模组路权重 + MC 路权重（MC 未启动时为 0，不变）
+                const qreal mcFrac = (!m_mcSessionId.isEmpty() && m_vb)
+                    ? m_vb->installProgressOf(m_mcSessionId) : 0.0;
+                setProgress(base + kDownloadWeight * m_modFrac + kMcInstallWeight * mcFrac,
+                            text, m_currentFile);
+                setCardStep(2, QStringLiteral("active"), qRound(100.0 * m_modFrac));
             });
     connect(m_downloader, &ModpackDownloader::logLine, this, [this](const QString& msg) {
         emit logLine(msg);
@@ -385,19 +449,26 @@ void ModpackInstallTask::runDownload()
     m_downloader->start(m_includeOptional);
     refreshCardMods();   // 初始模组明细（含可选文件 skipped 标记）
     m_attachSyncTimer->start();
+
+    // ═══ 并行化：模组下载与 MC+加载器安装同时启动，互不阻塞 ═══
+    // 两路完成后由 tryFinalize() 汇合进收尾；任一路失败/取消由守卫统一处理。
+    runMcInstall();
 }
 
 void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 {
+    Q_UNUSED(cancelled);   // 取消判定用 m_cancel（downloader 中止也可能是失败守卫触发）
     m_attachSyncTimer->stop();
-    setCardStep(2, QStringLiteral("completed"), 100);
-    refreshCardMods();
+    m_modsDone = true;
 
-    if (cancelled) {
-        rollback();
-        finishCancelled();
+    if (m_cancel) {
+        // 用户取消：等待 MC 路停止后统一回滚（两路汇合）
+        tryCancelFinish();
         return;
     }
+
+    setCardStep(2, QStringLiteral("completed"), 100);
+    refreshCardMods();
 
     // 统计失败
     int failed = 0;
@@ -412,6 +483,13 @@ void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 
     if (failed == total && total > 0) {
         // 全部失败：视为导入失败（如 CF 密钥 401/403、网络完全不可用）
+        if (m_installingMc) {
+            // MC 路还在跑：登记待失败，等其停止后统一出口（避免与安装线程竞态）
+            m_pendingFailSet = true;
+            m_pendingFail = tr("全部 %1 个文件下载失败，首个错误: %2").arg(total).arg(firstError);
+            emit logLine(tr("⚠ %1").arg(m_pendingFail));
+            return;
+        }
         fail(tr("全部 %1 个文件下载失败，首个错误: %2").arg(total).arg(firstError));
         return;
     }
@@ -420,7 +498,25 @@ void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
             .arg(failed).arg(total).arg(firstError));
     }
 
-    runMcInstall();
+    tryFinalize();
+}
+
+// ── 并行汇合：模组路 + MC 路都完成后进收尾 ──
+
+void ModpackInstallTask::tryFinalize()
+{
+    if (m_cancel) { tryCancelFinish(); return; }
+    if (!m_modsDone || !m_mcDone) return;   // 两路都完成才汇合
+    if (m_phase == Phase::Error || m_phase == Phase::Cancelled || m_phase == Phase::Done) return;
+    runFinalize();
+}
+
+void ModpackInstallTask::tryCancelFinish()
+{
+    if (!m_modsDone || !m_mcDone) return;   // 等两路都停止
+    if (!m_busy) return;
+    rollback();
+    finishCancelled();
 }
 
 // ── MC + 加载器安装（复用 VersionBackend merged 流程）──
@@ -428,15 +524,14 @@ void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 void ModpackInstallTask::runMcInstall()
 {
     setStep(tr("安装游戏本体与加载器"));
-    setCardStep(3, QStringLiteral("active"), 0);
-    setProgress(kParseWeight + kExtractWeight + kDownloadWeight + 0.02,
+    setProgress(kParseWeight + kExtractWeight + kDownloadWeight * m_modFrac + 0.02,
                 tr("正在安装 Minecraft %1…").arg(m_meta.mcVersion));
 
     m_installingMc = true;
 
     if (!m_meta.loaderType.isEmpty() && !m_meta.loaderVersion.isEmpty()) {
-        // 带加载器：merged 安装（MC + 加载器一体）—— 加载器部署为卡片步骤 5
-        setCardStep(4, QStringLiteral("pending"), 0);
+        // 带加载器：merged 安装（MC + 加载器一体）；原子细分步骤由
+        // syncMcSteps 从会话 pipeline 实时透传到卡片（PCL 同款，禁止合并封装）
         m_mcSessionId = m_targetName;   // merged 会话 id = 目标版本名
         emit logLine(tr("安装 Minecraft %1 + %2 %3 → %4")
             .arg(m_meta.mcVersion, m_meta.loaderType, m_meta.loaderVersion, m_targetName));
@@ -450,53 +545,50 @@ void ModpackInstallTask::runMcInstall()
 
         m_vb->installModLoader(m_meta.mcVersion, m_meta.loaderType,
                                m_meta.loaderVersion, m_targetName);
-        return;
-    }
-
-    // 纯原版整合包：安装 vanilla 后改为目标名（步骤 5 加载器部署隐藏）
-    {
-        QVariantMap s = m_cardSteps[4].toMap();
-        s[QStringLiteral("status")] = QStringLiteral("completed");
-        s[QStringLiteral("percentage")] = 100;
-        s[QStringLiteral("show")] = false;   // 无加载器 → 隐藏该子步骤
-        m_cardSteps[4] = s;
-        if (m_vb) m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
-    }
-    m_mcSessionId = m_meta.mcVersion;   // vanilla 会话 id = MC 版本
-    emit logLine(tr("整合包未指定加载器，按纯原版处理（安装 %1）").arg(m_meta.mcVersion));
-
-    const bool preinstalled = m_vb->versionManager() && m_vb->versionManager()->isInstalled(m_meta.mcVersion);
-    m_vanillaPreinstalled = preinstalled;
-
-    connect(m_vb, &VersionBackend::installFinished, this, [this](bool ok) {
-        if (!m_installingMc) return;
-        m_installingMc = false;
-        onMcInstallFinished(ok);
-    }, Qt::UniqueConnection);
-
-    if (preinstalled) {
-        // 本机已有该 vanilla 版本：复制版本目录 → 目标名（不动原版本）
-        m_installedVanillaId = m_meta.mcVersion;
-        QTimer::singleShot(0, this, [this]() {
-            m_installingMc = false;
-            onMcInstallFinished(true);
-        });
     } else {
-        m_installedVanillaId = m_meta.mcVersion;
-        m_vb->installVersion(m_meta.mcVersion);
+        // 纯原版整合包：安装 vanilla 后改为目标名
+        m_mcSessionId = m_meta.mcVersion;   // vanilla 会话 id = MC 版本
+        emit logLine(tr("整合包未指定加载器，按纯原版处理（安装 %1）").arg(m_meta.mcVersion));
+
+        const bool preinstalled = m_vb->versionManager() && m_vb->versionManager()->isInstalled(m_meta.mcVersion);
+        m_vanillaPreinstalled = preinstalled;
+
+        connect(m_vb, &VersionBackend::installFinished, this, [this](bool ok) {
+            if (!m_installingMc) return;
+            m_installingMc = false;
+            onMcInstallFinished(ok);
+        }, Qt::UniqueConnection);
+
+        if (preinstalled) {
+            // 本机已有该 vanilla 版本：复制版本目录 → 目标名（不动原版本）
+            m_installedVanillaId = m_meta.mcVersion;
+            QTimer::singleShot(0, this, [this]() {
+                m_installingMc = false;
+                onMcInstallFinished(true);
+            });
+        } else {
+            m_installedVanillaId = m_meta.mcVersion;
+            m_vb->installVersion(m_meta.mcVersion);
+        }
     }
 
-    // MC 阶段轮询会话进度/速度 → 卡片步骤 4
+    // MC 阶段轮询：进度/速度/原子步骤 → 卡片（300ms）
     m_mcPollTimer->start();
 }
 
 void ModpackInstallTask::onMcInstallFinished(bool ok)
 {
     m_mcPollTimer->stop();
+    m_mcDone = true;
+
     if (m_cancel) {
-        // 取消等待安装结束 → 直接回滚
-        rollback();
-        finishCancelled();
+        // 取消路径：等待模组路停止后统一回滚（两路汇合）
+        tryCancelFinish();
+        return;
+    }
+    if (m_pendingFailSet) {
+        // 模组路已判失败且等待本路停止：统一失败出口
+        fail(m_pendingFail);
         return;
     }
     if (!ok) {
@@ -504,8 +596,7 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
         return;
     }
 
-    setCardStep(3, QStringLiteral("completed"), 100);
-    setCardStep(4, QStringLiteral("completed"), 100);
+    syncMcSteps();   // 最后同步一次 MC 原子步骤（pipeline 已完成态）
 
     // 纯原版 + 非预装：把 vanilla 版本目录改名为目标名
     if (m_meta.loaderType.isEmpty() && !m_vanillaPreinstalled
@@ -583,16 +674,15 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
                 QFile::rename(jarPath, dst + QLatin1Char('/') + targetName + QLatin1String(".jar"));
         }).then(this, [this]() {
             if (m_cancel) {
-                rollback();
-                finishCancelled();
+                tryCancelFinish();
                 return;
             }
-            runFinalize();
+            tryFinalize();
         });
         return;
     }
 
-    runFinalize();
+    tryFinalize();
 }
 
 // ── 收尾：核对 version.json + 注册版本列表 ──
@@ -600,7 +690,8 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
 void ModpackInstallTask::runFinalize()
 {
     setStep(tr("整理版本信息"));
-    setCardStep(5, QStringLiteral("active"), 0);
+    if (!m_cardSteps.isEmpty())
+        setCardStep(m_cardSteps.size() - 1, QStringLiteral("active"), 0);   // 版本注册步骤（动态索引）
     setProgress(kParseWeight + kExtractWeight + kDownloadWeight + kMcInstallWeight,
                 tr("正在生成版本信息…"));
 
@@ -699,7 +790,8 @@ void ModpackInstallTask::completeImport()
         emit logLine(tr("已刷新版本列表"));
     }
 
-    setCardStep(5, QStringLiteral("completed"), 100);
+    if (!m_cardSteps.isEmpty())
+        setCardStep(m_cardSteps.size() - 1, QStringLiteral("completed"), 100);
     finishCard(true, {});
 
     setProgress(1.0, tr("导入完成"), {});
@@ -717,31 +809,47 @@ void ModpackInstallTask::cancel()
     if (!m_busy) return;
     m_cancel = true;
 
-    if (m_downloader->isRunning()) {
-        m_downloader->cancel();
-        return;  // onDownloadAllFinished(cancelled=true) 走回滚
+    const bool dlRunning = m_downloader->isRunning();
+    if (dlRunning) {
+        emit logLine(tr("正在取消模组下载…"));
+        m_downloader->cancel();   // 同步触发 allFinished(true) → 任务侧 tryCancelFinish 汇合
     }
     if (m_installingMc && m_vb) {
-        // MC/加载器安装中：调用版本后端的定向取消，随后回滚
+        // MC/加载器安装中：调用版本后端定向取消（→ installFinished → 任务侧汇合）
         emit logLine(tr("正在取消版本安装…"));
         m_vb->cancelVersionInstall(m_targetName);
-        QTimer::singleShot(800, this, [this]() {
-            if (!m_busy) return;
-            rollback();
-            finishCancelled();
-        });
+    }
+    if (!dlRunning && !m_installingMc) {
+        // 解析/解压阶段：无并行两路，直接回滚收尾
+        rollback();
+        finishCancelled();
         return;
     }
-    // 解析/解压阶段：工作线程检查 m_cancel 后自行退出
-    rollback();
-    finishCancelled();
+    // 兜底：若任一路回调因信号丢失未触发，5s 后强制回滚收尾
+    QTimer::singleShot(5000, this, [this]() {
+        if (!m_busy) return;
+        rollback();
+        finishCancelled();
+    });
 }
 
 // ── 失败 / 回滚 ──
 
 void ModpackInstallTask::fail(const QString& error)
 {
-    if (!m_busy && m_phase == Phase::Done) return;
+    if (m_phase == Phase::Error || m_phase == Phase::Cancelled || m_phase == Phase::Done) return;
+
+    // 另一路还在跑：先停它，等汇合后统一失败出口（避免与下载/安装线程写盘竞态）
+    if (m_downloader->isRunning())
+        m_downloader->cancel();
+    if (m_installingMc && m_vb) {
+        m_pendingFailSet = true;
+        m_pendingFail = error;
+        emit logLine(tr("⚠ %1（等待版本安装停止后回滚）").arg(error));
+        m_vb->cancelVersionInstall(m_targetName);
+        return;   // onMcInstallFinished 汇合后 fail(m_pendingFail) 统一出口
+    }
+
     m_phase = Phase::Error;
     m_busy = false;
     m_statusText = error;
@@ -858,9 +966,10 @@ void ModpackInstallTask::initTaskCard()
     if (!m_vb) return;
     m_cardId = QStringLiteral("modpack-") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
     m_cardSteps.clear();
+    // 基础 3 步 + 版本注册（MC 原子步骤由 syncMcSteps 动态插入中间，PCL 同款细分）
     const QStringList names = {
         tr("解析校验"), tr("Overrides 解压"), tr("模组批量下载"),
-        tr("游戏本体下载"), tr("加载器部署"), tr("版本信息注册")
+        tr("版本信息注册")
     };
     for (const QString& n : names) {
         QVariantMap s;
@@ -874,8 +983,12 @@ void ModpackInstallTask::initTaskCard()
     m_cardMods.clear();
     m_cardInfo.clear();
     m_cardSpeed = 0;
+    m_modEma = 0;
+    m_mcSpeed = 0;
     m_lastBytes = 0;
     m_lastBytesMs = 0;
+    m_lastFileProgMs = 0;
+    m_modFrac = 0.0;
     m_mcSessionId.clear();
     m_cardDone = false;
 
@@ -906,6 +1019,51 @@ void ModpackInstallTask::setCardStep(int idx, const QString& status, int pct)
         s[QStringLiteral("percentage")] = pct;
         s[QStringLiteral("show")] = s.value(QStringLiteral("show"), true);
         m_cardSteps[idx] = s;
+        if (m_vb) m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
+    }, Qt::QueuedConnection);
+}
+
+void ModpackInstallTask::setCardStepName(int idx, const QString& name)
+{
+    if (m_cardId.isEmpty() || idx < 0 || idx >= m_cardSteps.size()) return;
+    QMetaObject::invokeMethod(this, [this, idx, name]() {
+        if (idx < 0 || idx >= m_cardSteps.size()) return;
+        QVariantMap s = m_cardSteps[idx].toMap();
+        if (s.value(QStringLiteral("name")).toString() == name) return;  // 未变化跳过
+        s[QStringLiteral("name")] = name;
+        m_cardSteps[idx] = s;
+        if (m_vb) m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
+    }, Qt::QueuedConnection);
+}
+
+void ModpackInstallTask::syncMcSteps()
+{
+    // 会话 pipeline 实时原子步骤 → 卡片 MC 区（[解析,解压,模组] + MC原子 + [版本注册]）
+    if (!m_vb || m_mcSessionId.isEmpty() || m_cardId.isEmpty()) return;
+    const QVariantList ss = m_vb->sessionSteps(m_mcSessionId);
+    if (ss.isEmpty() || m_cardSteps.size() < 4) return;
+    QMetaObject::invokeMethod(this, [this, ss]() {
+        if (m_cardId.isEmpty() || m_cardSteps.size() < 4) return;
+        QVariantList newSteps = m_cardSteps.mid(0, 3);   // 解析校验 / Overrides 解压 / 模组批量下载
+        for (const QVariant& v : ss) newSteps.append(v);  // MC/加载器原子步骤（PCL 同款细分）
+        newSteps.append(m_cardSteps.last());              // 版本信息注册
+        // 内容比较：无变化跳过（避免高频重建）
+        if (newSteps.size() == m_cardSteps.size()) {
+            bool same = true;
+            for (int i = 0; i < newSteps.size(); ++i) {
+                const QVariantMap a = newSteps[i].toMap();
+                const QVariantMap b = m_cardSteps[i].toMap();
+                if (a.value(QStringLiteral("name")) != b.value(QStringLiteral("name"))
+                    || a.value(QStringLiteral("status")) != b.value(QStringLiteral("status"))
+                    || a.value(QStringLiteral("percentage")).toInt() != b.value(QStringLiteral("percentage")).toInt()
+                    || a.value(QStringLiteral("show")).toBool() != b.value(QStringLiteral("show")).toBool()) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) return;
+        }
+        m_cardSteps = newSteps;
         if (m_vb) m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
     }, Qt::QueuedConnection);
 }

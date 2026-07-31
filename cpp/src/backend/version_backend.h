@@ -256,6 +256,8 @@ public:
     // MC 阶段进度/速度访问器（任务侧轮询更新卡片子步骤）
     Q_INVOKABLE qreal installProgressOf(const QString& installId) const;
     Q_INVOKABLE qint64 installSpeedOf(const QString& installId) const;
+    // MC 阶段实时原子步骤（pipeline 实时源，整合包卡片子步骤透传用）
+    QVariantList sessionSteps(const QString& installId) const;
 
 signals:
     void versionListReady();

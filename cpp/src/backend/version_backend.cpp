@@ -6558,6 +6558,33 @@ qint64 VersionBackend::installSpeedOf(const QString& installId) const
     return ds->mlSpeed > 0 ? ds->mlSpeed : 0;
 }
 
+QVariantList VersionBackend::sessionSteps(const QString& installId) const
+{
+    // 整合包任务卡片透传：从会话 pipeline 取实时原子步骤（与 updateCardFromSession
+    // 内部 buildPipelineSteps 同源；ds->steps 是陈旧 copy，pipeline 才是实时数据源）
+    QVariantList steps;
+    auto* ds = dlSession(installId);
+    auto* pipeline = ds ? ds->pipeline() : nullptr;
+    if (!pipeline) return steps;
+    for (int i = 0; i < pipeline->totalSteps(); ++i) {
+        auto* node = pipeline->stepNode(i);
+        if (!node) continue;
+        QVariantMap s;
+        s[QStringLiteral("name")] = node->name();
+        switch (node->status()) {
+            case StepStatus::Pending:   s[QStringLiteral("status")] = QStringLiteral("pending"); break;
+            case StepStatus::Active:    s[QStringLiteral("status")] = QStringLiteral("active"); break;
+            case StepStatus::Completed: s[QStringLiteral("status")] = QStringLiteral("completed"); break;
+            case StepStatus::Failed:    s[QStringLiteral("status")] = QStringLiteral("failed"); break;
+            case StepStatus::Skipped:   s[QStringLiteral("status")] = QStringLiteral("skipped"); break;
+        }
+        s[QStringLiteral("percentage")] = node->percentage();
+        s[QStringLiteral("show")] = !node->isHidden();
+        steps.append(s);
+    }
+    return steps;
+}
+
 
 
 // ============================================================

@@ -132,13 +132,14 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
+                color: StyleTokens.surfaceOverlay   // 显式背景色，杜绝透明继承异常
 
                 Rectangle {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
                     height: 1
-                    color: StyleTokens.bgElevated
+                    color: StyleTokens.borderLight
                 }
 
                 Text {
@@ -263,12 +264,13 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 52
+                color: StyleTokens.surfaceOverlay   // 显式背景色，杜绝透明继承异常
 
                 Rectangle {
                     anchors.top: parent.top
                     width: parent.width
                     height: 1
-                    color: StyleTokens.bgElevated
+                    color: StyleTokens.borderLight
                 }
 
                 RowLayout {

@@ -12,11 +12,10 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QRegularExpression>
-#include <QCryptographicHash>
-#include <QFutureWatcher>
-#include <QtConcurrent>
+#include <QDateTime>
 
 #include "../http_client.h"
+#include "../file_downloader.h"
 #include "../../utils/logger.h"
 
 using namespace ShadowLauncher;
@@ -77,23 +76,6 @@ bool parseMrCdnUrl(const QString& url, QString* projectId, QString* versionId, Q
 }
 
 } // namespace
-
-// ── 工具：工作线程流式 SHA1 ──
-
-QByteArray ModpackDownloader::fileSha1(const QString& path)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    QCryptographicHash hash(QCryptographicHash::Sha1);
-    QByteArray buf;
-    buf.resize(1024 * 1024);
-    qint64 r = 0;
-    while ((r = f.read(buf.data(), buf.size())) > 0) {
-        hash.addData(buf.constData(), r);
-    }
-    f.close();
-    return hash.result().toHex();
-}
 
 // ── 工具：CF 资源类型判定（主流启动器：modules 含 META-INF/mcmod.info 或 .jar → mods；
 //    pack.mcmeta → resourcepacks；否则 shaderpacks；modules 为空 → mods）──
@@ -178,10 +160,13 @@ void ModpackDownloader::start(bool includeOptional)
     m_cancelled = false;
     m_includeOptional = includeOptional;
     m_total = m_files->size();
-    m_completed = 0;
     m_failed = 0;
+    m_skippedCount = 0;
     m_items.clear();
     m_inflight.clear();
+    m_preExisting.clear();
+    m_lastQueueEmitMs = 0;
+    m_lastFileProgMs = 0;
 
     m_items.resize(m_total);
     for (int i = 0; i < m_total; ++i) {
@@ -195,7 +180,7 @@ void ModpackDownloader::start(bool includeOptional)
             if (!rf.downloadUrl.isEmpty()
                 && parseMrCdnUrl(rf.downloadUrl, &pid, &vid, &fname)) {
                 m_items[i].urls.append(QLatin1String(kMrMirrorData) + QLatin1Char('/')
-                                       + pid + QLatin1String("/versions/") + vid + QLatin1Char('/') + fname);
+                                       + pid + QStringLiteral("/versions/") + vid + QLatin1Char('/') + fname);
                 m_items[i].urls.append(rf.downloadUrl);
             } else if (!rf.downloadUrl.isEmpty()) {
                 m_items[i].urls.append(rf.downloadUrl);
@@ -212,7 +197,7 @@ void ModpackDownloader::start(bool includeOptional)
         if (!rf.required && !m_includeOptional) {
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("可选文件已跳过");
-            m_completed++;
+            ++m_skippedCount;
             if (i < m_files->size()) {
                 m_files->operator[](i).status = QStringLiteral("skipped");
                 m_files->operator[](i).error = m_items[i].error;
@@ -226,8 +211,7 @@ void ModpackDownloader::start(bool includeOptional)
                 // Modrinth 条目没有可用下载地址（主流启动器 同样会下载失败）
                 m_items[i].finished = true;
                 m_items[i].error = QStringLiteral("无可用下载地址");
-                m_failed++;
-                m_completed++;
+                ++m_failed;
                 if (i < m_files->size()) {
                     m_files->operator[](i).status = QStringLiteral("fail");
                     m_files->operator[](i).error = m_items[i].error;
@@ -242,7 +226,7 @@ void ModpackDownloader::start(bool includeOptional)
         resolveBatch(0);
     } else {
         emit statusChanged(tr("开始下载模组…"));
-        scheduleNext();
+        startEngineDownloads();
     }
 }
 
@@ -258,7 +242,7 @@ void ModpackDownloader::resolveBatch(int startIndex)
             cfIndexes.append(i);
     }
     if (cfIndexes.isEmpty()) {
-        scheduleNext();
+        startEngineDownloads();
         return;
     }
 
@@ -312,8 +296,6 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
 
     // ⚠ 只处理本批次请求过的 CF 条目（与 resolveBatch 收集逻辑一致：
     // 自 startIndex 起前 kCfBatchSize 个 CF 条目）。
-    // 修复：先前整段扫描到 m_total，响应只含本批 fileId，导致整合包 CF
-    // 文件数 > 50 时，后续批次被误判「文件已被删除」而全部失败。
     int processed = 0;
     for (int i = startIndex; i < m_total && processed < kCfBatchSize; ++i) {
         ModpackRemoteFile& rf = m_files->operator[](i);
@@ -325,8 +307,7 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
             // 文件已被原作者删除（主流启动器 会弹窗提示缺失，后端改为记录 + 跳过）
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("文件已被删除（fileId=%1）").arg(rf.fileId);
-            m_failed++;
-            m_completed++;
+            ++m_failed;
             rf.status = QStringLiteral("fail");
             rf.error = m_items[i].error;
             emit logLine(tr("⚠ CurseForge 文件缺失（可能已被作者删除）: %1").arg(rf.fileId));
@@ -345,8 +326,7 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
         if (safeRel.isEmpty()) {
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("文件名为非法路径: %1").arg(rf.fileName);
-            m_failed++;
-            m_completed++;
+            ++m_failed;
             rf.status = QStringLiteral("fail");
             rf.error = m_items[i].error;
             continue;
@@ -383,13 +363,13 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
     if (hasMore) {
         resolveBatch(next);
     } else {
-        // 所有批次解析完成：若有缺失直链的条目，先补解析 download-url，再进入下载
+        // 所有批次解析完成：若有缺失直链的条目，先补解析 download-url，再进入引擎下载
         if (!m_downloadUrlPending.isEmpty()) {
             emit statusChanged(tr("正在补全下载地址…"));
             resolveDownloadUrls();
         } else {
             emit statusChanged(tr("开始下载模组…"));
-            scheduleNext();
+            startEngineDownloads();
         }
     }
 }
@@ -400,7 +380,7 @@ void ModpackDownloader::resolveDownloadUrls()
 {
     if (m_cancelled || m_downloadUrlPending.isEmpty()) {
         emit statusChanged(tr("开始下载模组…"));
-        scheduleNext();
+        startEngineDownloads();
         return;
     }
 
@@ -408,9 +388,9 @@ void ModpackDownloader::resolveDownloadUrls()
     int started = 0;
     for (int i = 0; i < m_downloadUrlPending.size(); ++i) {
         const int idx = m_downloadUrlPending[i];
-        if (m_items[idx].inFlight) continue;
+        if (m_items[idx].finished) continue;
         if (started >= 3) break;
-        m_items[idx].inFlight = true;
+        m_items[idx].finished = true;   // 临时占用标记，回调里复位（防止重复发起）
         started++;
         startDownloadUrlResolve(idx);
     }
@@ -426,7 +406,6 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
 
     apiWithFallback(false, mirror, official, QByteArray(), m_apiKey,
                     [this, idx](int status, const QByteArray& body) {
-        m_items[idx].inFlight = false;
         if (m_cancelled) return;
 
         bool ok = false;
@@ -441,11 +420,11 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
                 ok = true;
             }
         }
+        m_items[idx].finished = false;   // 复位占用标记
         if (!ok) {
             m_items[idx].finished = true;
             m_items[idx].error = tr("无法获取下载地址（HTTP %1）").arg(status);
-            m_failed++;
-            m_completed++;
+            ++m_failed;
             if (idx < m_files->size()) {
                 m_files->operator[](idx).status = QStringLiteral("fail");
                 m_files->operator[](idx).error = m_items[idx].error;
@@ -458,7 +437,7 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
             resolveDownloadUrls();  // 补位继续
         } else {
             emit statusChanged(tr("开始下载模组…"));
-            scheduleNext();
+            startEngineDownloads();
         }
     });
 }
@@ -469,11 +448,10 @@ void ModpackDownloader::onResolveBatchFailed(int startIndex, const QString& err)
     // 地址解析阶段硬失败：所有未完成条目标记失败
     m_cancelled = true;
     for (int i = 0; i < m_total; ++i) {
-        if (!m_items[i].finished && !m_items[i].inFlight) {
+        if (!m_items[i].finished) {
             m_items[i].finished = true;
             m_items[i].error = err;
-            m_failed++;
-            m_completed++;
+            ++m_failed;
             if (i < m_files->size()) {
                 m_files->operator[](i).status = QStringLiteral("fail");
                 m_files->operator[](i).error = err;
@@ -481,233 +459,151 @@ void ModpackDownloader::onResolveBatchFailed(int startIndex, const QString& err)
         }
     }
     emit logLine(tr("❌ %1").arg(err));
-    emit allFinished(false);
     m_running = false;
+    emit allFinished(false);
 }
 
-// ── 下载调度 ──
+// ════════════════════════════════════════════════════════════════
+// 引擎适配层 — ShadowDownloader::FileDownloader
+// ════════════════════════════════════════════════════════════════
 
-void ModpackDownloader::scheduleNext()
+void ModpackDownloader::startEngineDownloads()
 {
     if (m_cancelled) return;
-    while (m_activeSlots < kMaxConcurrent) {
-        // 找下一个未开始、有地址、未完成的条目
-        int next = -1;
-        for (int i = 0; i < m_total; ++i) {
-            if (m_items[i].finished || m_items[i].inFlight) continue;
-            if (m_items[i].urls.isEmpty()) continue;
-            next = i;
-            break;
-        }
-        if (next < 0) break;
-        startItem(next);
-    }
-    finishIfAllDone();
-}
 
-void ModpackDownloader::startItem(int idx)
-{
-    DlItem& it = m_items[idx];
-    it.inFlight = true;
+    // 每次任务新建引擎实例（FileDownloader 无清空队列 API，不复用；
+    // 实例级状态与 MC 下载引擎完全隔离，互不干扰）
+    m_fd = new ShadowDownloader::FileDownloader(this);
+    m_fd->setMaxThreads(6);   // 模组场景收敛并发（引擎默认 12，模组多为小文件，6 足够）
 
-    // 临时文件与最终文件同目录，成功后改名（原子落盘）
-    it.tmpPath = it.savePath + QStringLiteral(".part");
-    QFileInfo fi(it.savePath);
-    QDir().mkpath(fi.absolutePath());
-    QFile::remove(it.tmpPath);
-
-    const QString url = (it.urlIdx < it.urls.size()) ? it.urls[it.urlIdx] : QString();
-    if (url.isEmpty()) {
-        it.inFlight = false;
-        finalizeItem(idx, false, tr("无可用下载地址"));
-        return;
-    }
-
-    const QString sourceTag = it.urlIdx == 0 ? QString() : tr("（备用源 %1/%2）").arg(it.urlIdx + 1).arg(it.urls.size());
-    emit statusChanged(tr("正在下载 %1%2").arg(it.fileName.isEmpty() ? url : it.fileName, sourceTag));
-    emit logLine(tr("下载 %1%2\n  源: %3")
-        .arg(it.fileName.isEmpty() ? url : it.fileName, sourceTag, url));
-
-    // 自实现下载（不依赖 downloadWithReply）：可禁用 HTTP/2（官方 CDN / 镜像
-    // 对 QNAM H2 连接不稳定，实测 Connection closed / 挂起超时），并给足超时。
-    QNetworkRequest req{ QUrl(url) };
-    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
-    req.setTransferTimeout(60000);
-    QNetworkReply* reply = m_http->manager()->get(req);
-    m_inflight.append(reply);
-
-    auto* file = new QFile(it.tmpPath);
-    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        reply->abort();
-        reply->deleteLater();
-        m_inflight.removeAll(reply);
-        delete file;
-        it.inFlight = false;
-        finalizeItem(idx, false, tr("无法创建临时文件: %1").arg(it.tmpPath));
-        return;
-    }
-
-    connect(reply, &QNetworkReply::readyRead, this, [reply, file]() {
-        const QByteArray chunk = reply->readAll();
-        if (file->write(chunk) != chunk.size())
-            reply->abort();  // 磁盘空间不足等：中断，走失败路径
-    });
-    connect(reply, &QNetworkReply::downloadProgress, this,
-            [this, idx](qint64 received, qint64 total) {
-        emit fileProgress(idx, m_items[idx].fileName, received, total);
-    });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, file, idx]() {
-        m_inflight.removeAll(reply);
-        file->close();
-        delete file;
-        reply->deleteLater();
-
-        m_items[idx].inFlight = false;
-        m_activeSlots--;
-        if (m_cancelled) {
-            // 取消路径：不逐文件报错，统一收尾
-            if (!m_items[idx].finished) {
-                m_items[idx].finished = true;
-                m_completed++;
+    for (int i = 0; i < m_total; ++i) {
+        DlItem& it = m_items[i];
+        if (it.finished) continue;   // 解析失败 / 可选跳过已标记
+        if (it.urls.isEmpty()) {
+            // 无可用地址（双保险，正常情况下解析阶段已处理）
+            it.finished = true;
+            it.error = tr("无可用下载地址");
+            ++m_failed;
+            if (i < m_files->size()) {
+                m_files->operator[](i).status = QStringLiteral("fail");
+                m_files->operator[](i).error = it.error;
             }
-            finishIfAllDone();
-            return;
+            continue;
         }
-
-        bool ok = reply->error() == QNetworkReply::NoError;
-        QString err = reply->errorString();
-        if (!ok) {
-            const int st = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(0);
-            if (st >= 400)
-                err = tr("HTTP %1 %2").arg(st).arg(err);
+        // 覆盖处理：备份旧文件并删除 → 引擎永远写全新文件（引擎无覆盖钩子，
+        // 且 isNoSplit 直接写最终路径，会截断覆盖旧文件，必须先清场）
+        if (QFileInfo::exists(it.savePath)) {
+            if (m_overwriteHook) m_overwriteHook(it.savePath);
+            QFile::remove(it.savePath);
+            m_preExisting.insert(it.savePath);
         }
-        onItemDone(idx, ok, err);
-    });
+        QDir().mkpath(QFileInfo(it.savePath).absolutePath());
+        const ModpackRemoteFile& rf = m_files->at(i);
+        m_fd->addFile(it.savePath, it.fileName, it.urls, rf.size, rf.sha1);
+    }
 
-    m_activeSlots++;
-}
-
-void ModpackDownloader::onItemDone(int idx, bool ok, const QString& err)
-{
-    if (ok) {
-        verifyItem(idx);
+    if (m_fd->totalFiles() == 0) {
+        // 空队列（全部解析失败/跳过）：直接收尾，不启动引擎
+        m_fd->deleteLater();
+        m_fd = nullptr;
+        m_running = false;
+        emit queueProgress(m_skippedCount, m_total, m_failed);
+        emit allFinished(m_cancelled);
         return;
     }
-    // 下载失败：切换到备用源（镜像→官方→…），全部用尽才判失败
-    if (m_items[idx].urlIdx + 1 < m_items[idx].urls.size()) {
-        m_items[idx].urlIdx++;
-        qCWarning(logMod) << "[modpack] 下载失败，切换源重试:" << m_items[idx].fileName << err;
-        emit logLine(tr("下载失败，切换备用源: %1 (%2)").arg(m_items[idx].fileName, err));
-        QFile::remove(m_items[idx].tmpPath);
-        scheduleNext();  // 重排会重新拾取该条目（inFlight=false, finished=false）
-        return;
+
+    // ── 引擎信号 → 任务层信号桥接 ──
+    connect(m_fd, &ShadowDownloader::FileDownloader::progressChanged,
+            this, &ModpackDownloader::onEngineProgress);
+    connect(m_fd, &ShadowDownloader::FileDownloader::fileProgress,
+            this, &ModpackDownloader::onEngineFileProgress);
+    connect(m_fd, &ShadowDownloader::FileDownloader::fileFinished,
+            this, &ModpackDownloader::onEngineFileFinished);
+    connect(m_fd, &ShadowDownloader::FileDownloader::allFinished,
+            this, &ModpackDownloader::onEngineAllFinished);
+    connect(m_fd, &ShadowDownloader::FileDownloader::logMessage,
+            this, [this](const QString& msg) { emit logLine(msg); });
+
+    m_fd->start();
+}
+
+int ModpackDownloader::findIndexBySavePath(const QString& path) const
+{
+    for (int i = 0; i < m_items.size(); ++i) {
+        if (m_items[i].savePath == path && !m_items[i].finished) return i;
     }
-    finalizeItem(idx, false, err.isEmpty() ? tr("下载失败（所有源均不可用）") : err);
+    return -1;
 }
 
-// ── 哈希/大小校验（QtConcurrent 工作线程，避免阻塞主线程）──
-
-void ModpackDownloader::verifyItem(int idx)
+void ModpackDownloader::onEngineProgress(int completed, int total, qint64 bytes, qint64 allBytes)
 {
-    struct VerifyResult { bool ok; QString error; };
-    const DlItem& it = m_items[idx];
-
-    auto* watcher = new QFutureWatcher<VerifyResult>(this);
-    const QByteArray expectSha1 = (idx < m_files->size()) ? m_files->at(idx).sha1 : QByteArray();
-    const qint64 expectSize = (idx < m_files->size()) ? m_files->at(idx).size : 0;
-    const QString tmpPath = it.tmpPath;
-
-    watcher->setFuture(QtConcurrent::run([tmpPath, expectSha1, expectSize]() -> VerifyResult {
-        QFileInfo fi(tmpPath);
-        if (!fi.exists()) return {false, QStringLiteral("临时文件不存在")};
-        if (expectSize > 0 && fi.size() != expectSize)
-            return {false, QStringLiteral("大小不匹配（期望 %1，实际 %2）").arg(expectSize).arg(fi.size())};
-        if (!expectSha1.isEmpty()) {
-            const QByteArray actual = fileSha1(tmpPath);
-            if (actual.isEmpty())
-                return {false, QStringLiteral("文件读取失败")};
-            if (actual != expectSha1)
-                return {false, QStringLiteral("SHA1 不匹配（期望 %1，实际 %2）")
-                            .arg(QString::fromLatin1(expectSha1), QString::fromLatin1(actual))};
-        }
-        return {true, QString()};
-    }));
-
-    connect(watcher, &QFutureWatcher<VerifyResult>::finished, this,
-            [this, watcher, idx]() {
-        const VerifyResult r = watcher->result();
-        watcher->deleteLater();
-        onVerifyDone(idx, r.ok, r.error);
-    });
+    Q_UNUSED(bytes); Q_UNUSED(allBytes);
+    // 引擎 50ms 粒度上报，桥接限频 200ms（任务层卡片更新不需要更频）
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastQueueEmitMs < 200 && completed < total) return;
+    m_lastQueueEmitMs = now;
+    emit queueProgress(m_skippedCount + completed, m_total,
+                       m_failed + (m_fd ? m_fd->failedFiles() : 0));
 }
 
-void ModpackDownloader::onVerifyDone(int idx, bool ok, const QString& err)
+void ModpackDownloader::onEngineFileProgress(const QString& url, const QString& fileName,
+                                             qint64 received, qint64 total)
 {
-    if (!ok && m_items[idx].urlIdx + 1 < m_items[idx].urls.size()) {
-        // 校验失败（镜像源内容损坏等）：删掉临时文件，换备用源重下一遍（主流启动器 对损坏文件同样重试）
-        m_items[idx].urlIdx++;
-        qCWarning(logMod) << "[modpack] 校验失败，切换源重试:" << m_items[idx].fileName << err;
-        emit logLine(tr("文件校验失败，切换备用源: %1 (%2)").arg(m_items[idx].fileName, err));
-        QFile::remove(m_items[idx].tmpPath);
-        scheduleNext();
-        return;
+    Q_UNUSED(url);
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastFileProgMs < 200) return;
+    m_lastFileProgMs = now;
+
+    int idx = -1;
+    for (int i = 0; i < m_items.size(); ++i) {
+        if (m_items[i].fileName == fileName && !m_items[i].finished) { idx = i; break; }
     }
-    finalizeItem(idx, ok, err);
+    if (idx < 0) return;
+    emit fileProgress(idx, fileName, received, total);
 }
 
-void ModpackDownloader::finalizeItem(int idx, bool ok, const QString& err)
+void ModpackDownloader::onEngineFileFinished(const QString& localPath, bool success)
 {
+    if (m_cancelled) return;   // 取消后引擎 abort 回调忽略（统一走 allFinished(true)）
+    const int idx = findIndexBySavePath(localPath);
+    if (idx < 0 || idx >= m_files->size()) return;
     DlItem& it = m_items[idx];
     if (it.finished) return;
     it.finished = true;
+    it.ok = success;
 
-    if (ok) {
-        const bool hadOld = QFileInfo::exists(it.savePath);
-        if (hadOld) {
-            if (m_overwriteHook) m_overwriteHook(it.savePath);  // 先备份旧文件
-            QFile::remove(it.savePath);
-        }
-        if (!QFile::rename(it.tmpPath, it.savePath)) {
-            QFile::remove(it.tmpPath);
-            ok = false;
-            it.error = tr("临时文件改名失败");
-        } else if (!hadOld && m_createdHook) {
-            // 新建文件登记回滚：任务失败/取消时清理（共享目录模式不残留）
-            m_createdHook(it.savePath);
-        }
-    } else {
-        it.error = err;
-        QFile::remove(it.tmpPath);
-    }
-
-    if (ok) {
-        m_completed++;
-        if (idx < m_files->size()) {
-            m_files->operator[](idx).status = QStringLiteral("done");
-            m_files->operator[](idx).error.clear();
-        }
+    ModpackRemoteFile& rf = m_files->operator[](idx);
+    if (success) {
+        rf.status = QStringLiteral("done");
+        rf.error.clear();
+        // 新建文件登记回滚（覆盖场景已在 addFile 前备份，不重复登记）
+        if (!m_preExisting.contains(localPath) && m_createdHook)
+            m_createdHook(localPath);
         emit fileFinished(idx, true, {});
     } else {
-        m_failed++;
-        if (idx < m_files->size()) {
-            m_files->operator[](idx).status = QStringLiteral("fail");
-            m_files->operator[](idx).error = it.error;
-        }
+        rf.status = QStringLiteral("fail");
+        it.error = tr("下载失败（详见日志）");
+        rf.error = it.error;
+        QFile::remove(localPath);   // 清理引擎残留的半截文件（isNoSplit 直接写最终路径）
         emit fileFinished(idx, false, it.error);
         emit logLine(tr("⚠ %1 下载失败: %2").arg(it.fileName, it.error));
     }
-
-    emit queueProgress(m_completed, m_total, m_failed);
-    scheduleNext();
+    emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
+                       m_failed + (m_fd ? m_fd->failedFiles() : 0));
 }
 
-void ModpackDownloader::finishIfAllDone()
+void ModpackDownloader::onEngineAllFinished()
 {
     if (!m_running) return;
-    if (m_completed + m_failed >= m_total && m_activeSlots == 0) {
-        m_running = false;
-        emit queueProgress(m_completed, m_total, m_failed);
-        emit allFinished(m_cancelled);
+    m_running = false;
+    emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
+                       m_failed + (m_fd ? m_fd->failedFiles() : 0));
+    emit allFinished(m_cancelled);
+    if (m_fd) {
+        // 析构会触发 cancel() 并 emit「下载已取消」噪音 → 先断开全部信号再释放
+        m_fd->disconnect();
+        m_fd->deleteLater();
+        m_fd = nullptr;
     }
 }
 
@@ -718,34 +614,34 @@ void ModpackDownloader::cancel()
     if (!m_running) return;
     m_cancelled = true;
 
-    // 中止所有在途请求
+    // 中止 CF API 在途请求
     for (const QPointer<QNetworkReply>& rp : m_inflight) {
         if (rp) m_http->abortDownload(rp);
     }
     m_inflight.clear();
 
-    // 未开始的条目标记为跳过
+    // 中止引擎（abort 所有在途分片请求）
+    if (m_fd) m_fd->cancel();
+
+    // 未完成的条目标记为跳过
     for (int i = 0; i < m_total; ++i) {
-        if (!m_items[i].finished && !m_items[i].inFlight) {
+        if (!m_items[i].finished) {
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("已取消");
-            m_completed++;
+            ++m_skippedCount;
             if (i < m_files->size()) {
                 m_files->operator[](i).status = QStringLiteral("skipped");
                 m_files->operator[](i).error = QStringLiteral("已取消");
             }
         }
     }
-    cleanupTmp();
     m_running = false;
     emit statusChanged(tr("已取消下载"));
     emit allFinished(true);
-}
-
-void ModpackDownloader::cleanupTmp()
-{
-    for (const DlItem& it : m_items) {
-        if (!it.tmpPath.isEmpty())
-            QFile::remove(it.tmpPath);
+    if (m_fd) {
+        // 析构会再 emit「下载已取消」→ 先断开全部信号再释放
+        m_fd->disconnect();
+        m_fd->deleteLater();
+        m_fd = nullptr;
     }
 }

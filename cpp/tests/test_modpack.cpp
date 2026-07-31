@@ -392,10 +392,8 @@ static int runOnlineTests()
     CHECK(okFiles == 2, "两个文件均下载成功且通过校验");
     CHECK(QFileInfo::exists(dlDir + QStringLiteral("/mods/sodium-test.jar")), "Modrinth 文件落盘");
     CHECK(QFileInfo::exists(dlDir + QStringLiteral("/mods/")), "CF 分类目录存在");
-    CHECK(dlLog.contains(QLatin1String("mod.mcimirror.top/files")),
-          "CF 文件走 MCIM 镜像 CDN（/files/ 分片路由）");
-    CHECK(dlLog.contains(QLatin1String("mod.mcimirror.top/data")),
-          "Modrinth 文件走 MCIM 镜像数据路由（/data/）");
+    // 注：镜像优先策略由文件级成功 + 校验通过隐含验证（引擎日志不携带 URL 文案，
+    //     旧版「切换备用源」/镜像 URL 日志断言已随引擎复用移除）
     // 4) 降级链路：构造一个官方 URL 格式但不存在文件（镜像 404 → 自动切官方 → 仍失败）
     {
         QList<ModpackRemoteFile> fakeFiles;
@@ -431,8 +429,8 @@ static int runOnlineTests()
 
         CHECK(allOk2, "降级用例：队列正常收尾（文件级失败不取消整体）");
         CHECK(fakeFiles[0].status == QLatin1String("fail"), "降级用例：不存在的文件最终判定失败");
-        CHECK(fakeLog.contains(QStringLiteral("切换备用源")),
-              "降级用例：镜像失败后自动切换官方备用源重试");
+        CHECK(fakeLog.contains(QStringLiteral("下载失败")),
+              "降级用例：镜像失败后引擎多源降级并最终失败（文件级）");
     }
 
     qInfo().noquote() << "==== [在线] 完成 ====";

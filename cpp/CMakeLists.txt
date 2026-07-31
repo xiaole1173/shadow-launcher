@@ -540,6 +540,7 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
         src/core/modpack/zip_archive.cpp
         src/core/modpack/modpack_parser.cpp
         src/core/modpack/modpack_downloader.cpp
+        src/core/file_downloader.cpp
         src/core/http_client.cpp
         src/utils/logger.cpp
         thirdparty/miniz/miniz.c

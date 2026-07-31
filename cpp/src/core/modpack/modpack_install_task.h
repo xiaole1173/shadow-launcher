@@ -91,27 +91,43 @@ private:
     void registerOverwrite(const QString& path);
 
     // ── 原生任务卡片（InstallCardModel 轮询通道）──
-    void initTaskCard();                 // 注册卡片 + 6 步骤初始化
+    void initTaskCard();                 // 注册卡片 + 基础步骤初始化
     void syncCard();                     // 进度/阶段/速度 → 卡片
     void setCardStep(int idx, const QString& status, int pct);  // 更新单步骤并同步
+    void setCardStepName(int idx, const QString& name);         // 更新单步骤名称（动态文案）
+    void syncMcSteps();                  // 会话原子步骤 → 卡片 MC 区（PCL 同款细分透传）
     void syncCardAttachments();          // mods/logs/info → 卡片
     void pushCardLog(const QString& msg);
     void refreshCardMods();              // 从 m_meta.files 重建模组明细
     void finishCard(bool success, const QString& err);  // 终态（完成/失败/取消）
     void removeCard();
 
+    // ── 并行汇合（模组路 + MC 路）──
+    void tryFinalize();                  // 两路都完成后进收尾
+    void tryCancelFinish();              // 两路都停止后统一回滚+取消出口
+
     QString m_cardId;
-    QVariantList m_cardSteps;    // 6 阶段 [{name,status,percentage,show}]
+    QVariantList m_cardSteps;    // [解析,解压,模组] + MC原子步骤(动态) + [版本注册]
     QVariantList m_cardMods;     // [{name,size,status,error,progress}]
     QVariantList m_cardLogs;     // [{text,color}] 上限 300
     QVariantMap m_cardInfo;      // {name,version,mc,loader,format,modCount,fileCount,targetName}
-    qint64 m_cardSpeed = 0;      // 卡片速度（下载阶段 EMA / MC 阶段读会话）
+    qint64 m_cardSpeed = 0;      // 卡片总速度（模组路 EMA + MC 路聚合）
+    qint64 m_modEma = 0;         // 模组路速度（500ms 窗口瞬时值，无数据衰减）
+    qint64 m_mcSpeed = 0;        // MC 路速度（轮询 installSpeedOf）
     qint64 m_lastBytes = 0;
     qint64 m_lastBytesMs = 0;
+    qint64 m_lastFileProgMs = 0; // fileProgress 回调节流（200ms）
+    qreal m_modFrac = 0.0;       // 模组路完成比例（总进度合成用）
     QString m_mcSessionId;       // MC 阶段轮询的会话 id（merged=targetName / vanilla=mcVersion）
-    QTimer* m_mcPollTimer = nullptr;     // MC 阶段 300ms 轮询进度/速度
+    QTimer* m_mcPollTimer = nullptr;     // MC 阶段 300ms 轮询进度/速度/步骤
     QTimer* m_attachSyncTimer = nullptr; // 下载阶段 500ms 同步附件
     bool m_cardDone = false;
+
+    // ── 并行汇合状态 ──
+    bool m_modsDone = false;     // 模组路完成
+    bool m_mcDone = false;       // MC 路完成
+    bool m_pendingFailSet = false;
+    QString m_pendingFail;       // 失败等待另一路停止后统一出口
 
     // ── 依赖 ──
     VersionBackend* m_vb = nullptr;
