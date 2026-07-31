@@ -480,7 +480,9 @@ void ModpackDownloader::startEngineDownloads()
     // 每次任务/重试轮新建引擎实例（FileDownloader 无清空队列 API，不复用；
     // 实例级状态与 MC 下载引擎完全隔离，互不干扰）
     m_fd = new ShadowDownloader::FileDownloader(this);
-    m_fd->setMaxThreads(12);       // 模组专项：全局 12 线程（主流启动器 默认 9 同量级）——
+    // 重试轮并发隔离：只含首轮失败文件，6 线程足够，避免失败重试
+    // 占满线程池与正常下载/MC 路竞争（正常轮 12 线程不变）
+    m_fd->setMaxThreads(m_retryRoundDone ? 6 : 12);       // 模组专项：全局 12 线程（主流启动器 默认 9 同量级）——
     // 实测 24 路并发对 MCIM 镜像过于激进：高峰期镜像限流饿死部分连接 →
     // 30s 无数据超时 → 分片失败 → 大文件报废；12 路温和稳定且峰值仍可达 3MB/s+
     m_fd->setModpackMode(true);    // 模组专项：禁H2/1MB分片/空闲超时/立即换源（MC 下载不受影响）
@@ -566,6 +568,11 @@ void ModpackDownloader::startEngineDownloads()
     });
 
     m_fd->start();
+}
+
+double ModpackDownloader::currentSpeedMBps() const
+{
+    return m_fd ? m_fd->currentSpeedMBps() : 0.0;
 }
 
 int ModpackDownloader::findIndexBySavePath(const QString& path) const

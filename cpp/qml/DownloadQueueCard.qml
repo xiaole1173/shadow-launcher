@@ -90,8 +90,12 @@ Rectangle {
                     _meta = nd
                     if (nd.steps) _stepsJson = JSON.stringify(nd.steps)
                     // 速度缓动：指数逼近目标值；目标 0（无数据流入时 C++ 已归零）
-                    // → 自然平缓回落，不滞留旧速度
-                    _dispSpeed += (nd.speed - _dispSpeed) * 0.3
+                    // → 自然平缓回落，不滞留旧速度。目标为 0 时加快衰减，
+                    // 避免停滞期旧速度长时间滞留显示（与 C++ EMA 衰减节奏对齐）
+                    if (nd.speed > 0)
+                        _dispSpeed += (nd.speed - _dispSpeed) * 0.3
+                    else
+                        _dispSpeed *= 0.5   // 目标 0：快速衰减归零
                     // 整合包附属数据：内容变化才替换引用（避免 Repeater 每 200ms 重建）
                     if (nd.logs) {
                         var lj = JSON.stringify(nd.logs)

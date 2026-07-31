@@ -491,8 +491,17 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
     bool sourceOk = false;
     bool modRetriedOnce = false;   // 模组专项：全部源耗尽后重置源列表整体重试一轮（PCL Retried 同款）
+    // 模组专项：单文件所有源尝试总时长预算——失败文件反复换源/等超时
+    // 会长期占用线程池名额，导致正常排队文件无法调度（剩余文件数不变、
+    // 进度停滞）。超预算立即放弃该文件，释放线程交回调度器。
+    const qint64 modBudgetStart = getElapsedMs();
+    const qint64 kModRetryBudgetMs = 60000;
     for (int sourceIdx = 0; sourceIdx < file->orderedSources.size() && !sourceOk; ++sourceIdx) {
         if (m_cancelled.loadRelaxed()) goto cleanup;
+        if (m_modpackMode && getElapsedMs() - modBudgetStart > kModRetryBudgetMs) {
+            qCWarning(logDownload) << QStringLiteral("[下载] 单文件重试预算耗尽，放弃: %1").arg(file->localName);
+            break;
+        }
 
         QString url = file->orderedSources[sourceIdx];
         th->sourceUrl = url;
@@ -886,6 +895,9 @@ cleanup:
         // 24 路并发下单片网络抖动不应导致整个大文件报废：
         // 失败分片（state=4 且未重试过）重置后重新下载其 range，
         // allDone 会因 state=0 重新计算，重试完成后再进入合并/终判。
+        // ⚠ 线程配额检查：线程池满员（active>=maxThreads）时不重下——
+        // 否则 activeThreads 虚高会让 managerTick 永不调度新文件，
+        // 正常排队文件全部饿死（剩余文件数不变的根因之一）。
         if (m_modpackMode && anyFailed) {
             bool launchedRetry = false;
             {
@@ -893,6 +905,12 @@ cleanup:
                 for (auto& t : file->threads) {
                     if (t->state == 4 && !t->retried) {
                         t->retried = true;
+                        if (m_activeThreads.loadRelaxed() >= m_maxThreads) {
+                            // 无空闲线程：保留失败终判（文件整体失败，
+                            // 由 ModpackDownloader 队列级兜底重试轮统一重下）
+                            t->state = 4;
+                            continue;
+                        }
                         t->state = 0;
                         t->downloadDone = 0;
                         if (!t->tempPath.isEmpty()) QFile::remove(t->tempPath);
