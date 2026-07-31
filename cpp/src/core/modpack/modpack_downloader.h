@@ -100,6 +100,7 @@ private:
     // ── 引擎适配层（ShadowDownloader::FileDownloader）──
     void startEngineDownloads();   // 地址就绪 → 构造引擎 + addFile 编排 + 启动
     int findIndexBySavePath(const QString& path) const;
+    int countFinishedFailed() const;   // 已终判失败数（跳过/取消/重试中不计）
     void onEngineProgress(int completed, int total, qint64 bytes, qint64 allBytes);
     void onEngineFileProgress(const QString& url, const QString& fileName,
                               qint64 received, qint64 total);

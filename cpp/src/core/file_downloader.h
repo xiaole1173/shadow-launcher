@@ -59,6 +59,8 @@ struct FileDownload {
     QList<std::shared_ptr<DownloadThread>> threads;
     QByteArray expectedSha1;
     bool needsJarStrip = false;
+    qint64 modBudgetStartMs = 0;   // 模组专项：文件级重试预算起点（跨分片线程共享，
+                                  // 防分片逐个重下重置预算 → 单文件拖 200s+）
 
     qint64 totalDone() const {
         qint64 sum = 0;

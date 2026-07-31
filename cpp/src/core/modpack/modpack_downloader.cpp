@@ -533,7 +533,7 @@ void ModpackDownloader::startEngineDownloads()
         m_fd = nullptr;
         m_running = false;
         emit queueProgress(m_skippedCount + m_round1Done, m_total,
-                           qMax(0, m_total - m_skippedCount - m_round1Done));
+                           countFinishedFailed());
         emit allFinished(m_cancelled);
         return;
     }
@@ -575,6 +575,21 @@ double ModpackDownloader::currentSpeedMBps() const
     return m_fd ? m_fd->currentSpeedMBps() : 0.0;
 }
 
+int ModpackDownloader::countFinishedFailed() const
+{
+    // 已终判失败数：解析阶段失败（无地址/API 错误） + 引擎下载失败。
+    // 可选跳过（error==跳过文案）与取消（error==已取消，计入 skippedCount）
+    // 不算失败；重试中（已重置 pending，finished=false）也不计。
+    int n = 0;
+    for (const DlItem& it : m_items) {
+        if (!it.finished || it.ok) continue;
+        if (it.error == QStringLiteral("可选文件已跳过")) continue;
+        if (it.error == QStringLiteral("已取消")) continue;
+        ++n;
+    }
+    return n;
+}
+
 int ModpackDownloader::findIndexBySavePath(const QString& path) const
 {
     for (int i = 0; i < m_items.size(); ++i) {
@@ -590,10 +605,13 @@ void ModpackDownloader::onEngineProgress(int completed, int total, qint64 bytes,
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (now - m_lastQueueEmitMs < 200 && completed < total) return;
     m_lastQueueEmitMs = now;
-    // 总进度 = 已完成轮次成功数 + 本轮成功数；失败 = 剩余未完成（含本轮失败）
+    // 总进度 = 已完成轮次成功数 + 本轮成功数；失败 = 已终判失败数（
+    // 含解析阶段失败与引擎失败；重试中被重置为 pending 的不计，
+    // 未下载/进行中的也不计——不能拿 total-done 当失败，否则首轮
+    // 一开始会把全部未下载文件误报为失败）
     const int fdDone = m_fd ? m_fd->completedFiles() : 0;
     const int done = m_skippedCount + m_round1Done + fdDone;
-    emit queueProgress(done, m_total, qMax(0, m_total - done));
+    emit queueProgress(done, m_total, countFinishedFailed());
 }
 
 void ModpackDownloader::onEngineFileProgress(const QString& url, const QString& fileName,
@@ -646,7 +664,7 @@ void ModpackDownloader::onEngineFileFinished(const QString& localPath, bool succ
     {
         const int fdDone = m_fd ? m_fd->completedFiles() : 0;
         const int done = m_skippedCount + m_round1Done + fdDone;
-        emit queueProgress(done, m_total, qMax(0, m_total - done));
+        emit queueProgress(done, m_total, countFinishedFailed());
     }
 }
 
@@ -689,7 +707,7 @@ void ModpackDownloader::onEngineAllFinished()
     m_running = false;
     if (wasRunning) {
         emit queueProgress(m_skippedCount + m_round1Done, m_total,
-                           qMax(0, m_total - m_skippedCount - m_round1Done));
+                           countFinishedFailed());
         emit allFinished(m_cancelled);
     }
     if (m_fd) {
