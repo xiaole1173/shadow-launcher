@@ -829,7 +829,12 @@ void MultiplayerManager::doDiscoverCenter()
             return;
         }
 
-        m_peerQuery->start(cliPath, {QStringLiteral("peer"), QStringLiteral("-o"), QStringLiteral("json")});
+        // Point CLI at OUR easytier-core RPC port (deterministic 15880+, not the default 11010)
+        QStringList cliArgs;
+        if (m_easyTier && m_easyTier->rpcPort() > 0)
+            cliArgs << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_easyTier->rpcPort());
+        cliArgs << QStringLiteral("peer") << QStringLiteral("-o") << QStringLiteral("json");
+        m_peerQuery->start(cliPath, cliArgs);
     }
 }
 
@@ -1968,7 +1973,11 @@ void MultiplayerManager::requestDifficultyUpdate()
             }
         });
 
-        natQuery->start(cliPath, {QStringLiteral("peer"), QStringLiteral("-o"), QStringLiteral("json")});
+        QStringList cliArgs;
+        if (m_easyTier && m_easyTier->rpcPort() > 0)
+            cliArgs << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_easyTier->rpcPort());
+        cliArgs << QStringLiteral("peer") << QStringLiteral("-o") << QStringLiteral("json");
+        natQuery->start(cliPath, cliArgs);
     }
 }
 

@@ -66,6 +66,9 @@ private slots:
     void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void onProcessError(QProcess::ProcessError error);
 
+    // Filter routine MC INFO/Trace/DEBUG output (returns true = drop)
+    bool isMcOutputNoise(const QString& line) const;
+
 private:
     bool validateLaunch(const QString& versionId, const QString& javaPath, QString& errorMsg) const;
     void forceKill();

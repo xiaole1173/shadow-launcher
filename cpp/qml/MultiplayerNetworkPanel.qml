@@ -31,25 +31,23 @@ Rectangle {
         Label { text: "连接难度"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm }
         Text {
             id: diffValue
-            text: _diffText
-            color: _diffColor
+            // Direct binding with explicit property references — re-evaluates on
+            // connectionDifficultyChanged (NOTIFY) and on mp reassignment
+            text: !mp ? "—"
+                : mp.connectionDifficulty === 0 ? "未知"
+                : mp.connectionDifficulty === 1 ? "直连"
+                : mp.connectionDifficulty === 2 ? "简单"
+                : mp.connectionDifficulty === 3 ? "中等"
+                : mp.connectionDifficulty === 4 ? "困难" : "未知"
+            color: !mp ? StyleTokens.textMuted
+                : mp.connectionDifficulty === 0 ? StyleTokens.textMuted
+                : mp.connectionDifficulty === 1 ? StyleTokens.success
+                : mp.connectionDifficulty === 2 ? StyleTokens.info
+                : mp.connectionDifficulty === 3 ? StyleTokens.warning
+                : StyleTokens.error
             font.pixelSize: StyleTokens.fontSizeSm; font.bold: true
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
-            }
-
-            readonly property string _diffText: {
-                if (!mp) return "—"
-                var d = mp.connectionDifficulty
-                if (d === 0) return "未知"; if (d === 1) return "直连"
-                if (d === 2) return "简单"; if (d === 3) return "中等"
-                if (d === 4) return "困难"; return "未知"
-            }
-            readonly property color _diffColor: {
-                var d = mp ? mp.connectionDifficulty : 0
-                if (d === 0) return StyleTokens.textMuted; if (d === 1) return StyleTokens.success
-                if (d === 2) return StyleTokens.info; if (d === 3) return StyleTokens.warning
-                return StyleTokens.error
             }
         }
 
@@ -63,30 +61,17 @@ Rectangle {
         Label { text: "MC端口"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm }
         Text {
             id: mcPortValue
-            text: _mcPortText
-            color: _mcPortColor
+            text: !mp || mp.role === 0 ? "—"
+                : mp.role === 1
+                    ? (mp.mcServerPort > 0 && mp.state >= 6 ? "" + mp.mcServerPort
+                        : (mp.state >= 1 ? "等待中" : "—"))
+                    : (mp.state >= 6 ? "已就绪"
+                        : (mp.state >= 1 ? "连接中" : "—"))
+            color: !mp ? StyleTokens.textMuted
+                : (mp.role === 1 && mp.mcServerPort > 0 && mp.state >= 6) ? StyleTokens.success
+                : mp.state >= 6 ? StyleTokens.success
+                : StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
-
-            readonly property string _mcPortText: {
-                if (!mp || mp.role === 0) return "—"
-                if (mp.role === 1) {
-                    // Host: show actual scanned port if available
-                    var p = mp.mcServerPort
-                    if (p > 0 && mp.state >= 6) return "" + p
-                    if (mp.state >= 1) return "等待中"
-                    return "—"
-                }
-                // Guest: state-based
-                if (mp.state >= 6) return "已就绪"
-                if (mp.state >= 1) return "连接中"
-                return "—"
-            }
-            readonly property color _mcPortColor: {
-                if (!mp) return StyleTokens.textMuted
-                if (mp.role === 1 && mp.mcServerPort > 0 && mp.state >= 6) return StyleTokens.success
-                if (mp.state >= 6) return StyleTokens.success
-                return StyleTokens.textMuted
-            }
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
             }
@@ -95,29 +80,16 @@ Rectangle {
         Label { text: "MC服务器"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm }
         Text {
             id: mcServerValue
-            text: _mcServerText
-            color: _mcSrvColor
+            text: !mp ? "—"
+                : mp.role === 1
+                    ? (mp.mcServerName && mp.mcServerName.length > 0 ? mp.mcServerName
+                        : (mp.state === 7 ? "等待MC启动..." : "—"))
+                    : (mp.role === 2 && mp.state >= 5 ? "127.0.0.1" : "—")
+            color: !mp ? StyleTokens.textMuted
+                : (mp.role === 1 && mp.mcServerName && mp.mcServerName.length > 0) ? StyleTokens.success
+                : (mp.role === 2 && mp.state >= 5) ? StyleTokens.success
+                : StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
-
-            readonly property string _mcServerText: {
-                if (!mp) return "—"
-                if (mp.role === 1) {
-                    // Host: show detected server name
-                    var name = mp.mcServerName
-                    if (name && name.length > 0) return name
-                    if (mp.state === 7) return "等待MC启动..."
-                    return "—"
-                }
-                // Guest: show forward endpoint
-                if (mp.role === 2 && mp.state >= 5) return "127.0.0.1"
-                return "—"
-            }
-            readonly property color _mcSrvColor: {
-                if (!mp) return StyleTokens.textMuted
-                if (mp.role === 1 && mp.mcServerName && mp.mcServerName.length > 0) return StyleTokens.success
-                if (mp.role === 2 && mp.state >= 5) return StyleTokens.success
-                return StyleTokens.textMuted
-            }
         }
 
         // ── Row 3: Online count + fingerprint ──
@@ -128,10 +100,19 @@ Rectangle {
         }
 
         Label { text: "指纹校验"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm }
-        Text {
-            text: mp && mp.state >= 5 ? "已通过 ✓" : "—"
-            color: mp && mp.state >= 5 ? StyleTokens.success : StyleTokens.textMuted
-            font.pixelSize: StyleTokens.fontSizeSm
+        RowLayout {
+            spacing: 4
+            Image {
+                source: "icons/lucide/check-circle.svg"
+                width: 14; height: 14
+                sourceSize.width: 14; sourceSize.height: 14
+                visible: mp && mp.state >= 5
+            }
+            Text {
+                text: mp && mp.state >= 5 ? "已通过" : "—"
+                color: mp && mp.state >= 5 ? StyleTokens.success : StyleTokens.textMuted
+                font.pixelSize: StyleTokens.fontSizeSm
+            }
         }
     }
 

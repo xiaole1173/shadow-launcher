@@ -354,9 +354,18 @@ void Launcher::onReadyReadStdout()
 {
     QByteArray data = m_process->readAllStandardOutput();
     QString text = QString::fromUtf8(data).trimmed();
-    if (!text.isEmpty()) {
-        qCInfo(logLaunch) << QStringLiteral("[启动] [JVM 标准输出] %1").arg(text);
-        emit launchProgress(text);
+    if (text.isEmpty())
+        return;
+
+    // Filter: discard routine MC INFO/Trace/DEBUG output, keep errors/crashes
+    // Process line-by-line so a mixed chunk (INFO + ERROR) keeps the ERROR part
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString& line : lines) {
+        const QString trimmed = line.trimmed();
+        if (trimmed.isEmpty() || isMcOutputNoise(trimmed))
+            continue;
+        qCInfo(logLaunch) << QStringLiteral("[启动] [JVM 标准输出] %1").arg(trimmed);
+        emit launchProgress(trimmed);
     }
 }
 
@@ -365,9 +374,47 @@ void Launcher::onReadyReadStderr()
     QByteArray data = m_process->readAllStandardError();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
+        // stderr usually contains JVM errors/crashes — keep them
         qCInfo(logLaunch) << QStringLiteral("[启动] [JVM 错误输出] %1").arg(text);
         emit launchProgress(text);
     }
+}
+
+// ── MC output noise filter: drop routine INFO/Trace/DEBUG log lines ──
+// Returns true if the line is ordinary MC runtime noise (render, recipes, resources, etc.)
+bool Launcher::isMcOutputNoise(const QString& line) const
+{
+    // MC log4j format: [thread/LEVEL] or [LEVEL]
+    // Drop /INFO], /TRACE], /DEBUG] — keep /WARN], /ERROR], /FATAL]
+    // Also check for bare INFO] (some mods use non-standard format)
+    if (line.contains(QLatin1String("/INFO]")) ||
+        line.contains(QLatin1String("/TRACE]")) ||
+        line.contains(QLatin1String("/DEBUG]")) ||
+        line.startsWith(QLatin1String("[INFO]")))
+        return true;
+
+    // Common MC mod loader noise patterns (Forge/NeoForge/Fabric)
+    if (line.contains(QLatin1String("Loading ")) ||
+        line.contains(QLatin1String("Loaded ")) ||
+        line.contains(QLatin1String("Registering ")) ||
+        line.contains(QLatin1String("Starting ")))
+        return true;
+
+    // Sound engine startup (repeated every re-connect)
+    if (line.contains(QLatin1String("Sound engine started")))
+        return true;
+
+    // Resource manager reload
+    if (line.contains(QLatin1String("Reloading ResourceManager")) ||
+        line.contains(QLatin1String("ResourceManager reload")))
+        return true;
+
+    // Recipe loading (MC dumps all recipes on startup)
+    if (line.contains(QLatin1String(" recipe")) &&
+        (line.contains(QLatin1String("load")) || line.contains(QLatin1String("Loaded"))))
+        return true;
+
+    return false;
 }
 
 void Launcher::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
