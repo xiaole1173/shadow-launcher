@@ -490,7 +490,6 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     QNetworkAccessManager mgr;
 
     bool sourceOk = false;
-    bool modRetriedOnce = false;   // 模组专项：全部源耗尽后重置源列表整体重试一轮（PCL Retried 同款）
     // 模组专项：单文件所有源尝试总时长预算——失败文件反复换源/等超时
     // 会长期占用线程池名额，导致正常排队文件无法调度（剩余文件数不变、
     // 进度停滞）。超预算立即放弃该文件，释放线程交回调度器。
@@ -511,8 +510,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
         sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
-        // 模组专项：重置重试轮每源仅 1 次尝试（PCL「逐个重新尝试下载」语义）
-        const int attemptLimit = modRetriedOnce ? 1 : 6;
+        // 模组专项：每源每轮仅 1 次尝试（PCL「逐源试一次」语义）——
+        // 首次失败立即放弃本文件，交队列级多轮重试统一处理：
+        // 先把能正常下载的文件下完，失败文件逐轮整体重试，
+        // 避免单文件源级死磕（6 次/源 × 多源）长期占用线程。
+        const int attemptLimit = m_modpackMode ? 1 : 6;
         for (int attempt = 0; attempt < attemptLimit && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
 
@@ -724,18 +726,12 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             goto worker_done;
         }
 
-        // 模组专项：全部源耗尽后，重置源列表整体重试一轮（PCL Retried 同款）。
-        // 第二轮每源仅 1 次尝试（attemptLimit 已按 modRetriedOnce 收窄）。
-        if (!sourceOk && m_modpackMode && !modRetriedOnce) {
-            modRetriedOnce = true;
-            sourceIdx = -1;   // for 循环 ++ 后回到 0，重走全部源
-            qCInfo(logDownload) << QStringLiteral("[下载] 全部源失败，重置源列表整体重试一轮: %1")
-                                   .arg(file->localName);
-            continue;
-        }
+        // 模组专项：源级不做重置重试——首次失败立即放弃本文件（每源 1 次尝试），
+        // 由 ModpackDownloader 队列级多轮重试统一处理（先把能下的下完，
+        // 失败文件逐轮整体重试）。避免单文件源级死磕占用线程池。
     }
 
-    // Last resort retry（模组专项已重置重试一轮覆盖，跳过原兜底）
+    // Last resort retry（模组专项不启用：失败交队列级多轮重试）
     if (!sourceOk && !m_modpackMode && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
         const QString url = file->orderedSources[0];
         qCInfo(logDownload) << QStringLiteral("[下载] 最终兜底重试 URL=%1").arg(url);

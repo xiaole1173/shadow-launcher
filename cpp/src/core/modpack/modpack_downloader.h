@@ -132,10 +132,12 @@ private:
     qint64 m_lastFileProgMs = 0;   // fileProgress 桥接限频（200ms）
     QString m_lastEngineError;     // 引擎最近一条失败/校验日志（失败详情透传卡片）
     qint64 m_lastLogEmitMs = 0;    // 常规日志 500ms 合并限频（防日志风暴拖死主线程）
-    // ── 队列级兜底重试（首轮完成后自动收集失败文件，按现有引擎规则跑第二遍）──
-    bool m_retryRoundDone = false; // 兜底重试轮已执行（每任务最多一轮）
-    int m_round1Done = 0;          // 首轮成功数（重试轮进度基数）
-    int m_round1Failed = 0;        // 首轮失败数（重试轮剩余失败数由此递减）
+    // ── 队列级多轮重试（每轮引擎结束后收集失败文件，按现有引擎规则跑下一轮；
+    //    每轮每源仅 1 次尝试，失败文件逐轮整体重试直到全部成功或达轮次上限）──
+    static constexpr int kMaxRetryRounds = 5;   // 重试轮次上限（防永久失败文件无限循环）
+    int m_retryRound = 0;          // 当前重试轮次（0=首轮；>0 表示第 N 轮重试中）
+    int m_round1Done = 0;          // 已完成轮次累计成功数（进度基数）
+    int m_round1Failed = 0;        // 最近一轮失败数（文案展示用）
 };
 
 } // namespace ShadowLauncher
