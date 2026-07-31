@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QRegularExpression>
 #include <QCryptographicHash>
 #include <QFutureWatcher>
 #include <QtConcurrent>
@@ -22,32 +23,57 @@ using namespace ShadowLauncher;
 
 namespace {
 
-constexpr const char* kCfFilesApi = "https://api.curseforge.com/v1/mods/files";
-constexpr const char* kCfDownloadUrlApi = "https://api.curseforge.com/v1/mods/%1/files/%2/download-url";
-constexpr int kCfBatchSize = 50;   // CF API 单次 fileIds 上限
-constexpr int kCfApiTimeoutMs = 30000;  // 本机到 CF CloudFront 的 TLS 建连可能 >10s，
-                                        // 故绕过 HttpClient 的 10s 默认超时（请求属性覆盖 manager 默认）
+// ════════════════════════════════════════════════════════════════
+// 官方 / MCIM 镜像端点（文档：https://mod.mcimirror.top/docs）
+//   镜像优先，官方兜底。CF 鉴权头原样携带（镜像兼容 x-api-key）。
+// ════════════════════════════════════════════════════════════════
+constexpr const char* kCfOfficialBase  = "https://api.curseforge.com/v1";
+constexpr const char* kCfMirrorBase    = "https://mod.mcimirror.top/curseforge/v1";
+constexpr const char* kCfMirrorFileCdn = "https://mod.mcimirror.top/files";   // /files/{fid1}/{fid2}/{name}
+constexpr const char* kMrOfficialBase  = "https://api.modrinth.com/v2";
+constexpr const char* kMrMirrorBase    = "https://mod.mcimirror.top/modrinth/v2";
+constexpr const char* kMrOfficialCdn   = "https://cdn.modrinth.com/data";
+constexpr const char* kMrMirrorData    = "https://mod.mcimirror.top/data";   // /data/{pid}/versions/{vid}/{name}
 
-QNetworkRequest makeCfRequest(const QString& url, const QString& apiKey)
+constexpr int kCfBatchSize = 50;          // CF API 单次 fileIds 上限
+constexpr int kMirrorTimeoutMs = 15000;   // 镜像优先，超时快速降级
+constexpr int kOfficialTimeoutMs = 30000; // 官方兜底给足时间（本机到 CF CloudFront TLS 建连 ~10s）
+
+// 请求超时必须显式设在请求属性上（HttpClient 的 getRaw/post 会强制覆写为
+// manager 默认 10s；请求属性优先于 manager 默认，故直接走 manager()）。
+// 另：官方 CloudFront / MCIM 镜像对 QNAM 的 HTTP/2 连接处理不稳定
+// （实测 RemoteHostClosedError / 挂起超时），统一禁用 H2 走 HTTP/1.1。
+QNetworkRequest makeRequest(const QString& url, const QString& apiKey, int timeoutMs)
 {
     QNetworkRequest req{ QUrl(url) };
     req.setRawHeader("Accept", "application/json");
     req.setRawHeader("Content-Type", "application/json");
     if (!apiKey.isEmpty())
         req.setRawHeader("x-api-key", apiKey.toUtf8());
-    req.setTransferTimeout(kCfApiTimeoutMs);
+    req.setTransferTimeout(timeoutMs);
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     return req;
 }
 
-// 直接走 HttpClient 的共享 QNAM（公开 accessor），请求属性超时优先于 manager 默认值
-QNetworkReply* cfGet(HttpClient* http, const QString& url, const QString& apiKey)
+// 降级判定：连接失败/超时(status=0)、429 限流、5xx 服务错误 → 换官方重试；
+// 其余 4xx（400/401/403/404）与镜像同源语义，降级无意义，直接透传。
+bool shouldFallbackToOfficial(int status)
 {
-    return http->manager()->get(makeCfRequest(url, apiKey));
+    return status == 0 || status == 429 || status >= 500;
 }
 
-QNetworkReply* cfPost(HttpClient* http, const QString& url, const QByteArray& body, const QString& apiKey)
+// 从官方 Modrinth CDN URL 提取 (projectId, versionId, fileName)，用于构造镜像数据路由。
+// 返回 false 表示非标准 URL（无法镜像，原样下载）。
+bool parseMrCdnUrl(const QString& url, QString* projectId, QString* versionId, QString* fileName)
 {
-    return http->manager()->post(makeCfRequest(url, apiKey), body);
+    static const QRegularExpression re(
+        QStringLiteral("https://cdn\\.modrinth\\.com/data/([^/]+)/versions/([^/]+)/(.+)$"));
+    const QRegularExpressionMatch m = re.match(url);
+    if (!m.hasMatch()) return false;
+    if (projectId) *projectId = m.captured(1);
+    if (versionId) *versionId = m.captured(2);
+    if (fileName) *fileName = m.captured(3);
+    return true;
 }
 
 } // namespace
@@ -90,6 +116,53 @@ QString ModpackDownloader::classifyCategory(const QString& fileName, const QJson
     return QStringLiteral("mods");
 }
 
+// ── 镜像优先 + 官方兜底请求（异步链式）──
+
+void ModpackDownloader::apiWithFallback(bool isPost,
+                                        const QString& mirrorUrl, const QString& officialUrl,
+                                        const QByteArray& body, const QString& apiKey,
+                                        const std::function<void(int, const QByteArray&)>& cb)
+{
+    if (m_cancelled) return;
+
+    // 递归链式请求：send 放入堆上（shared_ptr），避免异步回调时栈帧已销毁
+    auto send = std::make_shared<std::function<void(int)>>();
+    *send = [this, isPost, mirrorUrl, officialUrl, body, apiKey, cb, send](int stage) {
+        const QString url = (stage == 0) ? mirrorUrl : officialUrl;
+        const int timeout = (stage == 0) ? kMirrorTimeoutMs : kOfficialTimeoutMs;
+
+        QNetworkReply* reply = isPost
+            ? m_http->manager()->post(makeRequest(url, apiKey, timeout), body)
+            : m_http->manager()->get(makeRequest(url, apiKey, timeout));
+        m_inflight.append(reply);
+
+        connect(reply, &QNetworkReply::finished, this,
+                [this, reply, stage, cb, send, mirrorUrl, officialUrl, isPost, body, apiKey]() {
+            m_inflight.removeAll(reply);
+            reply->deleteLater();
+            if (m_cancelled) return;
+
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(0);
+            const QByteArray resp = reply->readAll();
+            const bool ok = reply->error() == QNetworkReply::NoError && status >= 200 && status < 300;
+            if (ok) {
+                cb(status, resp);
+                return;
+            }
+            if (stage == 0 && shouldFallbackToOfficial(status)) {
+                // 镜像超时/429/5xx/连接失败：静默丢弃，自动换官方重试一次
+                qCWarning(logMod).noquote()
+                    << QStringLiteral("[modpack] 镜像请求失败，降级官方: %1 status=%2 %3")
+                           .arg(mirrorUrl).arg(status).arg(reply->errorString());
+                (*send)(1);
+                return;
+            }
+            cb(status, resp);  // 官方也失败 / 非降级类错误 → 透传
+        });
+    };
+    (*send)(0);
+}
+
 // ── 启动 ──
 
 ModpackDownloader::ModpackDownloader(QObject* parent)
@@ -118,8 +191,19 @@ void ModpackDownloader::start(bool includeOptional)
         const ModpackRemoteFile& rf = m_files->at(i);
         m_items[i].fileName = rf.fileName;
         if (rf.source == QLatin1String("modrinth")) {
-            m_items[i].url = rf.downloadUrl;
             m_items[i].savePath = m_targetDir + QLatin1Char('/') + rf.relPath;
+            // Modrinth 下载源链：镜像数据路由优先，官方 CDN 兜底，其余 downloads 依次追加
+            QString pid, vid, fname;
+            if (!rf.downloadUrl.isEmpty()
+                && parseMrCdnUrl(rf.downloadUrl, &pid, &vid, &fname)) {
+                m_items[i].urls.append(QLatin1String(kMrMirrorData) + QLatin1Char('/')
+                                       + pid + QLatin1String("/versions/") + vid + QLatin1Char('/') + fname);
+                m_items[i].urls.append(rf.downloadUrl);
+            } else if (!rf.downloadUrl.isEmpty()) {
+                m_items[i].urls.append(rf.downloadUrl);
+            }
+            for (const QString& u : rf.fallbackUrls)
+                m_items[i].urls.append(u);
         }
     }
 
@@ -141,7 +225,7 @@ void ModpackDownloader::start(bool includeOptional)
         if (rf.source == QLatin1String("curseforge")) {
             cfIndexes.append(i);
         } else {
-            if (m_items[i].url.isEmpty()) {
+            if (m_items[i].urls.isEmpty()) {
                 // Modrinth 条目没有可用下载地址（主流启动器 同样会下载失败）
                 m_items[i].finished = true;
                 m_items[i].error = QStringLiteral("无可用下载地址");
@@ -191,31 +275,28 @@ void ModpackDownloader::resolveBatch(int startIndex)
     bodyObj[QStringLiteral("fileIds")] = idArr;
     const QByteArray body = QJsonDocument(bodyObj).toJson(QJsonDocument::Compact);
 
-    QNetworkReply* reply = cfPost(m_http, QLatin1String(kCfFilesApi), body, m_apiKey);
-    m_inflight.append(reply);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, startIndex, cfIndexes]() {
-        m_inflight.removeAll(reply);
-        reply->deleteLater();
-
+    // 镜像优先（/curseforge/v1/mods/files），超时/429/5xx 自动降级官方
+    apiWithFallback(true,
+                    QLatin1String(kCfMirrorBase) + QStringLiteral("/mods/files"),
+                    QLatin1String(kCfOfficialBase) + QStringLiteral("/mods/files"),
+                    body, m_apiKey,
+                    [this, startIndex](int status, const QByteArray& respBody) {
         if (m_cancelled) return;
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(0);
-        const QByteArray respBody = reply->readAll();
-        if (reply->error() == QNetworkReply::NoError && status == 200) {
+        if (status >= 200 && status < 300) {
             onResolveBatchDone(startIndex, status, respBody);
-        } else {
-            // 429 / 5xx / 网络错误：重试一次
-            qCWarning(logMod) << "[modpack][CF] 批量解析失败 status=" << status
-                              << reply->errorString() << "cfIndexes=" << cfIndexes.size();
-            if (status == 401 || status == 403) {
-                onResolveBatchFailed(startIndex,
-                    status == 401
-                        ? tr("CurseForge API 密钥无效（401），请检查密钥配置")
-                        : tr("CurseForge API 拒绝访问（403）：密钥权限不足 / IP 风控 / 配额耗尽"));
-                return;
-            }
-            onResolveBatchFailed(startIndex, tr("CurseForge API 请求失败（HTTP %1）").arg(status));
+            return;
         }
+        if (status == 401) {
+            onResolveBatchFailed(startIndex,
+                tr("CurseForge API 密钥无效（401），请检查密钥配置"));
+            return;
+        }
+        if (status == 403) {
+            onResolveBatchFailed(startIndex,
+                tr("CurseForge API 拒绝访问（403）：密钥权限不足 / IP 风控 / 配额耗尽"));
+            return;
+        }
+        onResolveBatchFailed(startIndex, tr("CurseForge API 请求失败（HTTP %1）").arg(status));
     });
 }
 
@@ -272,12 +353,21 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
         m_items[i].savePath = m_targetDir + QLatin1Char('/') + safeRel;
         m_items[i].fileName = rf.fileName;
 
-        QString url = o.value(QStringLiteral("downloadUrl")).toString();
-        if (url.isEmpty()) {
-            // 官方博客提供的备用下载地址接口
-            url = QString::fromLatin1(kCfDownloadUrlApi).arg(rf.projectId).arg(rf.fileId);
+        // ── 下载源链：镜像 CDN 分片优先，官方签名直链兜底 ──
+        // 镜像: https://mod.mcimirror.top/files/{fid/1000}/{fid%1000}/{fileName}
+        const QString officialUrl = o.value(QStringLiteral("downloadUrl")).toString();
+        const QString encName = QString::fromUtf8(
+            QUrl::toPercentEncoding(rf.fileName, "/", " "));
+        m_items[i].urls.append(QStringLiteral("%1/%2/%3/%4")
+            .arg(QLatin1String(kCfMirrorFileCdn))
+            .arg(rf.fileId / 1000).arg(rf.fileId % 1000).arg(encName));
+        if (!officialUrl.isEmpty())
+            m_items[i].urls.append(officialUrl);
+
+        if (officialUrl.isEmpty()) {
+            // 官方直链缺失：走 download-url 接口补解析（镜像优先），稍后统一处理
+            m_downloadUrlPending.append(i);
         }
-        m_items[i].url = url;
     }
 
     // 是否还有下一批
@@ -292,10 +382,87 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
     if (hasMore) {
         resolveBatch(next);
     } else {
+        // 所有批次解析完成：若有缺失直链的条目，先补解析 download-url，再进入下载
+        if (!m_downloadUrlPending.isEmpty()) {
+            emit statusChanged(tr("正在补全下载地址…"));
+            resolveDownloadUrls();
+        } else {
+            m_resolveDone = true;
+            emit statusChanged(tr("开始下载模组…"));
+            scheduleNext();
+        }
+    }
+}
+
+// ── download-url 缺失条目补解析（镜像优先，并发 3 路）──
+
+void ModpackDownloader::resolveDownloadUrls()
+{
+    if (m_cancelled || m_downloadUrlPending.isEmpty()) {
         m_resolveDone = true;
         emit statusChanged(tr("开始下载模组…"));
         scheduleNext();
+        return;
     }
+
+    // 并发 3 路：取前 3 个未开始的条目各发一个请求
+    int started = 0;
+    for (int i = 0; i < m_downloadUrlPending.size(); ++i) {
+        const int idx = m_downloadUrlPending[i];
+        if (m_items[idx].inFlight) continue;
+        if (started >= 3) break;
+        m_items[idx].inFlight = true;
+        started++;
+        startDownloadUrlResolve(idx);
+    }
+}
+
+void ModpackDownloader::startDownloadUrlResolve(int idx)
+{
+    const ModpackRemoteFile& rf = m_files->at(idx);
+    const QString mirror = QStringLiteral("%1/mods/%2/files/%3/download-url")
+        .arg(QLatin1String(kCfMirrorBase)).arg(rf.projectId).arg(rf.fileId);
+    const QString official = QStringLiteral("%1/mods/%2/files/%3/download-url")
+        .arg(QLatin1String(kCfOfficialBase)).arg(rf.projectId).arg(rf.fileId);
+
+    apiWithFallback(false, mirror, official, QByteArray(), m_apiKey,
+                    [this, idx](int status, const QByteArray& body) {
+        m_items[idx].inFlight = false;
+        if (m_cancelled) return;
+
+        bool ok = false;
+        if (status >= 200 && status < 300) {
+            QJsonParseError perr;
+            const QJsonDocument doc = QJsonDocument::fromJson(body, &perr);
+            const QJsonObject data = (perr.error == QJsonParseError::NoError)
+                ? doc.object().value(QStringLiteral("data")).toObject() : QJsonObject();
+            const QString realUrl = data.value(QStringLiteral("downloadUrl")).toString();
+            if (!realUrl.isEmpty()) {
+                m_items[idx].urls.append(realUrl);  // 镜像 CDN 分片已在前，官方直链追加兜底
+                ok = true;
+            }
+        }
+        if (!ok) {
+            m_items[idx].finished = true;
+            m_items[idx].error = tr("无法获取下载地址（HTTP %1）").arg(status);
+            m_failed++;
+            m_completed++;
+            if (idx < m_files->size()) {
+                m_files->operator[](idx).status = QStringLiteral("fail");
+                m_files->operator[](idx).error = m_items[idx].error;
+            }
+            emit logLine(tr("⚠ %1 无法获取下载地址").arg(m_items[idx].fileName));
+        }
+
+        m_downloadUrlPending.removeAll(idx);
+        if (!m_downloadUrlPending.isEmpty()) {
+            resolveDownloadUrls();  // 补位继续
+        } else {
+            m_resolveDone = true;
+            emit statusChanged(tr("开始下载模组…"));
+            scheduleNext();
+        }
+    });
 }
 
 void ModpackDownloader::onResolveBatchFailed(int startIndex, const QString& err)
@@ -330,7 +497,7 @@ void ModpackDownloader::scheduleNext()
         int next = -1;
         for (int i = 0; i < m_total; ++i) {
             if (m_items[i].finished || m_items[i].inFlight) continue;
-            if (m_items[i].url.isEmpty()) continue;
+            if (m_items[i].urls.isEmpty()) continue;
             next = i;
             break;
         }
@@ -344,7 +511,6 @@ void ModpackDownloader::startItem(int idx)
 {
     DlItem& it = m_items[idx];
     it.inFlight = true;
-    it.attempt++;
 
     // 临时文件与最终文件同目录，成功后改名（原子落盘）
     it.tmpPath = it.savePath + QStringLiteral(".part");
@@ -352,30 +518,76 @@ void ModpackDownloader::startItem(int idx)
     QDir().mkpath(fi.absolutePath());
     QFile::remove(it.tmpPath);
 
-    emit statusChanged(tr("正在下载 %1").arg(it.fileName.isEmpty() ? it.url : it.fileName));
+    const QString url = (it.urlIdx < it.urls.size()) ? it.urls[it.urlIdx] : QString();
+    if (url.isEmpty()) {
+        it.inFlight = false;
+        finalizeItem(idx, false, tr("无可用下载地址"));
+        return;
+    }
 
-    QNetworkReply* reply = m_http->downloadWithReply(
-        it.url, it.tmpPath,
-        [this, idx](qint64 received, qint64 total) {
-            emit fileProgress(idx, m_items[idx].fileName, received, total);
-        },
-        [this, idx](bool ok, const QString& err) {
-            m_items[idx].inFlight = false;
-            m_activeSlots--;
-            if (m_cancelled) {
-                // 取消路径：不逐文件报错，统一收尾
-                if (!m_items[idx].finished) {
-                    m_items[idx].finished = true;
-                    m_skipped++;
-                    m_completed++;
-                }
-                finishIfAllDone();
-                return;
-            }
-            onItemDone(idx, ok, err);
-        });
-    m_activeSlots++;
+    const QString sourceTag = it.urlIdx == 0 ? QString() : tr("（备用源 %1/%2）").arg(it.urlIdx + 1).arg(it.urls.size());
+    emit statusChanged(tr("正在下载 %1%2").arg(it.fileName.isEmpty() ? url : it.fileName, sourceTag));
+    emit logLine(tr("下载 %1%2\n  源: %3")
+        .arg(it.fileName.isEmpty() ? url : it.fileName, sourceTag, url));
+
+    // 自实现下载（不依赖 downloadWithReply）：可禁用 HTTP/2（官方 CDN / 镜像
+    // 对 QNAM H2 连接不稳定，实测 Connection closed / 挂起超时），并给足超时。
+    QNetworkRequest req{ QUrl(url) };
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    req.setTransferTimeout(60000);
+    QNetworkReply* reply = m_http->manager()->get(req);
     m_inflight.append(reply);
+
+    auto* file = new QFile(it.tmpPath);
+    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        reply->abort();
+        reply->deleteLater();
+        m_inflight.removeAll(reply);
+        delete file;
+        it.inFlight = false;
+        finalizeItem(idx, false, tr("无法创建临时文件: %1").arg(it.tmpPath));
+        return;
+    }
+
+    connect(reply, &QNetworkReply::readyRead, this, [reply, file]() {
+        const QByteArray chunk = reply->readAll();
+        if (file->write(chunk) != chunk.size())
+            reply->abort();  // 磁盘空间不足等：中断，走失败路径
+    });
+    connect(reply, &QNetworkReply::downloadProgress, this,
+            [this, idx](qint64 received, qint64 total) {
+        emit fileProgress(idx, m_items[idx].fileName, received, total);
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, file, idx]() {
+        m_inflight.removeAll(reply);
+        file->close();
+        delete file;
+        reply->deleteLater();
+
+        m_items[idx].inFlight = false;
+        m_activeSlots--;
+        if (m_cancelled) {
+            // 取消路径：不逐文件报错，统一收尾
+            if (!m_items[idx].finished) {
+                m_items[idx].finished = true;
+                m_skipped++;
+                m_completed++;
+            }
+            finishIfAllDone();
+            return;
+        }
+
+        bool ok = reply->error() == QNetworkReply::NoError;
+        QString err = reply->errorString();
+        if (!ok) {
+            const int st = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(0);
+            if (st >= 400)
+                err = tr("HTTP %1 %2").arg(st).arg(err);
+        }
+        onItemDone(idx, ok, err);
+    });
+
+    m_activeSlots++;
 }
 
 void ModpackDownloader::onItemDone(int idx, bool ok, const QString& err)
@@ -384,15 +596,16 @@ void ModpackDownloader::onItemDone(int idx, bool ok, const QString& err)
         verifyItem(idx);
         return;
     }
-    // 网络失败：重试一次（规格：单次失败重试）
-    if (m_items[idx].attempt < 1) {
-        qCWarning(logMod) << "[modpack] 下载失败，重试一次:" << m_items[idx].fileName << err;
-        emit logLine(tr("下载失败，重试: %1 (%2)").arg(m_items[idx].fileName, err));
+    // 下载失败：切换到备用源（镜像→官方→…），全部用尽才判失败
+    if (m_items[idx].urlIdx + 1 < m_items[idx].urls.size()) {
+        m_items[idx].urlIdx++;
+        qCWarning(logMod) << "[modpack] 下载失败，切换源重试:" << m_items[idx].fileName << err;
+        emit logLine(tr("下载失败，切换备用源: %1 (%2)").arg(m_items[idx].fileName, err));
         QFile::remove(m_items[idx].tmpPath);
         scheduleNext();  // 重排会重新拾取该条目（inFlight=false, finished=false）
         return;
     }
-    finalizeItem(idx, false, err.isEmpty() ? tr("下载失败") : err);
+    finalizeItem(idx, false, err.isEmpty() ? tr("下载失败（所有源均不可用）") : err);
 }
 
 // ── 哈希/大小校验（QtConcurrent 工作线程，避免阻塞主线程）──
@@ -433,10 +646,11 @@ void ModpackDownloader::verifyItem(int idx)
 
 void ModpackDownloader::onVerifyDone(int idx, bool ok, const QString& err)
 {
-    if (!ok && m_items[idx].attempt < 1) {
-        // 校验失败：删掉临时文件重下一遍（主流启动器 对损坏文件同样重试）
-        qCWarning(logMod) << "[modpack] 校验失败，重试一次:" << m_items[idx].fileName << err;
-        emit logLine(tr("文件校验失败，重试: %1 (%2)").arg(m_items[idx].fileName, err));
+    if (!ok && m_items[idx].urlIdx + 1 < m_items[idx].urls.size()) {
+        // 校验失败（镜像源内容损坏等）：删掉临时文件，换备用源重下一遍（主流启动器 对损坏文件同样重试）
+        m_items[idx].urlIdx++;
+        qCWarning(logMod) << "[modpack] 校验失败，切换源重试:" << m_items[idx].fileName << err;
+        emit logLine(tr("文件校验失败，切换备用源: %1 (%2)").arg(m_items[idx].fileName, err));
         QFile::remove(m_items[idx].tmpPath);
         scheduleNext();
         return;

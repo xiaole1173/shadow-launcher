@@ -59,21 +59,29 @@ signals:
 private:
     struct DlItem {
         int index = -1;
-        QString url;
-        QString savePath;    // 最终路径
-        QString tmpPath;     // .part 临时路径
+        QStringList urls;      // 尝试顺序：[镜像 CDN, 官方直链, 备用源…]，逐个降级
+        int urlIdx = 0;        // 当前尝试到第几个 URL
+        QString savePath;      // 最终路径
+        QString tmpPath;       // .part 临时路径
         QString fileName;
-        int attempt = 0;
         bool inFlight = false;
         bool finished = false;
         bool ok = false;
         QString error;
     };
 
+    // ── 镜像优先 + 官方兜底请求（异步链式；4xx 除 429 外不降级）──
+    void apiWithFallback(bool isPost,
+                         const QString& mirrorUrl, const QString& officialUrl,
+                         const QByteArray& body, const QString& apiKey,
+                         const std::function<void(int, const QByteArray&)>& cb);
+
     // ── CF 地址解析 ──
     void resolveBatch(int startIndex);                 // 按 50 个/批发 POST /v1/mods/files
     void onResolveBatchDone(int startIndex, int status, const QByteArray& body);
     void onResolveBatchFailed(int startIndex, const QString& err);
+    void resolveDownloadUrls();                        // downloadUrl 缺失的条目逐个补解析
+    void startDownloadUrlResolve(int idx);
 
     // ── 下载队列 ──
     void scheduleNext();
@@ -106,6 +114,7 @@ private:
     bool m_running = false;
     bool m_cancelled = false;
     bool m_resolveDone = false;
+    QList<int> m_downloadUrlPending;   // 待补解析 download-url 的条目（镜像优先）
     std::function<void(const QString&)> m_overwriteHook;   // 覆盖旧文件前的回调
     QList<QPointer<QNetworkReply>> m_inflight;   // 在途请求（取消时 abort）
 };
