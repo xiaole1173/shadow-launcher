@@ -126,6 +126,7 @@ private:
     QSet<QString> m_preExisting;   // addFile 前已存在的目标（覆盖场景，成功不登记新建）
     qint64 m_lastQueueEmitMs = 0;  // queueProgress 桥接限频（200ms）
     qint64 m_lastFileProgMs = 0;   // fileProgress 桥接限频（200ms）
+    QString m_lastEngineError;     // 引擎最近一条失败/校验日志（失败详情透传卡片）
 };
 
 } // namespace ShadowLauncher

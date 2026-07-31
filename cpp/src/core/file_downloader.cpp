@@ -141,7 +141,8 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     file->needsJarStrip = jarStrip;
     file->fileSize = expectedSize;
     file->isUnknownSize = (expectedSize <= 0);
-    file->isNoSplit = (!file->isUnknownSize && file->fileSize < 50LL * 1024 * 1024);
+    file->isNoSplit = (!file->isUnknownSize
+                       && file->fileSize < (m_modpackMode ? 1LL : 50LL) * 1024 * 1024);
 
     QMutexLocker lock(&m_filesMutex);
     m_files.append(file);
@@ -272,7 +273,14 @@ void FileDownloader::managerTick()
             if (f->state == 0) {
                 if (active >= maxThreads) { allStarted = false; break; }
                 auto th = tryStartFirstThread(f);
-                if (th) active++;
+                if (th) {
+                    active++;
+                } else if (m_modpackMode) {
+                    // 模组专项：host 暂时满/降级被拒 → 文件保持 state 0，
+                    // 强制留在 Phase1 下轮重试——否则 allStarted=true 进入 Phase2 后
+                    // state 0 文件永不被调度（Phase2 只给已有线程的文件加片）
+                    allStarted = false;
+                }
             }
         }
         if (allStarted) {
@@ -288,7 +296,9 @@ void FileDownloader::managerTick()
     qint64 floor = m_speedFloorBps.loadRelaxed();
 
     // If speed >= floor, don't add more threads
-    if (curMbps * 1024 * 1024 >= floor) {
+    // （模组专项：无视速度下限直接分片——模组单连接被镜像限速，EMA 恒卡在 floor
+    //   附近导致分片永不触发；PCL 语义是 ≥1MB 即分片，与速度无关）
+    if (!m_modpackMode && curMbps * 1024 * 1024 >= floor) {
         lock.unlock();
         return;
     }
@@ -297,6 +307,11 @@ void FileDownloader::managerTick()
     for (auto& f : m_files) {
         if (active >= maxThreads) break;
         if (f->state >= 3 || f->state == 5) continue; // merging/finished/failed
+        if (m_modpackMode && f->threads.isEmpty() && f->state == 0) {
+            // 模组专项双保险：Phase1 已退出但仍有 state 0 文件（极端时序）→ 补启动首线程
+            auto th = tryStartFirstThread(f);
+            if (th) { active++; continue; }
+        }
         if (f->isNoSplit && !f->threads.isEmpty()) continue; // single-thread files, already started
 
         // Check if preparing threads outnumber downloading threads
@@ -475,6 +490,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     QNetworkAccessManager mgr;
 
     bool sourceOk = false;
+    bool modRetriedOnce = false;   // 模组专项：全部源耗尽后重置源列表整体重试一轮（PCL Retried 同款）
     for (int sourceIdx = 0; sourceIdx < file->orderedSources.size() && !sourceOk; ++sourceIdx) {
         if (m_cancelled.loadRelaxed()) goto cleanup;
 
@@ -486,7 +502,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
         sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
-        for (int attempt = 0; attempt < 6 && !sourceOk; ++attempt) {
+        // 模组专项：重置重试轮每源仅 1 次尝试（PCL「逐个重新尝试下载」语义）
+        const int attemptLimit = modRetriedOnce ? 1 : 6;
+        for (int attempt = 0; attempt < attemptLimit && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
 
             int timeoutMs;
@@ -502,6 +520,12 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
             QNetworkRequest req{QUrl(url)};
             req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+            if (m_modpackMode) {
+                // 模组专项：禁 H2（MCIM 镜像对 QNAM H2 连接不稳定，实测 Connection closed）；
+                // 请求原始编码（Qt QNAM 无自动 gzip 解压，发 gzip 头会致 SHA1 不符）
+                req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+                req.setRawHeader("Accept-Encoding", "identity");
+            }
             req.setTransferTimeout(timeoutMs);
             req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -527,7 +551,15 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
-            timeout.start(timeoutMs);
+            if (m_modpackMode) {
+                // 模组专项：空闲无数据超时——每次收到数据包重置，连续 30s 无数据才断；
+                // 慢速持续传输的大文件不被整体超时误杀（PCL「无数据才超时」语义）
+                timeout.start(30000);
+                connect(reply, &QNetworkReply::readyRead, &timeout,
+                        [&timeout]() { timeout.start(30000); });
+            } else {
+                timeout.start(timeoutMs);
+            }
 
             qint64 lastProgressEmitMs = getElapsedMs();
 
@@ -535,6 +567,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     [&](qint64 received, qint64 total) {
                 qint64 delta = received - th->downloadDone;
                 if (delta > 0) {
+                    // 模组专项：首包数据到达 → 线程进入 downloading（state 2）。
+                    // 分片调度（managerTick Phase2）以 state<2=prep / state==2=dl 判断
+                    // 是否可加片——原实现从未置 state=2，prep>dl 恒成立导致分片永不触发。
+                    // 仅模组模式修复；MC 模式保持原行为（50MB 阈值 + 不分片）不变。
+                    if (th->state == 1 && m_modpackMode) th->state = 2;
                     m_downloadedBytes.fetchAndAddRelaxed(delta);
                     th->downloadDone = received;
                 }
@@ -576,6 +613,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     .arg(attempt + 1);
                 reply->abort();
                 reply->deleteLater();
+                if (m_modpackMode) {
+                    // 模组专项：网络错误（超时/连接关闭/4xx/5xx）立即放弃当前源换下一个（PCL 禁源策略）
+                    th->downloadDone = 0;
+                    break;
+                }
                 if (attempt >= 2 && !file->expectedSha1.isEmpty()) break;
                 th->downloadDone = 0;
                 continue;
@@ -612,7 +654,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     }
                     file->fileSize = actualSize;
                     file->isUnknownSize = false;
-                    file->isNoSplit = (actualSize < 50LL * 1024 * 1024);
+                    file->isNoSplit = (actualSize < (m_modpackMode ? 1LL : 50LL) * 1024 * 1024);
                     th->downloadEnd = actualSize;
                 }
             }
@@ -669,10 +711,20 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             th->state = 3;
             goto worker_done;
         }
+
+        // 模组专项：全部源耗尽后，重置源列表整体重试一轮（PCL Retried 同款）。
+        // 第二轮每源仅 1 次尝试（attemptLimit 已按 modRetriedOnce 收窄）。
+        if (!sourceOk && m_modpackMode && !modRetriedOnce) {
+            modRetriedOnce = true;
+            sourceIdx = -1;   // for 循环 ++ 后回到 0，重走全部源
+            qCInfo(logDownload) << QStringLiteral("[下载] 全部源失败，重置源列表整体重试一轮: %1")
+                                   .arg(file->localName);
+            continue;
+        }
     }
 
-    // Last resort retry
-    if (!sourceOk && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
+    // Last resort retry（模组专项已重置重试一轮覆盖，跳过原兜底）
+    if (!sourceOk && !m_modpackMode && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
         const QString url = file->orderedSources[0];
         qCInfo(logDownload) << QStringLiteral("[下载] 最终兜底重试 URL=%1").arg(url);
         for (int attempt = 0; attempt < 3 && !sourceOk; ++attempt) {
@@ -697,8 +749,14 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             bool timedOut = false;
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
-            int timeoutMs = (attempt == 0) ? 60000 : 30000;
-            timeout.start(timeoutMs);
+            if (m_modpackMode) {
+                timeout.start(30000);
+                connect(reply, &QNetworkReply::readyRead, &timeout,
+                        [&timeout]() { timeout.start(30000); });
+            } else {
+                int timeoutMs = (attempt == 0) ? 60000 : 30000;
+                timeout.start(timeoutMs);
+            }
 
             connect(reply, &QNetworkReply::downloadProgress,
                     [&](qint64 received, qint64 total) {
@@ -820,6 +878,33 @@ cleanup:
     }
 
     if (allDone) {
+        // 模组专项：失败分片重下（PCL「丢弃失败分片重下」语义）——
+        // 24 路并发下单片网络抖动不应导致整个大文件报废：
+        // 失败分片（state=4 且未重试过）重置后重新下载其 range，
+        // allDone 会因 state=0 重新计算，重试完成后再进入合并/终判。
+        if (m_modpackMode && anyFailed) {
+            bool launchedRetry = false;
+            {
+                QMutexLocker lock(&m_filesMutex);
+                for (auto& t : file->threads) {
+                    if (t->state == 4 && !t->retried) {
+                        t->retried = true;
+                        t->state = 0;
+                        t->downloadDone = 0;
+                        if (!t->tempPath.isEmpty()) QFile::remove(t->tempPath);
+                        t->tempPath.clear();
+                        launchedRetry = true;
+                        m_activeThreads.fetchAndAddRelaxed(1);
+                        launchWorker(t, file);   // 重新下载该分片 range（源会重新选择）
+                    }
+                }
+            }
+            if (launchedRetry) {
+                qCInfo(logDownload) << QStringLiteral("[下载] 分片失败重下 %1").arg(file->localName);
+                return;   // 等重试分片完成
+            }
+        }
+
         bool ok = false;
         if (!anyFailed && th->state != 4) {
             file->state = 3;
@@ -921,6 +1006,7 @@ void FileDownloader::speedTick()
 
     qint64 now = m_downloadedBytes.loadRelaxed();
     qint64 bytes = now - m_lastSpeedBytes;
+    if (bytes < 0) bytes = 0;   // 分片重下/截断修正时 m_downloadedBytes 瞬时回退 → 钳零，避免负速度
     m_lastSpeedBytes = now;
     m_speedTimer.restart();
 
@@ -1016,8 +1102,14 @@ bool FileDownloader::hostCanAccept(const QString& host) const
     QMutexLocker lock(&m_hostMutex);
     auto it = m_hostStats.find(host);
     if (it == m_hostStats.end()) return true;
-    if (it->degraded) return false;
-    if (it->activeRequests >= kMaxPerHost) return false;
+    // 模组专项：单镜像 host 场景跳过 degraded 拦截——短时连续失败若标记降级，
+    // 会导致后续所有文件无法启动、整队列卡死（实测 129 文件尾部大文件全部拒启）；
+    // MC 多源场景保留 degraded 源隔离（降级源不参与新连接）
+    if (it->degraded && !m_modpackMode) return false;
+    // 模组专项：per-host 上限 12（实测 16+ 会触发 MCIM 镜像限流饿死连接，
+    // 12 路温和稳定；MC 场景保持 4 路多源隔离）
+    const int limit = m_modpackMode ? 12 : kMaxPerHost;
+    if (it->activeRequests >= limit) return false;
     return true;
 }
 

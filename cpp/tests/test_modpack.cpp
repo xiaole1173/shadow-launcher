@@ -16,6 +16,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -437,10 +438,92 @@ static int runOnlineTests()
     return 0;
 }
 
+// ── 临时诊断模式：--diag <mrpack/zip 路径> [CF key] ──
+// 解析整合包清单 → ModpackDownloader 全量下载 → 逐文件结果/日志/速度统计
+static int runDiagDownload(const QString& zipPath, const QString& apiKey)
+{
+    qInfo().noquote() << "==== [诊断] 解析:" << zipPath;
+    const ModpackFormat fmt = ModpackParser::detectFormat(zipPath);
+    if (fmt == ModpackFormat::Unknown) { qInfo().noquote() << "未知格式"; return 1; }
+    ModpackMeta meta;
+    QString perr;
+    if (!ModpackParser::parse(zipPath, fmt, meta, perr)) { qInfo().noquote() << "解析失败:" << perr; return 1; }
+    qInfo().noquote() << QStringLiteral("包名=%1 版本=%2 MC=%3 加载器=%4 文件数=%5")
+        .arg(meta.name, meta.versionId, meta.mcVersion, meta.loaderType).arg(meta.files.size());
+
+    const QString dlDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+        + QStringLiteral("/shadow-diag-dl");
+    QDir(dlDir).removeRecursively();
+    QDir().mkpath(dlDir);
+
+    QEventLoop loop;
+    ModpackDownloader dl;
+    QStringList logs;
+    QElapsedTimer timer; timer.start();
+    qint64 totalBytes = 0;
+    int done = 0, failed = 0, skipped = 0;
+    QStringList failNames, failLogs;
+
+    QObject::connect(&dl, &ModpackDownloader::logLine, [&](const QString& m) {
+        logs.append(m);
+        qInfo().noquote() << "  [dl]" << m;
+    });
+    QObject::connect(&dl, &ModpackDownloader::fileFinished,
+                     [&](int index, bool ok, const QString& err) {
+        Q_UNUSED(index); Q_UNUSED(err);
+        if (ok) ++done; else ++failed;
+    });
+    QObject::connect(&dl, &ModpackDownloader::allFinished, [&](bool cancelled) {
+        qInfo().noquote() << "==== [诊断] allFinished cancelled=" << cancelled
+                          << " 耗时=" << timer.elapsed() << "ms 成功=" << done << " 失败=" << failed;
+        loop.quit();
+    });
+
+    dl.setApiKey(apiKey);
+    dl.setTargetDir(dlDir);
+    dl.setFiles(&meta.files);
+    dl.start(false);
+
+    QTimer::singleShot(600000, &loop, &QEventLoop::quit);   // 10 分钟超时保护
+    loop.exec();
+
+    qInfo().noquote() << "==== [诊断] 逐文件结果 ====";
+    for (int i = 0; i < meta.files.size(); ++i) {
+        const ModpackRemoteFile& rf = meta.files.at(i);
+        QFileInfo fi(dlDir + QLatin1Char('/') + rf.relPath);
+        const qint64 sz = fi.exists() ? fi.size() : -1;
+        if (rf.status == QLatin1String("done")) totalBytes += sz;
+        else if (rf.status == QLatin1String("skipped")) ++skipped;
+        QString tag = QStringLiteral("镜像");
+        if (rf.status != QLatin1String("done")) {
+            failNames << QStringLiteral("%1 (%2)").arg(rf.fileName, rf.status);
+            for (const QString& l : logs) {
+                if (l.contains(rf.fileName)) failLogs << l;
+            }
+        }
+        qInfo().noquote() << QStringLiteral("  %1 | %2 | %3 B | %4 | %5")
+            .arg(rf.status, -8).arg(rf.fileName).arg(sz).arg(rf.error).arg(tag);
+    }
+    const qint64 secs = qMax<qint64>(1, timer.elapsed() / 1000);
+    qInfo().noquote() << QStringLiteral("==== [诊断] 统计: 总耗时 %1s 成功 %2 失败 %3 跳过 %4 总字节 %5 平均速度 %6 KB/s")
+        .arg(secs).arg(done).arg(failed).arg(skipped).arg(totalBytes).arg(totalBytes / 1024 / secs);
+    if (!failNames.isEmpty()) {
+        qInfo().noquote() << "==== [诊断] 失败文件日志 ====";
+        for (const QString& l : failLogs) qInfo().noquote() << "  " << l;
+    }
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
     ShadowLauncher::initLogger(QCoreApplication::applicationDirPath());
+
+    if (argc > 2 && QString::fromLocal8Bit(argv[1]) == QLatin1String("--diag")) {
+        // Windows argv 为系统代码页(GBK)编码，须用 fromLocal8Bit 还原中文路径
+        const QString key = argc > 3 ? QString::fromLocal8Bit(argv[3]) : QString();
+        return runDiagDownload(QString::fromLocal8Bit(argv[2]), key);
+    }
 
     qInfo().noquote() << "ShadowLauncher Modpack 模块自测开始";
     const int r1 = runOfflineTests();

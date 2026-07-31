@@ -169,6 +169,7 @@ void ModpackDownloader::start(bool includeOptional)
     m_preExisting.clear();
     m_lastQueueEmitMs = 0;
     m_lastFileProgMs = 0;
+    m_lastEngineError.clear();
 
     m_items.resize(m_total);
     for (int i = 0; i < m_total; ++i) {
@@ -476,7 +477,10 @@ void ModpackDownloader::startEngineDownloads()
     // 每次任务新建引擎实例（FileDownloader 无清空队列 API，不复用；
     // 实例级状态与 MC 下载引擎完全隔离，互不干扰）
     m_fd = new ShadowDownloader::FileDownloader(this);
-    m_fd->setMaxThreads(6);   // 模组场景收敛并发（引擎默认 12，模组多为小文件，6 足够）
+    m_fd->setMaxThreads(12);       // 模组专项：全局 12 线程（主流启动器 默认 9 同量级）——
+    // 实测 24 路并发对 MCIM 镜像过于激进：高峰期镜像限流饿死部分连接 →
+    // 30s 无数据超时 → 分片失败 → 大文件报废；12 路温和稳定且峰值仍可达 3MB/s+
+    m_fd->setModpackMode(true);    // 模组专项：禁H2/1MB分片/空闲超时/立即换源（MC 下载不受影响）
 
     for (int i = 0; i < m_total; ++i) {
         DlItem& it = m_items[i];
@@ -524,7 +528,16 @@ void ModpackDownloader::startEngineDownloads()
     connect(m_fd, &ShadowDownloader::FileDownloader::allFinished,
             this, &ModpackDownloader::onEngineAllFinished);
     connect(m_fd, &ShadowDownloader::FileDownloader::logMessage,
-            this, [this](const QString& msg) { emit logLine(msg); });
+            this, [this](const QString& msg) {
+        emit logLine(msg);
+        // 捕获引擎失败/校验详情（用于 fileFinished(false) 的错误文案透传，
+        // 消灭界面「详见日志」模糊提示）
+        if (msg.contains(QStringLiteral("失败"))
+            || msg.contains(QStringLiteral("校验"))
+            || msg.contains(QStringLiteral("SHA1"))) {
+            m_lastEngineError = msg;
+        }
+    });
 
     m_fd->start();
 }
@@ -584,7 +597,11 @@ void ModpackDownloader::onEngineFileFinished(const QString& localPath, bool succ
         emit fileFinished(idx, true, {});
     } else {
         rf.status = QStringLiteral("fail");
-        it.error = tr("下载失败（详见日志）");
+        // 失败详情透传：优先用引擎最近一条失败/校验日志（如「SHA1校验失败: xx」
+        // 「请求失败 URL=... 错误=超时」），无缓存才用笼统文案
+        it.error = m_lastEngineError.isEmpty()
+            ? tr("下载失败（详见日志）") : m_lastEngineError;
+        m_lastEngineError.clear();
         rf.error = it.error;
         QFile::remove(localPath);   // 清理引擎残留的半截文件（isNoSplit 直接写最终路径）
         emit fileFinished(idx, false, it.error);

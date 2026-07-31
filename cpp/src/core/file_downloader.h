@@ -42,6 +42,7 @@ struct DownloadThread {
     QString tempPath;
     qint64 lastReceiveTime = 0;
     int state = 0;  // 0=waiting,1=connecting,2=downloading,3=finished,4=failed
+    bool retried = false;   // 分片失败已重试（模组专项：丢弃失败分片重下）
 
     qint64 downloadUndone() const { return downloadEnd - downloadStart - downloadDone; }
 };
@@ -91,6 +92,15 @@ public:
     void setMaxThreads(int n) { m_maxThreads = qBound(1, n, 128); }
     int maxThreads() const { return m_maxThreads; }
     void setSpeedLimitMB(double mb) { m_speedLimitBps.storeRelaxed(static_cast<qint64>(mb * 1024 * 1024)); }
+    /// 模组下载专项模式（ModpackDownloader 实例开启；MC 下载实例保持默认关闭）：
+    /// 1) 禁用 HTTP/2（MCIM 镜像 H2 连接不稳，Connection closed 断连）
+    /// 2) 分片阈值 50MB → 1MB（PCL 同款，突破单连接限速）
+    /// 3) 空闲无数据超时（30s 无数据才断，慢速大文件不被整体超时误杀）
+    /// 4) 网络错误立即换源，全部源耗尽后重置源列表整体重试一轮（PCL 失败策略）
+    /// 5) Accept-Encoding: identity（Qt 无自动解压，防服务器 gzip 导致 SHA1 不符）
+    /// 默认关闭 ⇒ MC 下载行为与既有完全一致。
+    void setModpackMode(bool on) { m_modpackMode = on; }
+    bool modpackMode() const { return m_modpackMode; }
     /// Set the working Minecraft directory (used for cache fallback path computation).
     void setMinecraftDir(const QString& dir) { m_minecraftDir = dir; }
     /// If a file is not found in the working dir, check this fallback dir for
@@ -129,6 +139,7 @@ private:
     // ── Config ──
     int m_maxThreads = 12;
     QAtomicInteger<qint64> m_speedLimitBps{-1};
+    bool m_modpackMode = false;   // 模组下载专项模式（默认关，MC 下载不受影响）
 
     // ── Cache fallback (gameDir cache for tempDir downloads) ──
     QString m_minecraftDir;       // working dir where files are downloaded to (tempDir for merged)
