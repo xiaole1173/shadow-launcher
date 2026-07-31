@@ -29,6 +29,8 @@ class MultiplayerManager : public QObject {
     Q_PROPERTY(int maxPlayers READ maxPlayers CONSTANT)
     Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
     Q_PROPERTY(Role role READ role NOTIFY roleChanged)
+    Q_PROPERTY(QString mcServerName READ mcServerName NOTIFY mcServerInfoChanged)
+    Q_PROPERTY(int mcServerPort READ mcServerPort NOTIFY mcServerInfoChanged)
 
 public:
     enum State {
@@ -70,6 +72,8 @@ public:
     Role role() const { return m_role; }
     QString playerName() const { return m_playerName; }
     int connectionDifficulty() const { return static_cast<int>(m_connectionDifficulty); }
+    QString mcServerName() const { return m_mcServerName; }
+    int mcServerPort() const { return static_cast<int>(m_mcPort); }
 
     // ── QML-callable ──
     Q_INVOKABLE static QString playerHeadPath(const QString& name, const QString& dataDir);
@@ -98,6 +102,9 @@ public:
     Q_PROPERTY(QString playerName READ playerName NOTIFY playerNameChanged)
     Q_PROPERTY(int connectionDifficulty READ connectionDifficulty NOTIFY connectionDifficultyChanged)
 
+    // Force recalculation of connection difficulty (host: queries EasyTier for local NAT)
+    Q_INVOKABLE void requestDifficultyUpdate();
+
 signals:
     void roomCodeChanged();
     void stateChanged();
@@ -108,6 +115,7 @@ signals:
     void errorOccurred(const QString& msg);
     void playerNameChanged();
     void connectionDifficultyChanged();
+    void mcServerInfoChanged();
 
     // Emitted when FakeServer should announce a given MC port on the LAN multicast
     // Used by the guest to make the MC client auto-discover the proxied server
@@ -239,6 +247,7 @@ private:
 
     // Connection difficulty (from NAT type analysis)
     ConnectionDifficulty m_connectionDifficulty = DiffUnknown;
+    QString m_mcServerName;
 
     std::atomic<int> m_state{0};
     Role m_role = None;

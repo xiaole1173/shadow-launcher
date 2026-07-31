@@ -353,6 +353,8 @@ void MultiplayerManager::leaveRoom()
     m_mcHealthFailures = 0;
     m_connectionDifficulty = DiffUnknown;
     m_fingerprintVerified = false;
+    m_mcServerName.clear();
+    emit mcServerInfoChanged();
 
     stopScanning();
 
@@ -1759,6 +1761,16 @@ void MultiplayerManager::onHostMcDetected()
     qCInfo(logNet) << QStringLiteral("[联机] MC扫描器检测到真实MC服务端口: 生成=%1 实际=%2").arg(m_mcPort).arg(realMcPort);
     m_mcPort = realMcPort;
 
+    // Read MOTD from scanner results
+    auto results = m_hostMcScanner ? m_hostMcScanner->results() : QList<McScanResult>();
+    for (const auto& r : results) {
+        if (r.port == realMcPort) {
+            m_mcServerName = r.motd;
+            break;
+        }
+    }
+    emit mcServerInfoChanged();
+
     // Read port before deferred cleanup (may be last valid access to m_hostMcScanner)
     quint16 detectedPort = realMcPort;
 
@@ -1786,6 +1798,9 @@ void MultiplayerManager::onHostMcDetected()
     if (m_state == WaitingForMcServer) {
         setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
     }
+
+    // Trigger connection difficulty update for host (queries EasyTier local NAT)
+    requestDifficultyUpdate();
 }
 
 // ── Guest MC connection verification (0xFE handshake, align with Terracotta) ──
@@ -1900,6 +1915,61 @@ const QByteArray& MultiplayerManager::scaffoldingFingerprint()
         QStringLiteral("41574844863740595744924396998501").toLatin1()
     );
     return kFingerprint;
+}
+
+// ── Request connection difficulty update (host: query local NAT type via EasyTier CLI) ──
+void MultiplayerManager::requestDifficultyUpdate()
+{
+    if (m_role == Host && m_state != Idle) {
+        // Use standalone one-shot QProcess to avoid conflicting with m_peerQuery (used by guest discovery)
+        QString cliDir = QCoreApplication::applicationDirPath();
+        QStringList cliPaths = {
+            cliDir + QStringLiteral("/bin/easytier-cli.exe"),
+            cliDir + QStringLiteral("/../../bin/easytier-cli.exe"),
+            cliDir + QStringLiteral("/easytier-cli.exe"),
+        };
+        QString cliPath;
+        for (const auto& p : cliPaths) {
+            if (QFileInfo::exists(p)) { cliPath = p; break; }
+        }
+        if (!QFileInfo::exists(cliPath))
+            return;
+
+        QProcess* natQuery = new QProcess(this);
+        connect(natQuery, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, natQuery](int, QProcess::ExitStatus) {
+            QString output = QString::fromUtf8(natQuery->readAllStandardOutput());
+            natQuery->deleteLater();
+
+            QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
+            if (!doc.isArray() || m_role != Host) return;
+
+            EasyTierNatType localNat = EasyTierNatType::Unknown;
+            for (const auto& item : doc.array()) {
+                QJsonObject obj = item.toObject();
+                if (obj[QStringLiteral("cost")].toString() == QStringLiteral("Local")) {
+                    QString natStr = obj[QStringLiteral("nat_type")].toString();
+                    if (natStr == QStringLiteral("OpenInternet"))        localNat = EasyTierNatType::OpenInternet;
+                    else if (natStr == QStringLiteral("NoPat"))          localNat = EasyTierNatType::NoPAT;
+                    else if (natStr == QStringLiteral("FullCone"))       localNat = EasyTierNatType::FullCone;
+                    else if (natStr == QStringLiteral("Restricted"))     localNat = EasyTierNatType::Restricted;
+                    else if (natStr == QStringLiteral("PortRestricted")) localNat = EasyTierNatType::PortRestricted;
+                    else if (natStr == QStringLiteral("Symmetric"))      localNat = EasyTierNatType::Symmetric;
+                    break;
+                }
+            }
+
+            ConnectionDifficulty prev = m_connectionDifficulty;
+            m_connectionDifficulty = calcConnectionDifficulty(localNat, localNat);
+            if (m_connectionDifficulty != prev) {
+                qCInfo(logNet) << QStringLiteral("[联机] 主机连接难度更新 NAT=%1 难度=%2")
+                    .arg(static_cast<int>(localNat)).arg(static_cast<int>(m_connectionDifficulty));
+                emit connectionDifficultyChanged();
+            }
+        });
+
+        natQuery->start(cliPath, {QStringLiteral("peer"), QStringLiteral("-o"), QStringLiteral("json")});
+    }
 }
 
 // ── Static: offline player head path (Steve/Alex algorithm) ──

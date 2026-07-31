@@ -63,14 +63,30 @@ Rectangle {
         Label { text: "MC端口"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm }
         Text {
             id: mcPortValue
-            text: {
+            text: _mcPortText
+            color: _mcPortColor
+            font.pixelSize: StyleTokens.fontSizeSm
+
+            readonly property string _mcPortText: {
                 if (!mp || mp.role === 0) return "—"
+                if (mp.role === 1) {
+                    // Host: show actual scanned port if available
+                    var p = mp.mcServerPort
+                    if (p > 0 && mp.state >= 6) return "" + p
+                    if (mp.state >= 1) return "等待中"
+                    return "—"
+                }
+                // Guest: state-based
                 if (mp.state >= 6) return "已就绪"
-                if (mp.state >= 1) return "等待中"
+                if (mp.state >= 1) return "连接中"
                 return "—"
             }
-            color: mp && mp.state >= 6 ? StyleTokens.success : StyleTokens.textMuted
-            font.pixelSize: StyleTokens.fontSizeSm
+            readonly property color _mcPortColor: {
+                if (!mp) return StyleTokens.textMuted
+                if (mp.role === 1 && mp.mcServerPort > 0 && mp.state >= 6) return StyleTokens.success
+                if (mp.state >= 6) return StyleTokens.success
+                return StyleTokens.textMuted
+            }
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
             }
@@ -78,9 +94,30 @@ Rectangle {
 
         Label { text: "MC服务器"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm }
         Text {
-            text: mp && mp.role === 2 && mp.state >= 5 ? "127.0.0.1" : "—"
-            color: mp && mp.state >= 5 ? StyleTokens.success : StyleTokens.textMuted
-            font.pixelSize: StyleTokens.fontSizeSm; font.family: StyleTokens.fontFamilyMono
+            id: mcServerValue
+            text: _mcServerText
+            color: _mcSrvColor
+            font.pixelSize: StyleTokens.fontSizeSm
+
+            readonly property string _mcServerText: {
+                if (!mp) return "—"
+                if (mp.role === 1) {
+                    // Host: show detected server name
+                    var name = mp.mcServerName
+                    if (name && name.length > 0) return name
+                    if (mp.state === 7) return "等待MC启动..."
+                    return "—"
+                }
+                // Guest: show forward endpoint
+                if (mp.role === 2 && mp.state >= 5) return "127.0.0.1"
+                return "—"
+            }
+            readonly property color _mcSrvColor: {
+                if (!mp) return StyleTokens.textMuted
+                if (mp.role === 1 && mp.mcServerName && mp.mcServerName.length > 0) return StyleTokens.success
+                if (mp.role === 2 && mp.state >= 5) return StyleTokens.success
+                return StyleTokens.textMuted
+            }
         }
 
         // ── Row 3: Online count + fingerprint ──
@@ -95,6 +132,24 @@ Rectangle {
             text: mp && mp.state >= 5 ? "已通过 ✓" : "—"
             color: mp && mp.state >= 5 ? StyleTokens.success : StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
+        }
+    }
+
+    // Periodic refresh timer to catch late-binding updates (e.g. connectionDifficulty from async EasyTier query)
+    Timer {
+        interval: 3000
+        running: root.visible
+        repeat: true
+        onTriggered: {
+            // Force property refresh by re-reading from C++ backend
+            // The readonly property bindings should auto-update on NOTIFY signals,
+            // but this timer ensures eventual consistency for late-arriving data.
+            if (mp) {
+                // Touch the properties to force QML binding re-evaluation
+                var _forceDifficulty = mp.connectionDifficulty;
+                var _forceMcName = mp.mcServerName;
+                var _forceMcPort = mp.mcServerPort;
+            }
         }
     }
 }
