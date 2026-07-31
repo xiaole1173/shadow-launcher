@@ -17,7 +17,7 @@
 #include <QPointer>
 
 #include "../http_client.h"
-#include "../file_downloader.h"
+#include "mod_download_engine.h"
 #include "../../utils/logger.h"
 
 using namespace ShadowLauncher;
@@ -467,20 +467,20 @@ void ModpackDownloader::onResolveBatchFailed(int startIndex, const QString& err)
 }
 
 // ════════════════════════════════════════════════════════════════
-// 引擎适配层 — ShadowDownloader::FileDownloader
+// 引擎适配层 — ShadowDownloader::ModDownloadEngine（模组小文件专属）
 // ════════════════════════════════════════════════════════════════
 
 void ModpackDownloader::startEngineDownloads()
 {
     if (m_cancelled) return;
 
-    // 每次任务新建引擎实例（FileDownloader 无清空队列 API，不复用；
+    // 每次任务新建引擎实例（引擎无清空队列 API，不复用；
     // 实例级状态与 MC 下载引擎完全隔离，互不干扰）
-    m_fd = new ShadowDownloader::FileDownloader(this);
-    m_fd->setMaxThreads(12);       // 模组专项：全局 12 线程（主流启动器 默认 9 同量级）——
+    m_fd = new ShadowDownloader::ModDownloadEngine(this);
+    m_fd->setMaxThreads(12);       // 模组专项：全局 12 并发（主流启动器 默认 9 同量级）——
     // 实测 24 路并发对 MCIM 镜像过于激进：高峰期镜像限流饿死部分连接 →
     // 30s 无数据超时 → 分片失败 → 大文件报废；12 路温和稳定且峰值仍可达 3MB/s+
-    m_fd->setModpackMode(true);    // 模组专项：禁H2/1MB分片/空闲超时/立即换源（MC 下载不受影响）
+    m_fd->setMirrorRateLimitMs(100);   // MCIM/BMCLAPI 镜像限频（PCL 同款：每启一线程 Sleep(100)）
 
     for (int i = 0; i < m_total; ++i) {
         DlItem& it = m_items[i];
@@ -519,15 +519,15 @@ void ModpackDownloader::startEngineDownloads()
     }
 
     // ── 引擎信号 → 任务层信号桥接 ──
-    connect(m_fd, &ShadowDownloader::FileDownloader::progressChanged,
+    connect(m_fd, &ShadowDownloader::ModDownloadEngine::progressChanged,
             this, &ModpackDownloader::onEngineProgress);
-    connect(m_fd, &ShadowDownloader::FileDownloader::fileProgress,
+    connect(m_fd, &ShadowDownloader::ModDownloadEngine::fileProgress,
             this, &ModpackDownloader::onEngineFileProgress);
-    connect(m_fd, &ShadowDownloader::FileDownloader::fileFinished,
+    connect(m_fd, &ShadowDownloader::ModDownloadEngine::fileFinished,
             this, &ModpackDownloader::onEngineFileFinished);
-    connect(m_fd, &ShadowDownloader::FileDownloader::allFinished,
+    connect(m_fd, &ShadowDownloader::ModDownloadEngine::allFinished,
             this, &ModpackDownloader::onEngineAllFinished);
-    connect(m_fd, &ShadowDownloader::FileDownloader::logMessage,
+    connect(m_fd, &ShadowDownloader::ModDownloadEngine::logMessage,
             this, [this](const QString& msg) {
         emit logLine(msg);
         // 捕获引擎失败/校验详情（用于 fileFinished(false) 的错误文案透传，
@@ -670,7 +670,7 @@ void ModpackDownloader::cancel()
     emit statusChanged(tr("已取消下载"));
     emit allFinished(true);
     // ⚠ 引擎 worker 异步 abort 中：不能立即 disconnect/deleteLater——
-    //   立即析构会触发 ~FileDownloader → waitForDone(10s) 阻塞主线程（UI 冻结），
+    //   立即析构会触发 ~ModDownloadEngine（abort 在途请求）——阻塞主线程（UI 冻结），
     //   且 cancel 后未启动文件永不计数、引擎 allFinished 不会来。
     //   延后 2s 清理（abort 必然已完成、worker 已退出 → 析构不阻塞）。
     if (m_fd) {

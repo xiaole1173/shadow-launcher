@@ -75,6 +75,7 @@ set(SOURCES
     src/core/modpack/zip_archive.cpp
     src/core/modpack/modpack_parser.cpp
     src/core/modpack/modpack_downloader.cpp
+    src/core/modpack/mod_download_engine.cpp
     src/core/modpack/modpack_install_task.cpp
     src/core/update_manager.cpp
     thirdparty/miniz/miniz.c
@@ -130,6 +131,7 @@ set(HEADERS
     src/core/modpack/zip_archive.h
     src/core/modpack/modpack_parser.h
     src/core/modpack/modpack_downloader.h
+    src/core/modpack/mod_download_engine.h
     src/core/modpack/modpack_install_task.h
     src/core/update_manager.h
     src/core/migration_manager.h
@@ -540,6 +542,7 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
         src/core/modpack/zip_archive.cpp
         src/core/modpack/modpack_parser.cpp
         src/core/modpack/modpack_downloader.cpp
+        src/core/modpack/mod_download_engine.cpp
         src/core/file_downloader.cpp
         src/core/http_client.cpp
         src/utils/logger.cpp

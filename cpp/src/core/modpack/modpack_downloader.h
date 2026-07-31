@@ -36,7 +36,7 @@
 
 #include "modpack_common.h"
 
-namespace ShadowDownloader { class FileDownloader; }
+namespace ShadowDownloader { class ModDownloadEngine; }
 
 namespace ShadowLauncher {
 
@@ -125,7 +125,7 @@ private:
     std::function<void(const QString&)> m_createdHook;     // 新建文件落盘后的回调（回滚登记）
     QList<QPointer<QNetworkReply>> m_inflight;   // CF API 在途请求（取消时 abort）
 
-    ShadowDownloader::FileDownloader* m_fd = nullptr;  // 引擎实例（每次 start 新建）
+    ShadowDownloader::ModDownloadEngine* m_fd = nullptr;  // 引擎实例（每次 start 新建）
     QSet<QString> m_preExisting;   // addFile 前已存在的目标（覆盖场景，成功不登记新建）
     qint64 m_lastQueueEmitMs = 0;  // queueProgress 桥接限频（200ms）
     qint64 m_lastFileProgMs = 0;   // fileProgress 桥接限频（200ms）

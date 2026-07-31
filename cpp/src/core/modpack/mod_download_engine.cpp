@@ -1,0 +1,446 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
+
+#include "mod_download_engine.h"
+
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QDir>
+#include <QFileInfo>
+#include <QCryptographicHash>
+#include <QDateTime>
+#include <QUuid>
+#include <QUrl>
+#include <QDebug>
+
+#include "../../utils/logger.h"
+
+namespace ShadowDownloader {
+using namespace ShadowLauncher;
+
+ModDownloadEngine::ModDownloadEngine(QObject* parent)
+    : QObject(parent)
+{
+    m_pumpTimer.setInterval(50);
+    m_pumpTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_pumpTimer, &QTimer::timeout, this, &ModDownloadEngine::pump);
+
+    m_speedTimer.setInterval(100);
+    m_speedTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_speedTimer, &QTimer::timeout, this, &ModDownloadEngine::speedTick);
+
+    m_speedClock.start();
+}
+
+ModDownloadEngine::~ModDownloadEngine()
+{
+    // 取消所有在途请求并清理临时文件
+    for (auto& it : m_items) {
+        if (it->reply) it->reply->abort();
+        if (it->outFile && it->outFile->isOpen()) it->outFile->close();
+        if (!it->tmpPath.isEmpty()) QFile::remove(it->tmpPath);
+    }
+}
+
+void ModDownloadEngine::addFile(const QString& localPath, const QString& localName,
+                                const QStringList& sources, qint64 expectedSize,
+                                const QByteArray& sha1, bool jarStrip)
+{
+    auto it = std::make_shared<Item>();
+    it->localPath = localPath;
+    it->localName = localName;
+    it->sources = sources;
+    it->fileSize = expectedSize;
+    it->expectedSha1 = sha1;
+    it->total = expectedSize > 0 ? expectedSize : 0;
+    m_items.append(it);
+    m_totalFiles++;
+    if (expectedSize > 0) m_totalBytes += expectedSize;
+}
+
+void ModDownloadEngine::start()
+{
+    if (m_state == Running) return;
+    m_state = Running;
+    m_cancelled = false;
+    m_round = 0;
+    m_active = 0;
+    m_pending.clear();
+    for (auto& it : m_items) {
+        it->state = 0;
+        it->sourceIdx = 0;
+        it->failCount = 0;
+        it->fallbackPassDone = false;
+        it->received = 0;
+        it->error.clear();
+        m_pending.append(it);
+    }
+    m_lastSpeedBytes = m_downloadedBytes;
+    m_speedClock.restart();
+    m_pumpTimer.start();
+    m_speedTimer.start();
+    emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
+    emit logMessage(QStringLiteral("[引擎] 模组下载引擎启动 文件数=%1 最大并发=%2")
+                        .arg(m_totalFiles).arg(m_maxThreads));
+    pump();
+}
+
+void ModDownloadEngine::cancel()
+{
+    if (m_state != Running) return;
+    m_state = Cancelled;
+    m_cancelled = true;
+    m_pumpTimer.stop();
+    m_speedTimer.stop();
+    for (auto& it : m_items) {
+        if (it->state == 1 && it->reply) it->reply->abort();
+    }
+    emit logMessage(QStringLiteral("[引擎] 模组下载已取消"));
+    // 注意：不 emit allFinished —— 上层 ModpackDownloader::cancel 自行收尾
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 调度
+// ═════════════════════════════════════════════════════════════════════════
+
+void ModDownloadEngine::pump()
+{
+    if (m_state != Running) return;
+
+    // 填满并发槽
+    while (m_active < m_maxThreads && !m_pending.isEmpty()) {
+        auto it = m_pending.takeFirst();
+        if (it->state != 0) continue;
+        it->state = 1;
+        m_active++;
+        // 镜像限频：MCIM/BMCLAPI 每启一线程间隔 ≥ m_mirrorRateLimitMs
+        if (isMirrorHost(it->sources.isEmpty() ? QString() : it->sources.first())) {
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            const qint64 wait = m_lastMirrorLaunchMs + m_mirrorRateLimitMs - now;
+            if (wait > 0) {
+                QTimer::singleShot(wait, this, [this, it]() {
+                    if (m_state == Running && it->state == 1 && !it->reply)
+                        launchRequest(it);
+                });
+                continue;   // 槽已占用，等限频后启动
+            }
+            m_lastMirrorLaunchMs = now;
+        }
+        launchRequest(it);
+    }
+}
+
+bool ModDownloadEngine::isMirrorHost(const QString& url) const
+{
+    const QString host = QUrl(url).host().toLower();
+    return host.contains(QStringLiteral("mcimirror"))
+        || host.contains(QStringLiteral("bmclapi"));
+}
+
+QString ModDownloadEngine::pickSource(std::shared_ptr<Item> it, bool* exhausted)
+{
+    *exhausted = false;
+    if (it->sourceIdx < it->sources.size()) {
+        return it->sources[it->sourceIdx];
+    }
+    if (!it->fallbackPassDone && !it->sources.isEmpty()) {
+        // 全部源失败 → SourcesOnce 式：单线程逐源整体兜底一遍
+        it->fallbackPassDone = true;
+        it->sourceIdx = 0;
+        return it->sources[0];
+    }
+    *exhausted = true;
+    return QString();
+}
+
+void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
+{
+    bool exhausted = false;
+    const QString url = pickSource(it, &exhausted);
+    if (exhausted) {
+        finishItem(it, false, it->error.isEmpty()
+                                ? QStringLiteral("所有下载源均失败")
+                                : it->error);
+        return;
+    }
+    if (url.isEmpty()) {
+        finishItem(it, false, QStringLiteral("无可用下载地址"));
+        return;
+    }
+
+    // 临时文件（成功后原子改名到最终路径；失败/取消清理）
+    it->tmpPath = it->localPath + QStringLiteral(".tmp-")
+        + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+    QDir().mkpath(QFileInfo(it->localPath).absolutePath());
+    auto* f = new QFile(it->tmpPath, this);
+    if (!f->open(QIODevice::WriteOnly)) {
+        delete f;
+        finishItem(it, false, QStringLiteral("无法写入: %1").arg(it->tmpPath));
+        return;
+    }
+    it->outFile = f;
+    it->received = 0;
+    it->firstByteMs = 0;
+
+    QNetworkRequest req{QUrl(url)};
+    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    // 禁用 HTTP/2（镜像 H2 连接不稳定）+ identity 编码（防 gzip 致 SHA1 不符）
+    req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    req.setRawHeader("Accept-Encoding", "identity");
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+
+    QNetworkReply* reply = m_nam.get(req);
+    it->reply = reply;
+    it->launchMs = QDateTime::currentMSecsSinceEpoch();
+
+    // 动态超时：Min(Max(ConnectAvg,15s)*(1+FailCount),30s)（PCL 同款）
+    const qint64 connectAvg = m_connectCount > 0 ? m_connectTotalMs / m_connectCount : 15000;
+    const qint64 timeoutMs = qMin(qMax(connectAvg, qint64(15000)) * (1 + it->failCount), qint64(30000));
+    auto* idle = new QTimer(this);
+    idle->setSingleShot(true);
+    idle->setInterval(static_cast<int>(timeoutMs));
+    connect(idle, &QTimer::timeout, this, [this, it]() {
+        if (it->reply) it->reply->abort();
+    });
+    idle->start();
+    it->idleTimer = idle;
+
+    connect(reply, &QNetworkReply::downloadProgress, this,
+            [this, it](qint64 recv, qint64 total) { onReplyProgress(it, recv, total); });
+    connect(reply, &QNetworkReply::readyRead, this,
+            [this, it]() { onReadyRead(it); });
+    connect(reply, &QNetworkReply::finished, this,
+            [this, it]() { onReplyFinished(it); });
+
+    emit logMessage(QStringLiteral("[下载] 启动 文件=%1 源=%2 超时=%3ms")
+                        .arg(it->localName, url).arg(timeoutMs));
+}
+
+void ModDownloadEngine::onReplyProgress(std::shared_ptr<Item> it, qint64 recv, qint64 total)
+{
+    if (m_cancelled || it->state != 1) return;
+    if (total > 0) it->total = total;
+    const qint64 delta = recv - it->received;
+    if (delta > 0) {
+        it->received = recv;
+        m_downloadedBytes += delta;
+    }
+    // 150ms 节流，避免高频跨对象信号
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastProgressEmitMs >= 150) {
+        m_lastProgressEmitMs = now;
+        emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
+        emit fileProgress(it->reply ? it->reply->url().toString() : QString(),
+                          it->localName, it->received, it->total, it->localPath);
+    }
+}
+
+void ModDownloadEngine::onReadyRead(std::shared_ptr<Item> it)
+{
+    if (m_cancelled || !it->reply || !it->outFile || it->state != 1) return;
+    if (it->firstByteMs == 0) {
+        it->firstByteMs = QDateTime::currentMSecsSinceEpoch();
+        // 连接耗时统计（动态超时基线）：首包时刻 - 发起时刻
+        const qint64 connMs = qMax<qint64>(0, qMin<qint64>(it->firstByteMs - it->launchMs, 60000));
+        m_connectTotalMs += connMs;
+        m_connectCount++;
+    }
+    // 空闲超时重置：收到数据即视为活跃
+    if (it->idleTimer) it->idleTimer->start();
+    const QByteArray data = it->reply->readAll();
+    if (!data.isEmpty()) {
+        it->outFile->write(data);
+    }
+}
+
+void ModDownloadEngine::onReplyFinished(std::shared_ptr<Item> it)
+{
+    if (!it->reply) return;
+    QNetworkReply* reply = it->reply;
+    it->reply = nullptr;
+    if (it->idleTimer) { it->idleTimer->stop(); it->idleTimer->deleteLater(); it->idleTimer = nullptr; }
+
+    if (m_cancelled) {
+        // 取消路径：不计数、不 emit fileFinished，上层自行收尾
+        if (it->outFile) { it->outFile->close(); it->outFile->deleteLater(); it->outFile = nullptr; }
+        QFile::remove(it->tmpPath);
+        it->tmpPath.clear();
+        m_active--;
+        it->state = 0;
+        reply->deleteLater();
+        return;
+    }
+
+    const QNetworkReply::NetworkError err = reply->error();
+    const bool httpOk = err == QNetworkReply::NoError;
+    if (!httpOk) {
+        reply->deleteLater();
+        sourceFailed(it, reply->errorString());
+        return;
+    }
+
+    // 关闭输出文件
+    if (it->outFile) {
+        it->outFile->close();
+        it->outFile->deleteLater();
+        it->outFile = nullptr;
+    }
+
+    // 校验：SHA1 优先；无 SHA1 时校验大小
+    if (!verifyFile(it)) {
+        reply->deleteLater();
+        sourceFailed(it, QStringLiteral("校验失败（SHA1/大小不符）"));
+        return;
+    }
+
+    reply->deleteLater();
+    finishItem(it, true, QString());
+}
+
+bool ModDownloadEngine::verifyFile(const std::shared_ptr<Item>& it) const
+{
+    QFileInfo fi(it->tmpPath);
+    if (!fi.exists() || fi.size() <= 0) return false;
+    if (!it->expectedSha1.isEmpty()) {
+        QFile f(it->tmpPath);
+        if (!f.open(QIODevice::ReadOnly)) return false;
+        QCryptographicHash h(QCryptographicHash::Sha1);
+        h.addData(&f);
+        f.close();
+        return h.result().toHex() == it->expectedSha1;
+    }
+    if (it->fileSize > 0) return fi.size() == it->fileSize;
+    return true;
+}
+
+void ModDownloadEngine::sourceFailed(std::shared_ptr<Item> it, const QString& why)
+{
+    it->failCount++;
+    it->sourceIdx++;
+    it->received = 0;
+    if (it->outFile) { it->outFile->close(); it->outFile->deleteLater(); it->outFile = nullptr; }
+    if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
+    it->error = why;
+
+    bool exhausted = false;
+    const QString next = pickSource(it, &exhausted);
+    if (exhausted) {
+        finishItem(it, false, why);
+        return;
+    }
+    emit logMessage(QStringLiteral("[下载] 源失败 %1 文件=%2 错误=%3 → 切换 %4")
+                        .arg(QString::number(it->sourceIdx), it->localName, why, next));
+    launchRequest(it);   // 槽位保持占用，就地换源重试
+}
+
+void ModDownloadEngine::finishItem(std::shared_ptr<Item> it, bool ok, const QString& err)
+{
+    if (it->state == 2 || it->state == 3) return;
+    if (it->outFile) { it->outFile->close(); it->outFile->deleteLater(); it->outFile = nullptr; }
+    if (it->idleTimer) { it->idleTimer->stop(); it->idleTimer->deleteLater(); it->idleTimer = nullptr; }
+
+    if (ok) {
+        // 原子落盘：临时文件 → 最终路径
+        QFile::remove(it->localPath);
+        if (!QFile::rename(it->tmpPath, it->localPath)) {
+            QFile::remove(it->tmpPath);
+            it->tmpPath.clear();
+            ok = false;
+        } else {
+            it->tmpPath.clear();
+        }
+    }
+
+    if (ok) {
+        it->state = 2;
+        m_completedFiles++;
+        emit logMessage(QStringLiteral("[完成] %1").arg(it->localName));
+    } else {
+        if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
+        it->state = 3;
+        m_failedFiles++;
+        it->error = err.isEmpty() ? QStringLiteral("文件落盘失败: %1").arg(it->localPath) : err;
+        emit logMessage(QStringLiteral("[失败] %1: %2").arg(it->localName, it->error));
+    }
+    emit fileFinished(it->localPath, ok);
+    m_active--;
+
+    emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
+
+    if (m_active == 0 && m_pending.isEmpty()) {
+        if (m_state == Running) tryStartNextRound();
+        else finishAll();
+    } else {
+        pump();
+    }
+}
+
+void ModDownloadEngine::tryStartNextRound()
+{
+    if (m_cancelled || m_state != Running) return;
+    if (m_round >= kMaxRounds - 1) { finishAll(); return; }
+
+    int failedCount = 0;
+    for (auto& it : m_items) {
+        if (it->state == 3) { failedCount++; it->state = 0; it->sourceIdx = 0; it->failCount = 0; it->fallbackPassDone = false; it->received = 0; it->error.clear(); m_pending.append(it); }
+    }
+    if (failedCount == 0) { finishAll(); return; }
+
+    m_round++;
+    m_failedFiles -= failedCount;
+    emit logMessage(QStringLiteral("[重试] 第 %1/%2 轮：%3 个失败文件整体重试")
+                        .arg(m_round + 1).arg(kMaxRounds).arg(failedCount));
+    pump();
+}
+
+void ModDownloadEngine::finishAll()
+{
+    if (m_state != Running) return;
+    m_state = Idle;
+    m_pumpTimer.stop();
+    m_speedTimer.stop();
+    emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
+    emit logMessage(QStringLiteral("[完成] 模组下载引擎结束 成功=%1 失败=%2 共%3")
+                        .arg(m_completedFiles).arg(m_failedFiles).arg(m_totalFiles));
+    emit allFinished();
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// SpeedMeter — 与 FileDownloader 同款：100ms 采样 + 30 条线性加权窗口
+// ═════════════════════════════════════════════════════════════════════════
+
+void ModDownloadEngine::speedTick()
+{
+    if (m_state != Running) return;
+
+    const qint64 elapsed = m_speedClock.restart();
+    if (elapsed <= 0) return;
+
+    const qint64 now = m_downloadedBytes;
+    qint64 bytes = now - m_lastSpeedBytes;
+    if (bytes < 0) bytes = 0;
+    m_lastSpeedBytes = now;
+
+    const qint64 actualBps = bytes * 1000 / elapsed;
+    m_speedRecords.prepend(actualBps);
+    if (m_speedRecords.size() > 30) m_speedRecords.removeLast();
+
+    qint64 weightedSum = 0;
+    int weightDiv = 0;
+    int w = m_speedRecords.size();
+    for (qint64 rec : m_speedRecords) { weightedSum += rec * w; weightDiv += w; w--; }
+    const qint64 currentBps = weightDiv > 0 ? weightedSum / weightDiv : actualBps;
+    m_emaMbps = currentBps / (1024.0 * 1024.0);   // 窗口值直接作为展示值（停流自然归零）
+
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (nowMs - m_lastSpeedLogMs >= 1000) {
+        m_lastSpeedLogMs = nowMs;
+        qCInfo(logDownload) << QStringLiteral("[速度] EMA=%1 MB/s 活跃=%2/%3")
+            .arg(m_emaMbps, 0, 'f', 1)
+            .arg(m_active).arg(m_maxThreads);
+    }
+    emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
+}
+
+} // namespace ShadowDownloader
