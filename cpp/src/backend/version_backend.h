@@ -17,6 +17,7 @@
 #include <QAbstractListModel>
 #include <memory>
 #include <QJsonObject>
+#include <functional>
 
 #include "../utils/types.h"
 #include "../session/download_session.h"
@@ -232,6 +233,30 @@ public:
     Q_INVOKABLE void updateResourceCard(const QString& cardId, qreal progress, const QString& status, qint64 speed = 0);
     Q_INVOKABLE void removeResourceCard(const QString& cardId);
 
+    // ── 整合包任务卡片（原生卡片通道：QML 经 InstallCardModel::cardData 轮询）──
+    // 卡片生命周期与普通下载任务完全一致：add → 逐步更新 → 完成/失败后由
+    // DownloadQueueCard 的自动收拢/手动关闭触发 dismissCard → removeTaskCard。
+    Q_INVOKABLE void addTaskCard(const QString& cardId, const QString& displayName);
+    Q_INVOKABLE void updateTaskCard(const QString& cardId, qreal progress, const QString& phase,
+                                    bool failed = false, const QString& error = QString(),
+                                    qint64 speed = 0, bool canCancel = true,
+                                    const QString& name = QString());
+    Q_INVOKABLE void updateTaskCardSteps(const QString& cardId, const QVariantList& steps);
+    Q_INVOKABLE void updateTaskCardAttachments(const QString& cardId, const QVariantList& mods,
+                                               const QVariantList& logs, const QVariantMap& info);
+    Q_INVOKABLE void removeTaskCard(const QString& cardId);
+
+    // ── 整合包任务注册（ModpackInstallTask 调用）──
+    // 1) 卡片原生取消控件(cancelVersionInstall)转发到任务取消回调；
+    // 2) MC/加载器阶段抑制独立会话卡片（合并进本任务卡片的子步骤，杜绝双卡）。
+    void setModpackCard(const QString& cardId, std::function<void()> cancelHandler);
+    void updateModpackCardTargets(const QString& targetVersion, const QString& mcVersion);
+    void clearModpackCard();
+    bool isModpackSessionSuppressed(const QString& installId) const;
+    // MC 阶段进度/速度访问器（任务侧轮询更新卡片子步骤）
+    Q_INVOKABLE qreal installProgressOf(const QString& installId) const;
+    Q_INVOKABLE qint64 installSpeedOf(const QString& installId) const;
+
 signals:
     void versionListReady();
     void installedVersionsChanged();
@@ -350,6 +375,14 @@ private:
     QStringList m_pendingCardUpdates;
 
     InstallCardModel* m_installCardsModel = nullptr;
+
+    // ── 整合包任务卡片状态 ──
+    QMap<QString, QVariantMap> m_taskCards;      // cardId → 完整卡片数据（含 steps/mods/logs/info）
+    QString m_modpackCardId;                     // 当前整合包任务卡片 id
+    QString m_modpackTargetVersion;              // 目标版本名（merged 会话 id，解析后可知）
+    QString m_modpackMcVersion;                  // 原版 MC 版本（vanilla 会话 id）
+    std::function<void()> m_modpackCancelHandler; // 卡片取消转发
+    InstallCard taskCardToInstallCard(const QString& cardId) const;
 
     void rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights = {},
                       const QVector<bool>& showFlags = {});

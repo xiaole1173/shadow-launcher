@@ -17,7 +17,9 @@ Rectangle {
     id: root
 
     implicitWidth: parent ? parent.width : 300
-    implicitHeight: (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height) + 12
+    implicitHeight: (modpackSection.visible
+                     ? modpackSection.y + modpackSection.height
+                     : (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height)) + 12
     radius: StyleTokens.radiusLg
     color: "#141a24"
 
@@ -26,6 +28,13 @@ Rectangle {
     property var _meta: ({})    // 低频：name, steps, failed, error, phase, canCancel
     property bool _dismissed: false
     property string _stepsJson: ''  // 步骤缓存，用于检测变化
+    // 整合包附属数据缓存（按 JSON 内容比较，避免每 200ms 重建 Repeater）
+    property var _modsCache: []
+    property var _logsCache: []
+    property var _infoCache: ({})
+    property string _modsJson: ''
+    property string _logsJson: ''
+    property string _infoJson: ''
     // 从 panel 传入的模型引用 (防止 scope 问题)
     property var cardModel: null
     
@@ -78,6 +87,19 @@ Rectangle {
                     _hot = { progress: nd.progress, speed: nd.speed }
                     _meta = nd
                     if (nd.steps) _stepsJson = JSON.stringify(nd.steps)
+                    // 整合包附属数据：内容变化才替换引用（避免 Repeater 每 200ms 重建）
+                    if (nd.mods) {
+                        var mj = JSON.stringify(nd.mods)
+                        if (mj !== _modsJson) { _modsCache = nd.mods; _modsJson = mj }
+                    }
+                    if (nd.logs) {
+                        var lj = JSON.stringify(nd.logs)
+                        if (lj !== _logsJson) { _logsCache = nd.logs; _logsJson = lj }
+                    }
+                    if (nd.info) {
+                        var ij = JSON.stringify(nd.info)
+                        if (ij !== _infoJson) { _infoCache = nd.info; _infoJson = ij }
+                    }
                 }
             }
         }
@@ -276,6 +298,109 @@ Rectangle {
                             opacity: 0.3 + 0.7 * Math.abs(Math.sin(root.breathePhase + index * 2.094))
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // ═══════ 整合包附属区（type === "modpack"：信息面板 + 模组明细 + 实时日志）═══════
+    // 数据全部来自 cardData 轮询通道（mods/logs/info），与普通下载卡片同一套生命周期。
+    Column {
+        id: modpackSection
+        anchors.top: (stepsList.visible ? stepsList.bottom : infoRow.bottom)
+        anchors.topMargin: 6
+        anchors.left: parent.left; anchors.leftMargin: 12
+        anchors.right: parent.right; anchors.rightMargin: 12
+        spacing: 6
+        visible: _meta.type === "modpack"
+
+        // ── 解析信息面板（解析前骨架占位，解析完成回填）──
+        ModpackInfoPanel {
+            width: parent.width
+            revealed: _infoCache ? !!_infoCache.name : false
+            packName: _infoCache ? (_infoCache.name || "") : ""
+            packVersion: _infoCache ? (_infoCache.version || "") : ""
+            mcVersion: _infoCache ? (_infoCache.mc || "") : ""
+            loader: _infoCache ? (_infoCache.loader || "") : ""
+            modCount: _infoCache ? (_infoCache.modCount || 0) : 0
+            fileCount: _infoCache ? (_infoCache.fileCount || "") : ""
+            format: _infoCache ? (_infoCache.format || "") : ""
+            targetName: _infoCache ? (_infoCache.targetName || "") : ""
+        }
+
+        // ── 模组明细（前 8 条 + 总数提示；进度/状态由后端推送）──
+        Column {
+            visible: _modsCache && _modsCache.length > 0
+            spacing: 2
+
+            Repeater {
+                model: _modsCache.slice(0, 8)
+                delegate: RowLayout {
+                    width: parent.width
+                    height: 16
+                    spacing: 6
+
+                    Rectangle {
+                        width: 6; height: 6; radius: 3
+                        Layout.alignment: Qt.AlignVCenter
+                        color: {
+                            var s = modelData.status || "pending"
+                            if (s === "done") return "#3fb950"
+                            if (s === "downloading") return StyleTokens.accent
+                            if (s === "fail") return StyleTokens.errorLight
+                            if (s === "skipped") return "#505468"
+                            return "#2a3a4a"
+                        }
+                    }
+                    Text {
+                        text: modelData.name || ""
+                        font.pixelSize: StyleTokens.fontSizeXs
+                        color: modelData.status === "fail" ? StyleTokens.errorLight
+                             : modelData.status === "done" ? "#9fd8b0"
+                             : StyleTokens.textSecondary
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                    Text {
+                        text: {
+                            var s = modelData.status || "pending"
+                            if (s === "downloading" && modelData.progress > 0)
+                                return Math.round(modelData.progress * 100) + "%"
+                            if (s === "done") return "✓"
+                            if (s === "fail") return "✗"
+                            if (s === "skipped") return "跳过"
+                            return ""
+                        }
+                        font.pixelSize: StyleTokens.fontSizeXs
+                        color: modelData.status === "fail" ? StyleTokens.errorLight
+                             : modelData.status === "done" ? "#3fb950"
+                             : StyleTokens.textMuted
+                    }
+                }
+            }
+
+            Text {
+                visible: _modsCache.length > 8
+                text: qsTr("… 共 %1 个模组").arg(_modsCache.length)
+                font.pixelSize: StyleTokens.fontSizeXs
+                color: StyleTokens.textMuted
+            }
+        }
+
+        // ── 实时日志（最近 6 条，滚动查看历史由日志文件承载）──
+        Column {
+            visible: _logsCache && _logsCache.length > 0
+            spacing: 1
+
+            Repeater {
+                model: _logsCache.slice(-6)
+                delegate: Text {
+                    width: parent.width
+                    text: modelData.text || ""
+                    font.pixelSize: 9
+                    font.family: StyleTokens.fontFamilyMono
+                    color: modelData.color || StyleTokens.textSubtle
+                    elide: Text.ElideRight
                 }
             }
         }

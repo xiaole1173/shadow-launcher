@@ -45,6 +45,22 @@ ModpackInstallTask::ModpackInstallTask(QObject* parent)
     : QObject(parent)
     , m_downloader(new ModpackDownloader(this))
 {
+    // MC 阶段 300ms 轮询会话进度/速度 → 卡片子步骤 4（游戏本体下载）
+    m_mcPollTimer = new QTimer(this);
+    m_mcPollTimer->setInterval(300);
+    connect(m_mcPollTimer, &QTimer::timeout, this, [this]() {
+        if (!m_vb || m_cardId.isEmpty() || m_mcSessionId.isEmpty()) return;
+        const qreal p = m_vb->installProgressOf(m_mcSessionId);
+        setCardStep(3, QStringLiteral("active"), qRound(p * 100.0));
+        m_cardSpeed = m_vb->installSpeedOf(m_mcSessionId);
+        syncCard();
+    });
+    // 下载阶段 500ms 同步模组明细/日志附件（避免高频推送卡模型）
+    m_attachSyncTimer = new QTimer(this);
+    m_attachSyncTimer->setInterval(500);
+    connect(m_attachSyncTimer, &QTimer::timeout, this, [this]() {
+        if (m_downloader && m_downloader->isRunning()) syncCardAttachments();
+    });
 }
 
 ModpackInstallTask::~ModpackInstallTask() = default;
@@ -89,6 +105,8 @@ void ModpackInstallTask::start(const QString& zipPath, bool includeOptional)
         m_backupDir.clear();
     }
 
+    initTaskCard();
+
     runParse();
 }
 
@@ -97,6 +115,7 @@ void ModpackInstallTask::start(const QString& zipPath, bool includeOptional)
 void ModpackInstallTask::runParse()
 {
     setStep(tr("解析整合包"));
+    setCardStep(0, QStringLiteral("active"), 0);
     setProgress(kParseWeight * 0.2, tr("正在识别整合包格式…"), QFileInfo(m_zipPath).fileName());
 
     QtConcurrent::run([this]() {
@@ -160,6 +179,22 @@ void ModpackInstallTask::onParsed(bool ok, const QString& error)
     emit logLine(tr("资源写入目录（版本隔离%1）: %2")
         .arg(m_iso && m_iso->isEnabled() ? tr("开启") : tr("关闭"), m_resourceDir));
 
+    // 卡片：解析完成 → 步骤 0 完成；注册 MC 会话抑制目标（杜绝双卡）
+    setCardStep(0, QStringLiteral("completed"), 100);
+    if (m_vb) {
+        m_vb->updateModpackCardTargets(m_targetName, m_meta.mcVersion);
+        m_vb->updateTaskCard(m_cardId, m_progress, m_statusText, false, {}, 0, true,
+                             tr("导入整合包：%1").arg(m_meta.name));
+    }
+    m_cardInfo[QStringLiteral("name")] = m_meta.name;
+    m_cardInfo[QStringLiteral("version")] = m_meta.versionId;
+    m_cardInfo[QStringLiteral("mc")] = m_meta.mcVersion;
+    m_cardInfo[QStringLiteral("loader")] = m_meta.loaderType;
+    m_cardInfo[QStringLiteral("format")] =
+        m_meta.format == ModpackFormat::Modrinth ? QStringLiteral("Modrinth") : QStringLiteral("CurseForge");
+    m_cardInfo[QStringLiteral("targetName")] = m_targetName;
+    refreshCardMods();
+
     // 通知 UI 模组列表
     emit modItemsChanged();
 
@@ -171,6 +206,7 @@ void ModpackInstallTask::onParsed(bool ok, const QString& error)
 void ModpackInstallTask::runExtract()
 {
     setStep(tr("解压整合包资源"));
+    setCardStep(1, QStringLiteral("active"), 0);
     emit logLine(tr("开始解压覆写目录…"));
 
     const QStringList dirs = m_meta.overrideDirs;
@@ -203,9 +239,11 @@ void ModpackInstallTask::runExtract()
                 const int n = zip.extractPrefixTo(
                     prefix, resourceDir, &m_cancel,
                     [this](int done, int total) {
-                        if (total > 0)
+                        if (total > 0) {
                             setProgress(kParseWeight + kExtractWeight * (0.2 + 0.8 * (qreal)done / total),
                                         tr("正在解压资源 (%1/%2)…").arg(done).arg(total));
+                            setCardStep(1, QStringLiteral("active"), qRound(100.0 * done / total));
+                        }
                     },
                     [this](const QString& destPath, bool existed) {
                         if (existed) {
@@ -250,6 +288,8 @@ void ModpackInstallTask::onExtracted(int fileCount)
     emit logLine(fileCount > 0
         ? tr("覆写资源解压完成，共 %1 个文件").arg(fileCount)
         : tr("整合包不含覆写资源，跳过解压"));
+    m_cardInfo[QStringLiteral("fileCount")] = QString::number(fileCount);
+    setCardStep(1, QStringLiteral("completed"), 100);
     runDownload();
 }
 
@@ -259,11 +299,13 @@ void ModpackInstallTask::runDownload()
 {
     if (m_meta.files.isEmpty()) {
         emit logLine(tr("整合包不含远端模组，跳过下载"));
+        setCardStep(2, QStringLiteral("completed"), 100);
         onDownloadAllFinished(false);
         return;
     }
 
     setStep(tr("下载模组"));
+    setCardStep(2, QStringLiteral("active"), 0);
     setProgress(kParseWeight + kExtractWeight + 0.01, tr("准备下载 %1 个文件…").arg(m_meta.files.size()));
 
     // 一次性接线（每个任务生命周期只 start 一次）
@@ -272,19 +314,48 @@ void ModpackInstallTask::runDownload()
     connect(m_downloader, &ModpackDownloader::statusChanged, this, [this](const QString& t) {
         m_statusText = t;
         emit progressChanged(m_progress, t, m_currentFile);
+        syncCard();
     });
     connect(m_downloader, &ModpackDownloader::fileProgress, this,
             [this](int index, const QString& name, qint64 received, qint64 total) {
         Q_UNUSED(index);
         m_currentFile = name;
         emit fileProgressChanged(name, total > 0 ? (qreal)received / total : 0.0);
+        // 卡片：模组条目进度 + EMA 速度（500ms 粒度）
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (m_lastBytesMs > 0 && now - m_lastBytesMs >= 500) {
+            const qint64 db = received - m_lastBytes;
+            if (db > 0) m_cardSpeed = qMax<qint64>(0, db * 1000 / (now - m_lastBytesMs));
+            m_lastBytes = received;
+            m_lastBytesMs = now;
+        } else if (m_lastBytesMs <= 0) {
+            m_lastBytes = received;
+            m_lastBytesMs = now;
+        }
+        for (int i = 0; i < m_cardMods.size(); ++i) {
+            QVariantMap mm = m_cardMods[i].toMap();
+            if (mm.value(QStringLiteral("name")).toString() == name
+                || mm.value(QStringLiteral("status")).toString() == QStringLiteral("downloading")) {
+                mm[QStringLiteral("progress")] = total > 0 ? (qreal)received / total : 0.0;
+                mm[QStringLiteral("status")] = QStringLiteral("downloading");
+                m_cardMods[i] = mm;
+                break;
+            }
+        }
     });
     connect(m_downloader, &ModpackDownloader::fileFinished, this,
             [this](int index, bool success, const QString& error) {
-                Q_UNUSED(success); Q_UNUSED(error);
-                Q_UNUSED(index);
-                emit modItemsChanged();
-            });
+        // 卡片：同步该条目终态
+        if (index >= 0 && index < m_cardMods.size()) {
+            QVariantMap mm = m_cardMods[index].toMap();
+            mm[QStringLiteral("status")] = success ? QStringLiteral("done") : QStringLiteral("fail");
+            mm[QStringLiteral("error")] = error;
+            mm[QStringLiteral("progress")] = success ? 1.0 : 0.0;
+            m_cardMods[index] = mm;
+            syncCardAttachments();
+        }
+        emit modItemsChanged();
+    });
     connect(m_downloader, &ModpackDownloader::queueProgress, this,
             [this](int completed, int total, int failed) {
                 if (total <= 0) return;
@@ -294,8 +365,12 @@ void ModpackInstallTask::runDownload()
                     ? tr("正在下载模组 (%1/%2，%3 个失败)…").arg(completed).arg(total).arg(failed)
                     : tr("正在下载模组 (%1/%2)…").arg(completed).arg(total);
                 setProgress(base + kDownloadWeight * frac, text, m_currentFile);
+                setCardStep(2, QStringLiteral("active"), qRound(100.0 * completed / total));
             });
-    connect(m_downloader, &ModpackDownloader::logLine, this, &ModpackInstallTask::logLine);
+    connect(m_downloader, &ModpackDownloader::logLine, this, [this](const QString& msg) {
+        emit logLine(msg);
+        pushCardLog(msg);
+    });
     connect(m_downloader, &ModpackDownloader::allFinished, this, &ModpackInstallTask::onDownloadAllFinished);
 
     m_downloader->setTargetDir(m_resourceDir);
@@ -308,10 +383,16 @@ void ModpackInstallTask::runDownload()
         registerCreatedFile(savePath);
     });
     m_downloader->start(m_includeOptional);
+    refreshCardMods();   // 初始模组明细（含可选文件 skipped 标记）
+    m_attachSyncTimer->start();
 }
 
 void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 {
+    m_attachSyncTimer->stop();
+    setCardStep(2, QStringLiteral("completed"), 100);
+    refreshCardMods();
+
     if (cancelled) {
         rollback();
         finishCancelled();
@@ -347,13 +428,16 @@ void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 void ModpackInstallTask::runMcInstall()
 {
     setStep(tr("安装游戏本体与加载器"));
+    setCardStep(3, QStringLiteral("active"), 0);
     setProgress(kParseWeight + kExtractWeight + kDownloadWeight + 0.02,
                 tr("正在安装 Minecraft %1…").arg(m_meta.mcVersion));
 
     m_installingMc = true;
 
     if (!m_meta.loaderType.isEmpty() && !m_meta.loaderVersion.isEmpty()) {
-        // 带加载器：merged 安装（MC + 加载器一体）
+        // 带加载器：merged 安装（MC + 加载器一体）—— 加载器部署为卡片步骤 5
+        setCardStep(4, QStringLiteral("pending"), 0);
+        m_mcSessionId = m_targetName;   // merged 会话 id = 目标版本名
         emit logLine(tr("安装 Minecraft %1 + %2 %3 → %4")
             .arg(m_meta.mcVersion, m_meta.loaderType, m_meta.loaderVersion, m_targetName));
 
@@ -369,7 +453,16 @@ void ModpackInstallTask::runMcInstall()
         return;
     }
 
-    // 纯原版整合包：安装 vanilla 后改为目标名
+    // 纯原版整合包：安装 vanilla 后改为目标名（步骤 5 加载器部署隐藏）
+    {
+        QVariantMap s = m_cardSteps[4].toMap();
+        s[QStringLiteral("status")] = QStringLiteral("completed");
+        s[QStringLiteral("percentage")] = 100;
+        s[QStringLiteral("show")] = false;   // 无加载器 → 隐藏该子步骤
+        m_cardSteps[4] = s;
+        if (m_vb) m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
+    }
+    m_mcSessionId = m_meta.mcVersion;   // vanilla 会话 id = MC 版本
     emit logLine(tr("整合包未指定加载器，按纯原版处理（安装 %1）").arg(m_meta.mcVersion));
 
     const bool preinstalled = m_vb->versionManager() && m_vb->versionManager()->isInstalled(m_meta.mcVersion);
@@ -392,10 +485,14 @@ void ModpackInstallTask::runMcInstall()
         m_installedVanillaId = m_meta.mcVersion;
         m_vb->installVersion(m_meta.mcVersion);
     }
+
+    // MC 阶段轮询会话进度/速度 → 卡片步骤 4
+    m_mcPollTimer->start();
 }
 
 void ModpackInstallTask::onMcInstallFinished(bool ok)
 {
+    m_mcPollTimer->stop();
     if (m_cancel) {
         // 取消等待安装结束 → 直接回滚
         rollback();
@@ -406,6 +503,9 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
         fail(tr("Minecraft %1 安装失败").arg(m_meta.mcVersion));
         return;
     }
+
+    setCardStep(3, QStringLiteral("completed"), 100);
+    setCardStep(4, QStringLiteral("completed"), 100);
 
     // 纯原版 + 非预装：把 vanilla 版本目录改名为目标名
     if (m_meta.loaderType.isEmpty() && !m_vanillaPreinstalled
@@ -500,6 +600,7 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
 void ModpackInstallTask::runFinalize()
 {
     setStep(tr("整理版本信息"));
+    setCardStep(5, QStringLiteral("active"), 0);
     setProgress(kParseWeight + kExtractWeight + kDownloadWeight + kMcInstallWeight,
                 tr("正在生成版本信息…"));
 
@@ -598,6 +699,9 @@ void ModpackInstallTask::completeImport()
         emit logLine(tr("已刷新版本列表"));
     }
 
+    setCardStep(5, QStringLiteral("completed"), 100);
+    finishCard(true, {});
+
     setProgress(1.0, tr("导入完成"), {});
     m_phase = Phase::Done;
     m_busy = false;
@@ -641,6 +745,15 @@ void ModpackInstallTask::fail(const QString& error)
     m_phase = Phase::Error;
     m_busy = false;
     m_statusText = error;
+    // 卡片：标记当前活动步骤失败 + 终态
+    for (int i = m_cardSteps.size() - 1; i >= 0; --i) {
+        if (m_cardSteps[i].toMap().value(QStringLiteral("status")).toString() == QStringLiteral("active")) {
+            setCardStep(i, QStringLiteral("failed"),
+                        m_cardSteps[i].toMap().value(QStringLiteral("percentage")).toInt());
+            break;
+        }
+    }
+    finishCard(false, error);
     emit logLine(tr("❌ 导入失败: %1").arg(error));
     emit progressChanged(m_progress, error, {});
     emit stepChanged(tr("失败"));
@@ -654,6 +767,7 @@ void ModpackInstallTask::finishCancelled()
     m_phase = Phase::Cancelled;
     m_busy = false;
     m_statusText = tr("已取消");
+    finishCard(false, tr("已取消"));
     emit logLine(tr("导入已取消，已清理本次生成的文件"));
     emit progressChanged(0.0, tr("已取消"), {});
     emit stepChanged(tr("已取消"));
@@ -728,11 +842,139 @@ void ModpackInstallTask::setProgress(qreal p, const QString& text, const QString
     m_statusText = text;
     if (!file.isNull()) m_currentFile = file;
     emit progressChanged(m_progress, text, m_currentFile);
+    syncCard();
 }
 
 void ModpackInstallTask::log(const QString& msg)
 {
     emit logLine(msg);
+    pushCardLog(msg);
+}
+
+// ── 原生任务卡片（InstallCardModel 轮询通道）──
+
+void ModpackInstallTask::initTaskCard()
+{
+    if (!m_vb) return;
+    m_cardId = QStringLiteral("modpack-") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+    m_cardSteps.clear();
+    const QStringList names = {
+        tr("解析校验"), tr("Overrides 解压"), tr("模组批量下载"),
+        tr("游戏本体下载"), tr("加载器部署"), tr("版本信息注册")
+    };
+    for (const QString& n : names) {
+        QVariantMap s;
+        s[QStringLiteral("name")] = n;
+        s[QStringLiteral("status")] = QStringLiteral("pending");
+        s[QStringLiteral("percentage")] = 0;
+        s[QStringLiteral("show")] = true;
+        m_cardSteps.append(s);
+    }
+    m_cardLogs.clear();
+    m_cardMods.clear();
+    m_cardInfo.clear();
+    m_cardSpeed = 0;
+    m_lastBytes = 0;
+    m_lastBytesMs = 0;
+    m_mcSessionId.clear();
+    m_cardDone = false;
+
+    m_vb->setModpackCard(m_cardId, [this]() { cancel(); });   // 卡片原生取消控件转发
+    m_vb->addTaskCard(m_cardId, tr("导入整合包"));
+    m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
+    pushCardLog(tr("开始导入整合包"));
+}
+
+void ModpackInstallTask::syncCard()
+{
+    if (m_cardId.isEmpty() || !m_vb) return;
+    // 可能从工作线程（解压进度回调）触发 → 归队主线程再碰模型
+    QMetaObject::invokeMethod(this, [this]() {
+        if (m_cardId.isEmpty() || !m_vb) return;
+        m_vb->updateTaskCard(m_cardId, m_progress, m_statusText, false, {},
+                             m_cardSpeed, !m_cardDone);
+    }, Qt::QueuedConnection);
+}
+
+void ModpackInstallTask::setCardStep(int idx, const QString& status, int pct)
+{
+    if (m_cardId.isEmpty() || idx < 0 || idx >= m_cardSteps.size()) return;
+    QMetaObject::invokeMethod(this, [this, idx, status, pct]() {
+        if (idx < 0 || idx >= m_cardSteps.size()) return;
+        QVariantMap s = m_cardSteps[idx].toMap();
+        s[QStringLiteral("status")] = status;
+        s[QStringLiteral("percentage")] = pct;
+        s[QStringLiteral("show")] = s.value(QStringLiteral("show"), true);
+        m_cardSteps[idx] = s;
+        if (m_vb) m_vb->updateTaskCardSteps(m_cardId, m_cardSteps);
+    }, Qt::QueuedConnection);
+}
+
+void ModpackInstallTask::syncCardAttachments()
+{
+    if (m_cardId.isEmpty() || !m_vb) return;
+    QMetaObject::invokeMethod(this, [this]() {
+        if (m_cardId.isEmpty() || !m_vb) return;
+        m_cardInfo[QStringLiteral("modCount")] = m_cardMods.size();
+        m_vb->updateTaskCardAttachments(m_cardId, m_cardMods, m_cardLogs, m_cardInfo);
+    }, Qt::QueuedConnection);
+}
+
+void ModpackInstallTask::pushCardLog(const QString& msg)
+{
+    if (msg.isEmpty()) return;
+    QVariantMap l;
+    l[QStringLiteral("text")] = msg;
+    l[QStringLiteral("color")] =
+        msg.contains(QStringLiteral("❌")) ? QStringLiteral("#e06060")
+        : msg.contains(QStringLiteral("⚠")) ? QStringLiteral("#ff9800")
+        : msg.contains(QStringLiteral("✅")) ? QStringLiteral("#4bc870")
+        : QStringLiteral("#a8b0c0");
+    m_cardLogs.append(l);
+    while (m_cardLogs.size() > 300) m_cardLogs.removeFirst();
+    syncCardAttachments();
+}
+
+void ModpackInstallTask::refreshCardMods()
+{
+    m_cardMods.clear();
+    for (const ModpackRemoteFile& rf : m_meta.files) {
+        QVariantMap mm;
+        QString name = rf.displayName;
+        if (name.isEmpty()) name = rf.fileName;
+        if (name.isEmpty()) name = QStringLiteral("CF:%1/%2").arg(rf.projectId).arg(rf.fileId);
+        mm[QStringLiteral("name")] = name;
+        mm[QStringLiteral("size")] = rf.size;
+        mm[QStringLiteral("status")] = rf.status;
+        mm[QStringLiteral("error")] = rf.error;
+        mm[QStringLiteral("progress")] = rf.status == QLatin1String("done") ? 1.0 : 0.0;
+        m_cardMods.append(mm);
+    }
+    syncCardAttachments();
+}
+
+void ModpackInstallTask::finishCard(bool success, const QString& err)
+{
+    m_cardDone = true;
+    if (m_mcPollTimer) m_mcPollTimer->stop();
+    if (m_attachSyncTimer) m_attachSyncTimer->stop();
+    if (m_cardId.isEmpty() || !m_vb) return;
+    if (success) {
+        m_vb->updateTaskCard(m_cardId, 1.0, tr("已完成"), false, {}, 0, false);
+    } else {
+        const bool cancelled = (err == tr("已取消"));
+        m_vb->updateTaskCard(m_cardId, m_progress,
+                             cancelled ? tr("已取消") : tr("失败"),
+                             true, err, 0, false);
+    }
+    syncCardAttachments();
+}
+
+void ModpackInstallTask::removeCard()
+{
+    if (m_cardId.isEmpty() || !m_vb) return;
+    m_vb->removeTaskCard(m_cardId);
+    m_cardId.clear();
 }
 
 void ModpackInstallTask::registerCreatedFile(const QString& path)

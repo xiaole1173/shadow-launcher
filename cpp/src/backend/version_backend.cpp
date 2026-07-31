@@ -1388,6 +1388,14 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
 
 
+    // ── 整合包任务卡片：原生取消控件转发到任务（任务自行回滚/收尾）──
+    if (versionId == m_modpackCardId && m_modpackCancelHandler) {
+        m_modpackCancelHandler();
+        return;
+    }
+
+
+
     // ── Merged install card: clean only this task's resources ──
     // MC downloads to a shared temp dir (shared across contexts with same mcVersion).
     // destroyMergedContext deletes temp dir only when last user goes.
@@ -5905,6 +5913,9 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
 
     if (!ds || !m_installCardsModel) return;
 
+    // 整合包运行期间：MC/加载器会话不生成独立卡片（进度并入任务卡片子步骤）
+    if (isModpackSessionSuppressed(installId)) return;
+
     // ── Shared: build step list from pipeline (real-time status/percentage) ──
     // Pipeline 是实时数据源 (所有 setPercentage/setActive 都写入 pipeline)
     // ds->steps 是陈旧 copy, 仅通过 updateStep 刷新, 不是所有下载路径都用 updateStep
@@ -6389,6 +6400,166 @@ void VersionBackend::removeResourceCard(const QString& cardId) {
 
 
 
+// ═══════════════════════════════════════════════════════════
+// 整合包任务卡片（原生卡片通道）
+// 卡片生命周期：addTaskCard → updateTaskCard/Steps/Attachments →
+//   完成/失败后由 DownloadQueueCard 自动收拢或手动关闭触发 dismissCard
+//   → removeTaskCard。步骤格式与普通下载卡片一致（{name,status,percentage,show}），
+//   QML 点阵/呼吸动画天然生效。
+// ═══════════════════════════════════════════════════════════
+
+InstallCard VersionBackend::taskCardToInstallCard(const QString& cardId) const
+{
+    InstallCard c;
+    c.iid = cardId;
+    const QVariantMap m = m_taskCards.value(cardId);
+    c.name = m.value(QStringLiteral("displayName"), cardId).toString();
+    c.type = QStringLiteral("modpack");
+    c.progress = qBound(0.0, m.value(QStringLiteral("totalProgress"), 0.0).toReal(), 1.0);
+    c.speed = m.value(QStringLiteral("speed"), QVariant::fromValue<qint64>(0)).value<qint64>();
+    c.phase = m.value(QStringLiteral("installPhase"), QString()).toString();
+    c.steps = m.value(QStringLiteral("steps")).toList();
+    c.mods = m.value(QStringLiteral("mods")).toList();
+    c.logs = m.value(QStringLiteral("logs")).toList();
+    c.info = m.value(QStringLiteral("info")).toMap();
+    c.failed = m.value(QStringLiteral("failed"), false).toBool();
+    c.error = m.value(QStringLiteral("error"), QString()).toString();
+    c.canCancel = m.value(QStringLiteral("canCancel"), true).toBool();
+    return c;
+}
+
+void VersionBackend::addTaskCard(const QString& cardId, const QString& displayName)
+{
+    if (cardId.isEmpty()) return;
+    QVariantMap m;
+    m[QStringLiteral("displayName")] = displayName;
+    m[QStringLiteral("totalProgress")] = 0.0;
+    m[QStringLiteral("speed")] = QVariant::fromValue<qint64>(0);
+    m[QStringLiteral("installPhase")] = QString();
+    m[QStringLiteral("steps")] = QVariantList{};
+    m[QStringLiteral("mods")] = QVariantList{};
+    m[QStringLiteral("logs")] = QVariantList{};
+    m[QStringLiteral("info")] = QVariantMap{};
+    m[QStringLiteral("failed")] = false;
+    m[QStringLiteral("error")] = QString();
+    m[QStringLiteral("canCancel")] = true;
+    m_taskCards.insert(cardId, m);
+
+    if (m_installCardsModel && m_installCardsModel->findRowByIid(cardId) < 0)
+        m_installCardsModel->appendRow(taskCardToInstallCard(cardId));
+}
+
+void VersionBackend::updateTaskCard(const QString& cardId, qreal progress, const QString& phase,
+                                    bool failed, const QString& error, qint64 speed,
+                                    bool canCancel, const QString& name)
+{
+    if (!m_taskCards.contains(cardId)) return;
+    QVariantMap m = m_taskCards.value(cardId);
+    m[QStringLiteral("totalProgress")] = qBound(0.0, progress, 1.0);
+    if (!phase.isEmpty()) m[QStringLiteral("installPhase")] = phase;
+    m[QStringLiteral("failed")] = failed;
+    m[QStringLiteral("error")] = error;
+    m[QStringLiteral("speed")] = QVariant::fromValue<qint64>(speed);
+    m[QStringLiteral("canCancel")] = canCancel;
+    if (!name.isEmpty()) m[QStringLiteral("displayName")] = name;
+    m_taskCards.insert(cardId, m);
+
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->updateRow(row, taskCardToInstallCard(cardId));
+    }
+}
+
+void VersionBackend::updateTaskCardSteps(const QString& cardId, const QVariantList& steps)
+{
+    if (!m_taskCards.contains(cardId)) return;
+    QVariantMap m = m_taskCards.value(cardId);
+    m[QStringLiteral("steps")] = steps;
+    m_taskCards.insert(cardId, m);
+
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->updateRow(row, taskCardToInstallCard(cardId));
+    }
+}
+
+void VersionBackend::updateTaskCardAttachments(const QString& cardId, const QVariantList& mods,
+                                               const QVariantList& logs, const QVariantMap& info)
+{
+    if (!m_taskCards.contains(cardId)) return;
+    QVariantMap m = m_taskCards.value(cardId);
+    if (!mods.isEmpty()) m[QStringLiteral("mods")] = mods;
+    if (!logs.isEmpty()) m[QStringLiteral("logs")] = logs;
+    if (!info.isEmpty()) m[QStringLiteral("info")] = info;
+    m_taskCards.insert(cardId, m);
+
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->updateRow(row, taskCardToInstallCard(cardId));
+    }
+}
+
+void VersionBackend::removeTaskCard(const QString& cardId)
+{
+    m_taskCards.remove(cardId);
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->removeRow(row);
+    }
+    if (cardId == m_modpackCardId) {
+        m_modpackCardId.clear();
+        m_modpackTargetVersion.clear();
+        m_modpackMcVersion.clear();
+        m_modpackCancelHandler = nullptr;
+    }
+}
+
+// ── 整合包任务注册 / 会话卡片抑制 ──
+
+void VersionBackend::setModpackCard(const QString& cardId, std::function<void()> cancelHandler)
+{
+    m_modpackCardId = cardId;
+    m_modpackCancelHandler = std::move(cancelHandler);
+}
+
+void VersionBackend::updateModpackCardTargets(const QString& targetVersion, const QString& mcVersion)
+{
+    m_modpackTargetVersion = targetVersion;
+    m_modpackMcVersion = mcVersion;
+}
+
+void VersionBackend::clearModpackCard()
+{
+    if (!m_modpackCardId.isEmpty()) removeTaskCard(m_modpackCardId);
+}
+
+bool VersionBackend::isModpackSessionSuppressed(const QString& installId) const
+{
+    if (m_modpackCardId.isEmpty()) return false;
+    return installId == m_modpackTargetVersion || installId == m_modpackMcVersion;
+}
+
+qreal VersionBackend::installProgressOf(const QString& installId) const
+{
+    auto* ds = dlSession(installId);
+    return ds ? qBound(0.0, ds->smoothProgress, 1.0) : 0.0;
+}
+
+qint64 VersionBackend::installSpeedOf(const QString& installId) const
+{
+    auto* ds = dlSession(installId);
+    if (!ds) return 0;
+    if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
+        return m_dlStates.value(ds->mcVersion).speed;
+    return ds->mlSpeed > 0 ? ds->mlSpeed : 0;
+}
+
+
+
 // ============================================================
 
 // InstallCardModel  implementation
@@ -6618,6 +6789,10 @@ QVariantMap InstallCardModel::cardData(int row) const {
     map["hasUserDataImport"] = c.hasUserDataImport;
     map["canCancel"] = c.canCancel;
     map["importFailedAtMs"] = c.importFailedAtMs;
+    // 整合包任务卡片附属数据（QML 轮询消费；普通卡片为空，不影响既有逻辑）
+    map["mods"] = c.mods;
+    map["logs"] = c.logs;
+    map["info"] = c.info;
     return map;
 }
 
@@ -6892,6 +7067,9 @@ auto* ds = dlSession(it.key());
 
         const QString& sid = sit.key();
 
+        // 整合包运行期间：MC/加载器会话并入任务卡片子步骤，不生成独立卡片（杜绝双卡）
+        if (isModpackSessionSuppressed(sid)) continue;
+
         auto* ds = dlSession(sid);
 
         bool mlPending = ds->hasPendingLoader && !ds->pendingLoaderName.isEmpty();
@@ -7047,6 +7225,9 @@ auto* ds = dlSession(it.key());
 
         if (seen.contains(sid)) continue;
 
+        // 整合包运行期间：纯原版会话卡片抑制（并入任务卡片子步骤）
+        if (isModpackSessionSuppressed(sid)) { seen.insert(sid); continue; }
+
         auto* ds = dlSession(sid);
 
         if (!ds) continue;
@@ -7109,6 +7290,18 @@ auto* ds = dlSession(it.key());
         c.steps = QVariantList{};
 
         cards.append(c);
+
+    }
+
+    // 4. 整合包任务卡片（from m_taskCards，全量字段：steps/mods/logs/info）
+
+    for (auto it = m_taskCards.constBegin(); it != m_taskCards.constEnd(); ++it) {
+
+        if (seen.contains(it.key())) continue;
+
+        cards.append(taskCardToInstallCard(it.key()));
+
+        seen.insert(it.key());
 
     }
 
@@ -7367,6 +7560,12 @@ void VersionBackend::cancelPendingUserDataImport(const QString& installId)
 void VersionBackend::dismissCard(const QString& installId)
 
 {
+
+    // ── 整合包任务卡片：关闭即移除卡片并清注册（卡片已结束，无会话可清）──
+    if (m_taskCards.contains(installId)) {
+        removeTaskCard(installId);
+        return;
+    }
 
     m_downloadSessions.remove(installId);
 

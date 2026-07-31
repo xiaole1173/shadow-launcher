@@ -148,6 +148,10 @@ struct InstallCard {
     bool hasUserDataImport = false;
     bool canCancel = true;
     qint64 importFailedAtMs = 0;
+    // 整合包任务卡片附属数据（type == "modpack" 时经 cardData 轮询下发）
+    QVariantList mods;    // [{name,size,status,error,progress}]
+    QVariantList logs;    // [{text,color}] 最近日志（上限约 300 条）
+    QVariantMap info;     // {name,version,mc,loader,format,modCount,fileCount,targetName}
 };
 
 } // namespace ShadowLauncher

@@ -23,6 +23,7 @@
 #include <QSet>
 #include <QMap>
 #include <QElapsedTimer>
+#include <QTimer>
 
 #include <atomic>
 
@@ -88,6 +89,29 @@ private:
     void log(const QString& msg);
     void registerCreatedFile(const QString& path);
     void registerOverwrite(const QString& path);
+
+    // ── 原生任务卡片（InstallCardModel 轮询通道）──
+    void initTaskCard();                 // 注册卡片 + 6 步骤初始化
+    void syncCard();                     // 进度/阶段/速度 → 卡片
+    void setCardStep(int idx, const QString& status, int pct);  // 更新单步骤并同步
+    void syncCardAttachments();          // mods/logs/info → 卡片
+    void pushCardLog(const QString& msg);
+    void refreshCardMods();              // 从 m_meta.files 重建模组明细
+    void finishCard(bool success, const QString& err);  // 终态（完成/失败/取消）
+    void removeCard();
+
+    QString m_cardId;
+    QVariantList m_cardSteps;    // 6 阶段 [{name,status,percentage,show}]
+    QVariantList m_cardMods;     // [{name,size,status,error,progress}]
+    QVariantList m_cardLogs;     // [{text,color}] 上限 300
+    QVariantMap m_cardInfo;      // {name,version,mc,loader,format,modCount,fileCount,targetName}
+    qint64 m_cardSpeed = 0;      // 卡片速度（下载阶段 EMA / MC 阶段读会话）
+    qint64 m_lastBytes = 0;
+    qint64 m_lastBytesMs = 0;
+    QString m_mcSessionId;       // MC 阶段轮询的会话 id（merged=targetName / vanilla=mcVersion）
+    QTimer* m_mcPollTimer = nullptr;     // MC 阶段 300ms 轮询进度/速度
+    QTimer* m_attachSyncTimer = nullptr; // 下载阶段 500ms 同步附件
+    bool m_cardDone = false;
 
     // ── 依赖 ──
     VersionBackend* m_vb = nullptr;
