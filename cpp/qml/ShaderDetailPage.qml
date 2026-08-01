@@ -44,7 +44,12 @@ Rectangle {
             shaderDetailRawVersions = []
             shaderDetailVersionMap = {}
             expandedGroups = []
-            backend.fetchShaderVersions([shaderDetailSlug])
+            // CurseForge 光影（slug 为纯数字 modId）
+            if (/^\d+$/.test(shaderDetailSlug)) {
+                backend.fetchShaderVersionsCf(shaderDetailSlug)
+            } else {
+                backend.fetchShaderVersions([shaderDetailSlug])
+            }
         }
     }
 

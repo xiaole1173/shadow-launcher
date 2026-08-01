@@ -52,7 +52,12 @@ Rectangle {
             rpVersionCacheVersion = 0
             expandedGroups = []
             selectedVersion = ""
-            backend.fetchResourcepackVersions([rpDetailSlug])
+            // CurseForge 资源包（slug 为纯数字 modId）
+            if (/^\d+$/.test(rpDetailSlug)) {
+                backend.fetchResourcepackVersionsCf(rpDetailSlug)
+            } else {
+                backend.fetchResourcepackVersions([rpDetailSlug])
+            }
         }
     }
 
