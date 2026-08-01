@@ -564,8 +564,17 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
         src/core/resource_fetch_engine.cpp
         src/utils/logger.cpp
     )
-    target_include_directories(ResourceFetchEngineTest PRIVATE src)
-    target_link_libraries(ResourceFetchEngineTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui)
+    target_include_directories(ResourceFetchEngineTest PRIVATE src "${WEBP_ROOT}/include")
+    target_link_directories(ResourceFetchEngineTest PRIVATE "${WEBP_ROOT}/lib")
+    target_compile_definitions(ResourceFetchEngineTest PRIVATE WEBP_STATIC_LINK)
+    target_link_libraries(ResourceFetchEngineTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui libwebp)
+
+    # 图像解码诊断（webp 支持验证）
+    add_executable(DiagImage tests/diag_image.cpp)
+    target_include_directories(DiagImage PRIVATE "${WEBP_ROOT}/include")
+    target_link_directories(DiagImage PRIVATE "${WEBP_ROOT}/lib")
+    target_compile_definitions(DiagImage PRIVATE WEBP_STATIC_LINK)
+    target_link_libraries(DiagImage PRIVATE Qt6::Gui Qt6::Core libwebp)
 endif()
 
 # ============================================================

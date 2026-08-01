@@ -5,6 +5,8 @@
 #include "engine_identity.h"
 #include "../utils/logger.h"
 
+#include <webp/decode.h>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -31,13 +33,19 @@ ResourceFetchEngine::ResourceFetchEngine(const QString& cacheRoot, QObject* pare
     qCInfo(logDownload) << engineBanner(kEngineId);
     qCInfo(logDownload) << engineTag(kEngineId) << QStringLiteral("缓存根目录: %1").arg(m_cacheRoot);
 
-    // 清理历史坏缓存：此前版本可能把错误页/webp 等内容原样存成 .png，QML 解码失败会卡占位图
+    // 清理历史坏缓存：此前版本可能把 webp/错误页等内容原样存成 .png，QML 解码失败会卡占位图
+    // 用 PNG 魔数判断（比 QImageReader::canRead 可靠，canRead 对 RIFF/webp 可能误判）
     int cleaned = 0;
     const auto iconFiles = QDir(m_cacheRoot + "/icons")
                                .entryInfoList({QStringLiteral("*.png")}, QDir::Files);
     for (const QFileInfo& fi : iconFiles) {
-        QImageReader reader(fi.absoluteFilePath());
-        if (!reader.canRead()) {
+        QFile f(fi.absoluteFilePath());
+        if (!f.open(QIODevice::ReadOnly)) { continue; }
+        const QByteArray head = f.read(8);
+        f.close();
+        const bool isPng = (head.size() >= 8 && head[0] == '\x89' && head[1] == 'P'
+                            && head[2] == 'N' && head[3] == 'G');
+        if (!isPng) {
             QFile::remove(fi.absoluteFilePath());
             ++cleaned;
         }
@@ -193,9 +201,22 @@ void ResourceFetchEngine::onIconData(const QString& url, const QByteArray& data,
         return;
     }
 
-    // 解码验证：QImage 解不了（webp/错误页等）→ 丢弃，不存盘（否则 QML 解码失败占位图永不刷新）
+    // 解码验证：先 Qt 后 libwebp（Modrinth 图标常见 webp，Qt 无插件）；都解不了（错误页等）→ 丢弃
     QImage img;
-    if (!img.loadFromData(data)) {
+    bool decoded = img.loadFromData(data);
+    if (!decoded) {
+        int w = 0, h = 0;
+        uint8_t* rgba = WebPDecodeRGBA(
+            reinterpret_cast<const uint8_t*>(data.constData()), data.size(), &w, &h);
+        if (rgba && w > 0 && h > 0) {
+            img = QImage(rgba, w, h, QImage::Format_RGBA8888,
+                         [](void* p) { WebPFree(p); }, rgba);
+            decoded = true;
+        } else {
+            WebPFree(rgba);
+        }
+    }
+    if (!decoded) {
         qCWarning(logDownload) << engineTag(kEngineId)
                                << QStringLiteral("图标格式无法解码，丢弃 %1 (size=%2)")
                                       .arg(url.left(60)).arg(data.size());
