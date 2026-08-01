@@ -127,9 +127,9 @@ private:
     int m_shaderPending = 0;
     QVariantList m_rpMrResults, m_rpCfResults;
     int m_rpPending = 0;
-    void tryAggregateMod(int gen);
-    void tryAggregateShader(int gen);
-    void tryAggregateRp(int gen);
+    void tryAggregateMod(int gen, bool mrDone);
+    void tryAggregateShader(int gen, bool mrDone);
+    void tryAggregateRp(int gen, bool mrDone);
     bool m_downloading = false;
     int m_dlProgress = 0;
     int m_dlTotal = 0;

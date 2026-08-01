@@ -236,12 +236,12 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
             } else {
                 emit logMessage(tr("Modrinth 搜索失败: HTTP %1").arg(status));
             }
-            tryAggregateMod(gen);
+            tryAggregateMod(gen, true);
         };
         const auto onMrFail = [this, gen](const QString& error) {
             if (gen != m_searchGen) return;
             emit logMessage(tr("Modrinth 网络错误: %1").arg(error));
-            tryAggregateMod(gen);
+            tryAggregateMod(gen, true);
         };
         if (m_fetchEngine)
             m_fetchEngine->getJson(url.toString(), true, onMrOk, onMrFail);
@@ -258,12 +258,12 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
             [this, gen](const QVariantList& items, int) {
                 if (gen != m_searchGen) return;
                 m_modCfResults = items;
-                tryAggregateMod(gen);
+                tryAggregateMod(gen, false);
             },
             [this, gen](const QString& err) {
                 if (gen != m_searchGen) return;
                 emit logMessage(tr("CurseForge 搜索失败: %1").arg(err));
-                tryAggregateMod(gen);
+                tryAggregateMod(gen, false);
             });
     }
 
@@ -272,7 +272,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
         if (gen != m_searchGen) return;
         if (m_modPending > 0) {
             m_modPending = 0;
-            tryAggregateMod(gen);
+            tryAggregateMod(gen, false);
         }
     });
 }
@@ -307,10 +307,17 @@ static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariant
     return merged;
 }
 
-void ResourceBackend::tryAggregateMod(int gen)
+void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
-    if (--m_modPending > 0) return;
+    --m_modPending;
+    if (mrDone && m_modPending > 0) {
+        // 渐进：Modrinth 先回、CF 还在途 → 先显示 Modrinth（不等 CF）
+        m_modMgr->setBusy(false);
+        emit modSearchResultsReady(m_modMrResults);
+        return;
+    }
+    if (m_modPending > 0) return;
     m_modMgr->setBusy(false);
     const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults);
     emit logMessage(tr("搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
@@ -404,12 +411,12 @@ void ResourceBackend::searchShadersEx(
         } else {
             emit logMessage(tr("光影搜索失败: HTTP %1").arg(status));
         }
-        tryAggregateShader(gen);
+        tryAggregateShader(gen, true);
     };
     const auto onMrFail = [this, gen](const QString& error) {
         if (gen != m_searchGen) return;
         emit logMessage(tr("光影搜索网络错误: %1").arg(error));
-        tryAggregateShader(gen);
+        tryAggregateShader(gen, true);
     };
     if (m_fetchEngine)
         m_fetchEngine->getJson(url.toString(), true, onMrOk, onMrFail);
@@ -424,12 +431,12 @@ void ResourceBackend::searchShadersEx(
             [this, gen](const QVariantList& items, int) {
                 if (gen != m_searchGen) return;
                 m_shaderCfResults = items;
-                tryAggregateShader(gen);
+                tryAggregateShader(gen, false);
             },
             [this, gen](const QString& err) {
                 if (gen != m_searchGen) return;
                 emit logMessage(tr("CurseForge 光影搜索失败: %1").arg(err));
-                tryAggregateShader(gen);
+                tryAggregateShader(gen, false);
             });
     }
 
@@ -437,15 +444,21 @@ void ResourceBackend::searchShadersEx(
         if (gen != m_searchGen) return;
         if (m_shaderPending > 0) {
             m_shaderPending = 0;
-            tryAggregateShader(gen);
+            tryAggregateShader(gen, false);
         }
     });
 }
 
-void ResourceBackend::tryAggregateShader(int gen)
+void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
-    if (--m_shaderPending > 0) return;
+    --m_shaderPending;
+    if (mrDone && m_shaderPending > 0) {
+        m_modMgr->setBusy(false);
+        emit shaderSearchResultsReady(m_shaderMrResults);
+        return;
+    }
+    if (m_shaderPending > 0) return;
     m_modMgr->setBusy(false);
     const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults);
     emit logMessage(tr("光影搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
@@ -551,12 +564,12 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
         } else {
             emit logMessage(tr("[RP] Modrinth 搜索失败: HTTP %1").arg(status));
         }
-        tryAggregateRp(gen);
+        tryAggregateRp(gen, true);
     };
     const auto onRpFail = [this, gen](const QString& error) {
         if (gen != m_searchGen) return;
         emit logMessage(tr("[RP] Modrinth 网络错误: %1").arg(error));
-        tryAggregateRp(gen);
+        tryAggregateRp(gen, true);
     };
     if (m_fetchEngine)
         m_fetchEngine->getJson(url.toString(), true, onRpOk, onRpFail);
@@ -569,12 +582,12 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
             [this, gen](const QVariantList& items, int) {
                 if (gen != m_searchGen) return;
                 m_rpCfResults = items;
-                tryAggregateRp(gen);
+                tryAggregateRp(gen, false);
             },
             [this, gen](const QString& err) {
                 if (gen != m_searchGen) return;
                 emit logMessage(tr("[RP] CurseForge 搜索失败: %1").arg(err));
-                tryAggregateRp(gen);
+                tryAggregateRp(gen, false);
             });
     }
 
@@ -582,15 +595,21 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
         if (gen != m_searchGen) return;
         if (m_rpPending > 0) {
             m_rpPending = 0;
-            tryAggregateRp(gen);
+            tryAggregateRp(gen, false);
         }
     });
 }
 
-void ResourceBackend::tryAggregateRp(int gen)
+void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
-    if (--m_rpPending > 0) return;
+    --m_rpPending;
+    if (mrDone && m_rpPending > 0) {
+        m_modMgr->setBusy(false);
+        emit resourcepackSearchCompleted(m_rpMrResults, m_rpMrResults.size());
+        return;
+    }
+    if (m_rpPending > 0) return;
     m_modMgr->setBusy(false);
     const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults);
     emit logMessage(tr("[RP] 搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
