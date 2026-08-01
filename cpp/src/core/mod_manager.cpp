@@ -301,8 +301,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
     if (!ShadowLauncher::suppressUrlLog())
         emit logMessage(tr("开始下载: %1").arg(dlUrl));
 
-    // Use HttpClient::download() for the actual transfer.
-    // TODO: switch to ParallelDownloader with mirror support once implemented.
+    // Use HttpClient::download() for the actual transfer (镜像优先 + 自动降级已内置).
     HttpClient::instance().downloadWithFallback(
         dlUrl, destPath,
         [this, slug](qint64 received, qint64 total) {

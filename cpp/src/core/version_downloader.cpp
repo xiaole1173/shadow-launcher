@@ -2,8 +2,8 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 // Shadow Launcher — VersionDownloader
 // Minecraft version installation pipeline: client.jar + libraries + assets.
-// Uses ParallelDownloader for concurrent multi-file downloads and
-// HttpClient for single-file asset index retrieval.
+// Uses FileDownloader (批量库文件/版本文件) + AssetDownloader (assets 专项) for concurrent
+// multi-file downloads and HttpClient for single-file asset index retrieval.
 
 #include "version_downloader.h"
 #include "engine_identity.h"
@@ -145,7 +145,7 @@ VersionDownloader::VersionDownloader(QObject* parent)
 
 VersionDownloader::~VersionDownloader()
 {
-    // ParallelDownloader is a QObject child; auto-deleted
+    // FileDownloader / AssetDownloader 均为 QObject child; auto-deleted
 }
 
 // ═══════════════════════════════════════════════════════════

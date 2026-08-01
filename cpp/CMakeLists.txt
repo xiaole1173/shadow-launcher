@@ -56,7 +56,6 @@ set(SOURCES
     src/core/logger.cpp
     src/core/version_manager.cpp
     src/core/downloader.cpp
-    src/core/parallel_downloader.cpp
     src/core/file_downloader.cpp
     src/core/asset_downloader.cpp
     src/core/version_downloader.cpp
@@ -114,7 +113,6 @@ set(HEADERS
     src/core/logger.h
     src/core/version_manager.h
     src/core/downloader.h
-    src/core/parallel_downloader.h
     src/core/file_downloader.h
     src/core/asset_downloader.h
     src/core/download_coordinator.h
