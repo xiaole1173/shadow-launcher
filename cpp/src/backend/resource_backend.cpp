@@ -220,7 +220,6 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     m_modMrResults.clear();
     m_modCfResults.clear();
     m_modPending = 0;
-    m_modFirstWaveSent = false;
     m_modMgr->setBusy(true);
 
     if (!cfOnly) {
@@ -317,17 +316,11 @@ static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariant
 
 void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
 {
+    Q_UNUSED(mrDone);
     if (gen != m_searchGen) return;
     if (m_modPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复
     --m_modPending;
-    if (mrDone && m_modPending > 0) {
-        // 渐进第一波：Modrinth 先回 → 先显示（不等 CF）
-        m_modMgr->setBusy(false);
-        m_modFirstWaveSent = true;
-        emit modSearchResultsReady(m_modMrResults);
-        return;
-    }
-    if (m_modPending > 0) return;
+    if (m_modPending > 0) return;   // 全量加载：等双源都到齐（或 8s 超时兜底）再一次性发
     m_modMgr->setBusy(false);
     if (m_modTimeoutForced) {
         m_modTimeoutForced = false;
@@ -415,7 +408,6 @@ void ResourceBackend::searchShadersEx(
     m_shaderMrResults.clear();
     m_shaderCfResults.clear();
     m_shaderPending = 0;
-    m_shaderFirstWaveSent = false;
     m_modMgr->setBusy(true);
 
     if (!ShadowLauncher::suppressUrlLog())
@@ -471,16 +463,11 @@ void ResourceBackend::searchShadersEx(
 
 void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
 {
+    Q_UNUSED(mrDone);
     if (gen != m_searchGen) return;
     if (m_shaderPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复
     --m_shaderPending;
-    if (mrDone && m_shaderPending > 0) {
-        m_modMgr->setBusy(false);
-        m_shaderFirstWaveSent = true;
-        emit shaderSearchResultsReady(m_shaderMrResults);
-        return;
-    }
-    if (m_shaderPending > 0) return;
+    if (m_shaderPending > 0) return;   // 全量加载：等双源都到齐（或 8s 超时兜底）再一次性发
     m_modMgr->setBusy(false);
     if (m_shaderTimeoutForced) {
         m_shaderTimeoutForced = false;
@@ -539,7 +526,6 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
     m_rpMrResults.clear();
     m_rpCfResults.clear();
     m_rpPending = 0;
-    m_rpFirstWaveSent = false;
     m_modMgr->setBusy(true);
 
     // Modrinth：直连 mcimirror（facet: project_type=resourcepack）
@@ -633,16 +619,11 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
 
 void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
 {
+    Q_UNUSED(mrDone);
     if (gen != m_searchGen) return;
     if (m_rpPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复
     --m_rpPending;
-    if (mrDone && m_rpPending > 0) {
-        m_modMgr->setBusy(false);
-        m_rpFirstWaveSent = true;
-        emit resourcepackSearchCompleted(m_rpMrResults, m_rpMrResults.size());
-        return;
-    }
-    if (m_rpPending > 0) return;
+    if (m_rpPending > 0) return;   // 全量加载：等双源都到齐（或 8s 超时兜底）再一次性发
     m_modMgr->setBusy(false);
     if (m_rpTimeoutForced) {
         m_rpTimeoutForced = false;
