@@ -21,6 +21,42 @@
 
 namespace ShadowLauncher {
 
+// ── 双源去重合并：Modrinth 优先（同名模组 CF 不展示），按加权下载量降序混排 ──
+// 加权依据（实测 2026-08-02）：Modrinth 头部下载量约为 CF 的 1/2~1/3（Fabric API 2.2亿 vs JEI 6亿），
+// Modrinth×2.5 可达到前 10 约 5/5 均衡混合（×1.5 CF 霸榜、×3 Modrinth 反霸、×5 完全淹没 CF）
+static QString normTitle(const QString& s)
+{
+    QString n = s.toLower();
+    n.remove(QRegularExpression(QStringLiteral("[^a-z0-9]")));
+    return n;
+}
+static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems, double mrMult)
+{
+    QSet<QString> seen;
+    QVariantList merged;
+    auto appendDedup = [&](const QVariantList& items) {
+        for (const QVariant& v : items) {
+            const QVariantMap m = v.toMap();
+            const QString key = normTitle(m.value(QStringLiteral("title")).toString());
+            if (key.isEmpty()) { merged.append(v); continue; }
+            if (seen.contains(key)) continue;
+            seen.insert(key);
+            merged.append(v);
+        }
+    };
+    appendDedup(mrItems);  // Modrinth 先（优先保留）
+    appendDedup(cfItems);  // CF 只补充特有
+    std::sort(merged.begin(), merged.end(), [mrMult](const QVariant& a, const QVariant& b) {
+        auto w = [mrMult](const QVariant& v) {
+            const QVariantMap m = v.toMap();
+            const double d = m.value(QStringLiteral("downloads")).toDouble();
+            return m.value(QStringLiteral("source")).toString() == QStringLiteral("CurseForge") ? d : d * mrMult;
+        };
+        return w(a) > w(b);
+    });
+    return merged;
+}
+
 // ============================================================
 // Constructor / Destructor
 // ============================================================
@@ -141,42 +177,81 @@ void ResourceBackend::searchMods(const QString& query, const QString& loader)
 void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     const QString& category, const QStringList& gameVersions,
     const QString& environment, const QString& license,
-    int offset, int limit)
+    int page, int limit)
 {
+    // ═══ 池子架构（对齐 主流启动器）：双源结果累积成池，翻页时续拉合并 ═══
+    // 页与页之间保持全局加权排序连续性：池 = 已拉双源的去重+加权排序全量。
     m_searchKind = SearchKind::Mod;
-    QStringList loaders;
-    if (!loader.isEmpty())
-        loaders << loader;
+    const QString key = query + QLatin1Char('|') + loader + QLatin1Char('|') + category
+                      + QLatin1Char('|') + gameVersions.join(QLatin1Char(',')) + QLatin1Char('|')
+                      + environment + QLatin1Char('|') + license;
+    m_modSearchPage = page;
+    m_modSearchLimit = limit;
 
-    // Build Modrinth facets as OR groups:
-    // [["project_type:mod"], ["categories:X"], ["client_side:required"], ["license:mit",...]]
-    QJsonArray facetArr;
+    const bool cfOnly = CfApi::isCfCategory(category);
+    const bool mrOnly = !cfOnly && !category.isEmpty();
+    m_modSearchCfOnly = cfOnly;
+    m_modSearchMrOnly = mrOnly;
+    m_modSearchQuery = query;
+    m_modSearchLoader = loader;
+    m_modSearchCategory = category;
+    m_modSearchEnv = environment;
+    m_modSearchLic = license;
+    m_modSearchVersions = gameVersions;
 
-    // Base: project_type = mod
-    facetArr.append(QJsonArray{QStringLiteral("project_type:mod")});
-
-    // Category (single, OR with project_type)
-    if (!category.isEmpty()) {
-        facetArr.append(QJsonArray{QStringLiteral("categories:") + category});
+    // 搜索词/条件变化 → 重置池子与游标
+    if (key != m_modSearchKey) {
+        ++m_searchGen;   // 新搜索代次：旧响应全部作废
+        m_modSearchKey = key;
+        m_modPool.clear();
+        m_modMrAll.clear();
+        m_modCfAll.clear();
+        m_modMrOffset = 0;
+        m_modCfOffset = 0;
+        m_modMrMore = true;
+        m_modCfMore = true;
+        m_mrFallbackUsed = false;
+        emit logMessage(tr("[池子] Mod 搜索重置: q=%1 offset=%2 limit=%3").arg(query).arg(page * limit).arg(limit));
     }
 
-    // Game versions — OR group
+    // 确保池子足够显示目标页（池不够 → 双源续拉；池够 → 直接发）
+    ensureModPool(cfOnly, mrOnly, query, loader, category, gameVersions, environment, license);
+}
+
+// 池子驱动：Mod 双源续拉 + 合并 + 发信号
+void ResourceBackend::ensureModPool(bool cfOnly, bool mrOnly,
+    const QString& query, const QString& loader, const QString& category,
+    const QStringList& gameVersions, const QString& environment, const QString& license)
+{
+    const int need = (m_modSearchPage + 1) * m_modSearchLimit;
+    if (m_modPending > 0) return;  // 上一轮还没回完，等回调
+
+    // 池已够或双源都耗尽 → 直接发当前池
+    if (m_modPool.size() >= need || (!m_modMrMore && !m_modCfMore)) {
+        emitModPool();
+        return;
+    }
+
+    // 双源各拉一页（从各自游标继续）
+    const int gen = m_searchGen;
+    QStringList loaders;
+    if (!loader.isEmpty()) loaders << loader;
+    QJsonArray facetArr;
+    facetArr.append(QJsonArray{QStringLiteral("project_type:mod")});
+    if (!category.isEmpty())
+        facetArr.append(QJsonArray{QStringLiteral("categories:") + category});
     if (!gameVersions.isEmpty()) {
         QJsonArray verGroup;
         for (const QString& v : gameVersions)
             verGroup.append(QStringLiteral("versions:") + v);
         facetArr.append(verGroup);
     }
-
-    // Environment
     if (!environment.isEmpty()) {
         if (environment == QStringLiteral("client"))
             facetArr.append(QJsonArray{QStringLiteral("client_side:required")});
         else if (environment == QStringLiteral("server"))
             facetArr.append(QJsonArray{QStringLiteral("server_side:required")});
     }
-
-    // License — OR group of common open source licenses
     if (license == QStringLiteral("open_source")) {
         QJsonArray licGroup;
         licGroup.append(QStringLiteral("license:mit"));
@@ -188,94 +263,83 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
         licGroup.append(QStringLiteral("license:unlicense"));
         facetArr.append(licGroup);
     }
-
-    emit logMessage(tr("[搜索] 搜索Mod(ex): q=%1 loader=%2 cat=%3 ver=%4 env=%5 lic=%6 offset=%7")
-                        .arg(query, loader, category, gameVersions.join(','),
-                             environment, license).arg(offset));
-
-    // Build URL directly (bypass searchModrinthProjects for proper facet handling)
-    QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
-    QUrlQuery params;
-    if (!query.isEmpty())
-        params.addQueryItem(QStringLiteral("query"), query);
-    // Add loaders as separate OR group
     if (!loaders.isEmpty()) {
         QJsonArray ldGroup;
         for (const QString& l : loaders)
             ldGroup.append(QStringLiteral("categories:") + l);
         facetArr.append(ldGroup);
     }
-    params.addQueryItem(QStringLiteral("facets"),
-                        QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
-    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
-    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
-    params.addQueryItem(QStringLiteral("index"), QStringLiteral("relevance"));
-    url.setQuery(params);
 
-    // ── 双源聚合：Modrinth + CurseForge ──
-    // 分类值 "cf:xxx" → 仅 CF；Modrinth 分类 → 仅 Modrinth；空 → 双源
-    const bool cfOnly = CfApi::isCfCategory(category);
-    const bool mrOnly = !cfOnly && !category.isEmpty();
-    const int cfCatId = CfApi::cfCategoryId(category);
-    const int gen = ++m_searchGen;
-    m_modMrResults.clear();
-    m_modCfResults.clear();
     m_modPending = 0;
-    m_modEmitted = false;
-    m_mrFallbackUsed = false;
     m_modMgr->setBusy(true);
 
-    if (!cfOnly) {
-        // Modrinth（facet 已按原分类构造；cf: 分类时跳过）
-        if (!ShadowLauncher::suppressUrlLog())
-            emit logMessage(tr("请求URL: %1").arg(url.toString()));
+    // ── Modrinth（游标续拉）──
+    if (!cfOnly && m_modMrMore) {
+        QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+        QUrlQuery params;
+        if (!query.isEmpty())
+            params.addQueryItem(QStringLiteral("query"), query);
+        params.addQueryItem(QStringLiteral("facets"),
+                            QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+        params.addQueryItem(QStringLiteral("offset"), QString::number(m_modMrOffset));
+        params.addQueryItem(QStringLiteral("limit"), QString::number(m_modSearchLimit));
+        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        url.setQuery(params);
         ++m_modPending;
         const auto onMrOk = [this, gen, url](int status, const QByteArray& body) {
             if (gen != m_searchGen) return;
             if (status == 200) {
                 int totalHits = 0;
                 QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
-                // 镜像异常空：HTTP 200 但 total=0（镜像 Modrinth 代理故障时 facets 查询稳定返回空）
-                // → 降级官方 API 重试（官方 facets 正常：total≈7 万）
-                if (totalHits == 0 && results.isEmpty() && m_mrFallbackUsed == false) {
+                // 镜像异常空 → 降级官方
+                if (totalHits == 0 && results.isEmpty() && !m_mrFallbackUsed) {
                     m_mrFallbackUsed = true;
                     emit logMessage(tr("Modrinth 镜像返回空(异常)，降级官方 API"));
                     QUrl fbUrl = url;
                     fbUrl.setHost(QStringLiteral("api.modrinth.com"));
+                    fbUrl.setPath(QStringLiteral("/v2/search"));
                     fbUrl.setScheme(QStringLiteral("https"));
                     const auto onFbOk = [this, gen](int s2, const QByteArray& b2) {
                         if (gen != m_searchGen) return;
                         if (s2 == 200) {
                             int t2 = 0;
                             QJsonArray r2 = m_modMgr->parseSearchResponse(b2, t2);
-                            m_modMrResults = parseSearchResponseItems(r2);
-                            emit logMessage(tr("官方降级成功: %1 条").arg(m_modMrResults.size()));
+                            m_modMrAll.append(parseSearchResponseItems(r2));
+                            m_modMrOffset += r2.size();
+                            m_modMrMore = m_modMrOffset < t2;
+                            emit logMessage(tr("官方降级成功: +%1 条").arg(r2.size()));
                         } else {
+                            m_modMrMore = false;
                             emit logMessage(tr("Modrinth 官方降级失败: HTTP %1").arg(s2));
                         }
-                        tryAggregateMod(gen);
+                        onModSourceDone(gen);
                     };
                     const auto onFbFail = [this, gen](const QString& e2) {
                         if (gen != m_searchGen) return;
+                        m_modMrMore = false;
                         emit logMessage(tr("Modrinth 官方降级网络错误: %1").arg(e2));
-                        tryAggregateMod(gen);
+                        onModSourceDone(gen);
                     };
                     if (m_fetchEngine)
                         m_fetchEngine->getJson(fbUrl.toString(), true, onFbOk, onFbFail);
                     else
                         HttpClient::instance().get(fbUrl.toString(), onFbOk, onFbFail);
-                    return;  // 等待降级结果再聚合
+                    return;  // 等待降级回调 onModSourceDone
                 }
-                m_modMrResults = parseSearchResponseItems(results);
+                m_modMrAll.append(parseSearchResponseItems(results));
+                m_modMrOffset += results.size();
+                m_modMrMore = m_modMrOffset < totalHits;
             } else {
+                m_modMrMore = false;
                 emit logMessage(tr("Modrinth 搜索失败: HTTP %1").arg(status));
             }
-            tryAggregateMod(gen);
+            onModSourceDone(gen);
         };
         const auto onMrFail = [this, gen](const QString& error) {
             if (gen != m_searchGen) return;
+            m_modMrMore = false;
             emit logMessage(tr("Modrinth 网络错误: %1").arg(error));
-            tryAggregateMod(gen);
+            onModSourceDone(gen);
         };
         if (m_fetchEngine)
             m_fetchEngine->getJson(url.toString(), true, onMrOk, onMrFail);
@@ -283,35 +347,70 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
             HttpClient::instance().get(url.toString(), onMrOk, onMrFail);
     }
 
-    if (m_cfApi && (!mrOnly || cfOnly)) {
-        // CurseForge（cfOnly 或双源）
+    // ── CurseForge（游标续拉）──
+    if (m_cfApi && (!mrOnly || cfOnly) && m_modCfMore) {
         ++m_modPending;
-        m_cfApi->search(6, query, cfCatId,
+        m_cfApi->search(6, query, CfApi::cfCategoryId(category),
                         gameVersions.isEmpty() ? QString() : gameVersions.first(),
-                        loader, offset, limit,
-            [this, gen](const QVariantList& items, int) {
+                        loader, m_modCfOffset, m_modSearchLimit,
+            [this, gen](const QVariantList& items, int total) {
                 if (gen != m_searchGen) return;
-                m_modCfResults = items;
-                tryAggregateMod(gen);
+                m_modCfAll.append(items);
+                m_modCfOffset += items.size();
+                m_modCfMore = m_modCfOffset < total;
+                onModSourceDone(gen);
             },
             [this, gen](const QString& err) {
                 if (gen != m_searchGen) return;
+                m_modCfMore = false;
                 emit logMessage(tr("CurseForge 搜索失败: %1").arg(err));
-                tryAggregateMod(gen);
+                onModSourceDone(gen);
             });
     }
 
-    // 超时兜底：任一源 8s 未回 → 强制聚合（已回部分）
-    // 例外：Modrinth 降级官方进行中（镜像异常空）——不打断，等降级完成
-    // （降级请求自身有 8s 超时 + 1 次重试，最多 ~16s 必然返回）
-    QTimer::singleShot(8000, this, [this, gen]() {
-        if (gen != m_searchGen) return;
-        if (m_modPending > 0 && !m_mrFallbackUsed) {
-            m_modPending = 0;
-            tryAggregateMod(gen);
-        }
-    });
+    // 单源模式（cfOnly 只有 CF；mrOnly 只有 Modrinth）时确保有请求
+    if (m_modPending == 0) {
+        // 无可发请求（该源已耗尽或不可用）→ 直接发当前池
+        emitModPool();
+    } else {
+        // 超时兜底：8s 未回 → 发当前池（防无限等待）
+        QTimer::singleShot(8000, this, [this, gen]() {
+            if (gen != m_searchGen) return;
+            if (m_modPending > 0) {
+                m_modPending = 0;
+                emitModPool();
+            }
+        });
+    }
 }
+
+// 单源回调汇聚：一轮源都回后，合并入池、检查是否需要继续拉、发信号
+void ResourceBackend::onModSourceDone(int gen)
+{
+    if (gen != m_searchGen) return;
+    if (--m_modPending > 0) return;  // 等两个源都回
+    m_modMgr->setBusy(false);
+    // 合并入池：去重 + 加权排序
+    m_modPool = mergeDedupSorted(m_modMrAll, m_modCfAll, 2.5);
+    emit logMessage(tr("[池子] Mod 合并: MR %1 + CF %2 → 池 %3 条")
+                        .arg(m_modMrAll.size()).arg(m_modCfAll.size()).arg(m_modPool.size()));
+    // 检查是否还需继续拉（池不够目标页 且 源未耗尽）
+    const int need = (m_modSearchPage + 1) * m_modSearchLimit;
+    if (m_modPool.size() < need && (m_modMrMore || m_modCfMore)) {
+        ensureModPool(m_modSearchCfOnly, m_modSearchMrOnly,
+                      m_modSearchQuery, m_modSearchLoader, m_modSearchCategory,
+                      m_modSearchVersions, m_modSearchEnv, m_modSearchLic);
+        return;
+    }
+    emitModPool();
+}
+
+void ResourceBackend::emitModPool()
+{
+    m_modMgr->setBusy(false);
+    emit modSearchResultsReady(m_modPool);
+}
+
 
 // ── 翻页预取：只预热司南引擎缓存，不碰 gen/pending/emit ──
 // 旧实现让预取复用 searchModsEx：预取会 ++m_searchGen 并重置 pending，
@@ -404,55 +503,6 @@ void ResourceBackend::prefetchResourcepacks(const QString& query, const QString&
         [](const QString&) { /* 静默 */ });
 }
 
-// ── 双源去重合并：Modrinth 优先（同名模组 CF 不展示），按加权下载量降序混排 ──
-// 加权依据（实测 2026-08-02）：Modrinth 头部下载量约为 CF 的 1/2~1/3（Fabric API 2.2亿 vs JEI 6亿），
-// Modrinth×2.5 可达到前 10 约 5/5 均衡混合（×1.5 CF 霸榜、×3 Modrinth 反霸、×5 完全淹没 CF）
-static QString normTitle(const QString& s)
-{
-    QString n = s.toLower();
-    n.remove(QRegularExpression(QStringLiteral("[^a-z0-9]")));
-    return n;
-}
-static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems, double mrMult)
-{
-    QSet<QString> seen;
-    QVariantList merged;
-    auto appendDedup = [&](const QVariantList& items) {
-        for (const QVariant& v : items) {
-            const QVariantMap m = v.toMap();
-            const QString key = normTitle(m.value(QStringLiteral("title")).toString());
-            if (key.isEmpty()) { merged.append(v); continue; }
-            if (seen.contains(key)) continue;
-            seen.insert(key);
-            merged.append(v);
-        }
-    };
-    appendDedup(mrItems);  // Modrinth 先（优先保留）
-    appendDedup(cfItems);  // CF 只补充特有
-    std::sort(merged.begin(), merged.end(), [mrMult](const QVariant& a, const QVariant& b) {
-        auto w = [mrMult](const QVariant& v) {
-            const QVariantMap m = v.toMap();
-            const double d = m.value(QStringLiteral("downloads")).toDouble();
-            return m.value(QStringLiteral("source")).toString() == QStringLiteral("CurseForge") ? d : d * mrMult;
-        };
-        return w(a) > w(b);
-    });
-    return merged;
-}
-
-void ResourceBackend::tryAggregateMod(int gen)
-{
-    if (gen != m_searchGen) return;
-    if (m_modEmitted) return;        // 本代已发过（超时兜底后迟到响应）：防二次刷新
-    if (m_modPending > 0 && --m_modPending > 0) return;  // 还有源未回；pending 已被超时清零(0)则直接发
-    m_modMgr->setBusy(false);
-    m_modEmitted = true;
-    const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults, 2.5);
-    emit logMessage(tr("搜索完成: Modrinth %1 条 + CurseForge %2 条 → %3 条")
-                        .arg(m_modMrResults.size()).arg(m_modCfResults.size()).arg(merged.size()));
-    emit modSearchResultsReady(merged);
-}
-
 QVariantMap ResourceBackend::getModCategories()
 {
     QVariantMap map;
@@ -483,19 +533,54 @@ void ResourceBackend::searchShadersEx(
     const QStringList& categories, const QStringList& performance,
     const QStringList& loader, int offset, int limit)
 {
-    emit logMessage(tr("[SHADER] 搜索光影: q=%1 vers=%2 cats=%3 perf=%4 loader=%5 offset=%6").arg(
-        query, gameVersions.join(","), categories.join(","),
-        performance.join(","), loader.join(",")).arg(offset));
+    // ═══ 池子架构（对齐 主流启动器）═══
+    const QString key = query + QLatin1Char('|') + gameVersions.join(QLatin1Char(','))
+                      + QLatin1Char('|') + categories.join(QLatin1Char(','))
+                      + QLatin1Char('|') + performance.join(QLatin1Char(','))
+                      + QLatin1Char('|') + loader.join(QLatin1Char(','));
+    m_shaderSearchPage = limit > 0 ? offset / limit : 0;
+    m_shaderSearchLimit = limit;
+    m_shaderSearchQuery = query;
+    m_shaderSearchVersions = gameVersions;
+    m_shaderSearchCats = categories;
+    m_shaderSearchPerf = performance;
+    m_shaderSearchLoader = loader;
 
-    // ═══ 串台修复（2026-08-01）：与 searchModsEx 对称，HttpClient 直连 +
-    // 硬编码发射 shaderSearchResultsReady，完全绕开 ModManager::searchCompleted
-    // 与 m_searchKind 共享标志。原实现走 ModManager 信号 + m_searchKind 路由：
-    // 并发搜索时（Mod 页与光影页先后触发），后发请求覆盖 m_searchKind，
-    // 导致光影响应被路由到 modSearchResultsReady（Mod 页显示光影）/反之。
-    // 直连后两条路径物理隔离，无任何共享状态，互串彻底消除。
+    if (key != m_shaderSearchKey) {
+        ++m_searchGen;   // 新搜索代次：旧响应全部作废
+        m_shaderSearchKey = key;
+        m_shaderPool.clear();
+        m_shaderMrAll.clear();
+        m_shaderCfAll.clear();
+        m_shaderMrOffset = 0;
+        m_shaderCfOffset = 0;
+        m_shaderMrMore = true;
+        m_shaderCfMore = true;
+        m_shaderFallbackUsed = false;
+        emit logMessage(tr("[池子] 光影搜索重置: offset=%1 limit=%2").arg(offset).arg(limit));
+    }
+    ensureShaderPool();
+}
+
+// 池子驱动：光影双源续拉 + 合并 + 发信号
+void ResourceBackend::ensureShaderPool()
+{
+    const int need = (m_shaderSearchPage + 1) * m_shaderSearchLimit;
+    if (m_shaderPending > 0) return;
+    if (m_shaderPool.size() >= need || (!m_shaderMrMore && !m_shaderCfMore)) {
+        emitShaderPool();
+        return;
+    }
+
+    const int gen = m_searchGen;
+    const QString& query = m_shaderSearchQuery;
+    const QStringList& gameVersions = m_shaderSearchVersions;
+    const QStringList& categories = m_shaderSearchCats;
+    const QStringList& performance = m_shaderSearchPerf;
+    const QStringList& loader = m_shaderSearchLoader;
+
     QJsonArray facetArr;
     facetArr.append(QJsonArray{QStringLiteral("project_type:shader")});
-    // 每个过滤条件独立成组（AND 语义，与原 ModManager 路径行为一致）
     for (const QString& c : categories)
         facetArr.append(QJsonArray{QStringLiteral("categories:") + c});
     for (const QString& p : performance)
@@ -509,119 +594,137 @@ void ResourceBackend::searchShadersEx(
         facetArr.append(verGroup);
     }
 
-    QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
-    QUrlQuery params;
-    if (!query.isEmpty())
-        params.addQueryItem(QStringLiteral("query"), query);
-    params.addQueryItem(QStringLiteral("facets"),
-                        QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
-    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
-    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
-    params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
-    url.setQuery(params);
-
-    // ── 双源聚合：Modrinth + CurseForge（光影 classId=6552，加载器/版本过滤）──
-    const int gen = ++m_searchGen;
-    m_shaderMrResults.clear();
-    m_shaderCfResults.clear();
     m_shaderPending = 0;
-    m_shaderEmitted = false;
-    m_shaderFallbackUsed = false;
     m_modMgr->setBusy(true);
 
-    if (!ShadowLauncher::suppressUrlLog())
-        emit logMessage(tr("请求URL: %1").arg(url.toString()));
-    ++m_shaderPending;
-    const auto onMrOk = [this, gen, url](int status, const QByteArray& body) {
-        if (gen != m_searchGen) return;
-        if (status == 200) {
-            int totalHits = 0;
-            QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
-            // 镜像异常空 → 降级官方（与 Mod 搜索一致）
-            if (totalHits == 0 && results.isEmpty() && !m_shaderFallbackUsed) {
-                m_shaderFallbackUsed = true;
-                emit logMessage(tr("光影镜像返回空(异常)，降级官方 API"));
-                QUrl fbUrl = url;
-                fbUrl.setHost(QStringLiteral("api.modrinth.com"));
-                fbUrl.setScheme(QStringLiteral("https"));
-                const auto onFbOk = [this, gen](int s2, const QByteArray& b2) {
-                    if (gen != m_searchGen) return;
-                    if (s2 == 200) {
-                        int t2 = 0;
-                        QJsonArray r2 = m_modMgr->parseSearchResponse(b2, t2);
-                        m_shaderMrResults = parseSearchResponseItems(r2);
-                        emit logMessage(tr("光影官方降级成功: %1 条").arg(m_shaderMrResults.size()));
-                    } else {
-                        emit logMessage(tr("光影官方降级失败: HTTP %1").arg(s2));
-                    }
-                    tryAggregateShader(gen);
-                };
-                const auto onFbFail = [this, gen](const QString& e2) {
-                    if (gen != m_searchGen) return;
-                    emit logMessage(tr("光影官方降级网络错误: %1").arg(e2));
-                    tryAggregateShader(gen);
-                };
-                if (m_fetchEngine)
-                    m_fetchEngine->getJson(fbUrl.toString(), true, onFbOk, onFbFail);
-                else
-                    HttpClient::instance().get(fbUrl.toString(), onFbOk, onFbFail);
-                return;
+    if (m_shaderMrMore) {
+        QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+        QUrlQuery params;
+        if (!query.isEmpty())
+            params.addQueryItem(QStringLiteral("query"), query);
+        params.addQueryItem(QStringLiteral("facets"),
+                            QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+        params.addQueryItem(QStringLiteral("offset"), QString::number(m_shaderMrOffset));
+        params.addQueryItem(QStringLiteral("limit"), QString::number(m_shaderSearchLimit));
+        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        url.setQuery(params);
+        ++m_shaderPending;
+        const auto onMrOk = [this, gen, url](int status, const QByteArray& body) {
+            if (gen != m_searchGen) return;
+            if (status == 200) {
+                int totalHits = 0;
+                QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
+                if (totalHits == 0 && results.isEmpty() && !m_shaderFallbackUsed) {
+                    m_shaderFallbackUsed = true;
+                    emit logMessage(tr("光影镜像返回空(异常)，降级官方 API"));
+                    QUrl fbUrl = url;
+                    fbUrl.setHost(QStringLiteral("api.modrinth.com"));
+                    fbUrl.setPath(QStringLiteral("/v2/search"));
+                    fbUrl.setScheme(QStringLiteral("https"));
+                    const auto onFbOk = [this, gen](int s2, const QByteArray& b2) {
+                        if (gen != m_searchGen) return;
+                        if (s2 == 200) {
+                            int t2 = 0;
+                            QJsonArray r2 = m_modMgr->parseSearchResponse(b2, t2);
+                            m_shaderMrAll.append(parseSearchResponseItems(r2));
+                            m_shaderMrOffset += r2.size();
+                            m_shaderMrMore = m_shaderMrOffset < t2;
+                            emit logMessage(tr("光影官方降级成功: +%1 条").arg(r2.size()));
+                        } else {
+                            m_shaderMrMore = false;
+                            emit logMessage(tr("光影官方降级失败: HTTP %1").arg(s2));
+                        }
+                        onShaderSourceDone(gen);
+                    };
+                    const auto onFbFail = [this, gen](const QString& e2) {
+                        if (gen != m_searchGen) return;
+                        m_shaderMrMore = false;
+                        emit logMessage(tr("光影官方降级网络错误: %1").arg(e2));
+                        onShaderSourceDone(gen);
+                    };
+                    if (m_fetchEngine)
+                        m_fetchEngine->getJson(fbUrl.toString(), true, onFbOk, onFbFail);
+                    else
+                        HttpClient::instance().get(fbUrl.toString(), onFbOk, onFbFail);
+                    return;
+                }
+                m_shaderMrAll.append(parseSearchResponseItems(results));
+                m_shaderMrOffset += results.size();
+                m_shaderMrMore = m_shaderMrOffset < totalHits;
+            } else {
+                m_shaderMrMore = false;
+                emit logMessage(tr("光影搜索失败: HTTP %1").arg(status));
             }
-            m_shaderMrResults = parseSearchResponseItems(results);
-        } else {
-            emit logMessage(tr("光影搜索失败: HTTP %1").arg(status));
-        }
-        tryAggregateShader(gen);
-    };
-    const auto onMrFail = [this, gen](const QString& error) {
-        if (gen != m_searchGen) return;
-        emit logMessage(tr("光影搜索网络错误: %1").arg(error));
-        tryAggregateShader(gen);
-    };
-    if (m_fetchEngine)
-        m_fetchEngine->getJson(url.toString(), true, onMrOk, onMrFail);
-    else
-        HttpClient::instance().get(url.toString(), onMrOk, onMrFail);
+            onShaderSourceDone(gen);
+        };
+        const auto onMrFail = [this, gen](const QString& error) {
+            if (gen != m_searchGen) return;
+            m_shaderMrMore = false;
+            emit logMessage(tr("光影搜索网络错误: %1").arg(error));
+            onShaderSourceDone(gen);
+        };
+        if (m_fetchEngine)
+            m_fetchEngine->getJson(url.toString(), true, onMrOk, onMrFail);
+        else
+            HttpClient::instance().get(url.toString(), onMrOk, onMrFail);
+    }
 
-    if (m_cfApi) {
+    if (m_cfApi && m_shaderCfMore) {
         ++m_shaderPending;
         m_cfApi->search(6552, query, 0,
                         gameVersions.isEmpty() ? QString() : gameVersions.first(),
-                        loader.isEmpty() ? QString() : loader.first(), offset, limit,
-            [this, gen](const QVariantList& items, int) {
+                        loader.isEmpty() ? QString() : loader.first(),
+                        m_shaderCfOffset, m_shaderSearchLimit,
+            [this, gen](const QVariantList& items, int total) {
                 if (gen != m_searchGen) return;
-                m_shaderCfResults = items;
-                tryAggregateShader(gen);
+                m_shaderCfAll.append(items);
+                m_shaderCfOffset += items.size();
+                m_shaderCfMore = m_shaderCfOffset < total;
+                onShaderSourceDone(gen);
             },
             [this, gen](const QString& err) {
                 if (gen != m_searchGen) return;
+                m_shaderCfMore = false;
                 emit logMessage(tr("CurseForge 光影搜索失败: %1").arg(err));
-                tryAggregateShader(gen);
+                onShaderSourceDone(gen);
             });
     }
 
-    QTimer::singleShot(8000, this, [this, gen]() {
-        if (gen != m_searchGen) return;
-        // Modrinth 降级官方进行中：不打断，等降级完成
-        if (m_shaderPending > 0 && !m_shaderFallbackUsed) {
-            m_shaderPending = 0;
-            tryAggregateShader(gen);
-        }
-    });
+    if (m_shaderPending == 0) {
+        emitShaderPool();
+    } else {
+        QTimer::singleShot(8000, this, [this, gen]() {
+            if (gen != m_searchGen) return;
+            if (m_shaderPending > 0) {
+                m_shaderPending = 0;
+                emitShaderPool();
+            }
+        });
+    }
 }
 
-void ResourceBackend::tryAggregateShader(int gen)
+void ResourceBackend::onShaderSourceDone(int gen)
 {
     if (gen != m_searchGen) return;
-    if (m_shaderEmitted) return;        // 本代已发过：防二次刷新
-    if (m_shaderPending > 0 && --m_shaderPending > 0) return;
+    if (--m_shaderPending > 0) return;
     m_modMgr->setBusy(false);
-    m_shaderEmitted = true;
-    const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults, 2.5);
-    emit logMessage(tr("光影搜索完成: Modrinth %1 条 + CurseForge %2 条 → %3 条")
-                        .arg(m_shaderMrResults.size()).arg(m_shaderCfResults.size()).arg(merged.size()));
-    emit shaderSearchResultsReady(merged);
+    m_shaderPool = mergeDedupSorted(m_shaderMrAll, m_shaderCfAll, 2.5);
+    emit logMessage(tr("[池子] 光影合并: MR %1 + CF %2 → 池 %3 条")
+                        .arg(m_shaderMrAll.size()).arg(m_shaderCfAll.size()).arg(m_shaderPool.size()));
+    const int need = (m_shaderSearchPage + 1) * m_shaderSearchLimit;
+    if (m_shaderPool.size() < need && (m_shaderMrMore || m_shaderCfMore)) {
+        ensureShaderPool();
+        return;
+    }
+    emitShaderPool();
 }
+
+void ResourceBackend::emitShaderPool()
+{
+    m_modMgr->setBusy(false);
+    emit shaderSearchResultsReady(m_shaderPool);
+}
+
 
 // ============================================================
 // Public Slots — Download
@@ -660,165 +763,221 @@ void ResourceBackend::downloadShader(const QString& slug, const QString& gameVer
 
 void ResourceBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories)
 {
-    emit logMessage(tr("[RP] 搜索资源包: q=%1 gv=%2 offset=%3 cats=%4").arg(query, gameVersion).arg(offset).arg(categories.join(QChar(','))));
+    // ═══ 池子架构（对齐 主流启动器）═══
+    const QString key = query + QLatin1Char('|') + gameVersion + QLatin1Char('|')
+                      + categories.join(QLatin1Char(','));
+    m_rpSearchPage = 20 > 0 ? offset / 20 : 0;
+    m_rpSearchLimit = 20;
+    m_rpSearchQuery = query;
+    m_rpSearchVersion = gameVersion;
+    m_rpSearchCats = categories;
 
-    // ── 双源聚合：Modrinth 直连 + CurseForge（classId=12）──
-    const int gen = ++m_searchGen;
-    m_rpMrResults.clear();
-    m_rpCfResults.clear();
-    m_rpPending = 0;
-    m_rpEmitted = false;
-    m_rpFallbackUsed = false;
-    m_modMgr->setBusy(true);
+    if (key != m_rpSearchKey) {
+        ++m_searchGen;   // 新搜索代次：旧响应全部作废
+        m_rpSearchKey = key;
+        m_rpPool.clear();
+        m_rpMrAll.clear();
+        m_rpCfAll.clear();
+        m_rpMrOffset = 0;
+        m_rpCfOffset = 0;
+        m_rpMrMore = true;
+        m_rpCfMore = true;
+        m_rpFallbackUsed = false;
+        emit logMessage(tr("[池子] 资源包搜索重置: offset=%1").arg(offset));
+    }
+    ensureRpPool();
+}
 
-    // Modrinth：直连 mcimirror（facet: project_type=resourcepack）
+void ResourceBackend::ensureRpPool()
+{
+    const int need = (m_rpSearchPage + 1) * m_rpSearchLimit;
+    if (m_rpPending > 0) return;
+    if (m_rpPool.size() >= need || (!m_rpMrMore && !m_rpCfMore)) {
+        emitRpPool();
+        return;
+    }
+
+    const int gen = m_searchGen;
+    const QString& query = m_rpSearchQuery;
+    const QString& gameVersion = m_rpSearchVersion;
+    const QStringList& categories = m_rpSearchCats;
+
     QJsonArray facetArr;
     facetArr.append(QJsonArray{QStringLiteral("project_type:resourcepack")});
     if (!gameVersion.isEmpty())
         facetArr.append(QJsonArray{QStringLiteral("versions:") + gameVersion});
     for (const QString& c : categories)
         facetArr.append(QJsonArray{QStringLiteral("categories:") + c});
-    QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
-    QUrlQuery params;
-    if (!query.isEmpty())
-        params.addQueryItem(QStringLiteral("query"), query);
-    params.addQueryItem(QStringLiteral("facets"), QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
-    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
-    params.addQueryItem(QStringLiteral("limit"), QString::number(20));
-    params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
-    url.setQuery(params);
 
-    ++m_rpPending;
-    const auto onRpOk = [this, gen, url](int status, const QByteArray& body) {
-        if (gen != m_searchGen) return;
-        if (status == 200) {
-            int total = 0;
-            QJsonArray hits = m_modMgr->parseSearchResponse(body, total);
-            // 镜像异常空 → 降级官方（与 Mod/光影一致）
-            if (total == 0 && hits.isEmpty() && !m_rpFallbackUsed) {
-                m_rpFallbackUsed = true;
-                emit logMessage(tr("[RP] 镜像返回空(异常)，降级官方 API"));
-                QUrl fbUrl = url;
-                fbUrl.setHost(QStringLiteral("api.modrinth.com"));
-                fbUrl.setScheme(QStringLiteral("https"));
-                const auto onFbOk = [this, gen](int s2, const QByteArray& b2) {
-                    if (gen != m_searchGen) return;
-                    if (s2 == 200) {
-                        int t2 = 0;
-                        QJsonArray r2 = m_modMgr->parseSearchResponse(b2, t2);
-                        QVariantList l2;
-                        for (const QJsonValue& item : r2) {
-                            const QJsonObject obj = item.toObject();
-                            QVariantMap entry;
-                            entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
-                            entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
-                            entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
-                            entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
-                            entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
-                            entry[QStringLiteral("author")]    = obj[QStringLiteral("author")].toString();
-                            entry[QStringLiteral("updated")]   = obj[QStringLiteral("updated")].toString();
-                            entry[QStringLiteral("source")]    = QStringLiteral("Modrinth");
-                            entry[QStringLiteral("categories")]  = QVariantList{};
-                            entry[QStringLiteral("features")]    = QVariantList{};
-                            entry[QStringLiteral("resolutions")] = QVariantList{};
-                            l2.append(entry);
-                        }
-                        m_rpMrResults = l2;
-                        emit logMessage(tr("[RP] 官方降级成功: %1 条").arg(l2.size()));
-                    } else {
-                        emit logMessage(tr("[RP] 官方降级失败: HTTP %1").arg(s2));
-                    }
-                    tryAggregateRp(gen);
-                };
-                const auto onFbFail = [this, gen](const QString& e2) {
-                    if (gen != m_searchGen) return;
-                    emit logMessage(tr("[RP] 官方降级网络错误: %1").arg(e2));
-                    tryAggregateRp(gen);
-                };
-                if (m_fetchEngine)
-                    m_fetchEngine->getJson(fbUrl.toString(), true, onFbOk, onFbFail);
-                else
-                    HttpClient::instance().get(fbUrl.toString(), onFbOk, onFbFail);
-                return;
-            }
-            // 与 onResourcepackSearchCompleted 相同的字段转换
-            QVariantList list;
-            for (const QJsonValue& item : hits) {
-                const QJsonObject obj = item.toObject();
-                QVariantMap entry;
-                entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
-                entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
-                entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
-                entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
-                entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
-                entry[QStringLiteral("author")]    = obj[QStringLiteral("author")].toString();
-                entry[QStringLiteral("updated")]   = obj[QStringLiteral("updated")].toString();
-                entry[QStringLiteral("source")]    = QStringLiteral("Modrinth");
-                QStringList catList, featList, resList;
-                for (const QJsonValue& cv : obj[QStringLiteral("categories")].toArray())
-                    catList.append(cv.toString());
-                for (const QJsonValue& fv : obj[QStringLiteral("features")].toArray())
-                    featList.append(fv.toString());
-                for (const QJsonValue& rv : obj[QStringLiteral("resolutions")].toArray())
-                    resList.append(rv.toString());
-                entry[QStringLiteral("categories")]  = catList;
-                entry[QStringLiteral("features")]    = featList;
-                entry[QStringLiteral("resolutions")] = resList;
-                list.append(entry);
-            }
-            m_rpMrResults = list;
-        } else {
-            emit logMessage(tr("[RP] Modrinth 搜索失败: HTTP %1").arg(status));
-        }
-        tryAggregateRp(gen);
-    };
-    const auto onRpFail = [this, gen](const QString& error) {
-        if (gen != m_searchGen) return;
-        emit logMessage(tr("[RP] Modrinth 网络错误: %1").arg(error));
-        tryAggregateRp(gen);
-    };
-    if (m_fetchEngine)
-        m_fetchEngine->getJson(url.toString(), true, onRpOk, onRpFail);
-    else
-        HttpClient::instance().get(url.toString(), onRpOk, onRpFail);
+    m_rpPending = 0;
+    m_modMgr->setBusy(true);
 
-    if (m_cfApi) {
+    if (m_rpMrMore) {
+        QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+        QUrlQuery params;
+        if (!query.isEmpty())
+            params.addQueryItem(QStringLiteral("query"), query);
+        params.addQueryItem(QStringLiteral("facets"), QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+        params.addQueryItem(QStringLiteral("offset"), QString::number(m_rpMrOffset));
+        params.addQueryItem(QStringLiteral("limit"), QString::number(m_rpSearchLimit));
+        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        url.setQuery(params);
         ++m_rpPending;
-        m_cfApi->search(12, query, 0, gameVersion, QString(), offset, 20,
-            [this, gen](const QVariantList& items, int) {
+        const auto onRpOk = [this, gen, url](int status, const QByteArray& body) {
+            if (gen != m_searchGen) return;
+            if (status == 200) {
+                int total = 0;
+                QJsonArray hits = m_modMgr->parseSearchResponse(body, total);
+                if (total == 0 && hits.isEmpty() && !m_rpFallbackUsed) {
+                    m_rpFallbackUsed = true;
+                    emit logMessage(tr("[RP] 镜像返回空(异常)，降级官方 API"));
+                    QUrl fbUrl = url;
+                    fbUrl.setHost(QStringLiteral("api.modrinth.com"));
+                    fbUrl.setPath(QStringLiteral("/v2/search"));
+                    fbUrl.setScheme(QStringLiteral("https"));
+                    const auto onFbOk = [this, gen](int s2, const QByteArray& b2) {
+                        if (gen != m_searchGen) return;
+                        if (s2 == 200) {
+                            int t2 = 0;
+                            QJsonArray r2 = m_modMgr->parseSearchResponse(b2, t2);
+                            QVariantList l2;
+                            for (const QJsonValue& item : r2) {
+                                const QJsonObject obj = item.toObject();
+                                QVariantMap entry;
+                                entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
+                                entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
+                                entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
+                                entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
+                                entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+                                entry[QStringLiteral("author")]    = obj[QStringLiteral("author")].toString();
+                                entry[QStringLiteral("updated")]   = obj[QStringLiteral("updated")].toString();
+                                entry[QStringLiteral("source")]    = QStringLiteral("Modrinth");
+                                entry[QStringLiteral("categories")]  = QVariantList{};
+                                entry[QStringLiteral("features")]    = QVariantList{};
+                                entry[QStringLiteral("resolutions")] = QVariantList{};
+                                l2.append(entry);
+                            }
+                            m_rpMrAll.append(l2);
+                            m_rpMrOffset += l2.size();
+                            m_rpMrMore = m_rpMrOffset < t2;
+                            emit logMessage(tr("[RP] 官方降级成功: +%1 条").arg(l2.size()));
+                        } else {
+                            m_rpMrMore = false;
+                            emit logMessage(tr("[RP] 官方降级失败: HTTP %1").arg(s2));
+                        }
+                        onRpSourceDone(gen);
+                    };
+                    const auto onFbFail = [this, gen](const QString& e2) {
+                        if (gen != m_searchGen) return;
+                        m_rpMrMore = false;
+                        emit logMessage(tr("[RP] 官方降级网络错误: %1").arg(e2));
+                        onRpSourceDone(gen);
+                    };
+                    if (m_fetchEngine)
+                        m_fetchEngine->getJson(fbUrl.toString(), true, onFbOk, onFbFail);
+                    else
+                        HttpClient::instance().get(fbUrl.toString(), onFbOk, onFbFail);
+                    return;
+                }
+                // 与 onResourcepackSearchCompleted 相同的字段转换
+                QVariantList list;
+                for (const QJsonValue& item : hits) {
+                    const QJsonObject obj = item.toObject();
+                    QVariantMap entry;
+                    entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
+                    entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
+                    entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
+                    entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
+                    entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
+                    entry[QStringLiteral("author")]    = obj[QStringLiteral("author")].toString();
+                    entry[QStringLiteral("updated")]   = obj[QStringLiteral("updated")].toString();
+                    entry[QStringLiteral("source")]    = QStringLiteral("Modrinth");
+                    QStringList catList, featList, resList;
+                    for (const QJsonValue& cv : obj[QStringLiteral("categories")].toArray())
+                        catList.append(cv.toString());
+                    for (const QJsonValue& fv : obj[QStringLiteral("features")].toArray())
+                        featList.append(fv.toString());
+                    for (const QJsonValue& rv : obj[QStringLiteral("resolutions")].toArray())
+                        resList.append(rv.toString());
+                    entry[QStringLiteral("categories")]  = catList;
+                    entry[QStringLiteral("features")]    = featList;
+                    entry[QStringLiteral("resolutions")] = resList;
+                    list.append(entry);
+                }
+                m_rpMrAll.append(list);
+                m_rpMrOffset += list.size();
+                m_rpMrMore = m_rpMrOffset < total;
+            } else {
+                m_rpMrMore = false;
+                emit logMessage(tr("[RP] Modrinth 搜索失败: HTTP %1").arg(status));
+            }
+            onRpSourceDone(gen);
+        };
+        const auto onRpFail = [this, gen](const QString& error) {
+            if (gen != m_searchGen) return;
+            m_rpMrMore = false;
+            emit logMessage(tr("[RP] Modrinth 网络错误: %1").arg(error));
+            onRpSourceDone(gen);
+        };
+        if (m_fetchEngine)
+            m_fetchEngine->getJson(url.toString(), true, onRpOk, onRpFail);
+        else
+            HttpClient::instance().get(url.toString(), onRpOk, onRpFail);
+    }
+
+    if (m_cfApi && m_rpCfMore) {
+        ++m_rpPending;
+        m_cfApi->search(12, query, 0, gameVersion, QString(), m_rpCfOffset, m_rpSearchLimit,
+            [this, gen](const QVariantList& items, int total) {
                 if (gen != m_searchGen) return;
-                m_rpCfResults = items;
-                tryAggregateRp(gen);
+                m_rpCfAll.append(items);
+                m_rpCfOffset += items.size();
+                m_rpCfMore = m_rpCfOffset < total;
+                onRpSourceDone(gen);
             },
             [this, gen](const QString& err) {
                 if (gen != m_searchGen) return;
+                m_rpCfMore = false;
                 emit logMessage(tr("[RP] CurseForge 搜索失败: %1").arg(err));
-                tryAggregateRp(gen);
+                onRpSourceDone(gen);
             });
     }
 
-    QTimer::singleShot(8000, this, [this, gen]() {
-        if (gen != m_searchGen) return;
-        // Modrinth 降级官方进行中：不打断，等降级完成
-        if (m_rpPending > 0 && !m_rpFallbackUsed) {
-            m_rpPending = 0;
-            tryAggregateRp(gen);
-        }
-    });
+    if (m_rpPending == 0) {
+        emitRpPool();
+    } else {
+        QTimer::singleShot(8000, this, [this, gen]() {
+            if (gen != m_searchGen) return;
+            if (m_rpPending > 0) {
+                m_rpPending = 0;
+                emitRpPool();
+            }
+        });
+    }
 }
 
-void ResourceBackend::tryAggregateRp(int gen)
+void ResourceBackend::onRpSourceDone(int gen)
 {
     if (gen != m_searchGen) return;
-    if (m_rpEmitted) return;        // 本代已发过：防二次刷新
-    if (m_rpPending > 0 && --m_rpPending > 0) return;
+    if (--m_rpPending > 0) return;
     m_modMgr->setBusy(false);
-    m_rpEmitted = true;
-    const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults, 2.5);
-    emit logMessage(tr("[RP] 搜索完成: Modrinth %1 条 + CurseForge %2 条 → %3 条")
-                        .arg(m_rpMrResults.size()).arg(m_rpCfResults.size()).arg(merged.size()));
-    emit resourcepackSearchCompleted(merged, merged.size());
+    m_rpPool = mergeDedupSorted(m_rpMrAll, m_rpCfAll, 2.5);
+    emit logMessage(tr("[池子] 资源包合并: MR %1 + CF %2 → 池 %3 条")
+                        .arg(m_rpMrAll.size()).arg(m_rpCfAll.size()).arg(m_rpPool.size()));
+    const int need = (m_rpSearchPage + 1) * m_rpSearchLimit;
+    if (m_rpPool.size() < need && (m_rpMrMore || m_rpCfMore)) {
+        ensureRpPool();
+        return;
+    }
+    emitRpPool();
 }
+
+void ResourceBackend::emitRpPool()
+{
+    m_modMgr->setBusy(false);
+    emit resourcepackSearchCompleted(m_rpPool, m_rpPool.size());
+}
+
 
 // ── CurseForge 详情页版本（复用 modVersionsPartial 等信号）──
 void ResourceBackend::fetchModVersionsCf(const QString& modId, const QString& gameVersion, const QString& loader)

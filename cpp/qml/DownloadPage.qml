@@ -137,7 +137,7 @@ Rectangle {
         pageNum = (pageNum !== undefined) ? pageNum : 0
         page.rpSearching = true
         page.rpPage = pageNum
-        rpResultsModel.clear()
+        if (pageNum === 0) rpResultsModel.clear()   // 翻页保留旧列表直到新数据到（防闪）
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
         }
@@ -670,7 +670,7 @@ Rectangle {
             pageNum = (pageNum !== undefined) ? pageNum : 0
             page.modCurrentPage = pageNum
             page.modSearching = true
-            modResultsModel.clear()
+            if (pageNum === 0) modResultsModel.clear()   // 搜索首页才清空；翻页保留旧列表直到新数据到（防闪）
             var q = modFilterCard.searchText ? modFilterCard.searchText.trim() : ""
             console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab + " page=" + pageNum)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
@@ -753,10 +753,14 @@ Rectangle {
                     if (urls.length > 0 && backend) backend.cacheIconBatchAsync(urls)
                     return
                 }
+                // ═══ 池子架构：后端 emit 合并池全量，这里按当前页切片显示 ═══
+                var pool = results || []
+                var start = page.modCurrentPage * page.modPageSize
+                var end = Math.min(start + page.modPageSize, pool.length)
                 modResultsModel.clear()
                 var urlsToCache = []
-                for (var j = 0; j < results.length; j++) {
-                    var r = results[j]
+                for (var j = start; j < end; j++) {
+                    var r = pool[j]
                     var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                     var iconUrl = ""
                     if (rawIcon && backend) {
@@ -777,10 +781,9 @@ Rectangle {
                         clientSide: r.clientSide || "",
                         source: r.source || "Modrinth"
                     })
-                    if (r.loadersList && r.loadersList.length > 0) console.log("[MOD-QML] slug=" + (r.slug||"?") + " loadersList=" + JSON.stringify(r.loadersList))
                 }
                 page.modSearching = false
-                page.modHasMore = !!(results && results.length >= page.modPageSize)
+                page.modHasMore = pool.length > (page.modCurrentPage + 1) * page.modPageSize
                 if (urlsToCache.length > 0 && backend) {
                     backend.cacheIconBatchAsync(urlsToCache)
                 }
@@ -999,7 +1002,7 @@ Rectangle {
             shaderSearching = true
             shaderCurrentPage = pageNum
             shaderOffset = pageNum * shaderPageSize
-            shaderResultsModel.clear()
+            if (pageNum === 0) shaderResultsModel.clear()   // 翻页保留旧列表直到新数据到（防闪）
             var a = shaderCategory ? [shaderCategory] : []
             var b = shaderFeature ? [shaderFeature] : []
             var c = shaderPerformance ? [shaderPerformance] : []
@@ -1043,13 +1046,17 @@ Rectangle {
                     if (urls.length > 0 && backend) backend.cacheShaderIconBatchAsync(urls)
                     return
                 }
-                if (shaderTab.shaderOffset === 0) shaderResultsModel.clear()
+                // ═══ 池子架构：后端 emit 合并池全量，这里按当前页切片显示 ═══
+                var pool = results || []
+                var shStart = shaderTab.shaderOffset
+                var shEnd = Math.min(shStart + shaderTab.shaderPageSize, pool.length)
+                shaderResultsModel.clear()
                 shaderTab.shaderSearching = false
-                if (results && results.length > 0) {
-                    console.log("[shader] got " + results.length + " results, first.versions=" + JSON.stringify(results[0].versions) + " first.dateModified=" + results[0].dateModified)
+                if (pool.length > 0 && shEnd > shStart) {
+                    console.log("[shader] 池 " + pool.length + " 条, 切片 " + shStart + "-" + shEnd)
                     var urlsToCache = []
-                    for (var i = 0; i < results.length; i++) {
-                        var r = results[i]
+                    for (var i = shStart; i < shEnd; i++) {
+                        var r = pool[i]
                         var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                         var iconUrl = ""
                         if (rawIcon && backend) {
@@ -1068,7 +1075,7 @@ Rectangle {
                         backend.cacheShaderIconBatchAsync(urlsToCache)
                     }
                 }
-                shaderTab.hasMoreShaders = (results && results.length >= shaderTab.shaderPageSize)
+                shaderTab.hasMoreShaders = pool.length > shaderTab.shaderOffset + shaderTab.shaderPageSize
             }
             // 司南引擎图标就绪：更新 shader model 对应项
             function onIconReady(url, localPath) {
@@ -1352,23 +1359,22 @@ Rectangle {
             }
             page.rpTotalHits = totalHits
             page.rpSearching = false
-
-            rpResultsModel.clear()
-            page.rpHasMore = ((page.rpPage + 1) * page.rpPageSize < totalHits)
             if (page.mainWindow && page.mainWindow.loadingBar) {
                 page.mainWindow.loadingBar.opacity = 0
             }
 
-            var slugs = []
+            // ═══ 池子架构：先前端过滤整个池子，再按当前页切片 ═══
+            var pool = results || []
             var urlsToCache = []
             var catFilter = page.rpCategoryFilter.toLowerCase()
             var featFilter = page.rpFeatureFilter.toLowerCase()
             var resFilter = page.rpResolutionFilter.toLowerCase()
-            for (var i = 0; i < results.length; i++) {
-                var r = results[i]
+            var filtered = []
+            for (var fi = 0; fi < pool.length; fi++) {
+                var rf = pool[fi]
                 // Filter by category
                 if (catFilter) {
-                    var cats = r.categories || []
+                    var cats = rf.categories || []
                     var hasCat = false
                     for (var c = 0; c < cats.length; c++) {
                         if (String(cats[c]).toLowerCase() === catFilter) { hasCat = true; break }
@@ -1377,7 +1383,7 @@ Rectangle {
                 }
                 // Filter by feature
                 if (featFilter) {
-                    var feats = r.features || []
+                    var feats = rf.features || []
                     var hasFeat = false
                     for (var f = 0; f < feats.length; f++) {
                         if (String(feats[f]).toLowerCase() === featFilter) { hasFeat = true; break }
@@ -1386,9 +1392,8 @@ Rectangle {
                 }
                 // Filter by resolution
                 if (resFilter) {
-                    var resos = r.resolutions || []
-                    // Also check categories for resolution patterns (safety net)
-                    var resosFromCats = (r.categories && resFilter) ? r.categories.filter(function(x) { return String(x).toLowerCase() === resFilter }) : []
+                    var resos = rf.resolutions || []
+                    var resosFromCats = (rf.categories && resFilter) ? rf.categories.filter(function(x) { return String(x).toLowerCase() === resFilter }) : []
                     var allResos = resos.concat(resosFromCats)
                     var hasRes = false
                     for (var x = 0; x < allResos.length; x++) {
@@ -1396,6 +1401,17 @@ Rectangle {
                     }
                     if (!hasRes) continue
                 }
+                filtered.push(rf)
+            }
+
+            rpResultsModel.clear()
+            page.rpHasMore = filtered.length > (page.rpPage + 1) * page.rpPageSize
+
+            var slugs = []
+            var rpStart = page.rpPage * page.rpPageSize
+            var rpEnd = Math.min(rpStart + page.rpPageSize, filtered.length)
+            for (var i = rpStart; i < rpEnd; i++) {
+                var r = filtered[i]
                 slugs.push(r.slug)
                 var rawRpIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                 var rpIconUrl = ""
@@ -1420,7 +1436,7 @@ Rectangle {
                     versionStr: ""
                 })
             }
-            console.log("[RP-DEBUG]", page.rpDebugSeq, "model now", rpResultsModel.count, "/", totalHits)
+            console.log("[RP-DEBUG]", page.rpDebugSeq, "model now", rpResultsModel.count, "filtered", filtered.length, "/", totalHits)
             if (urlsToCache.length > 0 && backend) {
                 backend.cacheRpIconBatchAsync(urlsToCache)
             }

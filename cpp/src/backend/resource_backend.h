@@ -129,23 +129,64 @@ private:
 
     // ── 双源聚合状态（代次号防并发搜索污染）──
     int m_searchGen = 0;
-    QVariantList m_modMrResults, m_modCfResults;
+
+    // ── 池子架构（对齐 主流启动器）：双源结果累积成池，翻页时从池子续拉 ──
+    // 池 = 已拉取双源结果的 去重+加权排序 全量；QML 按页切片显示。
+    // 每 Tab 一组：m_xxxPool(合并池) + m_xxxMrAll/m_xxxCfAll(各源已拉原始) + 游标。
+    // 搜索 → 重置；翻页 → 池够则直接发，不够则双源续拉(offset=游标)合并。
+    QVariantList m_modPool;
+    QVariantList m_modMrAll, m_modCfAll;
+    int m_modMrOffset = 0, m_modCfOffset = 0;
     int m_modPending = 0;
-    QVariantList m_shaderMrResults, m_shaderCfResults;
+    bool m_modMrMore = true, m_modCfMore = true;
+    bool m_modSearchActive = false;
+    int m_modSearchPage = 0, m_modSearchLimit = 30;
+    QString m_modSearchKey;
+    QString m_modSearchQuery, m_modSearchLoader, m_modSearchCategory, m_modSearchEnv, m_modSearchLic;
+    QStringList m_modSearchVersions;
+    bool m_modSearchCfOnly = false, m_modSearchMrOnly = false;
+
+    QVariantList m_shaderPool;
+    QVariantList m_shaderMrAll, m_shaderCfAll;
+    int m_shaderMrOffset = 0, m_shaderCfOffset = 0;
     int m_shaderPending = 0;
-    QVariantList m_rpMrResults, m_rpCfResults;
+    bool m_shaderMrMore = true, m_shaderCfMore = true;
+    bool m_shaderSearchActive = false;
+    int m_shaderSearchPage = 0, m_shaderSearchLimit = 50;
+    QString m_shaderSearchKey;
+    QString m_shaderSearchQuery;
+    QStringList m_shaderSearchVersions, m_shaderSearchCats, m_shaderSearchPerf, m_shaderSearchLoader;
+
+    QVariantList m_rpPool;
+    QVariantList m_rpMrAll, m_rpCfAll;
+    int m_rpMrOffset = 0, m_rpCfOffset = 0;
     int m_rpPending = 0;
+    bool m_rpMrMore = true, m_rpCfMore = true;
+    bool m_rpSearchActive = false;
+    int m_rpSearchPage = 0, m_rpSearchLimit = 20;
+    QString m_rpSearchKey;
+    QString m_rpSearchQuery, m_rpSearchVersion;
+    QStringList m_rpSearchCats;
+
     // 本代是否已降级过官方（防镜像异常空时重复降级）
     bool m_mrFallbackUsed = false;
     bool m_shaderFallbackUsed = false;
     bool m_rpFallbackUsed = false;
-    // 超时兜底后本代是否已发过结果（防止迟到响应二次 emit → 列表重复刷新/闪动）
-    bool m_modEmitted = false;
-    bool m_shaderEmitted = false;
-    bool m_rpEmitted = false;
     void tryAggregateMod(int gen);
     void tryAggregateShader(int gen);
     void tryAggregateRp(int gen);
+    // 池子架构辅助（对齐 主流启动器 分页思路）
+    void ensureModPool(bool cfOnly, bool mrOnly,
+        const QString& query, const QString& loader, const QString& category,
+        const QStringList& gameVersions, const QString& environment, const QString& license);
+    void onModSourceDone(int gen);
+    void emitModPool();
+    void ensureShaderPool();
+    void onShaderSourceDone(int gen);
+    void emitShaderPool();
+    void ensureRpPool();
+    void onRpSourceDone(int gen);
+    void emitRpPool();
     bool m_downloading = false;
     int m_dlProgress = 0;
     int m_dlTotal = 0;
