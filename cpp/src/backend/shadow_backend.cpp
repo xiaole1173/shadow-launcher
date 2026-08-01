@@ -2197,6 +2197,11 @@ QVariantMap ShadowBackend::getModCategories() {
     return m_resource->getModCategories();
 }
 
+QVariantList ShadowBackend::cfCategories(int classId) const
+{
+    return m_resource ? m_resource->cfCategories(classId) : QVariantList();
+}
+
 void ShadowBackend::searchShadersEx(const QString& query, const QStringList& gameVersions,
     const QStringList& categories, const QStringList& performance,
     const QStringList& loader, int offset, int limit) {

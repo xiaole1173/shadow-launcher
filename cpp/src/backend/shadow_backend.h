@@ -357,6 +357,8 @@ public:
         const QString& environment, const QString& license,
         int offset, int limit);
     Q_INVOKABLE QVariantMap getModCategories();
+    // CurseForge 分类静态表（QML 叠加下拉用）
+    Q_INVOKABLE QVariantList cfCategories(int classId) const;
     Q_INVOKABLE void searchShadersEx(const QString& query, const QStringList& gameVersions,
         const QStringList& categories, const QStringList& performance,
         const QStringList& loader, int offset, int limit);
