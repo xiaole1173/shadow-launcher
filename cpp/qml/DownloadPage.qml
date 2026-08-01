@@ -127,10 +127,13 @@ Rectangle {
     property int modCurrentPage: 0
     property bool modHasMore: false
     readonly property int modPageSize: 30
+    property bool modPrefetching: false   // 翻页预取进行中（结果只进引擎缓存，不污染列表）
+    property bool rpPrefetching: false
 
     // Search resource packs with page number
     function searchRpPage(pageNum) {
         if (!backend) return
+        page.rpPrefetching = false   // 用户主动搜索/翻页，作废旧预取
         pageNum = (pageNum !== undefined) ? pageNum : 0
         page.rpSearching = true
         page.rpPage = pageNum
@@ -146,6 +149,22 @@ Rectangle {
         if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
         var offset = pageNum * page.rpPageSize
         console.log("[RP-DEBUG] searchRpPage page=", pageNum, "offset=", offset, "q=", q)
+        backend.searchResourcepacks(q, ver, offset, cats)
+    }
+
+    function prefetchRpNextPage() {
+        // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热）
+        if (!backend || page.rpPrefetching || page.rpSearching) return
+        if (!page.rpHasMore) return
+        page.rpPrefetching = true
+        var q = rpFilterCard.searchText || ""
+        var ver = page.rpGameVersion || ""
+        var cats = []
+        if (page.rpCategoryFilter) cats.push(page.rpCategoryFilter)
+        if (page.rpFeatureFilter) cats.push(page.rpFeatureFilter)
+        if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
+        var offset = (page.rpPage + 1) * page.rpPageSize
+        console.log("[RP-DEBUG] 预取下一页 offset=", offset)
         backend.searchResourcepacks(q, ver, offset, cats)
     }
 
@@ -645,6 +664,7 @@ Rectangle {
 
         function doModSearch(pageNum) {
             if (!backend) return
+            page.modPrefetching = false   // 用户主动搜索/翻页，作废旧预取
             pageNum = (pageNum !== undefined) ? pageNum : 0
             page.modCurrentPage = pageNum
             page.modSearching = true
@@ -653,6 +673,18 @@ Rectangle {
             console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab + " page=" + pageNum)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             var offset = pageNum * page.modPageSize
+            backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize)
+        }
+
+        function prefetchModNextPage() {
+            // 翻页预取：滚到底时提前拉下一页（引擎 getJson 缓存 + 图标预热），翻页时秒开
+            if (!backend || page.modPrefetching || page.modSearching) return
+            if (!page.modHasMore) return
+            page.modPrefetching = true
+            var q = modFilterCard.searchText ? modFilterCard.searchText.trim() : ""
+            var gv = page.modGameVersion ? [page.modGameVersion] : []
+            var offset = (page.modCurrentPage + 1) * page.modPageSize
+            console.log("[MOD-SEARCH] 预取下一页 offset=" + offset)
             backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize)
         }
 
@@ -691,6 +723,17 @@ Rectangle {
             target: backend
             enabled: backend !== null
             function onModSearchResultsReady(results) {
+                if (page.modPrefetching) {
+                    // 预取响应：不污染列表，只预热图标缓存（搜索 JSON 已被引擎缓存）
+                    page.modPrefetching = false
+                    var urls = []
+                    for (var pj = 0; pj < results.length; pj++) {
+                        var pu = (results[pj].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        if (pu) urls.push(pu)
+                    }
+                    if (urls.length > 0 && backend) backend.cacheIconBatchAsync(urls)
+                    return
+                }
                 modResultsModel.clear()
                 var urlsToCache = []
                 for (var j = 0; j < results.length; j++) {
@@ -783,6 +826,7 @@ Rectangle {
                     anchors.fill: parent; spacing: 6
                     model: modResultsModel
                     cacheBuffer: 200
+                    onAtYEndChanged: { if (atYEnd) modTab.prefetchModNextPage() }
 
                     header: LoadStatus {
                         width: modListView2.width
@@ -841,6 +885,7 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         property bool shaderSearching: false
+        property bool shaderPrefetching: false   // 翻页预取进行中
         property int shaderOffset: 0
         property int shaderCurrentPage: 0
         readonly property int shaderPageSize: 50
@@ -902,6 +947,7 @@ Rectangle {
 
         function doSearch(pageNum) {
             if (!backend) return
+            shaderPrefetching = false   // 用户主动搜索/翻页，作废旧预取
             pageNum = (pageNum !== undefined) ? pageNum : 0
             shaderSearching = true
             shaderCurrentPage = pageNum
@@ -914,6 +960,20 @@ Rectangle {
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
             backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, shaderPageSize)
         }
+        function prefetchNextShaderPage() {
+            // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热）
+            if (!backend || shaderPrefetching || shaderSearching) return
+            if (!hasMoreShaders) return
+            shaderPrefetching = true
+            var a = shaderCategory ? [shaderCategory] : []
+            var b = shaderFeature ? [shaderFeature] : []
+            var c = shaderPerformance ? [shaderPerformance] : []
+            var d = shaderLoader ? [shaderLoader] : []
+            var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
+            var offset = (shaderCurrentPage + 1) * shaderPageSize
+            console.log("[SHADER] 预取下一页 offset=" + offset)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], offset, shaderPageSize)
+        }
         function resetFilters() {
             shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
             page.shaderGameVersion = ""; shaderFilterCard.searchText = ""
@@ -923,6 +983,17 @@ Rectangle {
         Connections {
             target: backend; enabled: backend !== null
             function onShaderSearchResultsReady(results) {
+                if (shaderTab.shaderPrefetching) {
+                    // 预取响应：不污染列表，只预热图标缓存
+                    shaderTab.shaderPrefetching = false
+                    var urls = []
+                    for (var pi = 0; pi < results.length; pi++) {
+                        var pu = (results[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        if (pu) urls.push(pu)
+                    }
+                    if (urls.length > 0 && backend) backend.cacheShaderIconBatchAsync(urls)
+                    return
+                }
                 if (shaderTab.shaderOffset === 0) shaderResultsModel.clear()
                 shaderTab.shaderSearching = false
                 if (results && results.length > 0) {
@@ -1000,6 +1071,7 @@ Rectangle {
                     anchors.fill: parent
                     model: shaderResultsModel
                     spacing: 6; cacheBuffer: 200
+                    onAtYEndChanged: { if (atYEnd) shaderTab.prefetchNextShaderPage() }
                     clip: true
 
                     header: LoadStatus {
@@ -1120,6 +1192,7 @@ Rectangle {
                     anchors.fill: parent; spacing: 6
                     model: rpResultsModel
                     cacheBuffer: 200
+                    onAtYEndChanged: { if (atYEnd) page.prefetchRpNextPage() }
 
                     header: LoadStatus {
                         width: rpListView.width
@@ -1206,6 +1279,17 @@ Rectangle {
         target: backend
 
         function onResourcepackSearchCompleted(results, totalHits) { console.log('[RP-DEBUG] >>> SIGNAL RECEIVED, enter handler'); try {
+            if (page.rpPrefetching) {
+                // 预取响应：不污染列表，只预热图标缓存
+                page.rpPrefetching = false
+                var urls = []
+                for (var pi = 0; pi < (results ? results.length : 0); pi++) {
+                    var pu = (results[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                    if (pu) urls.push(pu)
+                }
+                if (urls.length > 0 && backend) backend.cacheRpIconBatchAsync(urls)
+                return
+            }
             console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
             if (!results || results.length === 0) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
