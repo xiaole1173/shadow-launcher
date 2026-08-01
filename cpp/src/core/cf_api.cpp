@@ -20,6 +20,13 @@
 namespace ShadowLauncher {
 
 namespace {
+// CF API 端点：镜像优先（MCIM /curseforge/v1/，免 key，files 端点 186ms 远快于官方 6.4s）
+// 官方 api.curseforge.com 作为镜像失败（超时/429/5xx）时的降级源（需 x-api-key）
+const QString kCfMirrorBase = QStringLiteral("https://mod.mcimirror.top/curseforge/v1");
+const QString kCfOfficialBase = QStringLiteral("https://api.curseforge.com/v1");
+} // namespace
+
+namespace {
 
 // ── CF 分类静态表（2026-08-01 API 实测提取；classId=6/12/6552/4471）──
 struct CfCategory { int classId; int id; const char* name; };
@@ -89,13 +96,40 @@ QString CfApi::apiKey() const
     return m_apiKey;
 }
 
+// 镜像优先请求：镜像失败（非 2xx/网络错误）→ 官方带 key 重试一次
+void CfApi::getJsonWithFallback(const QString& mirrorUrl, const QString& officialUrl,
+                                bool cacheable, ResourceFetchEngine::JsonDone done,
+                                ResourceFetchEngine::JsonFail fail)
+{
+    if (!m_engine) { if (fail) fail(QStringLiteral("无司南引擎")); return; }
+    auto officialReq = [this, officialUrl, cacheable, done, fail]() {
+        ResourceFetchEngine::JsonHeaders h;
+        const QString key = apiKey();
+        if (!key.isEmpty())
+            h.insert(QStringLiteral("x-api-key"), key);
+        m_engine->getJson(officialUrl, cacheable, done, fail, h);
+    };
+    m_engine->getJson(mirrorUrl, cacheable,
+        [officialReq, done, fail](int status, const QByteArray& body) {
+            if (status >= 200 && status < 300) {
+                if (done) done(status, body);
+            } else {
+                qCWarning(logDownload) << QStringLiteral("[CF] 镜像请求失败(status=%1)，降级官方").arg(status);
+                officialReq();
+            }
+        },
+        [officialReq, fail](const QString& err) {
+            qCWarning(logDownload) << QStringLiteral("[CF] 镜像网络错误，降级官方: %1").arg(err);
+            officialReq();
+        });
+}
+
 void CfApi::search(int classId, const QString& query, int categoryId,
                    const QString& gameVersion, const QString& loader,
                    int index, int limit, SearchCb done, JsonFail fail)
 {
     if (!m_engine) { if (fail) fail(QStringLiteral("无司南引擎")); return; }
 
-    QUrl url(QStringLiteral("https://api.curseforge.com/v1/mods/search"));
     QUrlQuery params;
     params.addQueryItem(QStringLiteral("gameId"), QStringLiteral("432"));
     params.addQueryItem(QStringLiteral("classId"), QString::number(classId));
@@ -112,14 +146,11 @@ void CfApi::search(int classId, const QString& query, int categoryId,
     params.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("desc"));
     params.addQueryItem(QStringLiteral("index"), QString::number(index));
     params.addQueryItem(QStringLiteral("pageSize"), QString::number(limit));
-    url.setQuery(params);
+    const QString qs = params.toString(QUrl::FullyEncoded);
+    const QString mirrorUrl = kCfMirrorBase + QStringLiteral("/mods/search?") + qs;
+    const QString officialUrl = kCfOfficialBase + QStringLiteral("/mods/search?") + qs;
 
-    ResourceFetchEngine::JsonHeaders h;
-    const QString key = apiKey();
-    if (!key.isEmpty())
-        h.insert(QStringLiteral("x-api-key"), key);
-
-    m_engine->getJson(url.toString(), true,
+    getJsonWithFallback(mirrorUrl, officialUrl, true,
         [done](int status, const QByteArray& body) {
             if (status != 200) { if (done) done({}, 0); return; }
             QJsonDocument doc = QJsonDocument::fromJson(body);
@@ -132,7 +163,7 @@ void CfApi::search(int classId, const QString& query, int categoryId,
                 items.append(toUnified(v.toObject()));
             if (done) done(items, total);
         },
-        fail, h);
+        fail);
 }
 
 void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersion,
@@ -142,7 +173,6 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
 {
     if (!m_engine) { if (fail) fail(QStringLiteral("无司南引擎")); return; }
 
-    QUrl url(QStringLiteral("https://api.curseforge.com/v1/mods/%1/files").arg(modId));
     QUrlQuery params;
     if (!gameVersion.isEmpty())
         params.addQueryItem(QStringLiteral("gameVersion"), gameVersion);
@@ -150,14 +180,11 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
     if (lt > 0)
         params.addQueryItem(QStringLiteral("modLoaderType"), QString::number(lt));
     params.addQueryItem(QStringLiteral("pageSize"), QStringLiteral("50"));
-    url.setQuery(params);
+    const QString qs = params.toString(QUrl::FullyEncoded);
+    const QString mirrorUrl = kCfMirrorBase + QStringLiteral("/mods/%1/files?").arg(modId) + qs;
+    const QString officialUrl = kCfOfficialBase + QStringLiteral("/mods/%1/files?").arg(modId) + qs;
 
-    ResourceFetchEngine::JsonHeaders h;
-    const QString key = apiKey();
-    if (!key.isEmpty())
-        h.insert(QStringLiteral("x-api-key"), key);
-
-    m_engine->getJson(url.toString(), false,
+    getJsonWithFallback(mirrorUrl, officialUrl, false,
         [done, gameVersion](int status, const QByteArray& body) {
             if (status != 200) { if (done) done({}, {}); return; }
             QJsonDocument doc = QJsonDocument::fromJson(body);
@@ -212,7 +239,7 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
                       });
             if (done) done(compositeVersions, detailMap);
         },
-        fail, h);
+        fail);
 }
 
 QVariantMap CfApi::toUnified(const QJsonObject& mod)

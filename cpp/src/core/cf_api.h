@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <functional>
 
+#include "resource_fetch_engine.h"
+
 namespace ShadowLauncher {
 
 class ResourceFetchEngine;
@@ -21,6 +23,7 @@ class CfApi : public QObject {
 public:
     explicit CfApi(ResourceFetchEngine* engine, QObject* parent = nullptr);
 
+    using JsonDone = ResourceFetchEngine::JsonDone;
     using JsonFail = std::function<void(const QString& error)>;
     using SearchCb = std::function<void(const QVariantList& items, int total)>;
 
@@ -55,6 +58,9 @@ public:
 
 private:
     QString apiKey() const;
+    /// 镜像优先请求（MCIM /curseforge/v1/ 免key）→ 失败降级官方（带key）
+    void getJsonWithFallback(const QString& mirrorUrl, const QString& officialUrl,
+                             bool cacheable, JsonDone done, JsonFail fail);
     ResourceFetchEngine* m_engine;
     mutable QString m_apiKey;
     mutable bool m_keyTried = false;
