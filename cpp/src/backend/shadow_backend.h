@@ -587,10 +587,6 @@ signals:
     void searchResultsReady(const QVariantList& results);  // deprecated
     void modSearchResultsReady(const QVariantList& results);
     void shaderSearchResultsReady(const QVariantList& results);
-    // CF 特有项增量插入（双源渐进）
-    void modCfInserted(const QVariantList& items);
-    void shaderCfInserted(const QVariantList& items);
-    void rpCfInserted(const QVariantList& items);
     void gameDirChanged();
     void themeChanged();
     void agreementAcceptedChanged();

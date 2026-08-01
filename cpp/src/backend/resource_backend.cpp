@@ -279,14 +279,16 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     });
 }
 
-// ── 双源去重合并：Modrinth 优先（同名模组 CF 不展示），按下载量降序混排 ──
+// ── 双源去重合并：Modrinth 优先（同名模组 CF 不展示），按加权下载量降序混排 ──
+// 同主流启动器倍率：Modrinth 下载量基数远小于 CurseForge，直接比较 CF 永远霸榜，
+// 加权后两源才能混合出现（主流启动器 ResourceSearcher.GetDownloadCountMult）
 static QString normTitle(const QString& s)
 {
     QString n = s.toLower();
     n.remove(QRegularExpression(QStringLiteral("[^a-z0-9]")));
     return n;
 }
-static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems)
+static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems, double mrMult = 5.0)
 {
     QSet<QString> seen;
     QVariantList merged;
@@ -302,32 +304,21 @@ static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariant
     };
     appendDedup(mrItems);  // Modrinth 先（优先保留）
     appendDedup(cfItems);  // CF 只补充特有
-    std::sort(merged.begin(), merged.end(), [](const QVariant& a, const QVariant& b) {
-        return a.toMap().value(QStringLiteral("downloads")).toDouble()
-             > b.toMap().value(QStringLiteral("downloads")).toDouble();
+    std::sort(merged.begin(), merged.end(), [mrMult](const QVariant& a, const QVariant& b) {
+        auto w = [mrMult](const QVariant& v) {
+            const QVariantMap m = v.toMap();
+            const double d = m.value(QStringLiteral("downloads")).toDouble();
+            return m.value(QStringLiteral("source")).toString() == QStringLiteral("CurseForge") ? d : d * mrMult;
+        };
+        return w(a) > w(b);
     });
     return merged;
-}
-
-// CF 特有项：Modrinth 结果里没有的（归一化标题匹配）——增量插入用
-static QVariantList cfOnlyItems(const QVariantList& mrItems, const QVariantList& cfItems)
-{
-    QSet<QString> mrKeys;
-    for (const QVariant& v : mrItems)
-        mrKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
-    QVariantList out;
-    for (const QVariant& v : cfItems) {
-        const QString key = normTitle(v.toMap().value(QStringLiteral("title")).toString());
-        if (key.isEmpty() || !mrKeys.contains(key))
-            out.append(v);
-    }
-    return out;
 }
 
 void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
-    if (m_modPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复插入
+    if (m_modPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复
     --m_modPending;
     if (mrDone && m_modPending > 0) {
         // 渐进第一波：Modrinth 先回 → 先显示（不等 CF）
@@ -341,24 +332,15 @@ void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
     if (m_modTimeoutForced) {
         m_modTimeoutForced = false;
         // 超时兜底：发合并全量（清空重填）
-        const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults);
+        const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults, 5.0);
         emit logMessage(tr("搜索完成(超时兜底): %1 条").arg(merged.size()));
         emit modSearchResultsReady(merged);
         return;
     }
-    if (!m_modMrResults.isEmpty()) {
-        // CF 先回场景（缓存命中秒回）：Modrinth 结果从未发过全量，必须先补发
-        // （否则 QML 的 modSearching 卡 true → PaginationFooter 永久隐藏）
-        if (!m_modFirstWaveSent)
-            emit modSearchResultsReady(m_modMrResults);
-        // 正常双源：CF 特有项增量插入（QML 动画插入，不清空）
-        const QVariantList cfOnly = cfOnlyItems(m_modMrResults, m_modCfResults);
-        emit logMessage(tr("CF 特有项 %1 条增量插入").arg(cfOnly.size()));
-        emit modCfInserted(cfOnly);
-    } else {
-        // Modrinth 失败但 CF 有结果 → 直接显示 CF
-        emit modSearchResultsReady(m_modCfResults);
-    }
+    // 双源到齐：全量重排一次（主流启动器 式加权混排，不做增量插入——避免插入动画导致列表跳动）
+    const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults, 5.0);
+    emit logMessage(tr("双源合并: Modrinth %1 + CF %2 → %3 条").arg(m_modMrResults.size()).arg(m_modCfResults.size()).arg(merged.size()));
+    emit modSearchResultsReady(merged);
 }
 
 QVariantMap ResourceBackend::getModCategories()
@@ -490,7 +472,7 @@ void ResourceBackend::searchShadersEx(
 void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
-    if (m_shaderPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复插入
+    if (m_shaderPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复
     --m_shaderPending;
     if (mrDone && m_shaderPending > 0) {
         m_modMgr->setBusy(false);
@@ -502,21 +484,15 @@ void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
     m_modMgr->setBusy(false);
     if (m_shaderTimeoutForced) {
         m_shaderTimeoutForced = false;
-        const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults);
+        const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults, 4.0);
         emit logMessage(tr("光影搜索完成(超时兜底): %1 条").arg(merged.size()));
         emit shaderSearchResultsReady(merged);
         return;
     }
-    if (!m_shaderMrResults.isEmpty()) {
-        // CF 先回场景：补发 Modrinth 全量，避免 shaderSearching 卡 true → 分页条隐藏
-        if (!m_shaderFirstWaveSent)
-            emit shaderSearchResultsReady(m_shaderMrResults);
-        const QVariantList cfOnly = cfOnlyItems(m_shaderMrResults, m_shaderCfResults);
-        emit logMessage(tr("CF 光影特有项 %1 条增量插入").arg(cfOnly.size()));
-        emit shaderCfInserted(cfOnly);
-    } else {
-        emit shaderSearchResultsReady(m_shaderCfResults);
-    }
+    // 双源到齐：全量重排一次（主流启动器 式加权混排，不做增量插入）
+    const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults, 4.0);
+    emit logMessage(tr("光影双源合并: Modrinth %1 + CF %2 → %3 条").arg(m_shaderMrResults.size()).arg(m_shaderCfResults.size()).arg(merged.size()));
+    emit shaderSearchResultsReady(merged);
 }
 
 // ============================================================
@@ -658,7 +634,7 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
 void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
-    if (m_rpPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复插入
+    if (m_rpPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复
     --m_rpPending;
     if (mrDone && m_rpPending > 0) {
         m_modMgr->setBusy(false);
@@ -670,21 +646,15 @@ void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
     m_modMgr->setBusy(false);
     if (m_rpTimeoutForced) {
         m_rpTimeoutForced = false;
-        const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults);
+        const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults, 4.0);
         emit logMessage(tr("[RP] 搜索完成(超时兜底): %1 条").arg(merged.size()));
         emit resourcepackSearchCompleted(merged, merged.size());
         return;
     }
-    if (!m_rpMrResults.isEmpty()) {
-        // CF 先回场景：补发 Modrinth 全量，避免 rpSearching 卡 true → 分页条隐藏
-        if (!m_rpFirstWaveSent)
-            emit resourcepackSearchCompleted(m_rpMrResults, m_rpMrResults.size());
-        const QVariantList cfOnly = cfOnlyItems(m_rpMrResults, m_rpCfResults);
-        emit logMessage(tr("[RP] CF 特有项 %1 条增量插入").arg(cfOnly.size()));
-        emit rpCfInserted(cfOnly);
-    } else {
-        emit resourcepackSearchCompleted(m_rpCfResults, m_rpCfResults.size());
-    }
+    // 双源到齐：全量重排一次（主流启动器 式加权混排，不做增量插入）
+    const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults, 4.0);
+    emit logMessage(tr("[RP] 双源合并: Modrinth %1 + CF %2 → %3 条").arg(m_rpMrResults.size()).arg(m_rpCfResults.size()).arg(merged.size()));
+    emit resourcepackSearchCompleted(merged, merged.size());
 }
 
 // ── CurseForge 详情页版本（复用 modVersionsPartial 等信号）──

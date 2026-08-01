@@ -773,46 +773,6 @@ Rectangle {
                         modResultsModel.setProperty(i, "icon", localPath)
                 }
             }
-            // CF 特有项增量插入：按下载量插入对应位置（ListView add 动画），不清空列表
-            function onModCfInserted(items) {
-                if (!items || items.length === 0) return
-                if (page.modPrefetching) {
-                    // 预取响应：只预热图标缓存，不插入列表
-                    var pfUrls = []
-                    for (var pi = 0; pi < items.length; pi++) {
-                        var pu = (items[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                        if (pu) pfUrls.push(pu)
-                    }
-                    if (pfUrls.length > 0 && backend) backend.cacheIconBatchAsync(pfUrls)
-                    return
-                }
-                var urls = []
-                for (var ci = 0; ci < items.length; ci++) {
-                    var r = items[ci]
-                    var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                    var iconUrl = ""
-                    if (rawIcon && backend) {
-                        urls.push(rawIcon)
-                        iconUrl = backend.resolveIconUrl(rawIcon)
-                    }
-                    var pos = modResultsModel.count
-                    for (var pj = 0; pj < modResultsModel.count; pj++) {
-                        if ((modResultsModel.get(pj).downloads || 0) < (r.downloads || 0)) { pos = pj; break }
-                    }
-                    modResultsModel.insert(pos, {
-                        slug: r.slug || "", title: r.title || r.slug || "Unknown",
-                        desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
-                        downloads: r.downloads || 0,
-                        versions: r.versions || "",
-                        dateModified: r.dateModified || "",
-                        loader: r.loader || "",
-                        loadersList: (r.loadersList || []).join(", "),
-                        clientSide: r.clientSide || "",
-                        source: r.source || "CurseForge"
-                    })
-                }
-                if (urls.length > 0 && backend) backend.cacheIconBatchAsync(urls)
-            }
         }
 
         ColumnLayout {
@@ -880,8 +840,6 @@ Rectangle {
                 ListView {
                     id: modListView2
                     anchors.fill: parent
-                    add: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
-                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
                     spacing: 6
                     model: modResultsModel
                     cacheBuffer: 200
@@ -1087,44 +1045,6 @@ Rectangle {
                         shaderResultsModel.setProperty(i, "icon", localPath)
                 }
             }
-            // CF 特有光影增量插入
-            function onShaderCfInserted(items) {
-                if (!items || items.length === 0) return
-                if (shaderTab.shaderPrefetching) {
-                    // 预取响应：只预热图标缓存，不插入列表
-                    var pfUrls = []
-                    for (var pi = 0; pi < items.length; pi++) {
-                        var pu = (items[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                        if (pu) pfUrls.push(pu)
-                    }
-                    if (pfUrls.length > 0 && backend) backend.cacheShaderIconBatchAsync(pfUrls)
-                    return
-                }
-                var urls = []
-                for (var ci = 0; ci < items.length; ci++) {
-                    var r = items[ci]
-                    var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                    var iconUrl = ""
-                    if (rawIcon && backend) {
-                        urls.push(rawIcon)
-                        iconUrl = backend.resolveShaderIconUrl(rawIcon)
-                    }
-                    var pos = shaderResultsModel.count
-                    for (var pj = 0; pj < shaderResultsModel.count; pj++) {
-                        if ((shaderResultsModel.get(pj).downloads || 0) < (r.downloads || 0)) { pos = pj; break }
-                    }
-                    shaderResultsModel.insert(pos, {
-                        slug: r.slug || "", title: r.title || r.slug || "Unknown",
-                        desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
-                        downloads: r.downloads || 0,
-                        versions: r.versions || "",
-                        dateModified: r.dateModified || "",
-                        categories: (r.categories || []).join(","),
-                        source: r.source || "CurseForge"
-                    })
-                }
-                if (urls.length > 0 && backend) backend.cacheShaderIconBatchAsync(urls)
-            }
         }
 
         ColumnLayout {
@@ -1167,8 +1087,6 @@ Rectangle {
                 ListView {
                     id: shaderCardView
                     anchors.fill: parent
-                    add: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
-                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
                     model: shaderResultsModel
                     spacing: 6; cacheBuffer: 200
                     onAtYEndChanged: { if (atYEnd) shaderTab.prefetchNextShaderPage() }
@@ -1290,8 +1208,6 @@ Rectangle {
                 ListView {
                     id: rpListView
                     anchors.fill: parent
-                    add: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
-                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
                     spacing: 6
                     model: rpResultsModel
                     cacheBuffer: 200
@@ -1486,48 +1402,6 @@ Rectangle {
                     rpResultsModel.setProperty(i, "icon", localPath)
             }
         }
-        // CF 特有资源包增量插入
-        function onRpCfInserted(items) {
-            if (!items || items.length === 0) return
-            if (page.rpPrefetching) {
-                // 预取响应：只预热图标缓存，不插入列表
-                var pfUrls = []
-                for (var pi = 0; pi < items.length; pi++) {
-                    var pu = (items[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                    if (pu) pfUrls.push(pu)
-                }
-                if (pfUrls.length > 0 && backend) backend.cacheRpIconBatchAsync(pfUrls)
-                return
-            }
-            var urls = []
-            for (var ci = 0; ci < items.length; ci++) {
-                var r = items[ci]
-                var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                var iconUrl = ""
-                if (rawIcon && backend) {
-                    urls.push(rawIcon)
-                    iconUrl = backend.resolveRpIconUrl(rawIcon)
-                }
-                var pos = rpResultsModel.count
-                for (var pj = 0; pj < rpResultsModel.count; pj++) {
-                    if ((rpResultsModel.get(pj).downloads || 0) < (r.downloads || 0)) { pos = pj; break }
-                }
-                rpResultsModel.insert(pos, {
-                    slug: r.slug || "", title: r.title || "",
-                    desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
-                    downloads: r.downloads || 0,
-                    categories: (r.categories || []).join(","),
-                    features: (r.features || []).join(","),
-                    resolutions: (r.resolutions || []).join(","),
-                    updated: r.updated || r.dateModified || "",
-                    author: r.author || "",
-                    source: r.source || "CurseForge",
-                    chips: "", versionStr: ""
-                })
-            }
-            if (urls.length > 0 && backend) backend.cacheRpIconBatchAsync(urls)
-        }
-
         function onResourcepackSearchFailed(error) {
             console.log("[resourcepack] search FAILED:", error)
             toastManager.show("资源包搜索失败: " + error)
