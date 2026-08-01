@@ -153,7 +153,8 @@ Rectangle {
     }
 
     function prefetchRpNextPage() {
-        // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热）
+        // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热），翻页时秒开
+        // 独立接口只预热缓存，不产生聚合信号，不会打断在途搜索/污染列表
         if (!backend || page.rpPrefetching || page.rpSearching) return
         if (!page.rpHasMore) return
         page.rpPrefetching = true
@@ -165,7 +166,8 @@ Rectangle {
         if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
         var offset = (page.rpPage + 1) * page.rpPageSize
         console.log("[RP-DEBUG] 预取下一页 offset=", offset)
-        backend.searchResourcepacks(q, ver, offset, cats)
+        backend.prefetchResourcepacks(q, ver, offset, cats)
+        page.rpPrefetching = false
     }
 
     function filterRpResults() {
@@ -677,7 +679,8 @@ Rectangle {
         }
 
         function prefetchModNextPage() {
-            // 翻页预取：滚到底时提前拉下一页（引擎 getJson 缓存 + 图标预热），翻页时秒开
+            // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热），翻页时秒开
+            // 预取走独立接口（只预热司南缓存，不产生聚合信号），不会打断在途搜索/污染列表
             if (!backend || page.modPrefetching || page.modSearching) return
             if (!page.modHasMore) return
             page.modPrefetching = true
@@ -685,7 +688,9 @@ Rectangle {
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             var offset = (page.modCurrentPage + 1) * page.modPageSize
             console.log("[MOD-SEARCH] 预取下一页 offset=" + offset)
-            backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize)
+            backend.prefetchModsEx(q, page.modLoader, page.modCategory, gv, offset, page.modPageSize)
+            // 预取无信号回包（结果只进缓存），直接复位标志
+            page.modPrefetching = false
         }
 
         function fmtVersionRange(vs) {
@@ -976,7 +981,8 @@ Rectangle {
             backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, shaderPageSize)
         }
         function prefetchNextShaderPage() {
-            // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热）
+            // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热），翻页时秒开
+            // 独立接口只预热缓存，不产生聚合信号，不会打断在途搜索/污染列表
             if (!backend || shaderPrefetching || shaderSearching) return
             if (!hasMoreShaders) return
             shaderPrefetching = true
@@ -987,7 +993,8 @@ Rectangle {
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
             var offset = (shaderCurrentPage + 1) * shaderPageSize
             console.log("[SHADER] 预取下一页 offset=" + offset)
-            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], offset, shaderPageSize)
+            backend.prefetchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), offset, shaderPageSize)
+            shaderPrefetching = false
         }
         function resetFilters() {
             shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
@@ -1308,7 +1315,11 @@ Rectangle {
             console.log("[RP-DEBUG]", page.rpDebugSeq, "searchCompleted hits=", results ? results.length : 0, "total=", totalHits)
             if (!results || results.length === 0) {
                 console.log("[RP-DEBUG]", page.rpDebugSeq, "EMPTY results")
+                page.rpSearching = false   // 空结果也要复位搜索态，否则分页条 loading 卡 true 永久隐藏
                 page.rpHasMore = false
+                if (page.mainWindow && page.mainWindow.loadingBar) {
+                    page.mainWindow.loadingBar.opacity = 0
+                }
                 return
             }
             page.rpTotalHits = totalHits

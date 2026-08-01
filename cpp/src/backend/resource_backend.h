@@ -56,6 +56,14 @@ public:
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
+    // 翻页预取（只预热缓存，不产生聚合信号，与真实搜索物理隔离）
+    Q_INVOKABLE void prefetchModsEx(const QString& query, const QString& loader,
+        const QString& category, const QStringList& gameVersions,
+        int offset, int limit);
+    Q_INVOKABLE void prefetchShadersEx(const QString& query, const QStringList& gameVersions,
+        const QStringList& categories, int offset, int limit);
+    Q_INVOKABLE void prefetchResourcepacks(const QString& query, const QString& gameVersion,
+        const QStringList& categories, int offset, int limit);
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);
     Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
@@ -127,6 +135,10 @@ private:
     int m_shaderPending = 0;
     QVariantList m_rpMrResults, m_rpCfResults;
     int m_rpPending = 0;
+    // 超时兜底后本代是否已发过结果（防止迟到响应二次 emit → 列表重复刷新/闪动）
+    bool m_modEmitted = false;
+    bool m_shaderEmitted = false;
+    bool m_rpEmitted = false;
     void tryAggregateMod(int gen);
     void tryAggregateShader(int gen);
     void tryAggregateRp(int gen);

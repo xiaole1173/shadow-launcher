@@ -2203,6 +2203,23 @@ void ShadowBackend::searchShadersEx(const QString& query, const QStringList& gam
     m_resource->searchShadersEx(query, gameVersions, categories, performance, loader, offset, limit);
 }
 
+// 翻页预取：只预热缓存，不产生聚合信号
+void ShadowBackend::prefetchModsEx(const QString& query, const QString& loader,
+    const QString& category, const QStringList& gameVersions,
+    int offset, int limit) {
+    m_resource->prefetchModsEx(query, loader, category, gameVersions, offset, limit);
+}
+
+void ShadowBackend::prefetchShadersEx(const QString& query, const QStringList& gameVersions,
+    const QStringList& categories, int offset, int limit) {
+    m_resource->prefetchShadersEx(query, gameVersions, categories, offset, limit);
+}
+
+void ShadowBackend::prefetchResourcepacks(const QString& query, const QString& gameVersion,
+    int offset, const QStringList& categories) {
+    m_resource->prefetchResourcepacks(query, gameVersion, categories, offset, 20);
+}
+
 void ShadowBackend::downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir) {
     m_resource->downloadMod(slug, gameVersion, minecraftDir);
 }

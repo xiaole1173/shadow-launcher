@@ -360,6 +360,14 @@ public:
     Q_INVOKABLE void searchShadersEx(const QString& query, const QStringList& gameVersions,
         const QStringList& categories, const QStringList& performance,
         const QStringList& loader, int offset, int limit);
+    // 翻页预取（只预热缓存，不产生聚合信号，与真实搜索物理隔离）
+    Q_INVOKABLE void prefetchModsEx(const QString& query, const QString& loader,
+        const QString& category, const QStringList& gameVersions,
+        int offset, int limit);
+    Q_INVOKABLE void prefetchShadersEx(const QString& query, const QStringList& gameVersions,
+        const QStringList& categories, int offset, int limit);
+    Q_INVOKABLE void prefetchResourcepacks(const QString& query, const QString& gameVersion,
+        int offset, const QStringList& categories);
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
