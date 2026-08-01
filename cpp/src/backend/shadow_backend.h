@@ -671,8 +671,6 @@ public:
     QObject* multiplayer() const;
     // 资源拉取引擎访问器（ResourceBackend 搜索接入用）
     ResourceFetchEngine* fetchEngine() const { return m_fetchEngine; }
-    // CurseForge 分类静态表（QML 叠加下拉用）
-    Q_INVOKABLE QVariantList cfCategories(int classId) const;
 
     // ── Icon cache (QML-callable methods: mod / shader / rp) ──
     Q_INVOKABLE QString resolveIconUrl(const QString &url);

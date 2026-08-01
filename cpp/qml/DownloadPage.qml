@@ -755,8 +755,7 @@ Rectangle {
                         dateModified: r.dateModified || "",
                         loader: r.loader || "",
                         loadersList: (r.loadersList || []).join(", "),
-                        clientSide: r.clientSide || "",
-                        source: r.source || "Modrinth"
+                        clientSide: r.clientSide || ""
                     })
                     if (r.loadersList && r.loadersList.length > 0) console.log("[MOD-QML] slug=" + (r.slug||"?") + " loadersList=" + JSON.stringify(r.loadersList))
                 }
@@ -839,8 +838,7 @@ Rectangle {
 
                 ListView {
                     id: modListView2
-                    anchors.fill: parent
-                    spacing: 6
+                    anchors.fill: parent; spacing: 6
                     model: modResultsModel
                     cacheBuffer: 200
                     onAtYEndChanged: { if (atYEnd) modTab.prefetchModNextPage() }
@@ -1028,8 +1026,7 @@ Rectangle {
                             slug: r.slug || "", title: r.title || r.slug || "Unknown",
                             desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
                             downloads: r.downloads || 0, versions: (r.versions && r.versions.length ? r.versions.join(",") : ""),
-                            dateModified: r.dateModified || "", categories: (r.categories || []).join(","),
-                            source: r.source || "Modrinth"
+                            dateModified: r.dateModified || "", categories: (r.categories || []).join(",")
                         })
                     }
                     if (urlsToCache.length > 0 && backend) {
@@ -1207,8 +1204,7 @@ Rectangle {
 
                 ListView {
                     id: rpListView
-                    anchors.fill: parent
-                    spacing: 6
+                    anchors.fill: parent; spacing: 6
                     model: rpResultsModel
                     cacheBuffer: 200
                     onAtYEndChanged: { if (atYEnd) page.prefetchRpNextPage() }
@@ -1402,6 +1398,7 @@ Rectangle {
                     rpResultsModel.setProperty(i, "icon", localPath)
             }
         }
+
         function onResourcepackSearchFailed(error) {
             console.log("[resourcepack] search FAILED:", error)
             toastManager.show("资源包搜索失败: " + error)

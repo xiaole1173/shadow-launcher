@@ -1483,11 +1483,6 @@ void ShadowBackend::cacheRpIconBatchAsync(const QStringList &urls)
     if (m_fetchEngine) m_fetchEngine->prefetchIcons(urls);
 }
 
-QVariantList ShadowBackend::cfCategories(int classId) const
-{
-    return m_resource ? m_resource->cfCategories(classId) : QVariantList();
-}
-
 qint64 ShadowBackend::diskFree() const
 {
     QStorageInfo storage(m_app->gameDir());
