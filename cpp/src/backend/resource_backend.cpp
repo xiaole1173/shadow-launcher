@@ -272,6 +272,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
         if (gen != m_searchGen) return;
         if (m_modPending > 0) {
             m_modPending = 0;
+            m_modTimeoutForced = true;
             tryAggregateMod(gen, false);
         }
     });
@@ -307,22 +308,50 @@ static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariant
     return merged;
 }
 
+// CF 特有项：Modrinth 结果里没有的（归一化标题匹配）——增量插入用
+static QVariantList cfOnlyItems(const QVariantList& mrItems, const QVariantList& cfItems)
+{
+    QSet<QString> mrKeys;
+    for (const QVariant& v : mrItems)
+        mrKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
+    QVariantList out;
+    for (const QVariant& v : cfItems) {
+        const QString key = normTitle(v.toMap().value(QStringLiteral("title")).toString());
+        if (key.isEmpty() || !mrKeys.contains(key))
+            out.append(v);
+    }
+    return out;
+}
+
 void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
     --m_modPending;
     if (mrDone && m_modPending > 0) {
-        // 渐进：Modrinth 先回、CF 还在途 → 先显示 Modrinth（不等 CF）
+        // 渐进第一波：Modrinth 先回 → 先显示（不等 CF）
         m_modMgr->setBusy(false);
         emit modSearchResultsReady(m_modMrResults);
         return;
     }
     if (m_modPending > 0) return;
     m_modMgr->setBusy(false);
-    const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults);
-    emit logMessage(tr("搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
-                        .arg(m_modMrResults.size()).arg(m_modCfResults.size()).arg(merged.size()));
-    emit modSearchResultsReady(merged);
+    if (m_modTimeoutForced) {
+        m_modTimeoutForced = false;
+        // 超时兜底：发合并全量（清空重填）
+        const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults);
+        emit logMessage(tr("搜索完成(超时兜底): %1 条").arg(merged.size()));
+        emit modSearchResultsReady(merged);
+        return;
+    }
+    if (!m_modMrResults.isEmpty()) {
+        // 正常双源：CF 特有项增量插入（QML 动画插入，不清空）
+        const QVariantList cfOnly = cfOnlyItems(m_modMrResults, m_modCfResults);
+        emit logMessage(tr("CF 特有项 %1 条增量插入").arg(cfOnly.size()));
+        emit modCfInserted(cfOnly);
+    } else {
+        // Modrinth 失败但 CF 有结果 → 直接显示 CF
+        emit modSearchResultsReady(m_modCfResults);
+    }
 }
 
 QVariantMap ResourceBackend::getModCategories()
@@ -444,6 +473,7 @@ void ResourceBackend::searchShadersEx(
         if (gen != m_searchGen) return;
         if (m_shaderPending > 0) {
             m_shaderPending = 0;
+            m_shaderTimeoutForced = true;
             tryAggregateShader(gen, false);
         }
     });
@@ -460,10 +490,20 @@ void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
     }
     if (m_shaderPending > 0) return;
     m_modMgr->setBusy(false);
-    const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults);
-    emit logMessage(tr("光影搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
-                        .arg(m_shaderMrResults.size()).arg(m_shaderCfResults.size()).arg(merged.size()));
-    emit shaderSearchResultsReady(merged);
+    if (m_shaderTimeoutForced) {
+        m_shaderTimeoutForced = false;
+        const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults);
+        emit logMessage(tr("光影搜索完成(超时兜底): %1 条").arg(merged.size()));
+        emit shaderSearchResultsReady(merged);
+        return;
+    }
+    if (!m_shaderMrResults.isEmpty()) {
+        const QVariantList cfOnly = cfOnlyItems(m_shaderMrResults, m_shaderCfResults);
+        emit logMessage(tr("CF 光影特有项 %1 条增量插入").arg(cfOnly.size()));
+        emit shaderCfInserted(cfOnly);
+    } else {
+        emit shaderSearchResultsReady(m_shaderCfResults);
+    }
 }
 
 // ============================================================
@@ -595,6 +635,7 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
         if (gen != m_searchGen) return;
         if (m_rpPending > 0) {
             m_rpPending = 0;
+            m_rpTimeoutForced = true;
             tryAggregateRp(gen, false);
         }
     });
@@ -611,10 +652,20 @@ void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
     }
     if (m_rpPending > 0) return;
     m_modMgr->setBusy(false);
-    const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults);
-    emit logMessage(tr("[RP] 搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
-                        .arg(m_rpMrResults.size()).arg(m_rpCfResults.size()).arg(merged.size()));
-    emit resourcepackSearchCompleted(merged, merged.size());
+    if (m_rpTimeoutForced) {
+        m_rpTimeoutForced = false;
+        const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults);
+        emit logMessage(tr("[RP] 搜索完成(超时兜底): %1 条").arg(merged.size()));
+        emit resourcepackSearchCompleted(merged, merged.size());
+        return;
+    }
+    if (!m_rpMrResults.isEmpty()) {
+        const QVariantList cfOnly = cfOnlyItems(m_rpMrResults, m_rpCfResults);
+        emit logMessage(tr("[RP] CF 特有项 %1 条增量插入").arg(cfOnly.size()));
+        emit rpCfInserted(cfOnly);
+    } else {
+        emit resourcepackSearchCompleted(m_rpCfResults, m_rpCfResults.size());
+    }
 }
 
 // ── CurseForge 详情页版本（复用 modVersionsPartial 等信号）──

@@ -478,6 +478,12 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::searchResultsReady);
     connect(m_resource, &ResourceBackend::modSearchResultsReady,
             this, &ShadowBackend::modSearchResultsReady);
+    connect(m_resource, &ResourceBackend::modCfInserted,
+            this, &ShadowBackend::modCfInserted);
+    connect(m_resource, &ResourceBackend::shaderCfInserted,
+            this, &ShadowBackend::shaderCfInserted);
+    connect(m_resource, &ResourceBackend::rpCfInserted,
+            this, &ShadowBackend::rpCfInserted);
     connect(m_resource, &ResourceBackend::shaderSearchResultsReady,
             this, &ShadowBackend::shaderSearchResultsReady);
     connect(m_resource, &ResourceBackend::resourcepackSearchCompleted,

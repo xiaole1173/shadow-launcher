@@ -81,6 +81,10 @@ signals:
     void searchResultsReady(const QVariantList& results);  // deprecated — use modSearchResultsReady / shaderSearchResultsReady
     void modSearchResultsReady(const QVariantList& results);
     void shaderSearchResultsReady(const QVariantList& results);
+    // 双源渐进：CF 特有项增量插入（QML 按下载量插入对应位置，带动画）
+    void modCfInserted(const QVariantList& items);
+    void shaderCfInserted(const QVariantList& items);
+    void rpCfInserted(const QVariantList& items);
     void resourcepackSearchCompleted(const QVariantList& results, int totalHits);
     void resourcepackSearchFailed(const QString& error);
     void resourcepackDownloadFinished(const QString& slug, bool success, const QString& filePath);
@@ -127,6 +131,9 @@ private:
     int m_shaderPending = 0;
     QVariantList m_rpMrResults, m_rpCfResults;
     int m_rpPending = 0;
+    bool m_modTimeoutForced = false;
+    bool m_shaderTimeoutForced = false;
+    bool m_rpTimeoutForced = false;
     void tryAggregateMod(int gen, bool mrDone);
     void tryAggregateShader(int gen, bool mrDone);
     void tryAggregateRp(int gen, bool mrDone);
