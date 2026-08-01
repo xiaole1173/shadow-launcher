@@ -4,6 +4,7 @@
 #include "../core/resource_fetch_engine.h"
 #include "../core/cf_api.h"
 #include <QTimer>
+#include <QRegularExpression>
 #include "core/mod_manager.h"
 #include "core/http_client.h"
 #include "utils/logger.h"
@@ -276,15 +277,44 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     });
 }
 
+// ── 双源去重合并：Modrinth 优先（同名模组 CF 不展示），按下载量降序混排 ──
+static QString normTitle(const QString& s)
+{
+    QString n = s.toLower();
+    n.remove(QRegularExpression(QStringLiteral("[^a-z0-9]")));
+    return n;
+}
+static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems)
+{
+    QSet<QString> seen;
+    QVariantList merged;
+    auto appendDedup = [&](const QVariantList& items) {
+        for (const QVariant& v : items) {
+            const QVariantMap m = v.toMap();
+            const QString key = normTitle(m.value(QStringLiteral("title")).toString());
+            if (key.isEmpty()) { merged.append(v); continue; }
+            if (seen.contains(key)) continue;
+            seen.insert(key);
+            merged.append(v);
+        }
+    };
+    appendDedup(mrItems);  // Modrinth 先（优先保留）
+    appendDedup(cfItems);  // CF 只补充特有
+    std::sort(merged.begin(), merged.end(), [](const QVariant& a, const QVariant& b) {
+        return a.toMap().value(QStringLiteral("downloads")).toDouble()
+             > b.toMap().value(QStringLiteral("downloads")).toDouble();
+    });
+    return merged;
+}
+
 void ResourceBackend::tryAggregateMod(int gen)
 {
     if (gen != m_searchGen) return;
     if (--m_modPending > 0) return;
     m_modMgr->setBusy(false);
-    QVariantList merged = m_modMrResults;
-    merged.append(m_modCfResults);
-    emit logMessage(tr("搜索完成: Modrinth %1 条 + CurseForge %2 条")
-                        .arg(m_modMrResults.size()).arg(m_modCfResults.size()));
+    const QVariantList merged = mergeDedupSorted(m_modMrResults, m_modCfResults);
+    emit logMessage(tr("搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
+                        .arg(m_modMrResults.size()).arg(m_modCfResults.size()).arg(merged.size()));
     emit modSearchResultsReady(merged);
 }
 
@@ -417,10 +447,9 @@ void ResourceBackend::tryAggregateShader(int gen)
     if (gen != m_searchGen) return;
     if (--m_shaderPending > 0) return;
     m_modMgr->setBusy(false);
-    QVariantList merged = m_shaderMrResults;
-    merged.append(m_shaderCfResults);
-    emit logMessage(tr("光影搜索完成: Modrinth %1 条 + CurseForge %2 条")
-                        .arg(m_shaderMrResults.size()).arg(m_shaderCfResults.size()));
+    const QVariantList merged = mergeDedupSorted(m_shaderMrResults, m_shaderCfResults);
+    emit logMessage(tr("光影搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
+                        .arg(m_shaderMrResults.size()).arg(m_shaderCfResults.size()).arg(merged.size()));
     emit shaderSearchResultsReady(merged);
 }
 
@@ -563,10 +592,9 @@ void ResourceBackend::tryAggregateRp(int gen)
     if (gen != m_searchGen) return;
     if (--m_rpPending > 0) return;
     m_modMgr->setBusy(false);
-    QVariantList merged = m_rpMrResults;
-    merged.append(m_rpCfResults);
-    emit logMessage(tr("[RP] 搜索完成: Modrinth %1 条 + CurseForge %2 条")
-                        .arg(m_rpMrResults.size()).arg(m_rpCfResults.size()));
+    const QVariantList merged = mergeDedupSorted(m_rpMrResults, m_rpCfResults);
+    emit logMessage(tr("[RP] 搜索完成: Modrinth %1 + CurseForge %2 → 去重后 %3 条")
+                        .arg(m_rpMrResults.size()).arg(m_rpCfResults.size()).arg(merged.size()));
     emit resourcepackSearchCompleted(merged, merged.size());
 }
 
