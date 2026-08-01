@@ -70,12 +70,14 @@ private:
     void startApiRequest(ApiReq req);
     void startIconDownload(const QString& url);
     void onIconData(const QString& url, const QByteArray& data, bool ok, const QString& err);
-    void makeThumbnail(const QString& url, const QByteArray& data);
+    void makeThumbnail(const QString& url, const QImage& img);
 
     QString iconFile(const QString& url) const;    // 原图   {root}/icons/{hash}.png
     QString thumbFile(const QString& url) const;   // 缩略图 {root}/thumbs/{hash}_88.png
     static QString hashUrl(const QString& url);
     static QString fileUrl(const QString& path);
+    /// 规范化下载 URL：修复 Modrinth API 偶发的 https://host//data/... 双斜杠（哈希仍基于原始 URL，与 QML 匹配）
+    static QString downloadUrl(const QString& url);
 
     QNetworkAccessManager m_nam;
     QString m_cacheRoot;

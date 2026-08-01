@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QPixmap>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -29,6 +30,21 @@ ResourceFetchEngine::ResourceFetchEngine(const QString& cacheRoot, QObject* pare
     m_nam.setTransferTimeout(20000);
     qCInfo(logDownload) << engineBanner(kEngineId);
     qCInfo(logDownload) << engineTag(kEngineId) << QStringLiteral("缓存根目录: %1").arg(m_cacheRoot);
+
+    // 清理历史坏缓存：此前版本可能把错误页/webp 等内容原样存成 .png，QML 解码失败会卡占位图
+    int cleaned = 0;
+    const auto iconFiles = QDir(m_cacheRoot + "/icons")
+                               .entryInfoList({QStringLiteral("*.png")}, QDir::Files);
+    for (const QFileInfo& fi : iconFiles) {
+        QImageReader reader(fi.absoluteFilePath());
+        if (!reader.canRead()) {
+            QFile::remove(fi.absoluteFilePath());
+            ++cleaned;
+        }
+    }
+    if (cleaned > 0)
+        qCWarning(logDownload) << engineTag(kEngineId)
+                               << QStringLiteral("清理 %1 个历史坏图标缓存").arg(cleaned);
 }
 
 // ═══════════════════════════════ API JSON ═══════════════════════════════
@@ -136,7 +152,7 @@ void ResourceFetchEngine::pumpIcons()
 void ResourceFetchEngine::startIconDownload(const QString& url)
 {
     m_iconActive.insert(url);
-    const QUrl qurl(url);
+    const QUrl qurl(downloadUrl(url)); // 规范化（修复 Modrinth API 偶发的 //data 双斜杠）
     QNetworkRequest request(qurl);
     request.setRawHeader("User-Agent", "ShadowLauncher");
     request.setTransferTimeout(10000); // 镜像 TTFB 3~8s，10s 超时快速失败重试，避免堵住队列
@@ -154,7 +170,8 @@ void ResourceFetchEngine::onIconData(const QString& url, const QByteArray& data,
                                      bool ok, const QString& err)
 {
     m_iconActive.remove(url);
-    if (!ok) {
+    // 网络失败或极小文件（镜像错误页特征）→ 走重试
+    if (!ok || data.size() < 256) {
         int& r = m_iconRetries[url];
         if (r < kIconRetryMax) {
             ++r;
@@ -176,17 +193,23 @@ void ResourceFetchEngine::onIconData(const QString& url, const QByteArray& data,
         return;
     }
 
-    // 写原图
-    const QString of = iconFile(url);
-    {
-        QFile f(of);
-        if (f.open(QIODevice::WriteOnly)) {
-            f.write(data);
-            f.close();
-        }
+    // 解码验证：QImage 解不了（webp/错误页等）→ 丢弃，不存盘（否则 QML 解码失败占位图永不刷新）
+    QImage img;
+    if (!img.loadFromData(data)) {
+        qCWarning(logDownload) << engineTag(kEngineId)
+                               << QStringLiteral("图标格式无法解码，丢弃 %1 (size=%2)")
+                                      .arg(url.left(60)).arg(data.size());
+        return;
     }
-    // 生成缩略图（失败不影响原图）
-    makeThumbnail(url, data);
+
+    // 统一转 PNG 存原图（QML 必能解码）
+    if (!img.save(iconFile(url), "PNG")) {
+        qCWarning(logDownload) << engineTag(kEngineId)
+                               << QStringLiteral("图标写盘失败 %1").arg(url.left(60));
+        return;
+    }
+    // 生成 88px 缩略图
+    makeThumbnail(url, img);
 
     QString lp = iconFile(url);
     if (QFileInfo::exists(thumbFile(url)))
@@ -196,11 +219,8 @@ void ResourceFetchEngine::onIconData(const QString& url, const QByteArray& data,
     emit iconReady(url, fileUrl(lp));
 }
 
-void ResourceFetchEngine::makeThumbnail(const QString& url, const QByteArray& data)
+void ResourceFetchEngine::makeThumbnail(const QString& url, const QImage& img)
 {
-    QImage img;
-    if (!img.loadFromData(data))
-        return;
     const QImage thumb = img.scaled(kThumbSize, kThumbSize,
                                     Qt::KeepAspectRatio, Qt::SmoothTransformation);
     const QString tf = thumbFile(url);
@@ -232,6 +252,18 @@ QString ResourceFetchEngine::hashUrl(const QString& url)
 QString ResourceFetchEngine::fileUrl(const QString& path)
 {
     return QUrl::fromLocalFile(path).toString();
+}
+
+QString ResourceFetchEngine::downloadUrl(const QString& url)
+{
+    QString u = url;
+    const int schemeEnd = u.indexOf(QStringLiteral("://"));
+    if (schemeEnd >= 0) {
+        int slash = u.indexOf(QLatin1Char('/'), schemeEnd + 3);
+        while (slash >= 0 && slash + 1 < u.size() && u.at(slash + 1) == QLatin1Char('/'))
+            u.remove(slash, 1);
+    }
+    return u;
 }
 
 } // namespace ShadowLauncher
