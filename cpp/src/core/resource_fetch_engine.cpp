@@ -64,7 +64,7 @@ void ResourceFetchEngine::startApiRequest(ApiReq req)
     const QUrl qurl(req.url);
     QNetworkRequest request(qurl);
     request.setRawHeader("User-Agent", "ShadowLauncher");
-    request.setTransferTimeout(20000);
+    request.setTransferTimeout(15000);
     QNetworkReply* reply = m_nam.get(request);
     connect(reply, &QNetworkReply::finished, this, [this, req, reply]() {
         reply->deleteLater();
@@ -139,7 +139,7 @@ void ResourceFetchEngine::startIconDownload(const QString& url)
     const QUrl qurl(url);
     QNetworkRequest request(qurl);
     request.setRawHeader("User-Agent", "ShadowLauncher");
-    request.setTransferTimeout(20000);
+    request.setTransferTimeout(10000); // 镜像 TTFB 3~8s，10s 超时快速失败重试，避免堵住队列
     QNetworkReply* reply = m_nam.get(request);
     connect(reply, &QNetworkReply::finished, this, [this, url, reply]() {
         reply->deleteLater();
