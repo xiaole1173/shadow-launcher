@@ -185,7 +185,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     const QString key = query + QLatin1Char('|') + loader + QLatin1Char('|') + category
                       + QLatin1Char('|') + gameVersions.join(QLatin1Char(',')) + QLatin1Char('|')
                       + environment + QLatin1Char('|') + license;
-    m_modSearchPage = page;
+    m_modSearchPage = limit > 0 ? page / limit : 0;   // QML 传 offset，换算成页号
     m_modSearchLimit = limit;
 
     const bool cfOnly = CfApi::isCfCategory(category);
