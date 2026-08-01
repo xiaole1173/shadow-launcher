@@ -143,11 +143,17 @@ Rectangle {
 
                 Rectangle {
                     visible: root.source !== ""
-                    Layout.preferredWidth: 56; height: 15; radius: StyleTokens.radiusXs
-                    color: StyleTokens.bgElevated
+                    // 宽度随来源文字自适应（CurseForge 比 Modrinth 长）
+                    Layout.preferredWidth: Math.max(48, srcTagText.implicitWidth + 14)
+                    height: 16; radius: 8
+                    // 底部颜色区分：CurseForge 暖橙 / Modrinth 保持现有
+                    color: root.source === "CurseForge" ? "#2B1A12" : StyleTokens.bgElevated
                     Text {
+                        id: srcTagText
                         anchors.centerIn: parent
-                        text: root.source; color: "#9088e0"; font.pixelSize: StyleTokens.fontSizeXs
+                        text: root.source
+                        color: root.source === "CurseForge" ? "#F08A5D" : "#9088e0"
+                        font.pixelSize: StyleTokens.fontSizeXs
                     }
                 }
             }
