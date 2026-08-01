@@ -162,7 +162,7 @@ Rectangle {
         id: l3Container
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: mainRow.bottom
+        anchors.top: contentLayout.bottom
         anchors.topMargin: 8
         anchors.leftMargin: 10
         anchors.rightMargin: 10
