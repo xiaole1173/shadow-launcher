@@ -9,6 +9,7 @@ namespace ShadowLauncher {
 
 class ModManager;
 class ResourceFetchEngine;
+class ResourceFetchEngine;
 
 class ResourceBackend : public QObject {
     Q_OBJECT
@@ -22,10 +23,10 @@ public:
     explicit ResourceBackend(QObject* parent = nullptr);
     ~ResourceBackend() override;
 
-    ModManager* modManager() const { return m_modMgr; }
+    /// 注入共享资源拉取引擎（由 ShadowBackend 创建后传入，搜索走引擎缓存/并发）
+    void setFetchEngine(ResourceFetchEngine* e);
 
-    /// 注入共享资源拉取引擎（由 ShadowBackend 创建后传入）
-    void setFetchEngine(ResourceFetchEngine* e) { m_fetchEngine = e; }
+    ModManager* modManager() const { return m_modMgr; }
 
     bool isDownloading() const { return m_downloading; }
     int dlProgress() const { return m_dlProgress; }

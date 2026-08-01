@@ -3,6 +3,7 @@
 #include "mod_manager.h"
 #include "utils/logger.h"
 #include "http_client.h"
+#include "resource_fetch_engine.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -539,20 +540,24 @@ void ModManager::searchResourcepacks(
     if (!ShadowLauncher::suppressUrlLog())
         emit logMessage(tr("[MODRINTH] 搜索资源包: %1").arg(url.toString()));
 
-    HttpClient::instance().get(url.toString(),
-        [this](int /*status*/, const QByteArray& data) {
-            setBusy(false);
-            int total = 0;
-            QJsonArray hits = parseSearchResponse(data, total);
-            emit resourcepackSearchCompleted(hits, total);
-            emit logMessage(tr("[MODRINTH] 资源包搜索结果: %1/%2").arg(hits.size()).arg(total));
-        },
-        [this](const QString& err) {
-            qCWarning(logApp) << QStringLiteral("网络请求失败 函数=searchResourcepacks 错误=%1").arg(err);
-            setBusy(false);
-            emit logMessage(tr("[MODRINTH] 资源包搜索失败: %1").arg(err));
-        }
-    );
+    const auto onOk = [this](int /*status*/, const QByteArray& data) {
+        setBusy(false);
+        int total = 0;
+        QJsonArray hits = parseSearchResponse(data, total);
+        emit resourcepackSearchCompleted(hits, total);
+        emit logMessage(tr("[MODRINTH] 资源包搜索结果: %1/%2").arg(hits.size()).arg(total));
+    };
+    const auto onFail = [this](const QString& err) {
+        qCWarning(logApp) << QStringLiteral("网络请求失败 函数=searchResourcepacks 错误=%1").arg(err);
+        setBusy(false);
+        emit logMessage(tr("[MODRINTH] 资源包搜索失败: %1").arg(err));
+    };
+    if (m_fetchEngine) {
+        // 司南引擎：结果缓存（翻页/切 tab 秒开）+ 并发控制
+        m_fetchEngine->getJson(url.toString(), true, onOk, onFail);
+    } else {
+        HttpClient::instance().get(url.toString(), onOk, onFail);
+    }
 }
 
 void ModManager::downloadResourcepack(

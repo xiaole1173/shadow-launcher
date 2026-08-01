@@ -15,6 +15,8 @@ class QFile;
 
 namespace ShadowLauncher {
 
+class ResourceFetchEngine;
+
 // --- Data structures ---
 
 struct ModInfo {
@@ -158,6 +160,9 @@ public:
     void cancel();
     bool isBusy() const;
 
+    /// 注入共享资源拉取引擎（司南）：搜索请求走引擎（缓存 + 并发控制）
+    void setFetchEngine(ResourceFetchEngine* e) { m_fetchEngine = e; }
+
 signals:
     void searchCompleted(const QJsonArray& results, int totalHits);
     void searchFailed(const QString& error);
@@ -209,6 +214,7 @@ public:
 
 private:
     bool m_busy = false;
+    ResourceFetchEngine* m_fetchEngine = nullptr;
     QString buildSearchUrl(
         const QString& query, const QStringList& categories,
         const QStringList& gameVersions, const QStringList& loaders,

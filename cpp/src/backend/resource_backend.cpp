@@ -69,6 +69,12 @@ ResourceBackend::ResourceBackend(QObject* parent)
 
 ResourceBackend::~ResourceBackend() = default;
 
+void ResourceBackend::setFetchEngine(ResourceFetchEngine* e)
+{
+    m_fetchEngine = e;
+    if (m_modMgr) m_modMgr->setFetchEngine(e); // ModManager 搜索同样走引擎
+}
+
 // ============================================================
 // Public Slots — Popular Mods / Shaders (offline data)
 // ============================================================
