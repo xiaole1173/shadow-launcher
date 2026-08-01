@@ -182,7 +182,7 @@ private:
     mutable QMutex m_hostMutex;
     QMap<QString, HostStats> m_hostStats;
 
-    static constexpr int kMaxPerHost = 4;
+    static constexpr int kMaxPerHost = 8;   // per-host 并发上限（4→8：官方 CDN 多连接友好，配合速度门限删除提速；模组引擎不受影响）
 
     static QString extractHost(const QString& url);
     bool hostCanAccept(const QString& host) const;

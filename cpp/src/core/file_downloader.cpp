@@ -87,7 +87,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                     m_totalBytes.fetchAndAddRelaxed(fi.size());
                     m_downloadedBytes.fetchAndAddRelaxed(fi.size());
                     m_cacheBytes.fetchAndAddRelaxed(fi.size());
-                    emit logMessage(QString::fromUtf8("[完成] 缓存命中: %1 (%2)")
+                    emit logMessage(QString::fromUtf8("[下载] 文件%1 本地缓存校验通过，跳过下载 (%2)")
                                         .arg(localName, formatSize(fi.size())));
                     emit fileProgress(localPath, localName, fi.size(), fi.size(), localPath);
                     m_totalFiles.fetchAndAddRelaxed(1);
@@ -117,7 +117,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                             m_totalBytes.fetchAndAddRelaxed(ffi.size());
                             m_downloadedBytes.fetchAndAddRelaxed(ffi.size());
                             m_cacheBytes.fetchAndAddRelaxed(ffi.size());
-                            emit logMessage(QString::fromUtf8("[完成] 缓存命中(gameDir): %1 (%2)")
+                            emit logMessage(QString::fromUtf8("[下载] 文件%1 本地缓存校验通过(gameDir)，跳过下载 (%2)")
                                                 .arg(localName, formatSize(ffi.size())));
                             emit fileProgress(localPath, localName, ffi.size(), ffi.size(), localPath);
                             m_totalFiles.fetchAndAddRelaxed(1);
@@ -170,18 +170,9 @@ void FileDownloader::start()
     m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
     m_speedRecords.clear();
 
-    // Pre-resolve DNS for all unique hosts
-    {
-        QSet<QString> hosts;
-        QMutexLocker lock(&m_filesMutex);
-        for (const auto& f : m_files) {
-            for (const auto& s : f->orderedSources)
-                hosts.insert(extractHost(s));
-        }
-        lock.unlock();
-        for (const auto& h : hosts)
-            resolveHost(h);
-    }
+    // 修复：删除同步 DNS 预解析（QHostInfo::fromName 同步阻塞主线程，多 host 时
+    // 数秒~十几秒无进度；且解析结果 m_dnsCache 无任何消费方——runWorker 请求
+    // 直接用域名，不走 IP 直连）。启动即调度，DNS 由系统/连接层按需解析。
 
     // Clear thread pool from any previous runs
     m_threadPool.clear();
@@ -292,16 +283,12 @@ void FileDownloader::managerTick()
     }
 
     // Phase 2-3: speed-based thread splitting
-    double curMbps = currentSpeedMBps();
-    qint64 floor = m_speedFloorBps.loadRelaxed();
-
-    // If speed >= floor, don't add more threads
-    // （模组专项：无视速度下限直接分片——模组单连接被镜像限速，EMA 恒卡在 floor
-    //   附近导致分片永不触发；PCL 语义是 ≥1MB 即分片，与速度无关）
-    if (!m_modpackMode && curMbps * 1024 * 1024 >= floor) {
-        lock.unlock();
-        return;
-    }
+    // 修复：删除速度门限（`curMbps >= floor 则不加线程`）。
+    // 该门限使 MC 单连接速度 ≥ 下限（峰值 85%）时永不追加线程 →
+    // client.jar 等大文件被锁死在单连接速率（实测 ~1MB/s）。
+    // 分片触发不再依赖速度判定，由 maxThreads / prep>dl / 512KB 最小碎片
+    // / per-host 上限四重守卫控制并发（PCL 语义：≥1MB 即分片，与速度无关）。
+    // 模组路径本就无视门限（下方分支），此改动仅影响 MC 路径。
 
     // Add threads to files with large remaining chunks
     for (auto& f : m_files) {

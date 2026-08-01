@@ -501,10 +501,12 @@ void VersionBackend::installVersion(const QString& versionId)
 
 
 
-    // ── Resolve mirror (BMCLAPI for domestic network speed) ──
-
-    MirrorSource mirror = MirrorSource::bmclapi();
-
+    // ── Resolve mirror（按全局源策略：官方源优先时选 Mojang，否则 BMCLAPI 加速）──
+    // 修复：此前无条件 bmclapi() → collectTasks 的 primaryUrl/源数组永远 BMCLAPI 在前，
+    // "尽量使用官方源"配置在下载调度层完全失效（日志"调度首源"永久固定镜像）。
+    MirrorSource mirror = downloadPreferOfficial()
+        ? MirrorSource::mojang()
+        : MirrorSource::bmclapi();
 
 
     // ── Find version metadata in cached list ──
@@ -628,6 +630,7 @@ void VersionBackend::installVersion(const QString& versionId)
         bool mojangDone   = false;
 
         bool launchermetaDone = false;
+        int roundId = 0;   // 当前竞速轮次（多层重试轮次隔离）
 
     };
 
@@ -1039,9 +1042,13 @@ void VersionBackend::installVersion(const QString& versionId)
 
     // ── Per-source network request helper ──
 
-    auto launchRequest = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath]
+    // 多层重试：全部源失败后整体重试（阶梯超时递增），最多 kJsonFetchMaxRounds 轮
+    static constexpr int kJsonFetchMaxRounds = 3;
+    std::function<void(int)> startRound;
 
-        (const QString& url, const QString& sourceName) {
+    auto launchRequest = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, &startRound]
+
+        (const QString& url, const QString& sourceName, int round) {
 
 
 
@@ -1051,7 +1058,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
             req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
 
-            req.setTransferTimeout(8000);
+            req.setTransferTimeout(8000 + round * 4000);   // 阶梯超时 8s→12s→16s（多层重试）
 
             QNetworkReply* reply = nam->get(req);
 
@@ -1104,11 +1111,14 @@ void VersionBackend::installVersion(const QString& versionId)
 
             connect(reply, &QNetworkReply::finished, this,
 
-                    [this, reply, nam, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, sourceName]() {
+                    [this, reply, nam, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, sourceName, round, &startRound]() {
 
                         reply->deleteLater();
 
                         nam->deleteLater();
+
+                        // 轮次隔离：仅当前轮的源参与竞速判定（旧轮慢请求不干扰新轮）
+                        if (raceCtx->roundId != round) return;
 
 
 
@@ -1173,7 +1183,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
 
 
-                        // Check if both failed → fallback to cache
+                        // Check if all sources failed → next retry round / cache / fail
 
                         {
 
@@ -1181,9 +1191,17 @@ void VersionBackend::installVersion(const QString& versionId)
 
                             if (raceCtx->bmclapiDone && raceCtx->mojangDone && raceCtx->launchermetaDone && !raceCtx->hasWinner) {
 
-                                qCWarning(logVersion) << QStringLiteral("双源均失败 回退到本地缓存");
-
                                 lock.unlock();
+
+                                // 多层重试：全部源失败 → 整体重试下一轮（阶梯超时递增），直至轮次上限
+                                if (round + 1 < kJsonFetchMaxRounds) {
+                                    qCWarning(logVersion) << QStringLiteral("版本JSON全部源失败 第%1轮 发起第%2轮重试").arg(round + 1).arg(round + 2);
+                                    emit logMessage(tr("[版本] 版本信息拉取失败（第 %1 轮），稍后整体重试…").arg(round + 1));
+                                    QTimer::singleShot(500, this, [startRound, round]() { startRound(round + 1); });
+                                    return;
+                                }
+
+                                qCWarning(logVersion) << QStringLiteral("全部轮次失败 回退到本地缓存");
 
                                 if (!cachedData.isEmpty()) {
 
@@ -1195,9 +1213,9 @@ void VersionBackend::installVersion(const QString& versionId)
 
                                     emit logMessage(
 
-                                        tr("获取版本信息失败: %1")
+                                        tr("获取版本信息失败（已重试 %1 轮，全部源不可用）: %2")
 
-                                            .arg(reply->errorString()));
+                                            .arg(kJsonFetchMaxRounds).arg(reply->errorString()));
 
                                     cancelActiveDownload(versionId);
 
@@ -1213,7 +1231,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
 
 
-    // ── Launch BMCLAPI request (no throttle — version JSON is critical path) ──
+    // ── 多层重试调度：每轮三源并发竞速，全部失败后整体重试（阶梯超时 8s→12s→16s）──
 
     QString bmclapiUrl =
 
@@ -1221,21 +1239,11 @@ void VersionBackend::installVersion(const QString& versionId)
 
             .arg(versionId);
 
-    launchRequest(bmclapiUrl, QStringLiteral("BMCLAPI"));
 
 
+    // targetVersion.url 形如 https://piston-meta.mojang.com/v1/packages/HASH/VERSION.json
 
-    // ── Launch Mojang official request ──
-
-    launchRequest(targetVersion.url, QStringLiteral("Mojang"));
-
-
-
-    // ── Launch LauncherMeta CDN request (faster than piston-meta from China) ──
-
-    // targetVersion.url is e.g. https://piston-meta.mojang.com/v1/packages/HASH/VERSION.json
-
-    // Construct alternative: https://launchermeta.mojang.com/v1/packages/HASH/VERSION.json
+    // 构造替代 CDN: https://launchermeta.mojang.com/v1/packages/HASH/VERSION.json
 
     QString lmUrl = targetVersion.url;
 
@@ -1243,17 +1251,43 @@ void VersionBackend::installVersion(const QString& versionId)
 
                   QStringLiteral("launchermeta.mojang.com"));
 
-    if (lmUrl != targetVersion.url) {
 
-        launchRequest(lmUrl, QStringLiteral("LauncherMeta"));
 
-    } else {
+    startRound = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath,
 
-        // No alternative URL to try — mark as done immediately
+                  bmclapiUrl, targetVersion, lmUrl, &launchRequest, &startRound](int round) {
 
-        raceCtx->launchermetaDone = true;
+        raceCtx->roundId = round;
 
-    }
+        raceCtx->hasWinner = false;
+
+        raceCtx->bmclapiDone = false;
+
+        raceCtx->mojangDone = false;
+
+        raceCtx->launchermetaDone = false;
+
+        emit logMessage(tr("[版本] 拉取版本信息 第 %1/%2 轮（超时 %3s）")
+
+                            .arg(round + 1).arg(kJsonFetchMaxRounds).arg(8 + round * 4));
+
+        launchRequest(bmclapiUrl, QStringLiteral("BMCLAPI"), round);
+
+        launchRequest(targetVersion.url, QStringLiteral("Mojang"), round);
+
+        if (lmUrl != targetVersion.url) {
+
+            launchRequest(lmUrl, QStringLiteral("LauncherMeta"), round);
+
+        } else {
+
+            raceCtx->launchermetaDone = true;   // 无替代地址，立即视为完成
+
+        }
+
+    };
+
+    startRound(0);
 
 }
 

@@ -440,7 +440,10 @@ qint64 VersionDownloader::cachedBytes() const
     qint64 bytes = 0;
     if (m_assetDownloader)
         bytes += m_assetDownloader->cachedBytes();
-    // Note: FileDownloader cachedBytes() is inline in header
+    if (m_downloader)
+        bytes += m_downloader->cachedBytes();
+    // 修复：此前漏加 FileDownloader(库/jar) 的缓存字节 → 上层 netDb=db-cache 虚高
+    // → 缓存命中文件被计入网络速度，造成卡片速度虚高残留
     return bytes;
 }
 
