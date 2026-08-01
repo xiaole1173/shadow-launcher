@@ -774,7 +774,8 @@ Rectangle {
                         dateModified: r.dateModified || "",
                         loader: r.loader || "",
                         loadersList: modTab.fmtLoaderList(r.loadersList),
-                        clientSide: r.clientSide || ""
+                        clientSide: r.clientSide || "",
+                        source: r.source || "Modrinth"
                     })
                     if (r.loadersList && r.loadersList.length > 0) console.log("[MOD-QML] slug=" + (r.slug||"?") + " loadersList=" + JSON.stringify(r.loadersList))
                 }
@@ -1059,7 +1060,8 @@ Rectangle {
                             slug: r.slug || "", title: r.title || r.slug || "Unknown",
                             desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
                             downloads: r.downloads || 0, versions: shaderTab.fmtVersionList(r.versions),
-                            dateModified: r.dateModified || "", categories: shaderTab.fmtLoaderList(r.categories)
+                            dateModified: r.dateModified || "", categories: shaderTab.fmtLoaderList(r.categories),
+                            source: r.source || "Modrinth"
                         })
                     }
                     if (urlsToCache.length > 0 && backend) {

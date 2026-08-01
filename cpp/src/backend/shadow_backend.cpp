@@ -2253,6 +2253,19 @@ void ShadowBackend::fetchShaderVersions(const QStringList& slugs) {
     m_resource->fetchShaderVersions(slugs);
 }
 
+// CurseForge 详情页版本转发（复用 modVersionsPartial 等信号）
+void ShadowBackend::fetchModVersionsCf(const QString& modId, const QString& gameVersion, const QString& loader) {
+    m_resource->fetchModVersionsCf(modId, gameVersion, loader);
+}
+
+void ShadowBackend::fetchShaderVersionsCf(const QString& modId, const QString& gameVersion, const QString& loader) {
+    m_resource->fetchShaderVersionsCf(modId, gameVersion, loader);
+}
+
+void ShadowBackend::fetchResourcepackVersionsCf(const QString& modId, const QString& gameVersion, const QString& loader) {
+    m_resource->fetchResourcepackVersionsCf(modId, gameVersion, loader);
+}
+
 // ── Mod file download proxy ──
 int ShadowBackend::downloadModFile(const QString& url, const QString& savePath,
                                     const QString& displayName, qint64 expectedSize,
