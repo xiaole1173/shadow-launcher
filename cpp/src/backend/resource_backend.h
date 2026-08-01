@@ -135,6 +135,10 @@ private:
     int m_shaderPending = 0;
     QVariantList m_rpMrResults, m_rpCfResults;
     int m_rpPending = 0;
+    // 本代是否已降级过官方（防镜像异常空时重复降级）
+    bool m_mrFallbackUsed = false;
+    bool m_shaderFallbackUsed = false;
+    bool m_rpFallbackUsed = false;
     // 超时兜底后本代是否已发过结果（防止迟到响应二次 emit → 列表重复刷新/闪动）
     bool m_modEmitted = false;
     bool m_shaderEmitted = false;

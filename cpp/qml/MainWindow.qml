@@ -152,6 +152,13 @@ Window {
             console.log("[auto-test] navigateToRequested: page", pageIndex, "tab", subTab)
             if (pageIndex === 1) {
                 pendingSubTab = subTab
+                // Loader 可能已加载完成（onLoaded 已消费过 pendingSubTab=-1），
+                // 此时直接设置 currentTab 触发 onCurrentTabChanged → 搜索
+                var dlItem = downloadPageLoader.item
+                if (dlItem && subTab >= 0) {
+                    dlItem.currentTab = subTab
+                    pendingSubTab = -1
+                }
             }
             switchPage(pageIndex)
         }

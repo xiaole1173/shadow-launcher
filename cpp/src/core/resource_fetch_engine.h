@@ -100,7 +100,7 @@ private:
 
     static constexpr qint64 kJsonTtlMs = 300000; // 300s
     static constexpr int kJsonMax = 64;
-    static constexpr int kApiConcurrent = 2;
+    static constexpr int kApiConcurrent = 4; // 双源搜索需并行（Modrinth+CF 同时占槽，一源重试不饿死另一源）；实测镜像 2 并发搜索会排队阻塞
     static constexpr int kIconConcurrent = 6; // 实测（2026-08-01）：镜像最优并发=6（3并发12张79s，6并发14s，9并发又降速）
     static constexpr int kIconRetryMax = 2;
     static constexpr int kApiRetryMax = 1;

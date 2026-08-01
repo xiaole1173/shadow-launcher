@@ -91,7 +91,7 @@ void ResourceFetchEngine::startApiRequest(ApiReq req)
     request.setRawHeader("User-Agent", "ShadowLauncher");
     for (auto it = req.headers.constBegin(); it != req.headers.constEnd(); ++it)
         request.setRawHeader(it.key().toUtf8(), it.value().toUtf8());
-    request.setTransferTimeout(15000);
+    request.setTransferTimeout(8000); // 镜像 TTFB 2~8s；8s 超时快速失败，避免重试链饿死另一源（与搜索 8s 兜底对齐）
     QNetworkReply* reply = m_nam.get(request);
     connect(reply, &QNetworkReply::finished, this, [this, req, reply]() {
         reply->deleteLater();
