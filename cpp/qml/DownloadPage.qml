@@ -870,7 +870,7 @@ Rectangle {
                     id: modListView2
                     anchors.fill: parent
                     add: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
-                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic }
+                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
                     spacing: 6
                     model: modResultsModel
                     cacheBuffer: 200
@@ -1269,7 +1269,7 @@ Rectangle {
                     id: rpListView
                     anchors.fill: parent
                     add: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
-                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic }
+                    addDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic } }
                     spacing: 6
                     model: rpResultsModel
                     cacheBuffer: 200
