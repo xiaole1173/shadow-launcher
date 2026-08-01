@@ -211,6 +211,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
         m_modMrMore = true;
         m_modCfMore = true;
         m_mrFallbackUsed = false;
+        m_modShownCount = 0;
         emit logMessage(tr("[池子] Mod 搜索重置: q=%1 offset=%2 limit=%3").arg(query).arg(page * limit).arg(limit));
     }
 
@@ -390,10 +391,28 @@ void ResourceBackend::onModSourceDone(int gen)
     if (gen != m_searchGen) return;
     if (--m_modPending > 0) return;  // 等两个源都回
     m_modMgr->setBusy(false);
-    // 合并入池：去重 + 加权排序
-    m_modPool = mergeDedupSorted(m_modMrAll, m_modCfAll, 2.5);
-    emit logMessage(tr("[池子] Mod 合并: MR %1 + CF %2 → 池 %3 条")
-                        .arg(m_modMrAll.size()).arg(m_modCfAll.size()).arg(m_modPool.size()));
+
+    // ═══ 冻结区 + 候选区：已显示的前 shownCount 条永不重排 ═══
+    // 已显示部分（QML 已渲染的页）保持原序 → 滚动/切页不闪动；
+    // 只有未显示的候选区会因新数据重排（用户看不到变化，无感知）。
+    QVariantList frozen = m_modPool.mid(0, m_modShownCount);
+    // 从双源原始数据中排除已显示项（按归一化标题去重）
+    QSet<QString> frozenKeys;
+    for (const QVariant& v : frozen)
+        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
+    QVariantList mrRest, cfRest;
+    for (const QVariant& v : m_modMrAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            mrRest.append(v);
+    }
+    for (const QVariant& v : m_modCfAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            cfRest.append(v);
+    }
+    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
+    m_modPool = frozen + candidate;
+    emit logMessage(tr("[池子] Mod 合并: 冻结 %1 + 候选 %2 → 池 %3 条")
+                        .arg(frozen.size()).arg(candidate.size()).arg(m_modPool.size()));
     // 检查是否还需继续拉（池不够目标页 且 源未耗尽）
     const int need = (m_modSearchPage + 1) * m_modSearchLimit;
     if (m_modPool.size() < need && (m_modMrMore || m_modCfMore)) {
@@ -408,6 +427,10 @@ void ResourceBackend::onModSourceDone(int gen)
 void ResourceBackend::emitModPool()
 {
     m_modMgr->setBusy(false);
+    // 推进冻结边界：当前请求页已展示 → 前 (page+1)*limit 条冻结
+    const int shown = (m_modSearchPage + 1) * m_modSearchLimit;
+    if (shown > m_modShownCount)
+        m_modShownCount = qMin(shown, m_modPool.size());
     emit modSearchResultsReady(m_modPool);
 }
 
@@ -557,6 +580,7 @@ void ResourceBackend::searchShadersEx(
         m_shaderMrMore = true;
         m_shaderCfMore = true;
         m_shaderFallbackUsed = false;
+        m_shaderShownCount = 0;
         emit logMessage(tr("[池子] 光影搜索重置: offset=%1 limit=%2").arg(offset).arg(limit));
     }
     ensureShaderPool();
@@ -708,9 +732,24 @@ void ResourceBackend::onShaderSourceDone(int gen)
     if (gen != m_searchGen) return;
     if (--m_shaderPending > 0) return;
     m_modMgr->setBusy(false);
-    m_shaderPool = mergeDedupSorted(m_shaderMrAll, m_shaderCfAll, 2.5);
-    emit logMessage(tr("[池子] 光影合并: MR %1 + CF %2 → 池 %3 条")
-                        .arg(m_shaderMrAll.size()).arg(m_shaderCfAll.size()).arg(m_shaderPool.size()));
+    // 冻结区 + 候选区（防滚动闪动）
+    QVariantList frozen = m_shaderPool.mid(0, m_shaderShownCount);
+    QSet<QString> frozenKeys;
+    for (const QVariant& v : frozen)
+        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
+    QVariantList mrRest, cfRest;
+    for (const QVariant& v : m_shaderMrAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            mrRest.append(v);
+    }
+    for (const QVariant& v : m_shaderCfAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            cfRest.append(v);
+    }
+    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
+    m_shaderPool = frozen + candidate;
+    emit logMessage(tr("[池子] 光影合并: 冻结 %1 + 候选 %2 → 池 %3 条")
+                        .arg(frozen.size()).arg(candidate.size()).arg(m_shaderPool.size()));
     const int need = (m_shaderSearchPage + 1) * m_shaderSearchLimit;
     if (m_shaderPool.size() < need && (m_shaderMrMore || m_shaderCfMore)) {
         ensureShaderPool();
@@ -722,6 +761,9 @@ void ResourceBackend::onShaderSourceDone(int gen)
 void ResourceBackend::emitShaderPool()
 {
     m_modMgr->setBusy(false);
+    const int shown = (m_shaderSearchPage + 1) * m_shaderSearchLimit;
+    if (shown > m_shaderShownCount)
+        m_shaderShownCount = qMin(shown, m_shaderPool.size());
     emit shaderSearchResultsReady(m_shaderPool);
 }
 
@@ -783,6 +825,7 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
         m_rpMrMore = true;
         m_rpCfMore = true;
         m_rpFallbackUsed = false;
+        m_rpShownCount = 0;
         emit logMessage(tr("[池子] 资源包搜索重置: offset=%1").arg(offset));
     }
     ensureRpPool();
@@ -961,9 +1004,24 @@ void ResourceBackend::onRpSourceDone(int gen)
     if (gen != m_searchGen) return;
     if (--m_rpPending > 0) return;
     m_modMgr->setBusy(false);
-    m_rpPool = mergeDedupSorted(m_rpMrAll, m_rpCfAll, 2.5);
-    emit logMessage(tr("[池子] 资源包合并: MR %1 + CF %2 → 池 %3 条")
-                        .arg(m_rpMrAll.size()).arg(m_rpCfAll.size()).arg(m_rpPool.size()));
+    // 冻结区 + 候选区（防滚动闪动）
+    QVariantList frozen = m_rpPool.mid(0, m_rpShownCount);
+    QSet<QString> frozenKeys;
+    for (const QVariant& v : frozen)
+        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
+    QVariantList mrRest, cfRest;
+    for (const QVariant& v : m_rpMrAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            mrRest.append(v);
+    }
+    for (const QVariant& v : m_rpCfAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            cfRest.append(v);
+    }
+    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
+    m_rpPool = frozen + candidate;
+    emit logMessage(tr("[池子] 资源包合并: 冻结 %1 + 候选 %2 → 池 %3 条")
+                        .arg(frozen.size()).arg(candidate.size()).arg(m_rpPool.size()));
     const int need = (m_rpSearchPage + 1) * m_rpSearchLimit;
     if (m_rpPool.size() < need && (m_rpMrMore || m_rpCfMore)) {
         ensureRpPool();
@@ -975,6 +1033,9 @@ void ResourceBackend::onRpSourceDone(int gen)
 void ResourceBackend::emitRpPool()
 {
     m_modMgr->setBusy(false);
+    const int shown = (m_rpSearchPage + 1) * m_rpSearchLimit;
+    if (shown > m_rpShownCount)
+        m_rpShownCount = qMin(shown, m_rpPool.size());
     emit resourcepackSearchCompleted(m_rpPool, m_rpPool.size());
 }
 

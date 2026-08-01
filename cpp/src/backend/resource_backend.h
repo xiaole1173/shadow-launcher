@@ -140,6 +140,7 @@ private:
     int m_modPending = 0;
     bool m_modMrMore = true, m_modCfMore = true;
     bool m_modSearchActive = false;
+    int m_modShownCount = 0;   // 已显示条数（冻结区边界：前 N 条永不重排，防滚动闪动）
     int m_modSearchPage = 0, m_modSearchLimit = 30;
     QString m_modSearchKey;
     QString m_modSearchQuery, m_modSearchLoader, m_modSearchCategory, m_modSearchEnv, m_modSearchLic;
@@ -152,6 +153,7 @@ private:
     int m_shaderPending = 0;
     bool m_shaderMrMore = true, m_shaderCfMore = true;
     bool m_shaderSearchActive = false;
+    int m_shaderShownCount = 0;   // 冻结区边界
     int m_shaderSearchPage = 0, m_shaderSearchLimit = 50;
     QString m_shaderSearchKey;
     QString m_shaderSearchQuery;
@@ -163,6 +165,7 @@ private:
     int m_rpPending = 0;
     bool m_rpMrMore = true, m_rpCfMore = true;
     bool m_rpSearchActive = false;
+    int m_rpShownCount = 0;   // 冻结区边界
     int m_rpSearchPage = 0, m_rpSearchLimit = 20;
     QString m_rpSearchKey;
     QString m_rpSearchQuery, m_rpSearchVersion;

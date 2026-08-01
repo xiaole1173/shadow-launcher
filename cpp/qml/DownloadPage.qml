@@ -137,7 +137,7 @@ Rectangle {
         pageNum = (pageNum !== undefined) ? pageNum : 0
         page.rpSearching = true
         page.rpPage = pageNum
-        if (pageNum === 0) rpResultsModel.clear()   // 翻页保留旧列表直到新数据到（防闪）
+        rpResultsModel.clear()   // 清空列表，显示加载动画
         if (page.mainWindow && page.mainWindow.loadingBar) {
             page.mainWindow.loadingBar.opacity = 1
         }
@@ -670,7 +670,7 @@ Rectangle {
             pageNum = (pageNum !== undefined) ? pageNum : 0
             page.modCurrentPage = pageNum
             page.modSearching = true
-            if (pageNum === 0) modResultsModel.clear()   // 搜索首页才清空；翻页保留旧列表直到新数据到（防闪）
+            modResultsModel.clear()   // 清空列表，显示加载动画（等池子就绪一次性显示，避免旧列表与新页混闪）
             var q = modFilterCard.searchText ? modFilterCard.searchText.trim() : ""
             console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab + " page=" + pageNum)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
@@ -1002,7 +1002,7 @@ Rectangle {
             shaderSearching = true
             shaderCurrentPage = pageNum
             shaderOffset = pageNum * shaderPageSize
-            if (pageNum === 0) shaderResultsModel.clear()   // 翻页保留旧列表直到新数据到（防闪）
+            shaderResultsModel.clear()   // 清空列表，显示加载动画
             var a = shaderCategory ? [shaderCategory] : []
             var b = shaderFeature ? [shaderFeature] : []
             var c = shaderPerformance ? [shaderPerformance] : []
