@@ -791,8 +791,23 @@ Rectangle {
                 // modLoaderLabels 含 "": "全部" 所以只加一次
                 modLoaderModel: [""].concat(Object.keys(page.modLoaderLabels).filter(function(k) { return k !== "" }))
                 modLoaderLabels: page.modLoaderLabels
-                modCatModel: [""].concat(Object.keys(page.modCatLabels))
-                modCatLabels: page.modCatLabels
+                modCatModel: {
+                    var m = [""].concat(Object.keys(page.modCatLabels))
+                    if (backend) {
+                        var cf = backend.cfCategories(6)   // CurseForge Mods 分类叠加
+                        for (var i = 0; i < cf.length; i++) m.push(cf[i].value)
+                    }
+                    return m
+                }
+                modCatLabels: {
+                    var labels = {}
+                    for (var k in page.modCatLabels) labels[k] = page.modCatLabels[k]
+                    if (backend) {
+                        var cf = backend.cfCategories(6)
+                        for (var i = 0; i < cf.length; i++) labels[cf[i].value] = "CF·" + cf[i].name
+                    }
+                    return labels
+                }
                 modEnvModel: ["", "client", "server"]
                 modEnvLabels: page.modEnvLabels
 
@@ -850,7 +865,7 @@ Rectangle {
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
                         downloads: model.downloads || 0
-                        source: "Modrinth"
+                        source: model.source || "Modrinth"
                         gameVersions: model.versions || ""
                         dateModified: model.dateModified || ""
                         loaders: (model.loadersList || model.loader || "")
@@ -1097,7 +1112,7 @@ Rectangle {
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
                         downloads: model.downloads || 0
-                        source: "Modrinth"
+                        source: model.source || "Modrinth"
                         gameVersions: model.versions || ""
                         dateModified: model.dateModified || ""
                         onClicked: {

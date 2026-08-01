@@ -58,7 +58,8 @@ ResourceFetchEngine::ResourceFetchEngine(const QString& cacheRoot, QObject* pare
 // ═══════════════════════════════ API JSON ═══════════════════════════════
 
 void ResourceFetchEngine::getJson(const QString& url, bool cacheable,
-                                  JsonDone done, JsonFail fail)
+                                  JsonDone done, JsonFail fail,
+                                  const JsonHeaders& headers)
 {
     if (cacheable) {
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
@@ -70,7 +71,7 @@ void ResourceFetchEngine::getJson(const QString& url, bool cacheable,
             return;
         }
     }
-    m_apiQueue.enqueue({url, cacheable, std::move(done), std::move(fail), 0});
+    m_apiQueue.enqueue({url, cacheable, headers, std::move(done), std::move(fail), 0});
     pumpApi();
 }
 
@@ -88,6 +89,8 @@ void ResourceFetchEngine::startApiRequest(ApiReq req)
     const QUrl qurl(req.url);
     QNetworkRequest request(qurl);
     request.setRawHeader("User-Agent", "ShadowLauncher");
+    for (auto it = req.headers.constBegin(); it != req.headers.constEnd(); ++it)
+        request.setRawHeader(it.key().toUtf8(), it.value().toUtf8());
     request.setTransferTimeout(15000);
     QNetworkReply* reply = m_nam.get(request);
     connect(reply, &QNetworkReply::finished, this, [this, req, reply]() {
@@ -110,7 +113,7 @@ void ResourceFetchEngine::startApiRequest(ApiReq req)
             qCWarning(logDownload) << engineTag(kEngineId)
                                    << QStringLiteral("API 失败(status=%1)，重试 %2：%3")
                                           .arg(status).arg(req.url.left(60), reply->errorString());
-            m_apiQueue.enqueue({req.url, req.cacheable, req.done, req.fail, req.retries + 1});
+            m_apiQueue.enqueue({req.url, req.cacheable, req.headers, req.done, req.fail, req.retries + 1});
         } else {
             if (req.fail) req.fail(reply->errorString());
         }

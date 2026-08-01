@@ -54,6 +54,7 @@ set(SOURCES
     # Core services (Phase 2 鈥?added progressively)
     src/core/http_client.cpp
     src/core/resource_fetch_engine.cpp
+    src/core/cf_api.cpp
     src/core/logger.cpp
     src/core/version_manager.cpp
     src/core/downloader.cpp
@@ -112,6 +113,7 @@ set(HEADERS
     src/utils/temp_tracker.h
     src/core/http_client.h
     src/core/resource_fetch_engine.h
+    src/core/cf_api.h
     src/core/logger.h
     src/core/version_manager.h
     src/core/downloader.h
@@ -557,6 +559,18 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(CfCryptoInteropTest PRIVATE src)
     target_link_libraries(CfCryptoInteropTest PRIVATE Qt6::Core bcrypt)
+
+    # CF 适配器自测：搜索统一模型 + 文件→版本转换 + 分类表
+    add_executable(CfApiTest
+        tests/test_cf_api.cpp
+        src/core/cf_api.cpp
+        src/core/resource_fetch_engine.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(CfApiTest PRIVATE src "${WEBP_ROOT}/include")
+    target_link_directories(CfApiTest PRIVATE "${WEBP_ROOT}/lib")
+    target_compile_definitions(CfApiTest PRIVATE WEBP_STATIC_LINK)
+    target_link_libraries(CfApiTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui libwebp bcrypt)
 
     # 资源拉取引擎（司南）自测：搜索缓存命中 + 图标下载 + 缩略图生成
     add_executable(ResourceFetchEngineTest

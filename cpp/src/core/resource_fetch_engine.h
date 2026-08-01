@@ -34,8 +34,11 @@ public:
     // ── API JSON（搜索列表等）──
     using JsonDone = std::function<void(int status, const QByteArray& body)>;
     using JsonFail = std::function<void(const QString& error)>;
+    using JsonHeaders = QMap<QString, QString>;
     /// cacheable=true 且 300s 内同 URL 有缓存 → 直接回调缓存（绕开镜像延迟）
-    void getJson(const QString& url, bool cacheable, JsonDone done, JsonFail fail);
+    /// headers：可选自定义头（如 CurseForge 的 x-api-key）；缓存 key 仅基于 URL
+    void getJson(const QString& url, bool cacheable, JsonDone done, JsonFail fail,
+                 const JsonHeaders& headers = {});
 
     // ── 图标 ──
     /// 磁盘缓存命中 → 返回本地 file:// 路径；未命中 → 返回空并排队下载（完成后 emit iconReady）
@@ -56,6 +59,7 @@ private:
     struct ApiReq {
         QString url;
         bool cacheable = false;
+        JsonHeaders headers;
         JsonDone done;
         JsonFail fail;
         int retries = 0;

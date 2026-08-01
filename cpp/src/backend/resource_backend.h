@@ -9,7 +9,7 @@ namespace ShadowLauncher {
 
 class ModManager;
 class ResourceFetchEngine;
-class ResourceFetchEngine;
+class CfApi;
 
 class ResourceBackend : public QObject {
     Q_OBJECT
@@ -25,6 +25,13 @@ public:
 
     /// 注入共享资源拉取引擎（由 ShadowBackend 创建后传入，搜索走引擎缓存/并发）
     void setFetchEngine(ResourceFetchEngine* e);
+
+    // ── CurseForge 详情页版本（复用 modVersionsPartial 等信号，QML 零改动）──
+    Q_INVOKABLE void fetchModVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
+    Q_INVOKABLE void fetchShaderVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
+    Q_INVOKABLE void fetchResourcepackVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
+    /// CF 分类静态表（QML 叠加下拉用）：classId 6/12/6552/4471
+    Q_INVOKABLE QVariantList cfCategories(int classId) const;
 
     ModManager* modManager() const { return m_modMgr; }
 
@@ -110,6 +117,19 @@ private:
     enum class SearchKind { Mod, Shader };
     ModManager* m_modMgr = nullptr;
     ResourceFetchEngine* m_fetchEngine = nullptr;
+    CfApi* m_cfApi = nullptr;
+
+    // ── 双源聚合状态（代次号防并发搜索污染）──
+    int m_searchGen = 0;
+    QVariantList m_modMrResults, m_modCfResults;
+    int m_modPending = 0;
+    QVariantList m_shaderMrResults, m_shaderCfResults;
+    int m_shaderPending = 0;
+    QVariantList m_rpMrResults, m_rpCfResults;
+    int m_rpPending = 0;
+    void tryAggregateMod(int gen);
+    void tryAggregateShader(int gen);
+    void tryAggregateRp(int gen);
     bool m_downloading = false;
     int m_dlProgress = 0;
     int m_dlTotal = 0;

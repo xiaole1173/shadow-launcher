@@ -78,6 +78,17 @@ Rectangle {
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
         if (modDetailSlug && backend) {
+            // ── CurseForge 详情（slug 为纯数字 modId）──
+            if (/^\d+$/.test(modDetailSlug)) {
+                modDetailLoading = true
+                modDetailRawVersions = []
+                modDetailVersionMap = {}
+                expandedGroups = []
+                showTestVersions = false
+                _versionListEnter = true
+                backend.fetchModVersionsCf(modDetailSlug)
+                return
+            }
             // ── 检查缓存 ──
             var cached = _versionCache[modDetailSlug]
             if (cached) {
@@ -307,10 +318,6 @@ Rectangle {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 24
-                    Text {
-                        text: qsTr("来源: Modrinth (MCIM 镜像)")
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
-                    }
                     Rectangle {
                         id: testToggleBtn
                         width: testBtn.implicitWidth + 14; height: 22; radius: StyleTokens.radiusSm
