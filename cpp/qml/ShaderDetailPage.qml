@@ -365,7 +365,9 @@ Rectangle {
                         date: d ? (d.date_published || "") : "",
                         downloads: d ? (d.downloads || 0) : 0,
                         url: d ? (d.url || d.download_url || "") : "",
-                        filename: d ? (d.filename || "") : ""
+                        filename: d ? (d.filename || "") : "",
+                        size: d ? (d.size || 0) : 0,
+                        sha1: d ? (d.sha1 || "") : ""
                     }
                 }
             }

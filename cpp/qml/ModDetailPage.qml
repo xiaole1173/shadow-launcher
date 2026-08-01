@@ -665,7 +665,9 @@ Rectangle {
                         date: d ? (d.date_published || "") : "",
                         downloads: d ? (d.downloads || 0) : 0,
                         url: d ? (d.url || d.download_url || "") : "",
-                        filename: d ? (d.filename || "") : ""
+                        filename: d ? (d.filename || "") : "",
+                        size: d ? (d.size || 0) : 0,
+                        sha1: d ? (d.sha1 || "") : ""
                     }
                 }
             }
@@ -675,6 +677,34 @@ Rectangle {
             // ── 存入缓存 ──
             root._versionCache[root.modDetailSlug] = { raw: arr, map: map }
             if (arr.length > 0) root._versionListEnter = true
+
+            // ── CF 详情前置模组：依赖从 files[0].dependencies 提取（Modrinth 走 getModDependencies 信号）──
+            if (/^\d+$/.test(root.modDetailSlug)) {
+                var cfDeps = []
+                var seenDep = {}
+                for (var di = 0; di < versions.length && cfDeps.length < 8; di++) {
+                    var dd = details ? details[versions[di]] : null
+                    if (!dd) continue
+                    var dfiles = dd.files
+                    var depsArr = (dfiles && dfiles.length > 0 && dfiles[0].dependencies) ? dfiles[0].dependencies : []
+                    for (var dj = 0; dj < depsArr.length; dj++) {
+                        var dep = depsArr[dj]
+                        var pid = dep.project_id
+                        if (!pid || seenDep[pid]) continue
+                        seenDep[pid] = true
+                        cfDeps.push({
+                            project_id: pid,
+                            dependency_type: dep.dependency_type || "required",
+                            title: "",   // CF 依赖只有 modId，名称需额外请求（此处显示 modId）
+                            slug: ""
+                        })
+                    }
+                }
+                if (cfDeps.length > 0) {
+                    root.modDetailDependencies = cfDeps
+                    root.showDeps = true
+                }
+            }
         }
         function onModVersionsProgress(done, total) {
             if (root.modDetailSlug === "") return

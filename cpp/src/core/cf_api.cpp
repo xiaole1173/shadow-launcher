@@ -212,6 +212,27 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
                 fileEntry.insert(QStringLiteral("size"), (qlonglong)f.value(QStringLiteral("fileLength")).toDouble());
                 fileEntry.insert(QStringLiteral("date_published"), f.value(QStringLiteral("fileDate")).toString());
                 fileEntry.insert(QStringLiteral("version_type"), f.value(QStringLiteral("releaseType")).toString());
+                fileEntry.insert(QStringLiteral("version_number"), f.value(QStringLiteral("displayName")).toString());
+                // CF hashes: algo 1=sha1, 2=md5 → 与 Modrinth 的 sha1 字段对齐（下载完整性校验）
+                const QJsonArray hashes = f.value(QStringLiteral("hashes")).toArray();
+                for (const QJsonValue& hv : hashes) {
+                    const QJsonObject ho = hv.toObject();
+                    if (ho.value(QStringLiteral("algo")).toInt() == 1)
+                        fileEntry.insert(QStringLiteral("sha1"), ho.value(QStringLiteral("value")).toString());
+                }
+                // CF 依赖：relationType 2=required, 3=optional → 与 Modrinth dependency_type 对齐
+                QVariantList depList;
+                const QJsonArray deps = f.value(QStringLiteral("dependencies")).toArray();
+                for (const QJsonValue& dv : deps) {
+                    const QJsonObject dObj = dv.toObject();
+                    QVariantMap dep;
+                    dep.insert(QStringLiteral("project_id"), QString::number((qlonglong)dObj.value(QStringLiteral("modId")).toDouble()));
+                    const int rel = dObj.value(QStringLiteral("relationType")).toInt();
+                    dep.insert(QStringLiteral("dependency_type"),
+                               rel == 3 ? QStringLiteral("optional") : QStringLiteral("required"));
+                    depList.append(dep);
+                }
+                fileEntry.insert(QStringLiteral("dependencies"), depList);
 
                 if (!detailMap.contains(keyStr)) {
                     QVariantMap d;
@@ -219,6 +240,14 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
                     d.insert(QStringLiteral("game_versions"), QVariantList{mcVer});
                     d.insert(QStringLiteral("loaders"), QVariantList{loaderName.toLower()});
                     d.insert(QStringLiteral("files"), QVariantList{fileEntry});
+                    // 顶层便捷字段（与 Modrinth 详情结构对齐，QML 直接读取）
+                    d.insert(QStringLiteral("version_number"), fileEntry.value(QStringLiteral("version_number")));
+                    d.insert(QStringLiteral("date_published"), fileEntry.value(QStringLiteral("date_published")));
+                    d.insert(QStringLiteral("downloads"), 0);
+                    d.insert(QStringLiteral("url"), fileEntry.value(QStringLiteral("url")));
+                    d.insert(QStringLiteral("filename"), fileEntry.value(QStringLiteral("filename")));
+                    d.insert(QStringLiteral("size"), fileEntry.value(QStringLiteral("size")));
+                    d.insert(QStringLiteral("sha1"), fileEntry.value(QStringLiteral("sha1")));
                     detailMap.insert(keyStr, d);
                     compositeVersions.append(keyStr);
                 } else {
