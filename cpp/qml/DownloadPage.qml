@@ -695,15 +695,17 @@ Rectangle {
                 var urlsToCache = []
                 for (var j = 0; j < results.length; j++) {
                     var r = results[j]
-                    var iconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                    if (iconUrl && backend) {
-                        iconUrl = backend.resolveIconUrl(iconUrl)
-                        urlsToCache.push(iconUrl)
+                    var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                    var iconUrl = ""
+                    if (rawIcon && backend) {
+                        urlsToCache.push(rawIcon)
+                        iconUrl = backend.resolveIconUrl(rawIcon)
                     }
                     modResultsModel.append({
                         slug: r.slug || "",
                         title: r.title || r.slug || "Unknown",
                         desc: r.desc || "",
+                        iconRaw: rawIcon,
                         icon: iconUrl,
                         downloads: r.downloads || 0,
                         versions: (r.versions && r.versions.length ? r.versions.join(",") : ""),
@@ -718,6 +720,13 @@ Rectangle {
                 page.modHasMore = !!(results && results.length >= page.modPageSize)
                 if (urlsToCache.length > 0 && backend) {
                     backend.cacheIconBatchAsync(urlsToCache)
+                }
+            }
+            // 司南引擎图标就绪：更新 model 中对应项（消除双重下载，缓存命中秒开）
+            function onIconReady(url, localPath) {
+                for (var i = 0; i < modResultsModel.count; i++) {
+                    if (modResultsModel.get(i).iconRaw === url)
+                        modResultsModel.setProperty(i, "icon", localPath)
                 }
             }
         }
@@ -806,6 +815,7 @@ Rectangle {
                             page._modDetailTitle = model.title || ""
                             page._modDetailDesc = model.desc || ""
                             page._modDetailIcon = model.icon || ""
+                            page._modDetailIconRaw = model.iconRaw || ""
                             page._showModDetail = true
                             console.info("[UI] 打开 模组详情 slug=" + model.slug)
                         }
@@ -920,14 +930,15 @@ Rectangle {
                     var urlsToCache = []
                     for (var i = 0; i < results.length; i++) {
                         var r = results[i]
-                        var iconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                        if (iconUrl && backend) {
-                            iconUrl = backend.resolveShaderIconUrl(iconUrl)
-                            urlsToCache.push(iconUrl)
+                        var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        var iconUrl = ""
+                        if (rawIcon && backend) {
+                            urlsToCache.push(rawIcon)
+                            iconUrl = backend.resolveShaderIconUrl(rawIcon)
                         }
                         shaderResultsModel.append({
                             slug: r.slug || "", title: r.title || r.slug || "Unknown",
-                            desc: r.desc || "", icon: iconUrl,
+                            desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
                             downloads: r.downloads || 0, versions: (r.versions && r.versions.length ? r.versions.join(",") : ""),
                             dateModified: r.dateModified || "", categories: (r.categories || []).join(",")
                         })
@@ -937,6 +948,13 @@ Rectangle {
                     }
                 }
                 shaderTab.hasMoreShaders = (results && results.length >= shaderTab.shaderPageSize)
+            }
+            // 司南引擎图标就绪：更新 shader model 对应项
+            function onIconReady(url, localPath) {
+                for (var i = 0; i < shaderResultsModel.count; i++) {
+                    if (shaderResultsModel.get(i).iconRaw === url)
+                        shaderResultsModel.setProperty(i, "icon", localPath)
+                }
             }
         }
 
@@ -1015,6 +1033,7 @@ Rectangle {
                             page._shaderDetailTitle = model.title || ""
                             page._shaderDetailDesc = model.desc || ""
                             page._shaderDetailIcon = model.icon || ""
+                            page._shaderDetailIconRaw = model.iconRaw || ""
                             page._showShaderDetail = true
                             console.info("[UI] 打开 光影详情 slug=" + model.slug)
                         }
@@ -1133,6 +1152,7 @@ Rectangle {
                             console.log("[RP-DEBUG] card clicked:", model.slug)
                             var iconUrl = (model.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
                             page._rpDetailIconUrl = iconUrl
+                            page._rpDetailIconRaw = model.iconRaw || ""
                             page._rpDetailAuthor = model.author || ""
                             page._rpDetailDesc = model.desc || ""
                             page._rpDetailSlug = model.slug
@@ -1202,6 +1222,7 @@ Rectangle {
             }
 
             var slugs = []
+            var urlsToCache = []
             var catFilter = page.rpCategoryFilter.toLowerCase()
             var featFilter = page.rpFeatureFilter.toLowerCase()
             var resFilter = page.rpResolutionFilter.toLowerCase()
@@ -1238,14 +1259,17 @@ Rectangle {
                     if (!hasRes) continue
                 }
                 slugs.push(r.slug)
-                var rpIconUrl = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
-                if (rpIconUrl && backend) {
-                    rpIconUrl = backend.resolveRpIconUrl(rpIconUrl)
+                var rawRpIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                var rpIconUrl = ""
+                if (rawRpIcon && backend) {
+                    urlsToCache.push(rawRpIcon)
+                    rpIconUrl = backend.resolveRpIconUrl(rawRpIcon)
                 }
                 rpResultsModel.append({
                     slug: r.slug || "",
                     title: r.title || "",
                     desc: r.desc || r.description || "",
+                    iconRaw: rawRpIcon,
                     icon: rpIconUrl,
                     downloads: r.downloads || 0,
                     categories: JSON.stringify(r.categories || []),
@@ -1259,10 +1283,21 @@ Rectangle {
                 })
             }
             console.log("[RP-DEBUG]", page.rpDebugSeq, "model now", rpResultsModel.count, "/", totalHits)
+            if (urlsToCache.length > 0 && backend) {
+                backend.cacheRpIconBatchAsync(urlsToCache)
+            }
             if (backend && slugs.length > 0) {
                 backend.fetchResourcepackVersions(slugs)
             }
         } catch(e) { console.log('[RP-DEBUG] searchCompleted ERROR:', e.message) }
+        }
+
+        // 司南引擎图标就绪：更新 rp model 对应项
+        function onIconReady(url, localPath) {
+            for (var i = 0; i < rpResultsModel.count; i++) {
+                if (rpResultsModel.get(i).iconRaw === url)
+                    rpResultsModel.setProperty(i, "icon", localPath)
+            }
         }
 
         function onResourcepackSearchFailed(error) {
@@ -1376,6 +1411,7 @@ Rectangle {
     property string _rpDetailSlug: ""
     property string _rpDetailTitle: ""
     property string _rpDetailIconUrl: ""
+    property string _rpDetailIconRaw: ""
     property string _rpDetailAuthor: ""
     property string _rpDetailDesc: ""
     property int _rpDetailDownloads: 0
@@ -1415,6 +1451,7 @@ Rectangle {
                     item.rpDetailSlug = page._rpDetailSlug
                     item.rpDetailTitle = page._rpDetailTitle
                     item.rpDetailIconUrl = page._rpDetailIconUrl
+                    item.rpDetailIconRaw = page._rpDetailIconRaw
                     item.rpDetailAuthor = page._rpDetailAuthor
                     item.rpDetailDesc = page._rpDetailDesc
                     item.rpDetailDownloads = page._rpDetailDownloads
@@ -1447,6 +1484,7 @@ Rectangle {
     property string _modDetailTitle: ""
     property string _modDetailDesc: ""
     property string _modDetailIcon: ""
+    property string _modDetailIconRaw: ""
 
     // ── Mod Detail Overlay ──
     Rectangle {
@@ -1483,6 +1521,7 @@ Rectangle {
                     item.modDetailTitle = page._modDetailTitle
                     item.modDetailDesc = page._modDetailDesc
                     item.modDetailIcon = page._modDetailIcon
+                    item.modDetailIconRaw = page._modDetailIconRaw
                 }
             }
 
@@ -1511,6 +1550,7 @@ Rectangle {
     property string _shaderDetailTitle: ""
     property string _shaderDetailDesc: ""
     property string _shaderDetailIcon: ""
+    property string _shaderDetailIconRaw: ""
 
     Rectangle {
         id: shaderDetailOverlay
@@ -1544,6 +1584,7 @@ Rectangle {
                     item.shaderDetailTitle = page._shaderDetailTitle
                     item.shaderDetailDesc = page._shaderDetailDesc
                     item.shaderDetailIcon = page._shaderDetailIcon
+                    item.shaderDetailIconRaw = page._shaderDetailIconRaw
                     item.goBack.connect(function() {
                         shaderExitAnim.start()
                     })

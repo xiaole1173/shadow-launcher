@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "resource_backend.h"
+#include "../core/resource_fetch_engine.h"
 #include "core/mod_manager.h"
 #include "core/http_client.h"
 #include "utils/logger.h"
@@ -204,23 +205,27 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     if (!ShadowLauncher::suppressUrlLog())
         emit logMessage(tr("请求URL: %1").arg(url.toString()));
 
-    HttpClient::instance().get(url.toString(),
-        [this](int status, const QByteArray& body) {
-            if (status == 200) {
-                int totalHits = 0;
-                QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
-                emit modSearchResultsReady(parseSearchResponseItems(results));
-                emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
-            } else {
-                emit logMessage(tr("搜索失败: HTTP %1").arg(status));
-            }
-            m_modMgr->setBusy(false);
-        },
-        [this](const QString& error) {
-            emit logMessage(tr("网络错误: %1").arg(error));
-            m_modMgr->setBusy(false);
+    const auto onOk = [this](int status, const QByteArray& body) {
+        if (status == 200) {
+            int totalHits = 0;
+            QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
+            emit modSearchResultsReady(parseSearchResponseItems(results));
+            emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
+        } else {
+            emit logMessage(tr("搜索失败: HTTP %1").arg(status));
         }
-    );
+        m_modMgr->setBusy(false);
+    };
+    const auto onFail = [this](const QString& error) {
+        emit logMessage(tr("网络错误: %1").arg(error));
+        m_modMgr->setBusy(false);
+    };
+    if (m_fetchEngine) {
+        // 资源拉取引擎（司南）：并发控制 + 结果缓存（翻页/切 tab 秒开）
+        m_fetchEngine->getJson(url.toString(), true, onOk, onFail);
+    } else {
+        HttpClient::instance().get(url.toString(), onOk, onFail);
+    }
 }
 
 QVariantMap ResourceBackend::getModCategories()
@@ -294,22 +299,27 @@ void ResourceBackend::searchShadersEx(
     if (!ShadowLauncher::suppressUrlLog())
         emit logMessage(tr("请求URL: %1").arg(url.toString()));
 
-    HttpClient::instance().get(url.toString(),
-        [this](int status, const QByteArray& body) {
-            if (status == 200) {
-                int totalHits = 0;
-                QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
-                emit shaderSearchResultsReady(parseSearchResponseItems(results));
-                emit logMessage(tr("光影搜索完成，共 %1 个结果").arg(totalHits));
-            } else {
-                emit logMessage(tr("光影搜索失败: HTTP %1").arg(status));
-            }
-            m_modMgr->setBusy(false);
-        },
-        [this](const QString& error) {
-            emit logMessage(tr("光影搜索网络错误: %1").arg(error));
-            m_modMgr->setBusy(false);
-        });
+    const auto onOk = [this](int status, const QByteArray& body) {
+        if (status == 200) {
+            int totalHits = 0;
+            QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
+            emit shaderSearchResultsReady(parseSearchResponseItems(results));
+            emit logMessage(tr("光影搜索完成，共 %1 个结果").arg(totalHits));
+        } else {
+            emit logMessage(tr("光影搜索失败: HTTP %1").arg(status));
+        }
+        m_modMgr->setBusy(false);
+    };
+    const auto onFail = [this](const QString& error) {
+        emit logMessage(tr("光影搜索网络错误: %1").arg(error));
+        m_modMgr->setBusy(false);
+    };
+    if (m_fetchEngine) {
+        // 资源拉取引擎（司南）：并发控制 + 结果缓存（翻页/切 tab 秒开）
+        m_fetchEngine->getJson(url.toString(), true, onOk, onFail);
+    } else {
+        HttpClient::instance().get(url.toString(), onOk, onFail);
+    }
 }
 
 // ============================================================

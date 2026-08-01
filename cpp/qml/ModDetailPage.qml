@@ -32,6 +32,7 @@ Rectangle {
     property string modDetailTitle: ""
     property string modDetailDesc: ""
     property string modDetailIcon: ""
+    property string modDetailIconRaw: ""
     property bool modDetailLoading: false
     property var modDetailRawVersions: []
     property var modDetailVersionMap: ({})
@@ -59,6 +60,19 @@ Rectangle {
             modDetailDependencies = deps || []
             showDeps = (deps && deps.length > 0)
         }
+    }
+
+    // ── 司南引擎图标就绪：更新详情页大图（未缓存时先空，下载完成即显）──
+    Connections {
+        target: backend
+        function onIconReady(url, localPath) {
+            if (modDetailIconRaw && url === modDetailIconRaw)
+                modDetailIcon = localPath
+        }
+    }
+    function resolveDetailIcon() {
+        if (!modDetailIconRaw || !backend) return ""
+        return backend.resolveIconUrl(modDetailIconRaw)
     }
 
     // ── Trigger version fetch ──
@@ -266,7 +280,7 @@ Rectangle {
             // ── INFO CARD ──
             DetailInfoCard {
                 id: infoCard
-                cardIcon: root.modDetailIcon
+                cardIcon: root.modDetailIcon !== "" ? root.modDetailIcon : (root.modDetailIconRaw ? root.resolveDetailIcon() : "")
                 cardTitle: root.modDetailTitle
                 cardDesc: root.modDetailDesc
 

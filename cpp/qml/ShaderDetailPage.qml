@@ -29,6 +29,7 @@ Rectangle {
     property string shaderDetailTitle: ""
     property string shaderDetailDesc: ""
     property string shaderDetailIcon: ""
+    property string shaderDetailIconRaw: ""
     property bool shaderDetailLoading: false
     property var shaderDetailRawVersions: []
     property var shaderDetailVersionMap: ({})
@@ -166,7 +167,7 @@ Rectangle {
             // ── INFO CARD ──
             DetailInfoCard {
                 id: infoCard
-                cardIcon: root.shaderDetailIcon
+                cardIcon: root.shaderDetailIcon !== "" ? root.shaderDetailIcon : (root.shaderDetailIconRaw ? root.resolveShaderDetailIcon() : "")
                 cardTitle: root.shaderDetailTitle
                 cardDesc: root.shaderDetailDesc
 
@@ -320,6 +321,20 @@ Rectangle {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━ CONNECTIONS ━━━━━━━━━━━━━━━━━━━━
+    // 司南引擎图标就绪：更新详情页大图
+    Connections {
+        target: backend
+        enabled: backend !== null
+        function onIconReady(url, localPath) {
+            if (root.shaderDetailIconRaw && url === root.shaderDetailIconRaw)
+                root.shaderDetailIcon = localPath
+        }
+    }
+    function resolveShaderDetailIcon() {
+        if (!root.shaderDetailIconRaw || !backend) return ""
+        return backend.resolveShaderIconUrl(root.shaderDetailIconRaw)
+    }
+
     Connections {
         target: backend
         enabled: backend !== null

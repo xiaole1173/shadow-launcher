@@ -53,6 +53,7 @@ set(SOURCES
 
     # Core services (Phase 2 鈥?added progressively)
     src/core/http_client.cpp
+    src/core/resource_fetch_engine.cpp
     src/core/logger.cpp
     src/core/version_manager.cpp
     src/core/downloader.cpp
@@ -110,6 +111,7 @@ set(HEADERS
     src/utils/logger.h
     src/utils/temp_tracker.h
     src/core/http_client.h
+    src/core/resource_fetch_engine.h
     src/core/logger.h
     src/core/version_manager.h
     src/core/downloader.h
@@ -555,6 +557,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(CfCryptoInteropTest PRIVATE src)
     target_link_libraries(CfCryptoInteropTest PRIVATE Qt6::Core bcrypt)
+
+    # 资源拉取引擎（司南）自测：搜索缓存命中 + 图标下载 + 缩略图生成
+    add_executable(ResourceFetchEngineTest
+        tests/test_resource_fetch_engine.cpp
+        src/core/resource_fetch_engine.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(ResourceFetchEngineTest PRIVATE src)
+    target_link_libraries(ResourceFetchEngineTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui)
 endif()
 
 # ============================================================

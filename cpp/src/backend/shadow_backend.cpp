@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "shadow_backend.h"
 #include "../core/http_client.h"
+#include "../core/resource_fetch_engine.h"
 #include "../core/mod_manager.h"
 #include "../core/update_manager.h"
 #include "../core/icon_cache.h"
@@ -132,6 +133,15 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_modIconCache = new IconCache(iconBase + "/mod", 100, this);
     m_shaderIconCache = new IconCache(iconBase + "/shader", 100, this);
     m_rpIconCache = new IconCache(iconBase + "/rp", 100, this);
+
+    // ── 资源拉取引擎（司南）：统一列表 API + 图标拉取（并发/缓存/缩略图）──
+    m_fetchEngine = new ResourceFetchEngine(m_app->dataDir() + "/cache/res", this);
+    connect(m_fetchEngine, &ResourceFetchEngine::iconReady,
+            this, [this](const QString& url, const QString& path) {
+        emit iconReady(url, path);
+    });
+    if (m_resource)
+        m_resource->setFetchEngine(m_fetchEngine);
     m_multiplayer = new MultiplayerManager(this);
     m_localMods = new LocalModManager(this);
     m_modpackImporter = new ModpackImporter(this);
@@ -1440,37 +1450,37 @@ QObject* ShadowBackend::multiplayer() const
 
 QString ShadowBackend::resolveIconUrl(const QString &url)
 {
-    return m_modIconCache ? m_modIconCache->resolveUrl(url) : url;
+    return m_fetchEngine ? m_fetchEngine->iconLocalPath(url) : url;
 }
 
 void ShadowBackend::cacheIconBatchAsync(const QStringList &urls)
 {
-    if (m_modIconCache) m_modIconCache->cacheBatchAsync(urls);
+    if (m_fetchEngine) m_fetchEngine->prefetchIcons(urls);
 }
 
 QString ShadowBackend::iconCachedPath(const QString &url) const
 {
-    return m_modIconCache ? m_modIconCache->cachedPath(url) : QString();
+    return m_fetchEngine ? m_fetchEngine->iconLocalPath(url) : QString();
 }
 
 QString ShadowBackend::resolveShaderIconUrl(const QString &url)
 {
-    return m_shaderIconCache ? m_shaderIconCache->resolveUrl(url) : url;
+    return m_fetchEngine ? m_fetchEngine->iconLocalPath(url) : url;
 }
 
 void ShadowBackend::cacheShaderIconBatchAsync(const QStringList &urls)
 {
-    if (m_shaderIconCache) m_shaderIconCache->cacheBatchAsync(urls);
+    if (m_fetchEngine) m_fetchEngine->prefetchIcons(urls);
 }
 
 QString ShadowBackend::resolveRpIconUrl(const QString &url)
 {
-    return m_rpIconCache ? m_rpIconCache->resolveUrl(url) : url;
+    return m_fetchEngine ? m_fetchEngine->iconLocalPath(url) : url;
 }
 
 void ShadowBackend::cacheRpIconBatchAsync(const QStringList &urls)
 {
-    if (m_rpIconCache) m_rpIconCache->cacheBatchAsync(urls);
+    if (m_fetchEngine) m_fetchEngine->prefetchIcons(urls);
 }
 
 qint64 ShadowBackend::diskFree() const

@@ -30,6 +30,7 @@ class YggdrasilBackend;
 class ModManager;
 class LocalModManager;
 class IconCache;
+class ResourceFetchEngine;
 class MultiplayerManager;
 class UpdateManager;
 
@@ -608,6 +609,8 @@ signals:
 
     // ── Icon cache signal ──
     void iconCached(const QString& webpUrl, const QString& pngPath);
+    // 资源拉取引擎（司南）图标就绪信号：QML 监听并更新 model 对应项
+    void iconReady(const QString& url, const QString& localPath);
 
     // ── Auto-test navigation signal ──
     // pageIndex: 0=Launch, 1=Download, 2=Settings
@@ -666,6 +669,8 @@ public:
     bool statsEmpty() const;
     QObject* modManager() const;  // QML exposed (returns m_resource->modManager())
     QObject* multiplayer() const;
+    // 资源拉取引擎访问器（ResourceBackend 搜索接入用）
+    ResourceFetchEngine* fetchEngine() const { return m_fetchEngine; }
 
     // ── Icon cache (QML-callable methods: mod / shader / rp) ──
     Q_INVOKABLE QString resolveIconUrl(const QString &url);
@@ -702,6 +707,7 @@ private:
     IconCache* m_modIconCache = nullptr;
     IconCache* m_shaderIconCache = nullptr;
     IconCache* m_rpIconCache = nullptr;
+    ResourceFetchEngine* m_fetchEngine = nullptr;
     MultiplayerManager* m_multiplayer = nullptr;
     LocalModManager* m_localMods = nullptr;
     class GeoIpService* m_geoIp = nullptr;

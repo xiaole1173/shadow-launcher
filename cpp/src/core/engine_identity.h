@@ -31,6 +31,7 @@ inline const EngineIdentity kEngineIdentities[] = {
     { "jingwei", "精卫",   "批量模组小文件下载：多源自降级、SHA1/大小校验、EMA 网速统计，海量微石批量投递" },
     { "nuwa",    "女娲",   "整合包编排：manifest 解析、CF/Modrinth API、文件清单与落盘路径、覆盖备份钩子" },
     { "yidao",   "驿道",   "HTTP 传输底座：全引擎共用的唯一网络通道（Qt6::Network）" },
+    { "sinan",   "司南",   "资源拉取引擎：统一调度搜索 API 与图标拉取，三层缓存 + 本地缩略图 + 严格并发控制，适配 Modrinth/CurseForge/整合包多源" },
 };
 
 inline EngineIdentity engineIdentity(const char* id)

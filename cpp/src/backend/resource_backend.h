@@ -8,6 +8,7 @@
 namespace ShadowLauncher {
 
 class ModManager;
+class ResourceFetchEngine;
 
 class ResourceBackend : public QObject {
     Q_OBJECT
@@ -22,6 +23,9 @@ public:
     ~ResourceBackend() override;
 
     ModManager* modManager() const { return m_modMgr; }
+
+    /// 注入共享资源拉取引擎（由 ShadowBackend 创建后传入）
+    void setFetchEngine(ResourceFetchEngine* e) { m_fetchEngine = e; }
 
     bool isDownloading() const { return m_downloading; }
     int dlProgress() const { return m_dlProgress; }
@@ -104,6 +108,7 @@ private slots:
 private:
     enum class SearchKind { Mod, Shader };
     ModManager* m_modMgr = nullptr;
+    ResourceFetchEngine* m_fetchEngine = nullptr;
     bool m_downloading = false;
     int m_dlProgress = 0;
     int m_dlTotal = 0;

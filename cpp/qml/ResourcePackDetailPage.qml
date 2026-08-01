@@ -30,6 +30,7 @@ Rectangle {
     property string rpDetailSlug: ""
     property string rpDetailTitle: ""
     property string rpDetailIconUrl: ""
+    property string rpDetailIconRaw: ""
     property string rpDetailAuthor: ""
     property string rpDetailDesc: ""
     property int rpDetailDownloads: 0
@@ -150,7 +151,7 @@ Rectangle {
             // ── INFO CARD ──
             DetailInfoCard {
                 id: infoCard
-                cardIcon: root.rpDetailIconUrl
+                cardIcon: root.rpDetailIconUrl !== "" ? root.rpDetailIconUrl : (root.rpDetailIconRaw ? root.resolveRpDetailIcon() : "")
                 cardTitle: root.rpDetailTitle
                 cardDesc: root.rpDetailDesc
 
@@ -416,6 +417,20 @@ Rectangle {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━ CONNECTIONS ━━━━━━━━━━━━━━━━━━━━
+    // 司南引擎图标就绪：更新详情页大图
+    Connections {
+        target: backend
+        enabled: backend !== null
+        function onIconReady(url, localPath) {
+            if (root.rpDetailIconRaw && url === root.rpDetailIconRaw)
+                root.rpDetailIconUrl = localPath
+        }
+    }
+    function resolveRpDetailIcon() {
+        if (!root.rpDetailIconRaw || !backend) return ""
+        return backend.resolveRpIconUrl(root.rpDetailIconRaw)
+    }
+
     Connections {
         target: backend
         enabled: backend !== null
