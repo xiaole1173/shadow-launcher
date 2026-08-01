@@ -95,9 +95,12 @@ Rectangle {
     }
 
     // ═══════════ 遮罩层（点击关闭）═══════════
+    // 弹窗位于窗口圆角容器之外：遮罩需自带圆角，避免把窗口透明圆角区域涂黑成方角
     Rectangle {
         anchors.fill: parent
         color: "#80000000"
+        radius: StyleTokens.radiusWindow   // 统一窗口边角圆角渲染
+        clip: true
         opacity: root.visible ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
@@ -108,6 +111,8 @@ Rectangle {
     }
 
     // ═══════════ 弹窗窗体 ═══════════
+    // 无外边框：圆角容器 + 无 border（边框与圆角组合在本渲染环境下角部会呈尖角/异常，
+    // 且用户明确不要外围框；圆角轮廓本身已足够与遮罩区分）
     Rectangle {
         id: card
         anchors.centerIn: parent
@@ -115,8 +120,6 @@ Rectangle {
         height: 400
         radius: StyleTokens.radiusWindow
         color: StyleTokens.surfaceOverlay
-        border.color: StyleTokens.borderLight
-        border.width: 1
         clip: true
 
         scale: root.visible ? 1.0 : 0.92
@@ -171,15 +174,15 @@ Rectangle {
                 Item { Layout.fillHeight: true }
 
                 // 拖拽 / 点击选择区
+                // 无静态边框（用户要求去掉细线方框）；仅在拖拽悬停时显示强调色边框作为反馈
                 Rectangle {
                     id: dropBox
                     Layout.fillWidth: true
                     Layout.preferredHeight: 180
                     radius: StyleTokens.radiusXl
                     color: root._filePath ? StyleTokens.bgCard : StyleTokens.bgInput
-                    border.color: root._filePath ? StyleTokens.accentHover
-                                 : dropArea.containsDrag ? StyleTokens.accent : StyleTokens.borderLight
-                    border.width: dropArea.containsDrag ? 2 : 1
+                    border.color: dropArea.containsDrag ? StyleTokens.accent : "transparent"
+                    border.width: dropArea.containsDrag ? 2 : 0
                     Behavior on border.color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
 

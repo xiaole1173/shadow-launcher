@@ -550,6 +550,13 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(ModpackSelfTest PRIVATE src thirdparty/miniz)
     target_link_libraries(ModpackSelfTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
+
+    # CF API Key 加密互操作测试（验证 Python 工具链生成的密文可被 C++ 解密）
+    add_executable(CfCryptoInteropTest
+        tests/test_cf_crypto_interop.cpp
+    )
+    target_include_directories(CfCryptoInteropTest PRIVATE src)
+    target_link_libraries(CfCryptoInteropTest PRIVATE Qt6::Core bcrypt)
 endif()
 
 # ============================================================

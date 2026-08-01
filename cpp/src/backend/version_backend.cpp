@@ -7901,7 +7901,8 @@ void VersionBackend::startUserDataImport(const QString& installId)
 }
 
 // ── Helper: recursive copy skipping existing files ──
-static void copyRecursiveMissing(const QString& srcDir, const QString& dstDir)
+// 每个文件复制后校验目标大小与源一致；不一致则删除目标残缺文件并返回 false（调用方应终止安装）。
+static bool copyRecursiveMissing(const QString& srcDir, const QString& dstDir)
 {
     QDirIterator it(srcDir, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     QDir sDir(srcDir);
@@ -7913,9 +7914,24 @@ static void copyRecursiveMissing(const QString& srcDir, const QString& dstDir)
             QDir().mkpath(dstPath);
         } else if (!QFileInfo::exists(dstPath)) {
             QDir().mkpath(QFileInfo(dstPath).absolutePath());
-            QFile::copy(it.filePath(), dstPath);
+            const qint64 srcSize = it.fileInfo().size();
+            if (!QFile::copy(it.filePath(), dstPath)) {
+                qCWarning(logVersion) << QStringLiteral("[安装] 文件复制失败: %1").arg(it.filePath());
+                return false;
+            }
+            const qint64 dstSize = QFileInfo(dstPath).size();
+            if (srcSize != dstSize) {
+                qCCritical(logVersion) << QStringLiteral("[安装] 文件复制校验失败: %1 源 %2 字节 ≠ 目标 %3 字节，删除残缺文件")
+                    .arg(dstPath).arg(srcSize).arg(dstSize);
+                QFile::remove(dstPath);
+                return false;
+            }
+            // 大文件（JAR）打印实际字节数便于排查残缺小包问题
+            if (srcSize >= 1024 * 1024)
+                qCInfo(logVersion) << QStringLiteral("[安装] 已复制: %1 (%2 字节)").arg(dstPath).arg(dstSize);
         }
     }
+    return true;
 }
 
 
@@ -7977,28 +7993,75 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 // 1. Copy version folder (installName JSON + JAR)
                 const QString srcVer = tempDir + QStringLiteral("/versions/") + installId;
                 const QString dstVer = m_gameDir + QStringLiteral("/versions/") + installId;
+                bool copyOk = true;
                 if (QDir(srcVer).exists()) {
                     QDir().mkpath(dstVer);
-                    copyRecursiveMissing(srcVer, dstVer);
-                    qDebug() << "[install] Copied version folder:" << srcVer << "->" << dstVer;
+                    if (!copyRecursiveMissing(srcVer, dstVer)) {
+                        copyOk = false;
+                        qCWarning(logVersion) << QStringLiteral("[安装] 版本文件夹拷贝校验失败: %1").arg(srcVer);
+                    } else {
+                        qDebug() << "[install] Copied version folder:" << srcVer << "->" << dstVer;
+                    }
                 }
 
                 // 2. Copy libraries (skip existing)
                 const QString srcLib = tempDir + QStringLiteral("/libraries");
                 const QString dstLib = m_gameDir + QStringLiteral("/libraries");
-                if (QDir(srcLib).exists()) {
+                if (copyOk && QDir(srcLib).exists()) {
                     QDir().mkpath(dstLib);
-                    copyRecursiveMissing(srcLib, dstLib);
-                    qDebug() << "[install] Copied libraries (missing only):" << srcLib;
+                    if (!copyRecursiveMissing(srcLib, dstLib)) {
+                        copyOk = false;
+                        qCWarning(logVersion) << QStringLiteral("[安装] 库文件拷贝校验失败: %1").arg(srcLib);
+                    } else {
+                        qDebug() << "[install] Copied libraries (missing only):" << srcLib;
+                    }
                 }
 
                 // 3. Copy assets (skip existing)
                 const QString srcAssets = tempDir + QStringLiteral("/assets");
                 const QString dstAssets = m_gameDir + QStringLiteral("/assets");
-                if (QDir(srcAssets).exists()) {
+                if (copyOk && QDir(srcAssets).exists()) {
                     QDir().mkpath(dstAssets);
-                    copyRecursiveMissing(srcAssets, dstAssets);
-                    qDebug() << "[install] Copied assets (missing only):" << srcAssets;
+                    if (!copyRecursiveMissing(srcAssets, dstAssets)) {
+                        copyOk = false;
+                        qCWarning(logVersion) << QStringLiteral("[安装] 资源文件拷贝校验失败: %1").arg(srcAssets);
+                    } else {
+                        qDebug() << "[install] Copied assets (missing only):" << srcAssets;
+                    }
+                }
+
+                if (!copyOk) {
+                    // 残缺拷贝：删除目标版本文件夹并抛出安装失败
+                    emit logMessage(tr("[失败] 安装文件拷贝校验失败，已清理残缺产物"));
+                    if (ds) {
+                        for (int i = 0; i < ds->steps.size(); i++)
+                            updateStep(installId, i, QStringLiteral("failed"), 0);
+                        ds->markFailed(tr("安装文件拷贝校验失败（文件不完整）"));
+                    }
+                    if (!m_gameDir.isEmpty())
+                        cleanupCanceledVersion(installId, m_gameDir);
+                    destroyMergedContext(installId);
+                    setInstalling(false);
+                    startNextFromQueue();
+                    emit installFinished(false);
+                    return;
+                }
+
+                // ── 清理原版 MC 版本文件夹（无其他任务使用同一 MC 时）──
+                // MC 下载在独立临时目录完成；安装成功后把真实游戏目录中残留的原版版本文件夹
+                // （含下载进度标记遗留的空壳目录）整体删除，恢复改造前"装完即删原版"的行为。
+                if (ds && !ds->mcVersion.isEmpty()) {
+                    bool otherUsingSameMC = false;
+                    for (auto cIt = m_mergedContexts.constBegin(); cIt != m_mergedContexts.constEnd(); ++cIt) {
+                        if (cIt.key() != installId && cIt.value() && cIt.value()->mcVersion == ds->mcVersion) {
+                            otherUsingSameMC = true; break;
+                        }
+                    }
+                    if (!otherUsingSameMC) {
+                        qCInfo(logVersion) << QStringLiteral("[安装] 清理原版 MC 版本文件夹: %1").arg(ds->mcVersion);
+                        cleanupCanceledVersion(ds->mcVersion, m_gameDir);
+                        refreshInstalled();
+                    }
                 }
 
                 emit logMessage(tr("安装完成"));

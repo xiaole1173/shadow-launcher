@@ -1,13 +1,14 @@
-# ── Sensitive local copies ──
+﻿# 鈹€鈹€ Sensitive local copies 鈹€鈹€
 # Original source files that contain sensitive information (beta keys, server URLs, etc.)
 # These are kept locally for development; sanitized versions are tracked by git.
 *.local
 
 # Local encrypted configuration (contains real relay endpoint, beta server URL, etc.)
-# Not tracked by design — use encrypted_addr.h (all-zero placeholder) as reference.
+# Not tracked by design 鈥?use encrypted_addr.h (all-zero placeholder) as reference.
 encrypted_addr_local.h
+cf_api_key_local.h
 
-# ── Build artifacts ──
+# 鈹€鈹€ Build artifacts 鈹€鈹€
 build/
 cmake-build-*/
 out/
@@ -23,7 +24,7 @@ CMakeFiles/
 *.lib
 *.dll
 
-# ── IDE / OS ──
+# 鈹€鈹€ IDE / OS 鈹€鈹€
 .vs/
 .idea/
 *.user
@@ -34,26 +35,27 @@ CMakeFiles/
 Thumbs.db
 .DS_Store
 
-# ── Qt Creator / VS Code ──
+# 鈹€鈹€ Qt Creator / VS Code 鈹€鈹€
 *.autosave
 *.pro.user
 cmake-build-*
 
-# ── Runtime data ──
+# 鈹€鈹€ Runtime data 鈹€鈹€
 _update/
 *.log
 logs/
 skins/
 assets/
 
-# ── Python/scripts ──
+# 鈹€鈹€ Python/scripts 鈹€鈹€
 __pycache__/
 *.pyc
 *.pyo
 
 # Encrypted blob fragments (auto-generated, keep local)
 src/multiplayer/encrypted_frag_*.cpp
-# Stub for CI/open-source builds — zero placeholder, safe to commit
+# Stub for CI/open-source builds 鈥?zero placeholder, safe to commit
 !src/multiplayer/encrypted_frag_stub.cpp
 src/multiplayer/encrypted_addr_local.h
+cf_api_key_local.h
 

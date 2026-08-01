@@ -13,6 +13,20 @@
 #include "../backend/version_backend.h"
 #include "../core/version_isolation.h"
 #include "../utils/logger.h"
+#include "../core/cf_key_crypto.h"
+
+// 编译期嵌入的 CF API Key（应用标识，向 CurseForge 表明下载来源）—— 密文存储。
+// 本地私有文件 cf_api_key_local.h 已被 .gitignore 忽略（远程仓库不含真实 Key）；
+// 文件不存在时加密宏缺失 → decryptEmbeddedCfKey 返回空串，回退环境变量/配置文件。
+#if defined(__has_include)
+#  if __has_include("cf_api_key_local.h")
+#    include "cf_api_key_local.h"
+#    define SHADOW_HAS_CF_ENC 1
+#  endif
+#endif
+#ifndef SHADOW_HAS_CF_ENC
+#  define SHADOW_HAS_CF_ENC 0
+#endif
 
 using namespace ShadowLauncher;
 
@@ -180,9 +194,23 @@ void ModpackImporter::loadApiKeyFromConfig()
                 }
             }
         }
-        qCWarning(logMod) << "[modpack] 未配置 CurseForge API Key"
-                          << "(设置项: 环境变量 SHADOW_CF_API_KEY 或 " << path << ")";
     }
+
+    // 编译期嵌入 Key（作者默认来源标识，随 Release 分发；环境变量/配置文件可覆盖）
+    // 密文存储：HKDF-SHA256 + AES-256-GCM 解密（见 cf_key_crypto.h）。
+    // 注：此处只做读取不告警——是否真的需要 CF Key 由下载器在遇到 CF 文件时判定，
+    // 避免 Modrinth 等纯第三方包导入时出现无关的 CF Key 提示。
+    if (SHADOW_HAS_CF_ENC) {
+        key = CfKeyCrypto::decryptEmbeddedCfKey(
+            SHADOW_CF_ENC_IKM_HEX, SHADOW_CF_ENC_SALT_HEX,
+            SHADOW_CF_ENC_NONCE_HEX, SHADOW_CF_ENC_CIPHER_HEX, SHADOW_CF_ENC_TAG_HEX);
+        if (!key.isEmpty()) {
+            setCurseForgeApiKey(key);
+            return;
+        }
+    }
+
+    // 无内嵌 key 时不在此告警（交由 ModpackDownloader 在确有 CF 文件时提示）
 }
 
 // ── 静态兼容方法 ──

@@ -2730,6 +2730,51 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
                     }
                 }
 
+                // 4b. 同步到带时间戳的 Maven 路径（DOWNLOAD_MOJMAPS / MERGE_MAPPING 期望位置）
+                // 安装器的 processors 从 install_profile.json 的 data.MOJMAPS 解析路径：
+                //   [net.minecraft:client:{mavenVer}:mappings@txt] →
+                //   libraries/net/minecraft/client/{mavenVer}/client-{mavenVer}-mappings.txt
+                // Place 1 下载失败时（网络不稳），若此处预下载成功但只写无时间戳路径，
+                // bootstrapper 的 DOWNLOAD_MOJMAPS 仍会因找不到带时间戳文件而触发网络下载，
+                // 失败后 ChainMappings 报 "Right does not exist"。
+                // 因此把原始映射同时写入带时间戳路径，使 DOWNLOAD_MOJMAPS 命中本地缓存跳过下载。
+                {
+                    QString mavenVer;
+                    {
+                        QBuffer profBuf;
+                        profBuf.setData(jarData);
+                        if (profBuf.open(QIODevice::ReadOnly)) {
+                            QZipReader profReader(&profBuf);
+                            const QByteArray profData = profReader.fileData(QStringLiteral("install_profile.json"));
+                            profReader.close();
+                            if (!profData.isEmpty()) {
+                                const QJsonObject profObj = QJsonDocument::fromJson(profData).object();
+                                const QString clientRef = profObj.value(QStringLiteral("data")).toObject()
+                                    .value(QStringLiteral("MOJMAPS")).toObject()
+                                    .value(QStringLiteral("client")).toString();
+                                QRegularExpression re(QStringLiteral("\\[[^:]+:[^:]+:([^:\\]]+):mappings@txt\\]"));
+                                const QRegularExpressionMatch match = re.match(clientRef);
+                                if (match.hasMatch())
+                                    mavenVer = match.captured(1);
+                            }
+                        }
+                    }
+                    if (!mavenVer.isEmpty()) {
+                        const QString mojmapsPath = m_gameDir
+                            + QStringLiteral("/libraries/net/minecraft/client/") + mavenVer
+                            + QStringLiteral("/client-") + mavenVer + QStringLiteral("-mappings.txt");
+                        if (!QFileInfo::exists(mojmapsPath)) {
+                            QDir().mkpath(QFileInfo(mojmapsPath).absolutePath());
+                            QFile mf(mojmapsPath);
+                            if (mf.open(QIODevice::WriteOnly)) {
+                                mf.write(rawMapping);
+                                mf.close();
+                                qCInfo(logLoader) << QStringLiteral("[安装] 已同步 client_mappings.txt 至 Maven 路径: %1").arg(mojmapsPath);
+                            }
+                        }
+                    }
+                }
+
                 // 5. Convert ProGuard .txt → TSRG .tsrg using srgutils (same library FART uses)
                 //
                 //    We cannot reliably produce TSRG in C++ — srgutils output format is complex
@@ -3132,6 +3177,28 @@ void ModLoaderInstaller::onBootstrapperFinished()
 // 这是在 bootstrapper 返回后的一个独立步骤，
 // NOT inside the bootstrapper itself.
 // ═══════════════════════════════════════════════════════════════
+
+// Forge 1.17.1 ~ 1.20.5 特判：binarypatcher 输出的 forge-{ver}-client.jar 是差分小包
+// （仅含被 patch 的类，官方 version.json 依赖 inheritsFrom 继承原版提供完整类）。
+// 本启动器拍平版本 JSON（无继承），版本 JAR 必须自包含完整类 →
+// 版本 JAR 直接使用原版客户端（libraries/net/minecraft/client/{ver}/client-{ver}.jar），
+// 与 主流启动器 拍平产物一致（版本 JAR = 原版客户端 JAR）。
+// Forge 1.20.6+（50.x）：client.jar 为完整 patched 客户端，保持原有复制逻辑。
+static bool forgeNeedsVanillaClientJar(const QString& mcVersion, const QString& loaderType)
+{
+    if (loaderType != QStringLiteral("forge")) return false;
+    const QStringList parts = mcVersion.split(QLatin1Char('.'));
+    if (parts.size() < 3) return false;
+    bool okMajor = false, okMinor = false, okPatch = false;
+    const int major = parts[0].toInt(&okMajor);
+    const int minor = parts[1].toInt(&okMinor);
+    const int patch = parts[2].toInt(&okPatch);
+    if (!okMajor || !okMinor || !okPatch || major != 1) return false;
+    if (minor >= 17 && minor <= 19) return true;   // 1.17.x ~ 1.19.x
+    if (minor == 20) return (patch >= 1 && patch <= 5); // 1.20.1 ~ 1.20.5
+    return false;
+}
+
 void ModLoaderInstaller::finalizeBootstrapperInstall()
 {
     if (!m_bootstrapperOk) {
@@ -3153,6 +3220,11 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
         : QStringLiteral("net/minecraftforge/forge");
     const QString filePrefix = isNeo ? neoPkg : QStringLiteral("forge");
 
+    // Forge 1.17.1~1.20.5：forge-{ver}-client.jar 为差分小包，版本 JAR 使用原版客户端
+    const bool forgeNeedsVanillaJar = forgeNeedsVanillaClientJar(m_mcVersion, m_loaderType);
+    if (forgeNeedsVanillaJar)
+        qCInfo(logLoader) << QStringLiteral("[安装] Forge %1: client.jar 为差分小包，版本 JAR 使用原版客户端").arg(m_mcVersion);
+
     // 扁平化版本 JSON（解析 inheritsFrom 链）
     if (!m_postJsonPath.isEmpty()) {
         QFile jf(m_postJsonPath);
@@ -3172,7 +3244,10 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                 // NeoForge: skip — client-26.2.jar on classpath interferes with
                 // RequiredSystemFiles.areNeoForgeAndMinecraftSeparate(), causing
                 // "The patched Minecraft jar is missing" error.
-                if (!isNeo) {
+                // Forge 1.17.1~1.20.5（差分小包）：版本 JAR 即为原版客户端 JAR（完整类），
+                // 不再注入 net.minecraft:client 库，避免 classpath 双份客户端类引发
+                // bootstraplauncher JPMS 模块导出冲突（Modules client and minecraft export ...）。
+                if (!isNeo && !forgeNeedsVanillaJar) {
                 QJsonArray mergedLibs = flattened.value(QStringLiteral("libraries")).toArray();
                 QString mcClientName = QStringLiteral("net.minecraft:client:") + m_mcVersion;
                 bool hasMcClient = false;
@@ -3206,7 +3281,9 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
         }
 
         // Forge: copy client/universal JAR to version folder (NeoForge uses vanilla MC client JAR instead)
-        if (!isNeo) {
+        // 1.17.1~1.20.5：forge-{ver}-client.jar 为差分小包（仅含 patch 类），跳过复制，
+        // 版本 JAR 由下方"原版客户端 JAR 复制"兜底（完整类）。
+        if (!isNeo && !forgeNeedsVanillaJar) {
         QString targetDir = versionsDir() + QStringLiteral("/") + m_installName;
         QString jarPathV = targetDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
         if (!QFile::exists(jarPathV)) {
@@ -3218,9 +3295,11 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
                 + filePrefix + QStringLiteral("-") + ver + QStringLiteral("-universal.jar");
 
             if (QFile::exists(clientJar) && QFile::copy(clientJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("[安装] 已复制 client JAR 到版本文件夹: %1").arg(jarPathV);
+                qCInfo(logLoader) << QStringLiteral("[安装] 已复制 client JAR 到版本文件夹: %1 (源 %2 字节 → 目标 %3 字节)")
+                    .arg(jarPathV).arg(QFileInfo(clientJar).size()).arg(QFileInfo(jarPathV).size());
             } else if (QFile::exists(universalJar) && QFile::copy(universalJar, jarPathV)) {
-                qCInfo(logLoader) << QStringLiteral("[安装] 已复制 universal JAR 到版本文件夹: %1").arg(jarPathV);
+                qCInfo(logLoader) << QStringLiteral("[安装] 已复制 universal JAR 到版本文件夹: %1 (源 %2 字节 → 目标 %3 字节)")
+                    .arg(jarPathV).arg(QFileInfo(universalJar).size()).arg(QFileInfo(jarPathV).size());
             }
         }
         }
@@ -3228,17 +3307,33 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
 
     // 将原版 MC client JAR 复制到版本文件夹
     // Needed by launcher for classpath; source: libraries/net/minecraft/client/{ver}/client-{ver}.jar
+    // Forge 1.17.1~1.20.5：此处即为版本 JAR 的唯一来源（差分小包跳过），复制后做大小校验。
     {
         QString mcClientSrc = m_gameDir + QStringLiteral("/libraries/net/minecraft/client/") + m_mcVersion
             + QStringLiteral("/client-") + m_mcVersion + QStringLiteral(".jar");
         QString mcClientDst = versionsDir() + QStringLiteral("/") + m_installName
             + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+        const qint64 mcClientSrcSize = QFileInfo(mcClientSrc).size();
         if (QFile::exists(mcClientSrc) && !QFile::exists(mcClientDst)) {
             QDir().mkpath(QFileInfo(mcClientDst).absolutePath());
-            if (QFile::copy(mcClientSrc, mcClientDst))
-                qCInfo(logLoader) << QStringLiteral("[安装] 已复制原版客户端 JAR 到版本文件夹: %1").arg(mcClientDst);
-            else
+            if (QFile::copy(mcClientSrc, mcClientDst)) {
+                const qint64 dstSize = QFileInfo(mcClientDst).size();
+                qCInfo(logLoader) << QStringLiteral("[安装] 已复制原版客户端 JAR 到版本文件夹: %1 (源 %2 字节 → 目标 %3 字节)")
+                    .arg(mcClientDst).arg(mcClientSrcSize).arg(dstSize);
+                // 边界校验：大小不一致视为残缺拷贝 → 删除残缺文件并抛出安装失败
+                if (dstSize != mcClientSrcSize) {
+                    qCCritical(logLoader) << QStringLiteral("[安装] 原版客户端 JAR 复制校验失败: 源 %1 字节 ≠ 目标 %2 字节，删除残缺文件")
+                        .arg(mcClientSrcSize).arg(dstSize);
+                    QFile::remove(mcClientDst);
+                    emit finished(false, QStringLiteral("客户端 JAR 复制校验失败（大小不一致）"));
+                    m_running = false;
+                    return;
+                }
+            } else {
                 qCWarning(logLoader) << QStringLiteral("[安装] 复制原版客户端 JAR 失败: %1").arg(mcClientSrc);
+            }
+        } else if (forgeNeedsVanillaJar && !QFile::exists(mcClientDst) && !QFile::exists(mcClientSrc)) {
+            qCWarning(logLoader) << QStringLiteral("[安装] 原版客户端 JAR 源不存在: %1，版本 JAR 将缺失").arg(mcClientSrc);
         }
     }
 

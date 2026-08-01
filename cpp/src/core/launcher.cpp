@@ -257,7 +257,11 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         auto pre16M = pre16Rgx.match(m_currentVersionId);
         bool isPre16 = pre16M.hasMatch() && pre16M.captured(1).toInt() < 6;
         if (isPre16) {
-            auto env = m_process->processEnvironment();
+            // 必须基于完整父进程环境做增量修改：QProcess::processEnvironment() 在从未
+            // setProcessEnvironment 时返回空对象，直接用它会导致子进程环境被清空
+            // （PATH/APPDATA/USERPROFILE 全部丢失 → 依赖 %APPDATA% 的 mod 如
+            //  ModernFix readGlobalProperties 会因 getenv("APPDATA")=null 而 NPE 崩溃）
+            auto env = QProcessEnvironment::systemEnvironment();
             QString versionGameDir = QDir::toNativeSeparators(
                 QDir(m_versionGameDir).absolutePath());
 
@@ -293,7 +297,12 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
 
     // High-performance GPU: set env vars for NVIDIA Optimus / AMD Switchable Graphics
     if (m_highPerfGpu) {
-        auto env = m_process->processEnvironment();
+        // 必须基于完整父进程环境做增量修改：QProcess::processEnvironment() 在从未
+        // setProcessEnvironment 时返回空对象，直接用它会把子进程环境清空成只剩
+        // SHIM_MCCOMPAT（PATH/APPDATA/USERPROFILE 全丢）。%APPDATA% 缺失会导致
+        // ModernFix 等 mod 的 System.getenv("APPDATA") 返回 null → Paths.get(null, ...) NPE，
+        // 游戏在 Mixin 阶段直接崩溃。
+        auto env = QProcessEnvironment::systemEnvironment();
         env.insert(QStringLiteral("SHIM_MCCOMPAT"), QStringLiteral("0x800000001"));
         m_process->setProcessEnvironment(env);
     }

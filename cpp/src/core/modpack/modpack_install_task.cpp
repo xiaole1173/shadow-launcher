@@ -817,27 +817,34 @@ void ModpackInstallTask::completeImport()
 
 void ModpackInstallTask::cancel()
 {
-    if (!m_busy) return;
+    if (!m_busy || m_cancel) return;
     m_cancel = true;
 
     const bool dlRunning = m_downloader->isRunning();
+    const bool mcRunning = m_installingMc && m_vb;
+    emit logLine(tr("══ 取消触发：终止全部任务（模组下载 / MC 下载 / 加载器安装）══"));
     if (dlRunning) {
-        emit logLine(tr("正在取消模组下载…"));
+        emit logLine(tr("→ 正在终止模组独立下载引擎（网络请求 + 落盘）…"));
         m_downloader->cancel();   // 同步触发 allFinished(true) → 任务侧 tryCancelFinish 汇合
     }
-    if (m_installingMc && m_vb) {
+    if (mcRunning) {
         // MC/加载器安装中：调用版本后端定向取消（→ installFinished → 任务侧汇合）。
         // ⚠ 必须传会话 id（merged=targetName / vanilla=mcVersion）：纯原版路径
         //   传 targetName 命中不到 vanilla 下载器（其 id 是 mcVersion），MC 下载不会停。
-        emit logLine(tr("正在取消版本安装…"));
+        emit logLine(tr("→ 正在终止版本安装（会话 %1）…").arg(m_mcSessionId));
         m_vb->cancelVersionInstall(m_mcSessionId);
+    }
+    if (!dlRunning && !mcRunning) {
+        emit logLine(tr("→ 当前处于解析/解压阶段，等待工作线程响应取消…"));
     }
     // 解析/解压阶段：不抢先回滚——工作线程检查 m_cancel 后自行收尾
     // （onParsed/onExtracted 的 m_cancel 分支 rollback+finishCancelled），
     // 立即回滚会与解压写盘并发竞态产生残留。
     // 统一兜底：任一路回调未触发（信号丢失/工作线程异常），5s 后强制收尾。
+    emit logLine(tr("→ 等待全部任务停止后统一清理临时文件…"));
     QTimer::singleShot(5000, this, [this]() {
         if (!m_busy) return;
+        emit logLine(tr("⚠ 取消兜底触发：强制清理（部分任务未响应）"));
         rollback();
         finishCancelled();
     });
@@ -897,14 +904,21 @@ void ModpackInstallTask::rollback()
 {
     emit logLine(tr("回滚清理中…"));
 
+    int restored = 0;
     // 1. 恢复被覆盖的旧文件
     for (auto it = m_overwriteBackup.constBegin(); it != m_overwriteBackup.constEnd(); ++it) {
         QFile::remove(it.key());
         QFile::copy(it.value(), it.key());
+        ++restored;
     }
-    // 2. 删除本任务创建的文件
-    for (const QString& f : m_createdFiles)
-        QFile::remove(f);
+    if (restored > 0)
+        emit logLine(tr("→ 已恢复被覆盖的旧文件 %1 个").arg(restored));
+    // 2. 删除本任务创建的文件（含已下载模组/解压资源/临时 Jar）
+    int removedFiles = 0;
+    for (const QString& f : m_createdFiles) {
+        if (QFile::remove(f)) ++removedFiles;
+    }
+    emit logLine(tr("→ 已删除任务创建文件 %1 个（模组/解压资源/临时 Jar）").arg(removedFiles));
     // 3. 清理创建文件产生的空目录（从叶子向上，rmdir 只删空目录，安全）
     for (const QString& f : m_createdFiles) {
         QDir dir = QFileInfo(f).absoluteDir();
@@ -924,14 +938,16 @@ void ModpackInstallTask::rollback()
             emit logLine(tr("检测到玩家存档，保留版本目录: %1").arg(m_versionDir));
         } else {
             QDir(m_versionDir).removeRecursively();
-            emit logLine(tr("已删除版本目录: %1").arg(m_versionDir));
+            emit logLine(tr("→ 已删除版本目录: %1").arg(m_versionDir));
         }
     }
     // 5. 备份目录
     if (!m_backupDir.isEmpty()) {
         QDir(m_backupDir).removeRecursively();
+        emit logLine(tr("→ 已删除覆盖备份目录: %1").arg(m_backupDir));
         m_backupDir.clear();
     }
+    emit logLine(tr("✅ 临时文件清理完成，本次任务无残留、无挂起后台任务"));
     emit modItemsChanged();
 }
 

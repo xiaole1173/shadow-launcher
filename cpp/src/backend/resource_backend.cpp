@@ -209,49 +209,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
             if (status == 200) {
                 int totalHits = 0;
                 QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
-                QVariantList list;
-                for (const QJsonValue& item : results) {
-                    const QJsonObject obj = item.toObject();
-                    QVariantMap entry;
-                    entry[QStringLiteral("slug")]      = obj[QStringLiteral("slug")].toString();
-                    entry[QStringLiteral("title")]     = obj[QStringLiteral("title")].toString();
-                    entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
-                    entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
-                    entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
-                    // Extract loader + categories + client_side for badges
-                    QJsonArray cats = obj[QStringLiteral("categories")].toArray();
-                    QStringList catList, typeList;
-                    QStringList knownLoaders = {QLatin1String("fabric"), QLatin1String("forge"),
-                                                QLatin1String("quilt"), QLatin1String("neoforge"),
-                                                QLatin1String("rift"), QLatin1String("liteloader"),
-                                                QLatin1String("iris"), QLatin1String("optifine")};
-                    QString loader;
-                    for (const QJsonValue& cv : cats) {
-                        QString c = cv.toString();
-                        catList << c;
-                        if (knownLoaders.contains(c)) {
-                            if (loader.isEmpty()) loader = c;
-                        } else {
-                            typeList << c;
-                        }
-                    }
-                    entry[QStringLiteral("loader")]     = loader;
-                    entry[QStringLiteral("categories")] = QVariant(catList);
-                    entry[QStringLiteral("typeList")]   = QVariant(typeList);
-                    entry[QStringLiteral("clientSide")] = obj[QStringLiteral("client_side")].toString();
-                    // All loaders list
-                    QStringList allLoaders;
-                    for (const QString& cat : catList) {
-                        if (knownLoaders.contains(cat)) allLoaders.append(cat);
-                    }
-                    entry[QStringLiteral("loadersList")] = allLoaders;
-                    // Versions + date
-                    entry[QStringLiteral("versions")]     = obj[QStringLiteral("versions")].toVariant();
-                    entry[QStringLiteral("dateModified")]= obj[QStringLiteral("date_modified")].toString();
-                    entry[QStringLiteral("license")]    = obj[QStringLiteral("license")].toVariant();
-                    list.append(entry);
-                }
-                emit modSearchResultsReady(list);
+                emit modSearchResultsReady(parseSearchResponseItems(results));
                 emit logMessage(tr("搜索完成，共 %1 个结果").arg(totalHits));
             } else {
                 emit logMessage(tr("搜索失败: HTTP %1").arg(status));
@@ -295,24 +253,63 @@ void ResourceBackend::searchShadersEx(
     const QStringList& categories, const QStringList& performance,
     const QStringList& loader, int offset, int limit)
 {
-    m_searchKind = SearchKind::Shader;
     emit logMessage(tr("[SHADER] 搜索光影: q=%1 vers=%2 cats=%3 perf=%4 loader=%5 offset=%6").arg(
         query, gameVersions.join(","), categories.join(","),
         performance.join(","), loader.join(",")).arg(offset));
 
-    // Build facets: project_type + optional filters
-    QStringList facets;
-    facets << QStringLiteral("project_type:shader");
-
+    // ═══ 串台修复（2026-08-01）：与 searchModsEx 对称，HttpClient 直连 +
+    // 硬编码发射 shaderSearchResultsReady，完全绕开 ModManager::searchCompleted
+    // 与 m_searchKind 共享标志。原实现走 ModManager 信号 + m_searchKind 路由：
+    // 并发搜索时（Mod 页与光影页先后触发），后发请求覆盖 m_searchKind，
+    // 导致光影响应被路由到 modSearchResultsReady（Mod 页显示光影）/反之。
+    // 直连后两条路径物理隔离，无任何共享状态，互串彻底消除。
+    QJsonArray facetArr;
+    facetArr.append(QJsonArray{QStringLiteral("project_type:shader")});
+    // 每个过滤条件独立成组（AND 语义，与原 ModManager 路径行为一致）
     for (const QString& c : categories)
-        facets << (QStringLiteral("categories:") + c);
+        facetArr.append(QJsonArray{QStringLiteral("categories:") + c});
     for (const QString& p : performance)
-        facets << (QStringLiteral("categories:") + p);
+        facetArr.append(QJsonArray{QStringLiteral("categories:") + p});
     for (const QString& l : loader)
-        facets << (QStringLiteral("categories:") + l);
+        facetArr.append(QJsonArray{QStringLiteral("categories:") + l});
+    if (!gameVersions.isEmpty()) {
+        QJsonArray verGroup;
+        for (const QString& v : gameVersions)
+            verGroup.append(QStringLiteral("versions:") + v);
+        facetArr.append(verGroup);
+    }
 
-    m_modMgr->searchModrinthProjects(query, facets, gameVersions, {}, offset, limit,
-                             QStringLiteral("downloads"));
+    QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+    QUrlQuery params;
+    if (!query.isEmpty())
+        params.addQueryItem(QStringLiteral("query"), query);
+    params.addQueryItem(QStringLiteral("facets"),
+                        QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+    params.addQueryItem(QStringLiteral("offset"), QString::number(offset));
+    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+    url.setQuery(params);
+
+    m_modMgr->setBusy(true);
+    if (!ShadowLauncher::suppressUrlLog())
+        emit logMessage(tr("请求URL: %1").arg(url.toString()));
+
+    HttpClient::instance().get(url.toString(),
+        [this](int status, const QByteArray& body) {
+            if (status == 200) {
+                int totalHits = 0;
+                QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
+                emit shaderSearchResultsReady(parseSearchResponseItems(results));
+                emit logMessage(tr("光影搜索完成，共 %1 个结果").arg(totalHits));
+            } else {
+                emit logMessage(tr("光影搜索失败: HTTP %1").arg(status));
+            }
+            m_modMgr->setBusy(false);
+        },
+        [this](const QString& error) {
+            emit logMessage(tr("光影搜索网络错误: %1").arg(error));
+            m_modMgr->setBusy(false);
+        });
 }
 
 // ============================================================
@@ -399,7 +396,27 @@ void ResourceBackend::cancelDownload()
 
 void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHits*/)
 {
+    // 兼容路径：仅 searchMods（非 Ex，QML 已不使用）会经 ModManager 触发本槽。
+    // Mod/Shader 实际搜索均已改为 HttpClient 直连 + 硬编码发射（searchModsEx /
+    // searchShadersEx），m_searchKind 不再有并发写入来源，此处路由保留作兜底。
+    emit logMessage(tr("找到 %1 个结果").arg(results.size()));
+    if (m_searchKind == SearchKind::Mod)
+        emit modSearchResultsReady(parseSearchResponseItems(results));
+    else
+        emit shaderSearchResultsReady(parseSearchResponseItems(results));
+}
+
+QVariantList ResourceBackend::parseSearchResponseItems(const QJsonArray& results) const
+{
+    // Mod/Shader 搜索结果统一解析（字段与 QML 端约定一致）：
+    // - versions ← gameVersions（parseSearchResponse 将原始 versions 映射到此字段）
+    // - loadersList ← loaders（原始 categories，parseSearchResponse 已把加载器从
+    //   categories 剔除进 loaders 字段，用 catList 筛选永远为空）
     QVariantList list;
+    static const QStringList knownLoaders = {QLatin1String("fabric"), QLatin1String("forge"),
+                                             QLatin1String("quilt"), QLatin1String("neoforge"),
+                                             QLatin1String("rift"), QLatin1String("liteloader"),
+                                             QLatin1String("iris"), QLatin1String("optifine")};
     for (const QJsonValue& item : results) {
         const QJsonObject obj = item.toObject();
         QVariantMap entry;
@@ -408,15 +425,11 @@ void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHi
         entry[QStringLiteral("desc")]      = obj[QStringLiteral("description")].toString();
         entry[QStringLiteral("icon")]      = obj[QStringLiteral("iconUrl")].toString();
         entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
-        QJsonArray cats = obj[QStringLiteral("categories")].toArray();
+        const QJsonArray cats = obj[QStringLiteral("categories")].toArray();
         QStringList catList, typeList;
-        QStringList knownLoaders = {QLatin1String("fabric"), QLatin1String("forge"),
-                                    QLatin1String("quilt"), QLatin1String("neoforge"),
-                                    QLatin1String("rift"), QLatin1String("liteloader"),
-                                    QLatin1String("iris"), QLatin1String("optifine")};
         QString loader;
         for (const QJsonValue& cv : cats) {
-            QString c = cv.toString();
+            const QString c = cv.toString();
             catList << c;
             if (knownLoaders.contains(c)) {
                 if (loader.isEmpty()) loader = c;
@@ -428,28 +441,19 @@ void ResourceBackend::onSearchCompleted(const QJsonArray& results, int /*totalHi
         entry[QStringLiteral("categories")] = QVariant(catList);
         entry[QStringLiteral("typeList")]   = QVariant(typeList);
         entry[QStringLiteral("clientSide")] = obj[QStringLiteral("client_side")].toString();
-        // Collect all loader-type categories (reuse existing knownLoaders + cats from above)
         QStringList allLoaders;
-        for (const QString& cat : catList) {
-            if (knownLoaders.contains(cat)) allLoaders.append(cat);
+        const QJsonArray rawCats = obj[QStringLiteral("loaders")].toArray();
+        for (const QJsonValue& cv : rawCats) {
+            const QString c = cv.toString();
+            if (knownLoaders.contains(c)) allLoaders.append(c);
         }
         entry[QStringLiteral("loadersList")] = allLoaders;
-        if (!allLoaders.isEmpty())
-            qDebug() << "[SEARCH]" << obj["slug"].toString() << "loaders:" << allLoaders.join(", ");
-        else
-            qDebug() << "[SEARCH]" << obj["slug"].toString() << "loaders: NONE";
-
         entry[QStringLiteral("versions")]     = obj[QStringLiteral("gameVersions")].toVariant();
         entry[QStringLiteral("dateModified")]= obj[QStringLiteral("updated")].toString();
         entry[QStringLiteral("license")]    = obj[QStringLiteral("license")].toVariant();
         list.append(entry);
     }
-
-    emit logMessage(tr("找到 %1 个结果").arg(list.size()));
-    if (m_searchKind == SearchKind::Mod)
-        emit modSearchResultsReady(list);
-    else
-        emit shaderSearchResultsReady(list);
+    return list;
 }
 
 void ResourceBackend::onDownloadProgress(const QString& name, qint64 received, qint64 total)

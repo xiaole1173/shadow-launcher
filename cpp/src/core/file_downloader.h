@@ -112,10 +112,10 @@ public:
     int failedFiles() const { return m_failedFiles.loadRelaxed(); }
     qint64 downloadedBytes() const { return m_downloadedBytes.loadRelaxed(); }
     qint64 totalBytes() const { return m_totalBytes.loadRelaxed(); }
-    /// Bytes from cache hits (excluded from speed calculation).
+    /// Bytes from cache hits. 缓存命中分支不再累加（保持 0），仅供上层口径兼容。
     qint64 cachedBytes() const { return m_cacheBytes.loadRelaxed(); }
-    /// Network-only bytes (total - cache).
-    qint64 networkBytes() const { return m_downloadedBytes.loadRelaxed() - m_cacheBytes.loadRelaxed(); }
+    /// Network-only bytes：m_downloadedBytes 已只含真实网络字节。
+    qint64 networkBytes() const { return m_downloadedBytes.loadRelaxed(); }
     int activeThreads() const { return m_activeThreads.loadRelaxed(); }
 
     double currentSpeedMBps() const;
@@ -156,8 +156,8 @@ private:
     QAtomicInt m_totalFiles{0};
     QAtomicInt m_completedFiles{0};
     QAtomicInt m_failedFiles{0};
-    QAtomicInteger<qint64> m_downloadedBytes{0};
-    QAtomicInteger<qint64> m_cacheBytes{0};  // bytes from cache hits (excluded from speed calc)
+    QAtomicInteger<qint64> m_downloadedBytes{0};  // 仅真实网络收发字节（缓存命中不累加）
+    QAtomicInteger<qint64> m_cacheBytes{0};  // 保留字段：缓存命中分支已不累加，恒为 0（不参与速度）
     QAtomicInteger<qint64> m_totalBytes{0};
     QAtomicInt m_activeThreads{0};
     QAtomicInt m_nextUuid{0};

@@ -113,6 +113,9 @@ private:
     QString m_dlFile;
     QString m_minecraftDir;
     SearchKind m_searchKind = SearchKind::Mod;
+
+    // Mod/Shader 搜索结果解析（字段与 QML 端约定一致，两路径共用）
+    QVariantList parseSearchResponseItems(const QJsonArray& results) const;
 };
 
 } // namespace ShadowLauncher

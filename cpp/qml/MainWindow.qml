@@ -124,11 +124,17 @@ Window {
         }
         function onInstallFinished(success) {
             if (!success && toastManager) {
+                // 整合包导入进行中：MC/加载器路失败≠整包失败（模组路可能仍在跑），
+                // 失败提示统一由 importFinished 在整包全闭环后弹出。
+                if (backend && backend.modpackImporter && backend.modpackImporter.busy) return
                 toastManager.show("安装失败: 有文件下载失败或校验不通过", "", 5000)
             }
         }
         function onInstallComplete(installName) {
             console.log("[main] installComplete:", installName, "installing=", backend.installing)
+            // 整合包导入：MC+加载器安装完成只是其中一路（模组仍在并行下载），
+            // 成功/失败 Toast 由 importFinished 在「MC+加载器+全部模组」闭环后统一弹出。
+            if (backend && backend.modpackImporter && backend.modpackImporter.busy) return
             if (toastManager) {
                 toastManager.show(installName + " 下载完成")
             }
@@ -184,6 +190,36 @@ Window {
         function onExpandRpDetailGroup(major) {
             console.log("[auto-test] expandRpDetailGroup:", major)
             let t = Qt.createQmlObject('import QtQuick; Timer { interval: 500; running: true; repeat: false; onTriggered: { if (downloadPageLoader.item) { downloadPageLoader.item.rpDetailExpanded = "' + major + '" } destroy() } }', appWindow)
+        }
+    }
+
+    // ═══ 整合包导入完成：整包全闭环（MC+加载器+全部模组）后才弹成功/失败 Toast，
+    //      并关闭常驻下载进度页（对齐普通资源下载完成后的页面表现）═══
+    Connections {
+        target: backend ? backend.modpackImporter : null
+        enabled: target !== null
+        function onImportFinished(success, versionName, error) {
+            console.log("[main] modpack importFinished: success=", success, "name=", versionName, "error=", error)
+            if (toastManager) {
+                if (success) {
+                    toastManager.show("整合包导入完成: " + (versionName || ""), 4000)
+                } else if (error && error.indexOf("取消") >= 0) {
+                    toastManager.show("整合包导入已取消", 3000)
+                } else {
+                    toastManager.show("整合包导入失败: " + (error || "未知错误"), 5000)
+                }
+            }
+            // 任务结束后关闭常驻下载进度页：仅当用户仍停留在进度页时才自动返回启动页
+            modpackDoneNavTimer.restart()
+        }
+    }
+
+    Timer {
+        id: modpackDoneNavTimer
+        interval: 1800
+        repeat: false
+        onTriggered: {
+            if (navListIndex === 5) switchPage(0)
         }
     }
 
