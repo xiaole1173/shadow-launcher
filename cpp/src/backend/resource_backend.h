@@ -134,6 +134,11 @@ private:
     bool m_modTimeoutForced = false;
     bool m_shaderTimeoutForced = false;
     bool m_rpTimeoutForced = false;
+    // 渐进式第一波（Modrinth 先回）是否已发过：CF 先回场景下 Modrinth 最终回来时
+    // 必须补发全量 modSearchResultsReady，否则 QML 的 xxxSearching 卡 true → 分页条永久隐藏
+    bool m_modFirstWaveSent = false;
+    bool m_shaderFirstWaveSent = false;
+    bool m_rpFirstWaveSent = false;
     void tryAggregateMod(int gen, bool mrDone);
     void tryAggregateShader(int gen, bool mrDone);
     void tryAggregateRp(int gen, bool mrDone);

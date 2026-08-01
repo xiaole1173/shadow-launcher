@@ -220,6 +220,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     m_modMrResults.clear();
     m_modCfResults.clear();
     m_modPending = 0;
+    m_modFirstWaveSent = false;
     m_modMgr->setBusy(true);
 
     if (!cfOnly) {
@@ -326,10 +327,12 @@ static QVariantList cfOnlyItems(const QVariantList& mrItems, const QVariantList&
 void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
+    if (m_modPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复插入
     --m_modPending;
     if (mrDone && m_modPending > 0) {
         // 渐进第一波：Modrinth 先回 → 先显示（不等 CF）
         m_modMgr->setBusy(false);
+        m_modFirstWaveSent = true;
         emit modSearchResultsReady(m_modMrResults);
         return;
     }
@@ -344,6 +347,10 @@ void ResourceBackend::tryAggregateMod(int gen, bool mrDone)
         return;
     }
     if (!m_modMrResults.isEmpty()) {
+        // CF 先回场景（缓存命中秒回）：Modrinth 结果从未发过全量，必须先补发
+        // （否则 QML 的 modSearching 卡 true → PaginationFooter 永久隐藏）
+        if (!m_modFirstWaveSent)
+            emit modSearchResultsReady(m_modMrResults);
         // 正常双源：CF 特有项增量插入（QML 动画插入，不清空）
         const QVariantList cfOnly = cfOnlyItems(m_modMrResults, m_modCfResults);
         emit logMessage(tr("CF 特有项 %1 条增量插入").arg(cfOnly.size()));
@@ -426,6 +433,7 @@ void ResourceBackend::searchShadersEx(
     m_shaderMrResults.clear();
     m_shaderCfResults.clear();
     m_shaderPending = 0;
+    m_shaderFirstWaveSent = false;
     m_modMgr->setBusy(true);
 
     if (!ShadowLauncher::suppressUrlLog())
@@ -482,9 +490,11 @@ void ResourceBackend::searchShadersEx(
 void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
+    if (m_shaderPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复插入
     --m_shaderPending;
     if (mrDone && m_shaderPending > 0) {
         m_modMgr->setBusy(false);
+        m_shaderFirstWaveSent = true;
         emit shaderSearchResultsReady(m_shaderMrResults);
         return;
     }
@@ -498,6 +508,9 @@ void ResourceBackend::tryAggregateShader(int gen, bool mrDone)
         return;
     }
     if (!m_shaderMrResults.isEmpty()) {
+        // CF 先回场景：补发 Modrinth 全量，避免 shaderSearching 卡 true → 分页条隐藏
+        if (!m_shaderFirstWaveSent)
+            emit shaderSearchResultsReady(m_shaderMrResults);
         const QVariantList cfOnly = cfOnlyItems(m_shaderMrResults, m_shaderCfResults);
         emit logMessage(tr("CF 光影特有项 %1 条增量插入").arg(cfOnly.size()));
         emit shaderCfInserted(cfOnly);
@@ -550,6 +563,7 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
     m_rpMrResults.clear();
     m_rpCfResults.clear();
     m_rpPending = 0;
+    m_rpFirstWaveSent = false;
     m_modMgr->setBusy(true);
 
     // Modrinth：直连 mcimirror（facet: project_type=resourcepack）
@@ -644,9 +658,11 @@ void ResourceBackend::searchResourcepacks(const QString& query, const QString& g
 void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
 {
     if (gen != m_searchGen) return;
+    if (m_rpPending < 0) return;   // 超时强制归零后的迟到响应：忽略，防重复插入
     --m_rpPending;
     if (mrDone && m_rpPending > 0) {
         m_modMgr->setBusy(false);
+        m_rpFirstWaveSent = true;
         emit resourcepackSearchCompleted(m_rpMrResults, m_rpMrResults.size());
         return;
     }
@@ -660,6 +676,9 @@ void ResourceBackend::tryAggregateRp(int gen, bool mrDone)
         return;
     }
     if (!m_rpMrResults.isEmpty()) {
+        // CF 先回场景：补发 Modrinth 全量，避免 rpSearching 卡 true → 分页条隐藏
+        if (!m_rpFirstWaveSent)
+            emit resourcepackSearchCompleted(m_rpMrResults, m_rpMrResults.size());
         const QVariantList cfOnly = cfOnlyItems(m_rpMrResults, m_rpCfResults);
         emit logMessage(tr("[RP] CF 特有项 %1 条增量插入").arg(cfOnly.size()));
         emit rpCfInserted(cfOnly);

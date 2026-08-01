@@ -776,6 +776,16 @@ Rectangle {
             // CF 特有项增量插入：按下载量插入对应位置（ListView add 动画），不清空列表
             function onModCfInserted(items) {
                 if (!items || items.length === 0) return
+                if (page.modPrefetching) {
+                    // 预取响应：只预热图标缓存，不插入列表
+                    var pfUrls = []
+                    for (var pi = 0; pi < items.length; pi++) {
+                        var pu = (items[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        if (pu) pfUrls.push(pu)
+                    }
+                    if (pfUrls.length > 0 && backend) backend.cacheIconBatchAsync(pfUrls)
+                    return
+                }
                 var urls = []
                 for (var ci = 0; ci < items.length; ci++) {
                     var r = items[ci]
@@ -1080,6 +1090,16 @@ Rectangle {
             // CF 特有光影增量插入
             function onShaderCfInserted(items) {
                 if (!items || items.length === 0) return
+                if (shaderTab.shaderPrefetching) {
+                    // 预取响应：只预热图标缓存，不插入列表
+                    var pfUrls = []
+                    for (var pi = 0; pi < items.length; pi++) {
+                        var pu = (items[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        if (pu) pfUrls.push(pu)
+                    }
+                    if (pfUrls.length > 0 && backend) backend.cacheShaderIconBatchAsync(pfUrls)
+                    return
+                }
                 var urls = []
                 for (var ci = 0; ci < items.length; ci++) {
                     var r = items[ci]
@@ -1469,6 +1489,16 @@ Rectangle {
         // CF 特有资源包增量插入
         function onRpCfInserted(items) {
             if (!items || items.length === 0) return
+            if (page.rpPrefetching) {
+                // 预取响应：只预热图标缓存，不插入列表
+                var pfUrls = []
+                for (var pi = 0; pi < items.length; pi++) {
+                    var pu = (items[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                    if (pu) pfUrls.push(pu)
+                }
+                if (pfUrls.length > 0 && backend) backend.cacheRpIconBatchAsync(pfUrls)
+                return
+            }
             var urls = []
             for (var ci = 0; ci < items.length; ci++) {
                 var r = items[ci]
