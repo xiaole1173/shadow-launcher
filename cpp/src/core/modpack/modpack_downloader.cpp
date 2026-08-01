@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 
 #include "modpack_downloader.h"
+#include "../engine_identity.h"
 
 #include <QDir>
 #include <QFile>
@@ -136,7 +137,7 @@ void ModpackDownloader::apiWithFallback(bool isPost,
             if (stage == 0 && shouldFallbackToOfficial(status)) {
                 // 镜像超时/429/5xx/连接失败：静默丢弃，自动换官方重试一次
                 qCWarning(logMod).noquote()
-                    << QStringLiteral("[modpack] 镜像请求失败，降级官方: %1 status=%2 %3")
+                    << QStringLiteral("[引擎·女娲] 镜像请求失败，降级官方: %1 status=%2 %3")
                            .arg(mirrorUrl).arg(status).arg(reply->errorString());
                 (*send)(1);
                 return;
@@ -158,6 +159,8 @@ ModpackDownloader::ModpackDownloader(QObject* parent)
 void ModpackDownloader::start(bool includeOptional)
 {
     if (m_running || !m_files) return;
+    qCInfo(logMod) << engineBanner("nuwa");
+    emit logLine(engineBanner("nuwa"));
     m_running = true;
     m_cancelled = false;
     m_includeOptional = includeOptional;
@@ -224,6 +227,12 @@ void ModpackDownloader::start(bool includeOptional)
     }
 
     if (!cfIndexes.isEmpty()) {
+        // 确有此包含 CurseForge 文件，才需要 CF API Key；未配置时提示一次（便于排查 401）
+        if (m_apiKey.isEmpty()) {
+            qCInfo(logMod) << "[引擎·女娲] 检测到 CurseForge 文件但未配置 CF API Key，"
+                           << "镜像源可能可用；若官方源返回 401/403 请配置"
+                           << "(环境变量 SHADOW_CF_API_KEY 或 config/cf_api_key.json)";
+        }
         emit statusChanged(tr("正在解析 CurseForge 下载地址…"));
         emit logLine(tr("解析 %1 个 CurseForge 文件下载地址").arg(cfIndexes.size()));
         resolveBatch(0);

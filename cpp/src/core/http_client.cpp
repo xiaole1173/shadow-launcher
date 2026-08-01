@@ -9,6 +9,7 @@
 //   3. DownloadQueue limits concurrency to 2~4
 
 #include "http_client.h"
+#include "engine_identity.h"
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -46,6 +47,7 @@ struct QueueItem {
 
 HttpClient::HttpClient()
 {
+    qCInfo(logDownload) << engineBanner("yidao");
     m_manager = new QNetworkAccessManager(this);
     m_manager->setTransferTimeout(m_config.totalTimeoutMs);
 
@@ -122,7 +124,7 @@ void HttpClient::get(const QString& url,
                      std::function<void(int, const QByteArray&)> callback,
                      std::function<void(const QString&)> onError)
 {
-    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 发起网络请求 %1 方式=GET 超时=%2ms")
+    qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 发起网络请求 %1 方式=GET 超时=%2ms")
                                      .arg(url).arg(m_config.totalTimeoutMs);
 
     QNetworkRequest req = buildRequest(m_config, QUrl(url));
@@ -138,14 +140,14 @@ void HttpClient::get(const QString& url,
             const int status = reply->attribute(
                 QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (reply->error() != QNetworkReply::NoError) {
-                qCInfo(logDownload).noquote() << QStringLiteral("[网络] 请求失败 %1 状态码=%2 耗时=%3ms")
+                qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 请求失败 %1 状态码=%2 耗时=%3ms")
                                  .arg(url, QString::number(status),
                                       QString::number(elapsed));
                 if (onError)
                     onError(reply->errorString());
             } else {
                 const QByteArray body = reply->readAll();
-                qCInfo(logDownload).noquote() << QStringLiteral("[网络] 请求完成 %1 状态码=%2 耗时=%3ms 数据量=%4")
+                qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 请求完成 %1 状态码=%2 耗时=%3ms 数据量=%4")
                                  .arg(url, QString::number(status),
                                       QString::number(elapsed),
                                       QString::number(body.size()));
@@ -221,7 +223,7 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
     QNetworkRequest req = buildRequest(cfg, QUrl(primaryUrl), true, timeoutMs);
     QNetworkReply* reply = mgr->get(req);
 
-    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 开始下载 %1 超时=%2ms").arg(primaryUrl).arg(timeoutMs);
+    qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 开始下载 %1 超时=%2ms").arg(primaryUrl).arg(timeoutMs);
 
     auto* file = new QFile(tmpPath);
     if (!file->open(QIODevice::WriteOnly)) {
@@ -259,7 +261,7 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
                 QFile::remove(savePath);
                 if (QFile::rename(tmpPath, savePath)) {
                     qint64 fileSize = QFileInfo(savePath).size();
-                    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 下载完成 %1 文件大小=%2 耗时=%3ms")
+                    qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 下载完成 %1 文件大小=%2 耗时=%3ms")
                                                      .arg(savePath).arg(fileSize).arg(elapsed);
                     if (*sharedDone) (*sharedDone)(true, {});
                 } else {
@@ -267,7 +269,7 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
                     if (*sharedDone) (*sharedDone)(false, QStringLiteral("重命名失败: %1").arg(tmpPath));
                 }
             } else if (!mirror.isEmpty() && primaryUrl == mirror) {
-                qCInfo(logDownload).noquote() << QStringLiteral("[网络] 镜像源失败 %1，切换到官方源 %2").arg(errStr, url);
+                qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 镜像源失败 %1，切换到官方源 %2").arg(errStr, url);
                 QFile::remove(tmpPath);
                 downloadImpl(mgr, cfg, url, savePath,
                              sharedProg ? *sharedProg : nullptr,
@@ -360,7 +362,7 @@ void HttpClient::getWithFallback(const QString& url,
             get(targetUrl,
                 [hasWinner, targetUrl, cb](int status, const QByteArray& body) {
                     if (hasWinner->testAndSetRelaxed(0, 1)) {
-                        qCInfo(logDownload).noquote() << QStringLiteral("[网络] 竞速完成 胜出URL=%1 状态码=%2").arg(targetUrl).arg(status);
+                        qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 竞速完成 胜出URL=%1 状态码=%2").arg(targetUrl).arg(status);
                         if (*cb) (*cb)(status, body);
                     }
                 },
@@ -402,7 +404,7 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
     auto dlTimer = std::make_shared<QElapsedTimer>();
     dlTimer->start();
 
-    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 开始下载 %1").arg(url);
+    qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 开始下载 %1").arg(url);
 
     QNetworkRequest req = buildRequest(m_config, QUrl(url), false);
     if (resumeFrom > 0) {
@@ -444,7 +446,7 @@ QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& 
                 QFile::remove(savePath);
                 if (QFile::rename(tmpPath, savePath)) {
                     qint64 fileSize = QFileInfo(savePath).size();
-                    qCInfo(logDownload).noquote() << QStringLiteral("[网络] 下载完成 %1 文件大小=%2 耗时=%3ms")
+                    qCInfo(logDownload).noquote() << QStringLiteral("[引擎·驿道] 下载完成 %1 文件大小=%2 耗时=%3ms")
                                                      .arg(savePath).arg(fileSize).arg(elapsed);
                     delete file;
                     if (done) done(true, QString());

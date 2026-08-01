@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 
 #include "mod_download_engine.h"
+#include "../engine_identity.h"
 
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -80,7 +81,8 @@ void ModDownloadEngine::start()
     m_pumpTimer.start();
     m_speedTimer.start();
     emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
-    emit logMessage(QStringLiteral("[引擎] 模组下载引擎启动 文件数=%1 最大并发=%2")
+    emit logMessage(engineBanner("jingwei"));
+    emit logMessage(QStringLiteral("[引擎·精卫] 模组下载引擎启动 文件数=%1 最大并发=%2")
                         .arg(m_totalFiles).arg(m_maxThreads));
     pump();
 }
@@ -95,7 +97,7 @@ void ModDownloadEngine::cancel()
     for (auto& it : m_items) {
         if (it->state == 1 && it->reply) it->reply->abort();
     }
-    emit logMessage(QStringLiteral("[引擎] 模组下载已取消"));
+    emit logMessage(QStringLiteral("[引擎·精卫] 模组下载已取消"));
     // 注意：不 emit allFinished —— 上层 ModpackDownloader::cancel 自行收尾
 }
 
@@ -213,7 +215,7 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
     connect(reply, &QNetworkReply::finished, this,
             [this, it]() { onReplyFinished(it); });
 
-    emit logMessage(QStringLiteral("[下载] 启动 文件=%1 源=%2 超时=%3ms")
+    emit logMessage(QStringLiteral("[引擎·精卫] 启动 文件=%1 源=%2 超时=%3ms")
                         .arg(it->localName, url).arg(timeoutMs));
 }
 
@@ -329,7 +331,7 @@ void ModDownloadEngine::sourceFailed(std::shared_ptr<Item> it, const QString& wh
         finishItem(it, false, why);
         return;
     }
-    emit logMessage(QStringLiteral("[下载] 源失败 %1 文件=%2 错误=%3 → 切换 %4")
+    emit logMessage(QStringLiteral("[引擎·精卫] 源失败 %1 文件=%2 错误=%3 → 切换 %4")
                         .arg(QString::number(it->sourceIdx), it->localName, why, next));
     launchRequest(it);   // 槽位保持占用，就地换源重试
 }
@@ -355,13 +357,13 @@ void ModDownloadEngine::finishItem(std::shared_ptr<Item> it, bool ok, const QStr
     if (ok) {
         it->state = 2;
         m_completedFiles++;
-        emit logMessage(QStringLiteral("[完成] %1").arg(it->localName));
+        emit logMessage(QStringLiteral("[引擎·精卫] [完成] %1").arg(it->localName));
     } else {
         if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
         it->state = 3;
         m_failedFiles++;
         it->error = err.isEmpty() ? QStringLiteral("文件落盘失败: %1").arg(it->localPath) : err;
-        emit logMessage(QStringLiteral("[失败] %1: %2").arg(it->localName, it->error));
+        emit logMessage(QStringLiteral("[引擎·精卫] [失败] %1: %2").arg(it->localName, it->error));
     }
     emit fileFinished(it->localPath, ok);
     m_active--;
@@ -389,7 +391,7 @@ void ModDownloadEngine::tryStartNextRound()
 
     m_round++;
     m_failedFiles -= failedCount;
-    emit logMessage(QStringLiteral("[重试] 第 %1/%2 轮：%3 个失败文件整体重试")
+    emit logMessage(QStringLiteral("[引擎·精卫] [重试] 第 %1/%2 轮：%3 个失败文件整体重试")
                         .arg(m_round + 1).arg(kMaxRounds).arg(failedCount));
     pump();
 }
@@ -401,7 +403,7 @@ void ModDownloadEngine::finishAll()
     m_pumpTimer.stop();
     m_speedTimer.stop();
     emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
-    emit logMessage(QStringLiteral("[完成] 模组下载引擎结束 成功=%1 失败=%2 共%3")
+    emit logMessage(QStringLiteral("[引擎·精卫] [完成] 模组下载引擎结束 成功=%1 失败=%2 共%3")
                         .arg(m_completedFiles).arg(m_failedFiles).arg(m_totalFiles));
     emit allFinished();
 }
@@ -436,7 +438,7 @@ void ModDownloadEngine::speedTick()
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     if (nowMs - m_lastSpeedLogMs >= 1000) {
         m_lastSpeedLogMs = nowMs;
-        qCInfo(logDownload) << QStringLiteral("[速度] EMA=%1 MB/s 活跃=%2/%3")
+        qCInfo(logDownload) << QStringLiteral("[引擎·精卫] [速度] EMA=%1 MB/s 活跃=%2/%3")
             .arg(m_emaMbps, 0, 'f', 1)
             .arg(m_active).arg(m_maxThreads);
     }
