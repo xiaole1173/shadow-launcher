@@ -722,6 +722,20 @@ Rectangle {
             return (n || 0).toString()
         }
 
+        function fmtVersionList(v) {
+            // 兼容字符串("1.20.1,1.21")与数组两种来源（Modrinth 曾返回数组、CF 返回字符串）
+            if (!v) return ""
+            if (typeof v === "string") return v
+            if (Array.isArray(v)) return v.join(",")
+            return ""
+        }
+        function fmtLoaderList(v) {
+            if (!v) return ""
+            if (typeof v === "string") return v
+            if (Array.isArray(v)) return v.join(", ")
+            return ""
+        }
+
         property var modFilteredVersions: page.commonVersions || []
 
         Connections {
@@ -756,10 +770,10 @@ Rectangle {
                         iconRaw: rawIcon,
                         icon: iconUrl,
                         downloads: r.downloads || 0,
-                        versions: (r.versions && r.versions.length ? r.versions.join(",") : ""),
+                        versions: modTab.fmtVersionList(r.versions),
                         dateModified: r.dateModified || "",
                         loader: r.loader || "",
-                        loadersList: (r.loadersList || []).join(", "),
+                        loadersList: modTab.fmtLoaderList(r.loadersList),
                         clientSide: r.clientSide || ""
                     })
                     if (r.loadersList && r.loadersList.length > 0) console.log("[MOD-QML] slug=" + (r.slug||"?") + " loadersList=" + JSON.stringify(r.loadersList))
@@ -940,6 +954,18 @@ Rectangle {
                 if (opts[j].slug === key) return opts[j].label
             return opts.length > 0 ? opts[0].label : ""
         }
+        function fmtVersionList(v) {
+            if (!v) return ""
+            if (typeof v === "string") return v
+            if (Array.isArray(v)) return v.join(",")
+            return ""
+        }
+        function fmtLoaderList(v) {
+            if (!v) return ""
+            if (typeof v === "string") return v
+            if (Array.isArray(v)) return v.join(", ")
+            return ""
+        }
         function fDownloads(n) {
             if (n >= 100000000) return (n/100000000).toFixed(1) + "亿"
             if (n >= 10000) return (n/10000).toFixed(0) + "万"
@@ -1032,8 +1058,8 @@ Rectangle {
                         shaderResultsModel.append({
                             slug: r.slug || "", title: r.title || r.slug || "Unknown",
                             desc: r.desc || "", iconRaw: rawIcon, icon: iconUrl,
-                            downloads: r.downloads || 0, versions: (r.versions && r.versions.length ? r.versions.join(",") : ""),
-                            dateModified: r.dateModified || "", categories: (r.categories || []).join(",")
+                            downloads: r.downloads || 0, versions: shaderTab.fmtVersionList(r.versions),
+                            dateModified: r.dateModified || "", categories: shaderTab.fmtLoaderList(r.categories)
                         })
                     }
                     if (urlsToCache.length > 0 && backend) {

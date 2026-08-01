@@ -834,7 +834,9 @@ QVariantList ResourceBackend::parseSearchResponseItems(const QJsonArray& results
             if (knownLoaders.contains(c)) allLoaders.append(c);
         }
         entry[QStringLiteral("loadersList")] = allLoaders;
-        entry[QStringLiteral("versions")]     = obj[QStringLiteral("gameVersions")].toVariant();
+        // versions 统一为逗号分隔字符串（与 CurseForge toUnified 一致），
+        // 避免 QML 端混用数组/字符串导致 .join TypeError → 列表渲染中断
+        entry[QStringLiteral("versions")]     = obj[QStringLiteral("gameVersions")].toVariant().toStringList().join(QLatin1Char(','));
         entry[QStringLiteral("dateModified")]= obj[QStringLiteral("updated")].toString();
         entry[QStringLiteral("license")]    = obj[QStringLiteral("license")].toVariant();
         entry[QStringLiteral("source")]     = QStringLiteral("Modrinth");
