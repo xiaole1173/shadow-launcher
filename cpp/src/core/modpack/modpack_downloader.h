@@ -95,8 +95,10 @@ private:
     // ── CF 地址解析（REST API 层，保留自研）──
     void resolveBatch(int startIndex);                 // 按 50 个/批发 POST /v1/mods/files
     void onResolveBatchDone(int startIndex, int status, const QByteArray& body);
-    void processResolvedBatch(int startIndex, const QMap<int, QJsonObject>& byId);
+    void processResolvedBatch(int startIndex, const QMap<int, QJsonObject>& byId,
+                              const QSet<int>& officialOnly = {});
     void onResolveBatchFailed(int startIndex, const QString& err);
+    void finishDownloadUrlResolve(int idx, bool ok, int status);
     void resolveDownloadUrls();                        // downloadUrl 缺失的条目逐个补解析
     void startDownloadUrlResolve(int idx);
 
@@ -125,6 +127,7 @@ private:
     bool m_running = false;
     bool m_cancelled = false;
     QList<int> m_downloadUrlPending;   // 待补解析 download-url 的条目（镜像优先）
+    QSet<int> m_officialOnlyFileIds;   // 官方补查救回的 fileId（镜像未同步：跳过镜像分片/镜像接口）
     std::function<void(const QString&)> m_overwriteHook;   // 覆盖旧文件前的回调
     std::function<void(const QString&)> m_createdHook;     // 新建文件落盘后的回调（回滚登记）
     QList<QPointer<QNetworkReply>> m_inflight;   // CF API 在途请求（取消时 abort）

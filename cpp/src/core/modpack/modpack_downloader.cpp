@@ -331,13 +331,13 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
         // 直接发官方请求，用官方 30s 超时；失败重试一次后仍失败才透传。
         const QString officialUrl = QLatin1String(kCfOfficialBase) + QStringLiteral("/mods/files");
         auto sendOfficial = std::make_shared<std::function<void(int)>>();
-        *sendOfficial = [this, officialUrl, body2, startIndex, byId, sendOfficial](int attempt) {
+        *sendOfficial = [this, officialUrl, body2, startIndex, byId, missingIdx, sendOfficial](int attempt) {
             if (m_cancelled) return;
             QNetworkReply* reply = m_http->manager()->post(
                 makeRequest(officialUrl, m_apiKey, kOfficialTimeoutMs), body2);
             m_inflight.append(reply);
             connect(reply, &QNetworkReply::finished, this,
-                    [this, reply, startIndex, byId, sendOfficial, attempt]() {
+                    [this, reply, startIndex, byId, missingIdx, sendOfficial, attempt]() {
                 m_inflight.removeAll(reply);
                 reply->deleteLater();
                 if (m_cancelled) return;
@@ -353,7 +353,14 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
                             merged.insert(o.value(QStringLiteral("id")).toInt(-1), o);
                         }
                     }
-                    processResolvedBatch(startIndex, merged);
+                    // 官方补查才有的 fileId：镜像未同步 → 镜像分片 URL 必 404，
+                    // 下载直接走官方直链/官方 download-url 补解析，避免精卫先试镜像白等超时
+                    QSet<int> officialOnly;
+                    for (int i : missingIdx) {
+                        const int fid = m_files->at(i).fileId;
+                        if (!byId.contains(fid) && merged.contains(fid)) officialOnly.insert(fid);
+                    }
+                    processResolvedBatch(startIndex, merged, officialOnly);
                     return;
                 }
                 if (attempt == 0) {
@@ -371,10 +378,12 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
     processResolvedBatch(startIndex, byId);
 }
 
-void ModpackDownloader::processResolvedBatch(int startIndex, const QMap<int, QJsonObject>& byId)
+void ModpackDownloader::processResolvedBatch(int startIndex, const QMap<int, QJsonObject>& byId,
+                                              const QSet<int>& officialOnly)
 {
     // ⚠ 只处理本批次请求过的 CF 条目（与 resolveBatch 收集逻辑一致：
     // 自 startIndex 起前 kCfBatchSize 个 CF 条目）。
+    m_officialOnlyFileIds.unite(officialOnly);
     int processed = 0;
     for (int i = startIndex; i < m_total && processed < kCfBatchSize; ++i) {
         ModpackRemoteFile& rf = m_files->operator[](i);
@@ -415,17 +424,22 @@ void ModpackDownloader::processResolvedBatch(int startIndex, const QMap<int, QJs
 
         // ── 下载源链：镜像 CDN 分片优先，官方签名直链兜底 ──
         // 镜像: https://mod.mcimirror.top/files/{fid/1000}/{fid%1000}/{fileName}
+        // ⚠ officialOnly（官方补查救回）：镜像未同步该文件 → 镜像分片 URL 必 404，
+        // 不拼接（否则精卫先试镜像白等超时才切官方，严重拖慢整体下载）。
         const QString officialUrl = o.value(QStringLiteral("downloadUrl")).toString();
-        const QString encName = QString::fromUtf8(
-            QUrl::toPercentEncoding(rf.fileName, "/", " "));
-        m_items[i].urls.append(QStringLiteral("%1/%2/%3/%4")
-            .arg(QLatin1String(kCfMirrorFileCdn))
-            .arg(rf.fileId / 1000).arg(rf.fileId % 1000).arg(encName));
+        const bool isOfficialOnly = officialOnly.contains(rf.fileId);
+        if (!isOfficialOnly) {
+            const QString encName = QString::fromUtf8(
+                QUrl::toPercentEncoding(rf.fileName, "/", " "));
+            m_items[i].urls.append(QStringLiteral("%1/%2/%3/%4")
+                .arg(QLatin1String(kCfMirrorFileCdn))
+                .arg(rf.fileId / 1000).arg(rf.fileId % 1000).arg(encName));
+        }
         if (!officialUrl.isEmpty())
             m_items[i].urls.append(officialUrl);
 
         if (officialUrl.isEmpty()) {
-            // 官方直链缺失：走 download-url 接口补解析（镜像优先），稍后统一处理
+            // 官方直链缺失：走 download-url 接口补解析（officialOnly 直接官方接口），稍后统一处理
             m_downloadUrlPending.append(i);
         }
     }
@@ -478,6 +492,42 @@ void ModpackDownloader::resolveDownloadUrls()
 void ModpackDownloader::startDownloadUrlResolve(int idx)
 {
     const ModpackRemoteFile& rf = m_files->at(idx);
+
+    // ── officialOnly（官方补查救回）：镜像未同步该文件，镜像 download-url 接口必 404
+    // （404 不在降级条件里 → 会白等一轮）→ 直接官方接口（30s 官方超时 + 重试一次）。
+    if (m_officialOnlyFileIds.contains(rf.fileId)) {
+        const QString official = QStringLiteral("%1/mods/%2/files/%3/download-url")
+            .arg(QLatin1String(kCfOfficialBase)).arg(rf.projectId).arg(rf.fileId);
+        auto send = std::make_shared<std::function<void(int)>>();
+        *send = [this, official, idx, send](int attempt) {
+            if (m_cancelled) return;
+            QNetworkReply* reply = m_http->manager()->get(
+                makeRequest(official, m_apiKey, kOfficialTimeoutMs));
+            m_inflight.append(reply);
+            connect(reply, &QNetworkReply::finished, this,
+                    [this, reply, idx, send, attempt]() {
+                m_inflight.removeAll(reply);
+                reply->deleteLater();
+                if (m_cancelled) return;
+                const int st = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(0);
+                const QByteArray body = reply->readAll();
+                bool ok = false;
+                if (st >= 200 && st < 300) {
+                    QJsonParseError perr;
+                    const QJsonDocument doc = QJsonDocument::fromJson(body, &perr);
+                    const QJsonObject data = (perr.error == QJsonParseError::NoError)
+                        ? doc.object().value(QStringLiteral("data")).toObject() : QJsonObject();
+                    const QString realUrl = data.value(QStringLiteral("downloadUrl")).toString();
+                    if (!realUrl.isEmpty()) { m_items[idx].urls.append(realUrl); ok = true; }
+                }
+                if (!ok && attempt == 0) { (*send)(1); return; }
+                finishDownloadUrlResolve(idx, ok, st);
+            });
+        };
+        (*send)(0);
+        return;
+    }
+
     const QString mirror = QStringLiteral("%1/mods/%2/files/%3/download-url")
         .arg(QLatin1String(kCfMirrorBase)).arg(rf.projectId).arg(rf.fileId);
     const QString official = QStringLiteral("%1/mods/%2/files/%3/download-url")
@@ -499,37 +549,43 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
                 ok = true;
             }
         }
-        m_items[idx].finished = false;   // 复位占用标记
-        if (!ok) {
-            // ── 官方直链拿不到时的处理 ──
-            // 镜像 CDN 分片 URL 在 processResolvedBatch 已拼接进 urls（纯 fileId 拼接，
-            // 不依赖 download-url 接口）。旧逻辑直接判失败 → 明明有镜像分片却废弃 →
-            // 误报"无法获取下载地址"（官方批量接口本就不返回 downloadUrl）。
-            // 修复：有分片 URL 就交给引擎尝试（分片缺失时引擎自动换源官方 edge，带 key），
-            // 只有连分片 URL 都没有才真判失败。
-            if (!m_items[idx].urls.isEmpty()) {
-                m_items[idx].finished = false;
-                emit logLine(tr("⚠ %1 官方直链缺失，改用镜像分片尝试").arg(m_items[idx].fileName));
-            } else {
-                m_items[idx].finished = true;
-                m_items[idx].error = tr("无法获取下载地址（HTTP %1）").arg(status);
-                ++m_failed;
-                if (idx < m_files->size()) {
-                    m_files->operator[](idx).status = QStringLiteral("fail");
-                    m_files->operator[](idx).error = m_items[idx].error;
-                }
-                emit logLine(tr("⚠ %1 无法获取下载地址").arg(m_items[idx].fileName));
-            }
-        }
-
-        m_downloadUrlPending.removeAll(idx);
-        if (!m_downloadUrlPending.isEmpty()) {
-            resolveDownloadUrls();  // 补位继续
-        } else {
-            emit statusChanged(tr("开始下载模组…"));
-            startEngineDownloads();
-        }
+        finishDownloadUrlResolve(idx, ok, status);
     });
+}
+
+void ModpackDownloader::finishDownloadUrlResolve(int idx, bool ok, int status)
+{
+    if (m_cancelled) return;
+    m_items[idx].finished = false;   // 复位占用标记
+    if (!ok) {
+        // ── 官方直链拿不到时的处理 ──
+        // 镜像 CDN 分片 URL 在 processResolvedBatch 已拼接进 urls（纯 fileId 拼接，
+        // 不依赖 download-url 接口）。旧逻辑直接判失败 → 明明有镜像分片却废弃 →
+        // 误报"无法获取下载地址"（官方批量接口本就不返回 downloadUrl）。
+        // 修复：有分片 URL 就交给引擎尝试（分片缺失时引擎自动换源官方 edge，带 key），
+        // 只有连分片 URL 都没有才真判失败。
+        if (!m_items[idx].urls.isEmpty()) {
+            m_items[idx].finished = false;
+            emit logLine(tr("⚠ %1 官方直链缺失，改用镜像分片尝试").arg(m_items[idx].fileName));
+        } else {
+            m_items[idx].finished = true;
+            m_items[idx].error = tr("无法获取下载地址（HTTP %1）").arg(status);
+            ++m_failed;
+            if (idx < m_files->size()) {
+                m_files->operator[](idx).status = QStringLiteral("fail");
+                m_files->operator[](idx).error = m_items[idx].error;
+            }
+            emit logLine(tr("⚠ %1 无法获取下载地址").arg(m_items[idx].fileName));
+        }
+    }
+
+    m_downloadUrlPending.removeAll(idx);
+    if (!m_downloadUrlPending.isEmpty()) {
+        resolveDownloadUrls();  // 补位继续
+    } else {
+        emit statusChanged(tr("开始下载模组…"));
+        startEngineDownloads();
+    }
 }
 
 void ModpackDownloader::onResolveBatchFailed(int startIndex, const QString& err)
