@@ -415,6 +415,17 @@ void VersionBackend::installVersion(const QString& versionId)
 
 {
 
+    // ── 清理上次取消残留 ──
+    // 版本 JSON 下载阶段取消时下载器未创建，onVersionDownloadFinished 不会触发
+    // → m_activeIds/m_userCancelledIds 残留 → 重新下载被 contains 检查卡死。
+    // 仅清理「activeIds 有但下载器/队列都没有」的真残留，不误伤正在下载的任务。
+    if (m_activeIds.contains(versionId) && !m_downloaders.contains(versionId)
+        && !m_installQueue.contains(versionId)) {
+        m_activeIds.removeOne(versionId);
+        if (m_activeCount > 0) m_activeCount--;
+    }
+    m_userCancelledIds.remove(versionId);
+
     // ── Check if already active ──
 
     if (m_activeIds.contains(versionId)) {
@@ -1470,6 +1481,11 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
             if (!mcVer.isEmpty())
                 m_userCancelledIds.insert(mcVer);
 
+            // 清理 installVersion(mcVer) append 的 activeIds/count（下载器未创建时
+            // onVersionDownloadFinished 不会触发，残留会导致重装卡死）
+            if (!mcVer.isEmpty() && m_activeIds.removeOne(mcVer))
+                if (m_activeCount > 0) m_activeCount--;
+
             if (mcDownloadInProgress) {
                 // MC download is in progress: cancelActiveDownload queues abort to
                 // worker threads via QueuedConnection. Workers may still be writing to
@@ -1542,6 +1558,23 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
                 return;
             }
         }
+        // ── 下载器未创建（版本 JSON 下载阶段）的取消：
+        // 标记取消（JSON 回来后 processVersionJson 会 abort 不创建下载器）+
+        // 清理 activeIds/count —— 否则取消无效且 activeIds 残留导致重装卡死
+        m_userCancelledIds.insert(resolvedId);
+        if (m_activeIds.removeOne(resolvedId))
+            if (m_activeCount > 0) m_activeCount--;
+        if (m_activeIds.isEmpty()) setInstalling(false);
+
+        auto* jsonDs = dlSession(resolvedId);
+        if (jsonDs && !jsonDs->isMerged()) {
+            jsonDs->markFailed(tr("已取消"));
+            jsonDs->resetSpeed();
+            updateCardFromSession(resolvedId, versionId, QStringLiteral("version"));
+        }
+        emit cancelNotification(versionId, tr("已取消 %1 的安装").arg(versionId));
+        emit logMessage(tr("已取消 %1 的安装").arg(versionId));
+        emit installStateChanged();
         return;
     }
 
