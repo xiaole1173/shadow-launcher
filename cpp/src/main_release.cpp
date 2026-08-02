@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
             OutputDebugStringA("[PreInit] 无待安装更新\n");
         } else {
             DWORD size = GetFileSize(hFile, nullptr);
-            if (size > 0 && size < 4096) {
+            if (size > 0 && size < 1048576) {   // 1MB 上限（release_notes 可能很大，原 4096 会吞掉整个更新）
                 std::string json(size, '\0');
                 DWORD read = 0;
                 ReadFile(hFile, &json[0], size, &read, nullptr);
@@ -136,6 +136,17 @@ int main(int argc, char *argv[])
                     pos += k.size();
                     while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
                     return atoi(&json[pos]);
+                };
+
+                // state.json 是 UTF-8；逐字节拷贝宽字符会把中文路径（C:\Users\蔡朝彬\...）变成乱码
+                // → GetFileAttributesW 失败 → 更新静默跳过。必须按 UTF-8 正确转宽字符。
+                auto utf8ToWide = [](const std::string& s) -> std::wstring {
+                    if (s.empty()) return std::wstring();
+                    int len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
+                    std::wstring out(len, L'\0');
+                    if (len > 0)
+                        MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), &out[0], len);
+                    return out;
                 };
 
                 int stateVal = findInt("state");
@@ -193,7 +204,7 @@ int main(int argc, char *argv[])
                         pos += 18;
                         auto end = json.find('"', pos);
                         std::string newFile = json.substr(pos, end - pos);
-                        std::wstring newFileW(newFile.begin(), newFile.end());
+                        std::wstring newFileW = utf8ToWide(newFile);
 
                         // Extract release notes BEFORE SLUpdater deletes state.json
                         auto rnPos = json.find("\"release_notes\":\"");
