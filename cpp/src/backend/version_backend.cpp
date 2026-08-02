@@ -2465,9 +2465,21 @@ void VersionBackend::finishInstall(const QString& installName)
 
             } else {
 
-                qWarning() << "[install] Fabric API move failed:" << ds->fabricApiSavePath << "->" << ds->fabricApiFinalPath;
+                // 跨盘（系统 temp C: → 游戏目录 D:）rename 失败 → copy + remove 兜底
+
+                qWarning() << "[install] Fabric API rename failed (cross-volume?), fallback copy:"
+
+                           << ds->fabricApiSavePath << "->" << ds->fabricApiFinalPath;
+
+                if (QFile::copy(ds->fabricApiSavePath, ds->fabricApiFinalPath))
+
+                    QFile::remove(ds->fabricApiSavePath);
 
             }
+
+        } else {
+
+            qWarning() << "[install] Fabric API temp file missing:" << ds->fabricApiSavePath;
 
         }
 
@@ -4995,6 +5007,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
                     updateStep(installName, 7, QStringLiteral("error"), 0);
                     setInstallPhase(tr("Fabric API 下载失败"));
+                    // API 失败也收尾（不带 API），避免封装完成等 API 死等
+                    auto* mcCtx = mergedContext(installName);
+                    if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
+                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] API 下载失败，封装已就绪，收尾（不带 API）");
+                        finishInstall(installName);
+                    }
                 } else {
                     QByteArray data = apiReply->readAll();
                     QFile f(tempApiPath);
@@ -5004,6 +5022,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     // 收尾条件：封装完成（bootstrapperDone，installer finished 已跑 copy）才 finishInstall；
                     // 封装未完成 → 等 installer finished 路径收尾（那里已检查 fabricApiPending）
                     auto* mcCtx = mergedContext(installName);
+                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] API 完成回调: ctx=%1 mcDone=%2 bootstrapperDone=%3")
+                        .arg(mcCtx ? QStringLiteral("yes") : QStringLiteral("NULL"))
+                        .arg(mcCtx ? (mcCtx->mcDownloadDone ? 1 : 0) : -1)
+                        .arg(mcCtx ? (mcCtx->bootstrapperDone ? 1 : 0) : -1);
                     if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
                         qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装已就绪，收尾");
                         finishInstall(installName);
@@ -8156,9 +8178,12 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 // （原逻辑 API 完成回调里 !bootstrapperDone 直接 finishInstall → 封装没跑 → 版本残缺；
                 //   这里抢先 finishInstall → API 文件没下载完 → 丢失）
                 if (ds && ds->fabricApiPending) {
-                    if (auto* ctx2 = m_mergedContexts.value(installId, nullptr))
-                        ctx2->bootstrapperDone = true;
-                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] 封装+copy 完成，等待 Fabric API 后收尾");
+                    auto* ctx2 = m_mergedContexts.value(installId, nullptr);
+                    if (ctx2) ctx2->bootstrapperDone = true;
+                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] 封装+copy 完成 ctx2=%1 等待 Fabric API 后收尾")
+                        .arg(ctx2 ? QStringLiteral("yes") : QStringLiteral("NULL"));
+                    // 等 API：不 finishInstall、不复位安装状态、不发 installFinished（避免 QML 提前收尾）
+                    return;
                 } else {
                     finishInstall(installId);
                 }
