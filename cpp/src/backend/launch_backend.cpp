@@ -395,8 +395,11 @@ void LaunchBackend::runNextCheck()
         // For online auth: refresh the Minecraft token before launching
         // (skip for yggdrasil mode - authlib-injector handles token validation)
         if (m_authIsOnline && m_account && !m_yggdrasilMode) {
-            qCInfo(logLaunch) << QStringLiteral("[启动] 正在刷新登录令牌");
-            if (m_account->msRefreshToken().isEmpty()) {
+            // ── 同主流启动器：token 未过期（有有效期缓存）→ 零网络直接用，不刷新 ──
+            // 微软 AccessToken 有效 24h，每次启动都刷新在弱网下会卡十几秒甚至几十秒。
+            if (m_account->msTokenValid()) {
+                qCInfo(logLaunch) << QStringLiteral("[启动] 令牌未过期，直接使用（跳过刷新）");
+            } else if (m_account->msRefreshToken().isEmpty()) {
                 qCInfo(logLaunch) << QStringLiteral("[启动] 无刷新令牌，跳过");
             } else {
                 m_checkTimer->stop();  // Pause until refresh completes

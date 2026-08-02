@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <QDateTime>
 
 #include "utils/types.h"
 #include "../core/microsoft_auth.h"
@@ -76,6 +77,10 @@ public:
     bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
     void setEmbeddedLoginEnabled(bool v);
     QString msRefreshToken() const { return m_msRefreshToken; }
+    /// 纯过期判断：有 token 且当前时间 < 过期时间 → true（启动时用它跳过无谓刷新）
+    bool msTokenValid() const { return !m_msMcToken.isEmpty() && !m_msRefreshToken.isEmpty()
+                                       && m_msTokenExpiresIn > 0 && m_msTokenObtainedAt > 0
+                                       && (m_msTokenObtainedAt + m_msTokenExpiresIn) > QDateTime::currentSecsSinceEpoch(); }
     void refreshMicrosoftToken();
     bool shouldRefresh() const;
     void startBackgroundRefresh();
