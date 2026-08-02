@@ -998,7 +998,21 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         // buildClasspath 现在将版本 jar 放在类路径末尾（在所有库之后），
         // 因此 OptiFine 库 jar 中的补丁类优先级更高。
         // 拍平后原版 MC 文件夹可安全删除。
-        flattenOptifineVersion(m_installName);
+        // 注意：安装器创建的实际版本文件夹名可能 ≠ m_installName
+        // （如 1.12.2-OptiFine_HD_U_G5），先扫出实际名再拍平，否则
+        // inheritsFrom 指向的原版在 copy 时被跳过 → 继承链断裂。
+        {
+            QString flattenId = m_installName;
+            QDir verDir(m_gameDir + QStringLiteral("/versions"));
+            const QStringList found = verDir.entryList({QStringLiteral("*OptiFine*")},
+                                                        QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString& f : found) {
+                if (f != m_mcVersion) { flattenId = f; break; }
+            }
+            if (flattenId != m_installName)
+                qCInfo(logLoader) << QStringLiteral("[安装] 拍平实际版本文件夹: %1").arg(flattenId);
+            flattenOptifineVersion(flattenId);
+        }
 
         cleanupTempMc(tempMcRoot);
         qCInfo(logLoader) << QStringLiteral("[安装] OptiFine 安装完成（隔离模式）");

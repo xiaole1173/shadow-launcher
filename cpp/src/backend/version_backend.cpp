@@ -2474,6 +2474,19 @@ void VersionBackend::proceedToLoaderInstall(const QString& installId) {
 
         ml->fabricFinalize();
 
+    } else if (ds->loaderType == QStringLiteral("optifine")) {
+
+        // ── OptiFine：jar 先于 MC 完成（jar 小、下载快，通常必先完成）──
+        // MC 完成后经 onVersionDownloadFinished merged 分支走到这里；
+        // 原来无 optifine 分支 → 安装永不启动（挂起）。
+        // 走 delegateOptifineInstall（内部选 ctx->installer + tempDir，与 Fabric 一致）。
+        QByteArray jarData = ds->optifineJarData;
+        if (jarData.isEmpty()) {
+            qCWarning(logVersion) << QStringLiteral("[install] OptiFine jar 数据缺失（proceed 时），无法安装");
+            if (ds) ds->markFailed(tr("OptiFine jar 数据缺失"));
+            return;
+        }
+        delegateOptifineInstall(ds->mcVersion, installId, jarData);
     }
 
 }
@@ -5353,10 +5366,18 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
 
     setInstallPhase(tr("安装 OptiFine..."));
 
-    auto* ml = createLoaderInstaller(installName);
+    auto* optCtx = mergedContext(installName);
+
+    // ── 临时目录适配：优先用 merged ctx 的 installer（已 setGameDir(tempDir)）──
+    // 原实现 createLoaderInstaller + setGameDir(m_gameDir) 绕开了临时目录设计：
+    // MC 下载在 tempDir，安装器却在真实 gameDir 找 MC → 找不到 → 安装不进行/产物错位。
+    // 用 ctx->installer 后安装产物写 tempDir → createMergedContext 的 finished
+    // 连接负责 copy 到真实目录 + finishInstall（与 Fabric 同一收尾链）。
+    ModLoaderInstaller* ml = (optCtx && optCtx->installer) ? optCtx->installer
+                                                           : createLoaderInstaller(installName);
     if (!ml) return;
 
-    ml->setGameDir(m_gameDir);
+    ml->setGameDir(optCtx ? optCtx->tempDir : m_gameDir);
 
     if (m_isolation && m_isolation->isVersionIsolated(installName)) {
 
@@ -5396,35 +5417,26 @@ void VersionBackend::delegateOptifineInstall(const QString& mcVersion, const QSt
                 ds->loaderVer.clear();
             }
 
-            // Scan versions dir for the actual OptiFine folder name (Problem 3 fix)
-
-            QDir verDir(m_gameDir + "/versions");
-
-            QStringList filters; filters << ("*OptiFine*");
-
-            QStringList found = verDir.entryList(filters, QDir::Dirs | QDir::NoDotAndDotDot);
-
-            QString actualId;
-
-            for (const QString& f : found) {
-
-                if (f != mcVersion) { actualId = f; break; }
-
-            }
-
-            if (!actualId.isEmpty() && actualId != installName) {
-
-                emit logMessage(tr("[完成] OptiFine 版本 ID: %1").arg(actualId));
-
-            }
-
-            // Ensure version isolation is properly set up for the new OptiFine version
-
-            if (m_isolation) {
-
-                m_isolation->migrateToIsolated(actualId.isEmpty() ? installName : actualId);
-
-            }
+            // ── 扫实际版本文件夹名 + 版本隔离迁移：延后到 Queued copy 之后 ──
+            // tempDir 模式下 createMergedContext 的 finished（Queued）先执行 copy
+            // （版本文件夹此时才落到真实目录），singleShot(0) 在其后执行才扫得到。
+            QTimer::singleShot(0, this, [this, mcVersion, installName]() {
+                // Scan versions dir for the actual OptiFine folder name (Problem 3 fix)
+                QDir verDir(m_gameDir + "/versions");
+                QStringList filters; filters << ("*OptiFine*");
+                QStringList found = verDir.entryList(filters, QDir::Dirs | QDir::NoDotAndDotDot);
+                QString actualId;
+                for (const QString& f : found) {
+                    if (f != mcVersion) { actualId = f; break; }
+                }
+                if (!actualId.isEmpty() && actualId != installName) {
+                    emit logMessage(tr("[完成] OptiFine 版本 ID: %1").arg(actualId));
+                }
+                // Ensure version isolation is properly set up for the new OptiFine version
+                if (m_isolation) {
+                    m_isolation->migrateToIsolated(actualId.isEmpty() ? installName : actualId);
+                }
+            });
 
         }, Qt::DirectConnection);  // DirectConnection ensures we fire before queued handlers
 
@@ -8195,7 +8207,29 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                             .arg(QDir(dstVer).entryList(QDir::Files).join(QLatin1Char(',')));
                     }
                 } else {
-                    qCWarning(logVersion) << QStringLiteral("[TRACE-f] srcVer 不存在，跳过版本文件夹拷贝: %1").arg(srcVer);
+                    // ── OptiFine（QProcess 安装器模式）：实际版本文件夹名 ≠ installId ──
+                    // （如 1.12.2-OptiFine_HD_U_G5）。扫 tempDir/versions/ 下除原版
+                    // mcVersion 外的文件夹全部复制（合成模式写 installName 时 srcVer 已存在，不走这里）。
+                    const QString mcVerForScan = ds ? ds->mcVersion : QString();
+                    QDir tvDir(tempDir + QStringLiteral("/versions"));
+                    const QStringList extraDirs = tvDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                    bool anyCopied = false;
+                    for (const QString& d : extraDirs) {
+                        if (d == mcVerForScan) continue;
+                        const QString s = tempDir + QStringLiteral("/versions/") + d;
+                        const QString t = m_gameDir + QStringLiteral("/versions/") + d;
+                        QDir().mkpath(t);
+                        if (!copyRecursiveMissing(s, t)) {
+                            copyOk = false;
+                            qCWarning(logVersion) << QStringLiteral("[安装] OptiFine 版本文件夹拷贝校验失败: %1").arg(s);
+                        } else {
+                            anyCopied = true;
+                            qCInfo(logVersion) << QStringLiteral("[安装] OptiFine 实际版本文件夹已复制: %1 -> %2").arg(s, t);
+                        }
+                    }
+                    if (!anyCopied) {
+                        qCWarning(logVersion) << QStringLiteral("[TRACE-f] srcVer 不存在，跳过版本文件夹拷贝: %1").arg(srcVer);
+                    }
                 }
 
                 // 2. Copy libraries (skip existing)
