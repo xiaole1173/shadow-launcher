@@ -275,17 +275,30 @@ Rectangle {
             Repeater {
                 model: root.modpackGrouped
                 delegate: ExpandableGroupCard {
+                    id: groupCard
                     Layout.fillWidth: true
                     title: "MC " + modelData.major
                     subtitle: modelData.versions.length + " 个版本"
                     expanded: root.isGroupExpanded(modelData.major) || root.modpackGrouped.length === 1
                     onToggled: root.toggleGroup(modelData.major)
 
+                    // 错峰入场（与 Mod 详情页一致）
+                    opacity: 0
+                    Timer {
+                        interval: index * 80 + 100
+                        running: !root.modpackLoading
+                        repeat: false
+                        onTriggered: groupCard.opacity = 1
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
+
                     Repeater {
                         model: modelData.versions
                         delegate: DetailVersionCard {
                             required property string modelData
-                            width: parent.width
+                            // 与 Mod 详情页一致：右缩进 24px（内容区左侧留白，视觉不贴边）
+                            width: parent.width - 24
+                            x: 24
                             versionLabel: (root.modpackVersionMap[modelData] && root.modpackVersionMap[modelData].versionNumber) || modelData
                             tags: {
                                 var d = root.modpackVersionMap[modelData] || {}
