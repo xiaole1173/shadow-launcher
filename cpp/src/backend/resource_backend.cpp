@@ -11,6 +11,7 @@
 #include "utils/logger.h"
 
 #include <QDateTime>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1248,6 +1249,27 @@ void ResourceBackend::onPackSourceDone(int gen)
     }
     const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
     m_packPool = frozen + candidate;
+
+    // ── 统一字符串化（防 QML 预编译模式下 QVariantList → QQmlListModel）──
+    // ListModel role 若为数组，delegate 赋给 QString 属性报
+    // "Unable to assign QQmlListModel to QString"。versions/loadersList 统一 join 成字符串。
+    for (auto& v : m_packPool) {
+        QVariantMap m = v.toMap();
+        bool changed = false;
+        const QStringList keys = { QStringLiteral("versions"),
+                                   QStringLiteral("loadersList") };
+        for (const QString& key : keys) {
+            const QVariant val = m.value(key);
+            if (val.userType() == QMetaType::QVariantList) {
+                QStringList sl;
+                const QVariantList vl = val.toList();
+                for (const auto& e : vl) sl << e.toString();
+                m.insert(key, sl.join(QLatin1Char(',')));
+                changed = true;
+            }
+        }
+        if (changed) v = m;
+    }
     emit logMessage(tr("[池子] 整合包合并: 冻结 %1 + 候选 %2 → 池 %3 条")
                         .arg(frozen.size()).arg(candidate.size()).arg(m_packPool.size()));
     const int need = (m_packSearchPage + 1) * m_packSearchLimit;

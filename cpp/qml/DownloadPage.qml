@@ -896,7 +896,7 @@ Rectangle {
                         slug: model.slug || ""
                         downloads: model.downloads || 0
                         source: model.source || "Modrinth"
-                        gameVersions: model.versions || ""
+                        gameVersions: Array.isArray(model.versions) ? model.versions.join(", ") : (model.versions || "")
                         dateModified: model.dateModified || ""
                         loaders: (model.loadersList || model.loader || "")
                         onClicked: {
@@ -1162,7 +1162,7 @@ Rectangle {
                         slug: model.slug || ""
                         downloads: model.downloads || 0
                         source: model.source || "Modrinth"
-                        gameVersions: model.versions || ""
+                        gameVersions: Array.isArray(model.versions) ? model.versions.join(", ") : (model.versions || "")
                         dateModified: model.dateModified || ""
                         onClicked: {
                             page._shaderDetailSlug = model.slug
@@ -1280,7 +1280,7 @@ Rectangle {
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
                         downloads: model.downloads || 0
-                        gameVersions: model.versionStr || ""
+                        gameVersions: Array.isArray(model.versionStr) ? model.versionStr.join(", ") : (model.versionStr || "")
                         dateModified: model.updated || ""
                         categoriesJson: model.categories || "[]"
                         featuresJson: model.features || "[]"
@@ -2016,7 +2016,7 @@ Rectangle {
                         slug: model.slug || ""
                         downloads: model.downloads || 0
                         source: model.source || "Modrinth"
-                        gameVersions: model.versions || ""
+                        gameVersions: Array.isArray(model.versions) ? model.versions.join(", ") : (model.versions || "")
                         dateModified: model.dateModified || ""
                         loaders: (model.loadersList || model.loader || "")
                         categoriesJson: String(model.categories || "[]")
@@ -2073,7 +2073,7 @@ Rectangle {
                         iconRaw: rawIcon,
                         icon: iconUrl,
                         downloads: r.downloads || 0,
-                        versions: typeof r.versions === "string" ? r.versions : "",
+                        versions: Array.isArray(r.versions) ? r.versions.join(", ") : (typeof r.versions === "string" ? r.versions : ""),
                         dateModified: r.dateModified || "",
                         loader: r.loader || "",
                         loadersList: Array.isArray(r.loadersList) ? r.loadersList.join(", ") : (r.loadersList || ""),
