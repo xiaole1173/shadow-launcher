@@ -53,6 +53,14 @@ void ModLoaderInstaller::cancel() {
     m_cancelled = true;
     m_running = false;
 
+    // Abort in-flight HttpClient downloads FIRST: their completion callbacks
+    // capture `this`, so they must run while the object is still alive
+    // (destroyMergedContext deletes us right after cancel()).
+    for (auto* reply : qAsConst(m_activeReplies)) {
+        if (reply) HttpClient::instance().abortDownload(reply);
+    }
+    m_activeReplies.clear();
+
     // Kill any running QProcess children (OptiFine installer).
     // QProcess destructor blocks until the process exits, so we must
     // explicitly kill() first to avoid blocking the main thread.
@@ -101,15 +109,17 @@ void ModLoaderInstaller::downloadToFile(const QString& url, const QString& saveP
                                          std::function<void(bool ok, const QString& error)> done) {
     if (m_cancelled) { done(false, "Cancelled"); return; }
     QString fileName = savePath.section('/', -1);
-    HttpClient::instance().downloadWithFallback(url, savePath,
+    QNetworkReply* reply = HttpClient::instance().downloadWithReply(url, savePath,
         [this, fileName](qint64 received, qint64 total) {
             if (m_cancelled) return;
             emitByteProgress(fileName, received, total);
         },
-        [this, done](bool ok, const QString& error) {
+        [this, done, reply](bool ok, const QString& error) {
+            m_activeReplies.removeOne(reply);
             if (m_cancelled) { done(false, "Cancelled"); return; }
             done(ok, error);
         });
+    if (reply) m_activeReplies.append(reply);
 }
 
 void ModLoaderInstaller::downloadToMemory(const QString& url,

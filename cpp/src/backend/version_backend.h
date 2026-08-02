@@ -14,6 +14,8 @@
 #include <QMap>
 #include <QSet>
 #include <QVector>
+#include <QNetworkReply>
+#include <QHash>
 #include <QAbstractListModel>
 #include <memory>
 #include <QJsonObject>
@@ -106,6 +108,11 @@ struct MergedInstallContext {
     // Owned children (deleted in ~VersionBackend via destroyMergedContext)
     VersionDownloader* mcDownloader = nullptr;
     ModLoaderInstaller* installer = nullptr;
+
+    // In-flight network replies owned by this context (aborted on cancel BEFORE
+    // the context is destroyed — their completion callbacks capture raw ctx*).
+    QNetworkReply* loaderDlReply = nullptr;    // Forge/NeoForge installer JAR download
+    QNetworkReply* fabricApiReply = nullptr;   // Fabric API download
 
     // Error handling
     QString errorMessage;
@@ -316,8 +323,12 @@ private:
     bool m_installing = false;
 
     static constexpr int MAX_CONCURRENT = 5;
-    QStringList m_activeIds;
-    QSet<QString> m_userCancelledIds;  // versions cancelled by user (suppress error in finish handler)
+    QStringList m_activeIds;                                                                                
+    QSet<QString> m_userCancelledIds;  // versions cancelled by user (suppress error in finish handler)     
+    // In-flight version-JSON race replies per versionId. Aborted on cancel so a stale
+    // JSON response (arriving after re-download started) can never create a downloader
+    // or take()/cancel the fresh one (race: re-install after JSON-phase cancel).
+    QHash<QString, QVector<QNetworkReply*>> m_pendingJsonReplies;
 
     struct DlState {
         int progress = 0;            // download file count (cf from progressChanged)

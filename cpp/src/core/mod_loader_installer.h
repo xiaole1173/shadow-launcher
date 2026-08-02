@@ -12,6 +12,8 @@ class QZipReader;
 #include <QElapsedTimer>
 #include <QAtomicInt>
 #include <QFutureWatcher>
+#include <QNetworkReply>
+#include <QVector>
 #include <functional>
 #include <memory>
 #include <atomic>
@@ -202,6 +204,10 @@ private:
     bool m_running = false;
     QString m_expectedForgeSha1;   // cached from Forge version list (skip SHA1 network request)
     bool m_cancelled = false;
+    // In-flight HttpClient replies (downloadToFile). Aborted in cancel() so their
+    // completion callbacks run while `this` is still alive (destroyed right after
+    // cancel() by destroyMergedContext).
+    QVector<QNetworkReply*> m_activeReplies;
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
     bool m_parallelMode = false;  // Fabric: don't auto-advance to write phase

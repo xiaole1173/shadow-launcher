@@ -1072,6 +1072,7 @@ void VersionBackend::installVersion(const QString& versionId)
             req.setTransferTimeout(8000 + round * 4000);   // 阶梯超时 8s→12s→16s（多层重试）
 
             QNetworkReply* reply = nam->get(req);
+            m_pendingJsonReplies[versionId].append(reply);   // 供取消时 abort（防取消后旧响应竞态）
 
 
 
@@ -1127,6 +1128,8 @@ void VersionBackend::installVersion(const QString& versionId)
                         reply->deleteLater();
 
                         nam->deleteLater();
+
+                        m_pendingJsonReplies[versionId].removeOne(reply);
 
                         // 轮次隔离：仅当前轮的源参与竞速判定（旧轮慢请求不干扰新轮）
                         if (raceCtx->roundId != round) return;
@@ -1434,6 +1437,18 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
 
 
+    // ── Abort in-flight version-JSON race replies for this id ──
+    // abort() 使旧请求 finished 必走 error 分支 → 永不进入 processVersionJson →
+    // 取消后重新下载时旧响应不会 take()/cancel 新下载器。
+    auto abortPendingJson = [this](const QString& vid) {
+        auto it = m_pendingJsonReplies.find(vid);
+        if (it == m_pendingJsonReplies.end()) return;
+        for (auto* r : it.value()) { if (r) r->abort(); }
+        m_pendingJsonReplies.remove(vid);
+    };
+
+
+
     // ── 整合包任务卡片：原生取消控件转发到任务（任务自行回滚/收尾）──
     if (versionId == m_modpackCardId && m_modpackCancelHandler) {
         m_modpackCancelHandler();
@@ -1451,6 +1466,27 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         if (ctx) {
             mcVer = ctx->mcVersion;
             if (ctx->installer) ctx->installer->cancel();
+            if (!mcVer.isEmpty()) abortPendingJson(mcVer);
+            // ── Abort in-flight loader/API downloads BEFORE any destroy ──
+            // 它们的完成回调 capture 裸 ctx*，ctx 一旦 delete 即悬垂崩溃。
+            // abort 同步触发 finished（排队）→ 回调在 destroy 前执行（ctx 存活）→
+            // 回调内检查 ctx->failed（本分支已置 true）提前返回。
+            if (ctx->loaderDlReply) {
+                ctx->loaderDlReply->abort();
+            }
+            if (ctx->fabricApiReply) {
+                ctx->fabricApiReply->abort();
+            }
+            // ── 清理 Fabric API 临时文件（系统 temp 下载残留）──
+            auto* dsTmp = dlSession(versionId);
+            if (dsTmp && !dsTmp->fabricApiSavePath.isEmpty()) {
+                QFile::remove(dsTmp->fabricApiSavePath);
+                QDir tempParent = QFileInfo(dsTmp->fabricApiSavePath).dir();
+                tempParent.rmdir(QFileInfo(dsTmp->fabricApiSavePath).fileName());
+                QDir tempRoot(QDir::tempPath() + QStringLiteral("/shadow-fabric-api"));
+                if (tempRoot.exists() && tempRoot.isEmpty())
+                    tempRoot.rmdir(QDir::tempPath() + QStringLiteral("/shadow-fabric-api"));
+            }
         }
 
         // CRITICAL: Cancel MC download BEFORE destroying temp dir.
@@ -1562,6 +1598,7 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         // 标记取消（JSON 回来后 processVersionJson 会 abort 不创建下载器）+
         // 清理 activeIds/count —— 否则取消无效且 activeIds 残留导致重装卡死
         m_userCancelledIds.insert(resolvedId);
+        abortPendingJson(resolvedId);
         if (m_activeIds.removeOne(resolvedId))
             if (m_activeCount > 0) m_activeCount--;
         if (m_activeIds.isEmpty()) setInstalling(false);
@@ -1580,6 +1617,7 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
 
 
     m_userCancelledIds.insert(resolvedId);
+    abortPendingJson(resolvedId);
     auto dl = m_downloaders.value(resolvedId, nullptr);
     if (dl) dl->cancel();
 
@@ -5012,6 +5050,8 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             QUrl apiUrlObj(fabricApiUrl);
             QNetworkRequest apiReq(apiUrlObj);
             QNetworkReply* apiReply = apiNam->get(apiReq);
+            if (auto* actx = m_mergedContexts.value(installName, nullptr))
+                actx->fabricApiReply = apiReply;   // 供取消时 abort（回调 capture 裸指针）
 
             connect(apiReply, &QNetworkReply::downloadProgress, this,
                     [this, installName](qint64 recv, qint64 total) {
@@ -5033,10 +5073,17 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             connect(apiReply, &QNetworkReply::finished, this, [this, apiReply, apiNam, installName, tempApiPath]() {
                 apiReply->deleteLater();
                 apiNam->deleteLater();
+                if (auto* actx = m_mergedContexts.value(installName, nullptr))
+                    actx->fabricApiReply = nullptr;
                 ensureSession(installName);
                 auto* ds = dlSession(installName);
                 ds->fabricApiPending = false;
                 if (apiReply->error() != QNetworkReply::NoError) {
+                    if (auto* actx = mergedContext(installName); actx && actx->failed) {
+                        // 取消中：清理临时文件，不再收尾（取消分支已处理卡片与通知）
+                        QFile::remove(tempApiPath);
+                        return;
+                    }
                     qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
                     updateStep(installName, 7, QStringLiteral("error"), 0);
                     setInstallPhase(tr("Fabric API 下载失败"));
@@ -5098,6 +5145,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             req.setTransferTimeout(300000);
             req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
             QNetworkReply* reply = nam->get(req);
+            if (ctx) ctx->loaderDlReply = reply;   // 供取消时 abort（回调 capture 裸 ctx*）
 
             auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0,0);
 
@@ -5119,6 +5167,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             connect(reply, &QNetworkReply::finished, this,
                     [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx, ctx]() {
                 reply->deleteLater();
+                if (ctx) ctx->loaderDlReply = nullptr;
 
                 auto handleLoaderData = [this, nam, installName, loaderType, mcVersion, loaderVersion, forgeInstallerBranch, loaderDlStepIdx, ctx](const QByteArray& data) {
                     if (data.size() < 102400) {
@@ -5184,6 +5233,12 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     auto tryFb = QSharedPointer<std::function<void()>>::create();
                     *tryFb = [=]() {
                         if (*fbIdx >= fallbackUrls.size()) {
+                            if (ctx->failed) {
+                                // 取消中：不再 fallback / 不再收尾（取消分支已处理卡片与通知）
+                                nam->deleteLater();
+                                updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
+                                return;
+                            }
                             qWarning() << "[Coordinator] Loader download FAILED (all fallbacks)";
                             emit logMessage(QStringLiteral(" %1 下载失败: 所有源均不可用").arg(loaderType));
                             emit logMessage(tr("\u26a0 %1 下载失败，将以原版安装").arg(loaderType));
