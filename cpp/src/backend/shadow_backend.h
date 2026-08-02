@@ -387,7 +387,8 @@ public:
     /// 整合包压缩包下载：静默下载到 {gameDir}/downloads/，完成后自动走导入流程
     /// 返回 dlId（卡片通道 mod:N）；versionName=用户指定版本名（注册名），actualName=整合包实际名
     Q_INVOKABLE int downloadModpack(const QString& url, const QString& filename, qint64 size,
-                                    const QString& sha1, const QString& versionName, const QString& actualName);
+                                    const QString& sha1, const QString& versionName, const QString& actualName,
+                                    const QString& iconUrl = {});
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
     Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
@@ -656,6 +657,7 @@ signals:
     void openRpDetailRequested(const QString& slug);
     void openModDetailRequested(const QString& slug);
     void openShaderDetailRequested(const QString& slug);
+    void openPackDetailRequested(const QString& slug);
 
     // ── Auto-test: UI interaction signals ──
     void setRpShowPreReleases(bool show);
@@ -781,6 +783,7 @@ private:
     struct PackDownloadInfo {
         QString zipPath;       // 下载落盘路径（{gameDir}/downloads/xxx.mrpack|zip）
         QString versionName;   // 用户指定版本名（注册名）
+        QString iconUrl;       // 整合包图标（搜索结果来源，传给导入卡片）
     };
     QMap<int, PackDownloadInfo> m_packDownloads;
 

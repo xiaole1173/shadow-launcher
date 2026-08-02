@@ -330,6 +330,7 @@ Rectangle {
             fileCount: _infoCache ? (_infoCache.fileCount || "") : ""
             format: _infoCache ? (_infoCache.format || "") : ""
             targetName: _infoCache ? (_infoCache.targetName || "") : ""
+            iconUrl: _infoCache ? (_infoCache.icon || "") : ""
         }
 
         // ── 实时日志（最近 6 条，滚动查看历史由日志文件承载）──

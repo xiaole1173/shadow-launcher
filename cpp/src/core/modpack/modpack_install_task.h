@@ -50,6 +50,9 @@ public:
     void cancel();
     bool isBusy() const { return m_busy; }
 
+    // 整合包图标（下载 tab 来源 URL；外部导入为空 → 卡片显示占位）
+    void setPackIcon(const QString& url) { m_packIcon = url; if (!url.isEmpty()) m_cardInfo[QStringLiteral("icon")] = url; }
+
     // 供 QML 展示的模组列表（status 随下载实时更新）
     QVariantList modItems() const;
 
@@ -110,7 +113,8 @@ private:
     QVariantList m_cardSteps;    // [解析,解压,模组] + MC原子步骤(动态) + [版本注册]
     QVariantList m_cardMods;     // [{name,size,status,error,progress}]
     QVariantList m_cardLogs;     // [{text,color}] 上限 300
-    QVariantMap m_cardInfo;      // {name,version,mc,loader,format,modCount,fileCount,targetName}
+    QVariantMap m_cardInfo;      // {name,version,mc,loader,format,modCount,fileCount,targetName,icon}
+    QString m_packIcon;          // 整合包图标 URL（下载 tab 传入）
     qint64 m_cardSpeed = 0;      // 卡片总速度（模组路 EMA + MC 路聚合）
     qint64 m_modEma = 0;         // 模组路速度（500ms 窗口瞬时值，无数据衰减）
     qint64 m_mcSpeed = 0;        // MC 路速度（轮询 installSpeedOf）

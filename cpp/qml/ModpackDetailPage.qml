@@ -170,7 +170,7 @@ Rectangle {
         }
         var displayName = root.modpackDetailTitle || root.modpackDetailSlug
         var dlId = backend.downloadModpack(d.url, d.filename, d.size || 0, d.sha1 || "",
-                                           name.trim(), displayName)
+                                           name.trim(), displayName, root.modpackDetailIcon || "")
         root._showNameDialog = false
         root._pendingVersion = null
         if (toastManager) {

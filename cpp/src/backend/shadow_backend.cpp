@@ -550,7 +550,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
                         auto* importer = qobject_cast<ModpackImporter*>(m_modpackImporter);
                         qCInfo(logApp) << QStringLiteral("[整合包] 下载完成，自动导入: %1 版本名=%2")
                             .arg(info.zipPath, info.versionName);
-                        if (importer) importer->startImport(info.zipPath, info.versionName);
+                        if (importer) {
+                            if (!info.iconUrl.isEmpty()) importer->setPackIcon(info.iconUrl);
+                            importer->startImport(info.zipPath, info.versionName);
+                        }
                     } else if (!success) {
                         qCInfo(logApp) << QStringLiteral("[整合包] 下载失败，不导入: %1").arg(info.zipPath);
                     }
@@ -2340,7 +2343,8 @@ void ShadowBackend::prefetchModpacks(const QString& query, const QString& loader
 }
 
 int ShadowBackend::downloadModpack(const QString& url, const QString& filename, qint64 size,
-                                   const QString& sha1, const QString& versionName, const QString& actualName)
+                                   const QString& sha1, const QString& versionName, const QString& actualName,
+                                   const QString& iconUrl)
 {
     if (url.isEmpty() || versionName.isEmpty()) return -1;
     // 下载目录：{gameDir}/downloads/（不存在则创建）
@@ -2361,6 +2365,7 @@ int ShadowBackend::downloadModpack(const QString& url, const QString& filename, 
         PackDownloadInfo info;
         info.zipPath = savePath;
         info.versionName = versionName;
+        info.iconUrl = iconUrl;
         m_packDownloads.insert(dlId, info);
         qCInfo(logApp) << QStringLiteral("[整合包] 下载任务已添加 id=%1 → %2 (版本名=%3)")
             .arg(dlId).arg(savePath, versionName);

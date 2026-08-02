@@ -33,6 +33,7 @@ Item {
     property string fileCount: ""       // "" = 未知（显示 —）
     property string format: ""
     property string targetName: ""
+    property string iconUrl: ""         // 整合包图标（下载 tab 来源）；空则显示占位图标
 
     Rectangle {
         anchors.fill: parent
@@ -69,7 +70,7 @@ Item {
             opacity: root.revealed ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-            // 左侧来源图标
+            // 左侧来源图标：有整合包图标（下载 Tab 来源 URL）则显示，否则占位 box
             Rectangle {
                 radius: StyleTokens.radiusLg
                 color: StyleTokens.accentSubtle
@@ -79,9 +80,19 @@ Item {
 
                 Image {
                     anchors.centerIn: parent
-                    source: "icons/lucide/box.svg"
-                    width: 18
-                    height: 18
+                    source: root.iconUrl ? root.iconUrl : "icons/lucide/box.svg"
+                    width: root.iconUrl ? 38 : 18
+                    height: root.iconUrl ? 38 : 18
+                    radius: root.iconUrl ? StyleTokens.radiusLg : 0
+                    clip: root.iconUrl !== ""
+                    fillMode: Image.PreserveAspectCrop
+                    // 图标加载失败（离线/URL 失效）→ 回退占位图
+                    onStatusChanged: {
+                        if (status === Image.Error) {
+                            source = "icons/lucide/box.svg"
+                            width = 18; height = 18
+                        }
+                    }
                 }
             }
 

@@ -131,6 +131,12 @@ void ModpackImporter::cancelImport()
     m_task->cancel();
 }
 
+void ModpackImporter::setPackIcon(const QString& iconUrl)
+{
+    if (!m_task) return;
+    m_task->setPackIcon(iconUrl);
+}
+
 void ModpackImporter::dismissResult()
 {
     m_hasResult = false;

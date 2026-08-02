@@ -1032,6 +1032,7 @@ void ModpackInstallTask::initTaskCard()
     m_cardLogs.clear();
     m_cardMods.clear();
     m_cardInfo.clear();
+    if (!m_packIcon.isEmpty()) m_cardInfo[QStringLiteral("icon")] = m_packIcon;  // 保留下载 Tab 传入的图标
     m_cardSpeed = 0;
     m_modEma = 0;
     m_mcSpeed = 0;

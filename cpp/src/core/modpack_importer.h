@@ -79,6 +79,9 @@ public:
     Q_INVOKABLE void cancelImport();
     Q_INVOKABLE void dismissResult();  // Called from QML after user dismisses success
 
+    /// 整合包图标 URL（下载 tab 传入；外部导入无来源留空 → 占位图）
+    Q_INVOKABLE void setPackIcon(const QString& iconUrl);
+
     // ── 依赖注入 ──
     void setVersionBackend(VersionBackend* vb);
     void setGameDir(const QString& dir);
