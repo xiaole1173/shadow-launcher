@@ -237,6 +237,19 @@ void FileDownloader::cancel()
         m_inflightReplies.clear();
     }
 
+    // 清理分片临时文件（.shadow_temp/dl_*.tmp）
+    {
+        QMutexLocker lock(&m_filesMutex);
+        for (auto& f : m_files) {
+            for (auto& t : f->threads) {
+                if (!t->tempPath.isEmpty()) {
+                    QFile::remove(t->tempPath);
+                    t->tempPath.clear();
+                }
+            }
+        }
+    }
+
     emit logMessage(QString::fromUtf8("[夸父] [失败] 下载已取消"));
 }
 
@@ -648,29 +661,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
             }
 
-            // ── Truncate data if thread was split mid-download ──
-            // When tryAddThread splits a running thread, the in-flight HTTP request
-            // may return more data than this thread's current (reduced) range.
-            // Clip to the allocated range to avoid overlapping temp files during merge,
-            // which would corrupt the final file (same bytes counted twice).
-            // IMPORTANT: use mid(downloadStart, threadRange), NOT left(threadRange),
-            // because split threads start at a non-zero offset. If the server ignores
-            // Range header and returns the full file, left() would grab bytes 0..N
-            // when we need bytes downloadStart..downloadStart+threadRange.
-            {
-                qint64 threadRange = th->downloadEnd - th->downloadStart;
-                if (threadRange > 0 && data.size() > threadRange) {
-                    qint64 excess = data.size() - threadRange;
-                    qCInfo(logDownload) << QStringLiteral("[夸父] 截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
-                        .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess);
-                    data = data.mid(th->downloadStart, threadRange);
-                    // Adjust byte counters: the excess was already counted via downloadProgress
-                    th->downloadDone = threadRange;
-                    m_downloadedBytes.fetchAndAddRelaxed(-excess);
-                }
-            }
-
-            // SHA1 verification for full-download files
+            // SHA1 verification for full-download files（只对非分片，放锁外避免长持锁）
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
                 const QString dlHash = sha1Hex(data);
@@ -684,20 +675,51 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
             }
 
-            // Write data
-            if (file->isNoSplit) {
-                QFile f(file->localPath);
-                QDir().mkpath(QFileInfo(file->localPath).absolutePath());
-                if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
-            } else {
-                QString tmpDir = QFileInfo(file->localPath).absolutePath() + "/.shadow_temp/";
-                QDir().mkpath(tmpDir);
-                th->tempPath = tmpDir + QString("dl_%1_%2.tmp").arg(file->localName).arg(th->uuid);
-                QFile f(th->tempPath);
-                if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+            // ── 截断 + 写盘 + state 更新（与主线程切分互斥）──
+            // 竞态修复（2026-08-02 本地 20MB 分片实测发现）：managerTick（主线程）在锁内
+            // 切分下载中线程的 downloadEnd，worker 线程此前无锁读 downloadEnd 截断写盘 →
+            // 切分与写盘交错时 tempPath 数据基于旧 range，合并后文件缺块/错位。
+            // 现整体加 m_filesMutex：锁内读最新 downloadEnd 截断 + 写盘 + state=3。
+            {
+                QMutexLocker lock(&m_filesMutex);
+                if (!file->isUnknownSize && !file->isNoSplit) {
+                    // ── Truncate data if thread was split mid-download ──
+                    // When tryAddThread splits a running thread, the in-flight HTTP request
+                    // may return more data than this thread's current (reduced) range.
+                    // Clip to the allocated range to avoid overlapping temp files during merge.
+                    // 注意：截取方向取决于服务器行为（2026-08-02 实测修复）——
+                    //   206 正确分片响应：data 从 0 开始（分片内容）→ left(threadRange)
+                    //   200 忽略 Range 全量：data 从 0 开始（全文件）→ mid(downloadStart, threadRange)
+                    // 旧代码一律 mid(downloadStart, …) 对 206 响应取错位置 → temp 空/错位 → 合并缺块。
+                    qint64 threadRange = th->downloadEnd - th->downloadStart;
+                    if (threadRange > 0 && data.size() > threadRange) {
+                        qint64 excess = data.size() - threadRange;
+                        const int respStatus = reply->attribute(
+                            QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                        qCInfo(logDownload) << QStringLiteral("[夸父] 截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5 状态=%6")
+                            .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess).arg(respStatus);
+                        data = (respStatus == 206)
+                            ? data.left(threadRange)
+                            : data.mid(th->downloadStart, threadRange);
+                        // Adjust byte counters: the excess was already counted via downloadProgress
+                        th->downloadDone = threadRange;
+                        m_downloadedBytes.fetchAndAddRelaxed(-excess);
+                    }
+                }
+                // Write data
+                if (file->isNoSplit) {
+                    QFile f(file->localPath);
+                    QDir().mkpath(QFileInfo(file->localPath).absolutePath());
+                    if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+                } else {
+                    QString tmpDir = QFileInfo(file->localPath).absolutePath() + "/.shadow_temp/";
+                    QDir().mkpath(tmpDir);
+                    th->tempPath = tmpDir + QString("dl_%1_%2.tmp").arg(file->localName).arg(th->uuid);
+                    QFile f(th->tempPath);
+                    if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+                }
+                th->state = 3;
             }
-
-            th->state = 3;
             goto worker_done;
         }
 
@@ -956,8 +978,11 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
         return false;
     }
 
+    // 按偏移排序合并——不能用 uuid（创建顺序）：tryAddThread 从"最大未完成片"切分，
+    // 创建顺序 ≠ 偏移顺序，按 uuid 合并会乱序损坏文件（此路径 MC 下载从未触发，
+    // 只有 modpackMode 1MB 阈值下真实大文件才暴露，2026-08-02 本地 20MB 实测发现）
     auto sorted = file->threads;
-    std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) { return a->uuid < b->uuid; });
+    std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) { return a->downloadStart < b->downloadStart; });
 
     for (auto& th : sorted) {
         if (th->tempPath.isEmpty()) continue;

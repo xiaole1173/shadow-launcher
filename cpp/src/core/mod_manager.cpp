@@ -3,6 +3,7 @@
 #include "mod_manager.h"
 #include "utils/logger.h"
 #include "http_client.h"
+#include "file_downloader.h"
 #include "resource_fetch_engine.h"
 
 #include <QJsonDocument>
@@ -344,10 +345,12 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
         emit modFileDownloadStarted(id, QFileInfo(savePath).fileName(), expectedSize, displayName);
     }
 
-    qint64 offset = receivedOffset;
-    HttpClient::DownloadHandle* reply = HttpClient::instance().downloadWithReply(
-        url, savePath,
-        [this, id, offset](qint64 received, qint64 total) {
+    if (resumeId >= 0) {
+        // ── 断点续传旧路径（驿道单连接 resumeFrom；夸父不支持断点，保留此路径）──
+        qint64 offset = receivedOffset;
+        HttpClient::DownloadHandle* reply = HttpClient::instance().downloadWithReply(
+            url, savePath,
+            [this, id, offset](qint64 received, qint64 total) {
             auto it = m_activeModDownloads.find(id);
             if (it == m_activeModDownloads.end() || it->cancelled || it->finished || it->paused) return;
             it->received = received;
@@ -421,13 +424,111 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
                 emit modFileDownloadFailed(id, errDetail, displayName);
             }
         },
-        offset
-    );
-
-    if (reply) {
-        auto it2 = m_activeModDownloads.find(id);
-        if (it2 != m_activeModDownloads.end()) it2->reply = reply;
+            offset
+        );
+        if (reply) {
+            auto it2 = m_activeModDownloads.find(id);
+            if (it2 != m_activeModDownloads.end()) it2->reply = reply;
+        }
+        return id;
     }
+
+    // ── 常规路径：夸父多线程分片（PCL 同款 1MB 分片阈值，突破单连接限速）──
+    auto* fd = new ShadowDownloader::FileDownloader(this);
+    fd->setModpackMode(true);
+    fd->setMaxThreads(16);
+    fd->addFile(savePath, QFileInfo(savePath).fileName(),
+                QStringList() << url, expectedSize, sha1.toUtf8());
+
+    // 进度：fileProgress（分片粒度，150ms 节流）→ 速度 EMA + 信号
+    connect(fd, &ShadowDownloader::FileDownloader::fileProgress, this,
+        [this, id](const QString&, const QString&, qint64 received, qint64 total, const QString&) {
+            auto it = m_activeModDownloads.find(id);
+            if (it == m_activeModDownloads.end() || it->cancelled || it->finished || it->paused) return;
+            it->received = received;
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            qint64 deltaB = received - it->lastSpeedBytes;
+            qint64 deltaT = it->lastSpeedMs > 0 ? (now - it->lastSpeedMs) : 0;
+            if (deltaB > 0 && deltaT > 0) {
+                const double instantBps = double(deltaB) * 1000.0 / double(deltaT);
+                it->speedEMA = it->speedEMA <= 0.0
+                    ? instantBps
+                    : it->speedEMA * 0.5 + instantBps * 0.5;
+            } else if (deltaT > 0) {
+                it->speedEMA *= std::exp(-double(deltaT) / 2000.0);
+                if (it->speedEMA < 1.0) it->speedEMA = 0.0;
+            }
+            it->speedBytesPerSec = static_cast<qint64>(it->speedEMA);
+            it->lastSpeedBytes = received;
+            it->lastSpeedMs = now;
+            emit modFileDownloadProgress(id, received, total, it->speedBytesPerSec);
+        });
+
+    // 完成：校验（夸父已验 SHA1，双保险）+ 信号 + 清理
+    connect(fd, &ShadowDownloader::FileDownloader::fileFinished, this,
+        [this, id, savePath, displayName, sha1, fd](const QString& path, bool ok) {
+            Q_UNUSED(path)
+            auto it = m_activeModDownloads.find(id);
+            if (it == m_activeModDownloads.end()) {
+                fd->deleteLater();
+                return;
+            }
+            if (it->cancelled) {
+                QFile::remove(savePath);
+                QFile::remove(savePath + ".tmp");
+                m_activeModDownloads.erase(it);
+                fd->deleteLater();
+                return;
+            }
+            if (it->paused) {
+                it->fd = nullptr;
+                fd->deleteLater();
+                return;
+            }
+            if (ok) {
+                if (!sha1.isEmpty()) {
+                    QFile f(savePath);
+                    if (f.open(QIODevice::ReadOnly)) {
+                        QCryptographicHash hash(QCryptographicHash::Sha1);
+                        hash.addData(&f);
+                        QString actual = hash.result().toHex().toLower();
+                        f.close();
+                        if (actual != sha1.toLower()) {
+                            QFile::remove(savePath);
+                            QString errMsg = tr("SHA1 校验失败\n期望: %1\n实际: %2\n文件已损坏，已被删除")
+                                .arg(sha1, actual);
+                            emit logMessage(QStringLiteral("[失败] %1 — %2").arg(displayName, errMsg.replace("\n", " ")));
+                            it->failed = true;
+                            it->errorDetail = errMsg;
+                            emit modFileDownloadFailed(id, errMsg, displayName);
+                            fd->deleteLater();
+                            return;
+                        }
+                    }
+                }
+                it->finished = true;
+                qCInfo(logApp) << QStringLiteral("Mod文件下载完成 id=%1 大小=%2").arg(id).arg(QFileInfo(savePath).size());
+                emit logMessage(tr("[完成] Mod 下载完成: %1").arg(displayName));
+                emit modFileDownloadFinished(id, true, savePath, displayName);
+            } else {
+                QFile::remove(savePath);
+                QFile::remove(savePath + ".tmp");
+                QString errDetail = tr("下载错误: %1").arg(QStringLiteral("[夸父] 下载失败"));
+                emit logMessage(tr("[失败] Mod 下载失败: %1").arg(displayName));
+                it->failed = true;
+                it->errorDetail = errDetail;
+                emit modFileDownloadFailed(id, errDetail, displayName);
+            }
+            fd->deleteLater();
+        });
+
+    // 引擎日志转发（调试可见）
+    connect(fd, &ShadowDownloader::FileDownloader::logMessage, this,
+        [](const QString& msg) { qCInfo(logApp) << msg; });
+
+    if (auto it2 = m_activeModDownloads.find(id); it2 != m_activeModDownloads.end())
+        it2->fd = fd;
+    fd->start();
     return id;
 }
 
@@ -437,6 +538,11 @@ void ModManager::cancelModFileDownload(int downloadId)
     if (it == m_activeModDownloads.end()) return;
     qCInfo(logApp) << QStringLiteral("取消Mod下载 id=%1").arg(downloadId);
     it->cancelled = true;
+    if (it->fd) {
+        it->fd->cancel();
+        it->fd->deleteLater();
+        it->fd = nullptr;
+    }
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
@@ -451,6 +557,12 @@ void ModManager::pauseModFileDownload(int downloadId)
     auto it = m_activeModDownloads.find(downloadId);
     if (it == m_activeModDownloads.end() || it->finished || it->failed) return;
     it->paused = true;
+    if (it->fd) {
+        // 夸父无断点持久化：暂停=放弃在途（received 保留显示，恢复时重新下载）
+        it->fd->cancel();
+        it->fd->deleteLater();
+        it->fd = nullptr;
+    }
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
@@ -472,8 +584,15 @@ void ModManager::resumeModFileDownload(int downloadId)
     QString sha1 = it->sha1;
     qint64 received = it->received;
     int oldId = it->id;
+    const bool wasKuafu = (it->fd != nullptr);
     m_activeModDownloads.erase(it);
-    downloadModFile(url, savePath, displayName, expectedSize, sha1, received, oldId);
+    if (wasKuafu) {
+        // 夸父路径无断点文件：全新下载（走夸父多线程分片）
+        downloadModFile(url, savePath, displayName, expectedSize, sha1, 0, -1);
+    } else {
+        // 驿道断点续传路径
+        downloadModFile(url, savePath, displayName, expectedSize, sha1, received, oldId);
+    }
 }
 
 void ModManager::retryModFileDownload(int downloadId)

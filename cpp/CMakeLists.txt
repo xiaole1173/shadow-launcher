@@ -567,6 +567,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     target_include_directories(YidaoTest PRIVATE src)
     target_link_libraries(YidaoTest PRIVATE Qt6::Core Qt6::Network)
 
+    # 夸父（FileDownloader）单文件下载测试
+    add_executable(FDTest
+        tests/test_fd.cpp
+        src/core/file_downloader.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(FDTest PRIVATE src)
+    target_link_libraries(FDTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
+
     # CF 适配器自测：搜索统一模型 + 文件→版本转换 + 分类表
     add_executable(CfApiTest
         tests/test_cf_api.cpp
