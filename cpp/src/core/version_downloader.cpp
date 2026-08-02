@@ -21,6 +21,10 @@
 #include <QJsonArray>
 #include <QCryptographicHash>
 #include <QEventLoop>
+#include <QUrl>
+#include <QNetworkRequest>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QTimer>
 #include <QAtomicInt>
 #include <QUrl>
@@ -247,80 +251,35 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         emit logMessage(QStringLiteral("[引擎·盘古] [警告] 无法保存版本清单: %1").arg(jsonPath));
     }
 
-    // --- Step 2-4: Download asset index async, then collect & start tasks ---
+    // --- Step 2-4: assets index 双源竞速（与版本 JSON 同款）---
+    // 并行化：libs/jar 不依赖 index → 阶段 A 立即启动夸父；
+    // index 完成后阶段 B 启动山海经补 assets（旧结构是 index 下完才统一启动两个引擎）。
     QJsonObject assetIdx = versionJson.value(QStringLiteral("assetIndex")).toObject();
 
-    auto startTasks = [this, versionJson, versionId, assetIdx]() {
-        if (!assetIdx.isEmpty()) {
-            m_assetObjects = parseAssetIndex(assetIdx);
-        }
-        QVector<DownloadTask> tasks;
-        collectTasks(versionJson, versionId, m_assetObjects, tasks);
-        m_totalFiles.storeRelaxed(tasks.size());
-        if (tasks.isEmpty()) {
-            m_state = Done;
-            emit downloadFinished(true, QString());
-            emit stateChanged();
-            return;
-        }
+    // ── 阶段 A：libs/jar 立即启动（assetObjects 空 → collectTasks 只产出 libs/jar）──
+    {
+        m_assetObjects.clear();
+        QVector<DownloadTask> libTasks;
+        collectTasks(versionJson, versionId, m_assetObjects, libTasks);
+        m_totalFiles.storeRelaxed(libTasks.size());
         qint64 totalEstimate = 0;
-        for (const auto& t : tasks) totalEstimate += t.totalBytes;
+        for (const auto& t : libTasks) totalEstimate += t.totalBytes;
         m_totalBytes.storeRelaxed(totalEstimate);
-        emit logMessage(QStringLiteral("[引擎·盘古] 依赖库分析完成 共 %1 项").arg(tasks.size()));
 
-        // Feed tasks → split into libraries/jar and assets
-        // Category 1: /versions/, /libraries/, /maven/ paths → FileDownloader
-        // Category 2: /assets/ paths → AssetDownloader
-        bool preferOfficial = (m_downloadCfg.fileSource == DownloadSourcePolicy::PreferOfficial ||
-                               m_downloadCfg.fileSource == DownloadSourcePolicy::AutoSwitch);
-
-        QVector<AssetDownloader::AssetTask> assetTasks;
         bool hasLibTasks = false;
-        bool hasAssetTasks = false;
-
-        for (const auto& t : tasks) {
-            int cat = m_fileCategory.value(t.savePath, -1);
-            if (cat == 2) {
-                // ── Asset task → AssetDownloader ──
-                hasAssetTasks = true;
-                QStringList mirrors;
-                if (preferOfficial) {
-                    bool mojangAdded = false;
-                    for (const auto& m : t.mirrors) {
-                        if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
-                            mirrors.append(m);
-                            mojangAdded = true;
-                        }
-                    }
-                    if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
-                        mirrors.append(t.url);
-                    for (const auto& m : t.mirrors) {
-                        if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
-                            mirrors.append(m);
-                    }
-                } else {
-                    mirrors.append(t.url);
-                    for (const auto& m : t.mirrors)
-                        mirrors.append(m);
-                }
-
-                AssetDownloader::AssetTask at;
-                at.savePath = t.savePath;
-                at.sha1 = t.sha1;
-                at.mirrors = mirrors;
-                at.size = t.totalBytes;
-                assetTasks.append(at);
-
-            } else {
-                // ── Library/jar task → FileDownloader ──
+        if (!libTasks.isEmpty()) {
+            const bool preferOfficial = (m_downloadCfg.fileSource == DownloadSourcePolicy::PreferOfficial ||
+                                         m_downloadCfg.fileSource == DownloadSourcePolicy::AutoSwitch);
+            for (const auto& t : libTasks) {
+                const int cat = m_fileCategory.value(t.savePath, -1);
+                if (cat == 2) continue;   // 防御：空 assetObjects 不应有 assets 任务
                 hasLibTasks = true;
                 QStringList sources;
                 if (preferOfficial) {
                     bool mojangAdded = false;
                     for (const auto& m : t.mirrors) {
                         if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
-                            sources.append(m);
-                            mojangAdded = true;
+                            sources.append(m); mojangAdded = true;
                         }
                     }
                     if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
@@ -331,51 +290,153 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                     }
                 } else {
                     sources.append(t.url);
-                    for (const auto& m : t.mirrors)
-                        sources.append(m);
+                    for (const auto& m : t.mirrors) sources.append(m);
                 }
-                QByteArray sha1 = t.sha1.toUtf8();
                 m_downloader->addFile(t.savePath, t.name, sources,
-                                      t.totalBytes, sha1, false);
+                                      t.totalBytes, t.sha1.toUtf8(), false);
             }
         }
-
-        // Reset cross-downloader tracking
         m_libTasksDone = !hasLibTasks;
-        m_assetTasksDone = !hasAssetTasks;
-
-        // Start FileDownloader (libraries/jar)
         if (hasLibTasks) {
-            emit logMessage(QStringLiteral("[引擎·盘古] 开始下载库文件 (%1 个)").arg(tasks.size() - assetTasks.size()));
+            emit logMessage(QStringLiteral("[引擎·盘古] 开始下载库文件 (%1 个)").arg(libTasks.size()));
             m_downloader->start();
         }
+    }
 
-        // Start AssetDownloader v2 (2× HTTP/1.1, adaptive concurrency)
+    // ── 阶段 B：assets index 双源竞速下载 → 完成后启动山海经（assets）──
+    auto startAssets = [this, versionJson, versionId, assetIdx]() {
+        m_categoryTotalBytes[1] = 0;   // 重置 libs 分类计数（阶段 A 已统计过一次）
+        if (!assetIdx.isEmpty()) {
+            m_assetObjects = parseAssetIndex(assetIdx);
+        }
+        QVector<DownloadTask> tasks;
+        collectTasks(versionJson, versionId, m_assetObjects, tasks);
+        if (tasks.isEmpty()) {
+            m_assetTasksDone = true;
+            checkBothDownloadersDone();
+            return;
+        }
+
+        const bool preferOfficial = (m_downloadCfg.fileSource == DownloadSourcePolicy::PreferOfficial ||
+                                     m_downloadCfg.fileSource == DownloadSourcePolicy::AutoSwitch);
+        QVector<AssetDownloader::AssetTask> assetTasks;
+        bool hasAssetTasks = false;
+        qint64 assetsBytes = 0;
+        for (const auto& t : tasks) {
+            const int cat = m_fileCategory.value(t.savePath, -1);
+            if (cat != 2) continue;   // 只取 assets（libs 已在阶段 A 启动）
+            hasAssetTasks = true;
+            assetsBytes += t.totalBytes;
+            QStringList mirrors;
+            if (preferOfficial) {
+                bool mojangAdded = false;
+                for (const auto& m : t.mirrors) {
+                    if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
+                        mirrors.append(m); mojangAdded = true;
+                    }
+                }
+                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
+                    mirrors.append(t.url);
+                for (const auto& m : t.mirrors) {
+                    if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
+                        mirrors.append(m);
+                }
+            } else {
+                mirrors.append(t.url);
+                for (const auto& m : t.mirrors) mirrors.append(m);
+            }
+            AssetDownloader::AssetTask at;
+            at.savePath = t.savePath;
+            at.sha1 = t.sha1;
+            at.mirrors = mirrors;
+            at.size = t.totalBytes;
+            assetTasks.append(at);
+        }
+        m_totalFiles.fetchAndAddRelaxed(assetTasks.size());
+        m_totalBytes.fetchAndAddRelaxed(assetsBytes);
+        m_assetTasksDone = !hasAssetTasks;
         if (hasAssetTasks) {
             emit logMessage(QStringLiteral("[引擎·盘古] 开始下载资源文件 (%1 个)").arg(assetTasks.size()));
             m_assetDownloader->startDownload(assetTasks, m_maxWorkers);
         }
-
-        // Both done immediately? (no tasks at all)
         checkBothDownloadersDone();
     };
 
-    if (assetIdx.isEmpty()) { startTasks(); return; }
+    if (assetIdx.isEmpty()) { startAssets(); return; }
 
     const QString idxUrl = assetIdx.value(QStringLiteral("url")).toString();
     const QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
     const QString idxPath = m_minecraftDir + QStringLiteral("/assets/indexes/") + idxId + QStringLiteral(".json");
 
-    if (idxUrl.isEmpty() || QFileInfo::exists(idxPath)) { startTasks(); return; }
+    if (idxUrl.isEmpty() || QFileInfo::exists(idxPath)) { startAssets(); return; }
 
-    emit logMessage(QStringLiteral("[引擎·盘古] 正在下载资源索引..."));
+    emit logMessage(QStringLiteral("[引擎·盘古] 正在下载资源索引（双源竞速）..."));
     QDir().mkpath(QFileInfo(idxPath).absolutePath());
-    HttpClient::instance().downloadWithFallback(idxUrl, idxPath, nullptr,
-        [this, startTasks](bool ok, const QString& err) {
-            if (!ok) emit logMessage(QStringLiteral("[引擎·盘古] 资源索引下载失败（已尝试镜像）: %1").arg(err));
-            // Ensure startTasks() runs on main thread (HttpClient callback may be async)
-            QMetaObject::invokeMethod(this, [startTasks]() { startTasks(); }, Qt::QueuedConnection);
+    downloadAssetIndexRace(idxUrl, idxPath,
+        [this, startAssets]() {
+            QMetaObject::invokeMethod(this, startAssets, Qt::QueuedConnection);
         });
+}
+
+// ═══════════════════════════════════════════════════════════
+// assets index 双源竞速（镜像 BMCLAPI + 官方 piston-meta 同时发，先成功者赢）
+// ═══════════════════════════════════════════════════════════
+
+void VersionDownloader::downloadAssetIndexRace(const QString& idxUrl, const QString& idxPath,
+                                               std::function<void()> done)
+{
+    QString official = idxUrl;
+    QString mirror = idxUrl;
+    mirror.replace(QStringLiteral("piston-meta.mojang.com"),
+                   QStringLiteral("bmclapi2.bangbang93.com"));
+
+    auto won = std::make_shared<bool>(false);
+    auto pending = std::make_shared<int>(mirror == official ? 1 : 2);
+
+    auto launch = [this, won, pending, done, idxPath](const QString& url, const QString& label) {
+        auto* nam = new QNetworkAccessManager(this);
+        const QUrl reqUrl(url);
+        QNetworkRequest req(reqUrl);
+        req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        req.setTransferTimeout(20000);
+        QNetworkReply* reply = nam->get(req);
+
+        connect(reply, &QNetworkReply::finished, this,
+                [this, won, pending, done, idxPath, url, label, reply, nam]() {
+            reply->deleteLater();
+            nam->deleteLater();
+            if (*won) return;   // 另一源已胜出（旧轮慢请求不干扰）
+
+            const bool ok = (reply->error() == QNetworkReply::NoError)
+                && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
+            if (ok) {
+                const QByteArray data = reply->readAll();
+                if (!data.isEmpty()) {
+                    *won = true;
+                    QDir().mkpath(QFileInfo(idxPath).absolutePath());
+                    QFile f(idxPath);
+                    if (f.open(QIODevice::WriteOnly)) {
+                        f.write(data);
+                        f.close();
+                        emit logMessage(QStringLiteral("[引擎·盘古] 资源索引竞速胜出 源=%1").arg(label));
+                        done();
+                        return;
+                    }
+                }
+            } else {
+                qCWarning(logDownload) << QStringLiteral("[引擎·盘古] 资源索引源失败 %1: %2")
+                    .arg(label, reply->errorString());
+            }
+            if (--(*pending) <= 0) {
+                *won = true;
+                emit logMessage(QStringLiteral("[引擎·盘古] 资源索引下载失败（双源均失败），按无资源继续"));
+                done();   // 继续流程（assets 任务为空）
+            }
+        });
+    };
+
+    if (mirror != official) launch(mirror, QStringLiteral("镜像"));
+    launch(official, QStringLiteral("官方"));
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -11,6 +11,7 @@
 #include <QVector>
 #include <QMap>
 #include <QAtomicInt>
+#include <functional>
 #include "utils/types.h"
 // Forward-declare (see version_downloader.cpp for full include)
 namespace ShadowDownloader { class FileDownloader; }
@@ -122,7 +123,9 @@ private:
     // --- Pipeline steps ---
     bool downloadAssetIndex(const QJsonObject& assetIdx);
     QMap<QString, QJsonObject> parseAssetIndex(const QJsonObject& assetIdx);
-    void collectTasks(const QJsonObject& versionJson, const QString& versionId,
+    void downloadAssetIndexRace(const QString& idxUrl, const QString& idxPath,
+                                std::function<void()> done);   // 双源竞速（镜像+官方）
+    void collectTasks(const QJsonObject& versionJson, const QString& versionId,    
                       const QMap<QString, QJsonObject>& assetObjects,
                       QVector<DownloadTask>& tasks);
     bool shouldDownloadLibrary(const QJsonObject& lib) const;
