@@ -161,6 +161,7 @@ private:
     QVector<MirrorSource> m_fallbackChain;
     int m_fallbackIndex = 0;
     static constexpr double kFallbackThreshold = 0.3;
+    static constexpr int kRaceTimeoutMs = 20000;    // 双源竞速请求超时
 
     ShadowDownloader::FileDownloader* m_downloader = nullptr;
     AssetDownloader* m_assetDownloader = nullptr;

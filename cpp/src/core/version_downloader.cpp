@@ -404,7 +404,7 @@ void VersionDownloader::downloadAssetIndexRace(const QString& idxUrl, const QStr
         const QUrl reqUrl(url);
         QNetworkRequest req(reqUrl);
         req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-        req.setTransferTimeout(20000);
+        req.setTransferTimeout(kRaceTimeoutMs);
         QNetworkReply* reply = nam->get(req);
 
         connect(reply, &QNetworkReply::finished, this,

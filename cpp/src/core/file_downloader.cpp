@@ -185,8 +185,8 @@ void FileDownloader::start()
     // Clear thread pool from any previous runs
     m_threadPool.clear();
 
-    m_managerTimer->start(50);
-    m_speedTimer2->start(100);
+    m_managerTimer->start(kManagerTickMs);
+    m_speedTimer2->start(kSpeedTickMs);
 
     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
@@ -210,8 +210,8 @@ void FileDownloader::resume()
     m_state = Running;
     m_speedTimer.restart();
     m_lastSpeedBytes = m_downloadedBytes.loadRelaxed();   // 网络字节口径（缓存已剔除）
-    m_managerTimer->start(50);
-    m_speedTimer2->start(100);
+    m_managerTimer->start(kManagerTickMs);
+    m_speedTimer2->start(kSpeedTickMs);
     emit logMessage(QStringLiteral("[夸父] 下载已恢复"));
 }
 
@@ -501,8 +501,8 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             }
             if (attempt >= 2 && file->expectedSha1.isEmpty()
                 && (getElapsedMs() - startTimeMs) < 5500) break;
-            if (attempt >= 5 && (getElapsedMs() - startTimeMs) < 5500) break;
-            if (attempt > 0) QThread::msleep(500);
+            if (attempt >= kMaxChunkAttempts && (getElapsedMs() - startTimeMs) < 5500) break;
+            if (attempt > 0) QThread::msleep(kRetryBackoffMs);
 
             QNetworkRequest req{QUrl(url)};
             req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
@@ -540,9 +540,9 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             if (m_modpackMode) {
                 // 模组专项：空闲无数据超时——每次收到数据包重置，连续 30s 无数据才断；
                 // 慢速持续传输的大文件不被整体超时误杀（PCL「无数据才超时」语义）
-                timeout.start(30000);
+                timeout.start(kChunkTimeoutMs);
                 connect(reply, &QNetworkReply::readyRead, &timeout,
-                        [&timeout]() { timeout.start(30000); });
+                        [&timeout]() { timeout.start(kChunkTimeoutMs); });
             } else {
                 timeout.start(timeoutMs);
             }
@@ -564,7 +564,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
                 th->lastReceiveTime = getElapsedMs();
                 qint64 now = getElapsedMs();
-                if (now - lastProgressEmitMs >= 150) {
+                if (now - lastProgressEmitMs >= kProgressEmitThrottleMs) {
                     lastProgressEmitMs = now;
                     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
@@ -718,7 +718,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
         qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底重试 URL=%1").arg(url);
         for (int attempt = 0; attempt < 3 && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
-            if (attempt > 0) QThread::msleep(500);
+            if (attempt > 0) QThread::msleep(kRetryBackoffMs);
 
             QUrl qurl2(url); QNetworkRequest req(qurl2);
             qint64 lastProgressEmitMs = getElapsedMs();
@@ -739,11 +739,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
             if (m_modpackMode) {
-                timeout.start(30000);
+                timeout.start(kChunkTimeoutMs);
                 connect(reply, &QNetworkReply::readyRead, &timeout,
-                        [&timeout]() { timeout.start(30000); });
+                        [&timeout]() { timeout.start(kChunkTimeoutMs); });
             } else {
-                int timeoutMs = (attempt == 0) ? 60000 : 30000;
+                int timeoutMs = (attempt == 0) ? kFirstAttemptTimeoutMs : kChunkTimeoutMs;
                 timeout.start(timeoutMs);
             }
 
@@ -756,7 +756,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
                 th->lastReceiveTime = getElapsedMs();
                 qint64 now = getElapsedMs();
-                if (now - lastProgressEmitMs >= 150) {
+                if (now - lastProgressEmitMs >= kProgressEmitThrottleMs) {
                     lastProgressEmitMs = now;
                     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
@@ -1026,7 +1026,7 @@ void FileDownloader::speedTick()
     m_emaMbps = currentBps / (1024.0 * 1024.0);
 
     // ── Speed floor: up on growth, decay on stagnation ──
-    qint64 floorLimit = static_cast<qint64>(currentBps * 0.85);
+    qint64 floorLimit = static_cast<qint64>(currentBps * kFloorRatio);
     qint64 currentFloor = m_speedFloorBps.loadRelaxed();
     const qint64 nowMs = getElapsedMs();
     if (currentBps >= kMinSpeedFloorBps && floorLimit > currentFloor) {
@@ -1036,7 +1036,7 @@ void FileDownloader::speedTick()
         if (floorLimit / (1024 * 1024) > currentFloor / (1024 * 1024)) {
             qCInfo(logDownload) << QStringLiteral("[夸父] 速度下限 %1 M").arg(floorLimit / (1024.0 * 1024.0), 0, 'f', 2);
         }
-    } else if (nowMs - m_lastFloorIncreaseMs > 5000 && currentFloor > kMinSpeedFloorBps) {
+    } else if (nowMs - m_lastFloorIncreaseMs > kFloorDecayMs && currentFloor > kMinSpeedFloorBps) {
         // 5s without growth: decay floor by 50%
         qint64 newFloor = qMax(kMinSpeedFloorBps, currentFloor / 2);
         m_speedFloorBps.storeRelaxed(newFloor);

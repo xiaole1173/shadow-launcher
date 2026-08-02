@@ -256,7 +256,7 @@ void ModDownloadEngine::onReplyProgress(std::shared_ptr<Item> it, qint64 recv, q
     }
     // 150ms 节流，避免高频跨对象信号
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    if (now - m_lastProgressEmitMs >= 150) {
+    if (now - m_lastProgressEmitMs >= kProgressEmitThrottleMs) {
         m_lastProgressEmitMs = now;
         emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
         emit fileProgress(it->reply ? it->reply->url().toString() : QString(),

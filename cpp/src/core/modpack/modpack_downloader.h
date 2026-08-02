@@ -46,6 +46,8 @@ namespace ShadowLauncher {
 class HttpClient;
 
 class ModpackDownloader : public QObject {
+    static constexpr int kConcurrentStartup = 3;  // 每轮批量启动上限
+    static constexpr int kCleanupDelayMs = 2000; // 取消后延迟清理（等 abort/worker 退出）
     Q_OBJECT
 public:
     explicit ModpackDownloader(QObject* parent = nullptr);

@@ -217,6 +217,15 @@ private:
     QAtomicInteger<qint64> m_speedFloorBps{256 * 1024};
     qint64 m_lastFloorIncreaseMs = 0;
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;
+    static constexpr double kFloorRatio = 0.85;        // 速度下限 = 加权均值 × kFloorRatio
+    static constexpr qint64 kFloorDecayMs = 5000;      // 下限无增长衰减周期
+    static constexpr int kManagerTickMs = 50;          // 调度轮询节拍
+    static constexpr int kSpeedTickMs = 100;           // 速度采样节拍
+    static constexpr int kMaxChunkAttempts = 5;        // 分片最大尝试次数（含首试）
+    static constexpr int kRetryBackoffMs = 500;        // 分片重试退避
+    static constexpr int kFirstAttemptTimeoutMs = 60000; // 分片首试超时
+    static constexpr int kChunkTimeoutMs = 30000;      // 分片重试超时
+    static constexpr int kProgressEmitThrottleMs = 150;  // 进度发射节流
 
     // ── Timers ──
     QTimer* m_managerTimer = nullptr;

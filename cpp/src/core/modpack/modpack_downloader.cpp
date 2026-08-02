@@ -482,7 +482,7 @@ void ModpackDownloader::resolveDownloadUrls()
     for (int i = 0; i < m_downloadUrlPending.size(); ++i) {
         const int idx = m_downloadUrlPending[i];
         if (m_items[idx].finished) continue;
-        if (started >= 3) break;
+        if (started >= kConcurrentStartup) break;
         m_items[idx].finished = true;   // 临时占用标记，回调里复位（防止重复发起）
         started++;
         startDownloadUrlResolve(idx);
@@ -819,7 +819,7 @@ void ModpackDownloader::cancel()
     //   延后 2s 清理（abort 必然已完成、worker 已退出 → 析构不阻塞）。
     if (m_fd) {
         QPointer<ModpackDownloader> self(this);
-        QTimer::singleShot(2000, self, [self]() {
+        QTimer::singleShot(kCleanupDelayMs, self, [self]() {
             if (!self) return;
             if (self->m_fd) {
                 self->m_fd->disconnect();

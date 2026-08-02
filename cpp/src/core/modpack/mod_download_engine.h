@@ -117,6 +117,7 @@ private:
     int m_mirrorRateLimitMs = 100;
     int m_round = 0;                 // 当前重试轮（0=首轮）
     static constexpr int kMaxRounds = 5;   // 整合包不容放过任何模组：补位重试上限（每文件至多 5 轮×多源+兜底）
+    static constexpr int kProgressEmitThrottleMs = 150;  // 进度发射节流
 
     QList<std::shared_ptr<Item>> m_items;    // 全部条目（含终态）
     QList<std::shared_ptr<Item>> m_pending;  // 当前轮未终态条目
