@@ -188,21 +188,100 @@ void LaunchBackend::setAuthInfo(const QString& username, const QString& uuid,
 
 int LaunchBackend::getAutoMemory()
 {
+    return getAutoMemoryForVersion(QString());
+}
+
+// 分层需求 + 阶梯预分配算法（单位 GB）：
+//   1. 需求分层：可装模组版本按 mods 目录文件数动态估算（最低 / T1 / T2 / T3）；
+//      OptiFine 版本与普通版本用固定档位。
+//   2. 阶梯预分配：0~T1 段 100% 给（基础需求优先保证）、T1~T2 段 70%、
+//      T2~T3 段 40%、T3~2×T3 段 15%（高需求段递减，保护系统余量）。
+//   3. 下限 = 最低需求；上限 = 2×T3，转 MB 后钳制 [512, 16384]。
+int LaunchBackend::getAutoMemoryForVersion(const QString& versionId)
+{
 #ifdef Q_OS_WIN
     MEMORYSTATUSEX memStatus;
     memStatus.dwLength = sizeof(MEMORYSTATUSEX);
     if (GlobalMemoryStatusEx(&memStatus)) {
-        // Recommend 50% of available memory, min 512MB, max 16GB
-        auto availableMB = static_cast<int>(memStatus.ullAvailPhys / (1024 * 1024));
-        int recommended = availableMB / 2;
-        // Cap at 80% of total physical (for 32-bit Java: ~2GB hard limit)
-        auto totalMB = static_cast<int>(memStatus.ullTotalPhys / (1024 * 1024));
-        recommended = qMin(recommended, static_cast<int>(totalMB * 0.8));
-        return qBound(512, recommended, 16384);
+        double availGB = double(memStatus.ullAvailPhys) / (1024.0 * 1024.0 * 1024.0);
+
+        double ramMin, t1, t2, t3;
+        const bool moddable = versionIsModdable(versionId);
+        const bool optifineOnly = !moddable && versionId.contains(QStringLiteral("OptiFine"));
+        if (moddable) {
+            const int modCount = countModsForVersion(versionId);
+            ramMin = 0.5 + modCount / 150.0;
+            t1     = 1.5 + modCount / 90.0;
+            t2     = 2.7 + modCount / 50.0;
+            t3     = 4.5 + modCount / 25.0;
+        } else if (optifineOnly) {
+            ramMin = 0.5; t1 = 1.5; t2 = 3.0; t3 = 5.0;
+        } else {
+            ramMin = 0.5; t1 = 1.5; t2 = 2.5; t3 = 4.0;
+        }
+
+        double ramGive = 0.0;
+        double avail = availGB;
+
+        double delta = t1;                                     // 阶段一 0~T1：100%
+        ramGive += qMin(avail, delta); avail -= delta;
+        if (avail >= 0.1) {                                   // 阶段二 T1~T2：70%
+            delta = t2 - t1;
+            ramGive += qMin(avail * 0.7, delta); avail -= delta / 0.7;
+        }
+        if (avail >= 0.1) {                                   // 阶段三 T2~T3：40%
+            delta = t3 - t2;
+            ramGive += qMin(avail * 0.4, delta); avail -= delta / 0.4;
+        }
+        if (avail >= 0.1) {                                   // 阶段四 T3~2×T3：15%
+            delta = t3;
+            ramGive += qMin(avail * 0.15, delta); avail -= delta / 0.15;
+        }
+
+        ramGive = qMax(ramGive, ramMin);
+        ramGive = qMin(ramGive, t3 * 2.0);
+
+        int mb = qRound(ramGive * 1024.0);
+        return qBound(512, mb, 16384);
     }
 #endif
     return 2048; // fallback: 2GB
 }
+
+// 版本是否具备模组能力（mods 目录存在，或加载器版本）
+bool LaunchBackend::versionIsModdable(const QString& versionId) const
+{
+    if (versionId.isEmpty()) return false;
+    const QString base = m_gameDir + QStringLiteral("/versions/") + versionId;
+    if (QDir(base + QStringLiteral("/mods")).exists()
+        || QDir(base + QStringLiteral("/game/mods")).exists())
+        return true;
+    const QString lower = versionId.toLower();
+    return lower.contains(QStringLiteral("forge"))
+        || lower.contains(QStringLiteral("neoforge"))
+        || lower.contains(QStringLiteral("fabric"))
+        || lower.contains(QStringLiteral("quilt"));
+}
+
+// 统计版本 mods 目录中的模组文件数（jar/zip/litemod）
+int LaunchBackend::countModsForVersion(const QString& versionId) const
+{
+    if (versionId.isEmpty()) return 0;
+    const QString base = m_gameDir + QStringLiteral("/versions/") + versionId;
+    int count = 0;
+    const QStringList dirs = { base + QStringLiteral("/mods"),
+                               base + QStringLiteral("/game/mods") };
+    for (const QString& d : dirs) {
+        QDir dir(d);
+        if (dir.exists())
+            count += dir.entryInfoList({QStringLiteral("*.jar"),
+                                        QStringLiteral("*.zip"),
+                                        QStringLiteral("*.litemod")},
+                                       QDir::Files | QDir::NoDotAndDotDot).size();
+    }
+    return count;
+}
+
 
 // ============================================================
 // Slot: getSystemMemory

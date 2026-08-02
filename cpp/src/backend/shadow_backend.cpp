@@ -1879,14 +1879,14 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     int maxMemory;
     if (verMode == 1) {
         // Per-version: auto
-        maxMemory = m_launch->getAutoMemory();
+        maxMemory = m_launch->getAutoMemoryForVersion(versionId);
     } else if (verMode == 2) {
         // Per-version: manual
         maxMemory = m_settings->versionMemoryManualMB(versionId);
     } else {
         // Per-version: follow global (0 or unset)
         maxMemory = m_settings->autoMemoryEnabled()
-            ? m_launch->getAutoMemory()
+            ? m_launch->getAutoMemoryForVersion(versionId)
             : m_settings->maxMemoryMB();
     }
     qCInfo(logApp) << QStringLiteral("启动内存: %1MB (verMode=%2, auto=%3)").arg(maxMemory).arg(verMode).arg(m_settings->autoMemoryEnabled());

@@ -42,8 +42,11 @@ public:
     Q_INVOKABLE void killGameByPid(qint64 pid);  // kill one game by PID
     Q_INVOKABLE QVariantList runningGames() const;  // [{version,pid,displayVersion}, ...]
     Q_INVOKABLE int getAutoMemory();
+    Q_INVOKABLE int getAutoMemoryForVersion(const QString& versionId);   // 按模组数/版本类型分层 + 阶梯预分配
     Q_INVOKABLE int getSystemMemory();
     Q_INVOKABLE QVariantMap getMemoryStatus();
+    bool versionIsModdable(const QString& versionId) const;   // 版本是否具备模组能力
+    int countModsForVersion(const QString& versionId) const;  // 统计 mods 目录模组数
 
     // ---- Pre-launch checks ----
     Q_INVOKABLE QString checkJavaArchitecture(const QString& javaPath);
