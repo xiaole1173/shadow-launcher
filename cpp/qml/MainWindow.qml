@@ -1270,4 +1270,89 @@ Window {
     }
     property QtObject modpackImportOverlay: modpackImportOverlayItem
 
+    // ═══ 全局整合包拖放导入：把 .zip / .mrpack 拖到启动器任意位置 ═══
+    // 自动识别扩展名 → 直接走标准导入流程（startImport → 下载进度页常驻执行）
+    DropArea {
+        id: packDropArea
+        anchors.fill: parent
+        z: 301   // 弹窗层之上；DropArea 不拦截鼠标点击，仅响应拖放
+
+        onEntered: function(drag) {
+            if (drag.hasUrls && drag.urls.length > 0) {
+                var p = drag.urls[0].toString()
+                if (p.startsWith("file:///")) p = p.substring(8)
+                if (/\.(zip|mrpack)$/i.test(p)) {
+                    drag.accept(Qt.CopyAction)
+                    packDropHint.visible = true
+                }
+            }
+        }
+        onExited: packDropHint.visible = false
+        onDropped: function(drop) {
+            packDropHint.visible = false
+            if (!drop.hasUrls || drop.urls.length === 0) return
+            var path = drop.urls[0].toString()
+            if (path.startsWith("file:///")) path = path.substring(8)
+            if (!/\.(zip|mrpack)$/i.test(path)) {
+                if (toastManager) toastManager.show(qsTr("不支持的文件格式，请拖入 .zip（CurseForge）或 .mrpack（Modrinth）整合包"))
+                return
+            }
+            if (!backend || !backend.modpackImporter) {
+                if (toastManager) toastManager.show(qsTr("后端未就绪"))
+                return
+            }
+            if (backend.modpackImporter.busy) {
+                if (toastManager) toastManager.show(qsTr("已有整合包导入进行中"))
+                return
+            }
+            // 标准导入流程：格式识别与导入执行全在后端（ModpackImporter）
+            backend.modpackImporter.startImport(path)
+            switchPage(5)   // 下载进度页（与弹窗导入同一路由）
+            if (toastManager) toastManager.show(qsTr("开始导入整合包: %1").arg(path.split("/").pop()))
+        }
+    }
+
+    // 拖放悬停提示层
+    Rectangle {
+        id: packDropHint
+        anchors.fill: parent
+        z: 302
+        visible: false
+        color: "#99000000"
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 340
+            height: 170
+            radius: StyleTokens.radiusXl
+            color: StyleTokens.surfaceOverlay
+            border.color: StyleTokens.accent
+            border.width: 2
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 12
+
+                Image {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    source: "icons/lucide/package.svg"
+                    width: 40; height: 40
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("松开以导入整合包")
+                    font.pixelSize: StyleTokens.fontSizeLg
+                    font.bold: true
+                    color: StyleTokens.textPrimary
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("支持 .zip（CurseForge）与 .mrpack（Modrinth）")
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted
+                }
+            }
+        }
+    }
+
 }
