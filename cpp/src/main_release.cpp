@@ -419,12 +419,12 @@ int main(int argc, char *argv[])
     checkpoint(QStringLiteral("Checking beta key..."));
     QString savedKey = ShadowBackend::loadBetaKey();
 
-    if (savedKey.isEmpty() || !ShadowBackend::validateBetaKey(savedKey)) {
-        if (!savedKey.isEmpty()) {
-            qCWarning(logApp) << QStringLiteral("[Beta] 保存的密钥无效 显示对话框");
-        }
-
-        // Load BetaKeyDialog from QRC; betaVerified signal will reload MainWindow
+    // 已保存密钥（本地解密成功）即放行：不再每次启动重新联网验证——
+    // 旧逻辑 validateBetaKey 为同步网络请求（5s 超时），网络波动/服务器偶发
+    // 失败会把已保存的密钥误判为无效 → 频繁重弹内测验证窗口。
+    // 密钥有效性在首次输入时已由 submitBetaKey 联网验证并加密落盘。
+    if (savedKey.isEmpty()) {
+        // 无保存密钥 → 加载 BetaKeyDialog；betaVerified 信号会重载 MainWindow
         QUrl betaUrl("qrc:/qt/qml/ShadowLauncher/qml/BetaKeyDialog.qml");
         checkpoint(QStringLiteral("Loading beta key dialog..."));
         engine.load(betaUrl);
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
 
         loadedBetaDialog = true;
     } else {
-        qCInfo(logApp) << QStringLiteral("[Beta] 密钥有效 继续启动");
+        qCInfo(logApp) << QStringLiteral("[Beta] 已保存密钥 直接放行");
     }
 
     if (!loadedBetaDialog) {

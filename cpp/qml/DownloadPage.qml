@@ -1994,7 +1994,7 @@ Rectangle {
                         gameVersions: model.versions || ""
                         dateModified: model.dateModified || ""
                         loaders: (model.loadersList || model.loader || "")
-                        categoriesJson: model.categories || "[]"
+                        categoriesJson: String(model.categories || "[]")
                         onClicked: {
                             page._packDetailSlug = model.slug
                             page._packDetailTitle = model.title || ""

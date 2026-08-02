@@ -17,6 +17,9 @@ import QtQuick.Layouts
 // ═══════════════════════════════════════════════════════════════════
 Rectangle {
     id: root
+    readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
+    anchors.fill: parent
+    color: hasBg ? "transparent" : StyleTokens.bgPrimary
 
     property var backend: null
     property var mainWindow: null

@@ -234,6 +234,7 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/MinecraftHead2D.qml
         qml/ModLoaderCard.qml
         qml/ModDetailPage.qml
+        qml/ModpackDetailPage.qml
         qml/MultiplayerPage.qml
         qml/MultiplayerStateDot.qml
         qml/MultiplayerStateIndicator.qml

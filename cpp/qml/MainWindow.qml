@@ -196,6 +196,13 @@ Window {
             pendingSubTab = 2
             let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { var item = downloadPageLoader.item; if (item) { item.shaderDetailSlug = "' + slug + '"; item.shaderDetailTitle = "' + slug + '"; item.shaderDetailPage.shaderDetailExpanded = []; item.shaderDetailPage.shaderDetailSelectedVer = ""; if (item.backend) item.backend.fetchShaderVersions(["' + slug + '"]) } destroy() } }', appWindow)
         }
+        // ── Auto-test: open modpack detail page ──
+        function onOpenPackDetailRequested(slug) {
+            console.log("[auto-test] openPackDetailRequested:", slug)
+            switchPage(1)
+            pendingSubTab = 4
+            let timer = Qt.createQmlObject('import QtQuick; Timer { interval: 1500; running: true; repeat: false; onTriggered: { var item = downloadPageLoader.item; if (item) { item._packDetailSlug = "' + slug + '"; item._packDetailTitle = "' + slug + '"; item._packDetailDesc = ""; item._packDetailIcon = ""; item._packDetailSource = "Modrinth"; item._showPackDetail = true } destroy() } }', appWindow)
+        }
         // ── Auto-test: toggle pre-release switch ──
         function onSetRpShowPreReleases(show) {
             console.log("[auto-test] setRpShowPreReleases:", show)

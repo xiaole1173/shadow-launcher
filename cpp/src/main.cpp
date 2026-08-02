@@ -440,11 +440,9 @@ int main(int argc, char *argv[])
         checkpoint(QStringLiteral("Checking beta key..."));
         QString savedKey = ShadowBackend::loadBetaKey();
 
-        if (savedKey.isEmpty() || !ShadowBackend::validateBetaKey(savedKey)) {
-            if (!savedKey.isEmpty()) {
-                qCWarning(logApp) << QStringLiteral("[Beta] 保存的密钥无效 显示对话框");
-            }
-
+        // 已保存密钥（本地解密成功）即放行：不再每次启动重新联网验证
+        // （旧逻辑 validateBetaKey 为同步网络请求，网络波动会误判无效→频繁弹窗）
+        if (savedKey.isEmpty()) {
             // Load BetaKeyDialog; betaVerified signal will reload MainWindow
             QUrl betaUrl;
             if (devMode) {
@@ -466,7 +464,7 @@ int main(int argc, char *argv[])
 
             loadedBetaDialog = true;
         } else {
-            qCInfo(logApp) << QStringLiteral("[Beta] 密钥有效 继续启动");
+            qCInfo(logApp) << QStringLiteral("[Beta] 已保存密钥 直接放行");
         }
     }
 
@@ -682,6 +680,8 @@ int main(int argc, char *argv[])
                             emit backend->openModDetailRequested(detailSlug);
                         else if (targetTab == 2)
                             emit backend->openShaderDetailRequested(detailSlug);
+                        else if (targetTab == 4)
+                            emit backend->openPackDetailRequested(detailSlug);
                         else
                             emit backend->openRpDetailRequested(detailSlug);
                         // --detail-expand <major>
