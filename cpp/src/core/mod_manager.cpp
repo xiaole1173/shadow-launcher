@@ -440,9 +440,11 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
     fd->addFile(savePath, QFileInfo(savePath).fileName(),
                 QStringList() << url, expectedSize, sha1.toUtf8());
 
-    // 进度：fileProgress（分片粒度，150ms 节流）→ 速度 EMA + 信号
-    connect(fd, &ShadowDownloader::FileDownloader::fileProgress, this,
-        [this, id](const QString&, const QString&, qint64 received, qint64 total, const QString&) {
+    // 进度：引擎聚合 progressChanged（全部分片总字节，单调递增；150ms 节流）。
+    // 不能用 fileProgress——它是分片粒度（各片 received/total 独立），并发分片完成时
+    // 进度来回跳（2026-08-02 实测模组下载进度条跳动即此因）。
+    connect(fd, &ShadowDownloader::FileDownloader::progressChanged, this,
+        [this, id](int, int, qint64 received, qint64 total) {
             auto it = m_activeModDownloads.find(id);
             if (it == m_activeModDownloads.end() || it->cancelled || it->finished || it->paused) return;
             it->received = received;
