@@ -1604,6 +1604,12 @@ Rectangle {
         visible: page._showRpDetail
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
+        // 鼠标事件拦截层（防止穿透到下层 Tab 的 hover/点击检测）
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+
         // Exit fade-out animation
         SequentialAnimation {
             id: rpExitAnim
@@ -1673,6 +1679,12 @@ Rectangle {
         visible: page._showModDetail
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
+        // 鼠标事件拦截层（防止穿透到下层 Tab 的 hover/点击检测）
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+
         // Exit fade-out animation
         SequentialAnimation {
             id: modExitAnim
@@ -1740,6 +1752,13 @@ Rectangle {
         visible: page._showPackDetail
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
+        // 鼠标事件拦截层：overlay 空白区域也吃掉鼠标事件，
+        // 防止穿透到下层 Tab 的 hover/点击检测（光标异常变手型/穿透点击）
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+
         SequentialAnimation {
             id: packExitAnim
             NumberAnimation { target: packDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
@@ -1805,6 +1824,12 @@ Rectangle {
         opacity: page._showShaderDetail ? 1 : 0
         visible: page._showShaderDetail
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+        // 鼠标事件拦截层（防止穿透到下层 Tab 的 hover/点击检测）
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+        }
 
         SequentialAnimation {
             id: shaderExitAnim
