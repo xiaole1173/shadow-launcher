@@ -718,7 +718,14 @@ void AccountBackend::downloadOnlineSkin(bool forceRefresh)
             qCWarning(logAccount) << QStringLiteral("Mojang档案获取失败 错误=%1").arg(reply->errorString());
             m_capes.clear();
             emit capesReady();
-            setFallbackSkin();
+            if (!skinCached) {
+                // 无缓存 → fallback 史蒂夫
+                setFallbackSkin();
+            } else {
+                // ⚠ 有本地缓存皮肤：保留已显示的缓存（m_skinPath 已指向本地文件），
+                // 网络失败不应把正版皮肤覆盖成史蒂夫（原逻辑无条件 fallback）。
+                qCInfo(logAccount) << QStringLiteral("网络失败，保留缓存皮肤: %1").arg(m_skinPath);
+            }
             emit skinReady();
             return;
         }
