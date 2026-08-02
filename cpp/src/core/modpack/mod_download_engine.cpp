@@ -110,7 +110,30 @@ void ModDownloadEngine::pump()
     if (m_state != Running) return;
 
     // 填满并发槽
-    while (m_active < m_maxThreads && !m_pending.isEmpty()) {
+    while (m_active < m_maxThreads) {
+        if (m_pending.isEmpty()) {
+            // ── 失败文件补位重试（核心调度改进）──
+            // 整合包不容放过任何模组：正常队列已空且有并发空槽时，把上一轮失败的
+            // 文件重新入队重试——不干等整轮结束（旧逻辑要 active==0 才重试，
+            // 失败发生在早期时其他几百个文件全下完才轮到它）。
+            // 轮次保护：每补位一批计一轮，达到 kMaxRounds-1 后不再补位（由 finishAll 收尾）。
+            if (m_round >= kMaxRounds - 1) break;
+            int requeued = 0;
+            for (auto& it : m_items) {
+                if (it->state == 3) {
+                    it->state = 0; it->sourceIdx = 0; it->failCount = 0;
+                    it->fallbackPassDone = false; it->received = 0; it->error.clear();
+                    m_failedFiles--;
+                    m_pending.append(it);
+                    requeued++;
+                }
+            }
+            if (requeued == 0) break;
+            m_round++;
+            emit logMessage(QStringLiteral("[引擎·精卫] [补位重试] 第 %1/%2 轮：%3 个失败文件重新入队")
+                                .arg(m_round + 1).arg(kMaxRounds).arg(requeued));
+            continue;   // 继续填槽
+        }
         auto it = m_pending.takeFirst();
         if (it->state != 0) continue;
         it->state = 1;
