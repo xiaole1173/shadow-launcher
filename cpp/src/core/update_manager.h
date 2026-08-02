@@ -8,6 +8,8 @@
 #include <QTimer>
 #include <QNetworkReply>
 #include <QJsonObject>
+#include "http_client.h"   // HttpClient::DownloadHandle
+
 
 namespace ShadowLauncher {
 
@@ -108,7 +110,7 @@ private:
     QString m_downloadFileName;
     qint64 m_downloadTotal = 0;
     qint64 m_downloadReceived = 0;
-    QNetworkReply* m_activeReply = nullptr;
+    HttpClient::DownloadHandle* m_activeReply = nullptr;
 
     // Suppress state file saves during init
     bool m_initPhase = true;

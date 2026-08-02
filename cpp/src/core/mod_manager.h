@@ -12,6 +12,7 @@
 
 class QNetworkReply;
 class QFile;
+#include "http_client.h"   // HttpClient::DownloadHandle
 
 namespace ShadowLauncher {
 
@@ -249,7 +250,7 @@ private:
         bool finished = false;
         bool failed = false;
         QString errorDetail;
-        QNetworkReply* reply = nullptr;
+        HttpClient::DownloadHandle* reply = nullptr;
         QFile* tmpFile = nullptr;
         QString tmpPath;
     };

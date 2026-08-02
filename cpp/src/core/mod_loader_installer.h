@@ -14,6 +14,8 @@ class QZipReader;
 #include <QFutureWatcher>
 #include <QNetworkReply>
 #include <QVector>
+#include "http_client.h"   // HttpClient::DownloadHandle
+
 #include <functional>
 #include <memory>
 #include <atomic>
@@ -205,7 +207,7 @@ private:
     // In-flight HttpClient replies (downloadToFile). Aborted in cancel() so their
     // completion callbacks run while `this` is still alive (destroyed right after
     // cancel() by destroyMergedContext).
-    QVector<QNetworkReply*> m_activeReplies;
+    QVector<HttpClient::DownloadHandle*> m_activeReplies;
     QString m_optifineForgeVersion;
     bool m_optifineUseOfficial = false;
     bool m_parallelMode = false;  // Fabric: don't auto-advance to write phase

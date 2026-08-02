@@ -345,7 +345,7 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
     }
 
     qint64 offset = receivedOffset;
-    QNetworkReply* reply = HttpClient::instance().downloadWithReply(
+    HttpClient::DownloadHandle* reply = HttpClient::instance().downloadWithReply(
         url, savePath,
         [this, id, offset](qint64 received, qint64 total) {
             auto it = m_activeModDownloads.find(id);

@@ -558,6 +558,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     target_include_directories(CfCryptoInteropTest PRIVATE src)
     target_link_libraries(CfCryptoInteropTest PRIVATE Qt6::Core bcrypt)
 
+    # 驿道 v2 集成测试：实测分片下载（用法: YidaoTest <url> [expectedSize] [outPath]）
+    add_executable(YidaoTest
+        tests/test_yidao.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(YidaoTest PRIVATE src)
+    target_link_libraries(YidaoTest PRIVATE Qt6::Core Qt6::Network)
+
     # CF 适配器自测：搜索统一模型 + 文件→版本转换 + 分类表
     add_executable(CfApiTest
         tests/test_cf_api.cpp

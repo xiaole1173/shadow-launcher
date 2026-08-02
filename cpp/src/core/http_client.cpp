@@ -1,15 +1,23 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
-// Shadow Launcher — HTTP client implementation (Qt6::Network backend)
-// cpr/libcurl backend will be added later via #ifdef
+// Shadow Launcher — HTTP client implementation (Qt6::Network backend) — 驿道 v2
+//
+// v2 (2026-08-02)：高速多线程通用下载引擎
+//   1. >4MB 文件自动 Range 多线程分片（实测 cdn-alt 8 连接 337KB/s vs 单连接超时/几十 KB）
+//   2. 分片前探测：Range 支持判定（206）+ 307 重定向预解析（分片直接打最终 URL）
+//   3. 片数据按偏移直写主文件（零合并开销，磁盘峰值≈单份）
+//   4. 停滞检测推广到所有源/所有片（2s×3 无字节增长 → abort 重试）
+//   5. expectedSize/expectedSha1 完整性校验内建（不符自动重下一次）
+//   6. DownloadQueue 类删除（全项目无调用方的漏网死代码）
 //
 // Design rules:
 //   1. Qt Network is async → never blocks the UI
 //   2. Proxy/UA config shared between all network layers
-//   3. DownloadQueue limits concurrency to 2~4
+//   3. API 请求（get/post）保持单连接零变化；文件传输自动分片
 
 #include "http_client.h"
 #include "engine_identity.h"
+#include "utils/hash_utils.h"
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -25,21 +33,11 @@
 #include <QElapsedTimer>
 #include <QDateTime>
 #include <QDebug>
+#include <QCryptographicHash>
 
 #include <memory>
 
 namespace ShadowLauncher {
-
-// ============================================================
-// QueueItem — holds one enqueued download task
-// ============================================================
-
-struct QueueItem {
-    QString url;
-    QString savePath;
-    std::function<void(qint64, qint64)> progress;
-    std::function<void(bool, const QString&)> done;
-};
 
 // ============================================================
 // HttpClient implementation
@@ -50,6 +48,9 @@ HttpClient::HttpClient()
     qCInfo(logDownload) << engineBanner("yidao");
     m_manager = new QNetworkAccessManager(this);
     m_manager->setTransferTimeout(m_config.totalTimeoutMs);
+    // 分片双 QNAM 轮询（对齐山海经 2×QNAM 验证结论：避免单 manager 队列拥塞）
+    m_manager2 = new QNetworkAccessManager(this);
+    m_manager2->setTransferTimeout(m_config.totalTimeoutMs);
 
     // Persist HTTP cache (webp icons, API responses) to disk
     auto* diskCache = new QNetworkDiskCache(this);
@@ -62,7 +63,7 @@ HttpClient::HttpClient()
 
 HttpClient::~HttpClient()
 {
-    // m_manager is parented to this, auto-clean
+    // managers are parented to this, auto-clean
 }
 
 HttpClient& HttpClient::instance()
@@ -89,8 +90,10 @@ void HttpClient::setProxy(const QString& host, int port,
             proxy.setPassword(pass);
         }
         m_manager->setProxy(proxy);
+        m_manager2->setProxy(proxy);
     } else {
         m_manager->setProxy(QNetworkProxy::NoProxy);
+        m_manager2->setProxy(QNetworkProxy::NoProxy);
     }
 
     emit proxyChanged();
@@ -116,6 +119,61 @@ static QNetworkRequest buildRequest(const NetworkConfig& cfg, const QUrl& url,
         req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
                          QNetworkRequest::AlwaysNetwork);
     return req;
+}
+
+// ============================================================
+// DownloadHandle — 分片/单连接统一任务句柄
+// ============================================================
+
+HttpClient::DownloadHandle::DownloadHandle(QObject* parent)
+    : QObject(parent)
+{
+}
+
+HttpClient::DownloadHandle::~DownloadHandle()
+{
+    abort();
+}
+
+void HttpClient::DownloadHandle::addReply(QNetworkReply* r)
+{
+    QMutexLocker lock(&m_mutex);
+    if (m_aborted) {
+        lock.unlock();
+        r->abort();
+        r->deleteLater();
+        return;
+    }
+    m_replies.append(r);
+}
+
+void HttpClient::DownloadHandle::onReplyFinished(QNetworkReply* r)
+{
+    QMutexLocker lock(&m_mutex);
+    m_replies.removeOne(r);
+}
+
+void HttpClient::DownloadHandle::abort()
+{
+    QMutexLocker lock(&m_mutex);
+    if (m_aborted) return;
+    m_aborted = true;
+    const auto replies = m_replies;
+    lock.unlock();
+    for (auto* r : replies) {
+        if (r) r->abort();
+    }
+}
+
+bool HttpClient::DownloadHandle::isActive() const
+{
+    QMutexLocker lock(&m_mutex);
+    return !m_aborted && !m_replies.isEmpty();
+}
+
+void HttpClient::abortDownload(DownloadHandle* handle)
+{
+    if (handle) handle->abort();
 }
 
 // --------------- GET ---------------
@@ -201,32 +259,72 @@ static QString mirrorUrl(const QString& url)
     return {};
 }
 
-// --------------- downloadImpl (internal — mirror-first, single attempt) ---------------
+// ============================================================
+// 完整性校验（size + sha1）
+// ============================================================
 
-static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
-                         const QString& url, const QString& savePath,
-                         std::function<void(qint64, qint64)> progress,
-                         std::function<void(bool, const QString&)> done,
-                         int timeoutMs)
+bool HttpClient::verifyFile(const QString& path, qint64 expectedSize,
+                            const QString& expectedSha1, QString* errOut)
+{
+    const QFileInfo fi(path);
+    if (expectedSize > 0 && fi.size() != expectedSize) {
+        if (errOut) *errOut = QStringLiteral("大小不符 预期=%1 实际=%2")
+                                  .arg(expectedSize).arg(fi.size());
+        return false;
+    }
+    if (!expectedSha1.isEmpty()) {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            if (errOut) *errOut = QStringLiteral("无法读取文件校验: %1").arg(path);
+            return false;
+        }
+        const QString actual = sha1Hex(f.readAll());
+        f.close();
+        if (actual.compare(expectedSha1, Qt::CaseInsensitive) != 0) {
+            if (errOut) *errOut = QStringLiteral("SHA1不符 预期=%1 实际=%2")
+                                      .arg(expectedSha1, actual);
+            return false;
+        }
+    }
+    return true;
+}
+
+// ============================================================
+// 单连接下载（小文件 / 不支持 Range / 断点续传路径）
+// 镜像优先 + 停滞检测 + 可选校验
+// ============================================================
+
+void HttpClient::startSingle(const QString& url, const QString& savePath,
+                             std::function<void(qint64, qint64)> progress,
+                             std::function<void(bool, const QString&)> done,
+                             qint64 resumeFrom, qint64 expectedSize,
+                             const QString& expectedSha1, DownloadHandle* handle)
 {
     const QString tmpPath = savePath + QStringLiteral(".tmp");
-    QFileInfo fi(savePath);
+    const QFileInfo fi(savePath);
     QDir().mkpath(fi.absolutePath());
-    QFile::remove(tmpPath);
+    if (resumeFrom <= 0) QFile::remove(tmpPath);
 
-    QString mirror = mirrorUrl(url);
-    QString primaryUrl = mirror.isEmpty() ? url : mirror;
+    const QString mirror = mirrorUrl(url);
+    const QString primaryUrl = mirror.isEmpty() ? url : mirror;
+    const bool isMirror = !mirror.isEmpty() && primaryUrl == mirror;
 
     auto dlTimer = std::make_shared<QElapsedTimer>();
     dlTimer->start();
 
-    QNetworkRequest req = buildRequest(cfg, QUrl(primaryUrl), true, timeoutMs);
-    QNetworkReply* reply = mgr->get(req);
+    QNetworkRequest req = buildRequest(m_config, QUrl(primaryUrl), false,
+                                       resumeFrom > 0 ? kShardIdleTimeoutMs : kShardConnectTimeoutMs);
+    if (resumeFrom > 0)
+        req.setRawHeader("Range", QStringLiteral("bytes=%1-").arg(resumeFrom).toUtf8());
+    QNetworkReply* reply = m_manager->get(req);
+    if (handle) handle->addReply(reply);
 
-    qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 开始下载 %1 超时=%2ms").arg(primaryUrl).arg(timeoutMs);
+    qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 开始下载(单连接) %1").arg(primaryUrl);
 
+    auto openMode = (resumeFrom > 0) ? QIODevice::Append : QIODevice::WriteOnly;
     auto* file = new QFile(tmpPath);
-    if (!file->open(QIODevice::WriteOnly)) {
+    if (!file->open(openMode)) {
+        if (handle) handle->onReplyFinished(reply);
         reply->abort();
         reply->deleteLater();
         delete file;
@@ -234,25 +332,22 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
         return;
     }
 
-    QObject::connect(reply, &QNetworkReply::readyRead, mgr,
+    QObject::connect(reply, &QNetworkReply::readyRead, this,
         [reply, file]() { file->write(reply->readAll()); });
 
-    // ── 停滞检测（慢速挂起传输防护）──
-    // 镜像服务器可能出现"连接保持但数据传输极慢/挂起"（实测 bmclapi 24s 后才断开），
-    // transferTimeout 只看"有无活动"不会触发（慢速传输一直在活动）→ 白白等待。
-    // 每 2s 检查累计字节，连续 3 次（6s）无增长 → abort（镜像失败 → 自动切官方）。
+    // ── 停滞检测（慢速挂起传输防护，推广到所有源）──
     auto totalRecv = std::make_shared<qint64>(0);
     auto lastRecv = std::make_shared<qint64>(-1);
     auto stallCount = std::make_shared<int>(0);
     auto stallTimer = std::make_shared<QTimer>();
-    stallTimer->setInterval(2000);
+    stallTimer->setInterval(kStallIntervalMs);
     QObject::connect(stallTimer.get(), &QTimer::timeout,
         [reply, totalRecv, lastRecv, stallCount, stallTimer]() {
             if (reply->error() != QNetworkReply::NoError) return;
+            if (*totalRecv <= 0) return;   // 首包未到：交给 transferTimeout，停滞检测不介入
             if (*totalRecv == *lastRecv) {
-                if (++(*stallCount) >= 3) {
-                    reply->abort();   // 6s 无进展 → 中止（镜像挂起）
-                }
+                if (++(*stallCount) >= kStallTicks)
+                    reply->abort();   // 传输中停滞 → 中止
             } else {
                 *lastRecv = *totalRecv;
                 *stallCount = 0;
@@ -264,34 +359,46 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
     auto sharedDone = std::make_shared<std::function<void(bool,const QString&)>>(std::move(done));
 
     if (*sharedProg) {
-        QObject::connect(reply, &QNetworkReply::downloadProgress, mgr,
-            [sharedProg, totalRecv](qint64 recv, qint64 total) {
+        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
+            [sharedProg, totalRecv, resumeFrom](qint64 recv, qint64 total) {
                 *totalRecv = recv;
-                (*sharedProg)(recv, total);
+                (*sharedProg)(resumeFrom + recv,
+                              resumeFrom > 0 && total > 0 ? resumeFrom + total : total);
             });
     } else {
-        QObject::connect(reply, &QNetworkReply::downloadProgress, mgr,
+        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
             [totalRecv](qint64 recv, qint64) { *totalRecv = recv; });
     }
 
-    QObject::connect(reply, &QNetworkReply::finished, mgr,
-        [mgr, primaryUrl, mirror, url, reply, file, savePath, tmpPath,
-         sharedProg, sharedDone, cfg, timeoutMs, dlTimer, stallTimer]() mutable {
+    QObject::connect(reply, &QNetworkReply::finished, this,
+        [this, primaryUrl, isMirror, url, reply, file, savePath, tmpPath,
+         sharedProg, sharedDone, dlTimer, stallTimer, resumeFrom,
+         expectedSize, expectedSha1, handle]() mutable {
             file->close();
             delete file;
             stallTimer->stop();
             stallTimer->deleteLater();
+            if (handle) handle->onReplyFinished(reply);
 
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            const bool ok = (reply->error() == QNetworkReply::NoError);
+            const bool networkOk = (reply->error() == QNetworkReply::NoError);
             const QString errStr = reply->errorString();
-            qint64 elapsed = dlTimer->elapsed();
+            const qint64 elapsed = dlTimer->elapsed();
             reply->deleteLater();
 
-            if (ok && status == 200) {
+            // HTTP 206 Partial Content is success for Range requests
+            const bool httpOk = networkOk && (status == 200 || (resumeFrom > 0 && status == 206));
+            if (httpOk) {
+                // 完整性校验（size + sha1）
+                QString verifyErr;
+                if (!verifyFile(tmpPath, expectedSize, expectedSha1, &verifyErr)) {
+                    QFile::remove(tmpPath);
+                    if (*sharedDone) (*sharedDone)(false, verifyErr);
+                    return;
+                }
                 QFile::remove(savePath);
                 if (QFile::rename(tmpPath, savePath)) {
-                    qint64 fileSize = QFileInfo(savePath).size();
+                    const qint64 fileSize = QFileInfo(savePath).size();
                     qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 下载完成 %1 文件大小=%2 耗时=%3ms")
                                                      .arg(savePath).arg(fileSize).arg(elapsed);
                     if (*sharedDone) (*sharedDone)(true, {});
@@ -299,182 +406,352 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
                     QFile::remove(tmpPath);
                     if (*sharedDone) (*sharedDone)(false, QStringLiteral("重命名失败: %1").arg(tmpPath));
                 }
-            } else if (!mirror.isEmpty() && primaryUrl == mirror) {
+            } else if (isMirror) {
                 qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 镜像源失败 %1，切换到官方源 %2").arg(errStr, url);
                 QFile::remove(tmpPath);
-                downloadImpl(mgr, cfg, url, savePath,
-                             sharedProg ? *sharedProg : nullptr,
-                             sharedDone ? *sharedDone : nullptr,
-                             timeoutMs);
+                startSingle(url, savePath,
+                            sharedProg ? *sharedProg : nullptr,
+                            sharedDone ? *sharedDone : nullptr,
+                            resumeFrom, expectedSize, expectedSha1, handle);
             } else {
                 QFile::remove(tmpPath);
                 if (*sharedDone) {
-                    (*sharedDone)(false, ok ? QStringLiteral("HTTP %1").arg(status) : errStr);
+                    (*sharedDone)(false, networkOk
+                        ? QStringLiteral("HTTP %1").arg(status) : errStr);
                 }
-            }
-        });
-}
-
-// --------------- downloadRetry (3-attempt: 10s → 30s → 4s) ---------------
-
-static void downloadRetry(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
-                          const QString& url, const QString& savePath,
-                          std::function<void(qint64,qint64)> progress,
-                          std::function<void(bool,const QString&)> done,
-                          int attempt, qint64 startTimeMs)
-{
-    if (attempt >= 3) {
-        if (done) done(false, QStringLiteral("下载失败（已重试3次）: %1").arg(url));
-        return;
-    }
-
-    int timeoutMs;
-    switch (attempt) {
-        case 0: timeoutMs = 10000; break;
-        case 1: timeoutMs = 30000; break;
-        default: timeoutMs = 4000; break;
-    }
-
-    if (attempt >= 2) {
-        qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startTimeMs;
-        if (elapsed < 5500) {
-            if (done) done(false, QStringLiteral("下载失败（耗时过短，跳过重试）: %1").arg(url));
-            return;
-        }
-    }
-
-    int delay = (attempt > 0) ? 500 : 0;
-
-    auto doReq = [=]() {
-        downloadImpl(mgr, cfg, url, savePath, progress,
-                     [=](bool ok, const QString& err) {
-            if (ok) { if (done) done(true, {}); }
-            else downloadRetry(mgr, cfg, url, savePath, progress, done, attempt + 1, startTimeMs);
-        }, timeoutMs);
-    };
-
-    if (delay > 0)
-        QTimer::singleShot(delay, mgr, doReq);
-    else
-        doReq();
-}
-
-// --------------- download (public API — retry wrapper) ---------------
-
-void HttpClient::download(const QString& url, const QString& savePath,
-                          std::function<void(qint64, qint64)> progress,
-                          std::function<void(bool, const QString&)> done)
-{
-    downloadRetry(m_manager, m_config, url, savePath,
-                  std::move(progress), std::move(done),
-                  0, QDateTime::currentMSecsSinceEpoch());
-}
-// --------------- GET with mirror fallback ---------------
-
-// --------------- downloadWithFallback (delegates to download which has mirror built-in) ---------------
-
-void HttpClient::downloadWithFallback(const QString& url, const QString& savePath,
-                          std::function<void(qint64, qint64)> progress,
-                          std::function<void(bool, const QString&)> done)
-{
-    download(url, savePath, std::move(progress), std::move(done));
-}
-
-// --------------- downloadWithReply ---------------
-
-QNetworkReply* HttpClient::downloadWithReply(const QString& url, const QString& savePath,
-                  std::function<void(qint64, qint64)> progress,
-                  std::function<void(bool, const QString&)> done,
-                  qint64 resumeFrom)
-{
-    const QString tmpPath = savePath + QStringLiteral(".tmp");
-    const QFileInfo fi(savePath);
-    QDir().mkpath(fi.absolutePath());
-
-    // Only remove stale tmp on fresh download; keep on resume
-    if (resumeFrom <= 0) QFile::remove(tmpPath);
-
-    auto dlTimer = std::make_shared<QElapsedTimer>();
-    dlTimer->start();
-
-    qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 开始下载 %1").arg(url);
-
-    QNetworkRequest req = buildRequest(m_config, QUrl(url), false);
-    if (resumeFrom > 0) {
-        req.setRawHeader("Range", QStringLiteral("bytes=%1-").arg(resumeFrom).toUtf8());
-    }
-    QNetworkReply* reply = m_manager->get(req);
-
-    auto openMode = (resumeFrom > 0) ? QIODevice::Append : QIODevice::WriteOnly;
-    auto* file = new QFile(tmpPath);
-    if (!file->open(openMode)) {
-        reply->abort();
-        reply->deleteLater();
-        delete file;
-        if (done) done(false, QStringLiteral("无法打开文件: %1").arg(tmpPath));
-        return nullptr;
-    }
-
-    QObject::connect(reply, &QNetworkReply::readyRead, this,
-        [reply, file]() { file->write(reply->readAll()); });
-
-    if (progress) {
-        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
-            [progress = std::move(progress), resumeFrom](qint64 received, qint64 total) {
-                progress(resumeFrom + received, resumeFrom > 0 ? (total > 0 ? resumeFrom + total : -1) : total);
-            });
-    }
-
-    QObject::connect(reply, &QNetworkReply::finished, this,
-        [this, reply, file, tmpPath, savePath, done = std::move(done), dlTimer]() {
-            file->close();
-            qint64 elapsed = dlTimer->elapsed();
-            reply->deleteLater();
-            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            const bool networkOk = (reply->error() == QNetworkReply::NoError);
-            const QString errorStr = reply->errorString();
-            // HTTP 206 Partial Content is success for Range requests
-            const bool httpOk = networkOk && (status == 200 || status == 206);
-            if (httpOk) {
-                QFile::remove(savePath);
-                if (QFile::rename(tmpPath, savePath)) {
-                    qint64 fileSize = QFileInfo(savePath).size();
-                    qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 下载完成 %1 文件大小=%2 耗时=%3ms")
-                                                     .arg(savePath).arg(fileSize).arg(elapsed);
-                    delete file;
-                    if (done) done(true, QString());
-                } else {
-                    QFile::remove(tmpPath);
-                    delete file;
-                    if (done) done(false, QStringLiteral("重命名下载文件失败"));
-                }
-            } else {
-                QFile::remove(tmpPath);
-                delete file;
-                if (done) done(false, networkOk
-                    ? QStringLiteral("HTTP %1").arg(status)
-                    : errorStr);
             }
         });
 
     QObject::connect(reply, &QNetworkReply::errorOccurred, this,
-        [reply, file, tmpPath, done](QNetworkReply::NetworkError) {
-            Q_UNUSED(reply)
+        [file, tmpPath](QNetworkReply::NetworkError) {
+            // 仅清理文件；done 统一由 finished 回调发出（避免双 done）
             file->close();
             file->deleteLater();
             QFile::remove(tmpPath);
-            if (done) {
-                const QString err = QStringLiteral("网络错误: %1").arg(reply->errorString());
-                done(false, err);
-            }
         });
-
-    return reply;
 }
 
-// ═══════════════════════════════════════════════════
-// POST with raw body
-// ═══════════════════════════════════════════════════
+// ============================================================
+// 分片下载
+// ============================================================
+
+// 探测：GET Range: bytes=0-0（跟随重定向拿最终 URL）
+// 206 → runChunked(finalUrl, total)；200/小文件 → startSingle
+void HttpClient::startChunked(const QString& url, const QString& savePath,
+                              std::function<void(qint64, qint64)> progress,
+                              std::function<void(bool, const QString&)> done,
+                              qint64 expectedSize, const QString& expectedSha1,
+                              DownloadHandle* handle)
+{
+    QNetworkRequest req = buildRequest(m_config, QUrl(url), false, kShardConnectTimeoutMs);
+    req.setRawHeader("Range", "bytes=0-0");
+    QNetworkReply* probe = m_manager->get(req);
+    if (handle) handle->addReply(probe);
+
+    qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 分片探测 %1").arg(url);
+
+    QObject::connect(probe, &QNetworkReply::finished, this,
+        [this, probe, url, savePath, progress = std::move(progress),
+         done = std::move(done), expectedSize, expectedSha1, handle]() {
+            if (handle) handle->onReplyFinished(probe);
+            const int status = probe->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const QString finalUrl = probe->url().toString();  // 重定向后的实际 URL
+            const bool networkOk = (probe->error() == QNetworkReply::NoError);
+            const QString errStr = probe->errorString();
+            probe->deleteLater();
+
+            if (!networkOk) {
+                qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 探测失败 %1 (%2)，降级单连接").arg(url, errStr);
+                // 降级单连接（镜像优先 + 官方 fallback + 停滞检测），不直接失败——保证不比 v1 脆
+                startSingle(url, savePath, std::move(progress), std::move(done),
+                            -1, expectedSize, expectedSha1, handle);
+                return;
+            }
+
+            if (status == 206) {
+                // Content-Range: bytes 0-0/TOTAL
+                const QByteArray cr = probe->rawHeader("Content-Range");
+                const int slash = cr.lastIndexOf('/');
+                bool ok = false;
+                const qint64 total = slash >= 0 ? cr.mid(slash + 1).toLongLong(&ok) : 0;
+                if (ok && total > 0 && total >= kShardThresholdBytes) {
+                    // 307 预解析：分片直接打最终 URL，省掉每片一次重定向 + TLS 握手
+                    if (finalUrl != url) {
+                        qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 307 预解析 %1 → %2").arg(url, finalUrl);
+                    }
+                    runChunked(finalUrl, total, savePath, std::move(progress),
+                               std::move(done), expectedSize, expectedSha1, handle);
+                    return;
+                }
+            }
+            // 不支持 Range（200）或文件较小 → 单连接
+            startSingle(url, savePath, std::move(progress), std::move(done),
+                        -1, expectedSize, expectedSha1, handle);
+        });
+}
+
+// 分片并行核心：每片 Range 直写主文件对应偏移（零合并开销）
+void HttpClient::runChunked(const QString& finalUrl, qint64 total,
+                            const QString& savePath,
+                            std::function<void(qint64, qint64)> progress,
+                            std::function<void(bool, const QString&)> done,
+                            qint64 expectedSize, const QString& expectedSha1,
+                            DownloadHandle* handle)
+{
+    const QString tmpPath = savePath + QStringLiteral(".part");
+    QFileInfo fi(savePath);
+    QDir().mkpath(fi.absolutePath());
+    QFile::remove(tmpPath);
+
+    // ── 分片参数：N = clamp(total/2MB, 4, 8)（实测 8 连接收益最佳）──
+    const int shards = static_cast<int>(
+        qBound<qint64>(static_cast<qint64>(kMinShards),
+                       (total + kShardSizeBytes - 1) / kShardSizeBytes,
+                       static_cast<qint64>(kMaxShards)));
+    const qint64 chunk = (total + shards - 1) / shards;
+
+    struct Ctx {
+        QFile* file = nullptr;
+        QVector<bool> doneFlags;          // 片成功落盘标记
+        QVector<int> retries;             // 片重试计数（主线程串行，无竞争）
+        qint64 recvBytes = 0;             // 网络已收字节（进度）
+        int inflight = 0;                 // 在途片数（含重试）
+        bool failed = false;              // 任一片耗尽重试 → 整体收尾
+        bool finished = false;            // 已发 done
+        qint64 total = 0;
+    };
+    auto ctx = std::make_shared<Ctx>();
+    ctx->total = total;
+    ctx->doneFlags.fill(false, shards);
+    ctx->retries.fill(0, shards);
+
+    auto* file = new QFile(tmpPath);
+    if (!file->open(QIODevice::WriteOnly)) {
+        delete file;
+        if (done) done(false, QStringLiteral("无法打开分片文件: %1").arg(tmpPath));
+        return;
+    }
+    ctx->file = file;
+
+    auto dlTimer = std::make_shared<QElapsedTimer>();
+    dlTimer->start();
+
+    // ── 整体收尾（仅一次）──
+    auto finishAll = [this, ctx, file, savePath, tmpPath, total,
+                      done, expectedSize, expectedSha1, dlTimer, handle](bool ok, const QString& err) {
+        if (ctx->finished) return;
+        ctx->finished = true;
+        if (ctx->file) {
+            ctx->file->close();
+            delete ctx->file;
+            ctx->file = nullptr;
+        }
+        if (!ok) {
+            QFile::remove(tmpPath);
+            if (done) done(false, err);
+            return;
+        }
+        const qint64 elapsed = dlTimer->elapsed();
+        QString verifyErr;
+        if (!verifyFile(tmpPath, expectedSize, expectedSha1, &verifyErr)) {
+            QFile::remove(tmpPath);
+            if (done) done(false, verifyErr);
+            return;
+        }
+        QFile::remove(savePath);
+        if (QFile::rename(tmpPath, savePath)) {
+            qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 分片下载完成 %1 大小=%2 分片=%3 耗时=%4ms")
+                                             .arg(savePath).arg(total).arg(ctx->doneFlags.size()).arg(elapsed);
+            if (done) done(true, {});
+        } else {
+            QFile::remove(tmpPath);
+            if (done) done(false, QStringLiteral("重命名失败: %1").arg(tmpPath));
+        }
+    };
+
+    // ── 片完成（成功/失败统一入口）──
+    auto finishChunk = [this, ctx, file, finishAll, handle](int i, qint64 start,
+                                                    const QByteArray& data, bool ok,
+                                                    const QString& err) {
+        if (ctx->failed || ctx->finished) return;
+        if (!ok) {
+            // 某片已耗尽重试次数 → 整体失败（其余片由 abort 中止、回调短路）
+            ctx->failed = true;
+            if (handle) handle->abort();
+            finishAll(false, err.isEmpty()
+                ? QStringLiteral("分片下载失败")
+                : QStringLiteral("分片下载失败: %1").arg(err));
+            return;
+        }
+        // 成功：按偏移直写主文件（主线程串行，无并发竞争）
+        if (!file->seek(start)) {
+            ctx->failed = true;
+            finishAll(false, QStringLiteral("分片文件定位失败"));
+            return;
+        }
+        const qint64 n = file->write(data);
+        if (n != data.size()) {
+            ctx->failed = true;
+            finishAll(false, QStringLiteral("分片文件写入不完整"));
+            return;
+        }
+        ctx->doneFlags[i] = true;
+
+        // 全部片成功落盘 → 收尾
+        if (ctx->inflight <= 0) {
+            bool allDone = true;
+            for (int k = 0; k < ctx->doneFlags.size(); k++) {
+                if (!ctx->doneFlags[k]) { allDone = false; break; }
+            }
+            if (allDone) finishAll(true, {});
+        }
+    };
+
+    // ── 启动单片（shared_ptr 自引用支持重试递归）──
+    auto startShard = std::make_shared<std::function<void(int)>>();
+    *startShard = [this, ctx, finalUrl, chunk, total, shards,
+                   finishChunk, startShard, handle, progress](int i) {
+        if (ctx->failed || ctx->finished) return;
+        if (handle && handle->m_aborted) {
+            // 已取消：不再启动新片，直接整体收尾
+            ctx->failed = true;
+            finishChunk(i, 0, {}, false, QStringLiteral("已取消"));
+            return;
+        }
+        const qint64 start = static_cast<qint64>(i) * chunk;
+        const qint64 end = qMin(start + chunk - 1, total - 1);
+
+        QNetworkRequest req = buildRequest(m_config, QUrl(finalUrl), false, kShardIdleTimeoutMs);
+        req.setRawHeader("Range", QStringLiteral("bytes=%1-%2").arg(start).arg(end).toUtf8());
+        QNetworkAccessManager* mgr = (i % 2 == 0) ? m_manager : m_manager2;  // 双 QNAM 轮询
+        QNetworkReply* reply = mgr->get(req);
+        if (handle) handle->addReply(reply);
+
+        ctx->inflight++;
+
+        auto shardData = std::make_shared<QByteArray>();
+        auto shardRecv = std::make_shared<qint64>(0);
+        auto stallCount = std::make_shared<int>(0);
+        auto lastRecv = std::make_shared<qint64>(-1);
+        auto stallTimer = std::make_shared<QTimer>();
+        stallTimer->setInterval(kStallIntervalMs);
+        QObject::connect(stallTimer.get(), &QTimer::timeout,
+            [reply, shardRecv, lastRecv, stallCount, stallTimer]() {
+                if (reply->error() != QNetworkReply::NoError) return;
+                if (*shardRecv <= 0) return;   // 首包未到：交给 transferTimeout，停滞检测不介入
+                if (*shardRecv == *lastRecv) {
+                    if (++(*stallCount) >= kStallTicks)
+                        reply->abort();
+                } else {
+                    *lastRecv = *shardRecv;
+                    *stallCount = 0;
+                }
+            });
+        stallTimer->start();
+
+        QObject::connect(reply, &QNetworkReply::readyRead, this,
+            [reply, shardData]() { shardData->append(reply->readAll()); });
+
+        // 进度：聚合各片已收字节（150ms 节流）
+        auto lastEmit = std::make_shared<qint64>(0);
+        QObject::connect(reply, &QNetworkReply::downloadProgress, this,
+            [ctx, shardRecv, progress, lastEmit](qint64 recv, qint64) {
+                const qint64 delta = recv - *shardRecv;
+                *shardRecv = recv;
+                if (delta > 0) ctx->recvBytes += delta;
+                if (!progress) return;
+                const qint64 now = QDateTime::currentMSecsSinceEpoch();
+                if (now - *lastEmit < 150) return;
+                *lastEmit = now;
+                progress(ctx->recvBytes, ctx->total);
+            });
+
+        QObject::connect(reply, &QNetworkReply::finished, this,
+            [this, ctx, reply, i, start, shardData, shards, total, finalUrl, chunk,
+             finishChunk, startShard, stallTimer, handle]() {
+                stallTimer->stop();
+                stallTimer->deleteLater();
+                if (handle) handle->onReplyFinished(reply);
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                const bool ok = (reply->error() == QNetworkReply::NoError) && status == 206;
+                const QString errStr = reply->errorString();
+                const QByteArray data = *shardData;
+                reply->deleteLater();
+
+                ctx->inflight--;
+
+                if (ctx->failed || ctx->finished) return;
+
+                if (!ok) {
+                    const int retried = ctx->retries[i];
+                    ctx->retries[i] = retried + 1;
+                    const bool aborted = handle && handle->m_aborted;
+                    if (!aborted && retried < kShardMaxRetries - 1) {
+                        qCInfo(logDownload).noquote()
+                            << QStringLiteral("[驿道] 分片%1/%2 重试(%3) %4")
+                                   .arg(i + 1).arg(shards).arg(retried + 1).arg(errStr);
+                        // 重试退避 500ms（对齐夸父 kRetryBackoffMs），避免并发重发加剧拥塞
+                        QTimer::singleShot(500, this, [startShard, i]() { (*startShard)(i); });
+                        return;
+                    }
+                    finishChunk(i, start, data, false,
+                                aborted ? QStringLiteral("已取消")
+                                        : (status != 206 ? QStringLiteral("HTTP %1").arg(status) : errStr));
+                    return;
+                }
+                finishChunk(i, start, data, true, {});
+            });
+    };
+
+    for (int i = 0; i < shards; i++)
+        (*startShard)(i);
+
+    qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 分片启动 %1 大小=%2 分片=%3").arg(finalUrl).arg(total).arg(shards);
+}
+
+// --------------- download (public API) ---------------
+
+void HttpClient::download(const QString& url, const QString& savePath,
+                          std::function<void(qint64, qint64)> progress,
+                          std::function<void(bool, const QString&)> done,
+                          qint64 expectedSize, const QString& expectedSha1)
+{
+    // 大文件 → 分片；小文件/不支持 Range → 探测后自动落单连接
+    startChunked(url, savePath, std::move(progress), std::move(done),
+                 expectedSize, expectedSha1, nullptr);
+}
+
+void HttpClient::downloadWithFallback(const QString& url, const QString& savePath,
+                          std::function<void(qint64, qint64)> progress,
+                          std::function<void(bool, const QString&)> done,
+                          qint64 expectedSize, const QString& expectedSha1)
+{
+    download(url, savePath, std::move(progress), std::move(done),
+             expectedSize, expectedSha1);
+}
+
+// --------------- downloadWithReply ---------------
+
+HttpClient::DownloadHandle* HttpClient::downloadWithReply(const QString& url, const QString& savePath,
+                  std::function<void(qint64, qint64)> progress,
+                  std::function<void(bool, const QString&)> done,
+                  qint64 resumeFrom, qint64 expectedSize,
+                  const QString& expectedSha1)
+{
+    auto* handle = new DownloadHandle(this);
+    if (resumeFrom > 0) {
+        // 断点续传走单连接（分片与续传不叠加，保持 update_manager 语义不变）
+        startSingle(url, savePath, std::move(progress), std::move(done),
+                    resumeFrom, expectedSize, expectedSha1, handle);
+    } else {
+        startChunked(url, savePath, std::move(progress), std::move(done),
+                     expectedSize, expectedSha1, handle);
+    }
+    return handle;
+}
+
+// --------------- POST / GET / PUT / DELETE ---------------
+
 QNetworkReply* HttpClient::post(const QNetworkRequest& request, const QByteArray& body)
 {
     QNetworkRequest req = request;
@@ -484,9 +761,6 @@ QNetworkReply* HttpClient::post(const QNetworkRequest& request, const QByteArray
     return m_manager->post(req, body);
 }
 
-// ═══════════════════════════════════════════════════
-// GET with custom request
-// ═══════════════════════════════════════════════════
 QNetworkReply* HttpClient::getRaw(const QNetworkRequest& request)
 {
     QNetworkRequest req = request;
@@ -517,113 +791,6 @@ QNetworkReply* HttpClient::deleteResource(const QNetworkRequest& request)
 void HttpClient::abortDownload(QNetworkReply* reply)
 {
     if (reply) reply->abort();
-}
-
-// ============================================================
-// DownloadQueue implementation
-// ============================================================
-
-DownloadQueue::DownloadQueue(int maxConcurrent, QObject* parent)
-    : QObject(parent)
-    , m_maxConcurrent(maxConcurrent)
-    , m_active(0)
-    , m_completed(0)
-{
-    m_timer = new QTimer(this);
-    m_timer->setInterval(100);
-    QObject::connect(m_timer, &QTimer::timeout, this, &DownloadQueue::scheduleNext);
-}
-
-DownloadQueue::~DownloadQueue()
-{
-    cancelAll();
-}
-
-// --------------- enqueue ---------------
-
-void DownloadQueue::enqueue(const QString& url, const QString& savePath,
-                            std::function<void(qint64, qint64)> progress,
-                            std::function<void(bool, const QString&)> done)
-{
-    auto item = std::make_shared<QueueItem>();
-    item->url      = url;
-    item->savePath = savePath;
-    item->progress = std::move(progress);
-    item->done     = std::move(done);
-
-    m_queue.append(std::move(item));
-    scheduleNext();
-}
-
-// --------------- cancel all ---------------
-
-void DownloadQueue::cancelAll()
-{
-    m_queue.clear();
-    m_timer->stop();
-    // Note: active downloads continue running; their doneCb checks
-    // QPointer which becomes null if this is destroyed
-}
-
-// --------------- pending count ---------------
-
-int DownloadQueue::pending() const
-{
-    return m_queue.size() + m_active;
-}
-
-// --------------- internal scheduler ---------------
-
-void DownloadQueue::scheduleNext()
-{
-    // Keep starting tasks while we have capacity and items waiting
-    while (m_active < m_maxConcurrent && !m_queue.isEmpty()) {
-        auto item = m_queue.takeFirst();
-        m_active++;
-
-        QPointer<DownloadQueue> self(this);
-
-        // --- progress forwarder ---
-        auto progressCb = [item](qint64 received, qint64 total) {
-            if (item->progress)
-                item->progress(received, total);
-        };
-
-        // --- done wrapper (includes queue management) ---
-        auto doneCb = [this, self, item](bool ok, const QString& err) {
-            if (!self)
-                return;
-
-            m_active--;
-            m_completed++;
-
-            // Forward to original caller
-            if (item->done)
-                item->done(ok, err);
-
-            // Emit progress update (completed, total)
-            const int total = m_completed + pending();
-            emit progressChanged(m_completed, total);
-
-            // Try to start more
-            scheduleNext();
-
-            // If everything is done, emit allCompleted
-            if (m_active == 0 && m_queue.isEmpty()) {
-                m_timer->stop();
-                emit allCompleted();
-            }
-        };
-
-        HttpClient::instance().downloadWithFallback(item->url, item->savePath,
-                                        std::move(progressCb),
-                                        std::move(doneCb));
-    }
-
-    // If items remain but no capacity, start periodic re-check
-    if (!m_queue.isEmpty() && !m_timer->isActive()) {
-        m_timer->start();
-    }
 }
 
 } // namespace ShadowLauncher

@@ -426,13 +426,9 @@ void UpdateManager::resumeDownload(qint64 resumeFrom)
             }
         },
         [this](bool ok, const QString& error) {
-            int httpStatus = 0;
-            if (m_activeReply) {
-                httpStatus = m_activeReply->attribute(
-                    QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            }
+            // 驿道 v2：句柄不再暴露 QNetworkReply 属性；状态码已包含在 error 文本（HTTP xxx）
             m_activeReply = nullptr;
-            onDownloadFinished(ok, error, httpStatus);
+            onDownloadFinished(ok, error, 0);
         },
         resumeFrom
     );
