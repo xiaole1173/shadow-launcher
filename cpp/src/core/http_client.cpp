@@ -336,13 +336,14 @@ void HttpClient::startSingle(const QString& url, const QString& savePath,
         [reply, file]() { file->write(reply->readAll()); });
 
     // ── 停滞检测（慢速挂起传输防护，推广到所有源）──
+    // 注意：裸指针 + deleteLater（shared_ptr<QTimer> + deleteLater 会 double free → 堆损坏）
     auto totalRecv = std::make_shared<qint64>(0);
     auto lastRecv = std::make_shared<qint64>(-1);
     auto stallCount = std::make_shared<int>(0);
-    auto stallTimer = std::make_shared<QTimer>();
+    auto* stallTimer = new QTimer;
     stallTimer->setInterval(kStallIntervalMs);
-    QObject::connect(stallTimer.get(), &QTimer::timeout,
-        [reply, totalRecv, lastRecv, stallCount, stallTimer]() {
+    QObject::connect(stallTimer, &QTimer::timeout,
+        [reply, totalRecv, lastRecv, stallCount]() {
             if (reply->error() != QNetworkReply::NoError) return;
             if (*totalRecv <= 0) return;   // 首包未到：交给 transferTimeout，停滞检测不介入
             if (*totalRecv == *lastRecv) {
@@ -386,6 +387,13 @@ void HttpClient::startSingle(const QString& url, const QString& savePath,
             const qint64 elapsed = dlTimer->elapsed();
             reply->deleteLater();
 
+            // 取消短路：abort 后不镜像重试，直接失败（调用方按 cancelled 处理）
+            if (handle && handle->m_aborted) {
+                QFile::remove(tmpPath);
+                if (*sharedDone) (*sharedDone)(false, QStringLiteral("已取消"));
+                return;
+            }
+
             // HTTP 206 Partial Content is success for Range requests
             const bool httpOk = networkOk && (status == 200 || (resumeFrom > 0 && status == 206));
             if (httpOk) {
@@ -421,14 +429,6 @@ void HttpClient::startSingle(const QString& url, const QString& savePath,
                 }
             }
         });
-
-    QObject::connect(reply, &QNetworkReply::errorOccurred, this,
-        [file, tmpPath](QNetworkReply::NetworkError) {
-            // 仅清理文件；done 统一由 finished 回调发出（避免双 done）
-            file->close();
-            file->deleteLater();
-            QFile::remove(tmpPath);
-        });
 }
 
 // ============================================================
@@ -461,6 +461,11 @@ void HttpClient::startChunked(const QString& url, const QString& savePath,
             probe->deleteLater();
 
             if (!networkOk) {
+                // 取消短路：abort 后不降级单连接
+                if (handle && handle->m_aborted) {
+                    if (done) done(false, QStringLiteral("已取消"));
+                    return;
+                }
                 qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 探测失败 %1 (%2)，降级单连接").arg(url, errStr);
                 // 降级单连接（镜像优先 + 官方 fallback + 停滞检测），不直接失败——保证不比 v1 脆
                 startSingle(url, savePath, std::move(progress), std::move(done),
@@ -633,10 +638,11 @@ void HttpClient::runChunked(const QString& finalUrl, qint64 total,
         auto shardRecv = std::make_shared<qint64>(0);
         auto stallCount = std::make_shared<int>(0);
         auto lastRecv = std::make_shared<qint64>(-1);
-        auto stallTimer = std::make_shared<QTimer>();
+        // 裸指针 + deleteLater（shared_ptr<QTimer> + deleteLater 会 double free → 堆损坏）
+        auto* stallTimer = new QTimer;
         stallTimer->setInterval(kStallIntervalMs);
-        QObject::connect(stallTimer.get(), &QTimer::timeout,
-            [reply, shardRecv, lastRecv, stallCount, stallTimer]() {
+        QObject::connect(stallTimer, &QTimer::timeout,
+            [reply, shardRecv, lastRecv, stallCount]() {
                 if (reply->error() != QNetworkReply::NoError) return;
                 if (*shardRecv <= 0) return;   // 首包未到：交给 transferTimeout，停滞检测不介入
                 if (*shardRecv == *lastRecv) {
