@@ -1477,6 +1477,11 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
             if (ctx->fabricApiReply) {
                 ctx->fabricApiReply->abort();
             }
+            // OptiFine JAR 竞速下载（BMCLAPI+官方）
+            for (auto* r : qAsConst(ctx->optifineJarReplies)) {
+                if (r) r->abort();
+            }
+            ctx->optifineJarReplies.clear();
             // ── 清理 Fabric API 临时文件（系统 temp 下载残留）──
             auto* dsTmp = dlSession(versionId);
             if (dsTmp && !dsTmp->fabricApiSavePath.isEmpty()) {
@@ -5490,6 +5495,9 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
     auto fireUrl = [this, installName, won, pendingCount](const QString& url, const QString& label) {
         auto* nam = new QNetworkAccessManager(this);
         auto* reply = nam->get(QNetworkRequest(QUrl(url)));
+        // 供取消时 abort（取消在 destroy 前 abort → 回调先跑且 ctx 存活）
+        if (auto* actx = m_mergedContexts.value(installName, nullptr))
+            actx->optifineJarReplies.append(reply);
 
         connect(reply, &QNetworkReply::downloadProgress, this,
             [this, installName](qint64 received, qint64 total) {
@@ -5501,6 +5509,8 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
 
         connect(reply, &QNetworkReply::finished, this,
             [this, reply, nam, installName, won, pendingCount, label]() {
+                if (auto* actx = m_mergedContexts.value(installName, nullptr))
+                    actx->optifineJarReplies.removeOne(reply);
                 reply->deleteLater();
                 nam->deleteLater();
 

@@ -113,6 +113,7 @@ struct MergedInstallContext {
     // the context is destroyed — their completion callbacks capture raw ctx*).
     QNetworkReply* loaderDlReply = nullptr;    // Forge/NeoForge installer JAR download
     QNetworkReply* fabricApiReply = nullptr;   // Fabric API download
+    QVector<QNetworkReply*> optifineJarReplies;  // OptiFine JAR race replies (BMCLAPI+official)
 
     // Error handling
     QString errorMessage;
