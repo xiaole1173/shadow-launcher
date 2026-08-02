@@ -16,7 +16,6 @@ DownloadSession::DownloadSession(const QString& versionId, QObject* parent)
     , m_sessionId(versionId)
 {
     m_pipeline = new StepPipeline(this);
-    m_sessionTimer.start();
 }
 
 DownloadSession::~DownloadSession() = default;
@@ -37,17 +36,13 @@ void DownloadSession::recordBytes(qint64 bytesRecv, qint64 bytesTotal) {
     emit progressUpdated();
 }
 
-void DownloadSession::resetSpeed() {
-    m_speed = 0;
-    m_speedEMA = 0.0;
-    m_speedRecords.clear();
-    m_lastRecvBytes = 0;
-    m_lastRecvTime = 0;
-}
-
 // ══════════════════════════════════════════════
 // Control
 // ══════════════════════════════════════════════
+
+void DownloadSession::resetSpeed() {
+    m_speed = 0;
+}
 
 void DownloadSession::cancel() {
     if (m_pipeline) {
@@ -55,10 +50,6 @@ void DownloadSession::cancel() {
     }
     m_failed = false;
     m_speed = 0;
-    m_speedEMA = 0.0;
-    m_speedRecords.clear();
-    m_lastRecvBytes = 0;
-    m_lastRecvTime = 0;
 }
 
 void DownloadSession::markFailed(const QString& err) {
@@ -71,10 +62,6 @@ void DownloadSession::reset() {
     m_failed = false;
     m_error.clear();
     m_speed = 0;
-    m_speedEMA = 0.0;
-    m_speedRecords.clear();
-    m_lastRecvBytes = 0;
-    m_lastRecvTime = 0;
     m_isMerged = false;
 
     // Reset old struct fields

@@ -119,15 +119,14 @@ public:
 
     // ── 用户数据导入 ──
     bool hasImportPending = false;
+    // ── 步骤跟踪 ──
+    int loadedStep = 0;
     QString importArchivePath;
     qint64 importFailedAtMs = 0;
 
-    // ── 步骤跟踪 (旧) ──
-    int loadedStep = 0;
 
     // ── 平滑进度 (EWMA) ──
     qreal smoothProgress = 0.0;
-    void setSmoothProgress(qreal v) { smoothProgress = v; }
 
     // ── MC 版本 (从 struct 迁入) ──
     QString mcVersion;
@@ -139,17 +138,10 @@ private:
     bool m_isMerged = false;
     QString m_error;
 
-    // ── Speed: EMA + 加权滑动窗口 ──
-    qint64 m_speed = 0;          // EMA 平滑后速度 (bytes/s)
-    double m_speedEMA = 0.0;
-    QList<qint64> m_speedRecords;
-    static constexpr int kMaxSpeedRecords = 20;
-
-    qint64 m_lastRecvBytes = 0;
-    qint64 m_lastRecvTime = 0;
+    // ── Speed：唯一速度源为上层推送的引擎 EMA（setSpeed），本地不再维护第二套算法 ──
+    qint64 m_speed = 0;
 
     StepPipeline* m_pipeline = nullptr;
-    QElapsedTimer m_sessionTimer;
 };
 
 } // namespace ShadowLauncher
