@@ -2354,8 +2354,8 @@ int ShadowBackend::downloadModpack(const QString& url, const QString& filename, 
                  + QStringLiteral("-%1.").arg(QDateTime::currentMSecsSinceEpoch())
                  + QFileInfo(filename).suffix();
     }
-    // 卡片标题：整合包：【用户输入名】+【（实际名）】
-    const QString displayName = tr("整合包：%1 +（%2）").arg(versionName, actualName.isEmpty() ? filename : actualName);
+    // 卡片标题：整合包：【用户输入名】（【实际名】）——「+」仅为需求示意连接符，不展示给用户
+    const QString displayName = tr("整合包：%1（%2）").arg(versionName, actualName.isEmpty() ? filename : actualName);
     const int dlId = m_resource->downloadModFile(url, savePath, displayName, size, sha1);
     if (dlId >= 0) {
         PackDownloadInfo info;
