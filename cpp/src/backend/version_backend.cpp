@@ -5222,13 +5222,11 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                         ctx->installer->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
                     }
 
-                    ctx->loaderJarReady = true;
-
-                    // Wait for MC download if not done yet
-                    if (ctx->mcDownloadDone) {
-                        proceedToLoaderInstall(installName);
-                    }
-                };
+                    // ⚠ 不在此时设 loaderJarReady / 触发 proceedToLoaderInstall：
+                    // Forge/NeoForge 的 installXxxFromData 是异步的（SHA1 校验走网络 fallback），
+                    // verify 完成才发 waitingForMC → 那里统一设 loaderJarReady + proceed。
+                    // 提前设会竞态：MC 已完成时立即 forgeContinueInstall → m_cachedJar 还没缓存 →
+                    // "没有缓存的 Forge 安装程序，无法继续" → 安装停摆（盘古并行化后 MC 更快，竞态必现）。
 
                 if (reply->error() != QNetworkReply::NoError) {
                     // Build fallback URLs
