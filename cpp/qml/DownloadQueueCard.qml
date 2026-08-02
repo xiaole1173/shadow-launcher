@@ -107,13 +107,13 @@ Rectangle {
         }
     }
 
-    // ── 自动消失计时器：已废弃（完成/失败卡片保留展示，绿色完成态无 X 按钮，
-    //    由面板「清空已完成」手动清理；失败卡片经 X 手动关闭）──
+    // ── 自动消失计时器（完成后/失败后 3s 自动关闭卡片）──
+    // 与 MC 原版下载/合并下载同一销毁通道（dismissCard），绿色定格仅持续短暂时间
     Timer {
         id: dismissTimer
         interval: 3000
         repeat: false
-        running: false
+        running: !_dismissed && (_meta.failed || _hot.progress >= 1.0)
         onTriggered: {
             _dismissed = true
             if (backend && _meta.iid)

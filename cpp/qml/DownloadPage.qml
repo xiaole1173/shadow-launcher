@@ -405,7 +405,7 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         page.currentTab = index
-                        console.info("[UI] 切Tab " + (index < tabLabels.length ? tabLabels[index] : index))
+                        console.info("[UI] 切Tab " + modelData.label)
                     }
                 }
             }

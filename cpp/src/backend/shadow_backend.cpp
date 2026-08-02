@@ -556,6 +556,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 // 透传信号给 QML（失败 Toast / 详情页错误弹窗）
                 emit modFileDownloadFailed(dlId, errorDetail, displayName);
             });
+    // CF 前置依赖解析结果透传（QML 回填依赖卡片）
+    connect(m_resource, &ResourceBackend::cfDependenciesResolved,
+            this, &ShadowBackend::cfDependenciesResolved);
 
     // ── Signal forwarding: AppBackend → ShadowBackend ──
     connect(m_app, &AppBackend::gameDirChanged,
@@ -2293,6 +2296,10 @@ void ShadowBackend::fetchShaderVersionsCf(const QString& modId, const QString& g
 
 void ShadowBackend::fetchResourcepackVersionsCf(const QString& modId, const QString& gameVersion, const QString& loader) {
     m_resource->fetchResourcepackVersionsCf(modId, gameVersion, loader);
+}
+
+void ShadowBackend::resolveCfDependencies(const QString& modId, const QVariantList& deps) {
+    m_resource->resolveCfDependencies(modId, deps);
 }
 
 // ── Mod file download proxy ──

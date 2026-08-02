@@ -381,6 +381,8 @@ public:
     Q_INVOKABLE void fetchModVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
     Q_INVOKABLE void fetchShaderVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
     Q_INVOKABLE void fetchResourcepackVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
+    /// CF 详情页前置依赖解析（Modrinth 优先映射），结果经 cfDependenciesResolved 回传
+    Q_INVOKABLE void resolveCfDependencies(const QString& modId, const QVariantList& deps);
 
     // Mod file download
     Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
@@ -585,6 +587,8 @@ signals:
     void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
+    /// CF 前置依赖解析完成（QML 回填依赖卡片）
+    void cfDependenciesResolved(const QString& modId, const QVariantList& deps);
 
     void shaderVersionsLoaded(const QVariantMap& slugToVersions);
     void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);

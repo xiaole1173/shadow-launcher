@@ -43,7 +43,8 @@ Item {
         footer: Item {
             width: ListView.view.width
             height: ListView.view.height > 0 ? Math.max(ListView.view.height - 60, 0) : 250
-            visible: !backend || !backend.installing
+            // 空状态仅当无任何卡片时显示（资源文件下载走卡片通道，installing 恒 false）
+            visible: cardsView.count === 0
 
             Column {
                 anchors.centerIn: parent
