@@ -200,8 +200,10 @@ Rectangle {
         if (currentTab === 1 && !modResultsReady) { loadModResults(); modResultsReady = true }
         if (currentTab === 2 && !_shaderLoaded) { _shaderLoaded = true; shaderTab.doSearch() }
         if (currentTab === 3 && !rpResultsReady) { loadResourcepackResults(); rpResultsReady = true }
+        if (currentTab === 4 && !_packLoaded) { _packLoaded = true; packTab.doPackSearch() }
     }
     property bool _shaderLoaded: false
+    property bool _packLoaded: false
 
     // ──── Animations ────
     opacity: 0
