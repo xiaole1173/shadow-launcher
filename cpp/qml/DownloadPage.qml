@@ -1994,7 +1994,7 @@ Rectangle {
                         gameVersions: model.versions || ""
                         dateModified: model.dateModified || ""
                         loaders: (model.loadersList || model.loader || "")
-                        categoriesJson: JSON.stringify(model.categories || [])
+                        categoriesJson: model.categories || "[]"
                         onClicked: {
                             page._packDetailSlug = model.slug
                             page._packDetailTitle = model.title || ""
@@ -2052,7 +2052,9 @@ Rectangle {
                         dateModified: r.dateModified || "",
                         loader: r.loader || "",
                         loadersList: Array.isArray(r.loadersList) ? r.loadersList.join(", ") : (r.loadersList || ""),
-                        categories: Array.isArray(r.categories) ? r.categories : [],
+                        // 与 RP Tab 一致：categories 存 JSON 字符串（数组值作为 ListModel role
+                        // 在预编译模式下会触发 Qt6QmlModels 崩溃，RP 已验证字符串方案稳定）
+                        categories: JSON.stringify(Array.isArray(r.categories) ? r.categories : []),
                         source: r.source || "Modrinth"
                     })
                 }

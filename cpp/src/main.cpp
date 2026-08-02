@@ -591,6 +591,7 @@ int main(int argc, char *argv[])
                 else if (tabStr == "mod" || tabStr == "1") targetTab = 1;
                 else if (tabStr == "shader" || tabStr == "2") targetTab = 2;
                 else if (tabStr == "rp" || tabStr == "3") targetTab = 3;
+                else if (tabStr == "pack" || tabStr == "4") targetTab = 4;
             }
         }
 
