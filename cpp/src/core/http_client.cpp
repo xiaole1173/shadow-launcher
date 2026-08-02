@@ -237,19 +237,50 @@ static void downloadImpl(QNetworkAccessManager* mgr, const NetworkConfig& cfg,
     QObject::connect(reply, &QNetworkReply::readyRead, mgr,
         [reply, file]() { file->write(reply->readAll()); });
 
+    // ── 停滞检测（慢速挂起传输防护）──
+    // 镜像服务器可能出现"连接保持但数据传输极慢/挂起"（实测 bmclapi 24s 后才断开），
+    // transferTimeout 只看"有无活动"不会触发（慢速传输一直在活动）→ 白白等待。
+    // 每 2s 检查累计字节，连续 3 次（6s）无增长 → abort（镜像失败 → 自动切官方）。
+    auto totalRecv = std::make_shared<qint64>(0);
+    auto lastRecv = std::make_shared<qint64>(-1);
+    auto stallCount = std::make_shared<int>(0);
+    auto stallTimer = std::make_shared<QTimer>();
+    stallTimer->setInterval(2000);
+    QObject::connect(stallTimer.get(), &QTimer::timeout,
+        [reply, totalRecv, lastRecv, stallCount, stallTimer]() {
+            if (reply->error() != QNetworkReply::NoError) return;
+            if (*totalRecv == *lastRecv) {
+                if (++(*stallCount) >= 3) {
+                    reply->abort();   // 6s 无进展 → 中止（镜像挂起）
+                }
+            } else {
+                *lastRecv = *totalRecv;
+                *stallCount = 0;
+            }
+        });
+    stallTimer->start();
+
     auto sharedProg = std::make_shared<std::function<void(qint64,qint64)>>(std::move(progress));
     auto sharedDone = std::make_shared<std::function<void(bool,const QString&)>>(std::move(done));
 
     if (*sharedProg) {
         QObject::connect(reply, &QNetworkReply::downloadProgress, mgr,
-            [sharedProg](qint64 recv, qint64 total) { (*sharedProg)(recv, total); });
+            [sharedProg, totalRecv](qint64 recv, qint64 total) {
+                *totalRecv = recv;
+                (*sharedProg)(recv, total);
+            });
+    } else {
+        QObject::connect(reply, &QNetworkReply::downloadProgress, mgr,
+            [totalRecv](qint64 recv, qint64) { *totalRecv = recv; });
     }
 
     QObject::connect(reply, &QNetworkReply::finished, mgr,
         [mgr, primaryUrl, mirror, url, reply, file, savePath, tmpPath,
-         sharedProg, sharedDone, cfg, timeoutMs, dlTimer]() mutable {
+         sharedProg, sharedDone, cfg, timeoutMs, dlTimer, stallTimer]() mutable {
             file->close();
             delete file;
+            stallTimer->stop();
+            stallTimer->deleteLater();
 
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool ok = (reply->error() == QNetworkReply::NoError);
