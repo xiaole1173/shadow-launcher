@@ -140,6 +140,21 @@ Window {
             }
             // onInstallingChanged will handle nav hiding with a delay
         }
+        // ── 模组/光影/资源包文件下载完成/失败：成功/失败 Toast（卡片保留绿色/红色终态）──
+        function onModFileDownloadFinished(dlId, success, filePath, displayName) {
+            if (toastManager) {
+                if (success) {
+                    toastManager.show((displayName || "文件") + " 下载完成")
+                } else {
+                    toastManager.show((displayName || "文件") + " 下载失败", "", 5000)
+                }
+            }
+        }
+        function onModFileDownloadFailed(dlId, errorDetail, displayName) {
+            if (toastManager) {
+                toastManager.show((displayName || "文件") + " 下载失败: " + (errorDetail || "未知错误"), "", 5000)
+            }
+        }
         function onResourceDownloadStateChanged() {
             console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)
             // Download panel auto-shows — no nav manipulation needed

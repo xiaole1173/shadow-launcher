@@ -827,7 +827,11 @@ Rectangle {
                     for (var k in page.modCatLabels) labels[k] = page.modCatLabels[k]
                     if (backend) {
                         var cf = backend.cfCategories(6)
-                        for (var i = 0; i < cf.length; i++) labels[cf[i].value] = "CF·" + cf[i].name
+                        for (var i = 0; i < cf.length; i++) {
+                            // CF 分类汉化映射（Modrinth 原有汉化不动，仅补充 CF 侧）
+                            var zh = page.cfCatZh[cf[i].name]
+                            labels[cf[i].value] = zh ? ("CF·" + zh) : ("CF·" + cf[i].name)
+                        }
                     }
                     return labels
                 }
@@ -1329,6 +1333,18 @@ Rectangle {
     })
     property var modEnvLabels: ({
         "": "全部", "required": "客户端", "optional": "客户端+服务端", "unsupported": "纯服务端"
+    })
+    // CF 分类中文映射（Mods classId=6，与 CfApi 静态表一一对应）
+    property var cfCatZh: ({
+        "Adventure and RPG": "冒险与RPG", "Technology": "科技", "Magic": "魔法",
+        "World Gen": "世界生成", "Armor, Tools, and Weapons": "装备工具武器",
+        "Storage": "仓储存储", "API and Library": "API与库", "Map and Information": "地图与信息",
+        "Food": "食物", "Performance": "性能优化", "Bug Fixes": "Bug修复",
+        "Cosmetic": "装饰外观", "Miscellaneous": "杂项", "Server Utility": "服务器工具",
+        "Addons": "附属组件", "Utility & QoL": "实用与便利", "Redstone": "红石",
+        "MCreator": "MCreator", "Twitch Integration": "Twitch集成",
+        "ModJam 2025": "ModJam 2025", "Education": "教育", "CreativeMode": "创造模式",
+        "Horror": "恐怖"
     })
     property string installingRpName: ""
 

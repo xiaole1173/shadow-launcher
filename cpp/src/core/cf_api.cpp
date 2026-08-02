@@ -271,6 +271,33 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
         fail);
 }
 
+void CfApi::fetchModInfo(const QString& modId,
+                         std::function<void(const QVariantMap&)> done,
+                         JsonFail fail)
+{
+    if (!m_engine) { if (fail) fail(QStringLiteral("无司南引擎")); return; }
+    const QString mirrorUrl = kCfMirrorBase + QStringLiteral("/mods/") + modId;
+    const QString officialUrl = kCfOfficialBase + QStringLiteral("/mods/") + modId;
+
+    getJsonWithFallback(mirrorUrl, officialUrl, true,
+        [done, modId](int status, const QByteArray& body) {
+            QVariantMap info;
+            if (status == 200) {
+                QJsonDocument doc = QJsonDocument::fromJson(body);
+                const QJsonObject obj = doc.object().value(QStringLiteral("data")).toObject();
+                info.insert(QStringLiteral("project_id"), modId);
+                info.insert(QStringLiteral("name"), obj.value(QStringLiteral("name")).toString());
+                info.insert(QStringLiteral("summary"), obj.value(QStringLiteral("summary")).toString());
+                info.insert(QStringLiteral("slug"),
+                           QString::number((qlonglong)obj.value(QStringLiteral("id")).toDouble()));
+                info.insert(QStringLiteral("icon_url"), obj.value(QStringLiteral("logo"))
+                                .toObject().value(QStringLiteral("thumbnailUrl")).toString());
+            }
+            if (done) done(info);
+        },
+        fail);
+}
+
 QVariantMap CfApi::toUnified(const QJsonObject& mod)
 {
     QVariantMap m;

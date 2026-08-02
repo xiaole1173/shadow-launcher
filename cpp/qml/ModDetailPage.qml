@@ -701,10 +701,19 @@ Rectangle {
                     }
                 }
                 if (cfDeps.length > 0) {
-                    root.modDetailDependencies = cfDeps
+                    // 异步解析：CF 名称/图标 → Modrinth 优先映射（命中用 Modrinth 数据）
+                    root.modDetailDepsLoading = true
                     root.showDeps = true
+                    if (backend && backend.resolveCfDependencies)
+                        backend.resolveCfDependencies(root.modDetailSlug, cfDeps)
                 }
             }
+        }
+        function onCfDependenciesResolved(modId, deps) {
+            if (modId !== root.modDetailSlug) return
+            root.modDetailDepsLoading = false
+            root.modDetailDependencies = deps || []
+            root.showDeps = (deps && deps.length > 0)
         }
         function onModVersionsProgress(done, total) {
             if (root.modDetailSlug === "") return

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariantList>
+#include <functional>
 
 namespace ShadowLauncher {
 
@@ -78,6 +79,10 @@ public:
     Q_INVOKABLE void resumeModFileDownload(int downloadId);
     Q_INVOKABLE void retryModFileDownload(int downloadId);
 
+    /// CF 详情页前置依赖解析：先取 CF 名称/图标，再按名称在 Modrinth 检索映射
+    /// （命中 → Modrinth slug/title/icon，点击进 Modrinth 详情；未命中 → 保留 CF 数据）
+    Q_INVOKABLE void resolveCfDependencies(const QString& modId, const QVariantList& deps);
+
 signals:
     void downloadProgressChanged(int completed, int total, const QString& fileName);
     void downloadStateChanged();
@@ -86,6 +91,8 @@ signals:
     void modFileDownloadProgress(int downloadId, qint64 received, qint64 total, qint64 speed);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
+    /// CF 前置依赖解析完成（QML 回填依赖卡片）
+    void cfDependenciesResolved(const QString& modId, const QVariantList& deps);
     void searchResultsReady(const QVariantList& results);  // deprecated — use modSearchResultsReady / shaderSearchResultsReady
     void modSearchResultsReady(const QVariantList& results);
     void shaderSearchResultsReady(const QVariantList& results);
@@ -199,6 +206,9 @@ private:
     QString m_dlFile;
     QString m_minecraftDir;
     SearchKind m_searchKind = SearchKind::Mod;
+
+    // CF 前置依赖解析：按名称在 Modrinth 检索（镜像空→官方降级），命中取 Modrinth 数据
+    void searchModrinthForDep(const QString& name, std::function<void(const QVariantMap&)> done);
 
     // Mod/Shader 搜索结果解析（字段与 QML 端约定一致，两路径共用）
     QVariantList parseSearchResponseItems(const QJsonArray& results) const;

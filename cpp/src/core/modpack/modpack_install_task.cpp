@@ -49,6 +49,7 @@ ModpackInstallTask::ModpackInstallTask(QObject* parent)
     m_mcPollTimer = new QTimer(this);
     m_mcPollTimer->setInterval(300);
     connect(m_mcPollTimer, &QTimer::timeout, this, [this]() {
+        if (m_cardDone) return;   // 已收尾（finishCard 后不再覆盖完成态）
         if (!m_vb || m_cardId.isEmpty() || m_mcSessionId.isEmpty()) return;
         const qreal p = m_vb->installProgressOf(m_mcSessionId);
         m_mcSpeed = m_vb->installSpeedOf(m_mcSessionId);
@@ -419,6 +420,7 @@ void ModpackInstallTask::runDownload()
     });
     connect(m_downloader, &ModpackDownloader::queueProgress, this,
             [this](int completed, int total, int failed) {
+                if (m_cardDone) return;   // 已收尾：进度不再合成/下发，防覆盖绿色完成态
                 if (total <= 0) return;
                 m_modFrac = (qreal)completed / total;
                 // 步骤 2 动态文案：模组批量下载，剩余 XX 个文件
@@ -973,6 +975,7 @@ void ModpackInstallTask::setStep(const QString& name)
 
 void ModpackInstallTask::setProgress(qreal p, const QString& text, const QString& file)
 {
+    if (m_cardDone) return;   // 已收尾：进度冻结（finishCard 直接写 1.0，不受此限制）
     m_progress = qBound(0.0, p, 1.0);
     m_statusText = text;
     if (!file.isNull()) m_currentFile = file;
@@ -1030,6 +1033,7 @@ void ModpackInstallTask::syncCard()
     if (m_cardId.isEmpty() || !m_vb) return;
     // 可能从工作线程（解压进度回调）触发 → 归队主线程再碰模型
     QMetaObject::invokeMethod(this, [this]() {
+        if (m_cardDone) return;   // 已收尾：排队中的旧 syncCard 不再覆盖完成态
         if (m_cardId.isEmpty() || !m_vb) return;
         m_vb->updateTaskCard(m_cardId, m_progress, m_statusText, false, {},
                              m_cardSpeed, !m_cardDone);

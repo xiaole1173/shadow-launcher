@@ -40,6 +40,12 @@ public:
                                                  const QVariantMap& details)> done,
                               JsonFail fail);
 
+    /// 单个模组详情（/mods/{modId}）→ {project_id,name,slug,icon_url,summary}
+    /// 供 CF 详情页前置依赖映射（取名称/图标后再去 Modrinth 检索）
+    void fetchModInfo(const QString& modId,
+                      std::function<void(const QVariantMap& info)> done,
+                      JsonFail fail);
+
     /// CF 搜索条目 → 统一结果模型（slug=数字id，source=CurseForge）
     static QVariantMap toUnified(const QJsonObject& mod);
 

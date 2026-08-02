@@ -107,12 +107,13 @@ Rectangle {
         }
     }
 
-    // ── 自动消失计时器（完成后 3s 自动关闭卡片） ──
+    // ── 自动消失计时器：已废弃（完成/失败卡片保留展示，绿色完成态无 X 按钮，
+    //    由面板「清空已完成」手动清理；失败卡片经 X 手动关闭）──
     Timer {
         id: dismissTimer
         interval: 3000
         repeat: false
-        running: !_dismissed && (_meta.failed || _hot.progress >= 1.0)
+        running: false
         onTriggered: {
             _dismissed = true
             if (backend && _meta.iid)
@@ -163,13 +164,14 @@ Rectangle {
             width: parent.width - 30
         }
 
-        // ── 操作按钮 ──
+        // ── 操作按钮：仅任务运行中/排队(canCancel) 与失败态显示；
+        //    完成（绿色）态永久隐藏，规避误点取消引发异常 ──
         Rectangle {
             id: actionBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 20; height: 20; radius: 10
-            visible: _meta.canCancel !== false || _meta.failed || _hot.progress >= 1.0
+            visible: (_meta.canCancel !== false) || _meta.failed
             color: actionMouse.containsMouse ? "#4a1a1a" : "transparent"
 
             Behavior on color { ColorAnimation { duration: 120 } }

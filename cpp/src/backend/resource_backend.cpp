@@ -18,6 +18,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QVariantMap>
+#include <memory>
 
 namespace ShadowLauncher {
 
@@ -189,8 +190,13 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     m_modSearchLimit = limit;
 
     const bool cfOnly = CfApi::isCfCategory(category);
-    const bool mrOnly = !cfOnly && !category.isEmpty();
-    m_modSearchCfOnly = cfOnly;
+    // 环境/许可证为 Modrinth 独占筛选（CF 无对应查询参数）：
+    // 激活时一律 Modrinth-only，杜绝 CF 结果绕过筛选混入；
+    // 若同时选了 CF 分类，也放弃 CF 侧（分类+独占筛选组合无有效实现）。
+    const bool filterMrOnly = !environment.isEmpty() || !license.isEmpty();
+    const bool cfOnlyEffective = cfOnly && !filterMrOnly;
+    const bool mrOnly = filterMrOnly || (!cfOnly && !category.isEmpty());
+    m_modSearchCfOnly = cfOnlyEffective;
     m_modSearchMrOnly = mrOnly;
     m_modSearchQuery = query;
     m_modSearchLoader = loader;
@@ -216,7 +222,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     }
 
     // 确保池子足够显示目标页（池不够 → 双源续拉；池够 → 直接发）
-    ensureModPool(cfOnly, mrOnly, query, loader, category, gameVersions, environment, license);
+    ensureModPool(m_modSearchCfOnly, m_modSearchMrOnly, query, loader, category, gameVersions, environment, license);
 }
 
 // 池子驱动：Mod 双源续拉 + 合并 + 发信号
@@ -239,7 +245,8 @@ void ResourceBackend::ensureModPool(bool cfOnly, bool mrOnly,
     if (!loader.isEmpty()) loaders << loader;
     QJsonArray facetArr;
     facetArr.append(QJsonArray{QStringLiteral("project_type:mod")});
-    if (!category.isEmpty())
+    // 仅 Modrinth 分类进 facet；CF 分类（cf:xxx）是 CF 专属值，Modrinth 侧一律丢弃
+    if (!category.isEmpty() && !CfApi::isCfCategory(category))
         facetArr.append(QJsonArray{QStringLiteral("categories:") + category});
     if (!gameVersions.isEmpty()) {
         QJsonArray verGroup;
@@ -349,7 +356,8 @@ void ResourceBackend::ensureModPool(bool cfOnly, bool mrOnly,
     }
 
     // ── CurseForge（游标续拉）──
-    if (m_cfApi && (!mrOnly || cfOnly) && m_modCfMore) {
+    // mrOnly 时 CF 侧不参与（CF 无环境/许可证参数，且独占筛选下不应混入未过滤结果）
+    if (m_cfApi && !mrOnly && m_modCfMore) {
         ++m_modPending;
         m_cfApi->search(6, query, CfApi::cfCategoryId(category),
                         gameVersions.isEmpty() ? QString() : gameVersions.first(),
@@ -693,7 +701,9 @@ void ResourceBackend::ensureShaderPool()
             HttpClient::instance().get(url.toString(), onMrOk, onMrFail);
     }
 
-    if (m_cfApi && m_shaderCfMore) {
+    // ── CurseForge 光影（仅支持 gameVersion+loader；categories/performance 为
+    //    Modrinth 独占筛选 → 激活时跳过 CF，避免 CF 结果绕过筛选混入）──
+    if (m_cfApi && m_shaderCfMore && categories.isEmpty() && performance.isEmpty()) {
         ++m_shaderPending;
         m_cfApi->search(6552, query, 0,
                         gameVersions.isEmpty() ? QString() : gameVersions.first(),
@@ -968,7 +978,9 @@ void ResourceBackend::ensureRpPool()
             HttpClient::instance().get(url.toString(), onRpOk, onRpFail);
     }
 
-    if (m_cfApi && m_rpCfMore) {
+    // ── CurseForge 资源包（CF 搜索仅支持 gameVersion，categoryId 恒 0；
+    //    分类/特性/分辨率筛选为 Modrinth 独占 → 激活时跳过 CF）──
+    if (m_cfApi && m_rpCfMore && categories.isEmpty()) {
         ++m_rpPending;
         m_cfApi->search(12, query, 0, gameVersion, QString(), m_rpCfOffset, m_rpSearchLimit,
             [this, gen](const QVariantList& items, int total) {
@@ -1069,6 +1081,146 @@ void ResourceBackend::fetchResourcepackVersionsCf(const QString& modId, const QS
             emit resourcepackVersionsPartial(modId, versions, details);
         },
         [this, modId](const QString&) { emit resourcepackVersionsPartial(modId, {}, {}); });
+}
+
+// ── CF 详情页前置依赖解析（Modrinth 优先映射）──
+// 每个 dep：先取 CF 名称/图标（fetchModInfo），再按名称在 Modrinth 检索
+// （searchModrinthForDep，镜像空→官方降级）；命中 → 用 Modrinth slug/title/icon
+// （点击进 Modrinth 详情页）；未命中 → 保留 CF 数据（slug=数字 id，可进 CF 详情）。
+void ResourceBackend::resolveCfDependencies(const QString& modId, const QVariantList& deps)
+{
+    const int total = qMin(deps.size(), 8);
+    if (!m_cfApi || total <= 0) { emit cfDependenciesResolved(modId, {}); return; }
+
+    auto out = std::make_shared<QVariantList>();
+    auto proc = std::make_shared<std::function<void(int)>>();
+    *proc = [this, modId, deps, total, out, proc](int idx) {
+        if (idx >= total) {
+            emit cfDependenciesResolved(modId, *out);
+            return;
+        }
+        const QVariantMap dep = deps[idx].toMap();
+        const QString pid = dep.value(QStringLiteral("project_id")).toString();
+        const QString depType = dep.value(QStringLiteral("dependency_type"),
+                                           QStringLiteral("required")).toString();
+        auto fallbackEntry = [pid, depType]() {
+            QVariantMap e;
+            e[QStringLiteral("project_id")] = pid;
+            e[QStringLiteral("dependency_type")] = depType;
+            e[QStringLiteral("title")] = pid;   // 无名称时显示数字 id（原始行为）
+            e[QStringLiteral("slug")] = pid;    // 数字 slug → 点击进 CF 详情
+            e[QStringLiteral("icon_url")] = QString();
+            e[QStringLiteral("description")] = QString();
+            e[QStringLiteral("source")] = QStringLiteral("CurseForge");
+            return e;
+        };
+        m_cfApi->fetchModInfo(pid,
+            [this, out, proc, idx, depType, pid, fallbackEntry](const QVariantMap& info) {
+                const QString cfName = info.value(QStringLiteral("name")).toString();
+                if (cfName.isEmpty()) {
+                    out->append(fallbackEntry());
+                    (*proc)(idx + 1);
+                    return;
+                }
+                // 有 CF 名称 → 尝试 Modrinth 映射
+                searchModrinthForDep(cfName,
+                    [this, out, proc, idx, depType, pid, info, cfName, fallbackEntry](const QVariantMap& mr) {
+                        QVariantMap entry;
+                        entry[QStringLiteral("project_id")] = pid;
+                        entry[QStringLiteral("dependency_type")] = depType;
+                        if (!mr.isEmpty()) {
+                            // Modrinth 命中：名称/图标/跳转全部用 Modrinth 数据
+                            entry[QStringLiteral("title")] = mr.value(QStringLiteral("title")).toString();
+                            entry[QStringLiteral("slug")] = mr.value(QStringLiteral("slug")).toString();
+                            entry[QStringLiteral("icon_url")] = mr.value(QStringLiteral("icon")).toString();
+                            entry[QStringLiteral("description")] = mr.value(QStringLiteral("desc")).toString();
+                            entry[QStringLiteral("source")] = QStringLiteral("Modrinth");
+                            emit logMessage(tr("[依赖] %1 → Modrinth: %2").arg(cfName, mr.value(QStringLiteral("title")).toString()));
+                        } else {
+                            // Modrinth 无匹配 → 保留 CF 数据
+                            entry[QStringLiteral("title")] = cfName;
+                            entry[QStringLiteral("slug")] = info.value(QStringLiteral("slug"), pid).toString();
+                            entry[QStringLiteral("icon_url")] = info.value(QStringLiteral("icon_url")).toString();
+                            entry[QStringLiteral("description")] = info.value(QStringLiteral("summary")).toString();
+                            entry[QStringLiteral("source")] = QStringLiteral("CurseForge");
+                        }
+                        out->append(entry);
+                        (*proc)(idx + 1);
+                    });
+            },
+            [out, proc, idx, fallbackEntry](const QString&) {
+                // CF 信息获取失败：保留原始数字 id
+                out->append(fallbackEntry());
+                (*proc)(idx + 1);
+            });
+    };
+    (*proc)(0);
+}
+
+// 按名称在 Modrinth 检索（镜像空→官方降级）；命中取归一化标题精确匹配，
+// 无精确则取下载量最高的包含匹配；返回 {slug,title,icon,desc}，空 map = 未命中。
+void ResourceBackend::searchModrinthForDep(const QString& name, std::function<void(const QVariantMap&)> done)
+{
+    QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+    QUrlQuery params;
+    params.addQueryItem(QStringLiteral("query"), name);
+    QJsonArray facetArr;
+    facetArr.append(QJsonArray{QStringLiteral("project_type:mod")});
+    params.addQueryItem(QStringLiteral("facets"),
+                        QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+    params.addQueryItem(QStringLiteral("limit"), QStringLiteral("8"));
+    params.addQueryItem(QStringLiteral("index"), QStringLiteral("relevance"));
+    url.setQuery(params);
+
+    const QString normName = normTitle(name);
+    const auto parseHits = [this, done, normName](const QByteArray& body) {
+        QVariantMap exact, fallback;
+        int fallbackDl = -1;
+        int totalHits = 0;
+        QJsonArray results = m_modMgr->parseSearchResponse(body, totalHits);
+        for (const QJsonValue& v : results) {
+            const QJsonObject obj = v.toObject();
+            const QString title = obj.value(QStringLiteral("title")).toString();
+            const QVariantMap m = {
+                {QStringLiteral("slug"), obj.value(QStringLiteral("slug")).toString()},
+                {QStringLiteral("title"), title},
+                {QStringLiteral("icon"), obj.value(QStringLiteral("iconUrl")).toString()},
+                {QStringLiteral("desc"), obj.value(QStringLiteral("description")).toString()}
+            };
+            if (normTitle(title) == normName) { exact = m; break; }
+            const int dl = obj.value(QStringLiteral("downloads")).toInt();
+            if (dl > fallbackDl) { fallbackDl = dl; fallback = m; }
+        }
+        if (done) done(!exact.isEmpty() ? exact : fallback);
+    };
+    const auto onOk = [this, url, parseHits, done](int status, const QByteArray& body) {
+        if (status != 200) { if (done) done({}); return; }
+        int totalHits = 0;
+        QJsonArray r = m_modMgr->parseSearchResponse(body, totalHits);
+        // 镜像异常空 → 官方降级一次
+        if (totalHits == 0 && r.isEmpty()) {
+            QUrl fbUrl = url;
+            fbUrl.setHost(QStringLiteral("api.modrinth.com"));
+            fbUrl.setPath(QStringLiteral("/v2/search"));
+            fbUrl.setScheme(QStringLiteral("https"));
+            const auto onFbOk = [parseHits, done](int s2, const QByteArray& b2) {
+                if (s2 == 200) parseHits(b2);
+                else if (done) done({});
+            };
+            const auto onFbFail = [done](const QString&) { if (done) done({}); };
+            if (m_fetchEngine)
+                m_fetchEngine->getJson(fbUrl.toString(), true, onFbOk, onFbFail);
+            else
+                HttpClient::instance().get(fbUrl.toString(), onFbOk, onFbFail);
+            return;
+        }
+        parseHits(body);
+    };
+    const auto onFail = [done](const QString&) { if (done) done({}); };
+    if (m_fetchEngine)
+        m_fetchEngine->getJson(url.toString(), true, onOk, onFail);
+    else
+        HttpClient::instance().get(url.toString(), onOk, onFail);
 }
 
 QVariantList ResourceBackend::cfCategories(int classId) const

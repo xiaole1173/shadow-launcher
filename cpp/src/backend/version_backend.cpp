@@ -6394,6 +6394,24 @@ int VersionBackend::installRemainingSteps(const QString& sessionId) const {
 
 
 
+InstallCard VersionBackend::resourceCardToInstallCard(const QString& cardId) const
+{
+    InstallCard c;
+    c.iid = cardId;
+    const QVariantMap cm = m_extraCards.value(cardId);
+    c.type = cm.value(QStringLiteral("type"), QStringLiteral("resource")).toString();
+    c.name = cm.value(QStringLiteral("displayName"), cardId).toString();
+    c.progress = qBound(0.0, cm.value(QStringLiteral("totalProgress"), 0.0).toReal(), 1.0);
+    c.speed = cm.value(QStringLiteral("speed"), QVariant::fromValue<qint64>(0)).value<qint64>();
+    c.phase = cm.value(QStringLiteral("installPhase"), QString()).toString();
+    c.remaining = 0;
+    c.steps = QVariantList{};
+    c.failed = cm.value(QStringLiteral("failed"), false).toBool();
+    c.error = cm.value(QStringLiteral("error"), QString()).toString();
+    c.canCancel = cm.value(QStringLiteral("canCancel"), true).toBool();
+    return c;
+}
+
 void VersionBackend::addResourceCard(const QString& cardId, const QString& displayName) {
 
     QVariantMap c;
@@ -6405,6 +6423,9 @@ void VersionBackend::addResourceCard(const QString& cardId, const QString& displ
     c["installPhase"] = QString();
     c["remainingSteps"] = 0;
     c["steps"] = QVariantList{};
+    c["failed"] = false;
+    c["error"] = QString();
+    c["canCancel"] = true;
     m_extraCards[cardId] = c;
 
     // ── 精准插入而非全量重建 ──
@@ -6437,6 +6458,48 @@ void VersionBackend::updateResourceCard(const QString& cardId, qreal progress, c
             if (!status.isEmpty())
                 m_installCardsModel->updatePhase(row, status);
         }
+    }
+}
+
+
+
+void VersionBackend::failResourceCard(const QString& cardId, const QString& error) {
+
+    if (!m_extraCards.contains(cardId)) return;
+
+    QVariantMap c = m_extraCards[cardId];
+    c["failed"] = true;
+    c["error"] = error;
+    c["canCancel"] = true;   // 失败态保留关闭按钮（手动关闭）
+    m_extraCards[cardId] = c;
+
+    // ── 全量刷新该行（failed/error/canCancel 各角色一起更新）──
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->updateRow(row, resourceCardToInstallCard(cardId));
+    }
+}
+
+
+
+void VersionBackend::completeResourceCard(const QString& cardId) {
+
+    if (!m_extraCards.contains(cardId)) return;
+
+    QVariantMap c = m_extraCards[cardId];
+    c["totalProgress"] = 1.0;
+    c["installPhase"] = tr("已完成");
+    c["speed"] = QVariant::fromValue<qint64>(0);
+    c["failed"] = false;
+    c["error"] = QString();
+    c["canCancel"] = false;   // 完成态隐藏取消/关闭按钮（绿色定格）
+    m_extraCards[cardId] = c;
+
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->updateRow(row, resourceCardToInstallCard(cardId));
     }
 }
 
@@ -7352,27 +7415,7 @@ auto* ds = dlSession(it.key());
 
         if (seen.contains(cardId)) continue;
 
-        const QVariantMap& cm = it.value();
-
-        InstallCard c;
-
-        c.iid = cardId;
-
-        c.type = cm.value(QStringLiteral("type"), QStringLiteral("resource")).toString();
-
-        c.name = cm.value(QStringLiteral("displayName"), cardId).toString();
-
-        c.progress = cm.value(QStringLiteral("totalProgress"), 0.0).toReal();
-
-        c.speed = cm.value(QStringLiteral("speed"), QVariant::fromValue<qint64>(0)).value<qint64>();
-
-        c.phase = cm.value(QStringLiteral("installPhase"), QString()).toString();
-
-        c.remaining = 0;
-
-        c.steps = QVariantList{};
-
-        cards.append(c);
+        cards.append(resourceCardToInstallCard(cardId));
 
     }
 
@@ -7644,6 +7687,12 @@ void VersionBackend::dismissCard(const QString& installId)
 
 {
 
+    // ── 资源卡片（模组/光影/资源包文件下载）：关闭即移除卡片并清注册 ──
+    if (m_extraCards.contains(installId)) {
+        removeResourceCard(installId);
+        return;
+    }
+
     // ── 整合包任务卡片：关闭即移除卡片并清注册（卡片已结束，无会话可清）──
     if (m_taskCards.contains(installId)) {
         removeTaskCard(installId);
@@ -7698,6 +7747,21 @@ void VersionBackend::dismissAllCompleted()
 
         }
 
+    }
+
+    // 资源卡片：已失败或已完成（totalProgress>=1.0）的才清
+    for (auto it = m_extraCards.constBegin(); it != m_extraCards.constEnd(); ++it) {
+        const QVariantMap& cm = it.value();
+        if (cm.value(QStringLiteral("failed"), false).toBool()
+            || cm.value(QStringLiteral("totalProgress"), 0.0).toReal() >= 1.0)
+            toDismiss.append(it.key());
+    }
+    // 整合包任务卡片：已失败或已完成（totalProgress>=1.0）的才清
+    for (auto it = m_taskCards.constBegin(); it != m_taskCards.constEnd(); ++it) {
+        const QVariantMap& cm = it.value();
+        if (cm.value(QStringLiteral("failed"), false).toBool()
+            || cm.value(QStringLiteral("totalProgress"), 0.0).toReal() >= 1.0)
+            toDismiss.append(it.key());
     }
 
     for (const auto& id : toDismiss) {

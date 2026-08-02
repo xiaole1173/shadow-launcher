@@ -234,6 +234,10 @@ public:
     // Resource / Mod download cards
     Q_INVOKABLE void addResourceCard(const QString& cardId, const QString& displayName);
     Q_INVOKABLE void updateResourceCard(const QString& cardId, qreal progress, const QString& status, qint64 speed = 0);
+    /// 资源下载失败：卡片标记失败态（红名+错误信息+可关闭），保留卡片等待手动关闭
+    Q_INVOKABLE void failResourceCard(const QString& cardId, const QString& error);
+    /// 资源下载完成：定格绿色完成态（progress=1.0, canCancel=false, failed=false），保留卡片
+    Q_INVOKABLE void completeResourceCard(const QString& cardId);
     Q_INVOKABLE void removeResourceCard(const QString& cardId);
 
     // ── 整合包任务卡片（原生卡片通道：QML 经 InstallCardModel::cardData 轮询）──
@@ -389,6 +393,7 @@ private:
     QString m_modpackMcVersion;                  // 原版 MC 版本（vanilla 会话 id）
     std::function<void()> m_modpackCancelHandler; // 卡片取消转发
     InstallCard taskCardToInstallCard(const QString& cardId) const;
+    InstallCard resourceCardToInstallCard(const QString& cardId) const;
 
     void rebuildSteps(const QString& installId, const QStringList& names, const QVector<qreal>& weights = {},
                       const QVector<bool>& showFlags = {});

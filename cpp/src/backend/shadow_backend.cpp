@@ -472,7 +472,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, [this](const QString&, bool success, const QString&) {
                 qCInfo(logLaunch) << QStringLiteral("[资源包下载] 下载完成 成功=%1").arg(success);
                 emit resourceDownloadDone(success);
-                if (m_version) m_version->removeResourceCard(QStringLiteral("resource"));
+                if (m_version) {
+                    if (success) m_version->completeResourceCard(QStringLiteral("resource"));
+                    else m_version->failResourceCard(QStringLiteral("resource"), tr("资源包下载失败"));
+                }
             });
     connect(m_resource, &ResourceBackend::searchResultsReady,
             this, &ShadowBackend::searchResultsReady);
@@ -526,19 +529,32 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 }
             });
     connect(m_resource, &ResourceBackend::modFileDownloadFinished,
-            this, [this](int dlId, bool success, const QString&, const QString&) {
-                Q_UNUSED(success);
+            this, [this](int dlId, bool success, const QString& filePath, const QString& displayName) {
                 if (m_modDownloadCards.contains(dlId)) {
-                    if (m_version) m_version->removeResourceCard(m_modDownloadCards[dlId]);
+                    const QString cardId = m_modDownloadCards[dlId];
+                    if (m_version) {
+                        if (success) {
+                            // 下载完成：卡片定格绿色完成态（不立即移除，QML 端保留展示）
+                            m_version->completeResourceCard(cardId);
+                        } else {
+                            // 下载器回调 ok=false（如 SHA1 校验失败分支已走 Failed 信号，此处兜底）
+                            m_version->failResourceCard(cardId, tr("下载失败"));
+                        }
+                    }
                     m_modDownloadCards.remove(dlId);
                 }
+                // 透传信号给 QML（成功 Toast / 详情页错误弹窗）
+                emit modFileDownloadFinished(dlId, success, filePath, displayName);
             });
     connect(m_resource, &ResourceBackend::modFileDownloadFailed,
-            this, [this](int dlId, const QString&, const QString&) {
+            this, [this](int dlId, const QString& errorDetail, const QString& displayName) {
                 if (m_modDownloadCards.contains(dlId)) {
-                    if (m_version) m_version->removeResourceCard(m_modDownloadCards[dlId]);
+                    const QString cardId = m_modDownloadCards[dlId];
+                    if (m_version) m_version->failResourceCard(cardId, errorDetail);
                     m_modDownloadCards.remove(dlId);
                 }
+                // 透传信号给 QML（失败 Toast / 详情页错误弹窗）
+                emit modFileDownloadFailed(dlId, errorDetail, displayName);
             });
 
     // ── Signal forwarding: AppBackend → ShadowBackend ──
@@ -1781,6 +1797,19 @@ void ShadowBackend::cancelInstall() {
 }
 
 void ShadowBackend::cancelVersionInstall(const QString& versionId) {
+    // ── 资源文件下载卡片（mod:N）：取消下载并移除卡片 ──
+    if (versionId.startsWith(QStringLiteral("mod:"))) {
+        bool ok = false;
+        const int dlId = versionId.mid(4).toInt(&ok);
+        if (ok) {
+            m_resource->cancelModFileDownload(dlId);
+            if (m_modDownloadCards.contains(dlId)) {
+                if (m_version) m_version->removeResourceCard(m_modDownloadCards[dlId]);
+                m_modDownloadCards.remove(dlId);
+            }
+        }
+        return;
+    }
     if (m_version) m_version->cancelVersionInstall(versionId);
 }
 
