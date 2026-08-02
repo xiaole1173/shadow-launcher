@@ -162,6 +162,32 @@ Rectangle {
         }
 
         // ═════════════════════════════════════════════
+        // Row 2: Modpack 筛选条件（与 Mod 行同构：加载器 + 类别）
+        // ═════════════════════════════════════════════
+        RowLayout {
+            visible: root.cardType === "modpack"
+            Layout.fillWidth: true; spacing: 8
+
+            Text { text: "加载器"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(36, implicitWidth) }
+            ShadowDropdown {
+                id: packLdrDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+                model: root.modLoaderModel
+                labelFn: function(v) { return root.modLoaderLabels[v] || "全部" }
+                currentValue: root.modLoader
+                onValueSelected: function(v) { root.modLoader = v }
+            }
+            Text { text: "类别"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
+            ShadowDropdown {
+                id: packCatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+                model: root.modCatModel
+                labelFn: function(v) { return root.modCatLabels[v] || "全部" }
+                currentValue: root.modCategory
+                onValueSelected: function(v) { root.modCategory = v }
+            }
+            Item { Layout.fillWidth: true }
+        }
+
+        // ═════════════════════════════════════════════
         // Row 2: Mod 筛选条件
         // ═════════════════════════════════════════════
         RowLayout {

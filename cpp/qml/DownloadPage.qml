@@ -360,7 +360,7 @@ Rectangle {
         height: 28
         spacing: 4
 
-        property var tabLabels: ["MC 版本", "Mod", "光影", "资源包", "Java"]
+        property var tabLabels: ["MC 版本", "Mod", "光影", "资源包", "整合包", "Java"]
 
         Repeater {
             model: [
@@ -368,6 +368,7 @@ Rectangle {
                 { label: "Mod", icon: "puzzle" },
                 { label: "光影", icon: "sparkles" },
                 { label: "资源包", icon: "palette" },
+                { label: "整合包", icon: "package" },
                 { label: "Java", icon: "terminal" }
             ]
             Rectangle {
@@ -1310,6 +1311,10 @@ Rectangle {
     ListModel { id: modResultsModel }
     ListModel { id: shaderResultsModel }
     ListModel { id: rpResultsModel }
+    ListModel { id: packResultsModel }
+
+    // 整合包状态（游戏版本筛选走根属性，与 mod/shader/rp 同构）
+    property string packGameVersion: ""
 
     // Mod & Shader state
     property bool modSearching: false
@@ -1714,6 +1719,74 @@ Rectangle {
         }
     }
 
+    // ── Modpack Detail (ModpackDetailPage.qml) ──
+    property bool _showPackDetail: false
+    property string _packDetailSlug: ""
+    property string _packDetailTitle: ""
+    property string _packDetailDesc: ""
+    property string _packDetailIcon: ""
+    property string _packDetailSource: ""
+    property int _packDetailDownloads: 0
+    property string _packDetailUpdated: ""
+
+    Rectangle {
+        id: packDetailOverlay
+        anchors.fill: parent
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
+        z: 10
+        opacity: page._showPackDetail ? 1 : 0
+        visible: page._showPackDetail
+        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+        SequentialAnimation {
+            id: packExitAnim
+            NumberAnimation { target: packDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            ScriptAction { script: { page._showPackDetail = false; packDetailLoader._keepActive = false } }
+        }
+
+        Loader {
+            id: packDetailLoader
+            anchors.fill: parent
+            property bool _keepActive: false
+            active: page._showPackDetail || _keepActive
+            source: active ? "ModpackDetailPage.qml" : ""
+
+            onLoaded: {
+                _keepActive = true
+                if (item) {
+                    item.goBack.connect(function() { packExitAnim.start() })
+                    item.backend = backend
+                    item.toastManager = toastManager
+                    item.mainWindow = mainWindow
+                    item.modpackDetailSlug = page._packDetailSlug
+                    item.modpackDetailTitle = page._packDetailTitle
+                    item.modpackDetailDesc = page._packDetailDesc
+                    item.modpackDetailIcon = page._packDetailIcon
+                    item.modpackDetailSource = page._packDetailSource
+                    item.modpackDetailDownloads = page._packDetailDownloads
+                    item.modpackDetailUpdated = page._packDetailUpdated
+                }
+            }
+
+            Connections {
+                target: page
+                function on_ShowPackDetailChanged() {
+                    if (page._showPackDetail) {
+                        packDetailOverlay.opacity = Qt.binding(function() { return page._showPackDetail ? 1 : 0 })
+                    } else {
+                        packUnloadTimer.start()
+                    }
+                }
+            }
+
+            Timer {
+                id: packUnloadTimer
+                interval: 500
+                onTriggered: { if (!page._showPackDetail) packDetailLoader._keepActive = false }
+            }
+        }
+    }
+
     // ── Shader Detail (ShaderDetailPage.qml) ──
     property bool _showShaderDetail: false
     property string _shaderDetailSlug: ""
@@ -1781,7 +1854,242 @@ Rectangle {
     }
 
     // ════════════════════════════════════════════
-    // TAB 4: Java 下载
+    // TAB 4: 整合包下载（双源：Modrinth + CurseForge）
+    // ════════════════════════════════════════════
+    Item {
+        id: packTab
+        anchors.top: tabBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 8
+        opacity: page.currentTab === 4 ? 1 : 0
+        visible: page.currentTab === 4
+        enabled: page.currentTab === 4
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        // ── 状态 ──
+        property bool packSearching: false
+        property bool packPrefetching: false
+        property int packCurrentPage: 0
+        readonly property int packPageSize: 20
+        property bool packHasMore: false
+        property string packLoader: ""
+        property string packCategory: ""
+
+        // 整合包加载器（Modrinth categories + CF modLoaderType 通用）
+        property var packLoaderLabels: ({
+            "": "全部", "fabric": "Fabric", "forge": "Forge",
+            "quilt": "Quilt", "neoforge": "NeoForge"
+        })
+        // Modrinth 整合包分类（实测有结果）
+        property var packCatLabels: ({
+            "adventure": "冒险", "combat": "战斗", "magic": "魔法",
+            "quests": "任务", "optimization": "优化", "lightweight": "轻量",
+            "challenging": "挑战", "multiplayer": "多人", "minigame": "小游戏",
+            "utility": "实用", "storage": "存储", "decoration": "装饰",
+            "food": "食物", "cursed": "猎奇"
+        })
+        // CF 4471 分类中文映射
+        property var packCfCatZh: ({
+            "Extra Large": "超大型", "Small / Light": "小型轻量", "Combat / PvP": "战斗PvP",
+            "Sci-Fi": "科幻", "Adventure and RPG": "冒险与RPG", "FTB Official Pack": "FTB官方包",
+            "Quests": "任务", "Tech": "科技", "Skyblock": "空岛", "Map Based": "地图类",
+            "Horror": "恐怖", "Multiplayer": "多人", "Mini Game": "小游戏", "Magic": "魔法",
+            "Vanilla+": "原版+", "Hardcore": "硬核", "Exploration": "探索", "Expert": "专家",
+            "RLCraft": "RLCraft"
+        })
+
+        // ── 筛选卡片 ──
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            FilterCard {
+                id: packFilterCard
+                Layout.fillWidth: true
+                cardType: "modpack"
+                searchPlaceholder: qsTr("输入整合包名称...（仅支持英文搜索）")
+                rawVersionIds: backend ? backend.versionIds : []
+                modLoaderModel: [""].concat(Object.keys(packTab.packLoaderLabels).filter(function(k) { return k !== "" }))
+                modLoaderLabels: packTab.packLoaderLabels
+                modCatModel: {
+                    var m = [""].concat(Object.keys(packTab.packCatLabels))
+                    if (backend) {
+                        var cf = backend.cfCategories(4471)   // CurseForge Modpacks 分类叠加
+                        for (var i = 0; i < cf.length; i++) m.push(cf[i].value)
+                    }
+                    return m
+                }
+                modCatLabels: {
+                    var labels = {}
+                    for (var k in packTab.packCatLabels) labels[k] = packTab.packCatLabels[k]
+                    if (backend) {
+                        var cf = backend.cfCategories(4471)
+                        for (var i = 0; i < cf.length; i++) {
+                            var zh = packTab.packCfCatZh[cf[i].name]
+                            labels[cf[i].value] = zh ? ("CF·" + zh) : ("CF·" + cf[i].name)
+                        }
+                    }
+                    return labels
+                }
+
+                Component.onCompleted: {
+                    modLoader = packTab.packLoader
+                    modCategory = packTab.packCategory
+                    mcVersion = page.packGameVersion
+                }
+                onSearchClicked: packTab.doPackSearch()
+                onResetClicked: {
+                    modLoader = ""; modCategory = ""; mcVersion = ""
+                    searchText = ""; packResultsModel.clear()
+                    packTab.packLoader = ""; packTab.packCategory = ""
+                    page.packGameVersion = ""
+                    packTab.doPackSearch()
+                }
+                onModLoaderChanged: packTab.packLoader = modLoader
+                onModCategoryChanged: packTab.packCategory = modCategory
+                onMcVersionChanged: page.packGameVersion = mcVersion
+            }
+
+            // ── 搜索结果 ──
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                Component.onCompleted: contentItem.flickDeceleration = 250
+
+                ListView {
+                    id: packListView
+                    anchors.fill: parent; spacing: 6
+                    model: packResultsModel
+                    cacheBuffer: 200
+                    onAtYEndChanged: { if (atYEnd) packTab.prefetchPackNextPage() }
+
+                    header: LoadStatus {
+                        width: packListView.width
+                        loading: packTab.packSearching
+                        emptyText: qsTr("输入关键词搜索整合包")
+                        count: packResultsModel.count
+                    }
+                    footer: PaginationFooter {
+                        currentPage: packTab.packCurrentPage
+                        hasNext: packTab.packHasMore
+                        loading: packTab.packSearching
+                        onFirstClicked: packTab.doPackSearch(0)
+                        onPrevClicked: packTab.doPackSearch(packTab.packCurrentPage - 1)
+                        onNextClicked: packTab.doPackSearch(packTab.packCurrentPage + 1)
+                    }
+
+                    delegate: DownloadCard {
+                        width: packListView.width - 8
+                        title: model.title || ""
+                        description: model.desc || ""
+                        iconUrl: model.icon || ""
+                        slug: model.slug || ""
+                        downloads: model.downloads || 0
+                        source: model.source || "Modrinth"
+                        gameVersions: model.versions || ""
+                        dateModified: model.dateModified || ""
+                        loaders: (model.loadersList || model.loader || "")
+                        categoriesJson: JSON.stringify(model.categories || [])
+                        onClicked: {
+                            page._packDetailSlug = model.slug
+                            page._packDetailTitle = model.title || ""
+                            page._packDetailDesc = model.desc || ""
+                            page._packDetailIcon = model.icon || ""
+                            page._packDetailSource = model.source || "Modrinth"
+                            page._packDetailDownloads = model.downloads || 0
+                            page._packDetailUpdated = model.dateModified || ""
+                            page._showPackDetail = true
+                            console.info("[UI] 打开 整合包详情 slug=" + model.slug)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 搜索 ──
+        Connections {
+            target: backend
+            enabled: backend !== null
+            function onModpackSearchResultsReady(results) {
+                if (packTab.packPrefetching) {
+                    // 预取响应：不污染列表，只预热图标缓存
+                    packTab.packPrefetching = false
+                    var urls = []
+                    for (var pi = 0; pi < (results ? results.length : 0); pi++) {
+                        var pu = (results[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        if (pu) urls.push(pu)
+                    }
+                    if (urls.length > 0 && backend) backend.cacheIconBatchAsync(urls)
+                    return
+                }
+                // ═══ 池子架构：后端 emit 合并池全量，这里按当前页切片显示 ═══
+                var pool = results || []
+                var start = packTab.packCurrentPage * packTab.packPageSize
+                var end = Math.min(start + packTab.packPageSize, pool.length)
+                packResultsModel.clear()
+                var urlsToCache = []
+                for (var j = start; j < end; j++) {
+                    var r = pool[j]
+                    var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                    var iconUrl = ""
+                    if (rawIcon && backend) {
+                        urlsToCache.push(rawIcon)
+                        iconUrl = backend.resolveIconUrl(rawIcon)
+                    }
+                    packResultsModel.append({
+                        slug: r.slug || "",
+                        title: r.title || r.slug || "Unknown",
+                        desc: r.desc || "",
+                        iconRaw: rawIcon,
+                        icon: iconUrl,
+                        downloads: r.downloads || 0,
+                        versions: typeof r.versions === "string" ? r.versions : "",
+                        dateModified: r.dateModified || "",
+                        loader: r.loader || "",
+                        loadersList: Array.isArray(r.loadersList) ? r.loadersList.join(", ") : (r.loadersList || ""),
+                        categories: Array.isArray(r.categories) ? r.categories : [],
+                        source: r.source || "Modrinth"
+                    })
+                }
+                packTab.packSearching = false
+                packTab.packHasMore = pool.length > (packTab.packCurrentPage + 1) * packTab.packPageSize
+                if (urlsToCache.length > 0 && backend) {
+                    backend.cacheIconBatchAsync(urlsToCache)
+                }
+            }
+        }
+
+        function doPackSearch(pageNum) {
+            if (!backend) return
+            packTab.packPrefetching = false
+            pageNum = (pageNum !== undefined) ? pageNum : 0
+            packTab.packSearching = true
+            packTab.packCurrentPage = pageNum
+            var offset = pageNum * packTab.packPageSize
+            packResultsModel.clear()
+            var ver = page.packGameVersion ? [page.packGameVersion] : []
+            backend.searchModpacksEx(packFilterCard.searchText.trim(),
+                                     packTab.packLoader, packTab.packCategory,
+                                     ver, offset, packTab.packPageSize)
+        }
+        function prefetchPackNextPage() {
+            if (!backend || packTab.packPrefetching || packTab.packSearching) return
+            if (!packTab.packHasMore) return
+            packTab.packPrefetching = true
+            var ver = page.packGameVersion ? [page.packGameVersion] : []
+            var offset = (packTab.packCurrentPage + 1) * packTab.packPageSize
+            backend.prefetchModpacks(packFilterCard.searchText.trim(),
+                                     packTab.packLoader, packTab.packCategory,
+                                     ver, offset, packTab.packPageSize)
+            packTab.packPrefetching = false
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // TAB 5: Java 下载
     // ════════════════════════════════════════════
     JavaPage {
         id: javaPage
@@ -1790,8 +2098,8 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        opacity: page.currentTab === 4 ? 1 : 0
-        enabled: page.currentTab === 4
+        opacity: page.currentTab === 5 ? 1 : 0
+        enabled: page.currentTab === 5
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 

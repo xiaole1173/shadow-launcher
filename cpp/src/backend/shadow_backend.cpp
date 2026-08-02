@@ -543,6 +543,18 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     }
                     m_modDownloadCards.remove(dlId);
                 }
+                // ── 整合包下载完成 → 自动转入导入流程（用户输入版本名注册）──
+                if (m_packDownloads.contains(dlId)) {
+                    const PackDownloadInfo info = m_packDownloads.take(dlId);
+                    if (success && m_modpackImporter) {
+                        auto* importer = qobject_cast<ModpackImporter*>(m_modpackImporter);
+                        qCInfo(logApp) << QStringLiteral("[整合包] 下载完成，自动导入: %1 版本名=%2")
+                            .arg(info.zipPath, info.versionName);
+                        if (importer) importer->startImport(info.zipPath, info.versionName);
+                    } else if (!success) {
+                        qCInfo(logApp) << QStringLiteral("[整合包] 下载失败，不导入: %1").arg(info.zipPath);
+                    }
+                }
                 // 透传信号给 QML（成功 Toast / 详情页错误弹窗）
                 emit modFileDownloadFinished(dlId, success, filePath, displayName);
             });
@@ -553,9 +565,17 @@ ShadowBackend::ShadowBackend(QObject* parent)
                     if (m_version) m_version->failResourceCard(cardId, errorDetail);
                     m_modDownloadCards.remove(dlId);
                 }
+                // 整合包下载失败：移除待导入记录（不进入导入流程）
+                if (m_packDownloads.contains(dlId)) {
+                    m_packDownloads.remove(dlId);
+                    qCInfo(logApp) << QStringLiteral("[整合包] 下载失败，取消自动导入 dlId=%1").arg(dlId);
+                }
                 // 透传信号给 QML（失败 Toast / 详情页错误弹窗）
                 emit modFileDownloadFailed(dlId, errorDetail, displayName);
             });
+    // 整合包搜索完成透传（QML 回填列表）
+    connect(m_resource, &ResourceBackend::modpackSearchResultsReady,
+            this, &ShadowBackend::modpackSearchResultsReady);
     // CF 前置依赖解析结果透传（QML 回填依赖卡片）
     connect(m_resource, &ResourceBackend::cfDependenciesResolved,
             this, &ShadowBackend::cfDependenciesResolved);
@@ -2300,6 +2320,52 @@ void ShadowBackend::fetchResourcepackVersionsCf(const QString& modId, const QStr
 
 void ShadowBackend::resolveCfDependencies(const QString& modId, const QVariantList& deps) {
     m_resource->resolveCfDependencies(modId, deps);
+}
+
+// ── 整合包：双源搜索 / 详情版本 / 下载→自动导入 ──
+void ShadowBackend::searchModpacksEx(const QString& query, const QString& loader,
+    const QString& category, const QStringList& gameVersions,
+    int offset, int limit) {
+    m_resource->searchModpacksEx(query, loader, category, gameVersions, offset, limit);
+}
+
+void ShadowBackend::fetchModpackVersions(const QString& slug, const QString& gameVersion, const QString& loader) {
+    m_resource->fetchModpackVersions(slug, gameVersion, loader);
+}
+
+void ShadowBackend::prefetchModpacks(const QString& query, const QString& loader,
+    const QString& category, const QStringList& gameVersions,
+    int offset, int limit) {
+    m_resource->prefetchModpacks(query, loader, category, gameVersions, offset, limit);
+}
+
+int ShadowBackend::downloadModpack(const QString& url, const QString& filename, qint64 size,
+                                   const QString& sha1, const QString& versionName, const QString& actualName)
+{
+    if (url.isEmpty() || versionName.isEmpty()) return -1;
+    // 下载目录：{gameDir}/downloads/（不存在则创建）
+    QString dlDir = m_gameDir + QStringLiteral("/downloads");
+    QDir().mkpath(dlDir);
+    QString savePath = dlDir + QLatin1Char('/') + filename;
+    if (QFileInfo::exists(savePath)) {
+        // 已存在同名文件（上次下载/导入残留）：加时间戳避免覆盖冲突
+        savePath = dlDir + QLatin1Char('/')
+                 + QFileInfo(filename).completeBaseName()
+                 + QStringLiteral("-%1.").arg(QDateTime::currentMSecsSinceEpoch())
+                 + QFileInfo(filename).suffix();
+    }
+    // 卡片标题：整合包：【用户输入名】+【（实际名）】
+    const QString displayName = tr("整合包：%1（%2）").arg(versionName, actualName.isEmpty() ? filename : actualName);
+    const int dlId = m_resource->downloadModFile(url, savePath, displayName, size, sha1);
+    if (dlId >= 0) {
+        PackDownloadInfo info;
+        info.zipPath = savePath;
+        info.versionName = versionName;
+        m_packDownloads.insert(dlId, info);
+        qCInfo(logApp) << QStringLiteral("[整合包] 下载任务已添加 id=%1 → %2 (版本名=%3)")
+            .arg(dlId).arg(savePath, versionName);
+    }
+    return dlId;
 }
 
 // ── Mod file download proxy ──

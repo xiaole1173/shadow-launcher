@@ -257,7 +257,11 @@ Rectangle {
         "medieval":"中世纪", "futuristic":"未来", "cartoon":"卡通",
         "pvp":"PVP", "minigame":"小游戏", "gui":"界面", "font":"字体",
         "hd":"高清", "photorealism":"照片", "cute":"可爱",
-        "dark":"暗色", "light":"亮色", "clean":"简洁"
+        "dark":"暗色", "light":"亮色", "clean":"简洁",
+        // 整合包分类
+        "adventure":"冒险", "magic":"魔法", "quests":"任务",
+        "optimization":"优化", "lightweight":"轻量", "challenging":"挑战",
+        "multiplayer":"多人", "storage":"存储", "food":"食物"
     })
     readonly property var _featMap: ({
         "audio": "音频", "blocks": "方块", "core-shaders": "核心着色器",

@@ -73,7 +73,8 @@ public:
     QString lastLogLine() const { return m_lastLogLine; }
 
     // ── Public API（QML 既有接口，保持不变）──
-    Q_INVOKABLE void startImport(const QString& zipFilePath,
+    /// versionName：用户指定版本名（下载 tab 输入，注册名）；空则自动生成
+    Q_INVOKABLE void startImport(const QString& zipFilePath, const QString& versionName = {},
                                  bool includeOptional = false);
     Q_INVOKABLE void cancelImport();
     Q_INVOKABLE void dismissResult();  // Called from QML after user dismisses success

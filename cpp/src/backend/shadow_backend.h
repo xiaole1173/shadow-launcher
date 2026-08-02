@@ -23,6 +23,7 @@ class CheckBackend;
 class VersionBackend;
 class LaunchBackend;
 class ResourceBackend;
+class ModpackImporter;
 class StatsBackend;
 class JavaBackend;
 class UserDataBackend;
@@ -370,9 +371,23 @@ public:
         const QStringList& categories, int offset, int limit);
     Q_INVOKABLE void prefetchResourcepacks(const QString& query, const QString& gameVersion,
         int offset, const QStringList& categories);
+    // 整合包翻页预取（只预热缓存，不产生聚合信号）
+    Q_INVOKABLE void prefetchModpacks(const QString& query, const QString& loader,
+        const QString& category, const QStringList& gameVersions,
+        int offset, int limit);
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
+    // 整合包双源搜索（池子架构）
+    Q_INVOKABLE void searchModpacksEx(const QString& query, const QString& loader,
+        const QString& category, const QStringList& gameVersions,
+        int offset, int limit);
+    // 整合包详情版本列表（Modrinth slug / CF 数字 id 自动路由，复用 modVersionsPartial）
+    Q_INVOKABLE void fetchModpackVersions(const QString& slug, const QString& gameVersion = {}, const QString& loader = {});
+    /// 整合包压缩包下载：静默下载到 {gameDir}/downloads/，完成后自动走导入流程
+    /// 返回 dlId（卡片通道 mod:N）；versionName=用户指定版本名（注册名），actualName=整合包实际名
+    Q_INVOKABLE int downloadModpack(const QString& url, const QString& filename, qint64 size,
+                                    const QString& sha1, const QString& versionName, const QString& actualName);
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
     Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
@@ -587,6 +602,8 @@ signals:
     void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
+    /// 整合包搜索完成（池子全量，QML 按页切片）
+    void modpackSearchResultsReady(const QVariantList& results);
     /// CF 前置依赖解析完成（QML 回填依赖卡片）
     void cfDependenciesResolved(const QString& modId, const QVariantList& deps);
 
@@ -759,6 +776,13 @@ private:
     int m_resourceDlSpeed = 0;
     QString m_resourceDlFile;
     QMap<int, QString> m_modDownloadCards;  // dlId → cardId for mod file cards
+
+    // 整合包压缩包下载 → 自动导入联动记录（dlId → 待导入信息）
+    struct PackDownloadInfo {
+        QString zipPath;       // 下载落盘路径（{gameDir}/downloads/xxx.mrpack|zip）
+        QString versionName;   // 用户指定版本名（注册名）
+    };
+    QMap<int, PackDownloadInfo> m_packDownloads;
 
     // Mod-loader query tracking (for cancellation when install starts)
     QList<QPointer<QNetworkReply>> m_modLoaderReplies;

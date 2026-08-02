@@ -46,7 +46,7 @@ public:
     void configure(VersionBackend* vb, VersionIsolation* iso,
                    const QString& gameDir, const QString& cfApiKey);
 
-    void start(const QString& zipPath, bool includeOptional);
+    void start(const QString& zipPath, const QString& versionName = {}, bool includeOptional = false);
     void cancel();
     bool isBusy() const { return m_busy; }
 
@@ -147,6 +147,7 @@ private:
 
     // ── 输入 / 解析结果 ──
     QString m_zipPath;
+    QString m_userVersionName;   // 用户指定版本名（下载 tab 输入，注册名）；空=自动生成
     bool m_includeOptional = false;
     ModpackMeta m_meta;
     QString m_targetName;     // 版本文件夹名 / 版本 id

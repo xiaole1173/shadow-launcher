@@ -53,6 +53,13 @@ ModpackInstallTask::ModpackInstallTask(QObject* parent)
         if (!m_vb || m_cardId.isEmpty() || m_mcSessionId.isEmpty()) return;
         const qreal p = m_vb->installProgressOf(m_mcSessionId);
         m_mcSpeed = m_vb->installSpeedOf(m_mcSessionId);
+        // ── MC+加载器完成轮询兜底（installFinished 信号连接曾失效，改用主动查询）──
+        // 进度到 1.0 且安装状态已退出 → 视为 MC 路完成（幂等，信号路径命中后不再触发）
+        if (!m_mcDone && m_installingMc && p >= 0.99 && !m_vb->isInstalling()) {
+            m_installingMc = false;
+            onMcInstallFinished(true);
+            return;
+        }
         // 模组路 EMA 无数据衰减：长时间无字节流入 → 减半回落，不滞留旧速度
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
         if (m_lastBytesMs > 0 && now - m_lastBytesMs > 800) {
@@ -88,7 +95,7 @@ void ModpackInstallTask::configure(VersionBackend* vb, VersionIsolation* iso,
 
 // ── 启动 ──
 
-void ModpackInstallTask::start(const QString& zipPath, bool includeOptional)
+void ModpackInstallTask::start(const QString& zipPath, const QString& versionName, bool includeOptional)
 {
     if (m_busy) return;
     if (m_vb->isInstalling()) {
@@ -99,6 +106,7 @@ void ModpackInstallTask::start(const QString& zipPath, bool includeOptional)
     m_busy = true;
     m_cancel = false;
     m_zipPath = zipPath;
+    m_userVersionName = versionName;
     m_includeOptional = includeOptional;
     m_meta = ModpackMeta{};
     m_targetName.clear();
@@ -150,8 +158,10 @@ void ModpackInstallTask::runParse()
         } else if (!ModpackParser::parse(m_zipPath, fmt, m_meta, error)) {
             // error 已填充
         } else {
-            // 目标版本名：净化 + 查重（不覆盖既有版本，主流启动器 ValidateFolderName 思路）
-            const QString base = sanitizeVersionName(m_meta.name + QLatin1Char('-') + m_meta.versionId);
+            // 目标版本名：用户指定优先（下载 tab 输入），否则自动生成（净化 + 查重，主流启动器 ValidateFolderName 思路）
+            const QString base = m_userVersionName.isEmpty()
+                ? sanitizeVersionName(m_meta.name + QLatin1Char('-') + m_meta.versionId)
+                : sanitizeVersionName(m_userVersionName);
             m_targetName = findFreeVersionName(base);
             m_versionDir = m_gameDir + QStringLiteral("/versions/") + m_targetName;
             m_versionDirCreated = !QDir(m_versionDir).exists();
@@ -467,6 +477,7 @@ void ModpackInstallTask::runDownload()
 void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 {
     Q_UNUSED(cancelled);   // 取消判定用 m_cancel（downloader 中止也可能是失败守卫触发）
+    emit logLine(tr("[追踪] onDownloadAllFinished 进入 cancelled=%1").arg(cancelled));
     m_attachSyncTimer->stop();
     m_modsDone = true;
 
@@ -514,6 +525,8 @@ void ModpackInstallTask::onDownloadAllFinished(bool cancelled)
 
 void ModpackInstallTask::tryFinalize()
 {
+    emit logLine(tr("[追踪] tryFinalize 进入 modsDone=%1 mcDone=%2 phase=%3")
+        .arg(m_modsDone).arg(m_mcDone).arg(int(m_phase)));
     if (m_cancel) { tryCancelFinish(); return; }
     if (!m_modsDone || !m_mcDone) return;   // 两路都完成才汇合
     if (m_phase == Phase::Error || m_phase == Phase::Cancelled || m_phase == Phase::Done) return;
@@ -547,10 +560,13 @@ void ModpackInstallTask::runMcInstall()
 
         connect(m_vb, &VersionBackend::installFinished, this, [this](bool ok) {
             // 只处理本任务触发的安装
+            emit logLine(tr("[追踪] installFinished 收到 ok=%1 installingMc=%2").arg(ok).arg(m_installingMc));
             if (!m_installingMc) return;
             m_installingMc = false;
             onMcInstallFinished(ok);
         }, Qt::UniqueConnection);
+        emit logLine(tr("[追踪] runMcInstall 已连接 installFinished (m_vb=%1)")
+            .arg(m_vb ? QStringLiteral("valid") : QStringLiteral("NULL")));
 
         m_vb->installModLoader(m_meta.mcVersion, m_meta.loaderType,
                                m_meta.loaderVersion, m_targetName);
@@ -587,6 +603,8 @@ void ModpackInstallTask::runMcInstall()
 
 void ModpackInstallTask::onMcInstallFinished(bool ok)
 {
+    if (m_mcDone) return;   // 幂等：信号 + 轮询双路触发只处理一次
+    emit logLine(tr("[追踪] onMcInstallFinished ok=%1 进入").arg(ok));
     m_mcPollTimer->stop();
     m_mcDone = true;
 
@@ -698,6 +716,7 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
 
 void ModpackInstallTask::runFinalize()
 {
+    emit logLine(tr("[追踪] runFinalize 进入"));
     setStep(tr("整理版本信息"));
     if (!m_cardSteps.isEmpty())
         setCardStep(m_cardSteps.size() - 1, QStringLiteral("active"), 0);   // 版本注册步骤（动态索引）
@@ -797,6 +816,7 @@ void ModpackInstallTask::ensureVersionJsonFallback(int attempt)
 
 void ModpackInstallTask::completeImport()
 {
+    emit logLine(tr("[追踪] completeImport 进入"));
     // 注册到版本列表（QML 版本页立即可见，不再出现 versions 空白）
     if (m_vb) {
         m_vb->refreshInstalled();
