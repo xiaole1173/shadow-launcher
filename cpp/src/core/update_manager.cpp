@@ -70,37 +70,6 @@ void UpdateManager::saveState()
     }
 }
 
-bool UpdateManager::hasPendingReady() const
-{
-    // If install lock exists, SLUpdater is running or crashed
-    if (QFileInfo::exists(stateDir() + ".install_lock")) {
-        qCInfo(logApp) << "[UpdateManager] 安装锁存在，跳过安装检查";
-        return false;
-    }
-
-    QFile f(stateDir() + "state.json");
-    if (!f.open(QIODevice::ReadOnly)) return false;
-
-    QJsonParseError err;
-    QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        qCWarning(logApp) << "[UpdateManager] state.json 损坏，自动清除"
-                          << "error:" << err.errorString();
-        f.close();
-        QFile::remove(stateDir() + "state.json");
-        return false;
-    }
-
-    QJsonObject obj = doc.object();
-    int s = obj.value("state").toInt(-1);
-    if (s != Ready) return false;
-
-    QString path = obj.value("download_path").toString();
-    QString ver = obj.value("download_version").toString();
-    qCInfo(logApp) << "[UpdateManager] 发现待安装更新 version=" << ver;
-    return QFileInfo::exists(path);
-}
-
 void UpdateManager::resumePausedDownload()
 {
     QFile f(stateDir() + "state.json");

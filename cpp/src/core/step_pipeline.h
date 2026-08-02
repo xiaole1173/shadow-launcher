@@ -41,9 +41,6 @@ public:
     int stepCount() const { return m_nodes.size(); }
 
     // ── 通知 QML 单行/单角色更新 ──
-    void notifyStatus(int row);
-    void notifyProgress(int row);
-    void notifyHidden(int row);
 
 private:
     QVector<StepNode*> m_nodes;  // 非 owning
@@ -65,8 +62,6 @@ public:
 
     // ── 管线构建 ──
     StepNode* addStep(const QString& key, const QString& name, qreal weight = 1.0);
-    StepNode* insertAfter(const QString& afterKey, const QString& key,
-                          const QString& name, qreal weight = 1.0);
     void removeStep(const QString& key);
     void clearSteps();
 

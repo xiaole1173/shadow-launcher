@@ -102,7 +102,6 @@ public:
     Q_INVOKABLE QVariantList persistedJavaList();
     Q_INVOKABLE QString findJavaForVersion(int requiredMajor, int maxMajor = 0);
     // maxMajor>0 时限制在 [requiredMajor, maxMajor] 区间（老版本 Mixin 兼容上限）
-    Q_INVOKABLE int getJavaMajorVersion(const QString& path);
     Q_INVOKABLE QString openJavaFileDialog();
     Q_INVOKABLE QString browseJava();          // QML alias
     void setMinecraftDir(const QString& dir);
@@ -113,13 +112,11 @@ public:
     Q_INVOKABLE void openGameDir();
     Q_INVOKABLE void openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
-    Q_INVOKABLE void openPath(const QString& path);
     bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
     Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
     int languageIndex() const { return m_languageIndex; }
     Q_INVOKABLE void setLanguageIndex(int idx);
     bool isLanguageChanged() const { return m_languageIndex != m_launchLanguageIndex; }
-    Q_INVOKABLE void restartApp();
 
     // Custom background
     QString customBgPath() const { return m_customBgPath; }
@@ -198,7 +195,6 @@ private:
     bool tryAddJavaResult(const QString& exePath, QSet<QString>& seenBinDirs,
                           QVector<JavaInfo>& out);
     QString findJavaInDir(const QString& dirPath);
-    QString findJavaOnPath();
     void findJavaRecursive(const QString& dirPath, int maxDepth, int currentDepth,
                            QSet<QString>& seenBinDirs,
                            QVector<JavaInfo>& results);

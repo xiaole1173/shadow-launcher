@@ -371,44 +371,6 @@ void HttpClient::download(const QString& url, const QString& savePath,
 }
 // --------------- GET with mirror fallback ---------------
 
-void HttpClient::getWithFallback(const QString& url,
-                     std::function<void(int, const QByteArray&)> callback,
-                     std::function<void(const QString&)> onError)
-{
-    QString mirror = mirrorUrl(url);
-    if (mirror.isEmpty()) {
-        get(url, std::move(callback), std::move(onError));
-        return;
-    }
-
-    // Race: mirror and official in parallel, take first success
-    auto doneCount = std::make_shared<QAtomicInt>(0);
-    auto hasWinner = std::make_shared<QAtomicInt>(0);
-    auto cb = std::make_shared<std::function<void(int,const QByteArray&)>>(std::move(callback));
-    auto eb = std::make_shared<std::function<void(const QString&)>>(std::move(onError));
-    static const int kTotal = 2;
-
-    auto tryGet = [this, doneCount, hasWinner, cb, eb]
-        (const QString& targetUrl) {
-            get(targetUrl,
-                [hasWinner, targetUrl, cb](int status, const QByteArray& body) {
-                    if (hasWinner->testAndSetRelaxed(0, 1)) {
-                        qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 竞速完成 胜出URL=%1 状态码=%2").arg(targetUrl).arg(status);
-                        if (*cb) (*cb)(status, body);
-                    }
-                },
-                [doneCount, hasWinner, eb](const QString& err) {
-                    int prev = doneCount->fetchAndAddRelaxed(1);
-                    if (prev + 1 >= kTotal && hasWinner->loadRelaxed() == 0) {
-                        if (*eb) (*eb)(err);
-                    }
-                });
-        };
-
-    tryGet(mirror);
-    tryGet(url);
-}
-
 // --------------- downloadWithFallback (delegates to download which has mirror built-in) ---------------
 
 void HttpClient::downloadWithFallback(const QString& url, const QString& savePath,

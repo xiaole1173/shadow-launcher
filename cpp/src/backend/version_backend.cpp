@@ -27,7 +27,6 @@
 
 #include "../core/mod_loader_installer.h"
 
-#include "../core/download_coordinator.h"
 #include "../core/step_pipeline.h"
 
 #include "../core/mc_language.h"
@@ -1326,71 +1325,6 @@ void VersionBackend::installVersion(const QString& versionId)
     };
 
     startRound(0);
-
-}
-
-
-
-void VersionBackend::cancelInstall()
-
-{
-
-    // ── Cancel all active downloads safely ──
-
-    // Collect IDs first to avoid iterator invalidation during cancel() callbacks
-
-    QStringList ids;
-
-    for (auto it = m_downloaders.keyBegin(); it != m_downloaders.keyEnd(); ++it) {
-
-        ids.append(*it);
-
-    }
-
-    for (const QString& id : ids) {
-
-        cancelVersionInstall(id);
-
-    }
-
-    // Clean up merged contexts (temp dirs + installers)
-    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
-        destroyMergedContext(it.key());
-    }
-
-}
-
-
-
-void VersionBackend::cancelCurrentInstall()
-
-{
-
-    // Single-install cancel: find first active and cancel
-
-    if (!m_activeIds.isEmpty()) {
-
-        cancelVersionInstall(m_activeIds.first());
-
-        return;
-
-    }
-
-    // No active downloads — check queue
-
-    if (!m_installQueue.isEmpty()) {
-
-        QString vid = m_installQueue.first();
-
-        m_installQueue.removeFirst();
-
-        emit logMessage(tr("已取消队列中的 %1").arg(vid));
-
-        emit installStateChanged();
-
-        emit downloadQueueChanged();
-
-    }
 
 }
 
@@ -2727,18 +2661,6 @@ void VersionBackend::setInstallPhase(const QString& phase)
 // Multi-downloader helpers
 
 // ============================================================
-
-
-
-VersionDownloader* VersionBackend::primaryDownloader() const
-
-{
-
-    if (m_activeIds.isEmpty()) return nullptr;
-
-    return m_downloaders.value(m_activeIds.first(), nullptr);
-
-}
 
 
 
@@ -5716,60 +5638,6 @@ void VersionBackend::installOptifineJar(const QString& mcVersion, const QString&
 
 
 
-void VersionBackend::cancelModLoaderInstall() {
-
-    // Cancel all active ModLoaderInstaller instances
-
-    for (auto it = m_mlInstallers.begin(); it != m_mlInstallers.end(); ++it) {
-        if (it.value()) it.value()->cancel();
-    }
-
-    // Cancel merged context installers
-    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
-        if (it.value() && it.value()->installer) it.value()->installer->cancel();
-        if (it.value() && it.value()->mcDownloader) it.value()->mcDownloader->cancel();
-    }
-
-    // Also cancel any active VersionDownloader (merged install MC download phase)
-
-    for (auto it = m_downloaders.begin(); it != m_downloaders.end(); ++it) {
-
-        it.value()->cancel();
-
-        it.value()->disconnect();
-
-        it.value()->deleteLater();
-
-    }
-
-    m_downloaders.clear();
-
-    m_dlStates.clear();
-
-    m_activeIds.clear();
-
-    m_activeCount = 0;
-
-    // Clean up session state for all active installer sessions
-
-    for (auto it = m_mlInstallers.begin(); it != m_mlInstallers.end(); ++it) {
-        if (auto* ds = dlSession(it.key())) ds->markFailed(tr("已取消"));
-    }
-    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
-        if (auto* ds = dlSession(it.key())) ds->markFailed(tr("已取消"));
-    }
-
-    setInstalling(false);
-
-    setInstallPhase(tr("空闲"));
-
-    emit logMessage(tr("安装已取消"));
-
-}
-
-
-
-
 bool VersionBackend::downloadPreferOfficial() const
 {
     auto* sb = qobject_cast<const ShadowBackend*>(parent());
@@ -6101,30 +5969,6 @@ DownloadSession* VersionBackend::dlSession(const QString& installId) const {
 
 // ── 轻量更新：仅取 progress + speed，不改 steps/name/phase ──
 // 用于下载进度热路径（每 200ms），避免触发 QML 全部绑定重新评估
-void VersionBackend::updateCardProgressSpeed(const QString& installId) {
-    auto* ds = dlSession(installId);
-    if (!ds || !m_installCardsModel) return;
-
-    int row = m_installCardsModel->findRowByIid(installId);
-    if (row < 0) return;  // 卡片尚未创建，跳过
-
-    qreal newProgress = qBound(0.0, ds->smoothProgress, 1.0);
-    qint64 newSpeed = 0;
-
-    if (ds->isMerged()) {
-        if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
-            newSpeed += m_dlStates[ds->mcVersion].speed;
-        if (isModLoaderInstalling() && ds->mlSpeed > 0)
-            newSpeed += ds->mlSpeed;
-        if (ds->fabricApiPending && ds->fabSpeed > 0)
-            newSpeed += ds->fabSpeed;
-    } else if (m_dlStates.contains(installId)) {
-        newSpeed = m_dlStates[installId].speed;
-    }
-
-    m_installCardsModel->updateProgressAndSpeed(row, newProgress, newSpeed);
-}
-
 void VersionBackend::updateCardFromSession(const QString& installId, const QString& name, const QString& type) {
 
     auto* ds = dlSession(installId);
@@ -6430,27 +6274,6 @@ void VersionBackend::showStep(const QString& installId, int index) {
     step["show"] = true;
     step["status"] = QStringLiteral("active");
     step["percentage"] = 0;
-    ds->steps[index] = step;
-
-    updateCardFromSession(installId);
-
-}
-
-
-
-void VersionBackend::hideStep(const QString& installId, int index) {
-
-    auto* ds = ensureSession(installId);
-
-    if (index < 0 || index >= ds->steps.size()) return;
-
-    // ── Update StepNode ──
-    if (auto* node = ds->pipeline()->stepNode(index))
-        node->setHidden(true);
-
-    // ── Sync to old QVariantList ──
-    QVariantMap step = ds->steps[index].toMap();
-    step["show"] = false;
     ds->steps[index] = step;
 
     updateCardFromSession(installId);
@@ -6813,11 +6636,6 @@ void VersionBackend::updateModpackCardTargets(const QString& targetVersion, cons
     m_modpackMcVersion = mcVersion;
 }
 
-void VersionBackend::clearModpackCard()
-{
-    if (!m_modpackCardId.isEmpty()) removeTaskCard(m_modpackCardId);
-}
-
 bool VersionBackend::isModpackSessionSuppressed(const QString& installId) const
 {
     if (m_modpackCardId.isEmpty()) return false;
@@ -7024,13 +6842,6 @@ void InstallCardModel::updatePhase(int row, const QString& phase) {
     // Poll 模式：只写字段，不发射 dataChanged
     m_cards[row].phase = phase;
 }
-
-QVariantList InstallCardModel::stepsAt(int row) const {
-    if (row < 0 || row >= m_cards.size()) return {};
-    return m_cards[row].steps;
-}
-
-
 
 void InstallCardModel::insertRow(int row, const InstallCard& card) {
 

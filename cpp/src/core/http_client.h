@@ -55,9 +55,6 @@ public:
              std::function<void(int status, const QByteArray& body)> callback,
              std::function<void(const QString& error)> onError = nullptr);
 
-    void getWithFallback(const QString& url,
-             std::function<void(int status, const QByteArray& body)> callback,
-             std::function<void(const QString& error)> onError = nullptr);
 
     void download(const QString& url, const QString& savePath,
                   std::function<void(qint64 received, qint64 total)> progress,

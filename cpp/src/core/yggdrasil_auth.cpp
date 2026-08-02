@@ -130,36 +130,6 @@ QNetworkReply* YggdrasilAuth::refresh(const QString &apiRoot,
     return doPost(url, payload);
 }
 
-QNetworkReply* YggdrasilAuth::validate(const QString &apiRoot,
-                                        const QString &accessToken)
-{
-    QJsonObject payload;
-    payload[QStringLiteral("accessToken")] = accessToken;
-
-    QString url = apiRoot;
-    if (!url.endsWith(QLatin1Char('/')))
-        url += QLatin1Char('/');
-    url += QStringLiteral("authserver/validate");
-
-    return doPost(url, payload);
-}
-
-QNetworkReply* YggdrasilAuth::signout(const QString &apiRoot,
-                                       const QString &username,
-                                       const QString &password)
-{
-    QJsonObject payload;
-    payload[QStringLiteral("username")] = username;
-    payload[QStringLiteral("password")] = password;
-
-    QString url = apiRoot;
-    if (!url.endsWith(QLatin1Char('/')))
-        url += QLatin1Char('/');
-    url += QStringLiteral("authserver/signout");
-
-    return doPost(url, payload);
-}
-
 QNetworkReply* YggdrasilAuth::invalidate(const QString &apiRoot,
                                           const QString &accessToken,
                                           const QString &clientToken)
@@ -254,14 +224,6 @@ YggdrasilSession YggdrasilAuth::parseAuthenticate(const QByteArray &data,
     }
 
     return session;
-}
-
-bool YggdrasilAuth::parseValidate(const QByteArray &data, QString &errorOut)
-{
-    // validate 返回 204 No Content 表示有效
-    Q_UNUSED(data);
-    Q_UNUSED(errorOut);
-    return !data.isEmpty(); // 空数据 = 204 = 有效; 有内容可能是错误
 }
 
 YggdrasilSession YggdrasilAuth::parseRefresh(const QByteArray &data,

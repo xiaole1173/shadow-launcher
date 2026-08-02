@@ -130,11 +130,6 @@ void VersionIsolation::setEnabled(bool enabled)
 // Isolated versions
 // ============================================================
 
-QStringList VersionIsolation::isolatedVersions() const
-{
-    return m_isolatedVersions;
-}
-
 bool VersionIsolation::isVersionIsolated(const QString& versionId) const
 {
     // If global isolation is enabled, all versions are considered isolated

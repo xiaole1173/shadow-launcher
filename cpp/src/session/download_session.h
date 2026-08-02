@@ -48,7 +48,6 @@ public:
     void resetSpeed();
 
     // ── 控制 ──
-    void startPipeline();   // 激活管线
     void cancel();          // 取消所有步骤
     void markFailed(const QString& err);
     void reset();
@@ -56,7 +55,6 @@ public:
     // ── 错误处理 ──
     void setError(const QString& err) { m_error = err; }
     void clearFailure() { m_failed = false; m_error.clear(); emit progressUpdated(); }
-    void appendError(const QString& err);
 
     // ── 卡片数据导出 (适配旧 InstallCardModel) ──
     InstallCard toCard(const QString& iid, const QString& name, const QString& type) const;

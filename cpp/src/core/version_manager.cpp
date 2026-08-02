@@ -145,40 +145,6 @@ void VersionManager::doNetworkFetch()
 // Sync fetch
 // ============================================================
 
-QVector<McVersion> VersionManager::fetchVersionsSync()
-{
-    // Check cache first
-    if (!m_versions.isEmpty())
-        return m_versions;
-
-    if (loadFromCache())
-        return m_versions;
-
-    QVector<McVersion> result;
-
-    QNetworkAccessManager nam;
-    const char* syncSource = m_preferOfficial ? FALLBACK_URL : PRIMARY_URL;  // 按策略选源
-    QUrl syncUrl(syncSource);
-    QNetworkRequest request(syncUrl);
-    request.setRawHeader("User-Agent", QString::fromLatin1(USER_AGENT).toUtf8());
-    request.setTransferTimeout(15000);
-
-    QNetworkReply* reply = nam.get(request);
-
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();  // Block until done
-
-    if (reply->error() == QNetworkReply::NoError) {
-        result = parseManifest(reply->readAll());
-        m_versions = result;
-        saveToCache();
-    }
-
-    reply->deleteLater();
-    return result;
-}
-
 // ============================================================
 // Mojang JSON parsing
 // ============================================================
@@ -247,40 +213,9 @@ QVector<McVersion> VersionManager::parseManifest(const QByteArray& rawJson) cons
 // Filter by type
 // ============================================================
 
-QVector<McVersion> VersionManager::getByType(const QString& type) const
-{
-    QVector<McVersion> result;
-    for (const auto& v : m_versions) {
-        if (v.type == type)
-            result.append(v);
-    }
-    return result;
-}
-
 // ============================================================
 // Latest version
 // ============================================================
-
-McVersion VersionManager::getLatest(const QString& type) const
-{
-    // Find the one with the most recent releaseTime
-    const McVersion* latest = nullptr;
-
-    for (const auto& v : m_versions) {
-        if (v.type != type)
-            continue;
-        if (!latest || v.releaseTime > latest->releaseTime)
-            latest = &v;
-    }
-
-    if (latest)
-        return *latest;
-
-    // No match: return empty McVersion
-    McVersion empty;
-    empty.type = type;
-    return empty;
-}
 
 // ============================================================
 // Installation check

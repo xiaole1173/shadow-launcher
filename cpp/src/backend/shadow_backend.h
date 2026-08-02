@@ -341,7 +341,6 @@ public:
     Q_INVOKABLE void refreshVersionDetails();
     Q_INVOKABLE void refreshGameDirInfo();
     Q_INVOKABLE void installVersion(const QString& versionId);
-    Q_INVOKABLE void cancelInstall();
     Q_INVOKABLE void cancelVersionInstall(const QString& versionId);
     Q_INVOKABLE void dismissCard(const QString& installId);
     Q_INVOKABLE void launch(const QString& versionId, bool online);
@@ -439,7 +438,6 @@ public:
     void cacheForgeInstallerBranch(const QString& mcVer, const QString& forgeVer, const QString& branch);
     QString getForgeInstallerBranch(const QString& mcVer, const QString& forgeVer) const;
 
-    Q_INVOKABLE bool installFabricApi(const QString& version, const QString& url, const QString& savePath);
 
     // Mod loader installation
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
@@ -712,7 +710,6 @@ public:
     // ── Icon cache (QML-callable methods: mod / shader / rp) ──
     Q_INVOKABLE QString resolveIconUrl(const QString &url);
     Q_INVOKABLE void cacheIconBatchAsync(const QStringList &urls);
-    Q_INVOKABLE QString iconCachedPath(const QString &url) const;
     Q_INVOKABLE QString resolveShaderIconUrl(const QString &url);
     Q_INVOKABLE void cacheShaderIconBatchAsync(const QStringList &urls);
     Q_INVOKABLE QString resolveRpIconUrl(const QString &url);

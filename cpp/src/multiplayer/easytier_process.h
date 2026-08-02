@@ -60,7 +60,6 @@ public:
                           const QByteArray& tomlData);
 
     // Add relay connector dynamically (no --peers on CLI or env var needed)
-    void addRelayConnector(const QString& relayEp);
     bool isRunning() const;
 
     QString virtualIp() const { return m_virtualIp; }
@@ -68,7 +67,6 @@ public:
     quint16 rpcPort() const { return m_rpcPort; }
 
     // Parse peer list JSON from easytier-cli peer -o json and return structured info
-    QList<EasyTierPeerInfo> parsePeerListJson(const QString& jsonOutput) const;
 
     // Local peer NAT type, refreshed on every peer-list poll (text table parse)
     EasyTierNatType currentNatType() const { return m_currentNatType; }

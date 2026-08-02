@@ -91,7 +91,6 @@ private:
     void fireNext();
     void finishDownload(const AssetTask& task, bool success);
     void checkAllFinished();
-    static QString sha1HexOf(const QByteArray& data);
 
     // ── Speed-adaptive scheduler (replaces old rampTick) ──
     void accelTick();                      // called by m_accelTimer
@@ -110,7 +109,6 @@ private:
         int  dynamicLimit = 4;             // current dynamic per-host limit
     };
     QString extractHost(const QString& url) const;
-    HostStats& hostStats(const QString& host);
     bool hostCanAccept(const QString& host) const;
     void recordHostResult(const QString& host, bool ok, qint64 firstByteMs);
     /// Per-host connection limit — dynamically adjusted.

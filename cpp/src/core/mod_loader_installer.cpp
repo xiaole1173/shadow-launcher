@@ -892,7 +892,7 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     }
 
     QDir tempMcDir(setupTempMc()); // .minecraft path
-    const QString tempMcPath = tempMcDir.absolutePath();  // save for collectForgeOutput
+    const QString tempMcPath = tempMcDir.absolutePath();
     // -Duser.home 必须指向 .minecraft 的父目录，而非 .minecraft 自身
     // tempMcDir.absolutePath() on Windows uses backslashes, so .endsWith("/.minecraft")
     // would always fail. Use dirName() instead, which is platform-independent.
@@ -989,7 +989,6 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
 
         // ── 将整个 temp .minecraft 复制回游戏目录 ──
         // 这确保了所有文件（打过补丁的 jar、新版本 JSON、库、资源等）都被正确复制。
-        // 选择性复制（collectForgeOutput）可能漏掉某些文件或复制不完整。
         copyOptifineTempMc(tempMcPath);
 
         qCInfo(logLoader) << QStringLiteral("[安装] OptiFine 安装器输出复制完成");
@@ -1145,51 +1144,6 @@ void ModLoaderInstaller::copyOptifineTempMc(const QString& tempMcPath) {
     qCInfo(logLoader) << QStringLiteral("[安装] 临时目录复制完成");
 }
 
-void ModLoaderInstaller::collectForgeOutput(const QString& tempMc, const QString& jarPath) {
-    // Copy version JSON and jar from temp to game dir
-    QString versionsSrc = tempMc + "/versions";
-    if (!QDir(versionsSrc).exists()) return;
-
-    QStringList dirs = QDir(versionsSrc).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QString& d : dirs) {
-        // For Forge/NeoForge: the installer creates a standalone version folder,
-        // leaving the source MC version untouched. Skip it — it already exists.
-        //
-        // For OptiFine (MC >= 1.14): the installer PATCHES the vanilla jar IN-PLACE
-        // and then creates a new version folder with "inheritsFrom" pointing at the
-        // patched MC version. We MUST copy back the patched MC jar, otherwise
-        // the inherited jar in the real game dir is the unpatched original.
-        if (d == m_mcVersion && m_loaderType != QStringLiteral("optifine")) continue;
-        QString srcDir = versionsSrc + "/" + d;
-        QString dstDir = m_gameDir + "/versions/" + d;
-        QDir().mkpath(dstDir);
-        QStringList files = QDir(srcDir).entryList(QDir::Files);
-        for (const QString& f : files) {
-            QString src = srcDir + "/" + f;
-            QString dst = dstDir + "/" + f;
-            if (QFile::exists(dst)) QFile::remove(dst);
-            QFile::copy(src, dst);
-        }
-        qCInfo(logLoader) << QStringLiteral("[安装] 已复制版本: %1").arg(d);
-    }
-
-    // Copy libraries from temp
-    QString libSrc = tempMc + "/libraries";
-    if (QDir(libSrc).exists()) {
-        QStringList dirs2 = QDir(libSrc).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QString& d : dirs2) {
-            copyRecursive(libSrc + "/" + d, m_gameDir + "/libraries/" + d);
-        }
-    }
-
-    // Copy assets from temp (OptiFine installer may generate virtual assets)
-    QString assetsSrc = tempMc + "/assets";
-    if (QDir(assetsSrc).exists()) {
-        copyRecursive(assetsSrc, m_gameDir + "/assets");
-    }
-    Q_UNUSED(jarPath);
-}
-
 void ModLoaderInstaller::copyRecursive(const QString& srcDir, const QString& dstDir) {
     QDir dir(srcDir);
     if (!dir.exists()) return;
@@ -1262,38 +1216,6 @@ void ModLoaderInstaller::flattenOptifineVersion(const QString& versionId) {
     if (inheritedDir.exists()) {
         inheritedDir.removeRecursively();
         qCInfo(logLoader) << QStringLiteral("[安装] 拍平后已清理原版文件夹: %1").arg(inheritedDir.absolutePath());
-    }
-}
-
-void ModLoaderInstaller::cleanupAfterInstall(const QStringList& dirsToClean) {
-    const int maxRetries = 3;
-    const int retryDelayMs = 500;
-
-    for (const QString& dirPath : dirsToClean) {
-        QDir dir(dirPath);
-        if (!dir.exists()) {
-            qCInfo(logLoader) << QStringLiteral("[安装] 清理跳过（目录不存在）: %1").arg(dirPath);
-            continue;
-        }
-
-        bool ok = false;
-        for (int attempt = 1; attempt <= maxRetries; ++attempt) {
-            ok = dir.removeRecursively();
-            if (ok) {
-                qCInfo(logLoader) << QStringLiteral("[安装] 清理成功: %1").arg(dirPath);
-                break;
-            }
-            // Check what's left
-            QStringList leftovers = dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
-            qCInfo(logLoader) << QStringLiteral("[安装] 清理失败（尝试 %1/%2）: %3").arg(attempt).arg(maxRetries).arg(dirPath);
-            if (attempt < maxRetries) {
-                QThread::msleep(retryDelayMs);
-            }
-        }
-
-        if (!ok) {
-            qCWarning(logLoader) << QStringLiteral("[安装] 清理放弃，已达最大尝试次数: %1").arg(dirPath);
-        }
     }
 }
 

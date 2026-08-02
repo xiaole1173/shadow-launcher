@@ -69,7 +69,6 @@ public:
     void setMirror(const MirrorSource& mirror);
     void setMinecraftDir(const QString& dir);
     void setCacheFallbackDir(const QString& dir);
-    void setMaxWorkers(int workers);
     void setDownloadConfig(const DownloadConfig& config);
 
     // Main entry: download a Minecraft version
@@ -115,13 +114,10 @@ signals:
     void downloadFailedFiles(const QStringList& failedFiles);
 
 private slots:
-    void onAllFinished(bool success, int failedCount,
-                       const QStringList& failedFiles);
     void onAllFinishedV2();  // FileDownloader (v8) wrapper
 
 private:
     // --- Pipeline steps ---
-    bool downloadAssetIndex(const QJsonObject& assetIdx);
     QMap<QString, QJsonObject> parseAssetIndex(const QJsonObject& assetIdx);
     void downloadAssetIndexRace(const QString& idxUrl, const QString& idxPath,
                                 std::function<void()> done);   // 双源竞速（镜像+官方）
@@ -147,7 +143,6 @@ private:
     // --- Helpers ---
     static bool verifySha1(const QString& filePath, const QString& expected);
     static QString formatSize(qint64 bytes);
-    void emitProgress(const QString& name);
 
     // --- Mirror fallback ---
     void retryWithNextMirror();

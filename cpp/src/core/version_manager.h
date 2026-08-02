@@ -36,15 +36,12 @@ public:
 
     /// 同步获取版本列表（阻塞当前线程，用 QEventLoop）
     /// 优先使用已缓存结果，否则网络请求
-    QVector<McVersion> fetchVersionsSync();
 
     /// 返回已加载的版本列表（不触发网络请求）
     QVector<McVersion> cachedVersions() const { return m_versions; }
     bool hasVersions() const { return !m_versions.isEmpty(); }
 
     // ── 过滤 ──
-    QVector<McVersion> getByType(const QString& type) const;
-    McVersion getLatest(const QString& type) const;
 
     // ── 安装状态 ──
     /// 检查版本是否已安装（{gameDir}/versions/{versionId}/{versionId}.json 存在）

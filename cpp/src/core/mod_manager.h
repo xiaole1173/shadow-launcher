@@ -155,7 +155,6 @@ public:
     // Popular mods (offline data)
     static QMap<QString, QJsonObject> getPopularMods(const QString& loader);
     static QMap<QString, QJsonObject> getShaderList();
-    static QMap<QString, QString> getCategories();
 
     void cancel();
     bool isBusy() const;

@@ -72,7 +72,6 @@ public:
     QString resourcePacksDir(const QString& versionId) const;
 
     // Cache directory for extracted icons
-    QString iconCacheDir() const;
 
 signals:
     void modsChanged(const QString& versionId);

@@ -1625,33 +1625,4 @@ QMap<QString, QJsonObject> ModManager::getShaderList()
 // Static data — Categories (English → 中文)
 // ============================================================
 
-QMap<QString, QString> ModManager::getCategories()
-{
-    static QMap<QString, QString> categories;
-
-    if (categories.isEmpty()) {
-        categories[QStringLiteral("adventure")]       = tr("冒险");
-        categories[QStringLiteral("cursed")]          = tr("整活");
-        categories[QStringLiteral("decoration")]      = tr("装饰");
-        categories[QStringLiteral("economy")]         = tr("经济");
-        categories[QStringLiteral("equipment")]       = tr("装备");
-        categories[QStringLiteral("food")]            = tr("食物");
-        categories[QStringLiteral("game-mechanics")]  = tr("游戏机制");
-        categories[QStringLiteral("library")]         = tr("前置库");
-        categories[QStringLiteral("magic")]           = tr("魔法");
-        categories[QStringLiteral("management")]      = tr("管理");
-        categories[QStringLiteral("minigame")]        = tr("小游戏");
-        categories[QStringLiteral("mobs")]            = tr("生物");
-        categories[QStringLiteral("optimization")]    = tr("优化");
-        categories[QStringLiteral("social")]          = tr("社交");
-        categories[QStringLiteral("storage")]         = tr("存储");
-        categories[QStringLiteral("technology")]      = tr("科技");
-        categories[QStringLiteral("transportation")]  = tr("运输");
-        categories[QStringLiteral("utility")]         = tr("工具");
-        categories[QStringLiteral("world-generation")]= tr("世界生成");
-    }
-
-    return categories;
-}
-
 } // namespace ShadowLauncher

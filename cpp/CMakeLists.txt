@@ -80,9 +80,7 @@ set(SOURCES
     src/core/modpack/modpack_install_task.cpp
     src/core/update_manager.cpp
     thirdparty/miniz/miniz.c
-    src/core/migration_manager.cpp
     src/utils/lzma/LzmaDec.c
-    src/core/download_coordinator.cpp
     src/core/crash_detector.cpp
     src/core/screenshot_server.cpp
     src/core/step_node.cpp
@@ -119,7 +117,6 @@ set(HEADERS
     src/core/downloader.h
     src/core/file_downloader.h
     src/core/asset_downloader.h
-    src/core/download_coordinator.h
     src/core/version_downloader.h
     src/core/step_node.h
     src/core/step_pipeline.h
@@ -136,7 +133,6 @@ set(HEADERS
     src/core/modpack/mod_download_engine.h
     src/core/modpack/modpack_install_task.h
     src/core/update_manager.h
-    src/core/migration_manager.h
     src/core/version_isolation.h
     src/core/yggdrasil_auth.h
     src/core/crash_detector.h

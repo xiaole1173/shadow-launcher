@@ -49,12 +49,6 @@ void DownloadSession::resetSpeed() {
 // Control
 // ══════════════════════════════════════════════
 
-void DownloadSession::startPipeline() {
-    if (m_pipeline && m_pipeline->currentStepIndex() < 0) {
-        m_pipeline->start();
-    }
-}
-
 void DownloadSession::cancel() {
     if (m_pipeline) {
         m_pipeline->cancel();
@@ -129,14 +123,6 @@ void DownloadSession::reset() {
     importFailedAtMs = 0;
 
     loadedStep = 0;
-}
-
-void DownloadSession::appendError(const QString& err) {
-    if (m_error.isEmpty()) {
-        m_error = err;
-    } else {
-        m_error += QStringLiteral("\n") + err;
-    }
 }
 
 // ══════════════════════════════════════════════

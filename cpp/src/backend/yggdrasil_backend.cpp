@@ -81,7 +81,6 @@ void YggdrasilBackend::login(const QString &apiRoot, const QString &email, const
 
     m_pendingApiRoot = apiRoot.trimmed();
     m_pendingEmail = email.trimmed();
-    m_pendingPassword = password;  // 暂存，登出时可能用
 
     setStatus(QStringLiteral("正在登录..."));
     qCDebug(logYggBackend) << "Starting yggdrasil login for" << m_pendingEmail << "at" << apiRoot;
@@ -121,7 +120,6 @@ void YggdrasilBackend::logout()
     m_session.clear();
     m_meta = YggdrasilMeta();
     m_pendingEmail.clear();
-    m_pendingPassword.clear();
     m_loggingOut = false;
     setStatus(QString());
     deleteSavedSession();
@@ -149,7 +147,6 @@ void YggdrasilBackend::cancelLogin()
 {
     if (!m_pendingProfile) return;
     m_pendingProfile = false;
-    m_pendingPassword.clear();
     m_session.clear();
     emit stateChanged();
 }
@@ -477,7 +474,6 @@ void YggdrasilBackend::onAuthenticateReply()
 
     // 登录成功 — 待选择角色（多角色）或直接完成（单角色）
     m_session = session;
-    m_pendingPassword.clear();
     setStatus(QString());
     // 暂不保存 session、不发射 loginSuccess、不获取皮肤
 

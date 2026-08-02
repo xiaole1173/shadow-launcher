@@ -345,15 +345,6 @@ QVariantList CfApi::categories(int classId)
     return out;
 }
 
-QString CfApi::categoryLabel(int classId, int categoryId)
-{
-    for (const auto& c : kCfCategories) {
-        if (c.classId == classId && c.id == categoryId)
-            return QStringLiteral("CF·%1").arg(QString::fromUtf8(c.name));
-    }
-    return QString();
-}
-
 int CfApi::loaderTypeFor(const QString& loader)
 {
     const QString l = loader.toLower();
@@ -363,18 +354,6 @@ int CfApi::loaderTypeFor(const QString& loader)
     if (l == QLatin1String("quilt")) return 5;
     if (l == QLatin1String("neoforge")) return 6;
     return 0;
-}
-
-QString CfApi::loaderNameFor(int type)
-{
-    switch (type) {
-    case 1: return QStringLiteral("forge");
-    case 3: return QStringLiteral("liteloader");
-    case 4: return QStringLiteral("fabric");
-    case 5: return QStringLiteral("quilt");
-    case 6: return QStringLiteral("neoforge");
-    default: return QString();
-    }
 }
 
 bool CfApi::isCfCategory(const QString& category)

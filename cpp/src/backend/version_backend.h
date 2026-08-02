@@ -70,7 +70,6 @@ public:
     void removeRow(int row);
     int findRowByIid(const QString& iid) const;
     Q_INVOKABLE QVariantMap cardData(int row) const;  // poll 接口：返回整行数据
-    QVariantList stepsAt(int row) const;  // preserve steps on incremental update
     const InstallCard* cardAt(int row) const;  // read-only peek
 
     int count() const { return m_cards.size(); }
@@ -187,8 +186,6 @@ public:
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void installVersion(const QString& versionId);
-    Q_INVOKABLE void cancelInstall();
-    Q_INVOKABLE void cancelCurrentInstall();
     Q_INVOKABLE void cancelVersionInstall(const QString& versionId);
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     void prefetchVersionJson(const QString& versionId);
@@ -236,7 +233,6 @@ public:
     void startOptifineJarParallel(const QString& installName, const QString& mcVersion,
                                    const QString& optifineVersion, const QString& bmclType, const QString& bmclPatch);
     void onParallelOptifineDone(const QString& installName, const QByteArray& jarData);
-    Q_INVOKABLE void cancelModLoaderInstall();
     Q_INVOKABLE bool isModLoaderInstalling() const;
 
     // Resource / Mod download cards
@@ -266,7 +262,6 @@ public:
     // 2) MC/加载器阶段抑制独立会话卡片（合并进本任务卡片的子步骤，杜绝双卡）。
     void setModpackCard(const QString& cardId, std::function<void()> cancelHandler);
     void updateModpackCardTargets(const QString& targetVersion, const QString& mcVersion);
-    void clearModpackCard();
     bool isModpackSessionSuppressed(const QString& installId) const;
     // MC 阶段进度/速度访问器（任务侧轮询更新卡片子步骤）
     Q_INVOKABLE qreal installProgressOf(const QString& installId) const;
@@ -388,7 +383,6 @@ private:
                                                const QString& loaderVersion);
     void destroyMergedContext(const QString& installId);
     MergedInstallContext* mergedContext(const QString& installId) const { return m_mergedContexts.value(installId, nullptr); }
-    void updateCardProgressSpeed(const QString& installId);  // 轻量：仅 progress + speed
 
     bool m_cardsRebuildPending = false;
     QElapsedTimer m_cardsTimer;
@@ -412,7 +406,6 @@ private:
                       const QVector<bool>& showFlags = {});
     void updateStep(const QString& installId, int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void showStep(const QString& installId, int index);  // Make a hidden step visible and active
-    void hideStep(const QString& installId, int index);   // Hide a step
     void rebuildInstallCards();
     void doRebuildInstallCards();
     void activateVerifyOnDownloadsDone(const QString& versionId);
@@ -425,7 +418,6 @@ private:
     int m_verifyTotal = 0;
     QQueue<QString> m_installQueue;
 
-    VersionDownloader* primaryDownloader() const;
     QString primaryVersionId() const;
     void syncPrimaryProgress();
     void updateDownloadProgress(const QString& versionId, int cf, int tf, qint64 db, qint64 tb);

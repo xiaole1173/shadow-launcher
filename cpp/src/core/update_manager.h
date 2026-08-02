@@ -55,7 +55,6 @@ public:
 
     /// Check if a ready-to-install update exists from a previous session.
     /// If true, the caller should launch SLUpdater and quit.
-    bool hasPendingReady() const;
 
     /// Resume a paused download from last session (called after startup).
     void resumePausedDownload();

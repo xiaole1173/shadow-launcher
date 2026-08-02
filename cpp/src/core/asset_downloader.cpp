@@ -820,11 +820,6 @@ QString AssetDownloader::extractHost(const QString& url) const
     return qurl.host().toLower();
 }
 
-AssetDownloader::HostStats& AssetDownloader::hostStats(const QString& host)
-{
-    return m_hostStats[host];
-}
-
 int AssetDownloader::getHostLimit(const QString& host) const
 {
     // BMCLAPI: fixed at 8 (known to handle this well)
@@ -1003,11 +998,6 @@ void AssetDownloader::enqueueIO(const AssetTask& task, const QByteArray& data)
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-QString AssetDownloader::sha1HexOf(const QByteArray& data)
-{
-    return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex());
-}
-
 // ═════════════════════════════════════════════════════════════════════════════
 // Async SHA1 pre-check — offloaded to IO thread pool to avoid blocking main thread.
 // ═════════════════════════════════════════════════════════════════════════════

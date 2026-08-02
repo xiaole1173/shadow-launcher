@@ -188,14 +188,6 @@ void VersionDownloader::setCacheFallbackDir(const QString& dir)
     if (m_assetDownloader) m_assetDownloader->setFallbackCacheDir(dir);
 }
 
-void VersionDownloader::setMaxWorkers(int workers)
-{
-    m_maxWorkers = qBound(1, workers, 128);
-    m_downloadCfg.maxWorkers = m_maxWorkers;
-    if (m_downloader) m_downloader->setMaxThreads(m_maxWorkers);
-    if (m_assetDownloader) m_assetDownloader->setMaxConcurrent(m_maxWorkers);
-}
-
 void VersionDownloader::setDownloadConfig(const DownloadConfig& config)
 {
     m_downloadCfg = config;
@@ -612,84 +604,9 @@ void VersionDownloader::onAllFinishedV2()
 // allFinished → verify → emit downloadFinished
 // ═══════════════════════════════════════════════════════════
 
-void VersionDownloader::onAllFinished(bool success, int failedCount,
-                                        const QStringList& failedFiles)
-{
-    if (m_state == Cancelled) {
-        emit downloadFinished(false, tr("下载已取消"));
-        return;
-    }
-
-    // Report failed files to QML (even before verify — allows partial-resume UI)
-    if (!failedFiles.isEmpty()) {
-        emit downloadFailedFiles(failedFiles);
-        emit logMessage(QStringLiteral("[盘古] [警告] 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
-                            .arg(failedFiles.size()));
-
-        // ── Mirror fallback: significant failures → retry with next mirror ──
-        const double failRate = static_cast<double>(failedCount) / m_totalFiles.loadRelaxed();
-        if (m_fallbackIndex + 1 < m_fallbackChain.size() && failRate >= kFallbackThreshold) {
-            const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-            emit logMessage(QStringLiteral("[盘古] [重试] %1%% 文件下载失败, 切换到 %2 重试...")
-                                .arg(static_cast<int>(failRate * 100))
-                                .arg(next.name));
-            retryWithNextMirror();
-            return;
-        }
-    }
-
-    // --- Integrity verification ---
-    m_state = Verifying;
-    m_downloadFailedCount = failedCount;
-    emit stateChanged();
-    emit logMessage(QStringLiteral("[盘古] 正在进行完整性校验..."));
-
-    QVector<VerifyItem> items = collectVerifyItems(m_currentVersionJson, m_currentVersionId);
-    startAsyncVerify(items);
-}
-
 // ═══════════════════════════════════════════════════════════
 // Asset index download (single-file, blocking via QEventLoop)
 // ═══════════════════════════════════════════════════════════
-
-bool VersionDownloader::downloadAssetIndex(const QJsonObject& assetIdx)
-{
-    const QString idxUrl = assetIdx.value(QStringLiteral("url")).toString();
-    if (idxUrl.isEmpty()) return false;
-
-    const QString mirrorUrl = buildMirrorUrl(idxUrl, QStringLiteral("meta"));
-    const QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
-    const QString idxPath = m_minecraftDir + QStringLiteral("/assets/indexes/")
-                            + idxId + QStringLiteral(".json");
-    QDir().mkpath(QFileInfo(idxPath).absolutePath());
-
-    QStringList urls;
-    urls << mirrorUrl;
-    if (mirrorUrl != idxUrl)
-        urls << idxUrl;
-
-    for (const QString& url : urls) {
-        if (m_state == Cancelled) return false;
-
-        QEventLoop loop;
-        bool ok = false;
-        QString errMsg;
-
-        HttpClient::instance().downloadWithFallback(url, idxPath, nullptr,
-            [&](bool success, const QString& error) {
-                ok = success;
-                errMsg = error;
-                loop.quit();
-            });
-
-        loop.exec();
-
-        if (ok && QFileInfo::exists(idxPath))
-            return true;
-    }
-
-    return false;
-}
 
 // ═══════════════════════════════════════════════════════════
 // Parse local asset index JSON → objects map
@@ -1357,14 +1274,6 @@ QString VersionDownloader::formatSize(qint64 bytes)
     if (bytes < 1024 * 1024)
         return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
     return QStringLiteral("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
-}
-
-void VersionDownloader::emitProgress(const QString& name)
-{
-    emit progressChanged(m_completedFiles.loadRelaxed(),
-                         m_totalFiles.loadRelaxed(),
-                         m_downloadedBytes.loadRelaxed(),
-                         m_totalBytes.loadRelaxed());
 }
 
 // ═══════════════════════════════════════════════════════════

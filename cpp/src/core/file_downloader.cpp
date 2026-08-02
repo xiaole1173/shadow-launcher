@@ -324,17 +324,6 @@ void FileDownloader::managerTick()
     lock.unlock();
 }
 
-int FileDownloader::filesWithoutThread()
-{
-    QMutexLocker lock(&m_filesMutex);
-    int count = 0;
-    for (const auto& f : m_files) {
-        if (f->state == 0 && f->state != 5 && f->state != 4)
-            count++;
-    }
-    return count;
-}
-
 // ═════════════════════════════════════════════════════════════════════════════
 // Thread management — tryStartFirstThread / tryAddThread
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1130,39 +1119,6 @@ void FileDownloader::recordHostResult(const QString& host, bool ok)
 // ═════════════════════════════════════════════════════════════════════════════
 // DNS + IP reliability
 // ═════════════════════════════════════════════════════════════════════════════
-
-QStringList FileDownloader::resolveHost(const QString& host)
-{
-    QMutexLocker lock(&m_dnsMutex);
-    auto it = m_dnsCache.find(host);
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-
-    if (it != m_dnsCache.end()) {
-        if (now - it->lastResolveMs < kDnsCacheMs)
-            return it->addresses;
-        if (it->addresses.isEmpty() && now - it->lastResolveMs < kDnsFailureBackoffMs)
-            return {};
-    }
-
-    QHostInfo info = QHostInfo::fromName(host);
-    IPInfo& ipi = m_dnsCache[host];
-    ipi.lastResolveMs = now;
-
-    if (info.error() != QHostInfo::NoError) {
-        ipi.addresses.clear();
-        return {};
-    }
-
-    QStringList ipv4, ipv6;
-    for (const auto& addr : info.addresses()) {
-        if (addr.protocol() == QAbstractSocket::IPv4Protocol)
-            ipv4.append(addr.toString());
-        else
-            ipv6.append(addr.toString());
-    }
-    ipi.addresses = ipv4 + ipv6;
-    return ipi.addresses;
-}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Helpers

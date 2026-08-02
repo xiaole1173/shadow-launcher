@@ -103,7 +103,6 @@ private:
 
     // Temp .minecraft isolation for OptiFine standalone installer
     QString setupTempMc();
-    void collectForgeOutput(const QString& tempMc, const QString& jarPath);
     /// 将整个临时 .minecraft 复制回游戏目录（比选择性复制更可靠）
     void copyOptifineTempMc(const QString& tempMcPath);
     void cleanupTempMc(const QString& tempDir);
@@ -155,7 +154,6 @@ private:
     bool m_verifyOnly = false;
     void installNeoForge(const QByteArray& jarData, const QJsonObject& profile);
     void renameVersionFolder(const QString& oldName, const QString& newName);
-    void cleanupAfterInstall(const QStringList& dirsToClean);
     /// Extract the embedded forge-installer.jar (helper) to temp, return path
     static QString extractBootstrapperPath();
     /// Extract the embedded java-wrapper.jar (oolloo.jlw.Wrapper) to temp, return path

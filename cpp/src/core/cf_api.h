@@ -52,11 +52,9 @@ public:
     /// 分类静态表（classId → [{id, name}]，从 API 实测提取，避免启动慢请求）
     static QVariantList categories(int classId);
     /// 分类显示名（"CF·Adventure and RPG"）
-    static QString categoryLabel(int classId, int categoryId);
 
     /// 加载器 → CF modLoaderType（forge=1 fabric=4 quilt=5 neoforge=6 liteloader=3）
     static int loaderTypeFor(const QString& loader);
-    static QString loaderNameFor(int type);
 
     /// 分类值判断："cf:422" → CF 分类 422
     static bool isCfCategory(const QString& category);

@@ -121,7 +121,6 @@ private:
     QString m_statusMessage;
     QString m_pendingApiRoot;   // 登录过程中记录的 API Root
     QString m_pendingEmail;     // 登录过程中记录邮箱
-    QString m_pendingPassword;  // 登录过程中记录密码（仅用于 signout）
     bool m_loggingOut = false;
     bool m_pendingProfile = false;   // 登录成功等待选角色
     int m_preloadIdx = -1;

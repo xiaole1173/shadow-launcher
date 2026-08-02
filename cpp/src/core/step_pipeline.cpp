@@ -71,21 +71,6 @@ StepNode* StepModel::stepAt(int index) const {
     return m_nodes[index];
 }
 
-void StepModel::notifyStatus(int row) {
-    if (row < 0 || row >= m_nodes.size()) return;
-    emit dataChanged(index(row), index(row), {StatusIntRole});
-}
-
-void StepModel::notifyProgress(int row) {
-    if (row < 0 || row >= m_nodes.size()) return;
-    emit dataChanged(index(row), index(row), {PercentageRole, BytesRecvRole, BytesTotalRole});
-}
-
-void StepModel::notifyHidden(int row) {
-    if (row < 0 || row >= m_nodes.size()) return;
-    emit dataChanged(index(row), index(row), {HiddenRole});
-}
-
 // ── StepPipeline ──
 
 StepPipeline::StepPipeline(QObject* parent)
@@ -105,32 +90,6 @@ StepNode* StepPipeline::addStep(const QString& key, const QString& name, qreal w
     m_keyIndex[key] = idx;
 
     // 监听完成信号
-    connect(node, &StepNode::statusChanged, this, [this, key]() {
-        auto* n = step(key);
-        if (n && n->status() == StepStatus::Completed) {
-            advance();
-        }
-    });
-
-    return node;
-}
-
-StepNode* StepPipeline::insertAfter(const QString& afterKey, const QString& key,
-                                     const QString& name, qreal weight) {
-    if (m_keyIndex.contains(key)) return nullptr;
-    auto it = m_keyIndex.constFind(afterKey);
-    if (it == m_keyIndex.constEnd()) return nullptr;
-
-    int idx = it.value() + 1;
-    auto* node = new StepNode(key, name, weight, this);
-    m_model->insertStep(idx, node);
-
-    // 更新 m_keyIndex 中所有索引 ≥ idx 的条目
-    for (auto kit = m_keyIndex.begin(); kit != m_keyIndex.end(); ++kit) {
-        if (kit.value() >= idx) kit.value()++;
-    }
-    m_keyIndex[key] = idx;
-
     connect(node, &StepNode::statusChanged, this, [this, key]() {
         auto* n = step(key);
         if (n && n->status() == StepStatus::Completed) {

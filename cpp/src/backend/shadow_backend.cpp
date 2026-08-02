@@ -1500,11 +1500,6 @@ void ShadowBackend::cacheIconBatchAsync(const QStringList &urls)
     if (m_fetchEngine) m_fetchEngine->prefetchIcons(urls);
 }
 
-QString ShadowBackend::iconCachedPath(const QString &url) const
-{
-    return m_fetchEngine ? m_fetchEngine->iconLocalPath(url) : QString();
-}
-
 QString ShadowBackend::resolveShaderIconUrl(const QString &url)
 {
     return m_fetchEngine ? m_fetchEngine->iconLocalPath(url) : url;
@@ -1816,10 +1811,6 @@ void ShadowBackend::refreshInstalledList() {
 
 void ShadowBackend::installVersion(const QString& versionId) {
     m_version->installVersion(versionId);
-}
-
-void ShadowBackend::cancelInstall() {
-    m_version->cancelInstall();
 }
 
 void ShadowBackend::cancelVersionInstall(const QString& versionId) {
@@ -3709,16 +3700,6 @@ void ShadowBackend::cacheForgeInstallerBranch(const QString& mcVer, const QStrin
 
 QString ShadowBackend::getForgeInstallerBranch(const QString& mcVer, const QString& forgeVer) const {
     return m_forgeInstallerBranchCache.value(mcVer + QStringLiteral("-") + forgeVer);
-}
-
-bool ShadowBackend::installFabricApi(const QString& version, const QString& url, const QString& savePath) {
-    if (url.isEmpty() || savePath.isEmpty()) return false;
-    QString dir = QFileInfo(savePath).absolutePath();
-    if (!dir.isEmpty()) QDir().mkpath(dir);
-    qDebug() << "[FabricApi] installing" << version << "to" << savePath;
-    m_resource->downloadModFile(url, savePath, QStringLiteral("Fabric API %1").arg(version),
-                                0, QString(), 0, -1);
-    return true;
 }
 
 void ShadowBackend::installModLoader(const QString& mcVersion, const QString& loaderType,

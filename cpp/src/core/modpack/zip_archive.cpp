@@ -107,20 +107,6 @@ bool ZipArchive::hasEntry(const QString& name) const
     return mz_zip_reader_locate_file(&m_data->zip, name.toUtf8().constData(), nullptr, 0) >= 0;
 }
 
-QStringList ZipArchive::entryNames() const
-{
-    QStringList out;
-    if (!m_open || !m_data) return out;
-    const mz_uint count = mz_zip_reader_get_num_files(&m_data->zip);
-    for (mz_uint i = 0; i < count; ++i) {
-        mz_zip_archive_file_stat st;
-        if (mz_zip_reader_file_stat(&m_data->zip, i, &st)) {
-            out.append(QString::fromUtf8(st.m_filename));
-        }
-    }
-    return out;
-}
-
 QByteArray ZipArchive::readEntry(const QString& name, qint64 maxBytes) const
 {
     if (!m_open || !m_data) return {};
@@ -148,29 +134,6 @@ QByteArray ZipArchive::readEntry(const QString& name, qint64 maxBytes) const
     if (got != out.size()) {
         qCWarning(logMod) << "[zip] 条目读取不完整:" << name << got << "/" << out.size();
         return {};
-    }
-    return out;
-}
-
-QStringList ZipArchive::fileEntries(const QString& prefix) const
-{
-    QStringList out;
-    if (!m_open || !m_data) return out;
-
-    QString p = prefix;
-    p.replace(QLatin1Char('\\'), QLatin1Char('/'));
-    while (p.endsWith(QLatin1Char('/')) && p.size() > 1)
-        p.chop(1);
-
-    const mz_uint count = mz_zip_reader_get_num_files(&m_data->zip);
-    for (mz_uint i = 0; i < count; ++i) {
-        mz_zip_archive_file_stat st;
-        if (!mz_zip_reader_file_stat(&m_data->zip, i, &st)) continue;
-        if (st.m_is_directory) continue;
-        QString name = QString::fromUtf8(st.m_filename);
-        name.replace(QLatin1Char('\\'), QLatin1Char('/'));
-        if (p.isEmpty() || name.startsWith(p + QLatin1Char('/')))
-            out.append(name);
     }
     return out;
 }

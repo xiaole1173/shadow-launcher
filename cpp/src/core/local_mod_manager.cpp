@@ -35,7 +35,6 @@ LocalModManager::LocalModManager(QObject* parent) : QObject(parent)
 void LocalModManager::setGameDir(const QString& dir) { m_gameDir = dir; }
 QString LocalModManager::gameDir() const { return m_gameDir; }
 
-QString LocalModManager::iconCacheDir() const { return m_iconCacheDir; }
 
 QString LocalModManager::modsDir(const QString& versionId) const
 {

@@ -169,7 +169,6 @@ private:
     // ── 分阶段调度 ──
     enum Phase { PhaseFirstThread, PhaseAccelerate, PhaseSteady };
     Phase m_phase = PhaseFirstThread;
-    int filesWithoutThread();
 
     // ── Per-host health ──
     struct HostStats {
@@ -194,7 +193,6 @@ private:
         QMap<QString, double> reliability;
         qint64 lastResolveMs = 0;
     };
-    QStringList resolveHost(const QString& host);
     mutable QMutex m_dnsMutex;
     QMap<QString, IPInfo> m_dnsCache;
     static constexpr qint64 kDnsCacheMs = 300000;

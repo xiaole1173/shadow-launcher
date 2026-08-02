@@ -41,7 +41,6 @@ public:
 
     int entryCount() const;
     bool hasEntry(const QString& name) const;
-    QStringList entryNames() const;
 
     // 读取单个条目到内存（maxBytes 限制防止恶意超大条目打爆内存）。
     // 找不到返回空 QByteArray（与空文件区分：isEmpty 均可，由调用方 hasEntry 预判）。
@@ -60,7 +59,6 @@ public:
                         const std::function<void(const QString& destPath, bool existed)>& onBeforeWrite = nullptr);
 
     // 列出 prefix 前缀下的文件条目（不含目录条目），供解析层判断 overrides 是否存在。
-    QStringList fileEntries(const QString& prefix = {}) const;
 
 private:
     // 路径安全由 modpack_common 的共享工具 sanitizeRelPath 承担（解压层/解析层同一套规则）

@@ -21,7 +21,6 @@ public:
     bool isEnabled() const;
     void setEnabled(bool enabled);
 
-    QStringList isolatedVersions() const;
     bool isVersionIsolated(const QString& versionId) const;
 
     QString getVersionGameDir(const QString& versionId) const;

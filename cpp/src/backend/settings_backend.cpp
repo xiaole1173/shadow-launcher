@@ -774,17 +774,6 @@ void SettingsBackend::deleteVersion(const QString& versionId)
     emit logMessage(QStringLiteral("\u5df2\u5220\u9664\u7248\u672c: %1 \uff08\u5171\u6e05\u7406 %2 \u4e2a\u6587\u4ef6\u5939\uff09").arg(versionId).arg(count));
 }
 
-void SettingsBackend::openPath(const QString& path)
-{
-    QFileInfo fi(QDir::cleanPath(path));
-    QString target = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
-    QDir().mkpath(target);
-    if (QFileInfo::exists(target))
-        QDesktopServices::openUrl(QUrl::fromLocalFile(target));
-    else
-        emit logMessage(tr("路径不存在: %1").arg(path));
-}
-
 // ============================================================
 // Private: findAllJava
 // ============================================================
@@ -923,23 +912,6 @@ QString SettingsBackend::findJavaInDir(const QString& dirPath)
     return {};
 }
 
-QString SettingsBackend::findJavaOnPath()
-{
-    QProcess proc;
-    proc.start(QStringLiteral("where"), QStringList() << QStringLiteral("java"));
-    proc.waitForFinished(5000);
-    if (proc.exitCode() == 0) {
-        QStringList lines = QString::fromLocal8Bit(
-            proc.readAllStandardOutput()).split(QRegularExpression(QStringLiteral("[\r\n]")),
-                                                Qt::SkipEmptyParts);
-        for (const auto& line : lines) {
-            QString p = QDir::cleanPath(line.trimmed());
-            if (!p.isEmpty() && QFileInfo::exists(p)) return p;
-        }
-    }
-    return {};
-}
-
 bool SettingsBackend::tryAddJavaResult(const QString& exePath,
                                         QSet<QString>& seenBinDirs,
                                         QVector<JavaInfo>& out)
@@ -996,11 +968,6 @@ SettingsBackend::JavaInfo SettingsBackend::getJavaInfo(const QString& exePath)
     return info;
 }
 
-int SettingsBackend::getJavaMajorVersion(const QString& path)
-{
-    return getJavaInfo(path).major;
-}
-
 int SettingsBackend::parseMajorVersion(const QString& versionStr)
 {
     QString n = versionStr;
@@ -1037,13 +1004,6 @@ void SettingsBackend::setLanguageIndex(int idx)
     m_languageIndex = idx;
     saveSettings();
     emit languageChanged();
-}
-
-void SettingsBackend::restartApp()
-{
-    QString exe = QCoreApplication::applicationFilePath();
-    QProcess::startDetached(exe, {}, QCoreApplication::applicationDirPath());
-    QCoreApplication::quit();
 }
 
 // ============================================================

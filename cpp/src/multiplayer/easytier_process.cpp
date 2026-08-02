@@ -290,49 +290,6 @@ bool EasyTierProcess::addPortForward(const QString& localAddr, quint16 localPort
     return ok;
 }
 
-void EasyTierProcess::addRelayConnector(const QString& relayEp)
-{
-    if (relayEp.isEmpty())
-        return;
-
-    // Verify easytier-core is still running before adding connector
-    if (!m_process || m_process->state() != QProcess::Running) {
-        qCWarning(logNet) << QStringLiteral("[EasyTier] 核心进程未运行，跳过动态添加中继节点");
-        return;
-    }
-
-    QString cliExe = findEasyTierCli();
-    if (cliExe.isEmpty()) {
-        qCWarning(logNet) << QStringLiteral("[EasyTier] 找不到 easytier-cli.exe，跳过动态添加中继节点");
-        return;
-    }
-
-    // Start a brief QProcess to call `easytier-cli connector add <url>`
-    // This process exits after ~100ms. The relay IP only appears on this
-    // short-lived child's CLI — the easytier-core daemon has zero relay exposure.
-    QStringList args;
-    if (m_rpcPort > 0) {
-        args << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_rpcPort);
-    }
-    args << QStringLiteral("connector") << QStringLiteral("add") << relayEp;
-
-    QProcess* cliProc = new QProcess(this);
-    connect(cliProc, &QProcess::finished, cliProc, &QObject::deleteLater);
-
-    qCInfo(logNet) << QStringLiteral("[EasyTier] 动态添加中继节点 (short-lived CLI)");
-    cliProc->start(cliExe, args);
-
-    // Optional: wait briefly so we can log success/failure
-    if (cliProc->waitForFinished(5000)) {
-        QString out = QString::fromUtf8(cliProc->readAllStandardOutput()).trimmed();
-        QString err = QString::fromUtf8(cliProc->readAllStandardError()).trimmed();
-        if (!out.isEmpty())
-            qCInfo(logNet) << QStringLiteral("[EasyTier] connector add 输出: %1").arg(out);
-        if (!err.isEmpty())
-            qCWarning(logNet) << QStringLiteral("[EasyTier] connector add 错误: %1").arg(err);
-    }
-}
-
 void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& args,
                                        const QByteArray& tomlData)
 {
@@ -662,47 +619,6 @@ void EasyTierProcess::checkOutput()
         if (trimmed.isEmpty()) continue;
         parseOutputLine(trimmed);
     }
-}
-
-QList<EasyTierPeerInfo> EasyTierProcess::parsePeerListJson(const QString& jsonOutput) const
-{
-    QList<EasyTierPeerInfo> result;
-    QJsonDocument doc = QJsonDocument::fromJson(jsonOutput.toUtf8());
-    if (!doc.isArray()) return result;
-
-    for (const auto& item : doc.array()) {
-        QJsonObject obj = item.toObject();
-        EasyTierPeerInfo info;
-        info.hostname = obj[QStringLiteral("hostname")].toString();
-        info.ipv4 = obj[QStringLiteral("ipv4")].toString();
-        info.isLocal = (obj[QStringLiteral("cost")].toString() == QStringLiteral("Local"));
-
-        // Parse NAT type (align with Terracotta mapping)
-        QString natStr = obj[QStringLiteral("nat_type")].toString();
-        if (natStr == QStringLiteral("OpenInternet"))
-            info.natType = EasyTierNatType::OpenInternet;
-        else if (natStr == QStringLiteral("NoPat"))
-            info.natType = EasyTierNatType::NoPAT;
-        else if (natStr == QStringLiteral("FullCone"))
-            info.natType = EasyTierNatType::FullCone;
-        else if (natStr == QStringLiteral("Restricted"))
-            info.natType = EasyTierNatType::Restricted;
-        else if (natStr == QStringLiteral("PortRestricted"))
-            info.natType = EasyTierNatType::PortRestricted;
-        else if (natStr == QStringLiteral("Symmetric"))
-            info.natType = EasyTierNatType::Symmetric;
-        else if (natStr == QStringLiteral("SymUdpFirewall"))
-            info.natType = EasyTierNatType::SymmetricUdpWall;
-        else if (natStr == QStringLiteral("SymmetricEasyInc"))
-            info.natType = EasyTierNatType::SymmetricEasyIncrease;
-        else if (natStr == QStringLiteral("SymmetricEasyDec"))
-            info.natType = EasyTierNatType::SymmetricEasyDecrease;
-        else
-            info.natType = EasyTierNatType::Unknown;
-
-        result.append(info);
-    }
-    return result;
 }
 
 void EasyTierProcess::parseOutputLine(const QString& line)

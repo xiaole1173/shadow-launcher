@@ -1169,13 +1169,6 @@ void ModpackInstallTask::finishCard(bool success, const QString& err)
     syncCardAttachments();
 }
 
-void ModpackInstallTask::removeCard()
-{
-    if (m_cardId.isEmpty() || !m_vb) return;
-    m_vb->removeTaskCard(m_cardId);
-    m_cardId.clear();
-}
-
 void ModpackInstallTask::registerCreatedFile(const QString& path)
 {
     if (!m_createdFiles.contains(path))

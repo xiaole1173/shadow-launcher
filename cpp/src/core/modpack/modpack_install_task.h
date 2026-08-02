@@ -103,7 +103,6 @@ private:
     void pushCardLog(const QString& msg);
     void refreshCardMods();              // 从 m_meta.files 重建模组明细
     void finishCard(bool success, const QString& err);  // 终态（完成/失败/取消）
-    void removeCard();
 
     // ── 并行汇合（模组路 + MC 路）──
     void tryFinalize();                  // 两路都完成后进收尾

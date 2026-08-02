@@ -59,11 +59,6 @@ public:
     QNetworkReply* refresh(const QString &apiRoot,
                            const QString &accessToken,
                            const QString &clientToken);
-    QNetworkReply* validate(const QString &apiRoot,
-                            const QString &accessToken);
-    QNetworkReply* signout(const QString &apiRoot,
-                           const QString &username,
-                           const QString &password);
     QNetworkReply* invalidate(const QString &apiRoot,
                               const QString &accessToken,
                               const QString &clientToken);
@@ -74,7 +69,6 @@ public:
                                                const QString &apiRoot,
                                                const QString &emailInput,
                                                QString &errorOut);
-    static bool parseValidate(const QByteArray &data, QString &errorOut);
     static YggdrasilSession parseRefresh(const QByteArray &data,
                                           const QString &apiRoot,
                                           const QString &email,
