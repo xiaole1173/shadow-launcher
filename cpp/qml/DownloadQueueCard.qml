@@ -218,7 +218,6 @@ Rectangle {
             color: _meta.failed ? StyleTokens.errorLight
                  : _hot.progress >= 1.0 ? "#3fb950"
                  : StyleTokens.textMuted
-            visible: true
         }
 
         Item { Layout.fillWidth: true }

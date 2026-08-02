@@ -168,17 +168,17 @@ Rectangle {
             visible: root.cardType === "modpack"
             Layout.fillWidth: true; spacing: 8
 
-            Text { text: "加载器"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(36, implicitWidth) }
-            ShadowDropdown {
-                id: packLdrDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "加载器"
                 model: root.modLoaderModel
                 labelFn: function(v) { return root.modLoaderLabels[v] || "全部" }
                 currentValue: root.modLoader
                 onValueSelected: function(v) { root.modLoader = v }
             }
-            Text { text: "类别"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: packCatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "类别"
                 model: root.modCatModel
                 labelFn: function(v) { return root.modCatLabels[v] || "全部" }
                 currentValue: root.modCategory
@@ -194,25 +194,25 @@ Rectangle {
             visible: root.cardType === "mod"
             Layout.fillWidth: true; spacing: 8
 
-            Text { text: "加载器"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(36, implicitWidth) }
-            ShadowDropdown {
-                id: modLdrDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "加载器"
                 model: root.modLoaderModel
                 labelFn: function(v) { return root.modLoaderLabels[v] || "全部" }
                 currentValue: root.modLoader
                 onValueSelected: function(v) { root.modLoader = v }
             }
-            Text { text: "类别"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: modCatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "类别"
                 model: root.modCatModel
                 labelFn: function(v) { return root.modCatLabels[v] || "全部" }
                 currentValue: root.modCategory
                 onValueSelected: function(v) { root.modCategory = v }
             }
-            Text { text: "环境"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: modEnvDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "环境"
                 model: root.modEnvModel
                 labelFn: function(v) { return root.modEnvLabels[v] || v || "全部" }
                 currentValue: root.modEnvironment
@@ -227,30 +227,30 @@ Rectangle {
             visible: root.cardType === "shader"
             Layout.fillWidth: true; spacing: 8
 
-            Text { text: "风格"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: shaderCatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "风格"
                 model: root._shaderCats; valueKey: "slug"
                 currentValue: root.shaderCategory
                 onValueSelected: function(v) { root.shaderCategory = v }
             }
-            Text { text: "特性"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: shaderFeatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 90
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "特性"
                 model: root._shaderFeatures; valueKey: "slug"
                 currentValue: root.shaderFeature
                 onValueSelected: function(v) { root.shaderFeature = v }
             }
-            Text { text: "性能"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: shaderPerfDropdown; Layout.fillWidth: true; Layout.minimumWidth: 70
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "性能"
                 model: root._shaderPerfs; valueKey: "slug"
                 currentValue: root.shaderPerformance
                 onValueSelected: function(v) { root.shaderPerformance = v }
             }
-            Text { text: "加载器"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(32, implicitWidth) }
-            ShadowDropdown {
-                id: shaderLdrDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "加载器"
                 model: root._shaderLoaders; valueKey: "slug"
                 currentValue: root.shaderLoader
                 onValueSelected: function(v) { root.shaderLoader = v }
@@ -264,9 +264,9 @@ Rectangle {
             visible: root.cardType === "resourcepack"
             Layout.fillWidth: true; spacing: 8
 
-            Text { text: "类别"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: rpCatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 80
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "类别"
                 model: root._rpCategories; valueKey: "key"
                 labelFn: function(v) {
                     for (var i = 0; i < root._rpCategories.length; i++)
@@ -276,9 +276,9 @@ Rectangle {
                 currentValue: root.rpCategory
                 onValueSelected: function(v) { root.rpCategory = v }
             }
-            Text { text: "功能"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(28, implicitWidth) }
-            ShadowDropdown {
-                id: rpFeatDropdown; Layout.fillWidth: true; Layout.minimumWidth: 90
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "功能"
                 model: root._rpFeatures; valueKey: "key"
                 labelFn: function(v) {
                     for (var i = 0; i < root._rpFeatures.length; i++)
@@ -288,9 +288,9 @@ Rectangle {
                 currentValue: root.rpFeature
                 onValueSelected: function(v) { root.rpFeature = v }
             }
-            Text { text: "分辨率"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: Math.max(36, implicitWidth) }
-            ShadowDropdown {
-                id: rpResDropdown; Layout.fillWidth: true; Layout.minimumWidth: 70
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "分辨率"
                 model: root._rpResolutions; valueKey: "key"
                 currentValue: root.rpResolution
                 onValueSelected: function(v) { root.rpResolution = v }
