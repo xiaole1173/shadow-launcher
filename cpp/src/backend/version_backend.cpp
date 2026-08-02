@@ -5001,10 +5001,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                     if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
                     qDebug() << "[install] Fabric API downloaded to temp:" << tempApiPath << data.size() << "bytes";
                     updateStep(installName, 7, QStringLiteral("completed"), 100);
-                    // Check if we can finalize
+                    // 收尾条件：封装完成（bootstrapperDone，installer finished 已跑 copy）才 finishInstall；
+                    // 封装未完成 → 等 installer finished 路径收尾（那里已检查 fabricApiPending）
                     auto* mcCtx = mergedContext(installName);
-                    if (mcCtx && mcCtx->mcDownloadDone && !mcCtx->bootstrapperDone) {
+                    if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
+                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装已就绪，收尾");
                         finishInstall(installName);
+                    } else {
+                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装未就绪，等待 installer finished 收尾");
                     }
                 }
             });
@@ -5785,6 +5789,7 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
             .arg(ds ? (ds->loaderDownloadReady ? 1 : 0) : -1);
         // Only affect the session associated with this installer
         if (ds && ds->isMerged()) {
+            qCInfo(logVersion) << QStringLiteral("[TRACE-f] waitingForMC ds=%1 mcDone=%2").arg(installId).arg(ds->mcDownloadDone ? 1 : 0);
             // Mark verify step as completed (mirrors old constructor handler)
             int verifyStep = ds->loaderVerifyStep;
             if (verifyStep >= 0 && verifyStep < ds->steps.size()) {
@@ -8067,6 +8072,8 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 const QString srcVer = tempDir + QStringLiteral("/versions/") + installId;
                 const QString dstVer = m_gameDir + QStringLiteral("/versions/") + installId;
                 bool copyOk = true;
+                qCInfo(logVersion) << QStringLiteral("[TRACE-f] copy: srcVer=%1 exists=%2 dstVer=%3")
+                    .arg(srcVer).arg(QDir(srcVer).exists() ? 1 : 0).arg(dstVer);
                 if (QDir(srcVer).exists()) {
                     QDir().mkpath(dstVer);
                     if (!copyRecursiveMissing(srcVer, dstVer)) {
@@ -8074,7 +8081,11 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                         qCWarning(logVersion) << QStringLiteral("[安装] 版本文件夹拷贝校验失败: %1").arg(srcVer);
                     } else {
                         qDebug() << "[install] Copied version folder:" << srcVer << "->" << dstVer;
+                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] copy done, dstVer files: %1")
+                            .arg(QDir(dstVer).entryList(QDir::Files).join(QLatin1Char(',')));
                     }
+                } else {
+                    qCWarning(logVersion) << QStringLiteral("[TRACE-f] srcVer 不存在，跳过版本文件夹拷贝: %1").arg(srcVer);
                 }
 
                 // 2. Copy libraries (skip existing)
@@ -8141,7 +8152,16 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 setInstallPhase(tr("完成"));
                 updateInstalledList();
                 refreshInstalled();
-                finishInstall(installId);
+                // ── Fabric API 未下载完：标记封装完成但暂不收尾，等 API 完成后统一 finishInstall ──
+                // （原逻辑 API 完成回调里 !bootstrapperDone 直接 finishInstall → 封装没跑 → 版本残缺；
+                //   这里抢先 finishInstall → API 文件没下载完 → 丢失）
+                if (ds && ds->fabricApiPending) {
+                    if (auto* ctx2 = m_mergedContexts.value(installId, nullptr))
+                        ctx2->bootstrapperDone = true;
+                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] 封装+copy 完成，等待 Fabric API 后收尾");
+                } else {
+                    finishInstall(installId);
+                }
             } else {
                 if (ds) {
                     for (int i = 0; i < ds->steps.size(); i++)
@@ -8153,6 +8173,24 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             setInstalling(false);
             startNextFromQueue();
             emit installFinished(success);
+        });
+
+    // ── waitingForMC：Fabric 库下载完（parallelMode）→ 标记 loader 就绪 ──
+    // Fabric 路径关键：merged 的 ctx->installer 必须接上 waitingForMC，否则
+    // ctx->loaderJarReady 永远 false → MC 下载完成后 onVersionDownloadFinished 不调
+    // proceedToLoaderInstall → fabricFinalize/step3 封装从不执行 → 版本文件夹残缺。
+    connect(ctx->installer, &ModLoaderInstaller::waitingForMC, this,
+        [this, installId]() {
+            auto* ds = dlSession(installId);
+            qCInfo(logVersion) << QStringLiteral("[TRACE-f] waitingForMC(merged) id=%1 dsFound=%2 mcDone=%3")
+                .arg(installId).arg(ds ? 1 : 0).arg(ds ? (ds->mcDownloadDone ? 1 : 0) : -1);
+            if (ds && ds->isMerged()) {
+                ds->loaderDownloadReady = true;
+                if (auto* ctx = m_mergedContexts.value(installId, nullptr))
+                    ctx->loaderJarReady = true;
+                if (ds->mcDownloadDone)
+                    proceedToLoaderInstall(installId);
+            }
         });
 
     // stepProgress: update step percentage (skip if already completed)

@@ -266,7 +266,8 @@ void ModLoaderInstaller::installFabric(const QString& mcVersion, const QString& 
     m_mcVersion = mcVersion; m_loaderVersion = fabricVersion;
     m_installName = installName; m_loaderType = "fabric";
     m_totalSteps = 2; m_currentStep = 0;  // download → write (no SHA1 for tiny profile JSON)
-    qCInfo(logLoader) << QStringLiteral("[安装] 开始安装 Fabric: MC=%1 Fabric=%2").arg(mcVersion, fabricVersion);
+    qCInfo(logLoader) << QStringLiteral("[TRACE-f] installFabric called MC=%1 Fabric=%2 installName=%3 parallel=%4")
+        .arg(mcVersion, fabricVersion, installName).arg(m_parallelMode ? 1 : 0);
     fabricStep1_downloadProfile();
 }
 
@@ -3351,6 +3352,8 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
 
     downloadToMemoryRace({officialUrl, bmclUrl},
         [this](bool ok, const QByteArray& data) {
+            qCInfo(logLoader) << QStringLiteral("[TRACE-f] profile done ok=%1 size=%2")
+                .arg(ok).arg(data.size());
             if (!ok) {
                 emit finished(false, "Fabric 配置下载失败（官方源和BMCLAPI均失败）");
                 m_running = false;
@@ -3363,6 +3366,7 @@ void ModLoaderInstaller::fabricStep1_downloadProfile() {
 }
 
 void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profileData) {
+    qCInfo(logLoader) << QStringLiteral("[TRACE-f] fabricStep2 enter");
     m_currentStep = 2;
     emit progressChanged(2, m_totalSteps, "正在下载 Fabric 依赖库...");
 
@@ -3482,6 +3486,7 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
 }
 
 void ModLoaderInstaller::fabricFinalize() {
+    qCInfo(logLoader) << QStringLiteral("[TRACE-f] fabricFinalize enter");
     if (m_fabricProfileData.isEmpty()) {
         emit finished(false, "Fabric 配置数据丢失");
         m_running = false;
@@ -3492,6 +3497,7 @@ void ModLoaderInstaller::fabricFinalize() {
 }
 
 void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData) {
+    qCInfo(logLoader) << QStringLiteral("[TRACE-f] fabricStep3 enter");
     m_currentStep = 3;
     emit progressChanged(3, m_totalSteps, "正在创建版本配置...");
 
@@ -3514,12 +3520,18 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     // Copy vanilla jar
     QString mcVerDir = findVersionDir(m_mcVersion);
     QString targetJar = verDir + "/" + m_installName + ".jar";
+    bool jarCopied = false;
     if (!mcVerDir.isEmpty()) {
         QString vanillaJar = mcVerDir + "/" + QDir(mcVerDir).dirName() + ".jar";
         if (QFile::exists(vanillaJar)) {
             if (QFile::exists(targetJar)) QFile::remove(targetJar);
-            QFile::copy(vanillaJar, targetJar);
+            jarCopied = QFile::copy(vanillaJar, targetJar);
         }
+        qCInfo(logLoader) << QStringLiteral("[TRACE-f] step3 jar: mcVerDir=%1 vanillaJarExists=%2 copied=%3 targetJar=%4")
+            .arg(mcVerDir).arg(QFile::exists(vanillaJar) ? 1 : 0).arg(jarCopied ? 1 : 0).arg(targetJar);
+    } else {
+        qCInfo(logLoader) << QStringLiteral("[TRACE-f] step3 jar: findVersionDir(%1) EMPTY in %2")
+            .arg(m_mcVersion, m_gameDir);
     }
 
     // Merge vanilla MC JSON content into Fabric JSON (same pattern as NeoForge)
