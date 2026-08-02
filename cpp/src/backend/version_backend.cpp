@@ -2503,6 +2503,9 @@ void VersionBackend::finishInstall(const QString& installName)
 
     // Emit complete BEFORE setInstalling(false) so QML can show final state
 
+    qCInfo(logVersion) << QStringLiteral("[追踪] finishInstall 发射 installComplete/installFinished, receivers=%1")
+        .arg(receivers(SIGNAL(installFinished(bool))));
+
     emit installComplete(installName);
 
     emit installFinished(true);
@@ -5788,6 +5791,12 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
                 updateStep(installId, verifyStep, QStringLiteral("completed"), 100);
             }
             ds->loaderDownloadReady = true;
+            // Fabric 路径关键修复：waitingForMC = profile+依赖库已就绪（loader 相当于已备好），
+            // 必须同步标记 merged context 的 loaderJarReady —— 否则 onVersionDownloadFinished
+            // 检查 ctx->loaderJarReady 永远 false → MC 下载完成后不调 proceedToLoaderInstall →
+            // 安装卡死（版本文件夹不写 JSON/不复制 jar）。Forge 在 handleLoaderData 已设置，Fabric 漏了。
+            if (auto* ctx = m_mergedContexts.value(installId, nullptr))
+                ctx->loaderJarReady = true;
             // Do NOT set loaderFinishedWaitingMC here — that flag means "the installer
             // has already finished its work (emit finished), just waiting for MC".
             // waitingForMC means the installer is PAUSED at verify and needs
