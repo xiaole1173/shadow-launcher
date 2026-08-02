@@ -88,11 +88,24 @@ VersionDownloader::VersionDownloader(QObject* parent)
     // Forward progress signals
     connect(m_downloader, &ShadowDownloader::FileDownloader::progressChanged,
             this, [this](int completed, int total, qint64 dlBytes, qint64 totBytes) {
-        m_completedFiles.storeRelaxed(completed);
-        m_totalFiles.storeRelaxed(total);
-        m_downloadedBytes.storeRelaxed(dlBytes);
-        m_totalBytes.storeRelaxed(totBytes);
-        emit progressChanged(completed, total, dlBytes, totBytes);
+        // ── 两个下载器聚合（修复 db 跳变）──
+        // 旧代码只写夸父自身的值 → 与山海经发射点（写两者之和）交替覆盖 →
+        // 上层 netDb 差分被污染：缓存命中爆发时（山海经几百 MB 瞬间累加）+
+        // 紧邻夸父 100ms tick → 瞬时速度飙到 G/s。两个发射点都写"当前两者之和"
+        // → db 单调递增，差分稳定。
+        const int assetCompleted = m_assetDownloader ? m_assetDownloader->completedFiles() : 0;
+        const int assetTotal     = m_assetDownloader ? m_assetDownloader->totalFiles() : 0;
+        const qint64 assetBytes  = m_assetDownloader ? m_assetDownloader->downloadedBytes() : 0;
+        const qint64 assetTotB   = m_assetDownloader ? m_assetDownloader->totalBytes() : 0;
+        const int mergedCompleted = completed + assetCompleted;
+        const int mergedTotal     = total + assetTotal;
+        const qint64 mergedBytes  = dlBytes + assetBytes;
+        const qint64 mergedTotB   = totBytes + assetTotB;
+        m_completedFiles.storeRelaxed(mergedCompleted);
+        m_totalFiles.storeRelaxed(mergedTotal);
+        m_downloadedBytes.storeRelaxed(mergedBytes);
+        m_totalBytes.storeRelaxed(mergedTotB);
+        emit progressChanged(mergedCompleted, mergedTotal, mergedBytes, mergedTotB);
     });
 
     connect(m_downloader, &ShadowDownloader::FileDownloader::logMessage,
