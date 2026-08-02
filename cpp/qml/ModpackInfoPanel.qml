@@ -71,28 +71,35 @@ Item {
             Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
             // 左侧来源图标：有整合包图标（下载 Tab 来源 URL）则显示，否则占位 box
+            // 对齐 DownloadCard 图标区方案：外层 Rectangle 圆角 + clip，内层 Image 方形铺满
             Rectangle {
                 radius: StyleTokens.radiusLg
                 color: StyleTokens.accentSubtle
                 Layout.preferredWidth: 38
                 Layout.preferredHeight: 38
                 Layout.alignment: Qt.AlignVCenter
+                clip: true
+
+                property bool _iconFailed: false
 
                 Image {
-                    anchors.centerIn: parent
-                    source: root.iconUrl ? root.iconUrl : "icons/lucide/box.svg"
-                    width: root.iconUrl ? 38 : 18
-                    height: root.iconUrl ? 38 : 18
-                    radius: root.iconUrl ? StyleTokens.radiusLg : 0
-                    clip: root.iconUrl !== ""
+                    anchors.fill: parent
                     fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize.width: 76; sourceSize.height: 76
+                    source: root.iconUrl || ""
+                    visible: root.iconUrl !== "" && !parent._iconFailed
                     // 图标加载失败（离线/URL 失效）→ 回退占位图
                     onStatusChanged: {
-                        if (status === Image.Error) {
-                            source = "icons/lucide/box.svg"
-                            width = 18; height = 18
-                        }
+                        if (status === Image.Error) parent._iconFailed = true
                     }
+                }
+                Image {
+                    anchors.centerIn: parent
+                    source: "icons/lucide/box.svg"
+                    width: 18
+                    height: 18
+                    visible: root.iconUrl === "" || parent._iconFailed
                 }
             }
 
