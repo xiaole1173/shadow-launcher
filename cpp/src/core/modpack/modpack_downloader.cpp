@@ -306,6 +306,52 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
         byId.insert(o.value(QStringLiteral("id")).toInt(-1), o);
     }
 
+    // ── 镜像元数据缺失检测（并非真的被删）──
+    // 实测：mod.mcimirror.top 对部分较新/更新的 fileId 无数据（混合批次静默忽略、
+    // 单独查询返回 404），而官方 API 存在（如 6914376 BDHill Reforge…）。
+    // 旧逻辑直接判"文件已被删除"→ 每次导入稳定误报 N 个失败（主流启动器 却全部正常）。
+    // 修复：镜像缺失 → 官方 API 补查（带 x-api-key）→ 仍缺失才算真删除。
+    QList<int> missingIdx;
+    int processed = 0;
+    for (int i = startIndex; i < m_total && processed < kCfBatchSize; ++i) {
+        ModpackRemoteFile& rf = m_files->operator[](i);
+        if (rf.source != QLatin1String("curseforge")) continue;
+        ++processed;
+        if (byId.value(rf.fileId).isEmpty()) missingIdx.append(i);
+    }
+    if (!missingIdx.isEmpty() && !m_apiKey.isEmpty()) {
+        QJsonArray idArr;
+        for (int i : missingIdx) idArr.append(m_files->at(i).fileId);
+        QJsonObject b;
+        b[QStringLiteral("fileIds")] = idArr;
+        const QByteArray body2 = QJsonDocument(b).toJson(QJsonDocument::Compact);
+        emit logLine(tr("镜像缺少 %1 个 CF 文件元数据，转官方 API 补查…").arg(missingIdx.size()));
+        apiWithFallback(true,
+                        QLatin1String(kCfOfficialBase) + QStringLiteral("/mods/files"),
+                        QLatin1String(kCfOfficialBase) + QStringLiteral("/mods/files"),
+                        body2, m_apiKey,
+                        [this, startIndex, byId](int st, const QByteArray& rb) {
+            if (m_cancelled) return;
+            QMap<int, QJsonObject> merged = byId;
+            if (st >= 200 && st < 300) {
+                QJsonParseError e2;
+                const QJsonDocument d2 = QJsonDocument::fromJson(rb, &e2);
+                if (e2.error == QJsonParseError::NoError) {
+                    for (const QJsonValue& v : d2.object().value(QStringLiteral("data")).toArray()) {
+                        const QJsonObject o = v.toObject();
+                        merged.insert(o.value(QStringLiteral("id")).toInt(-1), o);
+                    }
+                }
+            }
+            processResolvedBatch(startIndex, merged);
+        });
+        return;
+    }
+    processResolvedBatch(startIndex, byId);
+}
+
+void ModpackDownloader::processResolvedBatch(int startIndex, const QMap<int, QJsonObject>& byId)
+{
     // ⚠ 只处理本批次请求过的 CF 条目（与 resolveBatch 收集逻辑一致：
     // 自 startIndex 起前 kCfBatchSize 个 CF 条目）。
     int processed = 0;
@@ -316,13 +362,13 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
 
         const QJsonObject o = byId.value(rf.fileId);
         if (o.isEmpty()) {
-            // 文件已被原作者删除（主流启动器 会弹窗提示缺失，后端改为记录 + 跳过）
+            // 镜像 + 官方补查都缺失 → 文件才真是被原作者删除（主流启动器 会弹窗提示缺失，后端改为记录 + 跳过）
             m_items[i].finished = true;
             m_items[i].error = QStringLiteral("文件已被删除（fileId=%1）").arg(rf.fileId);
             ++m_failed;
             rf.status = QStringLiteral("fail");
             rf.error = m_items[i].error;
-            emit logLine(tr("⚠ CurseForge 文件缺失（可能已被作者删除）: %1").arg(rf.fileId));
+            emit logLine(tr("⚠ CurseForge 文件缺失（镜像与官方均查不到）: %1").arg(rf.fileId));
             continue;
         }
 
@@ -490,6 +536,7 @@ void ModpackDownloader::startEngineDownloads()
     // 实测 24 路并发对 MCIM 镜像过于激进：高峰期镜像限流饿死部分连接 →
     // 30s 无数据超时 → 分片失败 → 大文件报废；12 路温和稳定且峰值仍可达 3MB/s+
     m_fd->setMirrorRateLimitMs(100);   // MCIM/BMCLAPI 镜像限频（PCL 同款：每启一线程 Sleep(100)）
+    m_fd->setCfApiKey(m_apiKey);       // 官方 edge CDN 下载认证（7/16 起强制）
 
     for (int i = 0; i < m_total; ++i) {
         DlItem& it = m_items[i];

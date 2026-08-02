@@ -28,6 +28,8 @@
 #include <QObject>
 #include <QString>
 #include <QList>
+#include <QMap>
+#include <QJsonObject>
 #include <QNetworkReply>
 #include <QPointer>
 #include <QSet>
@@ -93,6 +95,7 @@ private:
     // ── CF 地址解析（REST API 层，保留自研）──
     void resolveBatch(int startIndex);                 // 按 50 个/批发 POST /v1/mods/files
     void onResolveBatchDone(int startIndex, int status, const QByteArray& body);
+    void processResolvedBatch(int startIndex, const QMap<int, QJsonObject>& byId);
     void onResolveBatchFailed(int startIndex, const QString& err);
     void resolveDownloadUrls();                        // downloadUrl 缺失的条目逐个补解析
     void startDownloadUrlResolve(int idx);

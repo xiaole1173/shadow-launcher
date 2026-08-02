@@ -209,6 +209,9 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
 
     QNetworkRequest req{QUrl(url)};
     req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    // 官方 edge CDN 自 2026-07-16 起强制要求 API key（x-api-key header），否则 401
+    if (!m_cfApiKey.isEmpty() && url.contains(QLatin1String("edge.forgecdn.net")))
+        req.setRawHeader("x-api-key", m_cfApiKey.toUtf8());
     // 禁用 HTTP/2（镜像 H2 连接不稳定）+ identity 编码（防 gzip 致 SHA1 不符）
     req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     req.setRawHeader("Accept-Encoding", "identity");

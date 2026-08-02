@@ -53,6 +53,7 @@ public:
 
     // ── 模组专属配置 ──
     void setMaxThreads(int n) { m_maxThreads = qBound(1, n, 64); }
+    void setCfApiKey(const QString& key) { m_cfApiKey = key; }   // CF 官方 CDN 下载认证（edge.forgecdn.net 7/16 起必带）
     /// 全局下载源策略：0=镜像优先 1=官方优先 2=自动切换（仅用于源排序说明，当前源顺序由 addFile 决定）
     void setSourcePolicy(int p) { m_sourcePolicy = p; }
     /// 镜像 host 每启一线程的限频间隔（默认 100ms）
@@ -110,6 +111,7 @@ private:
 
     State m_state = Idle;
     bool m_cancelled = false;
+    QString m_cfApiKey;           // CF API key（官方 edge CDN 下载认证）
     int m_maxThreads = 12;
     int m_sourcePolicy = 0;
     int m_mirrorRateLimitMs = 100;
