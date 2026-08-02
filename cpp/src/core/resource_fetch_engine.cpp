@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 // Shadow Launcher — 资源拉取引擎（司南）
 #include "resource_fetch_engine.h"
+#include "../utils/hash_utils.h"
 #include "engine_identity.h"
 #include "../utils/logger.h"
 
@@ -269,8 +270,7 @@ QString ResourceFetchEngine::thumbFile(const QString& url) const
 
 QString ResourceFetchEngine::hashUrl(const QString& url)
 {
-    return QString::fromLatin1(
-        QCryptographicHash::hash(url.toUtf8(), QCryptographicHash::Sha1).toHex()).left(16);
+    return sha1Hex(url.toUtf8()).left(16);
 }
 
 QString ResourceFetchEngine::fileUrl(const QString& path)

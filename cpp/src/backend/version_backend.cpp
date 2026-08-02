@@ -11,6 +11,7 @@
 
 
 #include "version_backend.h"
+#include "../utils/hash_utils.h"
 
 #include "shadow_backend.h"
 
@@ -4496,7 +4497,7 @@ void VersionBackend::repairVersion(const QString& versionId)
 
                 if (!target.sha1.isEmpty()) {
 
-                    QByteArray hash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
+                    const QString hash = sha1Hex(data);
 
                     if (hash != target.sha1) {
 

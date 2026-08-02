@@ -13,6 +13,7 @@
 //   - Removed static s_lastProgressEmitMs race condition
 
 #include "core/file_downloader.h"
+#include "../utils/hash_utils.h"
 #include "core/engine_identity.h"
 #include "utils/logger.h"
 #include <QNetworkAccessManager>
@@ -672,10 +673,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             // SHA1 verification for full-download files
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
-                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
-                if (dlHash != file->expectedSha1) {
+                const QString dlHash = sha1Hex(data);
+                if (dlHash != QString::fromLatin1(file->expectedSha1)) {
                     qCWarning(logDownload) << QStringLiteral("[夸父] SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
-                        .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
+                        .arg(url, QString::fromLatin1(file->expectedSha1), dlHash)
                         .arg(attempt + 1);
                     sourceOk = false;
                     if (attempt >= 5) break;
@@ -802,8 +803,8 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
             bool isFullDownload = file->isNoSplit || file->isUnknownSize;
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
-                QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
-                if (dlHash == file->expectedSha1) {
+                const QString dlHash = sha1Hex(data);
+                if (dlHash == QString::fromLatin1(file->expectedSha1)) {
                     qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底 SHA1匹配 URL=%1").arg(url);
                 } else {
                     if (file->fileSize > 0 && data.size() >= file->fileSize) {

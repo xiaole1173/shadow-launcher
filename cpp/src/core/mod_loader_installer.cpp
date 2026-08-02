@@ -1,6 +1,7 @@
 ﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "mod_loader_installer.h"
+#include "../utils/hash_utils.h"
 #include "http_client.h"
 #include <memory>
 #include <QJsonDocument>
@@ -81,9 +82,7 @@ void ModLoaderInstaller::cancel() {
     }
 }
 
-QString ModLoaderInstaller::computeSha1(const QByteArray& data) {
-    return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex());
-}
+QString ModLoaderInstaller::computeSha1(const QByteArray& data) { return sha1Hex(data); }
 
 void ModLoaderInstaller::emitByteProgress(const QString& name, qint64 received, qint64 total) {
     qint64 speed = 0;

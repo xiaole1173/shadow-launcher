@@ -59,6 +59,30 @@ static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariant
     return merged;
 }
 
+// 冻结区 + 候选区合并：已显示的前 shownCount 条永不重排（防滚动/切页闪动），
+// 仅未显示的候选区随新数据重排（对用户无感知）。四个池子（Mod/光影/资源包/整合包）共用。
+static QVariantList mergePoolFreezeZone(const QVariantList& pool,
+                                        const QVariantList& mrAll,
+                                        const QVariantList& cfAll,
+                                        int shownCount,
+                                        double mrMult)
+{
+    QVariantList frozen = pool.mid(0, shownCount);
+    QSet<QString> frozenKeys;
+    for (const QVariant& v : frozen)
+        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
+    QVariantList mrRest, cfRest;
+    for (const QVariant& v : mrAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            mrRest.append(v);
+    }
+    for (const QVariant& v : cfAll) {
+        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
+            cfRest.append(v);
+    }
+    return frozen + mergeDedupSorted(mrRest, cfRest, mrMult);
+}
+
 // ============================================================
 // Constructor / Destructor
 // ============================================================
@@ -404,24 +428,11 @@ void ResourceBackend::onModSourceDone(int gen)
     // ═══ 冻结区 + 候选区：已显示的前 shownCount 条永不重排 ═══
     // 已显示部分（QML 已渲染的页）保持原序 → 滚动/切页不闪动；
     // 只有未显示的候选区会因新数据重排（用户看不到变化，无感知）。
-    QVariantList frozen = m_modPool.mid(0, m_modShownCount);
-    // 从双源原始数据中排除已显示项（按归一化标题去重）
-    QSet<QString> frozenKeys;
-    for (const QVariant& v : frozen)
-        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
-    QVariantList mrRest, cfRest;
-    for (const QVariant& v : m_modMrAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            mrRest.append(v);
-    }
-    for (const QVariant& v : m_modCfAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            cfRest.append(v);
-    }
-    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
-    m_modPool = frozen + candidate;
+    const QVariantList mergedPool = mergePoolFreezeZone(m_modPool, m_modMrAll, m_modCfAll, m_modShownCount, 2.5);
+    const int frozenCount = qMin(m_modShownCount, m_modPool.size());
+    m_modPool = mergedPool;
     emit logMessage(tr("[池子] Mod 合并: 冻结 %1 + 候选 %2 → 池 %3 条")
-                        .arg(frozen.size()).arg(candidate.size()).arg(m_modPool.size()));
+                        .arg(frozenCount).arg(m_modPool.size() - frozenCount).arg(m_modPool.size()));
     // 检查是否还需继续拉（池不够目标页 且 源未耗尽）
     const int need = (m_modSearchPage + 1) * m_modSearchLimit;
     if (m_modPool.size() < need && (m_modMrMore || m_modCfMore)) {
@@ -744,23 +755,11 @@ void ResourceBackend::onShaderSourceDone(int gen)
     if (--m_shaderPending > 0) return;
     m_modMgr->setBusy(false);
     // 冻结区 + 候选区（防滚动闪动）
-    QVariantList frozen = m_shaderPool.mid(0, m_shaderShownCount);
-    QSet<QString> frozenKeys;
-    for (const QVariant& v : frozen)
-        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
-    QVariantList mrRest, cfRest;
-    for (const QVariant& v : m_shaderMrAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            mrRest.append(v);
-    }
-    for (const QVariant& v : m_shaderCfAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            cfRest.append(v);
-    }
-    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
-    m_shaderPool = frozen + candidate;
+    const QVariantList mergedPool = mergePoolFreezeZone(m_shaderPool, m_shaderMrAll, m_shaderCfAll, m_shaderShownCount, 2.5);
+    const int frozenCount = qMin(m_shaderShownCount, m_shaderPool.size());
+    m_shaderPool = mergedPool;
     emit logMessage(tr("[池子] 光影合并: 冻结 %1 + 候选 %2 → 池 %3 条")
-                        .arg(frozen.size()).arg(candidate.size()).arg(m_shaderPool.size()));
+                        .arg(frozenCount).arg(m_shaderPool.size() - frozenCount).arg(m_shaderPool.size()));
     const int need = (m_shaderSearchPage + 1) * m_shaderSearchLimit;
     if (m_shaderPool.size() < need && (m_shaderMrMore || m_shaderCfMore)) {
         ensureShaderPool();
@@ -1018,23 +1017,11 @@ void ResourceBackend::onRpSourceDone(int gen)
     if (--m_rpPending > 0) return;
     m_modMgr->setBusy(false);
     // 冻结区 + 候选区（防滚动闪动）
-    QVariantList frozen = m_rpPool.mid(0, m_rpShownCount);
-    QSet<QString> frozenKeys;
-    for (const QVariant& v : frozen)
-        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
-    QVariantList mrRest, cfRest;
-    for (const QVariant& v : m_rpMrAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            mrRest.append(v);
-    }
-    for (const QVariant& v : m_rpCfAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            cfRest.append(v);
-    }
-    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
-    m_rpPool = frozen + candidate;
+    const QVariantList mergedPool = mergePoolFreezeZone(m_rpPool, m_rpMrAll, m_rpCfAll, m_rpShownCount, 2.5);
+    const int frozenCount = qMin(m_rpShownCount, m_rpPool.size());
+    m_rpPool = mergedPool;
     emit logMessage(tr("[池子] 资源包合并: 冻结 %1 + 候选 %2 → 池 %3 条")
-                        .arg(frozen.size()).arg(candidate.size()).arg(m_rpPool.size()));
+                        .arg(frozenCount).arg(m_rpPool.size() - frozenCount).arg(m_rpPool.size()));
     const int need = (m_rpSearchPage + 1) * m_rpSearchLimit;
     if (m_rpPool.size() < need && (m_rpMrMore || m_rpCfMore)) {
         ensureRpPool();
@@ -1234,21 +1221,9 @@ void ResourceBackend::onPackSourceDone(int gen)
     if (--m_packPending > 0) return;
     m_modMgr->setBusy(false);
 
-    QVariantList frozen = m_packPool.mid(0, m_packShownCount);
-    QSet<QString> frozenKeys;
-    for (const QVariant& v : frozen)
-        frozenKeys.insert(normTitle(v.toMap().value(QStringLiteral("title")).toString()));
-    QVariantList mrRest, cfRest;
-    for (const QVariant& v : m_packMrAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            mrRest.append(v);
-    }
-    for (const QVariant& v : m_packCfAll) {
-        if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
-            cfRest.append(v);
-    }
-    const QVariantList candidate = mergeDedupSorted(mrRest, cfRest, 2.5);
-    m_packPool = frozen + candidate;
+    const QVariantList mergedPool = mergePoolFreezeZone(m_packPool, m_packMrAll, m_packCfAll, m_packShownCount, 2.5);
+    const int frozenCount = qMin(m_packShownCount, m_packPool.size());
+    m_packPool = mergedPool;
 
     // ── 统一字符串化（防 QML 预编译模式下 QVariantList → QQmlListModel）──
     // ListModel role 若为数组，delegate 赋给 QString 属性报
@@ -1272,7 +1247,7 @@ void ResourceBackend::onPackSourceDone(int gen)
         if (changed) v = m;
     }
     emit logMessage(tr("[池子] 整合包合并: 冻结 %1 + 候选 %2 → 池 %3 条")
-                        .arg(frozen.size()).arg(candidate.size()).arg(m_packPool.size()));
+                        .arg(frozenCount).arg(m_packPool.size() - frozenCount).arg(m_packPool.size()));
     const int need = (m_packSearchPage + 1) * m_packSearchLimit;
     if (m_packPool.size() < need && (m_packMrMore || m_packCfMore)) {
         ensurePackPool();

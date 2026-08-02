@@ -19,6 +19,7 @@
 //   5. Cooldown: if speed drops sharply, reduce inflight to avoid congestion.
 
 #include "asset_downloader.h"
+#include "../utils/hash_utils.h"
 #include "engine_identity.h"
 
 #include <QDir>
@@ -470,7 +471,7 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
     // SHA1 verification — must pass before any I/O or counting.
     // This is the definitive SHA1 check. The I/O worker only writes to disk.
     if (!task.sha1.isEmpty()) {
-        QByteArray hash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
+        const QString hash = ShadowLauncher::sha1Hex(data);
         if (hash != task.sha1) {
             int nextIdx = ift.mirrorIndex + 1;
             if (nextIdx < task.mirrors.size()) {
