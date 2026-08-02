@@ -1260,7 +1260,8 @@ void ResourceBackend::onPackSourceDone(int gen)
                                    QStringLiteral("loadersList") };
         for (const QString& key : keys) {
             const QVariant val = m.value(key);
-            if (val.userType() == QMetaType::QVariantList) {
+            // QStringList 的 userType 是 QMetaType::QStringList（≠ QVariantList）
+            if (val.userType() == QMetaType::QVariantList || val.userType() == QMetaType::QStringList) {
                 QStringList sl;
                 const QVariantList vl = val.toList();
                 for (const auto& e : vl) sl << e.toString();

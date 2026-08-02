@@ -2018,7 +2018,22 @@ Rectangle {
                         source: model.source || "Modrinth"
                         gameVersions: Array.isArray(model.versions) ? model.versions.join(", ") : (model.versions || "")
                         dateModified: model.dateModified || ""
-                        loaders: (model.loadersList || model.loader || "")
+                        loaders: (function(v) {
+                            if (!v) return ""
+                            if (typeof v === "string") return v
+                            try {
+                                if (typeof v.length === "number" && v.length > 0) {
+                                    var larr = []
+                                    for (var li = 0; li < v.length; li++) larr.push(String(v[li]))
+                                    if (larr.length > 0) return larr.join(", ")
+                                }
+                            } catch (e) {}
+                            return ""
+                        })(model.loadersList) || (function(v2) {
+                            if (!v2) return ""
+                            if (typeof v2 === "string") return v2
+                            return ""
+                        })(model.loader) || ""
                         categoriesJson: String(model.categories || "[]")
                         onClicked: {
                             page._packDetailSlug = model.slug
@@ -2076,7 +2091,20 @@ Rectangle {
                         versions: Array.isArray(r.versions) ? r.versions.join(", ") : (typeof r.versions === "string" ? r.versions : ""),
                         dateModified: r.dateModified || "",
                         loader: r.loader || "",
-                        loadersList: Array.isArray(r.loadersList) ? r.loadersList.join(", ") : (r.loadersList || ""),
+                        // ⚠ Array.isArray 对 QQmlListModel（Qt6 预编译下 QVariantList/QStringList
+                        // 的包装）恒为 false → 需按 length+索引 通用取元素。
+                        loadersList: (function(v) {
+                            if (!v) return ""
+                            if (typeof v === "string") return v
+                            try {
+                                if (typeof v.length === "number" && v.length > 0) {
+                                    var arr = []
+                                    for (var li = 0; li < v.length; li++) arr.push(String(v[li]))
+                                    if (arr.length > 0) return arr.join(", ")
+                                }
+                            } catch (e) {}
+                            return ""
+                        })(r.loadersList),
                         // 与 RP Tab 一致：categories 存 JSON 字符串（数组值作为 ListModel role
                         // 在预编译模式下会触发 Qt6QmlModels 崩溃，RP 已验证字符串方案稳定）
                         categories: JSON.stringify(Array.isArray(r.categories) ? r.categories : []),
