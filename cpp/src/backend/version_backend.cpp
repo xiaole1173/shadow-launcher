@@ -889,7 +889,15 @@ void VersionBackend::installVersion(const QString& versionId)
 
                                 }
 
-                                qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已启动 (步骤0-2已完成)");
+                                // 验证步骤"已启动"日志只打一次（verify 进度回调每次都会进这里）
+
+                                if (!st.verifyStartLogged) {
+
+                                    st.verifyStartLogged = true;
+
+                                    qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已启动");
+
+                                }
 
                                 // Show MC verify step (index 3, initially hidden)
 
@@ -939,7 +947,23 @@ void VersionBackend::installVersion(const QString& versionId)
 
                             }
 
-                            qCInfo(logVersion) << QStringLiteral("纯MC下载 验证步骤已启动 版本=%1").arg(versionId);
+                            if (!st.verifyStartLogged) {
+
+                                st.verifyStartLogged = true;
+
+                                qCInfo(logVersion) << QStringLiteral("纯MC下载 验证步骤已启动 版本=%1").arg(versionId);
+
+                            }
+
+                        }
+
+                        // 验证步骤"已完成"日志只打一次
+
+                        if (total > 0 && checked >= total && !st.verifyDoneLogged) {
+
+                            st.verifyDoneLogged = true;
+
+                            qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已完成 版本=%1").arg(versionId);
 
                         }
 
@@ -2841,13 +2865,6 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
     }
     st.speedLastTimeMs = nowMs;
     st.networkBytesDl = netDb;
-
-    // 1s 节流日志：与卡片推送同源同值（单一数据源对外可见的基准）
-    if (nowMs - st.speedLogMs >= 1000) {
-        st.speedLogMs = nowMs;
-        qCInfo(logDownload) << QStringLiteral("[速度] MC=%1 MB/s")
-            .arg(double(st.speed) / (1024.0 * 1024.0), 0, 'f', 1);
-    }
 
     st.bytesDl = db;
 
@@ -7245,8 +7262,6 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
 
                         updateStep(it.key(), verifyIdx, QStringLiteral("active"), 0);
 
-                        qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已激活 session=%1").arg(it.key());
-
                     } else {
 
                         // Step already visible — no action needed
@@ -7302,8 +7317,6 @@ void VersionBackend::activateVerifyOnDownloadsDone(const QString& versionId)
             st.catsFullyDone = true;
 
             doRebuildInstallCards();
-
-            qCInfo(logVersion) << QStringLiteral("MC下载完成 验证步骤已激活(纯MC) 版本=%1").arg(versionId);
 
         }
 

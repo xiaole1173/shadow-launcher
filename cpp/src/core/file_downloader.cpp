@@ -41,7 +41,7 @@ using namespace ShadowLauncher;
 
 FileDownloader::FileDownloader(QObject* parent) : QObject(parent)
 {
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 下载引擎 v9 初始化");
+    qCInfo(logDownload) << QStringLiteral("[夸父] 下载引擎 v9 初始化");
 
     m_speedTimer.start();
 
@@ -72,7 +72,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                               const QStringList& sources, qint64 expectedSize,
                               const QByteArray& sha1, bool jarStrip)
 {
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 添加下载任务 名称=%1 大小=%2").arg(localName, formatSize(expectedSize));
+    qCInfo(logDownload) << QStringLiteral("[夸父] 添加下载任务 名称=%1 大小=%2").arg(localName, formatSize(expectedSize));
 
     // Pre-check SHA1 cache hit in working dir (tempDir for merged installs)
     if (!sha1.isEmpty()) {
@@ -90,9 +90,9 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                     // 与 m_cacheBytes，避免缓存字节经竞态窗口混入 speedTick 差分导致界面网速虚高。
                     m_completedFiles.fetchAndAddRelaxed(1);
                     m_totalBytes.fetchAndAddRelaxed(fi.size());
-                    emit logMessage(QString::fromUtf8("[引擎·夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
+                    emit logMessage(QString::fromUtf8("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                         .arg(localName));
-                    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
+                    qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                            .arg(localName);
                     emit fileProgress(localPath, localName, fi.size(), fi.size(), localPath);
                     m_totalFiles.fetchAndAddRelaxed(1);
@@ -122,16 +122,16 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                         if (QFile::copy(fallbackPath, localPath)) {
                             m_completedFiles.fetchAndAddRelaxed(1);
                             m_totalBytes.fetchAndAddRelaxed(ffi.size());
-                            emit logMessage(QString::fromUtf8("[引擎·夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
+                            emit logMessage(QString::fromUtf8("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                                 .arg(localName));
-                            qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
+                            qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                                    .arg(localName);
                             emit fileProgress(localPath, localName, ffi.size(), ffi.size(), localPath);
                             m_totalFiles.fetchAndAddRelaxed(1);
                             emit fileFinished(localPath, true);
                             return;
                         } else {
-                            qCWarning(logDownload) << QStringLiteral("[引擎·夸父] [缓存] 复制失败 %1 → %2")
+                            qCWarning(logDownload) << QStringLiteral("[夸父] [缓存] 复制失败 %1 → %2")
                                 .arg(fallbackPath, localPath);
                         }
                     }
@@ -156,7 +156,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     m_totalFiles.fetchAndAddRelaxed(1);
     if (file->fileSize > 0) m_totalBytes.fetchAndAddRelaxed(file->fileSize);
 
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 任务已排队 名称=%1 队列总数=%2").arg(localName).arg(m_files.size());
+    qCInfo(logDownload) << QStringLiteral("[夸父] 任务已排队 名称=%1 队列总数=%2").arg(localName).arg(m_files.size());
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -192,7 +192,7 @@ void FileDownloader::start()
 
     qCInfo(logDownload) << engineBanner("kuafu");
     emit logMessage(engineBanner("kuafu"));
-    emit logMessage(QStringLiteral("[引擎·夸父] 引擎启动 文件数=%1 最大线程=%2").arg(m_files.size()).arg(m_maxThreads));
+    emit logMessage(QStringLiteral("[夸父] 引擎启动 文件数=%1 最大线程=%2").arg(m_files.size()).arg(m_maxThreads));
 }
 
 void FileDownloader::pause()
@@ -200,7 +200,7 @@ void FileDownloader::pause()
     m_state = Paused;
     m_managerTimer->stop();
     m_speedTimer2->stop();
-    emit logMessage(QString::fromUtf8("[引擎·夸父] [暂停] 下载已暂停"));
+    emit logMessage(QString::fromUtf8("[夸父] [暂停] 下载已暂停"));
 }
 
 void FileDownloader::resume()
@@ -211,7 +211,7 @@ void FileDownloader::resume()
     m_lastSpeedBytes = m_downloadedBytes.loadRelaxed();   // 网络字节口径（缓存已剔除）
     m_managerTimer->start(50);
     m_speedTimer2->start(100);
-    emit logMessage(QStringLiteral("[引擎·夸父] 下载已恢复"));
+    emit logMessage(QStringLiteral("[夸父] 下载已恢复"));
 }
 
 void FileDownloader::cancel()
@@ -236,7 +236,7 @@ void FileDownloader::cancel()
         m_inflightReplies.clear();
     }
 
-    emit logMessage(QString::fromUtf8("[引擎·夸父] [失败] 下载已取消"));
+    emit logMessage(QString::fromUtf8("[夸父] [失败] 下载已取消"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -285,7 +285,7 @@ void FileDownloader::managerTick()
         }
         if (allStarted) {
             m_phase = PhaseAccelerate;
-            qCInfo(logDownload) << QStringLiteral("[引擎·夸父] [调度] 所有文件已启动首线程，进入加速阶段");
+            qCInfo(logDownload) << QStringLiteral("[夸父] [调度] 所有文件已启动首线程，进入加速阶段");
         }
         lock.unlock();
         return;
@@ -358,7 +358,7 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
     // Source selection log (sampled)
     static int s_srcLogCtr = 0;
     if (srcLabel > 0 || (++s_srcLogCtr % 20 == 0)) {
-        qCInfo(logDownload) << QStringLiteral("[引擎·夸父] [调度] 首源选择 host=%1 file=%2")
+        qCInfo(logDownload) << QStringLiteral("[夸父] [调度] 首源选择 host=%1 file=%2")
             .arg(extractHost(file->orderedSources[sourceIdx]), file->localName);
     }
 
@@ -378,7 +378,7 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
         m_hostStats[host].activeRequests++;
     }
 
-    emit logMessage(QStringLiteral("[引擎·夸父] 启动线程 文件=%1 范围=[%2-%3] 源=%4")
+    emit logMessage(QStringLiteral("[夸父] 启动线程 文件=%1 范围=[%2-%3] 源=%4")
                         .arg(file->localName)
                         .arg(th->downloadStart).arg(th->downloadEnd)
                         .arg(th->sourceUrl));
@@ -414,7 +414,7 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     // Source selection log (sampled per 20 addition threads)
     static int s_addSrcLogCtr = 0;
     if (sourceIdx > 0 || (++s_addSrcLogCtr % 20 == 0)) {
-        qCInfo(logDownload) << QStringLiteral("[引擎·夸父] [调度] 附加源选择 file=%1 host=%2")
+        qCInfo(logDownload) << QStringLiteral("[夸父] [调度] 附加源选择 file=%1 host=%2")
             .arg(file->localName, extractHost(file->orderedSources[sourceIdx]));
     }
 
@@ -425,7 +425,7 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     th->sourceUrl = file->orderedSources[sourceIdx];
     maxPiece->downloadEnd = splitPoint;
 
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 附加线程 线程号=%1 文件=%2 偏移=%3")
+    qCInfo(logDownload) << QStringLiteral("[夸父] 附加线程 线程号=%1 文件=%2 偏移=%3")
                             .arg(th->uuid).arg(file->localName).arg(splitPoint);
 
     file->threads.append(th);
@@ -474,11 +474,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     th->state = 1;
     th->lastReceiveTime = getElapsedMs();
 
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 开始下载 URL=%1 文件=%2 偏移=%3")
+    qCInfo(logDownload) << QStringLiteral("[夸父] 开始下载 URL=%1 文件=%2 偏移=%3")
                             .arg(th->sourceUrl, file->localName).arg(th->downloadStart);
 
     if (!ShadowLauncher::suppressUrlLog())
-        emit logMessage(QStringLiteral("[引擎·夸父] 开始下载 %1 源=%2").arg(file->localName).arg(th->sourceUrl));
+        emit logMessage(QStringLiteral("[夸父] 开始下载 %1 源=%2").arg(file->localName).arg(th->sourceUrl));
 
     // Per-worker QNAM — each worker thread creates its own.
     // QNetworkAccessManager is reentrant but NOT thread-safe:
@@ -494,7 +494,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
         th->sourceUrl = url;
 
         if (sourceIdx > 0)
-            qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 切换到镜像%1 URL=%2").arg(sourceIdx + 1).arg(url);
+            qCInfo(logDownload) << QStringLiteral("[夸父] 切换到镜像%1 URL=%2").arg(sourceIdx + 1).arg(url);
 
         sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
@@ -607,7 +607,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             }
 
             if (timedOut || reply->error() != QNetworkReply::NoError) {
-                qCWarning(logDownload) << QStringLiteral("[引擎·夸父] 请求失败 URL=%1 错误=%2 重试=%3")
+                qCWarning(logDownload) << QStringLiteral("[夸父] 请求失败 URL=%1 错误=%2 重试=%3")
                     .arg(url, timedOut ? QStringLiteral("超时") : reply->errorString())
                     .arg(attempt + 1);
                 reply->abort();
@@ -629,7 +629,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             // file->fileSize 是 API 解析值，可能偏大（如清华镜像 API 195.6MB 实际 195.0MB）
             qint64 expectedSize = contentLen > 0 ? contentLen : (file->fileSize > 0 ? file->fileSize : 0);
             if (expectedSize > 0 && data.size() < expectedSize) {
-                qCWarning(logDownload) << QStringLiteral("[引擎·夸父] 下载数据不完整 URL=%1 预期=%2(Content-Length) 实际=%3")
+                qCWarning(logDownload) << QStringLiteral("[夸父] 下载数据不完整 URL=%1 预期=%2(Content-Length) 实际=%3")
                     .arg(url).arg(expectedSize).arg(data.size());
                 sourceOk = false;
                 reply->deleteLater();
@@ -671,7 +671,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 qint64 threadRange = th->downloadEnd - th->downloadStart;
                 if (threadRange > 0 && data.size() > threadRange) {
                     qint64 excess = data.size() - threadRange;
-                    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
+                    qCInfo(logDownload) << QStringLiteral("[夸父] 截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
                         .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess);
                     data = data.mid(th->downloadStart, threadRange);
                     // Adjust byte counters: the excess was already counted via downloadProgress
@@ -685,7 +685,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
                 QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
                 if (dlHash != file->expectedSha1) {
-                    qCWarning(logDownload) << QStringLiteral("[引擎·夸父] SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
+                    qCWarning(logDownload) << QStringLiteral("[夸父] SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
                         .arg(url, QString::fromLatin1(file->expectedSha1), QString::fromLatin1(dlHash))
                         .arg(attempt + 1);
                     sourceOk = false;
@@ -716,7 +716,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
         if (!sourceOk && m_modpackMode && !modRetriedOnce) {
             modRetriedOnce = true;
             sourceIdx = -1;   // for 循环 ++ 后回到 0，重走全部源
-            qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 全部源失败，重置源列表整体重试一轮: %1")
+            qCInfo(logDownload) << QStringLiteral("[夸父] 全部源失败，重置源列表整体重试一轮: %1")
                                    .arg(file->localName);
             continue;
         }
@@ -725,7 +725,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     // Last resort retry（模组专项已重置重试一轮覆盖，跳过原兜底）
     if (!sourceOk && !m_modpackMode && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
         const QString url = file->orderedSources[0];
-        qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 最终兜底重试 URL=%1").arg(url);
+        qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底重试 URL=%1").arg(url);
         for (int attempt = 0; attempt < 3 && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
             if (attempt > 0) QThread::msleep(500);
@@ -803,7 +803,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 qint64 threadRange = th->downloadEnd - th->downloadStart;
                 if (threadRange > 0 && data.size() > threadRange) {
                     qint64 excess = data.size() - threadRange;
-                    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 截断多余数据(重试) 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
+                    qCInfo(logDownload) << QStringLiteral("[夸父] 截断多余数据(重试) 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5")
                         .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess);
                     data = data.mid(th->downloadStart, threadRange);
                     th->downloadDone = threadRange;
@@ -815,10 +815,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             if (isFullDownload && !file->expectedSha1.isEmpty()) {
                 QByteArray dlHash = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex();
                 if (dlHash == file->expectedSha1) {
-                    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 最终兜底 SHA1匹配 URL=%1").arg(url);
+                    qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底 SHA1匹配 URL=%1").arg(url);
                 } else {
                     if (file->fileSize > 0 && data.size() >= file->fileSize) {
-                        qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 最终兜底 大小匹配，信任数据 URL=%1").arg(url);
+                        qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底 大小匹配，信任数据 URL=%1").arg(url);
                     } else {
                         sourceOk = false;
                         continue;
@@ -843,7 +843,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     }
 
     th->state = 4; // failed
-    emit logMessage(QStringLiteral("[引擎·夸父] 所有源均失败 %1").arg(file->localName));
+    emit logMessage(QStringLiteral("[夸父] 所有源均失败 %1").arg(file->localName));
 
 worker_done:
 cleanup:
@@ -857,7 +857,7 @@ cleanup:
         if (it != m_hostStats.end()) it->activeRequests--;
     }
 
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 线程完成 文件=%1 字节=%2")
+    qCInfo(logDownload) << QStringLiteral("[夸父] 线程完成 文件=%1 字节=%2")
         .arg(file->localName).arg(th->downloadDone);
 
     // ── Merge on worker thread (avoid main thread disk I/O) ──
@@ -900,7 +900,7 @@ cleanup:
                 }
             }
             if (launchedRetry) {
-                qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 分片失败重下 %1").arg(file->localName);
+                qCInfo(logDownload) << QStringLiteral("[夸父] 分片失败重下 %1").arg(file->localName);
                 return;   // 等重试分片完成
             }
         }
@@ -923,7 +923,7 @@ cleanup:
                 self->m_failedFiles.fetchAndAddRelaxed(1);
                 for (const auto& s : file->orderedSources)
                     self->recordHostResult(QUrl(s).host().toLower(), false);
-                self->logMessage(QString::fromUtf8("[引擎·夸父] [失败] 下载失败: %1 (所有源均失败)").arg(file->localName));
+                self->logMessage(QString::fromUtf8("[夸父] [失败] 下载失败: %1 (所有源均失败)").arg(file->localName));
                 self->fileFinished(file->localPath, false);
             } else {
                 self->m_completedFiles.fetchAndAddRelaxed(1);
@@ -949,20 +949,20 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
             QCryptographicHash h(QCryptographicHash::Sha1);
             h.addData(&f); f.close();
             if (h.result().toHex() != file->expectedSha1) {
-                emit logMessage(QString("[引擎·夸父] SHA1校验失败: %1").arg(file->localName));
+                emit logMessage(QString("[夸父] SHA1校验失败: %1").arg(file->localName));
                 return false;
             }
         }
         return true;
     }
 
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 开始合并文件 路径=%1 分段数=%2")
+    qCInfo(logDownload) << QStringLiteral("[夸父] 开始合并文件 路径=%1 分段数=%2")
         .arg(file->localPath).arg(file->threads.size());
 
     QDir().mkpath(QFileInfo(file->localPath).absolutePath());
     QFile out(file->localPath);
     if (!out.open(QIODevice::WriteOnly)) {
-        emit logMessage(QString("[引擎·夸父] 无法写入: %1").arg(file->localPath));
+        emit logMessage(QString("[夸父] 无法写入: %1").arg(file->localPath));
         return false;
     }
 
@@ -984,12 +984,12 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
         QCryptographicHash h(QCryptographicHash::Sha1);
         h.addData(&out); out.close();
         if (h.result().toHex() != file->expectedSha1) {
-            emit logMessage(QString("[引擎·夸父] SHA1合并校验失败: %1").arg(file->localName));
+            emit logMessage(QString("[夸父] SHA1合并校验失败: %1").arg(file->localName));
             return false;
         }
     }
 
-    qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 合并完成 文件=%1 SHA1校验=通过").arg(file->localName);
+    qCInfo(logDownload) << QStringLiteral("[夸父] 合并完成 文件=%1 SHA1校验=通过").arg(file->localName);
     return true;
 }
 
@@ -1033,7 +1033,6 @@ void FileDownloader::speedTick()
     // 展示速度 = 滑动窗口线性加权值（30 条 × 100ms ≈ 3s 窗口）：
     // 停流时窗口内连续 0 采样 → 数值 ~3s 内自然滑落归零（PCL 同款语义），
     // 不再叠加 EMA 混合（0.5/0.5 在 100ms 节拍下衰减过陡、观感像跳变）。
-    // 日志 [引擎·夸父] [速度] EMA= 与 currentSpeedMBps() 同源同值 → 界面与日志一致。
     m_emaMbps = currentBps / (1024.0 * 1024.0);
 
     // ── Speed floor: up on growth, decay on stagnation ──
@@ -1043,24 +1042,15 @@ void FileDownloader::speedTick()
     if (currentBps >= kMinSpeedFloorBps && floorLimit > currentFloor) {
         m_speedFloorBps.storeRelaxed(floorLimit);
         m_lastFloorIncreaseMs = nowMs;
-        qCInfo(logDownload) << QStringLiteral("[引擎·夸父] 速度下限已提升到 %1 M").arg(floorLimit / (1024.0 * 1024.0), 0, 'f', 2);
+        // 只在跨过整 MB 时打日志（避免每次微增刷屏）
+        if (floorLimit / (1024 * 1024) > currentFloor / (1024 * 1024)) {
+            qCInfo(logDownload) << QStringLiteral("[夸父] 速度下限 %1 M").arg(floorLimit / (1024.0 * 1024.0), 0, 'f', 2);
+        }
     } else if (nowMs - m_lastFloorIncreaseMs > 5000 && currentFloor > kMinSpeedFloorBps) {
         // 5s without growth: decay floor by 50%
         qint64 newFloor = qMax(kMinSpeedFloorBps, currentFloor / 2);
         m_speedFloorBps.storeRelaxed(newFloor);
         m_lastFloorIncreaseMs = nowMs;
-    }
-
-    // ── Speed log (rate-limited to 1s) ──
-    if (nowMs - m_lastSpeedLogMs >= 1000) {
-        m_lastSpeedLogMs = nowMs;
-        double avgMbps = currentBps / (1024.0 * 1024.0);
-        qCInfo(logDownload) << QStringLiteral("[引擎·夸父] [速度] EMA=%1 MB/s 平均=%2 MB/s 下限=%3 KB/s 活跃=%4/%5")
-            .arg(m_emaMbps, 0, 'f', 1)
-            .arg(avgMbps, 0, 'f', 1)
-            .arg(currentFloor / 1024)
-            .arg(m_activeThreads.loadRelaxed())
-            .arg(m_maxThreads);
     }
 
     emit progressChanged(m_completedFiles.loadRelaxed(), m_totalFiles.loadRelaxed(),
@@ -1086,7 +1076,7 @@ void FileDownloader::updateStats()
         m_speedTimer2->stop();
         m_state = Idle;
         const qint64 totalDl = m_totalBytes.loadRelaxed();
-        emit logMessage(QString::fromUtf8("[引擎·夸父] [完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s")
+        emit logMessage(QString::fromUtf8("[夸父] [完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s")
                             .arg(done).arg(total)
                             .arg(formatSize(totalDl))
                             .arg(m_emaMbps, 0, 'f', 1));

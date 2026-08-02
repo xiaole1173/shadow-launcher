@@ -380,17 +380,6 @@ void ModpackInstallTask::runDownload()
         // 速度聚合：模组路 EMA + MC 路（并行期两路同跑时显示总和）
         m_mcSpeed = (!m_mcSessionId.isEmpty() && m_vb) ? m_vb->installSpeedOf(m_mcSessionId) : 0;
         m_cardSpeed = m_modEma + m_mcSpeed;
-        // 聚合速度日志（1s 节流）：界面数值 = 模组 EMA + MC EMA，与日志逐条可比
-        {
-            const qint64 now2 = QDateTime::currentMSecsSinceEpoch();
-            if (now2 - m_lastSpeedLogMs >= 1000) {
-                m_lastSpeedLogMs = now2;
-                emit logLine(tr("[速度] 模组=%1 MB/s MC=%2 MB/s 合计=%3 MB/s")
-                    .arg(double(m_modEma) / (1024.0 * 1024.0), 0, 'f', 1)
-                    .arg(double(m_mcSpeed) / (1024.0 * 1024.0), 0, 'f', 1)
-                    .arg(double(m_cardSpeed) / (1024.0 * 1024.0), 0, 'f', 1));
-            }
-        }
         syncCard();
         // 步骤 2 字节级折算：单大文件下载中百分比持续前进（修进度停滞观感）
         int doneCount = 0, skipCount = 0;

@@ -137,7 +137,7 @@ void ModpackDownloader::apiWithFallback(bool isPost,
             if (stage == 0 && shouldFallbackToOfficial(status)) {
                 // 镜像超时/429/5xx/连接失败：静默丢弃，自动换官方重试一次
                 qCWarning(logMod).noquote()
-                    << QStringLiteral("[引擎·女娲] 镜像请求失败，降级官方: %1 status=%2 %3")
+                    << QStringLiteral("[女娲] 镜像请求失败，降级官方: %1 status=%2 %3")
                            .arg(mirrorUrl).arg(status).arg(reply->errorString());
                 (*send)(1);
                 return;
@@ -229,7 +229,7 @@ void ModpackDownloader::start(bool includeOptional)
     if (!cfIndexes.isEmpty()) {
         // 确有此包含 CurseForge 文件，才需要 CF API Key；未配置时提示一次（便于排查 401）
         if (m_apiKey.isEmpty()) {
-            qCInfo(logMod) << "[引擎·女娲] 检测到 CurseForge 文件但未配置 CF API Key，"
+            qCInfo(logMod) << "[女娲] 检测到 CurseForge 文件但未配置 CF API Key，"
                            << "镜像源可能可用；若官方源返回 401/403 请配置"
                            << "(环境变量 SHADOW_CF_API_KEY 或 config/cf_api_key.json)";
         }
@@ -364,11 +364,11 @@ void ModpackDownloader::onResolveBatchDone(int startIndex, int status, const QBy
                     return;
                 }
                 if (attempt == 0) {
-                    qCWarning(logMod) << QStringLiteral("[引擎·女娲] 官方补查失败(HTTP %1) 重试一次").arg(st);
+                    qCWarning(logMod) << QStringLiteral("[女娲] 官方补查失败(HTTP %1) 重试一次").arg(st);
                     (*sendOfficial)(1);
                     return;
                 }
-                qCWarning(logMod) << QStringLiteral("[引擎·女娲] 官方补查失败(HTTP %1)，按删除处理").arg(st);
+                qCWarning(logMod) << QStringLiteral("[女娲] 官方补查失败(HTTP %1)，按删除处理").arg(st);
                 processResolvedBatch(startIndex, byId);
             });
         };

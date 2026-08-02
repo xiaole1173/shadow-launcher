@@ -14,7 +14,7 @@
 //   HttpClient          → 驿道    HTTP 传输底座（天下驿道，信息干线）
 //
 // 日志规范（防止"名字好看但看不出用途"的花架子）：
-//   1. 所有日志前缀统一为 [引擎·<雅名>]，一眼可辨是哪个引擎在干活
+//   1. 所有日志前缀统一为 [<雅名>]，一眼可辨是哪个引擎在干活（2026-08-02 精简：去掉冗长的 [引擎·] 包装）
 //   2. 每个引擎启动时打印一次"身份卡"（engineBanner）：名称 + 用途说明
 // ══════════════════════════════════════════════════════════════════
 
@@ -43,16 +43,16 @@ inline EngineIdentity engineIdentity(const char* id)
     return { id, id, "未知引擎" };
 }
 
-/// 日志前缀，如 "[引擎·盘古] "
+/// 日志前缀，如 "[盘古] "（2026-08-02 精简：原为 [盘古]）
 inline QString engineTag(const char* id)
 {
-    return QStringLiteral("[引擎·%1] ").arg(QString::fromUtf8(engineIdentity(id).name));
+    return QStringLiteral("[%1] ").arg(QString::fromUtf8(engineIdentity(id).name));
 }
 
 /// 身份卡：引擎启动时打印，标注名称与用途
 inline QString engineBanner(const char* id)
 {
     const auto e = engineIdentity(id);
-    return QStringLiteral("[引擎·%1] 身份｜用途：%2")
+    return QStringLiteral("[%1] 身份｜用途：%2")
         .arg(QString::fromUtf8(e.name), QString::fromUtf8(e.purpose));
 }

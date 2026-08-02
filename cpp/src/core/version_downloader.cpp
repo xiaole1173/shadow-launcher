@@ -153,7 +153,7 @@ VersionDownloader::VersionDownloader(QObject* parent)
             this, [this](bool success, int failedCount, const QStringList& failedFiles) {
         m_assetTasksDone = true;
         if (failedCount > 0) {
-            emit logMessage(QStringLiteral("[引擎·盘古] %1 个文件下载失败").arg(failedCount));
+            emit logMessage(QStringLiteral("[盘古] %1 个文件下载失败").arg(failedCount));
             emit downloadFailedFiles(failedFiles);
         }
         checkBothDownloadersDone();
@@ -219,7 +219,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                                          const QString& versionId)
 {
     if (m_state == Running || m_state == Paused) {
-        emit logMessage(QStringLiteral("[引擎·盘古] [警告] 已有下载任务进行中"));
+        emit logMessage(QStringLiteral("[盘古] [警告] 已有下载任务进行中"));
         return;
     }
 
@@ -247,7 +247,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     emit stateChanged();
     qCInfo(logDownload) << engineBanner("pangu");
     emit logMessage(engineBanner("pangu"));
-    emit logMessage(QStringLiteral("[引擎·盘古] 开始下载版本 %1").arg(versionId));
+    emit logMessage(QStringLiteral("[盘古] 开始下载版本 %1").arg(versionId));
 
     // --- Step 1: Save version JSON to disk ---
     const QString versionDir = m_minecraftDir + QStringLiteral("/versions/") + versionId;
@@ -259,9 +259,9 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     if (jsonFile.open(QIODevice::WriteOnly)) {
         jsonFile.write(doc.toJson(QJsonDocument::Indented));
         jsonFile.close();
-        emit logMessage(QStringLiteral("[引擎·盘古] 版本 JSON 下载完成 %1").arg(jsonPath));
+        emit logMessage(QStringLiteral("[盘古] 版本 JSON 下载完成 %1").arg(jsonPath));
     } else {
-        emit logMessage(QStringLiteral("[引擎·盘古] [警告] 无法保存版本清单: %1").arg(jsonPath));
+        emit logMessage(QStringLiteral("[盘古] [警告] 无法保存版本清单: %1").arg(jsonPath));
     }
 
     // --- Step 2-4: assets index 双源竞速（与版本 JSON 同款）---
@@ -311,7 +311,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         }
         m_libTasksDone = !hasLibTasks;
         if (hasLibTasks) {
-            emit logMessage(QStringLiteral("[引擎·盘古] 开始下载库文件 (%1 个)").arg(libTasks.size()));
+            emit logMessage(QStringLiteral("[盘古] 开始下载库文件 (%1 个)").arg(libTasks.size()));
             m_downloader->start();
         }
     }
@@ -370,7 +370,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         m_totalBytes.fetchAndAddRelaxed(assetsBytes);
         m_assetTasksDone = !hasAssetTasks;
         if (hasAssetTasks) {
-            emit logMessage(QStringLiteral("[引擎·盘古] 开始下载资源文件 (%1 个)").arg(assetTasks.size()));
+            emit logMessage(QStringLiteral("[盘古] 开始下载资源文件 (%1 个)").arg(assetTasks.size()));
             m_assetDownloader->startDownload(assetTasks, m_maxWorkers);
         }
         checkBothDownloadersDone();
@@ -384,7 +384,7 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
 
     if (idxUrl.isEmpty() || QFileInfo::exists(idxPath)) { startAssets(); return; }
 
-    emit logMessage(QStringLiteral("[引擎·盘古] 正在下载资源索引（双源竞速）..."));
+    emit logMessage(QStringLiteral("[盘古] 正在下载资源索引（双源竞速）..."));
     QDir().mkpath(QFileInfo(idxPath).absolutePath());
     downloadAssetIndexRace(idxUrl, idxPath,
         [this, startAssets]() {
@@ -432,18 +432,18 @@ void VersionDownloader::downloadAssetIndexRace(const QString& idxUrl, const QStr
                     if (f.open(QIODevice::WriteOnly)) {
                         f.write(data);
                         f.close();
-                        emit logMessage(QStringLiteral("[引擎·盘古] 资源索引竞速胜出 源=%1").arg(label));
+                        emit logMessage(QStringLiteral("[盘古] 资源索引竞速胜出 源=%1").arg(label));
                         done();
                         return;
                     }
                 }
             } else {
-                qCWarning(logDownload) << QStringLiteral("[引擎·盘古] 资源索引源失败 %1: %2")
+                qCWarning(logDownload) << QStringLiteral("[盘古] 资源索引源失败 %1: %2")
                     .arg(label, reply->errorString());
             }
             if (--(*pending) <= 0) {
                 *won = true;
-                emit logMessage(QStringLiteral("[引擎·盘古] 资源索引下载失败（双源均失败），按无资源继续"));
+                emit logMessage(QStringLiteral("[盘古] 资源索引下载失败（双源均失败），按无资源继续"));
                 done();   // 继续流程（assets 任务为空）
             }
         });
@@ -567,7 +567,7 @@ void VersionDownloader::checkBothDownloadersDone()
 
     QStringList failedPaths;
     if (failedCount > 0) {
-        emit logMessage(QStringLiteral("[引擎·盘古] [警告] 库文件下载: %1 个文件下载失败").arg(failedCount));
+        emit logMessage(QStringLiteral("[盘古] [警告] 库文件下载: %1 个文件下载失败").arg(failedCount));
     }
 
     // Mirror fallback: calculate fail rate against library tasks only.
@@ -580,7 +580,7 @@ void VersionDownloader::checkBothDownloadersDone()
         && m_fallbackIndex + 1 < m_fallbackChain.size()
         && failRate >= kFallbackThreshold) {
         const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-        emit logMessage(QStringLiteral("[引擎·盘古] [重试] %1%% 文件下载失败, 切换到 %2 重试...")
+        emit logMessage(QStringLiteral("[盘古] [重试] %1%% 文件下载失败, 切换到 %2 重试...")
                             .arg(static_cast<int>(failRate * 100))
                             .arg(next.name));
         retryWithNextMirror();
@@ -591,7 +591,7 @@ void VersionDownloader::checkBothDownloadersDone()
     m_state = Verifying;
     m_downloadFailedCount = failedCount;
     emit stateChanged();
-    emit logMessage(QStringLiteral("[引擎·盘古] 正在进行完整性校验..."));
+    emit logMessage(QStringLiteral("[盘古] 正在进行完整性校验..."));
 
     QVector<VerifyItem> items = collectVerifyItems(m_currentVersionJson, m_currentVersionId);
     startAsyncVerify(items);
@@ -623,14 +623,14 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
     // Report failed files to QML (even before verify — allows partial-resume UI)
     if (!failedFiles.isEmpty()) {
         emit downloadFailedFiles(failedFiles);
-        emit logMessage(QStringLiteral("[引擎·盘古] [警告] 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
+        emit logMessage(QStringLiteral("[盘古] [警告] 下载阶段: %1 个文件下载失败 (已尝试所有镜像)")
                             .arg(failedFiles.size()));
 
         // ── Mirror fallback: significant failures → retry with next mirror ──
         const double failRate = static_cast<double>(failedCount) / m_totalFiles.loadRelaxed();
         if (m_fallbackIndex + 1 < m_fallbackChain.size() && failRate >= kFallbackThreshold) {
             const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-            emit logMessage(QStringLiteral("[引擎·盘古] [重试] %1%% 文件下载失败, 切换到 %2 重试...")
+            emit logMessage(QStringLiteral("[盘古] [重试] %1%% 文件下载失败, 切换到 %2 重试...")
                                 .arg(static_cast<int>(failRate * 100))
                                 .arg(next.name));
             retryWithNextMirror();
@@ -642,7 +642,7 @@ void VersionDownloader::onAllFinished(bool success, int failedCount,
     m_state = Verifying;
     m_downloadFailedCount = failedCount;
     emit stateChanged();
-    emit logMessage(QStringLiteral("[引擎·盘古] 正在进行完整性校验..."));
+    emit logMessage(QStringLiteral("[盘古] 正在进行完整性校验..."));
 
     QVector<VerifyItem> items = collectVerifyItems(m_currentVersionJson, m_currentVersionId);
     startAsyncVerify(items);
@@ -939,8 +939,8 @@ void VersionDownloader::retryWithNextMirror()
 
     m_state = Running;
     emit stateChanged();
-    emit logMessage(QStringLiteral("[引擎·盘古] 开始下载版本 %1 | 镜像=%2").arg(m_currentVersionId, next.name));
-    emit logMessage(QStringLiteral("[引擎·盘古] 已切换到 %1 (%2/%3)，重新下载 %4 个库文件")
+    emit logMessage(QStringLiteral("[盘古] 开始下载版本 %1 | 镜像=%2").arg(m_currentVersionId, next.name));
+    emit logMessage(QStringLiteral("[盘古] 已切换到 %1 (%2/%3)，重新下载 %4 个库文件")
                         .arg(next.name)
                         .arg(m_fallbackIndex + 1)
                         .arg(m_fallbackChain.size())
@@ -1196,7 +1196,7 @@ VersionDownloader::collectVerifyItems(const QJsonObject& versionJson,
     }
 
     int totalItems = items.size();
-        qCInfo(logVersion) << QStringLiteral("[引擎·盘古] 收集到 %1 个文件待校验").arg(totalItems);
+        qCInfo(logVersion) << QStringLiteral("[盘古] 收集到 %1 个文件待校验").arg(totalItems);
     // Phase A complete — mark as done, then Phase B starts at 0
     emit verifyProgressChanged(totalItems, totalItems);
     QCoreApplication::processEvents();
@@ -1293,18 +1293,18 @@ void VersionDownloader::onVerifyFinished(bool allPassed,
     m_completedFiles.storeRelaxed(m_totalFiles.loadRelaxed());
 
     if (!allPassed) {
-        emit logMessage(QStringLiteral("[引擎·盘古] [警告] 完整性检查: %1 个文件缺失").arg(missedLabels.size()));
+        emit logMessage(QStringLiteral("[盘古] [警告] 完整性检查: %1 个文件缺失").arg(missedLabels.size()));
         for (int i = 0; i < qMin(missedLabels.size(), 10); ++i)
-            emit logMessage(QStringLiteral("[引擎·盘古]   缺失: %1").arg(missedLabels[i]));
+            emit logMessage(QStringLiteral("[盘古]   缺失: %1").arg(missedLabels[i]));
         if (missedLabels.size() > 10)
-            emit logMessage(QStringLiteral("[引擎·盘古]   ... 共 %1 个").arg(missedLabels.size()));
+            emit logMessage(QStringLiteral("[盘古]   ... 共 %1 个").arg(missedLabels.size()));
 
         emit downloadFailedFiles(missedLabels);
 
         // ── Mirror fallback: missing files → retry with next mirror ──
         if (m_fallbackIndex + 1 < m_fallbackChain.size()) {
             const auto& next = m_fallbackChain[m_fallbackIndex + 1];
-            emit logMessage(QStringLiteral("[引擎·盘古] [重试] 完整性校验未通过 (%1 缺失), 切换到 %2 重试...")
+            emit logMessage(QStringLiteral("[盘古] [重试] 完整性校验未通过 (%1 缺失), 切换到 %2 重试...")
                                 .arg(missedLabels.size())
                                 .arg(next.name));
             retryWithNextMirror();
@@ -1324,12 +1324,12 @@ void VersionDownloader::onVerifyFinished(bool allPassed,
     emit verifyProgressChanged(totalItems, totalItems);
 
     if (m_downloadFailedCount > 0) {
-        emit logMessage(QStringLiteral("[引擎·盘古] [警告] %1 个文件下载失败，但已通过完整性校验").arg(m_downloadFailedCount));
+        emit logMessage(QStringLiteral("[盘古] [警告] %1 个文件下载失败，但已通过完整性校验").arg(m_downloadFailedCount));
     }
 
     m_state = Done;
     emit stateChanged();
-    emit logMessage(QStringLiteral("[引擎·盘古] 版本下载完成 %1").arg(m_currentVersionId));
+    emit logMessage(QStringLiteral("[盘古] 版本下载完成 %1").arg(m_currentVersionId));
     emit downloadFinished(true, QString());
 }
 

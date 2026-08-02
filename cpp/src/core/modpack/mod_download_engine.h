@@ -134,7 +134,6 @@ private:
     qint64 m_lastSpeedBytes = 0;
     QList<qint64> m_speedRecords;            // 30 条 × 100ms ≈ 3s 窗口
     double m_emaMbps = 0.0;
-    qint64 m_lastSpeedLogMs = 0;
     qint64 m_lastProgressEmitMs = 0;
     qint64 m_lastMirrorLaunchMs = 0;         // 镜像限频
     qint64 m_connectTotalMs = 0;             // 连接耗时统计（动态超时）

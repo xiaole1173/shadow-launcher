@@ -344,7 +344,6 @@ private:
         QString file;
         QString phase = QStringLiteral("idle");
         qint64 speedLastTimeMs = 0;
-        qint64 speedLogMs = 0;         // [速度] MC= 日志 1s 节流
         // Per-category byte tracking (0=versions, 1=libraries, 2=assets)
         qint64 catBytesDl[3] = {};
         qint64 catBytesTotal[3] = {};
@@ -355,6 +354,8 @@ private:
         int logFileCounter = 0;              // throttle counter for per-file log
         bool catsFullyDone = false;  // set by fileProgress when all categories complete
         bool downloadsDone = false;  // sticky: set once when downloads finish, stays true through verify
+        bool verifyStartLogged = false;  // 验证步骤"已启动"日志只打一次
+        bool verifyDoneLogged = false;   // 验证步骤"已完成"日志只打一次
         qreal lastCardProgress = -1.0;  // monotonic guard: card progress never goes backward
     };
     QMap<QString, DlState> m_dlStates;

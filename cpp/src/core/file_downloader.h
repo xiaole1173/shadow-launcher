@@ -218,7 +218,6 @@ private:
     double m_emaMbps = 0.0;
     QAtomicInteger<qint64> m_speedFloorBps{256 * 1024};
     qint64 m_lastFloorIncreaseMs = 0;
-    qint64 m_lastSpeedLogMs = 0;
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;
 
     // ── Timers ──

@@ -91,7 +91,7 @@ void AssetDownloader::setupNam()
         m_nam[i] = new QNetworkAccessManager(this);
     }
 
-    qCInfo(logAsset) << QStringLiteral("[引擎·山海经] 2× QNAM 就绪");
+    qCInfo(logAsset) << QStringLiteral("[山海经] 2× QNAM 就绪");
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -101,7 +101,7 @@ void AssetDownloader::setupNam()
 void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConcurrent)
 {
     if (m_state == Running) {
-        qCWarning(logAsset) << QStringLiteral("[引擎·山海经] 已在运行，忽略重复的 startDownload()");
+        qCWarning(logAsset) << QStringLiteral("[山海经] 已在运行，忽略重复的 startDownload()");
         return;
     }
 
@@ -150,11 +150,11 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
         }
         qCInfo(logAsset) << engineBanner("shanhai");
     emit logMessage(engineBanner("shanhai"));
-    emit logMessage(QStringLiteral("[引擎·山海经] 开始下载资源文件 共 %1 个 (%2)")
+    emit logMessage(QStringLiteral("[山海经] 开始下载资源文件 共 %1 个 (%2)")
                             .arg(tasks.size()).arg(fmtSize(totalEst)));
-        emit logMessage(QStringLiteral("[引擎·山海经]   镜像源示例: %1").arg(sampleUrls));
+        emit logMessage(QStringLiteral("[山海经]   镜像源示例: %1").arg(sampleUrls));
     } else {
-        emit logMessage(QStringLiteral("[引擎·山海经] 开始下载资源文件 共 0 个"));
+        emit logMessage(QStringLiteral("[山海经] 开始下载资源文件 共 0 个"));
     }
     emit progressChanged(0, tasks.size(), 0, totalEst);
 
@@ -177,7 +177,7 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     m_dnsPendingCount = m_dnsToResolve.size();
 
     if (!m_dnsToResolve.isEmpty()) {
-        emit logMessage(QStringLiteral("[引擎·山海经] 正在解析 %1 个域名...").arg(m_dnsToResolve.size()));
+        emit logMessage(QStringLiteral("[山海经] 正在解析 %1 个域名...").arg(m_dnsToResolve.size()));
         startAsyncDns();
     } else {
         m_dnsAllResolved = true;
@@ -219,7 +219,7 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     m_pendingQueue = downloadQueue;
 
     if (fastCacheHits > 0) {
-        emit logMessage(QStringLiteral("[引擎·山海经] 预检查: %1 个文件进入异步 SHA1 校验").arg(fastCacheHits));
+        emit logMessage(QStringLiteral("[山海经] 预检查: %1 个文件进入异步 SHA1 校验").arg(fastCacheHits));
     }
 
     // ── Phase 1: Burst — fire kBurstSize immediately ──
@@ -228,7 +228,7 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     int burst = qMin(kBurstSize, m_pendingQueue.size());
     burst = qMin(burst, m_maxConcurrent);
     if (burst > 0) {
-        emit logMessage(QStringLiteral("[引擎·山海经] 突发请求: 发送 %1 个请求 (待下载=%2, 预检查=%3)")
+        emit logMessage(QStringLiteral("[山海经] 突发请求: 发送 %1 个请求 (待下载=%2, 预检查=%3)")
                             .arg(burst).arg(m_pendingQueue.size()).arg(m_pendingPreCheck.size()));
         for (int i = 0; i < burst && !m_pendingQueue.isEmpty(); ++i) {
             fireNext();
@@ -269,7 +269,7 @@ void AssetDownloader::cancel()
 
     m_ioPool.clear();
 
-    emit logMessage(QStringLiteral("[引擎·山海经] 下载已取消"));
+    emit logMessage(QStringLiteral("[山海经] 下载已取消"));
     logState("cancelled");
     emit allFinished(false, m_failedCount, m_failedFiles);
 }
@@ -337,7 +337,7 @@ void AssetDownloader::fireNext()
             QString srcLabel = selectedMirror == 0
                 ? QStringLiteral("primary")
                 : QStringLiteral("fallback[%1]").arg(selectedMirror);
-            qCInfo(logAsset) << QStringLiteral("  [引擎·山海经] 源=%1 主机=%2 SHA1=%3...").arg(srcLabel, host, dispatchTask.sha1.left(12));
+            qCInfo(logAsset) << QStringLiteral("  [山海经] 源=%1 主机=%2 SHA1=%3...").arg(srcLabel, host, dispatchTask.sha1.left(12));
         }
     }
     QUrl qurl(url);
@@ -443,7 +443,7 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
             m_pendingQueue.prepend(retryTask);
             fireNext();
         } else {
-            qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] 下载失败 %1 所有镜像已耗尽 (%2)").arg(task.sha1, reply->errorString());
+            qCWarning(logAsset) << QStringLiteral("  [山海经] 下载失败 %1 所有镜像已耗尽 (%2)").arg(task.sha1, reply->errorString());
             finishDownload(task, false);
         }
         return;
@@ -474,7 +474,7 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
         if (hash != task.sha1) {
             int nextIdx = ift.mirrorIndex + 1;
             if (nextIdx < task.mirrors.size()) {
-                qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] SHA1 校验失败 %1，切换到镜像[%2]").arg(task.sha1).arg(nextIdx);
+                qCWarning(logAsset) << QStringLiteral("  [山海经] SHA1 校验失败 %1，切换到镜像[%2]").arg(task.sha1).arg(nextIdx);
                 QString host = extractHost(ift.task.mirrors.value(ift.mirrorIndex));
                 recordHostResult(host, false, elapsed);
 
@@ -483,7 +483,7 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
                 m_pendingQueue.prepend(retryTask);
                 fireNext();
             } else {
-                qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] SHA1 校验失败 %1（所有镜像均不匹配）").arg(task.sha1);
+                qCWarning(logAsset) << QStringLiteral("  [山海经] SHA1 校验失败 %1（所有镜像均不匹配）").arg(task.sha1);
                 finishDownload(task, false);
             }
             return;
@@ -549,7 +549,7 @@ void AssetDownloader::accelTick()
     // accelTick: debug-level (every 50ms would flood log file)
     // Enable with: setFilterRules(\"ShadowDownloader.Asset.debug=true\")
     // and remove the 'if (type == QtDebugMsg) return;' in shadowMessageHandler
-    qCDebug(logAsset) << QStringLiteral("  [引擎·山海经] 加速: phase=%1 inflight=%2 target=%3 floor=%4/s pending=%5 preCheck=%6")
+    qCDebug(logAsset) << QStringLiteral("  [山海经] 加速: phase=%1 inflight=%2 target=%3 floor=%4/s pending=%5 preCheck=%6")
         .arg(m_phase).arg(inflight).arg(target)
         .arg(fmtSize(m_speedFloorBps.loadRelaxed()))
         .arg(m_pendingQueue.size())
@@ -693,7 +693,10 @@ void AssetDownloader::updateSpeedFloor()
     qint64 currentFloor = m_speedFloorBps.loadRelaxed();
     if (newFloor > currentFloor) {
         m_speedFloorBps.storeRelaxed(newFloor);
-        qCInfo(logAsset) << QStringLiteral("速度下限已提升到 %1 M").arg(newFloor / (1024.0 * 1024.0), 0, 'f', 2);
+        // 只在跨过整 MB 时打日志（避免每次微增刷屏）
+        if (newFloor / (1024 * 1024) > currentFloor / (1024 * 1024)) {
+            qCInfo(logAsset) << QStringLiteral("[山海经] 速度下限 %1 M").arg(newFloor / (1024.0 * 1024.0), 0, 'f', 2);
+        }
     }
 }
 
@@ -766,11 +769,11 @@ void AssetDownloader::checkAllFinished()
                          m_totalBytes.loadRelaxed());
 
     if (m_state == Cancelled) {
-        emit logMessage(QStringLiteral("[引擎·山海经] 下载已取消"));
+        emit logMessage(QStringLiteral("[山海经] 下载已取消"));
         emit allFinished(false, m_failedCount, m_failedFiles);
     } else {
         bool ok = (m_failedCount == 0);
-        emit logMessage(QStringLiteral("[引擎·山海经] 资源文件下载完成 总数=%1 缓存命中=%2 失败=%3 峰值=%4 MB/s")
+        emit logMessage(QStringLiteral("[山海经] 资源文件下载完成 总数=%1 缓存命中=%2 失败=%3 峰值=%4 MB/s")
                             .arg(m_totalTaskCount)
                             .arg(m_cacheHitCount)
                             .arg(m_failedCount)
@@ -802,7 +805,7 @@ void AssetDownloader::adjustHostLimits()
             st.dynamicLimit = qMin(st.dynamicLimit + 1, 32);
             // Per-host limit increase: debug-only (too verbose at info level)
             if (st.dynamicLimit != oldLimit)
-                qCDebug(logAsset) << QStringLiteral("  [引擎·山海经] 限制 %1 ↑ %2 → %3 (良好)").arg(it.key()).arg(oldLimit).arg(st.dynamicLimit);
+                qCDebug(logAsset) << QStringLiteral("  [山海经] 限制 %1 ↑ %2 → %3 (良好)").arg(it.key()).arg(oldLimit).arg(st.dynamicLimit);
         }
     }
 }
@@ -869,7 +872,7 @@ void AssetDownloader::recordHostResult(const QString& host, bool ok, qint64 firs
         st.dynamicLimit = qMax(2, st.dynamicLimit / 2);
         // Per-host limit decrease: debug-only
         if (st.dynamicLimit != oldLimit)
-            qCDebug(logAsset) << QStringLiteral("  [引擎·山海经] 限制 %1 ↓ %2 → %3 (失败)").arg(host).arg(oldLimit).arg(st.dynamicLimit);
+            qCDebug(logAsset) << QStringLiteral("  [山海经] 限制 %1 ↓ %2 → %3 (失败)").arg(host).arg(oldLimit).arg(st.dynamicLimit);
     }
 }
 
@@ -895,7 +898,7 @@ void AssetDownloader::startAsyncDns()
             if (cacheIt != m_dnsCache.end()) {
                 if (now - cacheIt->lastResolveMs < kDnsCacheMs) {
                     // Cache hit — count as resolved immediately
-                    qCInfo(logAsset) << QStringLiteral("  [引擎·山海经] DNS 缓存命中: %1 %2").arg(host, cacheIt->addresses.join(", "));
+                    qCInfo(logAsset) << QStringLiteral("  [山海经] DNS 缓存命中: %1 %2").arg(host, cacheIt->addresses.join(", "));
                     m_dnsPendingCount--;
                     checkAllDnsResolved();
                     continue;
@@ -912,7 +915,7 @@ void AssetDownloader::startAsyncDns()
             ipi.lastResolveMs = QDateTime::currentMSecsSinceEpoch();
 
             if (info.error() != QHostInfo::NoError) {
-                qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] DNS 解析失败: %1 (%2)").arg(host, info.errorString());
+                qCWarning(logAsset) << QStringLiteral("  [山海经] DNS 解析失败: %1 (%2)").arg(host, info.errorString());
                 ipi.addresses.clear();
             } else {
                 QStringList ipv4, ipv6;
@@ -930,7 +933,7 @@ void AssetDownloader::startAsyncDns()
                 sortByReliability(ipv4);
                 sortByReliability(ipv6);
                 ipi.addresses = ipv4 + ipv6;
-                qCInfo(logAsset) << QStringLiteral("  [引擎·山海经] DNS %1 → %2").arg(host, ipi.addresses.join(", "));
+                qCInfo(logAsset) << QStringLiteral("  [山海经] DNS %1 → %2").arg(host, ipi.addresses.join(", "));
             }
             lock.unlock();
 
@@ -944,7 +947,7 @@ void AssetDownloader::checkAllDnsResolved()
 {
     if (!m_dnsAllResolved && m_dnsPendingCount <= 0) {
         m_dnsAllResolved = true;
-        qCInfo(logAsset) << QStringLiteral("  [引擎·山海经] DNS 所有主机解析完成");
+        qCInfo(logAsset) << QStringLiteral("  [山海经] DNS 所有主机解析完成");
     }
 }
 
@@ -971,7 +974,7 @@ public:
         // qCDebug is available for per-file debugging.
                 writeOk = true;
             } else {
-                qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] 写入失败 %1: %2").arg(task.sha1, f.errorString());
+                qCWarning(logAsset) << QStringLiteral("  [山海经] 写入失败 %1: %2").arg(task.sha1, f.errorString());
             }
         }
 
@@ -1047,15 +1050,15 @@ public:
                         if (h.result().toHex() == task.sha1) {
                             sha1Match = true;  // already there, count as hit
                         } else {
-                            qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] 缓存复制失败（冲突）: %1").arg(task.sha1.left(12));
+                            qCWarning(logAsset) << QStringLiteral("  [山海经] 缓存复制失败（冲突）: %1").arg(task.sha1.left(12));
                             sha1Match = false;
                         }
                     } else {
-                        qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] 缓存复制失败（无法验证）: %1").arg(task.sha1.left(12));
+                        qCWarning(logAsset) << QStringLiteral("  [山海经] 缓存复制失败（无法验证）: %1").arg(task.sha1.left(12));
                         sha1Match = false;
                     }
                 } else {
-                    qCWarning(logAsset) << QStringLiteral("  [引擎·山海经] 缓存复制失败（目标不存在）: %1 %2").arg(task.sha1.left(12), targetPath);
+                    qCWarning(logAsset) << QStringLiteral("  [山海经] 缓存复制失败（目标不存在）: %1 %2").arg(task.sha1.left(12), targetPath);
                     sha1Match = false;
                 }
             }
@@ -1063,7 +1066,7 @@ public:
         qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - t0;
         // Per-file pre-check result: debug-only (too verbose at info level when 5000+ files)
         if (elapsed > 50) {
-            qCDebug(logAsset) << QStringLiteral("  [引擎·山海经] 预检查 %1 %2 %3 用时 %4ms").arg(task.sha1, sha1Match ? QStringLiteral("命中") : QStringLiteral("不匹配"), fmtSize(task.size)).arg(elapsed);
+            qCDebug(logAsset) << QStringLiteral("  [山海经] 预检查 %1 %2 %3 用时 %4ms").arg(task.sha1, sha1Match ? QStringLiteral("命中") : QStringLiteral("不匹配"), fmtSize(task.size)).arg(elapsed);
         }
         if (callback)
             callback(task, sha1Match);
@@ -1162,7 +1165,7 @@ void AssetDownloader::logState(const char* event)
     double speed = m_emaMbps;
 
     // State transitions always go to info-level (visible in log file)
-    qCInfo(logAsset) << QStringLiteral("[引擎·山海经] [状态] %1 用时=%2ms phase=%3 inflight=%4 pending=%5 预检查=%6 进度=%7/%8 已下载=%9 速度=%10 MB/s 阈值=%11/s 缓存命中=%12")
+    qCInfo(logAsset) << QStringLiteral("[山海经] [状态] %1 用时=%2ms phase=%3 inflight=%4 pending=%5 预检查=%6 进度=%7/%8 已下载=%9 速度=%10 MB/s 阈值=%11/s 缓存命中=%12")
         .arg(QString::fromLatin1(event))
         .arg(elapsed).arg(m_phase).arg(inflight).arg(pending).arg(preCheckLeft)
         .arg(done).arg(total)
@@ -1178,33 +1181,10 @@ void AssetDownloader::logState(const char* event)
 
 void AssetDownloader::logSpeed()
 {
-    // Rate-limited: log every 5 seconds instead of every second to reduce log volume
+    // 周期性调整每主机限速（原 1s/5s 速度日志已按用户要求移除，仅保留限速调整）
     if (m_speedLogTimer.elapsed() < 5000)
         return;
     m_speedLogTimer.restart();
 
-    qint64 elapsed = m_downloadTimer.elapsed();
-    qint64 bytes = m_downloadedBytes.loadRelaxed();
-    qint64 cacheBytes = m_cacheBytes.loadRelaxed();
-    int inflight = m_inFlight.size();
-    int pending = m_pendingQueue.size();
-    int done = m_completedFiles.loadRelaxed();
-    int total = m_totalFiles.loadRelaxed();
-    double speed = m_emaMbps;
-
-    // Also compute a simple average-overall speed for comparison
-    double avgMbps = (elapsed > 0 && bytes > 0)
-        ? (bytes - cacheBytes) / (1024.0 * 1024.0) / (elapsed / 1000.0)
-        : 0.0;
-
-    qCInfo(logAsset) << QStringLiteral("[引擎·山海经] [速度] EMA=%1 MB/s 平均=%2 MB/s 阈值=%3/s phase=%4 inflight=%5 pending=%6 进度=%7/%8 用时=%9s")
-        .arg(QString::number(speed, 'f', 2))
-        .arg(QString::number(avgMbps, 'f', 2))
-        .arg(fmtSize(m_speedFloorBps.loadRelaxed()))
-        .arg(m_phase).arg(inflight).arg(pending)
-        .arg(done).arg(total)
-        .arg(elapsed / 1000);
-
-    // Adjust per-host limits periodically
     adjustHostLimits();
 }
