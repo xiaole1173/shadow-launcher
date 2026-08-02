@@ -1927,6 +1927,14 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     QString javaPath;
     QString manualJava = m_settings->javaPath();
 
+    // 兼容上限：老版本 Forge/Mixin 不支持太新的 Java 类格式
+    //   8（LWJGL2 / pre-1.13）：精确 8（Java 9+ 模块系统问题，已有 needExactJava8 处理）
+    //   17（1.17-1.20.4）：上限 21（Forge 47.x 的 Mixin 不认识 >Java 21 的类格式，
+    //       默认 Java 25 时 25>=17 会被旧逻辑放行 → Mixin 崩溃）
+    //   21+（1.20.5+）：新 Mixin，无上限
+    int maxMajor = 0;
+    if (requiredMajor == 17) maxMajor = 21;
+
     if (!manualJava.isEmpty() && QFileInfo::exists(manualJava)) {
         // Check manually configured Java version against version requirement
         int manualMajor = m_settings->javaMajor();
@@ -1946,19 +1954,26 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
                 emit logMessage(tr("[警告] 未找到 Java 8，降级使用手动配置的 Java %1").arg(manualMajor));
                 javaPath = manualJava;
             }
-        } else if (manualMajor >= requiredMajor) {
+        } else if (manualMajor >= requiredMajor
+                   && (maxMajor <= 0 || manualMajor <= maxMajor)) {
             javaPath = manualJava;
             emit logMessage(tr("[完成] 使用设置的 Java %1: %2").arg(manualMajor).arg(javaPath));
         } else {
-            emit logMessage(tr("[提示] 设置的 Java %1 (%2) 不满足版本要求 (需要 ≥%3)，尝试自动匹配...")
-                                .arg(manualMajor).arg(manualJava).arg(requiredMajor));
-            javaPath = m_settings->findJavaForVersion(requiredMajor);
+            emit logMessage(tr("[提示] 设置的 Java %1 (%2) 不满足版本要求 (需要 %3%4)，尝试自动匹配...")
+                                .arg(manualMajor).arg(manualJava).arg(requiredMajor)
+                                .arg(maxMajor > 0 ? tr("~%1").arg(maxMajor) : tr("+")));
+            javaPath = m_settings->findJavaForVersion(requiredMajor, maxMajor);
             if (!javaPath.isEmpty()) {
                 emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
+            } else if (!manualJava.isEmpty()) {
+                // 区间内无匹配 → 回退用户默认（尽力而为，可能不兼容）
+                javaPath = manualJava;
+                emit logMessage(tr("[警告] 未找到兼容区间内的 Java，使用设置的 Java %1（可能存在兼容问题）")
+                                    .arg(manualMajor));
             }
         }
     } else {
-        javaPath = m_settings->findJavaForVersion(requiredMajor);
+        javaPath = m_settings->findJavaForVersion(requiredMajor, maxMajor);
         if (!javaPath.isEmpty()) {
             emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
         }

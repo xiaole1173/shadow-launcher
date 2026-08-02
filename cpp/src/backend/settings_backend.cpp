@@ -360,13 +360,15 @@ QString SettingsBackend::autoSelectJava()
     return {};
 }
 
-QString SettingsBackend::findJavaForVersion(int requiredMajor)
+QString SettingsBackend::findJavaForVersion(int requiredMajor, int maxMajor)
 {
     // Searches cached Java list for best match to required major version.
     // Strategy:
     //   1. Exact match (== requiredMajor) → always preferred
     //   2. Closest higher match (>= requiredMajor, smallest diff) → compatible
     //   3. Java 8 special: must be exact (Java 9+ breaks pre-1.6 LaunchWrapper)
+    //   4. maxMajor>0: 仅考虑 [requiredMajor, maxMajor] 区间（老版本 Mixin 兼容上限，
+    //      如 1.17-1.20.x 的 Forge Mixin 不支持 >Java 21 的类格式）
     const auto& results = cachedJavaList();
     
     if (results.isEmpty()) {
@@ -382,6 +384,7 @@ QString SettingsBackend::findJavaForVersion(int requiredMajor)
     int closestDiff = INT_MAX;
     
     for (const auto& j : results) {
+        if (maxMajor > 0 && j.major > maxMajor) continue;   // 超出兼容上限跳过
         if (j.major == requiredMajor) {
             exactMatch = &j;
             break; // exact match always wins, stop early

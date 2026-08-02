@@ -100,7 +100,8 @@ public:
     Q_INVOKABLE void selectJavaByIndex(int index);
     Q_INVOKABLE void removeJavaFromList(int index);
     Q_INVOKABLE QVariantList persistedJavaList();
-    Q_INVOKABLE QString findJavaForVersion(int requiredMajor);
+    Q_INVOKABLE QString findJavaForVersion(int requiredMajor, int maxMajor = 0);
+    // maxMajor>0 时限制在 [requiredMajor, maxMajor] 区间（老版本 Mixin 兼容上限）
     Q_INVOKABLE int getJavaMajorVersion(const QString& path);
     Q_INVOKABLE QString openJavaFileDialog();
     Q_INVOKABLE QString browseJava();          // QML alias
