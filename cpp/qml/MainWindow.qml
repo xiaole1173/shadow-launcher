@@ -395,7 +395,7 @@ Window {
 
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 2
-                    Text { Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
+                    Text { id: shadowLogo; Layout.topMargin: 8; Layout.bottomMargin: 20; Layout.leftMargin: 16; text: "SHADOW"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
 
                     // Navigation model
                     ListModel {
@@ -488,7 +488,12 @@ Window {
                 Rectangle {
                     id: navIndicator
                     z: 10
-                    x: 8; y: 8 + 52 + navListIndex * 44
+                    x: 8
+                    // 光条直接跟随当前菜单项的实际 y（含 SHADOW 标题真实高度与间距），
+                    // 避免旧硬编码偏移（52/44）在菜单增多或间距变化后越偏越上
+                    y: 8 + (navRepeater.count > navListIndex && navRepeater.itemAt(navListIndex)
+                            ? navRepeater.itemAt(navListIndex).y
+                            : 8 + shadowLogo.implicitHeight + 20 + 2 + navListIndex * (44 + 2))
                     width: 2; height: 44; color: StyleTokens.accentLight
                     Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
                 }
@@ -1364,8 +1369,9 @@ Window {
                 if (toastManager) toastManager.show(qsTr("后端未就绪"))
                 return
             }
-            if (backend.modpackImporter.busy) {
-                if (toastManager) toastManager.show(qsTr("已有整合包导入进行中"))
+            // 单任务限制：同一时间只允许一个整合包任务（下载或导入）
+            if (backend.modpackBusy()) {
+                if (toastManager) toastManager.show(qsTr("已有整合包任务（下载或导入）进行中，请等待完成"), "", 5000)
                 return
             }
             // 标准导入流程：格式识别与导入执行全在后端（ModpackImporter）

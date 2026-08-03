@@ -388,6 +388,8 @@ public:
     Q_INVOKABLE int downloadModpack(const QString& url, const QString& filename, qint64 size,
                                     const QString& sha1, const QString& versionName, const QString& actualName,
                                     const QString& iconUrl = {});
+    /// 整合包任务是否占用中（下载中 或 导入中）→ 同一时间只允许一个整合包任务（下载或导入）
+    Q_INVOKABLE bool modpackBusy() const;
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);  // batch-fetch game_versions
     Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
@@ -417,7 +419,7 @@ public:
     QString selectedSkinPath() const { return m_selectedSkinPath; }
     bool isWardrobeBusy() const { return m_wardrobeBusy; }
     bool isScanningVersions() const { return m_isScanningVersions; }
-    Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp �?ffmpeg �?PNG, emits iconCached
+    Q_INVOKABLE void cacheIconAsync(const QString& webpUrl);  // async: download webp → ffmpeg → PNG, emits iconCached
     Q_INVOKABLE QString cachedIconPath(const QString& webpUrl) const;  // sync: check cache, return file:/// or ""
 
     // ── Mod Loader version queries (BMCLAPI) ──
@@ -649,7 +651,7 @@ signals:
 
     // ── Auto-test navigation signal ──
     // pageIndex: 0=Launch, 1=Download, 2=Settings
-    // subTab: for Download page �?0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
+    // subTab: for Download page → 0=MC, 1=Mod, 2=Shader, 3=RP; otherwise ignored
     void navigateToRequested(int pageIndex, int subTab);
 
     // ── Auto-test: open RP detail page ──
@@ -784,6 +786,7 @@ private:
         QString iconUrl;       // 整合包图标（搜索结果来源，传给导入卡片）
     };
     QMap<int, PackDownloadInfo> m_packDownloads;
+    bool m_packDownloading = false;   // 整合包压缩包正在下载中（同一时间只允许一个整合包任务）
 
     // Mod-loader query tracking (for cancellation when install starts)
     QList<QPointer<QNetworkReply>> m_modLoaderReplies;

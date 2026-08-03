@@ -108,7 +108,7 @@ bool LocalModManager::importMod(const QString& filePath, const QString& versionI
     QFileInfo fi(filePath);
     qCInfo(logMgr) << QStringLiteral("[本地Mod] 开始导入 源=%1 版本=%2").arg(filePath, versionId);
     if (!fi.exists() || !fi.suffix().compare(QStringLiteral("jar"), Qt::CaseInsensitive) == 0) {
-        emit importFinished(fi.fileName(), false, QStringLiteral("涓嶆槸鏈夋晥鐨?Mod JAR 鏂囦欢"));
+        emit importFinished(fi.fileName(), false, QStringLiteral("不是有效的 Mod JAR 文件"));
         return false;
     }
 
@@ -132,7 +132,7 @@ bool LocalModManager::importMod(const QString& filePath, const QString& versionI
         emit importFinished(name, true, QString());
         return true;
     } else {
-        emit importFinished(fi.fileName(), false, QStringLiteral("澶嶅埗鏂囦欢澶辫触"));
+        emit importFinished(fi.fileName(), false, QStringLiteral("复制文件失败"));
         return false;
     }
 }

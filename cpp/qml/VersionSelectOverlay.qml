@@ -418,6 +418,8 @@ Rectangle {
 
                             // ── Icon mapping (Minecraft blocks) ──
                             function getBlockIcon() {
+                                // 整合包：显示整合包图标而非加载器图标（.shadow_modpack 标记由导入流程写入）
+                                if (model.isModpack) return "icons/lucide/package.svg"
                                 var lt = model.loaderType || ""
                                 if (lt === "Forge") return "icons/blocks/Anvil.png"
                                 if (lt === "Fabric") return "icons/blocks/Fabric.png"

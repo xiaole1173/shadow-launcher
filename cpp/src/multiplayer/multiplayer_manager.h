@@ -1,6 +1,6 @@
 ﻿// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 �?/ Shadow / xiaole1173
-// Multiplayer Manager �?orchestrates EasyTier + Scaffolding protocol
+// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
+// Multiplayer Manager — orchestrates EasyTier + Scaffolding protocol
 #pragma once
 #include <QObject>
 #include <QVariantList>

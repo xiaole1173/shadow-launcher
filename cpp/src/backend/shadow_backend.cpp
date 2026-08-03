@@ -546,6 +546,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 // ── 整合包下载完成 → 自动转入导入流程（用户输入版本名注册）──
                 if (m_packDownloads.contains(dlId)) {
                     const PackDownloadInfo info = m_packDownloads.take(dlId);
+                    m_packDownloading = false;   // 下载阶段结束（无论成败）
                     if (success && m_modpackImporter) {
                         auto* importer = qobject_cast<ModpackImporter*>(m_modpackImporter);
                         qCInfo(logApp) << QStringLiteral("[整合包] 下载完成，自动导入: %1 版本名=%2")
@@ -571,6 +572,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 // 整合包下载失败：移除待导入记录（不进入导入流程）
                 if (m_packDownloads.contains(dlId)) {
                     m_packDownloads.remove(dlId);
+                    m_packDownloading = false;
                     qCInfo(logApp) << QStringLiteral("[整合包] 下载失败，取消自动导入 dlId=%1").arg(dlId);
                 }
                 // 透传信号给 QML（失败 Toast / 详情页错误弹窗）
@@ -1142,6 +1144,8 @@ void ShadowBackend::refreshVersionDetails()
             while (modIt.hasNext()) { modIt.next(); modCount++; }
         }
         detail[QStringLiteral("modCount")] = modCount;
+        detail[QStringLiteral("isModpack")] =
+            QFileInfo(verPath + QStringLiteral("/.shadow_modpack")).exists();
         detail[QStringLiteral("jsonPath")] = jsonPath;
         detail[QStringLiteral("jarPath")] = jarPath;
 
@@ -1826,6 +1830,10 @@ void ShadowBackend::cancelVersionInstall(const QString& versionId) {
         const int dlId = versionId.mid(4).toInt(&ok);
         if (ok) {
             m_resource->cancelModFileDownload(dlId);
+            if (m_packDownloads.contains(dlId)) {
+                m_packDownloads.remove(dlId);
+                m_packDownloading = false;   // 取消整合包下载 → 释放单任务占位
+            }
             if (m_modDownloadCards.contains(dlId)) {
                 if (m_version) m_version->removeResourceCard(m_modDownloadCards[dlId]);
                 m_modDownloadCards.remove(dlId);
@@ -2359,6 +2367,11 @@ int ShadowBackend::downloadModpack(const QString& url, const QString& filename, 
                                    const QString& iconUrl)
 {
     if (url.isEmpty() || versionName.isEmpty()) return -1;
+    // 单任务限制：下载中或导入中都不允许再下载第二个整合包（QML 已前置弹窗，此处兜底）
+    if (modpackBusy()) {
+        qCInfo(logApp) << QStringLiteral("[整合包] 已有整合包任务（下载/导入）进行中，拒绝新的下载");
+        return -1;
+    }
     // 下载目录：{gameDir}/downloads/（不存在则创建）
     QString dlDir = m_gameDir + QStringLiteral("/downloads");
     QDir().mkpath(dlDir);
@@ -2379,10 +2392,18 @@ int ShadowBackend::downloadModpack(const QString& url, const QString& filename, 
         info.versionName = versionName;
         info.iconUrl = iconUrl;
         m_packDownloads.insert(dlId, info);
+        m_packDownloading = true;
         qCInfo(logApp) << QStringLiteral("[整合包] 下载任务已添加 id=%1 → %2 (版本名=%3)")
             .arg(dlId).arg(savePath, versionName);
     }
     return dlId;
+}
+
+bool ShadowBackend::modpackBusy() const
+{
+    if (m_packDownloading) return true;
+    auto* imp = qobject_cast<ModpackImporter*>(m_modpackImporter);
+    return imp && imp->isBusy();
 }
 
 // ── Mod file download proxy ──
@@ -2392,6 +2413,10 @@ int ShadowBackend::downloadModFile(const QString& url, const QString& savePath,
     return m_resource->downloadModFile(url, savePath, displayName, expectedSize, sha1, receivedOffset, resumeId);
 }
 void ShadowBackend::cancelModFileDownload(int downloadId) {
+    if (m_packDownloads.contains(downloadId)) {
+        m_packDownloads.remove(downloadId);
+        m_packDownloading = false;   // 取消整合包下载 → 释放单任务占位
+    }
     m_resource->cancelModFileDownload(downloadId);
 }
 

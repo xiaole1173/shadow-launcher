@@ -41,7 +41,11 @@ Rectangle {
             if (toastManager) toastManager.show(qsTr("后端未就绪"))
             return
         }
-        if (backend.modpackImporter.busy) return  // 已有导入在执行（下载进度页常驻展示中）
+        // 单任务限制：同一时间只允许一个整合包任务（下载或导入）
+        if (backend.modpackBusy()) {
+            if (toastManager) toastManager.show(qsTr("已有整合包任务（下载或导入）进行中，请等待完成"), "", 5000)
+            return
+        }
         root.visible = true
         forceActiveFocus()
     }

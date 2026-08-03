@@ -806,6 +806,17 @@ void ModpackInstallTask::ensureVersionJsonFallback(int attempt)
 void ModpackInstallTask::completeImport()
 {
     emit logLine(tr("[追踪] completeImport 进入"));
+    // 整合包标记：{版本目录}/.shadow_modpack 存在 → 版本选择等 UI 识别为整合包并显示整合包图标
+    if (!m_versionDir.isEmpty()) {
+        QFile marker(m_versionDir + QStringLiteral("/.shadow_modpack"));
+        if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            QJsonObject mo;
+            mo[QStringLiteral("name")] = m_meta.name;
+            mo[QStringLiteral("icon")] = m_packIcon;
+            marker.write(QJsonDocument(mo).toJson());
+            marker.close();
+        }
+    }
     // 注册到版本列表（QML 版本页立即可见，不再出现 versions 空白）
     if (m_vb) {
         m_vb->refreshInstalled();
