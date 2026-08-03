@@ -101,17 +101,18 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     // Ensure distinct from other ports
     if (m_rpcPort == 11010) m_rpcPort++;
 
-    // Kill any stale easytier-core processes to avoid port conflicts (default port 11010)
-    {
-        QProcess killer;
-        killer.start("taskkill", {"/f", "/im", "easytier-core.exe"});
-        killer.waitForFinished(3000);
-    }
+    // NOTE: do NOT taskkill /f /im easytier-core.exe here. That kills EVERY
+    // easytier-core on the machine — including another launcher's instance
+    // (主流启动器/Terracotta embedded easytier) during same-PC testing, which made
+    // the host side crash. Our own stale instance is cleaned by stop() above.
 
     // Use EasyTier community public nodes (same as Terracotta/主流启动器).
     // No private relay infrastructure needed — reduces legal surface.
     // Public nodes: EasyTier community shared nodes sponsored by cloud providers.
+    // terracotta.glavo.site is Terracotta's own public relay — all Terracotta clients
+    // connect to it, so including it maximizes interop with 主流启动器/other launchers.
     static const auto kPublicPeers = {
+        QStringLiteral("https://terracotta.glavo.site/acebc7d8-1208-47fd-b212-d03ac49e36e0"),
         QStringLiteral("tcp://public.easytier.top:11010"),
         QStringLiteral("tcp://public2.easytier.cn:54321"),
         QStringLiteral("https://etnode.zkitefly.eu.org/node1"),
@@ -127,15 +128,16 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     //   Guest connects via port-forward to 127.0.0.1 instead of TUN virtual IP
     bool isHost = !hostname.isEmpty();
 
+    // CRITICAL: easytier TOML expects [[peer]] uri = "..." table-array syntax.
+    // A top-level `peers = [...]` array is silently ignored (verified against
+    // easytier-core 2.6.4) — the instance then connects to NO public node and is
+    // invisible to guests. This was the interop bug that made 主流启动器 report
+    // "Cannot find scaffolding server".
     QByteArray tomlContent;
-    tomlContent.append("peers = [");
-    bool first = true;
     for (const auto& peer : kPublicPeers) {
-        if (!first) tomlContent.append(", ");
-        tomlContent.append("\"" + peer.toUtf8() + "\"");
-        first = false;
+        tomlContent.append("[[peer]]\n");
+        tomlContent.append("uri = \"" + peer.toUtf8() + "\"\n");
     }
-    tomlContent.append("]\n");
     if (isHost) {
         // Host: fixed IP in --ipv4, no DHCP needed
         tomlContent.append("dhcp = false\n");
@@ -180,6 +182,14 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
                 args << "--udp-whitelist" << QString::number(p);
             }
         }
+    } else {
+        // Terracotta guest args: -d (DHCP) + whitelist 0 (allow-all inbound).
+        // Without --tcp-whitelist=0 the easytier port-forward may reject
+        // inbound delivery (empty whitelist ≠ allow-all) — same-PC interop
+        // with Terracotta hosts failed until these were added.
+        args << "-d";
+        args << "--tcp-whitelist" << QStringLiteral("0");
+        args << "--udp-whitelist" << QStringLiteral("0");
     }
 
     // Start easytier-core with config file (peers, dhcp, name/secret).
@@ -287,6 +297,51 @@ bool EasyTierProcess::addPortForward(const QString& localAddr, quint16 localPort
     bool ok = (proc.exitCode() == 0);
     if (!ok)
         qCWarning(logNet) << QStringLiteral("[EasyTier] 端口转发失败 退出码=%1").arg(proc.exitCode());
+    return ok;
+}
+
+bool EasyTierProcess::setTcpWhitelist(const QList<quint16>& tcpPorts)
+{
+    QString cliExe = findEasyTierCli();
+    if (cliExe.isEmpty()) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 找不到 easytier-cli.exe，无法更新端口白名单");
+        return false;
+    }
+
+    // Build "80,443,8000-9000" style list
+    QStringList portStrs;
+    for (quint16 p : tcpPorts) {
+        if (p > 0)
+            portStrs << QString::number(p);
+    }
+    if (portStrs.isEmpty())
+        return false;
+
+    QStringList args;
+    if (m_rpcPort > 0)
+        args << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_rpcPort);
+    args << QStringLiteral("whitelist") << QStringLiteral("set-tcp")
+         << portStrs.join(QLatin1Char(','));
+
+    qCInfo(logNet) << QStringLiteral("[EasyTier] 更新TCP端口白名单 %1").arg(portStrs.join(QLatin1Char(',')));
+
+    QProcess proc;
+    proc.start(cliExe, args);
+    if (!proc.waitForFinished(5000)) {
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 更新白名单超时");
+        return false;
+    }
+
+    QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    QString err = QString::fromUtf8(proc.readAllStandardError()).trimmed();
+    if (!out.isEmpty())
+        qCInfo(logNet) << QStringLiteral("[EasyTier] whitelist 输出: %1").arg(out);
+    if (!err.isEmpty())
+        qCWarning(logNet) << QStringLiteral("[EasyTier] whitelist 错误: %1").arg(err);
+
+    bool ok = (proc.exitCode() == 0);
+    if (!ok)
+        qCWarning(logNet) << QStringLiteral("[EasyTier] 更新白名单失败 退出码=%1").arg(proc.exitCode());
     return ok;
 }
 
@@ -512,17 +567,38 @@ void EasyTierProcess::parsePeerList(const QString& output)
         }
     }
 
-    // Always update virtual IP from peer table (covers both initial and DHCP-assigned)
-    QRegularExpression ipRx(QStringLiteral(R"(\|?\s*(\d+\.\d+\.\d+\.\d+)(?:/\d+)?\s*\|)"));
-
-    auto m = ipRx.match(output);
-    if (m.hasMatch()) {
-        QString newIp = m.captured(1);
-        if (newIp != m_virtualIp) {
-            m_virtualIp = newIp;
-            qCInfo(logNet) << QStringLiteral("[EasyTier] 虚拟IP已获取 ip=%1").arg(m_virtualIp);
-            emit virtualIpChanged(m_virtualIp);
+    // Always update virtual IP from peer table (covers both initial and DHCP-assigned).
+    // CRITICAL: only the cost=Local row is OUR OWN ip — matching any row can
+    // grab the host's virtual IP (e.g. 10.144.144.1) and corrupt m_virtualIp/
+    // m_centerIp, breaking guest discovery of Terracotta hosts.
+    QString selfIp;
+    {
+        const QStringList lines = output.split(QLatin1Char('\n'));
+        for (const QString& line : lines) {
+            if (!line.contains(QLatin1String("Local")))
+                continue;
+            QStringList cells;
+            for (const QString& c : line.split(QLatin1Char('|'))) {
+                const QString t = c.trimmed();
+                if (!t.isEmpty())
+                    cells << t;
+            }
+            for (const QString& cell : cells) {
+                QRegularExpression re(QStringLiteral(R"(\d+\.\d+\.\d+\.\d+)"));
+                auto m = re.match(cell);
+                if (m.hasMatch()) {
+                    selfIp = m.captured(0);
+                    break;
+                }
+            }
+            if (!selfIp.isEmpty())
+                break;
         }
+    }
+    if (!selfIp.isEmpty() && selfIp != m_virtualIp) {
+        m_virtualIp = selfIp;
+        qCInfo(logNet) << QStringLiteral("[EasyTier] 虚拟IP已获取 ip=%1").arg(m_virtualIp);
+        emit virtualIpChanged(m_virtualIp);
     }
 
     // Deterministic IP as fallback if peer table has no entries yet

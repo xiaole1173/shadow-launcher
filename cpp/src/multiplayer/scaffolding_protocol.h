@@ -33,6 +33,13 @@ constexpr quint8 kStatusUnknown = 255;
 
 // ── Big-endian binary packet codec ──
 QByteArray buildPacket(const QString& type, const QByteArray& body);
+
+// ── Terracotta-compatible RESPONSE packet codec ──
+// Terracotta's ScaffoldingServer replies with [status 1B][bodyLen 4B BE][body]
+// (NO type field). Our old buildPacket response format ([typeLen][type]...)
+// made Terracotta guests read typeLen as status -> every response was Fail.
+// status: 0 = Ok, 32 = server not started, 255 = unknown/unimplemented.
+QByteArray buildResponse(quint8 status, const QByteArray& body);
 QString packProtocolList(const QStringList& protocols);
 QStringList unpackProtocolList(const QString& packed);
 

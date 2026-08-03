@@ -8163,13 +8163,17 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
     connect(ctx->installer, &ModLoaderInstaller::waitingForMC, this,
         [this, installId]() {
             auto* ds = dlSession(installId);
+            auto* ctx = m_mergedContexts.value(installId, nullptr);
             qCInfo(logVersion) << QStringLiteral("[TRACE-f] waitingForMC(merged) id=%1 dsFound=%2 mcDone=%3")
-                .arg(installId).arg(ds ? 1 : 0).arg(ds ? (ds->mcDownloadDone ? 1 : 0) : -1);
+                .arg(installId).arg(ds ? 1 : 0).arg(ctx ? (ctx->mcDownloadDone ? 1 : 0) : -1);
             if (ds && ds->isMerged()) {
                 ds->loaderDownloadReady = true;
-                if (auto* ctx = m_mergedContexts.value(installId, nullptr))
+                if (ctx)
                     ctx->loaderJarReady = true;
-                if (ds->mcDownloadDone)
+                // ⚠ MC 完成标志必须读 ctx->mcDownloadDone（onVersionDownloadFinished 的
+                // merged 汇合处只置 ctx 标志，ds->mcDownloadDone 从未被置位）：
+                // MC 先完成（Timeline B）时若读 ds 标志恒为 false → 永不 proceed → 导入永不完成。
+                if (ctx && ctx->mcDownloadDone)
                     proceedToLoaderInstall(installId);
             }
         });

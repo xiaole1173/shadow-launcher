@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "room_code.h"
 #include <QRandomGenerator>
@@ -6,13 +6,20 @@
 
 namespace RoomCode {
 
-// Character set: 0-9, A-H, J-N, P-Z  (total 34 chars, mapping to [0, 33])
+// ── Terracotta-compatible room code ──
+// 对齐陶瓦联机 (Terracotta) src/controller/rooms/scaffolding/room.rs:
+//   - 整个 16 字符房码 = 一个 base34 大整数 (34^16)，最低位在前
+//   - 校验: 整体 value % 7 == 0（生成时强制，解析时验证）
+//   - 字符集 0123456789ABCDEFGHJKLMNPQRSTUVWXYZ（不含 I/O）；解析时 I→1、O→0 兼容旧码
 static const char kCharset[] = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 static constexpr int kCharsetSize = 34;
+static constexpr int kCodeChars = 16;  // U/XXXX-XXXX-XXXX-XXXX 中的有效字符数
 
-// Map single character to 0..33 value
+// Map single character to 0..33 value; I→1, O→0 (Terracotta lookup_char)
 static int charToValue(QChar c) {
     c = c.toUpper();
+    if (c == QLatin1Char('I')) return 1;
+    if (c == QLatin1Char('O')) return 0;
     if (c >= '0' && c <= '9') return c.unicode() - '0';
     if (c >= 'A' && c <= 'H') return 10 + (c.unicode() - 'A');
     if (c >= 'J' && c <= 'N') return 18 + (c.unicode() - 'J');
@@ -20,85 +27,80 @@ static int charToValue(QChar c) {
     return -1;
 }
 
-// Random character from charset
+// Whole-code base34 value mod 7 (Terracotta: value.is_multiple_of(7)).
+// chars 低位在前（index 0 = 最低位）；从最高位向最低位折叠取模，全程 mod 7 防溢出
+// （等价于 128 位整体求值后再 mod 7，(a*34+b)%7 ≡ 逐步折叠）。
+static int codeMod7(const QList<QChar>& chars) {
+    int v = 0;
+    for (int i = chars.size() - 1; i >= 0; --i)
+        v = (v * 34 + charToValue(chars[i])) % 7;
+    return v;
+}
+
 static QChar randomChar() {
     int idx = QRandomGenerator::global()->bounded(kCharsetSize);
     return QChar::fromLatin1(kCharset[idx]);
 }
 
-// Generate a segment of length 'len' with valid checksum
-static QString generateSegment(int len) {
-    QString seg;
-    for (int i = 0; i < len; ++i)
-        seg += randomChar();
-
-    // Ensure checksum: map chars to [0,33], read as little-endian integer, mod 7 == 0
-    while (true) {
-        qint64 value = 0;
-        for (int i = 0; i < seg.size(); ++i) {
-            int v = charToValue(seg[i]);
-            value += static_cast<qint64>(v) << (5 * i);  // 5 bits per char (0-33)
+static Parts buildParts(const QList<QChar>& chars)
+{
+    Parts p;
+    p.displayCode = QStringLiteral("U/");
+    p.networkName = QStringLiteral("scaffolding-mc-");
+    p.networkKey = QString();
+    for (int i = 0; i < kCodeChars; ++i) {
+        if (i == 4 || i == 8 || i == 12)
+            p.displayCode += QLatin1Char('-');
+        p.displayCode += chars[i];
+        if (i < 8) {
+            if (i == 4)
+                p.networkName += QLatin1Char('-');
+            p.networkName += chars[i];
+        } else {
+            if (i == 12)
+                p.networkKey += QLatin1Char('-');
+            p.networkKey += chars[i];
         }
-        if (value % 7 == 0)
-            break;
-        // Regenerate last char
-        seg[seg.size() - 1] = randomChar();
     }
-    return seg;
-}
-
-// Validate checksum for a given string segment
-static bool validateChecksum(const QString& seg) {
-    qint64 value = 0;
-    for (int i = 0; i < seg.size(); ++i) {
-        int v = charToValue(seg[i]);
-        if (v < 0) return false;
-        value += static_cast<qint64>(v) << (5 * i);
-    }
-    return value % 7 == 0;
+    return p;
 }
 
 Parts generate()
 {
-    Parts p;
-    QString nn1 = generateSegment(4);
-    QString nn2 = generateSegment(4);
-    QString ss1 = generateSegment(4);
-    QString ss2 = generateSegment(4);
-
-    p.networkName = QStringLiteral("scaffolding-mc-") + nn1 + QStringLiteral("-") + nn2;
-    p.networkKey = ss1 + QStringLiteral("-") + ss2;
-    p.displayCode = QStringLiteral("U/") + nn1 + QStringLiteral("-") + nn2
-                    + QStringLiteral("-") + ss1 + QStringLiteral("-") + ss2;
-    return p;
+    // 随机 16 字符直到整体 value % 7 == 0（平均 7 次尝试，代价可忽略）
+    // 与陶瓦 create_room 的 "value -= value % 7" 产出同一集合
+    QList<QChar> chars;
+    do {
+        chars.clear();
+        for (int i = 0; i < kCodeChars; ++i)
+            chars.append(randomChar());
+    } while (codeMod7(chars) != 0);
+    return buildParts(chars);
 }
 
 std::optional<Parts> parse(const QString& code)
 {
-    // Match: U/NNNN-NNNN-SSSS-SSSS
+    // 结构: U/XXXX-XXXX-XXXX-XXXX（大小写不敏感；[0-9A-Z] 含 I/O，charToValue 兼容映射）
     static QRegularExpression rx(
-        QStringLiteral("^U/([0-9A-HJ-NP-Z]{4})-([0-9A-HJ-NP-Z]{4})-([0-9A-HJ-NP-Z]{4})-([0-9A-HJ-NP-Z]{4})$"),
+        QStringLiteral("^U/([0-9A-Z]{4})-([0-9A-Z]{4})-([0-9A-Z]{4})-([0-9A-Z]{4})$"),
         QRegularExpression::CaseInsensitiveOption
     );
-    auto m = rx.match(code);
+    auto m = rx.match(code.trimmed());
     if (!m.hasMatch())
         return std::nullopt;
 
-    QString nn1 = m.captured(1).toUpper();
-    QString nn2 = m.captured(2).toUpper();
-    QString ss1 = m.captured(3).toUpper();
-    QString ss2 = m.captured(4).toUpper();
-
-    // Validate checksum for all four segments
-    if (!validateChecksum(nn1) || !validateChecksum(nn2) ||
-        !validateChecksum(ss1) || !validateChecksum(ss2))
+    QList<QChar> chars;
+    for (int i = 1; i <= 4; ++i) {
+        for (QChar c : m.captured(i)) {
+            if (charToValue(c) < 0)
+                return std::nullopt;
+            chars.append(c.toUpper());
+        }
+    }
+    if (codeMod7(chars) != 0)
         return std::nullopt;
 
-    Parts p;
-    p.networkName = QStringLiteral("scaffolding-mc-") + nn1 + QStringLiteral("-") + nn2;
-    p.networkKey = ss1 + QStringLiteral("-") + ss2;
-    p.displayCode = code.toUpper();
-    return p;
+    return buildParts(chars);
 }
 
 bool isValidFormat(const QString& code)

@@ -60,8 +60,13 @@ Rectangle {
             }
             Text {
                 text: {
+                    // Terracotta profiles carry name/machine_id/vendor/kind — no
+                    // hostname. Show the vendor (e.g. "shadow") under the name,
+                    // matching 主流启动器's display of our guest entry.
+                    var v = playerData.vendor || ""
                     var ip = playerData.ip || ""
-                    return ip !== "" ? ip : (playerData.hostname || "")
+                    if (ip !== "") return ip
+                    return v
                 }
                 color: StyleTokens.textSubtle
                 font.pixelSize: StyleTokens.fontSizeXs

@@ -9,6 +9,7 @@
 #include <QProcess>
 #include <QTimer>
 #include <QUdpSocket>
+#include <QQueue>
 #include <atomic>
 #include "room_code.h"
 #include "easytier_process.h"
@@ -88,6 +89,8 @@ public:
                                          const QString& networkKey,
                                          const QString& roomCode);
     Q_INVOKABLE void leaveRoom();
+    // Synchronous easytier teardown for app shutdown (aboutToQuit)
+    Q_INVOKABLE void stopEasyTierNow();
     Q_INVOKABLE void copyRoomCode();
     Q_INVOKABLE void prepareServerProperties(const QString& gameDir, const QString& versionId);
     Q_INVOKABLE void setPlayerName(const QString& name);
@@ -128,6 +131,10 @@ private slots:
     // ── Guest MC connection verification (0xFE handshake) ──
     void verifyMcConnection();
     void scheduleMcVerifyRetry();
+    // Terracotta-aligned: finish the guest join even if the MC 0xFE probe
+    // never succeeds (Terracotta logs "MC connection is OK." unconditionally
+    // after 8 attempts). FakeServer + profile sync must still start.
+    void completeGuestJoin(quint16 verifyPort, bool verified);
 
     // ── Client (guest) mode ──
     void onSocketConnected();
@@ -170,6 +177,8 @@ private:
     void handleGuestProtocolsResponse(const QByteArray& body);
     void requestServerPort();
     void handleGuestServerPort(const QByteArray& body);
+    // Terracotta responses have NO type field — route by FIFO request order
+    void handleGuestResponse(quint8 status, const QByteArray& body);
 
     void broadcastPlayers();
 
@@ -210,6 +219,9 @@ private:
     QMap<QTcpSocket*, QString> m_guestIps;
 
     QTcpSocket* m_socket = nullptr;       // guest mode
+    // FIFO of expected response types for guest-mode requests (Terracotta
+    // responses carry no type field, so we match them by request order).
+    QQueue<QString> m_pendingResponses;
     QTimer* m_heartbeatTimer = nullptr;
     QTimer* m_fakeServerTimer = nullptr;  // FakeServer broadcast timer
     QUdpSocket* m_fakeServerSocket = nullptr;
@@ -225,6 +237,11 @@ private:
     // MC connection verification (retry counter for 0xFE ping)
     int m_mcVerifyRetries = 0;
     static constexpr int kMcVerifyMaxRetries = 8;
+
+    // Guest: scaffold-session reconnect counter (Terracotta loops 60×4s until
+    // fingerprint verified; easytier tunnel may lag the first connect)
+    int m_connectRetries = 0;
+    static constexpr int kGuestConnectMaxRetries = 20;
 
     // Host MC health tracking
     int m_mcHealthFailures = 0;
@@ -244,6 +261,7 @@ private:
     QString m_centerIp;
     quint16 m_centerPort = 0;
     quint16 m_mcPort = 0;
+    quint16 m_localMcPort = 0;  // Guest: local port the MC port-forward listens on
     QString m_machineId;
     QString m_playerName;
     QVariantList m_players;

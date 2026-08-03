@@ -53,6 +53,15 @@ public:
                         const QString& remoteAddr, quint16 remotePort,
                         const QString& proto = QStringLiteral("tcp"));
 
+    // Dynamically update the TCP port whitelist (Terracotta-aligned).
+    // Terracotta starts easytier AFTER the MC scanner finds the real MC port,
+    // so its whitelist already contains [scaffold, mc]. We start easytier
+    // earlier (scaffold port only, mc unknown), so once the scanner detects
+    // the real MC port we must add it via `easytier-cli whitelist set-tcp`,
+    // otherwise guest port-forwards to the MC port are rejected with
+    // "Failed to reload port forwards" (verified against easytier-core 2.6.4).
+    bool setTcpWhitelist(const QList<quint16>& tcpPorts);
+
     void stop();
 
     // Elevated mode: start easytier via QProcess (config file has public peers)

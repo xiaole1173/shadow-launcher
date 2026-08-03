@@ -30,6 +30,22 @@ QByteArray buildPacket(const QString& type, const QByteArray& body)
     return packet;
 }
 
+QByteArray buildResponse(quint8 status, const QByteArray& body)
+{
+    quint32 bodyLen = static_cast<quint32>(body.size());
+
+    QByteArray packet;
+    QDataStream stream(&packet, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::BigEndian);
+
+    stream << status;
+    stream << bodyLen;
+    if (bodyLen > 0)
+        stream.writeRawData(body.constData(), bodyLen);
+
+    return packet;
+}
+
 QString packProtocolList(const QStringList& protocols)
 {
     return protocols.join(QChar::fromLatin1('\0'));

@@ -836,5 +836,19 @@ int main(int argc, char *argv[])
         });
     }
 
+    // ── Ensure easytier is always cleaned up on exit ──
+    // leaveRoom() is normally called by the UI, but a direct window close or
+    // crash can skip it, leaving a zombie easytier-core.exe that keeps the
+    // virtual network alive and pollutes peer-center caches (ghost hosts).
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, backend, [backend]() {
+        if (backend->multiplayer()) {
+            qCInfo(logApp) << QStringLiteral("[退出] 清理联机会话");
+            // Synchronous: leaveRoom defers heavy cleanup via singleShot(0) which
+            // may never run during shutdown — stop easytier directly.
+            QMetaObject::invokeMethod(backend->multiplayer(), "leaveRoom", Qt::DirectConnection);
+            QMetaObject::invokeMethod(backend->multiplayer(), "stopEasyTierNow", Qt::DirectConnection);
+        }
+    });
+
     return app.exec();
 }

@@ -100,7 +100,6 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
                 emit playersChanged();
                 if (m_players.size() <= 1)
                     setState(WaitingForGuests, QStringLiteral("等待玩家加入..."));
-                broadcastPlayers();
             }
         }
     });
@@ -370,6 +369,9 @@ void MultiplayerManager::leaveRoom()
     m_players.clear();
     m_centerProtocols.clear();
     m_readBuffer.clear();
+    m_pendingResponses.clear();
+    m_localMcPort = 0;
+    m_connectRetries = 0;
 
     setState(Idle, QString());
     setRole(None);
@@ -408,6 +410,12 @@ void MultiplayerManager::leaveRoom()
 
         m_easyTier->stop();
     });
+}
+
+void MultiplayerManager::stopEasyTierNow()
+{
+    if (m_easyTier)
+        m_easyTier->stop();
 }
 
 void MultiplayerManager::copyRoomCode()
@@ -582,9 +590,11 @@ void MultiplayerManager::startHostServer()
     m_server = new QTcpServer(this);
     connect(m_server, &QTcpServer::newConnection, this, &MultiplayerManager::onNewConnection);
 
-    // With --no-tun, EasyTier delivers port-forward traffic to 127.0.0.1.
-    // Binding only to localhost prevents physical LAN access.
-    if (!m_server->listen(QHostAddress(QStringLiteral("127.0.0.1")), m_centerPort)) {
+    // Terracotta-aligned: listen on ALL interfaces (0.0.0.0), NOT just 127.0.0.1.
+    // EasyTier delivers port-forward traffic to the virtual IP (10.144.144.1:port),
+    // and a 127.0.0.1-only bind rejects it (guest sees 10060/10054 timeouts).
+    // Terracotta's ScaffoldingServer binds Ipv4Addr::UNSPECIFIED for the same reason.
+    if (!m_server->listen(QHostAddress::Any, m_centerPort)) {
         emit errorOccurred(QStringLiteral("无法启动联机服务: %1").arg(m_server->errorString()));
         return;
     }
@@ -600,8 +610,12 @@ void MultiplayerManager::startHostServer()
         connect(m_hostMcScanner, &McScanner::serversChanged, this, &MultiplayerManager::onHostMcDetected);
     }
     static const QString kSelfMotd = QStringLiteral("\u8054\u673A MC\u670D\u52A1\u5668");
+    // Terracotta guests broadcast their own FakeServer MOTD
+    // ("§6§l双击进入陶瓦联机大厅（请保持陶瓦运行）") — must NOT be
+    // mistaken for a real MC server by the host scanner.
+    static const QString kTerracottaMotd = QStringLiteral("\u00a76\u00a7l\u53cc\u51fb\u8fdb\u5165\u9676\u74e6\u8054\u673a\u5927\u5385\uff08\u8bf7\u4fdd\u6301\u9676\u74e6\u8fd0\u884c\uff09");
     m_hostMcScanner->start([this](const QString& motd) -> bool {
-        return motd != kSelfMotd && !motd.trimmed().isEmpty();
+        return motd != kSelfMotd && motd != kTerracottaMotd && !motd.trimmed().isEmpty();
     });
     m_idleTimer->start();
     m_mcHealthFailures = 0;
@@ -643,8 +657,8 @@ void MultiplayerManager::onNewConnection()
         // Rate limit
         if (m_guard && !m_guard->allowConnect(peerIp)) {
             qCWarning(logNet) << QStringLiteral("[联机] 频率限制命中 ip=%1").arg(peerIp);
-            auto packet = Scaffolding::buildPacket(
-                QStringLiteral("error"),
+            auto packet = Scaffolding::buildResponse(
+                Scaffolding::kStatusUnknown,
                 QByteArrayLiteral("rate_limited")
             );
             sock->write(packet);
@@ -657,8 +671,8 @@ void MultiplayerManager::onNewConnection()
         int currentCount = 1 + m_guests.size(); // 1 = host
         if (currentCount >= kMaxPlayers) {
             qCInfo(logNet) << QStringLiteral("[联机] 房间已满 拒绝连接");
-            auto packet = Scaffolding::buildPacket(
-                QStringLiteral("error"),
+            auto packet = Scaffolding::buildResponse(
+                Scaffolding::kStatusUnknown,
                 QByteArrayLiteral("room_full")
             );
             sock->write(packet);
@@ -741,7 +755,8 @@ void MultiplayerManager::onGuestDisconnected()
     }
 
     // Re-broadcast player list
-    broadcastPlayers();
+    // NOTE: removed — Terracotta guests use a synchronous send_sync model;
+    // unsolicited pushes would be misread as responses to their requests.
 }
 
 // ─────────────────────────────────────────
@@ -784,10 +799,14 @@ void MultiplayerManager::doDiscoverCenter()
         }
 
         // Point CLI at OUR easytier-core RPC port (deterministic 15880+, not the default 11010)
+        // NOTE: -o json is a TOP-LEVEL cli option — it must come BEFORE the `peer`
+        // subcommand. "peer -o json" errors out (unexpected argument) and the
+        // output is an error text, not JSON → discovery never finds the host.
         QStringList cliArgs;
         if (m_easyTier && m_easyTier->rpcPort() > 0)
             cliArgs << QStringLiteral("-p") << QStringLiteral("127.0.0.1:%1").arg(m_easyTier->rpcPort());
-        cliArgs << QStringLiteral("peer") << QStringLiteral("-o") << QStringLiteral("json");
+        cliArgs << QStringLiteral("-o") << QStringLiteral("json")
+                << QStringLiteral("peer") << QStringLiteral("list");
         m_peerQuery->start(cliPath, cliArgs);
     }
 }
@@ -838,6 +857,20 @@ void MultiplayerManager::onPeerListReady()
 
         if (hostname.startsWith(Scaffolding::kCenterHostnamePrefix)) {
             if (ipv4.isEmpty()) continue;
+
+            // ── Ghost-host guard ──
+            // Terracotta's peer-center caches network info; a host that went
+            // offline may still appear with a valid ipv4 but cost=relay(n)
+            // (no live tunnel). Forwarding to it then RSTs after ~10s.
+            // Only accept a host with an ACTIVE connection (cost=p2p, or
+            // Local when host runs on the same machine).
+            QString costStr = obj[QStringLiteral("cost")].toString();
+            if (costStr != QStringLiteral("p2p") && costStr != QStringLiteral("Local")) {
+                qCInfo(logNet) << QStringLiteral("[联机] 跳过非活跃主机 cost=%1 hostname=%2")
+                    .arg(costStr).arg(hostname);
+                continue;
+            }
+
             hostNat = parseNat(natTypeStr);
             hostNatStr = natTypeStr;
 
@@ -863,12 +896,12 @@ void MultiplayerManager::onPeerListReady()
             emit connectionDifficultyChanged();
 
             // ── Terracotta-style: port-forward → connect via 127.0.0.1 ──
-            // Try to keep the same port (Terracotta: request_specific); fallback to free
-            quint16 localPort = PortRequest::requestSpecific(port);
-            if (localPort == 0) {
-                localPort = PortRequest::requestFree(21234);
-            }
-            if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localPort,
+            // Terracotta uses a RANDOM local port (PortRequest::Scaffolding.request())
+            // bound to 0.0.0.0 — NOT the host's scaffold port. Same-PC testing:
+            // the host's ScaffoldingServer already listens on 0.0.0.0:13448, so
+            // requestSpecific(13448) collides and the ping never reaches the tunnel.
+            quint16 localPort = PortRequest::requestFree(21234);
+            if (!m_easyTier->addPortForward(QStringLiteral("0.0.0.0"), localPort,
                                             ipv4, port, QStringLiteral("tcp"))) {
                 emit errorOccurred(QStringLiteral("无法创建联机隧道端口"));
                 return;
@@ -937,6 +970,7 @@ void MultiplayerManager::onSocketConnected()
     m_fingerprintVerified = false;
 
     // ── Terracotta-style: verify scaffolding server identity with fingerprint ping ──
+    m_pendingResponses.enqueue(Scaffolding::kPing);
     auto fp = Scaffolding::buildPacket(
         Scaffolding::kPing,
         scaffoldingFingerprint()
@@ -948,6 +982,35 @@ void MultiplayerManager::onSocketDisconnected()
 {
     qCInfo(logNet) << QStringLiteral("[联机] 宾客TCP已断开");
     m_heartbeatTimer->stop();
+
+    // ── Terracotta-aligned retry: the guest keeps re-opening the session until
+    // fingerprint verification passes (Terracotta loops 60×4s). The easytier
+    // tunnel may not be ready the moment we connect (peer still relay(2)), so
+    // a single-shot connect dies in ~10s. Retry with backoff until verified.
+    if (m_role == Guest && !m_fingerprintVerified && m_connectRetries < kGuestConnectMaxRetries) {
+        m_connectRetries++;
+        qCWarning(logNet) << QStringLiteral("[联机] 指纹未验证 重连 #%1").arg(m_connectRetries);
+        QTimer::singleShot(3000, this, [this]() {
+            if (m_role != Guest || m_state == Idle || m_state == Error)
+                return;
+            // Re-connect through the SAME easytier port-forward (tunnel is up now)
+            if (!m_centerIp.isEmpty() && m_centerPort > 0 && m_easyTier) {
+                // Re-establish the port-forward (rules may have been lost on tunnel re-route)
+                quint16 localPort = PortRequest::requestFree(21234);
+                if (m_easyTier->addPortForward(QStringLiteral("0.0.0.0"), localPort,
+                                               m_centerIp, m_centerPort, QStringLiteral("tcp"))) {
+                    qCInfo(logNet) << QStringLiteral("[联机] 重连转发端口=%1 -> %2:%3")
+                        .arg(localPort).arg(m_centerIp).arg(m_centerPort);
+                    connectToCenter(QStringLiteral("127.0.0.1"), localPort);
+                } else {
+                    emit errorOccurred(QStringLiteral("重连失败：无法创建联机隧道"));
+                }
+            }
+        });
+        return;  // do not go Error yet
+    }
+
+    m_connectRetries = 0;
     if (m_state != Idle)
         setState(Error, QStringLiteral("与联机中心的连接已断开"));
 }
@@ -967,23 +1030,56 @@ void MultiplayerManager::onSocketReadyRead()
     if (!m_socket) return;
     m_readBuffer += m_socket->readAll();
 
+    // Terracotta RESPONSE format: [status 1B][bodyLen 4B BE][body] — no type field.
+    // Responses arrive in the same order as our requests (Terracotta's server
+    // processes one request per loop iteration), so we match them FIFO.
     while (m_readBuffer.size() >= 5) {
-        quint8 typeLen = static_cast<quint8>(m_readBuffer[0]);
-        if (m_readBuffer.size() < 1 + typeLen + 4)
-            break;
+        quint8 status = static_cast<quint8>(m_readBuffer[0]);
 
         quint32 bodyLen;
-        QDataStream ds(m_readBuffer.mid(1 + typeLen, 4));
+        QDataStream ds(m_readBuffer.mid(1, 4));
         ds.setByteOrder(QDataStream::BigEndian);
         ds >> bodyLen;
 
-        int packetTotal = 1 + typeLen + 4 + static_cast<int>(bodyLen);
+        int packetTotal = 5 + static_cast<int>(bodyLen);
         if (m_readBuffer.size() < packetTotal)
             break;
 
-        QByteArray packet = m_readBuffer.left(packetTotal);
+        QByteArray body = m_readBuffer.mid(5, static_cast<int>(bodyLen));
         m_readBuffer.remove(0, packetTotal);
-        processPacket(packet, m_socket);
+        handleGuestResponse(status, body);
+    }
+}
+
+// ── Guest: route Terracotta responses (no type field) by FIFO request order ──
+void MultiplayerManager::handleGuestResponse(quint8 status, const QByteArray& body)
+{
+    if (m_pendingResponses.isEmpty()) {
+        qCWarning(logNet) << QStringLiteral("[联机] 收到意外响应 status=%1 (无待处理请求)").arg(status);
+        return;
+    }
+
+    QString expect = m_pendingResponses.dequeue();
+    if (status != Scaffolding::kStatusOk) {
+        qCWarning(logNet) << QStringLiteral("[联机] 请求 %1 失败 status=%2").arg(expect).arg(status);
+        if (expect == Scaffolding::kServerPort) {
+            // Terracotta: fail(32) = MC server not started yet
+            emit errorOccurred(QStringLiteral("联机服务器尚未就绪，请稍后再试"));
+            leaveRoom();
+        }
+        return;
+    }
+
+    if (expect == Scaffolding::kPing) {
+        handleGuestPingResponse(body);
+    } else if (expect == Scaffolding::kProtocols) {
+        handleGuestProtocolsResponse(body);
+    } else if (expect == Scaffolding::kServerPort) {
+        handleGuestServerPort(body);
+    } else if (expect == Scaffolding::kPlayerProfilesList) {
+        handlePlayerProfilesResponse(body);
+    } else if (expect == Scaffolding::kPlayerPing) {
+        // Heartbeat response — nothing to do
     }
 }
 
@@ -1052,8 +1148,8 @@ void MultiplayerManager::processPacket(const QByteArray& data, QTcpSocket* socke
 
 void MultiplayerManager::handlePing(const QByteArray& body, QTcpSocket* socket)
 {
-    // Echo back the same body
-    auto packet = Scaffolding::buildPacket(Scaffolding::kPing, body);
+    // Echo back the same body (Terracotta response format: [status 0][len][body])
+    auto packet = Scaffolding::buildResponse(Scaffolding::kStatusOk, body);
     socket->write(packet);
 }
 
@@ -1062,15 +1158,15 @@ void MultiplayerManager::handleProtocols(const QByteArray& body, QTcpSocket* soc
     QStringList guestProtocols = Scaffolding::unpackProtocolList(QString::fromUtf8(body));
     qCInfo(logNet) << QStringLiteral("[联机] 宾客协议列表: %1").arg(guestProtocols.join(QStringLiteral(", ")));
 
-    // Return intersection
+    // Return intersection (Terracotta response format: [status 0][len][body])
     QStringList common;
     for (const auto& p : m_supportedProtocols) {
         if (guestProtocols.contains(p))
             common << p;
     }
 
-    auto packet = Scaffolding::buildPacket(
-        Scaffolding::kProtocols,
+    auto packet = Scaffolding::buildResponse(
+        Scaffolding::kStatusOk,
         Scaffolding::packProtocolList(common).toUtf8()
     );
     socket->write(packet);
@@ -1078,12 +1174,20 @@ void MultiplayerManager::handleProtocols(const QByteArray& body, QTcpSocket* soc
 
 void MultiplayerManager::handleServerPort(const QByteArray& /*body*/, QTcpSocket* socket)
 {
+    // Terracotta: fail(32) when MC server not started yet; otherwise 2-byte BE port.
+    if (m_mcPort == 0 || m_state != WaitingForGuests) {
+        auto packet = Scaffolding::buildResponse(Scaffolding::kStatusServerNotStarted, QByteArray());
+        socket->write(packet);
+        qCWarning(logNet) << QStringLiteral("[联机] 拒绝发送服务器端口 MC未就绪");
+        return;
+    }
+
     QByteArray portData(2, 0);
     QDataStream ds(&portData, QIODevice::WriteOnly);
     ds.setByteOrder(QDataStream::BigEndian);
     ds << m_mcPort;
 
-    auto packet = Scaffolding::buildPacket(Scaffolding::kServerPort, portData);
+    auto packet = Scaffolding::buildResponse(Scaffolding::kStatusOk, portData);
     socket->write(packet);
 
     qCInfo(logNet) << QStringLiteral("[联机] 发送服务器端口 port=%1").arg(m_mcPort);
@@ -1097,11 +1201,13 @@ void MultiplayerManager::handleGuestPingResponse(const QByteArray& body)
     if (body == expected) {
         qCInfo(logNet) << QStringLiteral("[联机] 指纹验证通过");
         m_fingerprintVerified = true;
+        m_connectRetries = 0;
 
         // ── Step 2: protocol negotiation ──
         m_heartbeatTimer->start();
         sendHeartbeat();
 
+        m_pendingResponses.enqueue(Scaffolding::kProtocols);
         auto packet = Scaffolding::buildPacket(
             Scaffolding::kProtocols,
             Scaffolding::packProtocolList(m_supportedProtocols).toUtf8()
@@ -1115,6 +1221,7 @@ void MultiplayerManager::handleGuestPingResponse(const QByteArray& body)
         m_heartbeatTimer->start();
         sendHeartbeat();
 
+        m_pendingResponses.enqueue(Scaffolding::kProtocols);
         auto packet = Scaffolding::buildPacket(
             Scaffolding::kProtocols,
             Scaffolding::packProtocolList(m_supportedProtocols).toUtf8()
@@ -1147,6 +1254,7 @@ void MultiplayerManager::requestServerPort()
     if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState)
         return;
 
+    m_pendingResponses.enqueue(Scaffolding::kServerPort);
     auto packet = Scaffolding::buildPacket(
         Scaffolding::kServerPort,
         QByteArray()  // empty body per spec
@@ -1179,17 +1287,18 @@ void MultiplayerManager::handleGuestServerPort(const QByteArray& body)
             qCInfo(logNet) << QStringLiteral("[联机] MC端口%1可用").arg(port);
         }
 
-        // TCP port-forward
-        if (!m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
+        // TCP port-forward (Terracotta binds 0.0.0.0 — UNSPECIFIED)
+        if (!m_easyTier->addPortForward(QStringLiteral("0.0.0.0"), localMcPort,
                                         hostIp, port, QStringLiteral("tcp"))) {
             qCWarning(logNet) << QStringLiteral("[联机] 无法创建MC TCP端口转发");
         }
 
         // UDP port-forward for mod compatibility (SimpleVoiceChat etc.)
         // Aligns with Terracotta: forwards both TCP and UDP
-        m_easyTier->addPortForward(QStringLiteral("127.0.0.1"), localMcPort,
+        m_easyTier->addPortForward(QStringLiteral("0.0.0.0"), localMcPort,
                                    hostIp, port, QStringLiteral("udp"));
 
+        m_localMcPort = localMcPort;
         qCInfo(logNet) << QStringLiteral("[联机] MC端口转发已建立 本地端口=%1 远程端口=%2").arg(localMcPort).arg(port);
         emit minecraftPortReady(static_cast<int>(localMcPort));
 
@@ -1239,8 +1348,6 @@ void MultiplayerManager::handlePlayerPing(const QByteArray& body, QTcpSocket* so
         // Update host state text on first guest
         if (m_players.size() > 1 && m_state == WaitingForGuests)
             setState(WaitingForGuests, QStringLiteral("在线"));
-
-        broadcastPlayers();
     } else {
         // Update heartbeat time for existing player
         m_lastHeartbeat[mid] = now;
@@ -1260,12 +1367,12 @@ void MultiplayerManager::handlePlayerPing(const QByteArray& body, QTcpSocket* so
         }
     }
 
-    // Reply with pong (for guest's own latency measurement)
+    // Reply with pong (for guest's own latency measurement) — Terracotta response format
     QJsonObject pong;
     pong[QStringLiteral("ts")] = static_cast<double>(now);
     pong[QStringLiteral("machine_id")] = mid;
-    auto packet = Scaffolding::buildPacket(
-        Scaffolding::kPlayerPong,
+    auto packet = Scaffolding::buildResponse(
+        Scaffolding::kStatusOk,
         QJsonDocument(pong).toJson(QJsonDocument::Compact)
     );
     socket->write(packet);
@@ -1273,13 +1380,18 @@ void MultiplayerManager::handlePlayerPing(const QByteArray& body, QTcpSocket* so
 
 void MultiplayerManager::handlePlayerProfilesList(const QByteArray& /*body*/, QTcpSocket* socket)
 {
+    // Terracotta guest REQUIRES each profile to carry name/machine_id/vendor/kind.
+    // Missing vendor breaks the whole list parse on the guest side.
     QJsonArray arr;
     for (const auto& p : m_players) {
-        arr.append(QJsonObject::fromVariantMap(p.toMap()));
+        QJsonObject obj = QJsonObject::fromVariantMap(p.toMap());
+        if (!obj.contains(QLatin1String("vendor")))
+            obj[QStringLiteral("vendor")] = QStringLiteral("shadow");
+        arr.append(obj);
     }
 
-    auto packet = Scaffolding::buildPacket(
-        Scaffolding::kPlayerProfilesList,
+    auto packet = Scaffolding::buildResponse(
+        Scaffolding::kStatusOk,
         QJsonDocument(arr).toJson(QJsonDocument::Compact)
     );
     socket->write(packet);
@@ -1304,6 +1416,7 @@ void MultiplayerManager::sendHeartbeat()
         heartbeat[QStringLiteral("easytier_id")] = QString();
     }
 
+    m_pendingResponses.enqueue(Scaffolding::kPlayerPing);
     auto packet = Scaffolding::buildPacket(
         Scaffolding::kPlayerPing,
         QJsonDocument(heartbeat).toJson(QJsonDocument::Compact)
@@ -1462,21 +1575,23 @@ void MultiplayerManager::handlePlayerProfilesResponse(const QByteArray& body)
         }
     }
 
-    // Add new profiles from server that aren't consumed
+    // Add new profiles from server that aren't consumed (Terracotta-aligned:
+    // pushes HOST and GUEST alike — `if !used[i] && kind != LOCAL`)
     for (int i = 0; i < serverProfiles.size(); ++i) {
         if (used[i]) continue;
-        if (serverProfiles[i].kind == QStringLiteral("GUEST")) {
-            if (serverProfiles[i].machineId == m_machineId) continue;  // don't add self
+        if (serverProfiles[i].kind != QStringLiteral("GUEST")
+            && serverProfiles[i].kind != QStringLiteral("HOST"))
+            continue;
+        if (serverProfiles[i].machineId == m_machineId) continue;  // don't add self
 
-            QVariantMap newPlayer;
-            newPlayer[QStringLiteral("name")] = serverProfiles[i].name;
-            newPlayer[QStringLiteral("machine_id")] = serverProfiles[i].machineId;
-            newPlayer[QStringLiteral("vendor")] = serverProfiles[i].vendor;
-            newPlayer[QStringLiteral("kind")] = QStringLiteral("GUEST");
-            newPlayer[QStringLiteral("latency")] = -1;
-            m_players.append(newPlayer);
-            changed = true;
-        }
+        QVariantMap newPlayer;
+        newPlayer[QStringLiteral("name")] = serverProfiles[i].name;
+        newPlayer[QStringLiteral("machine_id")] = serverProfiles[i].machineId;
+        newPlayer[QStringLiteral("vendor")] = serverProfiles[i].vendor;
+        newPlayer[QStringLiteral("kind")] = serverProfiles[i].kind;
+        newPlayer[QStringLiteral("latency")] = -1;
+        m_players.append(newPlayer);
+        changed = true;
     }
 
     if (changed) {
@@ -1695,6 +1810,13 @@ void MultiplayerManager::onHostMcDetected()
     qCInfo(logNet) << QStringLiteral("[联机] MC扫描器检测到真实MC服务端口: 生成=%1 实际=%2").arg(m_mcPort).arg(realMcPort);
     m_mcPort = realMcPort;
 
+    // Terracotta-aligned: host easytier whitelist must include the real MC port,
+    // otherwise guest port-forwards to it are rejected. We started easytier before
+    // the scanner found the MC port (whitelist = [scaffold] only), so add it now.
+    if (m_easyTier) {
+        m_easyTier->setTcpWhitelist({m_centerPort, m_mcPort});
+    }
+
     // Read MOTD from scanner results
     auto results = m_hostMcScanner ? m_hostMcScanner->results() : QList<McScanResult>();
     for (const auto& r : results) {
@@ -1742,7 +1864,11 @@ void MultiplayerManager::onHostMcDetected()
 
 void MultiplayerManager::verifyMcConnection()
 {
-    if (m_role != Guest || m_mcPort == 0)
+    // Terracotta verifies the LOCAL forwarded port (check_mc_conn(local_port)),
+    // not the remote MC port — the local listen port may differ when the
+    // requested port was occupied (dynamic fallback).
+    quint16 verifyPort = m_localMcPort != 0 ? m_localMcPort : m_mcPort;
+    if (m_role != Guest || m_mcPort == 0 || verifyPort == 0)
         return;
 
     // Async 0xFE handshake with a per-call temporary socket (same self-cleaning
@@ -1751,12 +1877,12 @@ void MultiplayerManager::verifyMcConnection()
     testSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 
     // Connected: send legacy 0xFE ping, expect 0xFF within 2s
-    connect(testSocket, &QTcpSocket::connected, this, [this, testSocket]() {
+    connect(testSocket, &QTcpSocket::connected, this, [this, testSocket, verifyPort]() {
         testSocket->write(QByteArray(1, static_cast<char>(0xFE)));
-        QTimer::singleShot(2000, testSocket, [this, testSocket]() {
+        QTimer::singleShot(2000, testSocket, [this, testSocket, verifyPort]() {
             if (testSocket->property("_verifyDone").toBool())
                 return;
-            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 响应超时 port=%1").arg(m_mcPort);
+            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 响应超时 port=%1").arg(verifyPort);
             testSocket->setProperty("_verifyDone", true);
             testSocket->abort();
             testSocket->deleteLater();
@@ -1765,30 +1891,14 @@ void MultiplayerManager::verifyMcConnection()
     });
 
     // Data received: expect first byte 0xFF (legacy server list ping response)
-    connect(testSocket, &QTcpSocket::readyRead, this, [this, testSocket]() {
+    connect(testSocket, &QTcpSocket::readyRead, this, [this, testSocket, verifyPort]() {
         QByteArray response = testSocket->read(1);
         if (response.size() == 1 && static_cast<quint8>(response[0]) == 0xFF) {
-            qCInfo(logNet) << QStringLiteral("[联机] MC连接验证通过 port=%1").arg(m_mcPort);
+            qCInfo(logNet) << QStringLiteral("[联机] MC连接验证通过 port=%1").arg(verifyPort);
             testSocket->setProperty("_verifyDone", true);
             testSocket->disconnect();
             testSocket->deleteLater();
-
-            // Add LOCAL profile for self (align with Terracotta ProfileKind::LOCAL)
-            QVariantMap localSelf;
-            localSelf[QStringLiteral("name")] = m_playerName;
-            localSelf[QStringLiteral("machine_id")] = m_machineId;
-            localSelf[QStringLiteral("hostname")] = QSysInfo::machineHostName();
-            localSelf[QStringLiteral("kind")] = QStringLiteral("LOCAL");
-            localSelf[QStringLiteral("latency")] = 0;
-            m_players << localSelf;
-            emit playersChanged();
-
-            // Connection OK — start FakeServer and proceed
-            startFakeServer(m_mcPort);
-
-            // Start profile sync timer (pull profiles from host every 5s)
-            m_profileSyncTimer->start();
-            syncGuestProfiles();
+            completeGuestJoin(verifyPort, true);
         } else {
             qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 响应数据异常 port=%1").arg(m_mcPort);
             testSocket->setProperty("_verifyDone", true);
@@ -1799,23 +1909,23 @@ void MultiplayerManager::verifyMcConnection()
     });
 
     // Connection failed (refused / closed): real failure → retry
-    connect(testSocket, &QTcpSocket::errorOccurred, this, [this, testSocket]() {
+    connect(testSocket, &QTcpSocket::errorOccurred, this, [this, testSocket, verifyPort]() {
         if (testSocket->property("_verifyDone").toBool()) {
             testSocket->deleteLater();
             return;
         }
-        qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 连接失败 port=%1").arg(m_mcPort);
+        qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 连接失败 port=%1").arg(verifyPort);
         testSocket->setProperty("_verifyDone", true);
         testSocket->deleteLater();
         scheduleMcVerifyRetry();
     });
 
     // 2s connect timeout
-    QTimer::singleShot(2000, testSocket, [this, testSocket]() {
+    QTimer::singleShot(2000, testSocket, [this, testSocket, verifyPort]() {
         if (testSocket->property("_verifyDone").toBool())
             return;
         if (testSocket->state() != QAbstractSocket::ConnectedState) {
-            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 连接超时 port=%1").arg(m_mcPort);
+            qCWarning(logNet) << QStringLiteral("[联机] MC连接验证 连接超时 port=%1").arg(verifyPort);
             testSocket->setProperty("_verifyDone", true);
             testSocket->abort();
             testSocket->deleteLater();
@@ -1823,7 +1933,7 @@ void MultiplayerManager::verifyMcConnection()
         }
     });
 
-    testSocket->connectToHost(QStringLiteral("127.0.0.1"), m_mcPort);
+    testSocket->connectToHost(QStringLiteral("127.0.0.1"), verifyPort);
 }
 
 // Retry scheduling shared by all async failure paths (one count per attempt)
@@ -1837,13 +1947,41 @@ void MultiplayerManager::scheduleMcVerifyRetry()
         .arg(m_mcVerifyRetries).arg(m_mcPort);
 
     if (m_mcVerifyRetries >= kMcVerifyMaxRetries) {
-        qCWarning(logNet) << QStringLiteral("[联机] MC连接验证失败，已达最大重试次数");
+        qCWarning(logNet) << QStringLiteral("[联机] MC连接验证失败，已达最大重试次数 继续加入");
         m_mcVerifyRetries = 0;
-        emit errorOccurred(QStringLiteral("无法连接到联机服务器的MC端口"));
-        setState(Error, QStringLiteral("MC连接验证失败"));
+        // Terracotta-aligned: do NOT fail the join — MC may still be booting.
+        // FakeServer + profile sync proceed regardless.
+        completeGuestJoin(m_localMcPort != 0 ? m_localMcPort : m_mcPort, false);
     } else {
         QTimer::singleShot(1500, this, &MultiplayerManager::verifyMcConnection);
     }
+}
+
+// ── Terracotta-aligned guest join completion ──
+// Terracotta's start_guest runs the 0xFE probe up to 8 times but ALWAYS
+// proceeds ("MC connection is OK.") — the probe is informational, not a gate.
+void MultiplayerManager::completeGuestJoin(quint16 verifyPort, bool verified)
+{
+    qCInfo(logNet) << QStringLiteral("[联机] 完成宾客加入 verified=%1 port=%2")
+        .arg(verified).arg(verifyPort);
+
+    // Add LOCAL profile for self (align with Terracotta ProfileKind::LOCAL)
+    QVariantMap localSelf;
+    localSelf[QStringLiteral("name")] = m_playerName;
+    localSelf[QStringLiteral("machine_id")] = m_machineId;
+    localSelf[QStringLiteral("hostname")] = QSysInfo::machineHostName();
+    localSelf[QStringLiteral("kind")] = QStringLiteral("LOCAL");
+    localSelf[QStringLiteral("latency")] = 0;
+    m_players << localSelf;
+    emit playersChanged();
+
+    // FakeServer announces the LOCAL forwarded port so the MC client
+    // auto-discovers the proxied server on 127.0.0.1 (Terracotta-aligned).
+    startFakeServer(verifyPort);
+
+    // Profile sync pulls host + guests every 5s (fixes "only self visible")
+    m_profileSyncTimer->start();
+    syncGuestProfiles();
 }
 
 // ─────────────────────────────────────────
@@ -1859,6 +1997,7 @@ void MultiplayerManager::syncGuestProfiles()
     sendHeartbeat();
 
     // Also request full profile list
+    m_pendingResponses.enqueue(Scaffolding::kPlayerProfilesList);
     auto packet = Scaffolding::buildPacket(
         Scaffolding::kPlayerProfilesList,
         QByteArray()
