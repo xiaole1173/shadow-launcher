@@ -46,17 +46,40 @@ Rectangle {
     }
     onVisibleChanged: {
         if (visible && backend) {
-            // 版本切换时刷新所有数据列表（跟随版本隔离）
+            // 版本切换时刷新所有数据列表（跟随版本隔离）；列表扫描在 worker 线程异步执行
             backend.refreshVersionDetails()
-            modListModel.clear(); var m = backend.listMods(currentSelectedVersion); for (var i = 0; i < m.length; i++) modListModel.append(m[i])
-            rpListModel.clear(); var p = backend.listResourcePacks(); for (var i = 0; i < p.length; i++) rpListModel.append(p[i])
-            saveListModel.clear(); var s = backend.listSaves(currentSelectedVersion); for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
+            backend.listModsAsync(currentSelectedVersion)
+            backend.listResourcePacksAsync(currentSelectedVersion)
+            backend.listSavesAsync(currentSelectedVersion)
             // 重置校验状态
             _verifyRunning = false
             _verifyProgressDone = 0
             _verifyProgressTotal = 0
             _verifyResultText = ""
             _verifyResultOk = false
+        }
+    }
+
+    // ── 异步列表加载完成 → 回填各分区列表（worker 线程扫描，不阻塞 UI）──
+    Connections {
+        target: backend
+        enabled: backend !== null
+        function onModsListReady(versionId, mods) {
+            if (versionId !== currentSelectedVersion) return
+            modSection._allMods = mods || []
+            modSection.totalModCount = modSection._allMods.length
+            modSection.applyModFilter()
+        }
+        function onResourcePacksListReady(versionId, packs) {
+            if (versionId !== currentSelectedVersion) return
+            rpSection._allPacks = packs || []
+            rpSection.applyRpFilter()
+        }
+        function onSavesListReady(versionId, saves) {
+            if (versionId !== currentSelectedVersion) return
+            saveListModel.clear()
+            var s = saves || []
+            for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
         }
     }
 
@@ -321,29 +344,6 @@ Rectangle {
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
-                // Quick info
-                Rectangle {
-                    Layout.fillWidth: true; height: 52; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
-                    RowLayout {
-                        anchors.fill: parent; anchors.margins: 14; spacing: 12
-                        ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: qsTr("占用空间"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
-                            Text { text: backend && backend.currentVersionSummary ? backend.currentVersionSummary.sizeDisplay : "-"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary }
-                        }
-                        Rectangle { width: 1; height: 32; color: StyleTokens.bgCard }
-                        ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: qsTr("已装 Mod"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
-                            Text { text: (backend && backend.currentVersionSummary ? backend.currentVersionSummary.modCount : 0) + " 个"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary }
-
-                        }
-                        Rectangle { width: 1; height: 32; color: StyleTokens.bgCard }
-                        ColumnLayout { Layout.fillWidth: true; spacing: 2
-                            Text { text: qsTr("版本隔离"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
-                            Text { text: backend && backend.isolationEnabled ? "已开启" : "未开启"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: backend && backend.isolationEnabled ? StyleTokens.success : "#707088" }
-                        }
-                    }
-                }
-
                 // Shortcuts
                 Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
                 Flow {
@@ -541,13 +541,17 @@ Rectangle {
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
+                // 异步列表缓存：_allMods=全量，totalModCount=未过滤总数（标题“共？个模组”）
+                property var _allMods: []
+                property int totalModCount: 0
+
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 10
 
                     // Header
                     RowLayout {
-                        Text { text: qsTr("Mod 管理"); font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
+                        Text { text: qsTr("Mod 管理（共 %1 个模组）").arg(modSection.totalModCount); font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
                         Item { Layout.fillWidth: true }
 
                         // Open folder button
@@ -586,7 +590,7 @@ Rectangle {
                         Layout.fillWidth: true
                         showIcon: true
                         placeholderText: qsTr("搜索 Mod 名称...")
-                        onTextChanged: modSection.filterModList()
+                        onTextChanged: modSection.applyModFilter()
                     }
 
                     // Grid of mod cards
@@ -725,22 +729,16 @@ Rectangle {
 
                 function refreshModList() {
                     modListModel.clear()
-                    if (backend) {
-                        var m = backend.listMods(currentSelectedVersion)
-                        for (var i = 0; i < m.length; i++) modListModel.append(m[i])
-                    }
+                    if (backend) backend.listModsAsync(currentSelectedVersion)
                 }
 
-                function filterModList() {
+                function applyModFilter() {
                     modListModel.clear()
-                    if (backend) {
-                        var allMods = backend.listMods(currentSelectedVersion)
-                        var query = modSearchField.text.toLowerCase()
-                        for (var i = 0; i < allMods.length; i++) {
-                            var name = (allMods[i].modName || allMods[i].fileName || "").toLowerCase()
-                            if (!query || name.indexOf(query) >= 0)
-                                modListModel.append(allMods[i])
-                        }
+                    var query = modSearchField.text.toLowerCase()
+                    for (var i = 0; i < _allMods.length; i++) {
+                        var name = (_allMods[i].modName || _allMods[i].fileName || "").toLowerCase()
+                        if (!query || name.indexOf(query) >= 0)
+                            modListModel.append(_allMods[i])
                     }
                 }
             }
@@ -756,6 +754,9 @@ Rectangle {
                 opacity: settingsNav.currentIndex === 4 ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                // 异步列表缓存（全量，过滤在 applyRpFilter 内进行）
+                property var _allPacks: []
 
                 onVisibleChanged: {
                     if (visible) refreshRPList()
@@ -806,7 +807,7 @@ Rectangle {
                         Layout.fillWidth: true
                         showIcon: true
                         placeholderText: qsTr("搜索资源包名称...")
-                        onTextChanged: rpSection.filterRPList()
+                        onTextChanged: rpSection.applyRpFilter()
                     }
 
                     // Grid of resource pack cards
@@ -929,22 +930,16 @@ Rectangle {
 
                 function refreshRPList() {
                     rpListModel.clear()
-                    if (backend) {
-                        var p = backend.listResourcePacks(currentSelectedVersion)
-                        for (var i = 0; i < p.length; i++) rpListModel.append(p[i])
-                    }
+                    if (backend) backend.listResourcePacksAsync(currentSelectedVersion)
                 }
 
-                function filterRPList() {
+                function applyRpFilter() {
                     rpListModel.clear()
-                    if (backend) {
-                        var allPacks = backend.listResourcePacks(currentSelectedVersion)
-                        var query = rpSearchField.text.toLowerCase()
-                        for (var i = 0; i < allPacks.length; i++) {
-                            var name = (allPacks[i].name || allPacks[i].fileName || "").toLowerCase()
-                            if (!query || name.indexOf(query) >= 0)
-                                rpListModel.append(allPacks[i])
-                        }
+                    var query = rpSearchField.text.toLowerCase()
+                    for (var i = 0; i < _allPacks.length; i++) {
+                        var name = (_allPacks[i].name || _allPacks[i].fileName || "").toLowerCase()
+                        if (!query || name.indexOf(query) >= 0)
+                            rpListModel.append(_allPacks[i])
                     }
                 }
             }
@@ -960,10 +955,7 @@ Rectangle {
                 onVisibleChanged: {
                     if (visible) {
                         saveListModel.clear()
-                        if (backend) {
-                            var s = backend.listSaves(currentSelectedVersion)
-                            for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
-                        }
+                        if (backend) backend.listSavesAsync(currentSelectedVersion)
                     }
                 }
 
@@ -998,10 +990,7 @@ Rectangle {
                     RefreshButton {
                         onClicked: {
                             saveListModel.clear()
-                            if (backend) {
-                                var s = backend.listSaves(currentSelectedVersion)
-                                for (var i = 0; i < s.length; i++) saveListModel.append(s[i])
-                            }
+                            if (backend) backend.listSavesAsync(currentSelectedVersion)
                             toastManager.show("存档列表已刷新")
                         }
                     }
@@ -1046,7 +1035,7 @@ Rectangle {
                     }
 
                     Component.onCompleted: {
-                        if (backend) { var s = backend.listSaves(); for (var i = 0; i < s.length; i++) saveListModel.append(s[i]) }
+                        if (backend) backend.listSavesAsync(currentSelectedVersion)
                     }
                 }
             }

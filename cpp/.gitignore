@@ -59,3 +59,12 @@ src/multiplayer/encrypted_frag_*.cpp
 src/multiplayer/encrypted_addr_local.h
 cf_api_key_local.h
 
+
+# ═══ Ad-hoc diagnostic scripts (session scratch, not source) ═══
+_*.py
+_*.cpp
+_*.ps1
+_*.cs
+_*.toml
+_yidao_server*/
+build-test/

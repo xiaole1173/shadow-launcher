@@ -43,7 +43,7 @@ Rectangle {
         }
         // 单任务限制：同一时间只允许一个整合包任务（下载或导入）
         if (backend.modpackBusy()) {
-            if (toastManager) toastManager.show(qsTr("已有整合包任务（下载或导入）进行中，请等待完成"), "", 5000)
+            if (toastManager) toastManager.show(qsTr("已有整合包任务（下载或导入）进行中，请等待完成"), 5000)
             return
         }
         root.visible = true

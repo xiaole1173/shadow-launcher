@@ -25,9 +25,6 @@ Rectangle {
     property var mainWindow: null
     property var toastManager: null
 
-    // 单任务弹窗：已有整合包任务（下载/导入）进行中时提示
-    property bool _showPackBusy: false
-
     // ── 详情数据（DownloadPage 传入）──
     property string modpackDetailSlug: ""
     property string modpackDetailTitle: ""
@@ -171,11 +168,11 @@ Rectangle {
             if (toastManager) toastManager.show("版本名称不能为空")
             return
         }
-        // 单任务限制：同一时间只允许一个整合包任务（下载或导入），超限弹窗提醒
+        // 单任务限制：同一时间只允许一个整合包任务（下载或导入），超限右下角蓝色 toast 提醒
         if (backend && backend.modpackBusy()) {
             root._showNameDialog = false
             root._pendingVersion = null
-            root._showPackBusy = true
+            if (toastManager) toastManager.show(qsTr("已有整合包任务（下载或导入）进行中，请等待完成"), 5000)
             return
         }
         var displayName = root.modpackDetailTitle || root.modpackDetailSlug
@@ -453,48 +450,6 @@ Rectangle {
                             onClicked: root.confirmDownload(versionNameInput.text)
                         }
                     }
-                }
-            }
-        }
-    }
-
-    // ── 单任务限制弹窗：已有整合包任务（下载/导入）进行中 ──
-    GenericPopup {
-        id: packBusyPopup
-        anchors.fill: parent
-        title: qsTr("已有整合包任务进行中")
-        subtitle: qsTr("当前已有整合包正在下载或导入，同一时间只能处理一个整合包任务，请等待其完成后再试。")
-        opened: root._showPackBusy
-        onClosed: root._showPackBusy = false
-
-        Column {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 12
-            spacing: 16
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("下载或导入完成后即可继续操作")
-                color: StyleTokens.textMuted
-                font.pixelSize: StyleTokens.fontSizeXs
-            }
-
-            Rectangle {
-                width: 120; height: 34; radius: StyleTokens.radiusMd
-                color: StyleTokens.accent
-                anchors.horizontalCenter: parent.horizontalCenter
-                Text {
-                    anchors.centerIn: parent
-                    text: qsTr("知道了")
-                    color: StyleTokens.textInverse
-                    font.pixelSize: StyleTokens.fontSizeMd
-                    font.weight: Font.Medium
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root._showPackBusy = false
                 }
             }
         }

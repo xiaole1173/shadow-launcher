@@ -116,6 +116,7 @@ Item {
     Flickable {
         anchors.fill: parent
         contentHeight: contentColumn.implicitHeight + 48
+        contentWidth: contentColumn.width   // 显式限定内容宽，任何子元素超出都被裁剪而非“向右溢出”
         clip: true
 
         ColumnLayout {
@@ -133,6 +134,7 @@ Item {
                 font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.DemiBold; color: StyleTokens.textSecondary
             }
             RowLayout {
+                Layout.fillWidth: true
                 spacing: 10
                 Rectangle {
                     id: followGlobalBtn
@@ -195,12 +197,15 @@ Item {
                     }
                 }
                 Text {
+                    // 提示文字可伸缩且超长省略，保证整行不会超出列宽（独立配置文案较长，曾导致向右溢出）
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
                     text: root._mode === 0
                         ? qsTr("当前使用全局 Java 设置")
                         : qsTr("此版本使用独立配置，不受全局设置影响")
                     font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
                 }
-                Item { Layout.fillWidth: true }
             }
 
             // ═══════════════════════════════════════

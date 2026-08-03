@@ -13,6 +13,11 @@
 #include <QtConcurrent>
 #include <QDateTime>
 #include <QUuid>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QImage>
+#include <webp/decode.h>
 
 #include "modpack_parser.h"
 #include "modpack_downloader.h"
@@ -95,7 +100,7 @@ void ModpackInstallTask::configure(VersionBackend* vb, VersionIsolation* iso,
 
 // ── 启动 ──
 
-void ModpackInstallTask::start(const QString& zipPath, const QString& versionName, bool includeOptional)
+void ModpackInstallTask::start(const QString& zipPath, const QString& versionName, bool includeOptional, const QString& iconUrl)
 {
     if (m_busy) return;
     if (m_vb->isInstalling()) {
@@ -105,6 +110,8 @@ void ModpackInstallTask::start(const QString& zipPath, const QString& versionNam
 
     m_busy = true;
     m_cancel = false;
+    m_phase = Phase::Idle;   // ⚠ 必须重置：任务对象复用，上次导入结束时为 Done，不重置会卡死在 tryFinalize 守卫
+    m_packIcon = iconUrl;    // ⚠ 必须重置：上次导入的图标会残留到本次导入卡片/标记
     m_zipPath = zipPath;
     m_userVersionName = versionName;
     m_includeOptional = includeOptional;
@@ -165,6 +172,25 @@ void ModpackInstallTask::runParse()
             m_targetName = findFreeVersionName(base);
             m_versionDir = m_gameDir + QStringLiteral("/versions/") + m_targetName;
             m_versionDirCreated = !QDir(m_versionDir).exists();
+
+            // 整合包标记：版本目录一确定就尽早写入（而非等 completeImport），
+            // 避免导入中途失败/卡死留下的版本目录识别不到 → 版本选择误走加载器图标
+            QDir().mkpath(m_versionDir);   // 解析阶段目录可能尚未创建，先建父目录
+            {
+                QFile marker(m_versionDir + QStringLiteral("/.shadow_modpack"));
+                if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    QJsonObject mo;
+                    mo[QStringLiteral("name")] = m_meta.name;
+                    mo[QStringLiteral("icon")] = m_packIcon;
+                    marker.write(QJsonDocument(mo).toJson());
+                    marker.close();
+                }
+            }
+            // 图标本地化：有图标 URL 则后台拉取→解码(webp/PNG)→存版本目录（版本选择优先读本地）
+            if (!m_packIcon.isEmpty()) {
+                QMetaObject::invokeMethod(this, &ModpackInstallTask::downloadPackIconToVersionDir,
+                                          Qt::QueuedConnection);
+            }
 
             // 资源落盘目录：对齐项目现有目录规则（VersionIsolation::getVersionGameDir
             // 方案 C：game/ 存在且非空 → game；否则版本根目录；隔离关闭 → 公共 gameDir）。
@@ -806,17 +832,6 @@ void ModpackInstallTask::ensureVersionJsonFallback(int attempt)
 void ModpackInstallTask::completeImport()
 {
     emit logLine(tr("[追踪] completeImport 进入"));
-    // 整合包标记：{版本目录}/.shadow_modpack 存在 → 版本选择等 UI 识别为整合包并显示整合包图标
-    if (!m_versionDir.isEmpty()) {
-        QFile marker(m_versionDir + QStringLiteral("/.shadow_modpack"));
-        if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            QJsonObject mo;
-            mo[QStringLiteral("name")] = m_meta.name;
-            mo[QStringLiteral("icon")] = m_packIcon;
-            marker.write(QJsonDocument(mo).toJson());
-            marker.close();
-        }
-    }
     // 注册到版本列表（QML 版本页立即可见，不再出现 versions 空白）
     if (m_vb) {
         m_vb->refreshInstalled();
@@ -833,6 +848,49 @@ void ModpackInstallTask::completeImport()
     emit stepChanged(tr("完成"));
     emit logLine(tr("✅ 整合包导入完成：%1 → 版本 %2").arg(m_meta.name, m_targetName));
     emit finished(true, m_meta.name, m_targetName);
+}
+
+// ── 图标本地化：主线程异步拉取 → 解码(webp/PNG) → 存 {版本目录}/modpack_icon.png ──
+// 版本选择界面优先读取本地文件；多数 CDN 图标为 webp，Qt 无 qwebp 插件，需 libwebp 解码转 PNG
+void ModpackInstallTask::downloadPackIconToVersionDir()
+{
+    if (m_packIcon.isEmpty() || m_versionDir.isEmpty()) return;
+    if (m_cancel) return;
+    QDir().mkpath(m_versionDir);
+    const QString dst = m_versionDir + QStringLiteral("/modpack_icon.png");
+
+    auto* mgr = new QNetworkAccessManager(this);
+    QUrl iconUrl(m_packIcon);
+    QNetworkRequest req(iconUrl);
+    req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    QNetworkReply* reply = mgr->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, mgr, dst]() {
+        const bool ok = (reply->error() == QNetworkReply::NoError);
+        const QByteArray data = reply->readAll();
+        reply->deleteLater();
+        mgr->deleteLater();
+        if (!ok || data.isEmpty()) return;
+        // 失败/取消已回滚（版本目录可能被删）：不再写入，避免重建残留目录
+        if (m_phase == Phase::Error || m_phase == Phase::Cancelled) return;
+
+        QImage img;
+        // webp 优先（CDN 常见），失败再尝试普通格式
+        int w = 0, h = 0;
+        uint8_t* rgba = WebPDecodeRGBA(
+            reinterpret_cast<const uint8_t*>(data.constData()), data.size(), &w, &h);
+        if (rgba && w > 0 && h > 0) {
+            img = QImage(rgba, w, h, QImage::Format_RGBA8888,
+                         [](void* p) { WebPFree(p); }, rgba);
+        } else if (!img.loadFromData(data)) {
+            return;
+        }
+        if (img.isNull()) return;
+        if (img.width() > 128 || img.height() > 128)
+            img = img.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        if (img.save(dst, "PNG"))
+            emit logLine(tr("整合包图标已保存: %1").arg(dst));
+    });
 }
 
 // ── 取消 ──

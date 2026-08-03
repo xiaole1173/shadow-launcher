@@ -46,12 +46,17 @@ public:
     void configure(VersionBackend* vb, VersionIsolation* iso,
                    const QString& gameDir, const QString& cfApiKey);
 
-    void start(const QString& zipPath, const QString& versionName = {}, bool includeOptional = false);
+    void start(const QString& zipPath, const QString& versionName = {}, bool includeOptional = false, const QString& iconUrl = {});
     void cancel();
     bool isBusy() const { return m_busy; }
 
     // 整合包图标（下载 tab 来源 URL；外部导入为空 → 卡片显示占位）
-    void setPackIcon(const QString& url) { m_packIcon = url; if (!url.isEmpty()) m_cardInfo[QStringLiteral("icon")] = url; }
+    // 空 URL 时移除卡片图标（每次导入由 start() 重置 m_packIcon，杜绝上一个包图标残留）
+    void setPackIcon(const QString& url) {
+        m_packIcon = url;
+        if (!url.isEmpty()) m_cardInfo[QStringLiteral("icon")] = url;
+        else m_cardInfo.remove(QStringLiteral("icon"));
+    }
 
     // 供 QML 展示的模组列表（status 随下载实时更新）
     QVariantList modItems() const;
@@ -81,6 +86,7 @@ private:
     void runFinalize();
     void ensureVersionJsonFallback(int attempt);  // 兜底：清单补全 version.json
     void completeImport();    // 刷新版本列表 + 成功信号
+    void downloadPackIconToVersionDir();  // 主线程异步：拉取图标→解码(webp/PNG)→存 {版本目录}/modpack_icon.png
     void fail(const QString& error);      // 统一失败出口（含回滚）
     void finishCancelled();               // 取消出口（含回滚）
     void rollback();                      // 删除自建文件/恢复备份/清理版本目录

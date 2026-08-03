@@ -74,8 +74,9 @@ public:
 
     // ── Public API（QML 既有接口，保持不变）──
     /// versionName：用户指定版本名（下载 tab 输入，注册名）；空则自动生成
+    /// iconUrl：整合包图标 URL（下载 tab 传入）；空则无图标（卡片/版本选择用占位）
     Q_INVOKABLE void startImport(const QString& zipFilePath, const QString& versionName = {},
-                                 bool includeOptional = false);
+                                 bool includeOptional = false, const QString& iconUrl = {});
     Q_INVOKABLE void cancelImport();
     Q_INVOKABLE void dismissResult();  // Called from QML after user dismisses success
 

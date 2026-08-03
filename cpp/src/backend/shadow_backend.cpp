@@ -31,6 +31,7 @@
 #include <QElapsedTimer>
 #include <QMutex>
 #include <QThread>
+#include <QtConcurrent>
 #include <QRegularExpression>
 #include <functional>
 #include "account_backend.h"
@@ -276,44 +277,52 @@ ShadowBackend::ShadowBackend(QObject* parent)
             return;
         }
 
-        QString gameDir = getVersionGameDir(vid);
-        QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + vid;
-        qint64 totalSize = 0;
+        // 异步计算：游戏目录/版本目录/assets 全量递归遍历在 worker 线程，
+        // 避免模组上百后「选择版本」卡死 UI（选中即回显，大小稍后刷新）
+        const QString gameDir = getVersionGameDir(vid);
+        const QString versionDir = m_app->gameDir() + QStringLiteral("/versions/") + vid;
+        const QString assetsPath = m_app->gameDir() + QStringLiteral("/assets/objects");
+        QtConcurrent::run([this, vid, gameDir, versionDir, assetsPath]() {
+            qint64 totalSize = 0;
 
-        // Count game directory (worlds, mods, saves, screenshots, etc.)
-        if (QDir(gameDir).exists()) {
-            QDirIterator it(gameDir, QDir::Files, QDirIterator::Subdirectories);
-            while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
-        }
-        // Add version files (jar, json, libraries) — but NOT game/ subdir (already counted)
-        if (QDir(versionDir).exists()) {
-            QDirIterator it(versionDir, QDir::Files, QDirIterator::Subdirectories);
-            while (it.hasNext()) {
-                QString fp = it.next();
-                // Skip game/ subdirectory for isolated versions (already counted via gameDir)
-                if (fp.contains(QStringLiteral("/game/")) || fp.contains(QStringLiteral("\\game\\")))
-                    continue;
-                totalSize += it.fileInfo().size();
+            // Count game directory (worlds, mods, saves, screenshots, etc.)
+            if (QDir(gameDir).exists()) {
+                QDirIterator it(gameDir, QDir::Files, QDirIterator::Subdirectories);
+                while (it.hasNext()) { it.next(); totalSize += it.fileInfo().size(); }
             }
-        }
-        // Count shared assets (objects/) for a realistic total
-        QString assetsPath = m_app->gameDir() + QStringLiteral("/assets/objects");
-        if (QDir(assetsPath).exists()) {
-            QDirIterator ait(assetsPath, QDir::Files, QDirIterator::Subdirectories);
-            while (ait.hasNext()) { ait.next(); totalSize += ait.fileInfo().size(); }
-        }
+            // Add version files (jar, json, libraries) — but NOT game/ subdir (already counted)
+            if (QDir(versionDir).exists()) {
+                QDirIterator it(versionDir, QDir::Files, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    QString fp = it.next();
+                    // Skip game/ subdirectory for isolated versions (already counted via gameDir)
+                    if (fp.contains(QStringLiteral("/game/")) || fp.contains(QStringLiteral("\\game\\")))
+                        continue;
+                    totalSize += it.fileInfo().size();
+                }
+            }
+            // Count shared assets (objects/) for a realistic total
+            if (QDir(assetsPath).exists()) {
+                QDirIterator ait(assetsPath, QDir::Files, QDirIterator::Subdirectories);
+                while (ait.hasNext()) { ait.next(); totalSize += ait.fileInfo().size(); }
+            }
 
-        QVariantMap summary;
-        if (totalSize < 1024 * 1024)
-            summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / 1024.0, 'f', 1) + QStringLiteral(" KB");
-        else if (totalSize < 1024LL * 1024 * 1024)
-            summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / (1024.0 * 1024), 'f', 1) + QStringLiteral(" MB");
-        else
-            summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / (1024.0 * 1024 * 1024), 'f', 2) + QStringLiteral(" GB");
+            QVariantMap summary;
+            if (totalSize < 1024 * 1024)
+                summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / 1024.0, 'f', 1) + QStringLiteral(" KB");
+            else if (totalSize < 1024LL * 1024 * 1024)
+                summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / (1024.0 * 1024), 'f', 1) + QStringLiteral(" MB");
+            else
+                summary[QStringLiteral("sizeDisplay")] = QString::number(totalSize / (1024.0 * 1024 * 1024), 'f', 2) + QStringLiteral(" GB");
 
-        summary[QStringLiteral("modCount")] = 0;
-        m_currentVersionSummary = summary;
-        emit currentVersionSummaryChanged();
+            summary[QStringLiteral("modCount")] = 0;
+            QMetaObject::invokeMethod(this, [this, vid, summary]() {
+                // 防过期：选择已切换则丢弃旧结果
+                if (m_version->selectedVersion() != vid) return;
+                m_currentVersionSummary = summary;
+                emit currentVersionSummaryChanged();
+            }, Qt::QueuedConnection);
+        });
     });
     connect(m_version, &VersionBackend::installStateChanged,
             this, &ShadowBackend::installStateChanged);
@@ -552,8 +561,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
                         qCInfo(logApp) << QStringLiteral("[整合包] 下载完成，自动导入: %1 版本名=%2")
                             .arg(info.zipPath, info.versionName);
                         if (importer) {
-                            if (!info.iconUrl.isEmpty()) importer->setPackIcon(info.iconUrl);
-                            importer->startImport(info.zipPath, info.versionName);
+                            // 图标随 startImport 传入（任务侧重置/落盘），不再走 setPackIcon 前置设置
+                            importer->startImport(info.zipPath, info.versionName, false, info.iconUrl);
                         }
                     } else if (!success) {
                         qCInfo(logApp) << QStringLiteral("[整合包] 下载失败，不导入: %1").arg(info.zipPath);
@@ -946,18 +955,14 @@ void ShadowBackend::refreshVersionDetails()
         m_isScanningVersions = true;
         emit scanningChanged();
 
-        QTimer::singleShot(0, this, [this]() {
-            QDir gameDir(m_app->gameDir());
+        // 扫描体放到 worker 线程（大版本目录遍历/尺寸统计可能耗时数百 ms，避免卡 UI）
+        const QString gameDirPath = m_app->gameDir();
+        QtConcurrent::run([this, gameDirPath]() {
+            QVariantList local;
+            QDir gameDir(gameDirPath);
         QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
         QDir versionsDir(versionsPath);
-
-        m_versionDetails.clear();
-        if (!versionsDir.exists()) {
-            m_isScanningVersions = false;
-            emit scanningChanged();
-            emit versionDetailsReady();
-            return;
-        }
+        if (versionsDir.exists()) {
 
     // Map of known MC versions to their types (from cached manifest)
     QMap<QString, QString> knownTypes;
@@ -1144,20 +1149,41 @@ void ShadowBackend::refreshVersionDetails()
             while (modIt.hasNext()) { modIt.next(); modCount++; }
         }
         detail[QStringLiteral("modCount")] = modCount;
-        detail[QStringLiteral("isModpack")] =
-            QFileInfo(verPath + QStringLiteral("/.shadow_modpack")).exists();
+        {
+            // 整合包标记：isModpack=true 时读取标记内图标 URL（下载页传入），版本选择直接用真实图标
+            const QString markerPath = verPath + QStringLiteral("/.shadow_modpack");
+            const bool isModpack = QFileInfo::exists(markerPath);
+            detail[QStringLiteral("isModpack")] = isModpack;
+            if (isModpack) {
+                const QString localIcon = verPath + QStringLiteral("/modpack_icon.png");
+                // 本地图标优先（导入时已解码落盘）；无则退回标记里的 URL
+                detail[QStringLiteral("modpackIconPath")] =
+                    QFileInfo::exists(localIcon) ? QUrl::fromLocalFile(localIcon).toString() : QString();
+                QFile mf(markerPath);
+                if (mf.open(QIODevice::ReadOnly)) {
+                    const QJsonDocument md = QJsonDocument::fromJson(mf.readAll());
+                    mf.close();
+                    if (md.isObject())
+                        detail[QStringLiteral("modpackIcon")] =
+                            md.object().value(QStringLiteral("icon")).toString();
+                }
+            }
+        }
         detail[QStringLiteral("jsonPath")] = jsonPath;
         detail[QStringLiteral("jarPath")] = jarPath;
 
-        m_versionDetails.append(detail);
+        local.append(detail);
     }
 
-    emit versionDetailsReady();
-    emit logMessage(tr("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
-
-    m_isScanningVersions = false;
-    emit scanningChanged();
-    });  // end inner QTimer::singleShot lambda
+        }  // end if (versionsDir.exists())
+        QMetaObject::invokeMethod(this, [this, local]() {
+            m_versionDetails = local;
+            emit versionDetailsReady();
+            emit logMessage(tr("已扫描 %1 个已安装版本").arg(m_versionDetails.size()));
+            m_isScanningVersions = false;
+            emit scanningChanged();
+        }, Qt::QueuedConnection);
+        });  // end QtConcurrent::run lambda
     });  // end outer QTimer::singleShot lambda
 }
 
@@ -1684,7 +1710,31 @@ QVariantList ShadowBackend::listResourcePacks(const QString& versionId) const
     return m_localMods->scanResourcePacks(versionId);
 }
 
-// ── 辅助：递归计算目录大小 ──
+// ── 异步列表加载：parseJar / 目录遍历在 worker 线程，完成后回主线程发信号 ──
+void ShadowBackend::listModsAsync(const QString& versionId)
+{
+    if (!m_localMods) return;
+    LocalModManager* lmm = m_localMods;
+    QtConcurrent::run([this, lmm, versionId]() {
+        const QVariantList result = lmm->scanMods(versionId);
+        QMetaObject::invokeMethod(this, [this, versionId, result]() {
+            emit modsListReady(versionId, result);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void ShadowBackend::listResourcePacksAsync(const QString& versionId)
+{
+    if (!m_localMods) return;
+    LocalModManager* lmm = m_localMods;
+    QtConcurrent::run([this, lmm, versionId]() {
+        const QVariantList result = lmm->scanResourcePacks(versionId);
+        QMetaObject::invokeMethod(this, [this, versionId, result]() {
+            emit resourcePacksListReady(versionId, result);
+        }, Qt::QueuedConnection);
+    });
+}
+
 static qint64 computeDirSize(const QString& path)
 {
     qint64 total = 0;
@@ -1736,6 +1786,40 @@ QVariantList ShadowBackend::listSaves(const QString& versionId) const
     return result;
 }
 
+
+void ShadowBackend::listSavesAsync(const QString& versionId)
+{
+    const QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
+    QtConcurrent::run([this, versionId, savesDir]() {
+        QVariantList result;
+        QDir dir(savesDir);
+        if (dir.exists()) {
+            const auto dirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            for (const auto& fi : dirs) {
+                QVariantMap m;
+                m[QStringLiteral("name")] = fi.fileName();
+                qint64 sizeBytes = 0;
+                QDirIterator it(fi.absoluteFilePath(), QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot,
+                                QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    it.next();
+                    if (it.fileInfo().isFile()) sizeBytes += it.fileInfo().size();
+                }
+                m[QStringLiteral("sizeBytes")] = sizeBytes;
+                m[QStringLiteral("sizeDisplay")] = formatSizeDisplay(sizeBytes);
+                QString iconPath = fi.absoluteFilePath() + QStringLiteral("/icon.png");
+                m[QStringLiteral("iconPath")] = QFile::exists(iconPath)
+                    ? QUrl::fromLocalFile(iconPath).toString() : QString();
+                result.append(m);
+            }
+        }
+        QMetaObject::invokeMethod(this, [this, versionId, result]() {
+            emit savesListReady(versionId, result);
+        }, Qt::QueuedConnection);
+    });
+}
+
+// ── 辅助：递归计算目录大小 ──
 void ShadowBackend::deleteSave(const QString& saveName, const QString& versionId)
 {
     if (saveName.isEmpty()) return;

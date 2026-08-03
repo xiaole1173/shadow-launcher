@@ -129,33 +129,6 @@ Rectangle {
                     }
                 }
                 Item { height: 4; width: 1 }
-
-                // Directory info
-                Rectangle {
-                    Layout.fillWidth: true; height: childrenRect.height + 16; radius: StyleTokens.radiusMd
-                    color: StyleTokens.bgPrimary
-                    visible: backend ? (backend.gameDirInfo !== undefined && backend.gameDirInfo.versionCount > 0) : false
-                    ColumnLayout {
-                        anchors.left: parent.left; anchors.leftMargin: 12
-                        anchors.right: parent.right; anchors.rightMargin: 12
-                        anchors.top: parent.top; anchors.topMargin: 8
-                        spacing: 4
-                        RowLayout {
-                            Text { text: qsTr("版本"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; Layout.preferredWidth: 40 }
-                            Text { text: backend ? (backend.gameDirInfo.versionCount || 0) : 0; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.accentLink }
-                        }
-                        RowLayout {
-                            Text { text: qsTr("模组"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; Layout.preferredWidth: 40 }
-                            Text { text: backend ? (backend.gameDirInfo.modCount || 0) : 0; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textSecondary }
-                        }
-                        RowLayout {
-                            Text { text: qsTr("占用"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; Layout.preferredWidth: 40 }
-                            Text { text: backend ? (backend.gameDirInfo.sizeDisplay || "") : ""; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textSecondary }
-                        }
-                    }
-                }
-
-                Item { height: 4; width: 1 }
                 Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.bgElevated; border.width: 1
                     scale: addDirHover.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -482,10 +455,16 @@ Rectangle {
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 4
                                     Image {
-                                        source: getBlockIcon()
+                                        // 整合包行：本地图标（导入时解码落盘）→ 标记 URL → 通用图标，逐级回退
+                                        source: model.isModpack
+                                            ? (model.modpackIconPath || model.modpackIcon || "icons/lucide/package.svg")
+                                            : getBlockIcon()
                                         Layout.preferredWidth: 18; Layout.preferredHeight: 18
                                         fillMode: Image.PreserveAspectFit
                                         smooth: true
+                                        onStatusChanged: {
+                                            if (status === Image.Error) source = "icons/lucide/package.svg"
+                                        }
                                     }
                                     Text {
                                         text: parseMcVersion()

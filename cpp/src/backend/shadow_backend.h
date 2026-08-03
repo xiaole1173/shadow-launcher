@@ -305,6 +305,11 @@ public:
     Q_INVOKABLE QVariantList listResourcePacks(const QString& versionId = {}) const;
     Q_INVOKABLE QVariantList listSaves(const QString& versionId = {}) const;
 
+    // ── 异步列表加载（模组上百时 parseJar/目录遍历耗时，worker 线程执行不卡 UI）──
+    Q_INVOKABLE void listModsAsync(const QString& versionId = {});
+    Q_INVOKABLE void listResourcePacksAsync(const QString& versionId = {});
+    Q_INVOKABLE void listSavesAsync(const QString& versionId = {});
+
     // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
     Q_INVOKABLE void updateOfflineSkin(const QString& username);
@@ -568,6 +573,10 @@ signals:
     void versionDetailsReady();
     void scanningChanged();
     void installedVersionsChanged();
+    // 异步列表加载完成（worker 线程扫描后回主线程发信号）
+    void modsListReady(const QString& versionId, const QVariantList& mods);
+    void resourcePacksListReady(const QString& versionId, const QVariantList& packs);
+    void savesListReady(const QString& versionId, const QVariantList& saves);
     void activeVersionNamesChanged();
     void selectedVersionChanged();
     void selectedVersionClearedAfterDelete();
