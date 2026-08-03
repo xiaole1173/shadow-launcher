@@ -229,7 +229,7 @@
 | `DetailVersionCard.qml` | 173 | 版本详情卡（概览）。 |
 | `DetailInfoCard.qml` | 110 | 通用信息卡（详情页统计项）。 |
 | `VersionSelectOverlay.qml` | 521 | 版本选择浮层（左栏版本/模组/占用卡 + 右侧详情）。 |
-| `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层（实际生效）**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。概览快捷入口 2026-08-03 分类重做：统一 ShadowButton + 文件夹/日志/其他分组；Mod/config/光影可见性用本地 isModded()（backend.isModdedVersion 是 stub 恒 false 勿用）。 |
+| `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层（实际生效）**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。概览快捷入口 2026-08-03 分类重做：统一 ShadowButton + 文件夹/日志/其他分组；Mod 文件夹按钮 visible 内联白名单判定（lt ∈ Forge/Fabric/NeoForge/Quilt，与 sidebar Mod 管理同款写法，原版必隐藏）；光影包/config 按钮已移除。 |
 | `VersionLaunchSection.qml` | 599 | 启动配置分区（Java/参数/GPU）。 |
 | `VersionMemorySection.qml` | 251 | 内存分区。 |
 
@@ -284,6 +284,6 @@
 |---|---|
 | 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |
 | 2026-08-03 | VersionSettingsOverlay 概览快捷入口分类重做（ShadowButton 统一 + 文件夹/日志/其他分组 + 修 stub isModdedVersion 恒隐藏 bug）；StatsPage tooltip 自定义 Popup 圆角框。 |
-| 2026-08-03 | 审计发现：SubPageOverlays.qml / VersionSelectPage.qml / VersionSettingsPage.qml / SettingsGeneralPage.qml / SettingsMemoryPage.qml 为死代码（无引用）；VersionSelectOverlay/VersionSettingsOverlay 为实际生效页。 |
+| 2026-08-03 | 快捷入口 Mod 按钮 visible 改 sidebar 同款内联白名单（readonly property 中转不生效，内联可靠）；删光影包/config 按钮；移除临时 DIA 日志。 |
 
 > 之后每次代码变更后在此追加一行：日期 + 变更文件 + 一句话说明。
