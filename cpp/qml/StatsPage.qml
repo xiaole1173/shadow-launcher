@@ -219,12 +219,16 @@ Item {
                                     id: rowHover
                                 }
 
-                                ToolTip {
+                                // ── 自定义悬浮提示（圆角 + 启动器配色，替代系统默认米白尖角 ToolTip）──
+                                // 用 Popup 而非 Rectangle：Popup 渲染在 Overlay 层，不会被 chartBox 的 clip 裁剪
+                                Popup {
                                     id: tip
                                     visible: rowHover.hovered && nameLabel.truncated
                                     text: modelData.displayName || modelData.versionId || ""
                                     delay: 0
                                     timeout: -1
+                                    padding: 0
+                                    closePolicy: Popup.NoAutoClose
                                     x: {
                                         var cursorX = rowHover.point.position.x
                                         var gap = 12
@@ -233,7 +237,25 @@ Item {
                                             ? cursorX - gap - tipW
                                             : cursorX + gap
                                     }
-                                    y: rowHover.point.position.y - 24
+                                    y: rowHover.point.position.y - 28
+                                    enter: Transition {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+                                    }
+                                    exit: Transition {
+                                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.InCubic }
+                                    }
+                                    background: Rectangle {
+                                        radius: StyleTokens.radiusMd
+                                        color: StyleTokens.bgElevated
+                                        border.color: StyleTokens.bgInput; border.width: 1
+                                    }
+                                    contentItem: Text {
+                                        text: tip.text
+                                        font.pixelSize: StyleTokens.fontSizeSm
+                                        color: StyleTokens.textSecondary
+                                        leftPadding: 10; rightPadding: 10
+                                        topPadding: 6; bottomPadding: 6
+                                    }
                                 }
 
                                 Text {

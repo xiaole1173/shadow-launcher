@@ -349,146 +349,142 @@ Rectangle {
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
-                // Shortcuts
+                // ── 快捷入口（2026-08-03 分类重做：统一 ShadowButton 组件 + 分组排序）──
                 Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+
+                // 当前版本是否带加载器（Mod 相关按钮可见性；backend.isModdedVersion 是 stub 恒 false，勿用）
+                function isModded() {
+                    if (!backend || !backend.versionDetails || !currentSelectedVersion) return false
+                    for (var i = 0; i < backend.versionDetails.length; i++) {
+                        if (backend.versionDetails[i].id === currentSelectedVersion) {
+                            var lt = backend.versionDetails[i].loaderType || ""
+                            return lt !== "原版" && lt !== ""
+                        }
+                    }
+                    return false
+                }
+
+                // ── 文件夹 ──
+                Text { text: qsTr("文件夹"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
-                    // Always visible
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover0.hovered ? "#3a5ed0" : "#2a4590"
-                        scale: shMouse0.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/folder.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("版本文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover0 }
-                        MouseArea { id: shMouse0; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                                if (backend) {
-                                    backend.openVersionDir(currentSelectedVersion)
-                                    toastManager.show("已打开版本文件夹")
-                                }
-                            }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("版本文件夹"); iconSource: "icons/lucide/folder.svg"; iconSize: 14
+                        accentColor: "#2a4590"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { backend.openVersionDir(currentSelectedVersion); toastManager.show("已打开版本文件夹") }
                         }
                     }
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover1.hovered ? "#3a5ed0" : "#2a4590"
-                        scale: shMouse1.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/map.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("存档文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover1 }
-                        MouseArea { id: shMouse1; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { toastManager.show("已打开存档文件夹") } else { toastManager.show("无存档文件夹") } } }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("存档文件夹"); iconSource: "icons/lucide/map.svg"; iconSize: 14
+                        accentColor: "#2a4590"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { toastManager.show("已打开存档文件夹") } else { toastManager.show("无存档文件夹") } }
                         }
                     }
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover2.hovered ? "#3a5ed0" : "#2a4590"
-                        scale: shMouse2.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/camera.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("截图文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover2 }
-                        MouseArea { id: shMouse2; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openScreenshotsFolder(currentSelectedVersion)) { toastManager.show("已打开截图文件夹") } else { toastManager.show("无截图文件夹") } } }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("截图文件夹"); iconSource: "icons/lucide/camera.svg"; iconSize: 14
+                        accentColor: "#2a4590"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { if (backend.openScreenshotsFolder(currentSelectedVersion)) { toastManager.show("已打开截图文件夹") } else { toastManager.show("无截图文件夹") } }
                         }
                     }
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover6.hovered ? "#3a5ed0" : "#2a4590"
-                        scale: shMouse6.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/file-text.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("logs 日志"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover6 }
-                        MouseArea { id: shMouse6; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("无日志文件夹") } } }
-                        }
-                    }
-                    Rectangle { width: 130; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover7.hovered ? "#3a5ed0" : "#2a4590"
-                        scale: shMouse7.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/file.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("最新启动日志"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover7 }
-                        MouseArea { id: shMouse7; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (backend) { if (backend.openLatestLog(currentSelectedVersion)) { toastManager.show("已打开最新日志") } else { toastManager.show("无日志文件") } } }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("Mod 文件夹"); iconSource: "icons/lucide/puzzle.svg"; iconSize: 14
+                        accentColor: "#3a4a90"
+                        visible: isModded()
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } }
                         }
                     }
-                    Rectangle { width: 130; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover8.hovered ? "#c85050" : "#9a3838"
-                        scale: shMouse8.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/alert-octagon.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("崩溃日志"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover8 }
-                        MouseArea { id: shMouse8; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (backend) { if (backend.openCrashLog(currentSelectedVersion)) { toastManager.show("已打开崩溃日志") } else { toastManager.show("无崩溃报告") } } }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("config 文件夹"); iconSource: "icons/lucide/settings.svg"; iconSize: 14
+                        accentColor: "#3a4a90"
+                        visible: isModded()
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { backend.openConfigFolder(); toastManager.show("已打开 config 文件夹") }
                         }
                     }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("光影包"); iconSource: "icons/lucide/sparkles.svg"; iconSize: 14
+                        accentColor: "#3a4a90"
+                        visible: isModded()
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { if (backend.openShaderPacksFolder(currentSelectedVersion)) { toastManager.show("已打开光影包文件夹") } else { toastManager.show("无光影包文件夹") } }
+                        }
+                    }
+                }
 
-                    // Copy path
-                    Rectangle { width: 130; height: 32; radius: StyleTokens.radiusMd; color: shortcutHoverCp.hovered ? "#3a5ed0" : "#2a4590"
-                        scale: shMouseCp.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/clipboard-copy.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("复制版本路径"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHoverCp }
-                        MouseArea { id: shMouseCp; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                                if (backend) { backend.copyVersionPath(currentSelectedVersion); toastManager.show("已复制版本路径") }
-                            }
-                        }
-                    }
+                Item { Layout.preferredHeight: 8 }
 
-                    // Mod-only: visible only for modded versions
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover3.hovered ? "#3a5ed0" : "#3a4a90"
-                        visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
-                        scale: shMouse3.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/puzzle.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("Mod 文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover3 }
-                        MouseArea { id: shMouse3; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } } }
-                        }
-                    }
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover4.hovered ? "#3a5ed0" : "#3a4a90"
-                        visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
-                        scale: shMouse4.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/settings.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("config 文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
-                        }
-                        HoverHandler { id: shortcutHover4 }
-                        MouseArea { id: shMouse4; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { backend.openConfigFolder(); toastManager.show("已打开 config 文件夹") } }
+                // ── 日志 ──
+                Text { text: qsTr("日志"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
+                Flow {
+                    Layout.fillWidth: true; spacing: 8
+
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("logs 日志"); iconSource: "icons/lucide/file-text.svg"; iconSize: 14
+                        accentColor: "#2a4590"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("无日志文件夹") } }
                         }
                     }
-                    Rectangle { width: 120; height: 32; radius: StyleTokens.radiusMd; color: shortcutHover5.hovered ? "#3a5ed0" : "#3a4a90"
-                        visible: backend ? backend.isModdedVersion(currentSelectedVersion) : false
-                        scale: shMouse5.pressed ? 0.92 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Row { anchors.centerIn: parent; spacing: 5
-                            Image { source: "icons/lucide/sparkles.svg"; width: 14; height: 14; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: qsTr("光影包"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textPrimary }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("最新启动日志"); iconSource: "icons/lucide/file.svg"; iconSize: 14
+                        accentColor: "#2a4590"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (backend) { if (backend.openLatestLog(currentSelectedVersion)) { toastManager.show("已打开最新日志") } else { toastManager.show("无日志文件") } }
                         }
-                        HoverHandler { id: shortcutHover5 }
-                        MouseArea { id: shMouse5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                            onClicked: { if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }; if (backend) { if (backend.openShaderPacksFolder(currentSelectedVersion)) { toastManager.show("已打开光影包文件夹") } else { toastManager.show("无光影包文件夹") } } }
+                    }
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("崩溃日志"); iconSource: "icons/lucide/alert-octagon.svg"; iconSize: 14
+                        accentColor: "#9a3838"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (backend) { if (backend.openCrashLog(currentSelectedVersion)) { toastManager.show("已打开崩溃日志") } else { toastManager.show("无崩溃报告") } }
+                        }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 8 }
+
+                // ── 其他 ──
+                Text { text: qsTr("其他"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
+                Flow {
+                    Layout.fillWidth: true; spacing: 8
+
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("复制版本路径"); iconSource: "icons/lucide/clipboard-copy.svg"; iconSize: 14
+                        accentColor: "#2a4590"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (backend) { backend.copyVersionPath(currentSelectedVersion); toastManager.show("已复制版本路径") }
                         }
                     }
                 }
