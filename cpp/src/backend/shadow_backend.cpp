@@ -1768,6 +1768,12 @@ bool ShadowBackend::importMod(const QString& filePath, const QString& versionId)
     return m_localMods->importMod(filePath, versionId);
 }
 
+bool ShadowBackend::importResourcePack(const QString& filePath, const QString& versionId)
+{
+    if (!m_localMods) return false;
+    return m_localMods->importResourcePack(filePath, versionId);
+}
+
 void ShadowBackend::openVersionDir(const QString& versionId) {
     m_settings->openVersionDir(versionId);
 }

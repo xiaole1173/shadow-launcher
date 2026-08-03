@@ -548,6 +548,40 @@ bool LocalModManager::deleteResourcePack(const QString& fileName, const QString&
     return QFile::remove(path);
 }
 
+bool LocalModManager::importResourcePack(const QString& filePath, const QString& versionId)
+{
+    QFileInfo fi(filePath);
+    qCInfo(logMgr) << QStringLiteral("[本地资源包] 开始导入 源=%1 版本=%2").arg(filePath, versionId);
+    if (!fi.exists() || fi.suffix().compare(QStringLiteral("zip"), Qt::CaseInsensitive) != 0) {
+        emit importFinished(fi.fileName(), false, QStringLiteral("不是有效的资源包 ZIP 文件"));
+        return false;
+    }
+
+    QString dstDir = resourcePacksDir(versionId);
+    QDir().mkpath(dstDir);
+    QString dstPath = dstDir + QStringLiteral("/") + fi.fileName();
+
+    // If already exists, append a counter
+    if (QFile::exists(dstPath)) {
+        int c = 1;
+        QString base = fi.completeBaseName();
+        while (QFile::exists(dstDir + QStringLiteral("/") + base + QStringLiteral(" (%1).zip").arg(c)))
+            c++;
+        dstPath = dstDir + QStringLiteral("/") + base + QStringLiteral(" (%1).zip").arg(c);
+    }
+
+    if (QFile::copy(filePath, dstPath)) {
+        QString name = QFileInfo(dstPath).fileName();
+        qCInfo(logMgr) << QStringLiteral("[本地资源包] 导入成功 文件=%1 目标=%2").arg(name, dstPath);
+        emit modsChanged(versionId);
+        emit importFinished(name, true, QString());
+        return true;
+    } else {
+        emit importFinished(fi.fileName(), false, QStringLiteral("复制文件失败"));
+        return false;
+    }
+}
+
 LocalResourcePackEntry LocalModManager::parseResourcePackZip(const QString& zipPath)
 {
     LocalResourcePackEntry entry;

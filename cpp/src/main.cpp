@@ -635,6 +635,16 @@ int main(int argc, char *argv[])
             targetPage = 1; if (targetTab < 0) targetTab = 3;
         }
 
+        // Parse --open-version-settings (open 版本设置浮层; optional --vs-section <0..6>)
+        bool openVersionSettings = args.contains(QStringLiteral("--open-version-settings"));
+        int vsSection = -1;
+        int vsIdx = args.indexOf(QStringLiteral("--vs-section"));
+        if (vsIdx >= 0 && vsIdx + 1 < args.size())
+            vsSection = args[vsIdx + 1].toInt();
+        if (openVersionSettings) {
+            targetPage = 0;
+        }
+
         // Shared ready flag (heap-allocated so lambdas share ownership)
         auto ready = std::make_shared<bool>(false);
         auto doScreenshot = [ssPath, &app]() {
@@ -664,7 +674,8 @@ int main(int argc, char *argv[])
 
             // Navigate after QML is ready
             QTimer::singleShot(1500, backend, [backend, targetPage, targetTab, 
-                    detailSlug, expandMajor, togglePreRelease, hasToggle, openVersionMenu]() {
+                    detailSlug, expandMajor, togglePreRelease, hasToggle, openVersionMenu,
+                    openVersionSettings, vsSection, &engine]() {
                 emit backend->navigateToRequested(targetPage, targetTab);
                 
                 // --toggle-pre-release <on|off>
@@ -680,6 +691,23 @@ int main(int argc, char *argv[])
                     QTimer::singleShot(1000, backend, [backend]() {
                         qCInfo(logApp) << QStringLiteral("[截图] 打开版本下拉菜单");
                         emit backend->openRpVersionMenu();
+                    });
+                }
+
+                // --open-version-settings: 选中一个已装版本并打开版本设置浮层
+                if (openVersionSettings) {
+                    QTimer::singleShot(1000, backend, [backend, vsSection, &engine]() {
+                        QStringList installed = backend->property("installedVersions").toStringList();
+                        if (!installed.isEmpty()) {
+                            qCInfo(logApp) << QStringLiteral("[截图] 选中版本=%1").arg(installed.first());
+                            backend->setSelectedVersion(installed.first());
+                        }
+                        auto objs = engine.rootObjects();
+                        if (objs.isEmpty()) return;
+                        QObject* root = objs.first();
+                        qCInfo(logApp) << QStringLiteral("[截图] 打开版本设置浮层 section=%1").arg(vsSection);
+                        QMetaObject::invokeMethod(root, "openVersionSettingsSection",
+                            Q_ARG(QVariant, vsSection));
                     });
                 }
                 
@@ -719,6 +747,12 @@ int main(int argc, char *argv[])
                 QTimer::singleShot(9000, &app, [ready]() {
                     *ready = true;
                     qCInfo(logApp) << QStringLiteral("[截图] 版本菜单就绪");
+                });
+            } else if (openVersionSettings) {
+                // --open-version-settings: wait for overlay to load + render
+                QTimer::singleShot(7000, &app, [ready]() {
+                    *ready = true;
+                    qCInfo(logApp) << QStringLiteral("[截图] 版本设置浮层就绪");
                 });
             } else if (targetPage == 1 && targetTab == 3) {
                 // RP tab: wait for search results

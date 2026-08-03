@@ -13,7 +13,13 @@ Rectangle {
     property var backend: null
     property var toastManager: null
     property var confirmDialog: null
+    // 当前侧边栏分区（0概览 1启动配置 2内存设置 3Mod管理 4资源包 5存档 6工具）；供外部（全局拖拽路由/截图测试）读写
+    property alias currentNavIndex: settingsNav.currentIndex
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
+
+    // 供全局拖拽路由（MainWindow.packDropArea）在导入完成后刷新列表
+    function refreshModsUi() { if (modSection) modSection.refreshModList() }
+    function refreshRpsUi() { if (rpSection) rpSection.refreshRPList() }
 
     // Export progress state
     property bool isExporting: false
@@ -593,7 +599,8 @@ Rectangle {
                         GridView {
                             id: modGrid
                             model: ListModel { id: modListModel }
-                            cellWidth: Math.min(260, (modScroll.width - 16) / Math.max(1, Math.floor((modScroll.width - 16) / 260)))
+                            // 固定每行两个卡片，卡片铺满半行宽（消除列数随窗口宽度变化 + 中间大空隙）
+                            cellWidth: (modScroll.width - 16) / 2
                             cellHeight: 136
                             clip: true
 
@@ -736,38 +743,11 @@ Rectangle {
                         }
                     }
                 }
-
-                // Drop area — put a transparent visual child to receive drag events
-                DropArea {
-                    id: modDropArea
-                    anchors.fill: parent
-                    onEntered: {
-                        if (drag.hasUrls) {
-                            drag.accept(Qt.CopyAction)
-                        }
-                    }
-                    onDropped: {
-                        if (drop.hasUrls && backend) {
-                            for (var i = 0; i < drop.urls.length; i++) {
-                                var path = drop.urls[i].toString()
-                                if (path.startsWith("file:///")) path = path.substring(8)
-                                if (path.endsWith(".jar") || path.endsWith(".JAR")) {
-                                    if (backend.importMod(path, currentSelectedVersion))
-                                        toastManager.show("已导入: " + path.split("/").pop())
-                                }
-                            }
-                            modSection.refreshModList()
-                        }
-                    }
-                    Rectangle {
-                        anchors.fill: parent
-                        color: "transparent"
-                        border { width: 2; color: modDropArea.containsDrag ? "#5080e8" : "transparent" }
-                        radius: StyleTokens.radiusLg
-                        opacity: modDropArea.containsDrag ? 1 : 0
-                    }
-                }
             }
+
+            // 拖入导入由 MainWindow 全局 DropArea（packDropArea）路由处理：
+            // 本分区激活时拖入 .jar → importMod，完成后调用本 overlay 的 refreshModsUi() 刷新。
+            // （Qt DnD 事件只投递给光标下最顶层 item，分区内 DropArea 会被全局 DropArea 拦截，故统一走全局路由）
 
             // Section 4: 资源包管理 ===
             Item {
@@ -839,7 +819,8 @@ Rectangle {
                         GridView {
                             id: rpGrid
                             model: ListModel { id: rpListModel }
-                            cellWidth: Math.min(260, (rpScroll.width - 16) / Math.max(1, Math.floor((rpScroll.width - 16) / 260)))
+                            // 固定每行两个卡片（与 Mod 管理一致）
+                            cellWidth: (rpScroll.width - 16) / 2
                             cellHeight: 136
                             clip: true
 

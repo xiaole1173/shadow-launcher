@@ -20,6 +20,9 @@ Window {
     property int loginMode: backend ? backend.lastLoginMode : 0
     property bool showVersionSelect: false
     property bool showVersionSettings: false
+    // 全局拖放提示文案（由 packDropArea 按拖入类型写入）
+    property string packDropHintTitle: qsTr("松开以导入整合包")
+    property string packDropHintSub: qsTr("支持 .zip（CurseForge）与 .mrpack（Modrinth）")
     property bool showInstallPage: false
     property var debugWindow: null
     property string installMcVersion: ""
@@ -39,6 +42,14 @@ Window {
             case "settings": return qsTr("设置")
             case "download_progress": return qsTr("下载进度")
             default: return key
+        }
+    }
+
+    // 截图测试模式 / 外部调用：打开版本设置浮层并跳到指定分区（-1=保持概览）
+    function openVersionSettingsSection(section) {
+        showVersionSettings = true
+        if (section >= 0 && versionSettingsLoader.item) {
+            versionSettingsLoader.item.currentNavIndex = section
         }
     }
 
@@ -1270,31 +1281,83 @@ Window {
     }
     property QtObject modpackImportOverlay: modpackImportOverlayItem
 
-    // ═══ 全局整合包拖放导入：把 .zip / .mrpack 拖到启动器任意位置 ═══
-    // 自动识别扩展名 → 直接走标准导入流程（startImport → 下载进度页常驻执行）
+    // ═══ 全局拖放导入路由（仿整合包导入思路，扩展支持 Mod / 资源包）═══
+    // 版本设置浮层打开且停在 Mod管理/资源包管理 分区时：
+    //   .jar → importMod；.zip → importResourcePack
+    // 其余情况：.zip/.mrpack → 整合包导入（原有行为不变）
     DropArea {
         id: packDropArea
         anchors.fill: parent
         z: 301   // 弹窗层之上；DropArea 不拦截鼠标点击，仅响应拖放
 
+        // 当前版本设置浮层所在分区（-1=未打开/未加载）
+        function settingsSection() {
+            if (!versionSettingsLoader.visible || !versionSettingsLoader.item) return -1
+            return versionSettingsLoader.item.currentNavIndex
+        }
+        function localPath(url) {
+            var p = url.toString()
+            if (p.startsWith("file:///")) p = p.substring(8)
+            return p
+        }
+
         onEntered: function(drag) {
-            if (drag.hasUrls && drag.urls.length > 0) {
-                var p = drag.urls[0].toString()
-                if (p.startsWith("file:///")) p = p.substring(8)
-                if (/\.(zip|mrpack)$/i.test(p)) {
-                    drag.accept(Qt.CopyAction)
-                    packDropHint.visible = true
-                }
+            if (!drag.hasUrls || drag.urls.length === 0) return
+            var p = localPath(drag.urls[0])
+            var sec = settingsSection()
+            if (/\.jar$/i.test(p) && sec === 3) {
+                drag.accept(Qt.CopyAction)
+                packDropHintTitle = qsTr("松开以导入 Mod")
+                packDropHintSub = qsTr("将复制到当前版本的 mods 文件夹")
+                packDropHint.visible = true
+            } else if (/\.zip$/i.test(p) && sec === 4) {
+                drag.accept(Qt.CopyAction)
+                packDropHintTitle = qsTr("松开以导入资源包")
+                packDropHintSub = qsTr("将复制到当前版本的 resourcepacks 文件夹")
+                packDropHint.visible = true
+            } else if (/\.(zip|mrpack)$/i.test(p)) {
+                drag.accept(Qt.CopyAction)
+                packDropHintTitle = qsTr("松开以导入整合包")
+                packDropHintSub = qsTr("支持 .zip（CurseForge）与 .mrpack（Modrinth）")
+                packDropHint.visible = true
             }
         }
         onExited: packDropHint.visible = false
         onDropped: function(drop) {
             packDropHint.visible = false
             if (!drop.hasUrls || drop.urls.length === 0) return
-            var path = drop.urls[0].toString()
-            if (path.startsWith("file:///")) path = path.substring(8)
+            var path = localPath(drop.urls[0])
+            var sec = settingsSection()
+
+            // Mod 拖入导入（版本设置-Mod管理）
+            if (/\.jar$/i.test(path) && sec === 3) {
+                if (!backend) { if (toastManager) toastManager.show(qsTr("后端未就绪")); return }
+                if (!currentSelectedVersion) { if (toastManager) toastManager.show(qsTr("请先选择一个版本")); return }
+                if (backend.importMod(path, currentSelectedVersion)) {
+                    if (toastManager) toastManager.show(qsTr("已导入 Mod: %1").arg(path.split("/").pop()))
+                } else {
+                    if (toastManager) toastManager.show(qsTr("Mod 导入失败: %1").arg(path.split("/").pop()))
+                }
+                if (versionSettingsLoader.item) versionSettingsLoader.item.refreshModsUi()
+                return
+            }
+
+            // 资源包拖入导入（版本设置-资源包管理）
+            if (/\.zip$/i.test(path) && sec === 4) {
+                if (!backend) { if (toastManager) toastManager.show(qsTr("后端未就绪")); return }
+                if (!currentSelectedVersion) { if (toastManager) toastManager.show(qsTr("请先选择一个版本")); return }
+                if (backend.importResourcePack(path, currentSelectedVersion)) {
+                    if (toastManager) toastManager.show(qsTr("已导入资源包: %1").arg(path.split("/").pop()))
+                } else {
+                    if (toastManager) toastManager.show(qsTr("资源包导入失败: %1").arg(path.split("/").pop()))
+                }
+                if (versionSettingsLoader.item) versionSettingsLoader.item.refreshRpsUi()
+                return
+            }
+
+            // 整合包导入（原有全局行为）
             if (!/\.(zip|mrpack)$/i.test(path)) {
-                if (toastManager) toastManager.show(qsTr("不支持的文件格式，请拖入 .zip（CurseForge）或 .mrpack（Modrinth）整合包"))
+                if (toastManager) toastManager.show(qsTr("不支持的文件格式，请拖入 .jar（Mod）、.zip（资源包/整合包）或 .mrpack（整合包）"))
                 return
             }
             if (!backend || !backend.modpackImporter) {
@@ -1322,7 +1385,7 @@ Window {
 
         Rectangle {
             anchors.centerIn: parent
-            width: 340
+            width: 360
             height: 170
             radius: StyleTokens.radiusXl
             color: StyleTokens.surfaceOverlay
@@ -1340,14 +1403,14 @@ Window {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: qsTr("松开以导入整合包")
+                    text: packDropHintTitle
                     font.pixelSize: StyleTokens.fontSizeLg
                     font.bold: true
                     color: StyleTokens.textPrimary
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: qsTr("支持 .zip（CurseForge）与 .mrpack（Modrinth）")
+                    text: packDropHintSub
                     font.pixelSize: StyleTokens.fontSizeXs
                     color: StyleTokens.textMuted
                 }

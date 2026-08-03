@@ -346,7 +346,12 @@ Rectangle {
                 function populateVersionDetails() {
                     versionDetailModel.clear()
                     var details = backend ? backend.versionDetails : []
-                    if (!details || details.length === 0) return
+                    if (!details || details.length === 0) {
+                        // 扫描结果为空（如 versions 文件夹被清空）时必须同步清空展示列表，
+                        // 否则 ListView 绑定的 versionFilteredModel 残留旧数据，点刷新看不到变化
+                        versionFilteredModel.clear()
+                        return
+                    }
                     for (var i = 0; i < details.length; i++) {
                         versionDetailModel.append(details[i])
                     }

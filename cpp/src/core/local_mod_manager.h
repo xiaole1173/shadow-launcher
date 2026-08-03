@@ -65,6 +65,9 @@ public:
     // Scan resourcepacks folder for a given version, return parsed entries
     QVariantList scanResourcePacks(const QString& versionId);
 
+    // Import a ZIP resource pack to the resourcepacks folder (copy), trigger scan
+    bool importResourcePack(const QString& filePath, const QString& versionId);
+
     // Delete a resource pack by filename
     bool deleteResourcePack(const QString& fileName, const QString& versionId);
 

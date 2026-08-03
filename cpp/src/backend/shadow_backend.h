@@ -499,6 +499,7 @@ public:
     Q_INVOKABLE void checkFileChanges() {}
     Q_INVOKABLE void deleteMod(const QString& filename, const QString& versionId = {});
     Q_INVOKABLE void deleteResourcePack(const QString& filename, const QString& versionId = {});
+    Q_INVOKABLE bool importResourcePack(const QString& filePath, const QString& versionId = {});
     Q_INVOKABLE bool importMod(const QString& filePath, const QString& versionId = {});
     Q_INVOKABLE void deleteSave(const QString& saveName, const QString& versionId = {});
     Q_INVOKABLE void migrateVersion(const QString& versionId);

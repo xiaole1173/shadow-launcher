@@ -200,9 +200,15 @@ Item {
             property real gameW: sysTotalMB > 0 ? gameAllocMB() / sysTotalMB : 0
             property real bw: barContainer.width - 36
 
-            Text { x: 18; y: 10; text: qsTr("已使用内存"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-            Text { x: 18 + barContainer.bw * barContainer.usedW; y: 10; text: qsTr("游戏分配"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
-                Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
+            Text { id: usedLabel; x: 18; y: 10; text: qsTr("已使用内存"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
+            Text { id: gameLabel
+                // 自适应：锚点在已使用条末端，但不得压到左侧“已使用内存”文字，也不得溢出右侧
+                readonly property real _anchorX: 18 + barContainer.bw * barContainer.usedW
+                x: Math.min(Math.max(_anchorX, usedLabel.x + usedLabel.width + 10), barContainer.width - implicitWidth - 18)
+                y: 10
+                text: qsTr("游戏分配"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
+                Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+            }
 
             Item {
                 x: 18; y: 26
@@ -231,9 +237,15 @@ Item {
                 }
             }
 
-            Text { x: 18; y: 40; text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#C0C8D8" }
-            Text { x: 18 + barContainer.bw * barContainer.usedW; y: 40; text: gameAllocGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#9CB8E0"
-                Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
+            Text { id: usedNum; x: 18; y: 40; text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#C0C8D8" }
+            Text { id: gameNum
+                // 与标签同一自适应逻辑，避免与“已使用内存”数值重叠
+                readonly property real _anchorX: 18 + barContainer.bw * barContainer.usedW
+                x: Math.min(Math.max(_anchorX, usedNum.x + usedNum.width + 10), barContainer.width - implicitWidth - 18)
+                y: 40
+                text: gameAllocGB() + " GB"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#9CB8E0"
+                Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+            }
         }
     }
 }
