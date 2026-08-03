@@ -821,9 +821,15 @@ Rectangle {
         fileMode: FileDialog.OpenFile
         nameFilters: ["ZIP 文件 (*.zip)"]
         onAccepted: {
-            var url = importFileDialog.selectedFile
-            // QUrl.toString() 带 file:/// 前缀，C++ 无法按本地路径读取 → 必须 toLocalFile
-            var path = (url && url.scheme === "file") ? url.toLocalFile() : url.toString()
+            var sel = importFileDialog.selectedFile
+            // selectedFile 可能是 QUrl 或带 file:/// 前缀的字符串——统一防御式转本地路径
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
             if (backend && backend.userDataBackend) {
                 backend.userDataBackend.validateArchive(backend.gameDir, path)
             }

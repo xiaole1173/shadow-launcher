@@ -1455,9 +1455,15 @@ function _showToast(msg) {
         currentFile: currentSelectedVersion ? (currentSelectedVersion + "_userdata.zip") : ""
         onAccepted: {
             if (backend) backend.logUiMsg("[export] onAccepted fired")
-            var url = exportFileDialog.selectedFile
-            // QUrl.toString() 带 file:/// 前缀，C++ 无法按本地路径创建 → 必须 toLocalFile
-            var path = (url && url.scheme === "file") ? url.toLocalFile() : url.toString()
+            var sel = exportFileDialog.selectedFile
+            // selectedFile 在不同 Qt 版本可能是 QUrl 或带 file:/// 前缀的字符串——统一防御式转本地路径
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
             if (!path.toLowerCase().endsWith(".zip")) {
                 path = path + ".zip"
             }
