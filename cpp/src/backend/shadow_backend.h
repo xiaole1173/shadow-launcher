@@ -459,6 +459,13 @@ public:
     Q_INVOKABLE void installOptifine(const QString& mcVersion, const QString& optifineVersion,
                                        const QString& forgeVersion, const QString& installName,
                                        const QString& bmclType = QString(), const QString& bmclPatch = QString());
+    /// 转发到 VersionBackend::installOptifineJar（InstallPage 直接调 backend.xxx，曾断链）
+    Q_INVOKABLE void installOptifineJar(const QString& mcVersion, const QString& optifineVersion,
+                                        const QString& bmclType = QString(), const QString& bmclPatch = QString(),
+                                        const QString& installName = QString());
+    /// 整合包导入-用户数据迁移：转发到 VersionBackend（InstallPage 直接调 backend.xxx，曾断链）
+    Q_INVOKABLE void setPendingUserDataImport(const QString& installId, const QString& archivePath);
+    Q_INVOKABLE void cancelPendingUserDataImport(const QString& installId);
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);

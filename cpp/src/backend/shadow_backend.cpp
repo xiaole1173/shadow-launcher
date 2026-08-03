@@ -3854,6 +3854,20 @@ void ShadowBackend::installOptifine(const QString& mcVersion, const QString& opt
     if (m_version) m_version->installOptifine(mcVersion, optifineVersion, forgeVersion, installName, bmclType, bmclPatch);
 }
 
+void ShadowBackend::installOptifineJar(const QString& mcVersion, const QString& optifineVersion,
+                                       const QString& bmclType, const QString& bmclPatch,
+                                       const QString& installName) {
+    if (m_version) m_version->installOptifineJar(mcVersion, optifineVersion, bmclType, bmclPatch, installName);
+}
+
+void ShadowBackend::setPendingUserDataImport(const QString& installId, const QString& archivePath) {
+    if (m_version) m_version->setPendingUserDataImport(installId, archivePath);
+}
+
+void ShadowBackend::cancelPendingUserDataImport(const QString& installId) {
+    if (m_version) m_version->cancelPendingUserDataImport(installId);
+}
+
 // ── Language hot-switch implementation ──
 void ShadowBackend::switchLanguage(int index)
 {
