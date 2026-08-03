@@ -684,7 +684,6 @@ Window {
                             _keepActive = true
                             item.backend = backend
                             item.toastManager = toastManager
-                            item.confirmDialog = confirmDialog
                         }
                         onVisibleChanged: {
                             if (!visible && !showVersionSettings) {

@@ -2160,7 +2160,7 @@ Rectangle {
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-        javaBackend: backend ? backend.javaBackend() : null
+        javaBackend: backend ? backend.javaBackend : null
     }
 
 }

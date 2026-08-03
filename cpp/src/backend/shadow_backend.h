@@ -14,6 +14,10 @@
 
 class QQmlEngine;
 
+// Q_PROPERTY(QObject*) getter 需要完整类型（派生→基类指针转换），直接 include
+#include "java_backend.h"
+#include "userdata_backend.h"
+
 namespace ShadowLauncher {
 
 class AppBackend;
@@ -711,8 +715,12 @@ public:
     LaunchBackend* launchBackend() const { return m_launch; }
     ResourceBackend* resource() const { return m_resource; }
     Q_INVOKABLE StatsBackend* statsBackend() const { return m_stats; }
-    Q_INVOKABLE JavaBackend* javaBackend() const { return m_java; }
-    Q_INVOKABLE UserDataBackend* userDataBackend() const { return m_userData; }
+    // 注意：QML 暴露必须用 Q_PROPERTY(QObject*) 模式——Q_INVOKABLE 返回具体类型指针
+    // 会报 "Unknown method return type"（2026-08-04 导出功能踩坑实锤）
+    Q_PROPERTY(QObject* javaBackend READ javaBackend CONSTANT)
+    Q_PROPERTY(QObject* userDataBackend READ userDataBackend CONSTANT)
+    QObject* javaBackend() const { return m_java; }
+    QObject* userDataBackend() const { return m_userData; }
 
     // Game stats (exposed directly on backend for QML compatibility)
     Q_PROPERTY(double totalGameHours READ totalGameHours NOTIFY statsChanged)

@@ -27,7 +27,7 @@ Rectangle {
     property string exportStatus: ""
 
     Connections {
-        target: backend ? backend.userDataBackend() : null
+        target: backend ? backend.userDataBackend : null
         function onExportProgress(pct, status) {
             isExporting = true
             exportPct = pct
@@ -1209,6 +1209,7 @@ Rectangle {
                                 id: exportHover
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
+                                    if (backend) backend.logUiMsg("[export] btn clicked")
                                     exportPressAnim.start()
                                     if (!currentSelectedVersion) { _showToast("请先选择一个版本"); return }
                                     exportFileDialog.open()
@@ -1450,16 +1451,20 @@ function _showToast(msg) {
         defaultSuffix: "zip"
         currentFile: currentSelectedVersion ? (currentSelectedVersion + "_userdata.zip") : ""
         onAccepted: {
+            if (backend) backend.logUiMsg("[export] onAccepted fired")
             var url = exportFileDialog.selectedFile
             // QUrl.toString() 带 file:/// 前缀，C++ 无法按本地路径创建 → 必须 toLocalFile
             var path = (url && url.scheme === "file") ? url.toLocalFile() : url.toString()
             if (!path.toLowerCase().endsWith(".zip")) {
                 path = path + ".zip"
             }
-            if (backend && backend.userDataBackend()) {
+            if (backend && backend.userDataBackend) {
                 _showToast("正在导出用户数据...")
-                backend.userDataBackend().exportUserData(backend.gameDir, currentSelectedVersion, path)
+                backend.userDataBackend.exportUserData(backend.gameDir, currentSelectedVersion, path)
             }
+        }
+        onRejected: {
+            if (backend) backend.logUiMsg("[export] onRejected fired")
         }
     }
 }
