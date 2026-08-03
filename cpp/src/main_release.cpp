@@ -36,6 +36,8 @@
 #  endif
 #  include <windows.h>
 #  include <shellapi.h>
+#  include <dwmapi.h>
+#  pragma comment(lib, "dwmapi.lib")
 #endif
 
 #include "utils/logger.h"
@@ -399,6 +401,22 @@ int main(int argc, char *argv[])
 
             // ── Force transparent window background (prevents white corner artifacts) ──
             win->setColor(Qt::transparent);
+
+#ifdef Q_OS_WIN
+            // ── 禁用 Windows 11 DWM 系统圆角 ──
+            // 分层（透明）无边框窗口在部分 Win11 版本/浅色主题下，DWM 会在四角填充
+            // 系统窗口背景色（浅色=白/深色=深灰，“随系统配色”），把应用的 16px 圆角
+            // “补全”成方形小角。显式 DONOTROUND 后窗口四角完全由应用自绘（透明→桌面），
+            // 任何主题/版本下都不会再出现系统色角。
+            {
+                HWND hwndDwm = reinterpret_cast<HWND>(win->winId());
+                if (hwndDwm) {
+                    DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_DONOTROUND;
+                    DwmSetWindowAttribute(hwndDwm, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                          &pref, sizeof(pref));
+                }
+            }
+#endif
 
             taskbarFilter->targetWindow = win;
             screenshotWindow = win;

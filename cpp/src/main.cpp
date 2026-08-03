@@ -34,6 +34,8 @@
 #  endif
 #  include <windows.h>
 #  include <shellapi.h>
+#  include <dwmapi.h>
+#  pragma comment(lib, "dwmapi.lib")
 #endif
 
 #include "utils/logger.h"
@@ -398,6 +400,18 @@ int main(int argc, char *argv[])
 
             // ── Force transparent window background (prevents white corner artifacts) ──
             win->setColor(Qt::transparent);
+
+#ifdef Q_OS_WIN
+            // ── 禁用 Windows 11 DWM 系统圆角（详见 main_release.cpp 同款注释）──
+            {
+                HWND hwndDwm = reinterpret_cast<HWND>(win->winId());
+                if (hwndDwm) {
+                    DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_DONOTROUND;
+                    DwmSetWindowAttribute(hwndDwm, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                          &pref, sizeof(pref));
+                }
+            }
+#endif
 
             taskbarFilter->targetWindow = win;
             screenshotWindow = win;

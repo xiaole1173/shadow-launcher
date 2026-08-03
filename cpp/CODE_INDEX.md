@@ -62,8 +62,8 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `src/main_release.cpp` | 783 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（无保存密钥 → 先弹 `BetaKeyDialog`，`betaVerified` 后加载 MainWindow）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。 |
-| `src/main.cpp` | 854 | **开发变体入口（未编入 CMake）**。与 main_release 逻辑相同，但支持 `SHADOW_DEV` 环境变量：从文件系统路径加载 QML 便于热调试。 |
+| `src/main_release.cpp` | 783 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（无保存密钥 → 先弹 `BetaKeyDialog`，`betaVerified` 后加载 MainWindow）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。窗口层：`setColor(transparent)` + **禁用 Win11 DWM 系统圆角（DWMWCP_DONOTROUND）**——防浅色主题下四角露出系统背景色白角（2026-08-03 修）。 |
+| `src/main.cpp` | 854 | **开发变体入口（未编入 CMake）**。与 main_release 逻辑相同，但支持 `SHADOW_DEV` 环境变量：从文件系统路径加载 QML 便于热调试；同样含透明背景 + DWM 圆角禁用。 |
 
 ### 1.2 后端聚合层（`src/backend/`，QML 通过 `backend` 单对象访问）
 
@@ -282,5 +282,6 @@
 | 日期 | 说明 |
 |---|---|
 | 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |
+| 2026-08-03 | main_release.cpp / main.cpp：新增禁用 Win11 DWM 系统圆角（DWM 圆角 + 透明分层窗口在浅色主题下四角露系统背景色 = 用户反馈的“白色小角”）。 |
 
 > 之后每次代码变更后在此追加一行：日期 + 变更文件 + 一句话说明。
