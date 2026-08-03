@@ -1294,6 +1294,9 @@ Window {
         id: packDropArea
         anchors.fill: parent
         z: 301   // 弹窗层之上；DropArea 不拦截鼠标点击，仅响应拖放
+        // 导入窗口打开时禁用：窗口内部有自己的 dropArea（显示文件名/选择），
+        // 全局层若仍拦截会把拖拽"吃掉"，用户无法拖入窗口。
+        enabled: !modpackImportOverlayItem.visible
 
         // 当前版本设置浮层所在分区（-1=未打开/未加载）
         function settingsSection() {
