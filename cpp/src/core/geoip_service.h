@@ -48,6 +48,8 @@ private slots:
 private:
     void loadCache();
     void saveCache(const QString& region);
+    /// 检测失败后 5 分钟重试（防止地区长期未知而误锁离线登录）
+    void scheduleRetry();
 
     QString m_cachedRegion;
     QDateTime m_cacheTime;

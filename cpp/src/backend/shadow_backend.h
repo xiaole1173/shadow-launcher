@@ -312,6 +312,9 @@ public:
 
     // ── Q_INVOKABLE methods ──
     Q_INVOKABLE void offlineLogin(const QString& username);
+    /// 离线登录是否受限：地区未明确检测为 CN（含检测失败/未完成/海外/港澳台）且未完成正版登录 → true
+    /// （检测不出 CN 即受限——防止断网/屏蔽 GeoIP 绕过合规限制；正版登录后不受限）
+    Q_INVOKABLE bool isOfflineRestricted() const;
     Q_INVOKABLE void updateOfflineSkin(const QString& username);
     Q_INVOKABLE void removeOfflineUsername(const QString& username);
     Q_INVOKABLE void microsoftLogin();

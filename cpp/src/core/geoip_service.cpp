@@ -8,6 +8,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSettings>
+#include <QTimer>
 #include <QDebug>
 
 namespace ShadowLauncher {
@@ -54,6 +55,7 @@ void GeoIpService::onReplyFinished()
     if (reply->error() != QNetworkReply::NoError) {
         qWarning().noquote() << "[GeoIP] Request failed:" << reply->errorString();
         emit detectionFailed(reply->errorString());
+        scheduleRetry();
         return;
     }
 
@@ -62,6 +64,7 @@ void GeoIpService::onReplyFinished()
     if (!doc.isObject()) {
         qWarning().noquote() << "[GeoIP] Invalid JSON response";
         emit detectionFailed(QStringLiteral("Invalid JSON response"));
+        scheduleRetry();
         return;
     }
 
@@ -71,6 +74,7 @@ void GeoIpService::onReplyFinished()
         QString msg = obj[QStringLiteral("message")].toString(QStringLiteral("unknown error"));
         qWarning().noquote() << "[GeoIP] API error:" << msg;
         emit detectionFailed(msg);
+        scheduleRetry();
         return;
     }
 
@@ -78,6 +82,7 @@ void GeoIpService::onReplyFinished()
     if (region.isEmpty()) {
         qWarning().noquote() << "[GeoIP] Empty countryCode in response";
         emit detectionFailed(QStringLiteral("Empty countryCode"));
+        scheduleRetry();
         return;
     }
 
@@ -87,6 +92,16 @@ void GeoIpService::onReplyFinished()
     saveCache(region);
     emit regionDetected(region);
     emit regionChanged();
+}
+
+/// 检测失败后定时重试（防止网络抖动导致地区长期未知而误锁离线登录）。
+void GeoIpService::scheduleRetry()
+{
+    QTimer::singleShot(5 * 60 * 1000, this, [this]() {
+        // 仅当仍未检测成功时才重试
+        if (m_cachedRegion.isEmpty())
+            detectRegion();
+    });
 }
 
 void GeoIpService::loadCache()

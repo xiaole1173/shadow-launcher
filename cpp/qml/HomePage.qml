@@ -1020,6 +1020,11 @@ Rectangle {
                         }
                         // Offline mode: always sync input name to session (also records history)
                         if (loginMode === 1) {
+                            // 地区受限（非中国大陆且未正版登录）时禁止离线启动
+                            if (backend.isOfflineRestricted()) {
+                                toastManager.show("进行正版登录前，离线登录无法使用，请先完成正版登录。", 4000)
+                                return
+                            }
                             var name = offlineNameInput.text.trim() || "Player"
                             backend.offlineLogin(name)
                             // offlineLogin is synchronous — offlineUsername is now set

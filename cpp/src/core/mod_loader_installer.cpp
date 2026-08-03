@@ -2077,6 +2077,19 @@ QString ModLoaderInstaller::findJavaPath(int minVersion) {
     return QString();
 }
 
+/** Recursively search for bin/java.exe under dir (fallback for non-standard ZIP layouts). */
+static QString findJavaExeRecursive(const QString& dir) {
+    const QString direct = dir + QStringLiteral("/bin/java.exe");
+    if (QFile::exists(direct)) return direct;
+    QDir d(dir);
+    const auto subs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const auto& sub : subs) {
+        const QString found = findJavaExeRecursive(dir + QLatin1Char('/') + sub);
+        if (!found.isEmpty()) return found;
+    }
+    return {};
+}
+
 /** Auto-download Java from Tuna Adoptium mirror, extract ZIP to java_cache/{minVersion}/.
  *  Returns path to java.exe, or empty on failure. */
 QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
@@ -2184,10 +2197,36 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
     {
         QZipReader reader(&buf);
         const QList<QZipReader::FileInfo> entries = reader.fileInfoList();
+
+        // Adoptium ZIP 顶层自带一层 jdk-17.0.x+x/ 目录（Tuna 镜像同构）；
+        // 若所有文件条目共享同一顶层前缀则剥掉它，让 java.exe 落在
+        // java_cache/{minVersion}/bin/java.exe（否则缓存路径检查永远失败）。
+        QString commonPrefix;
+        int nonDir = 0;
+        for (const auto& entry : entries) {
+            if (entry.isDir) continue;
+            ++nonDir;
+            const QString fp = entry.filePath;
+            const int slash = fp.indexOf(QLatin1Char('/'));
+            const QString top = (slash < 0) ? fp : fp.left(slash);
+            if (commonPrefix.isEmpty()) commonPrefix = top;
+            else if (commonPrefix != top) { commonPrefix.clear(); break; }
+        }
+        if (nonDir > 0 && !commonPrefix.isEmpty())
+            qCInfo(logLoader) << QStringLiteral("[安装] Java %1 ZIP 顶层目录: %2，剥离后解压")
+                                     .arg(minVersion).arg(commonPrefix);
+
         int extracted = 0;
         for (const auto& entry : entries) {
             if (entry.isDir || entry.isSymLink) continue;
-            QString outPath = javaDir + QStringLiteral("/") + entry.filePath;
+            QString rel = entry.filePath;
+            if (!commonPrefix.isEmpty()) {
+                if (rel.startsWith(commonPrefix + QLatin1Char('/')))
+                    rel = rel.mid(commonPrefix.length() + 1);
+                else if (rel == commonPrefix)
+                    continue;  // 顶层目录条目本身不写
+            }
+            QString outPath = javaDir + QStringLiteral("/") + rel;
             QDir().mkpath(QFileInfo(outPath).absolutePath());
             QFile out(outPath);
             if (out.open(QIODevice::WriteOnly)) {
@@ -2201,8 +2240,14 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
     }
 
     if (!QFile::exists(javaExe)) {
-        qCWarning(logLoader) << QStringLiteral("[安装] Java %1 解压后未找到 java.exe").arg(minVersion);
-        return {};
+        // 兜底：非标准 ZIP 布局时递归查找 bin/java.exe
+        const QString found = findJavaExeRecursive(javaDir);
+        if (found.isEmpty()) {
+            qCWarning(logLoader) << QStringLiteral("[安装] Java %1 解压后未找到 java.exe").arg(minVersion);
+            return {};
+        }
+        qCWarning(logLoader) << QStringLiteral("[安装] Java %1 java.exe 位于: %2").arg(minVersion).arg(found);
+        return found;
     }
 
     qCInfo(logLoader) << QStringLiteral("[安装] Java %1 已就绪").arg(minVersion);

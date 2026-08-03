@@ -224,6 +224,19 @@ Rectangle {
                 }
             }
 
+            // ── 联机服务合规声明（显眼白色，置于页面底部）──
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: 12
+                text: "使用联机服务，即表示您承诺，在多人联机全过程中，您将严格遵守您所在国家或地区的全部法律法规。您不得将多人联机功能用于除多人联机外的其他用途。"
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                color: "#ffffff"
+                font.pixelSize: StyleTokens.fontSizeSm
+                lineHeight: 1.5
+                opacity: 0.9
+            }
+
             Item { Layout.preferredHeight: 20 }
         }
     }

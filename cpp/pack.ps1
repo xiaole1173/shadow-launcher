@@ -156,7 +156,8 @@ if (Test-Path "$ProjectRoot\package\versions.json") {
 # 4d. EasyTier — to root bin/
 if (Test-Path "$ProjectRoot\build\Release\bin") {
     New-Item -ItemType Directory -Force -Path "$DistDir\bin" | Out-Null
-    Copy-Item "$ProjectRoot\build\Release\bin\*" "$DistDir\bin\" -Recurse -Force
+    # Exclude *.bak (official-2.6.4 backups) — never ship them
+    Get-ChildItem "$ProjectRoot\build\Release\bin\*" -File | Where-Object { $_.Extension -ne ".bak" } | Copy-Item -Destination "$DistDir\bin\" -Force
     $binFiles = (Get-ChildItem "$DistDir\bin" -File).Count
     $binSizeMB = [math]::Round((Get-ChildItem "$DistDir\bin" -Recurse -File | Measure-Object -Property Length -Sum).Sum / $OneMB, 1)
     Write-Host "       bin/ : $binFiles files, $binSizeMB MB" -ForegroundColor Gray

@@ -77,14 +77,14 @@ Rectangle {
 
             Section { title: "联机架构" }
             Text {
-                text: "本启动器使用 EasyTier 虚拟组网 + Scaffolding 协议实现 NAT 穿透联机。房主创建虚拟局域网后，访客通过 EasyTier 网络连接到房主，实现类似局域网联机的体验。"
+                text: "本启动器集成了「陶瓦联机」（Terracotta）。陶瓦联机使用 P2P 技术，联机成功后房间内用户之间将直接连接，不会使用第三方服务器对您的流量进行转发。最终联机体验和参与联机者的网络情况有较大关系。"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.4
             }
 
             Section { title: "房主操作" }
             Text {
-                text: "1. 点击「创建房间」按钮\n2. 系统会要求提权（管理员权限）—— 这是因为 EasyTier 需要创建虚拟网络接口\n3. 提权后等待「虚拟网络就绪」\n4. 将自动生成的「房间码」复制并分享给好友\n5. 房主需要先启动 MC 服务器（本地或服务端均可），启动器会自动将 MC 服务器暴露到联机网络"
+                text: "1. 点击「创建房间」按钮\n2. 系统会要求提权（管理员权限）—— 这是 EasyTier 虚拟组网所需的管理员权限\n3. 提权后等待网络就绪（状态提示「等待MC服务器启动...」）\n4. 将自动生成的「房间码」复制并分享给好友\n5. 在本机启动 MC 服务器（本地存档或服务端均可，创建房间后请尽快启动），启动器会自动扫描并将 MC 服务器暴露到联机网络"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
@@ -98,21 +98,21 @@ Rectangle {
 
             Section { title: "NAT 类型说明" }
             Text {
-                text: "连接难度反映了您的网络环境：\n-  直连 — 公网 IP 或 FullCone NAT，最佳体验\n-  简单 — 中等 NAT 类型，大部分网络环境\n-  中等 — 受限 NAT，可能需要更长时间建立连接\n-  困难 — 对称 NAT，连接可能不稳定或需要中继\n\nEasyTier 会自动选择最优路径。如果连接有问题，可以尝试关闭防火墙或使用手机热点作为备选网络。"
+                text: "连接难度反映了您的网络环境：\n-  直连 — 公网 IP（Open Internet），最佳体验\n-  简单 — NoPAT / FullCone NAT，多数公网环境\n-  中等 — 受限 NAT（Restricted / PortRestricted），可能需要更长时间建立连接\n-  困难 — 对称 NAT，连接可能不稳定或需要中继\n\nEasyTier 会自动选择最优路径。如果连接有问题，可以尝试关闭防火墙或使用手机热点作为备选网络。"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
 
             Section { title: "端口说明" }
             Text {
-                text: "联机功能会占用以下本地端口：\n-  EasyTier RPC: 动态分配（15880-65535）\n-  Scaffolding 联机端口: 20000-30000\n-  MC 服务器端口: 参考每个房间码生成\n\n端口转发通过 EasyTier 内建功能自动建立，无需手动配置路由器。"
+                text: "联机功能会占用以下本地端口：\n-  EasyTier RPC: 由房间码确定性生成（15880-65535）\n-  Scaffolding 联机端口: 20000-30000（由房间码派生）\n-  MC 服务器端口: 房主本机 MC 服务器的端口（启动器自动扫描检测，与房间码无关）\n\n端口转发通过 EasyTier 内建功能自动建立，无需手动配置路由器。"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
 
             Section { title: "常见问题排查" }
             Text {
-                text: "Q: 加入房间后一直卡在「发现中心」\nA: 请确认房主已创建房间且网络通畅。如超过 60 秒仍未连接，可能是 NAT 穿透遇到困难，尝试双方重启软件重试。\n\nQ: MC 列表中没有显示联机服务器\nA: 访客连接成功后，MC 的多人游戏界面的局域网联机列表中会出现服务器。如有多个 LAN 服务器，可以手动输入 127.0.0.1:{端口号} 直接连接。\n\nQ: 提示「提权失败」\nA: 请以管理员身份运行启动器，或关闭杀毒软件后重试。\n\nQ: 连接后延迟很高\nA: 检查 NAT 类型。如果需要中转，延迟会高于直连。对称 NAT 环境下建议使用 5G 手机热点规避。"
+                text: "Q: 加入房间后一直卡在「发现中心」\nA: 请确认房主已创建房间且网络畅通。如超过 30 秒仍未连接，可能是 NAT 穿透遇到困难或无法访问公共中继节点，尝试双方重启软件重试。\n\nQ: MC 列表中没有显示联机服务器\nA: 访客连接成功后，MC 的多人游戏界面的局域网联机列表中会出现服务器（名为「联机 MC服务器」）。如有多个 LAN 服务器，可以手动输入 127.0.0.1:{端口号} 直接连接，端口号可在「网络监控」面板的 MC端口 处查看。\n\nQ: 提示「提权失败」\nA: 请以管理员身份运行启动器，或关闭杀毒软件后重试。\n\nQ: 连接后延迟很高\nA: 检查 NAT 类型。如果需要中转，延迟会高于直连。对称 NAT 环境下建议使用 5G 手机热点规避。"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }

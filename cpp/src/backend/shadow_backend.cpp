@@ -1374,6 +1374,16 @@ void ShadowBackend::offlineLogin(const QString& username) {
     m_account->offlineLogin(username);
 }
 
+bool ShadowBackend::isOfflineRestricted() const {
+    // 地区由 GeoIpService 异步检测（ip-api.com，24h 缓存）；启动后 3s 触发
+    const QString region = m_geoIp ? m_geoIp->cachedRegion().toUpper().trimmed() : QString();
+    // 只有明确检测为 CN（中国大陆）才放行；
+    // 未检测到地区（检测失败/被屏蔽/断网）同样受限——防止绕过合规限制
+    if (region == QStringLiteral("CN")) return false;
+    // 非中国大陆（国外/港澳台）或未检测到地区，且未正版登录 → 限制
+    return !m_account->isLoggedIn();
+}
+
 void ShadowBackend::updateOfflineSkin(const QString& username) {
     m_account->updateOfflineSkin(username);
 }
