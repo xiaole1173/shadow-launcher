@@ -277,13 +277,13 @@ Rectangle {
                 { text: qsTr("工具与维护"), icon: "" }
             ]
 
-            // Check if current version has a mod loader
+            // Check if current version has a mod loader（白名单判定，与版本选择 getBlockIcon 一致）
             function isModdedVersion() {
                 if (!backend || !backend.versionDetails || !currentSelectedVersion) return false
                 for (var i = 0; i < backend.versionDetails.length; i++) {
                     if (backend.versionDetails[i].id === currentSelectedVersion) {
                         var lt = backend.versionDetails[i].loaderType || ""
-                        return (lt !== "原版" && lt !== "")
+                        return (lt === "Forge" || lt === "Fabric" || lt === "NeoForge" || lt === "Quilt")
                     }
                 }
                 return false
@@ -300,7 +300,7 @@ Rectangle {
                         for (var i = 0; i < backend.versionDetails.length; i++) {
                             if (backend.versionDetails[i].id === currentSelectedVersion) {
                                 var lt = backend.versionDetails[i].loaderType || ""
-                                return (lt !== "原版" && lt !== "") ? 36 : 0
+                                return (lt === "Forge" || lt === "Fabric" || lt === "NeoForge" || lt === "Quilt") ? 36 : 0
                             }
                         }
                         return 0
@@ -312,7 +312,7 @@ Rectangle {
                         for (var i = 0; i < backend.versionDetails.length; i++) {
                             if (backend.versionDetails[i].id === currentSelectedVersion) {
                                 var lt = backend.versionDetails[i].loaderType || ""
-                                return lt !== "原版" && lt !== ""
+                                return lt === "Forge" || lt === "Fabric" || lt === "NeoForge" || lt === "Quilt"
                             }
                         }
                         return false
@@ -353,15 +353,15 @@ Rectangle {
                 Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
 
                 // 当前版本是否带加载器（Mod 相关按钮可见性；backend.isModdedVersion 是 stub 恒 false，勿用）
-                // 用绑定属性而非函数：函数体内的属性引用不被绑定引擎追踪，versionDetails 异步加载完成/
-                // 切换版本时 visible 不会重新求值（曾导致原版版本误显示 Mods 按钮/加载后不刷新）
+                // 白名单判定——与版本选择列表 getBlockIcon() 完全一致（lt ∈ Forge/Fabric/NeoForge/Quilt 才算加载器版）：
+                // 不用黑名单比较“原版”字面值（loaderType 任何变体/翻译/缺失都会误判，曾致原版 26.2 误显示）
                 readonly property bool _isModded: {
                     var det = backend ? backend.versionDetails : []
                     if (!det || !currentSelectedVersion) return false
                     for (var i = 0; i < det.length; i++) {
                         if (det[i].id === currentSelectedVersion) {
-                            var lt = det[i].loaderType || "原版"  // 字段缺失按原版处理，绝不误显示
-                            return lt !== "原版" && lt !== ""
+                            var lt = det[i].loaderType || ""
+                            return lt === "Forge" || lt === "Fabric" || lt === "NeoForge" || lt === "Quilt"
                         }
                     }
                     return false
@@ -411,17 +411,6 @@ Rectangle {
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
                             if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } }
-                        }
-                    }
-                    ShadowButton {
-                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
-                        text: qsTr("config 文件夹"); iconSource: "icons/lucide/settings.svg"; iconSize: 14
-                        accentColor: "#3a4a90"
-                        visible: _isModded
-                        font.pixelSize: StyleTokens.fontSizeSm
-                        onClicked: {
-                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            if (backend) { backend.openConfigFolder(); toastManager.show("已打开 config 文件夹") }
                         }
                     }
                     ShadowButton {
