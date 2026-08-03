@@ -352,21 +352,6 @@ Rectangle {
                 // ── 快捷入口（2026-08-03 分类重做：统一 ShadowButton 组件 + 分组排序）──
                 Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
 
-                // 当前版本是否带加载器（Mod 相关按钮可见性；backend.isModdedVersion 是 stub 恒 false，勿用）
-                // 白名单判定——与版本选择列表 getBlockIcon() 完全一致（lt ∈ Forge/Fabric/NeoForge/Quilt 才算加载器版）：
-                // 不用黑名单比较“原版”字面值（loaderType 任何变体/翻译/缺失都会误判，曾致原版 26.2 误显示）
-                readonly property bool _isModded: {
-                    var det = backend ? backend.versionDetails : []
-                    if (!det || !currentSelectedVersion) return false
-                    for (var i = 0; i < det.length; i++) {
-                        if (det[i].id === currentSelectedVersion) {
-                            var lt = det[i].loaderType || ""
-                            return lt === "Forge" || lt === "Fabric" || lt === "NeoForge" || lt === "Quilt"
-                        }
-                    }
-                    return false
-                }
-
                 // ── 文件夹 ──
                 Text { text: qsTr("文件夹"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
                 Flow {
@@ -406,22 +391,21 @@ Rectangle {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("Mod 文件夹"); iconSource: "icons/lucide/puzzle.svg"; iconSize: 14
                         accentColor: "#3a4a90"
-                        visible: _isModded
+                        // 白名单判定（与 sidebar“Mod 管理”同款内联写法）：lt ∈ Forge/Fabric/NeoForge/Quilt 才算加载器版
+                        visible: {
+                            if (!backend || !backend.versionDetails || !currentSelectedVersion) return false
+                            for (var i = 0; i < backend.versionDetails.length; i++) {
+                                if (backend.versionDetails[i].id === currentSelectedVersion) {
+                                    var lt = backend.versionDetails[i].loaderType || ""
+                                    return lt === "Forge" || lt === "Fabric" || lt === "NeoForge" || lt === "Quilt"
+                                }
+                            }
+                            return false
+                        }
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
                             if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } }
-                        }
-                    }
-                    ShadowButton {
-                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
-                        text: qsTr("光影包"); iconSource: "icons/lucide/sparkles.svg"; iconSize: 14
-                        accentColor: "#3a4a90"
-                        visible: _isModded
-                        font.pixelSize: StyleTokens.fontSizeSm
-                        onClicked: {
-                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            if (backend) { if (backend.openShaderPacksFolder(currentSelectedVersion)) { toastManager.show("已打开光影包文件夹") } else { toastManager.show("无光影包文件夹") } }
                         }
                     }
                 }
