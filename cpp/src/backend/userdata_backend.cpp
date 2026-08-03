@@ -95,9 +95,8 @@ void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
     QString tempPath = tempDir.path();
     emit exportProgress(10, QStringLiteral("复制数据..."));
 
-    // Step 2: Copy user data to temp/game/ (ZIP 内保留 game/ 前缀，兼容旧导入端)
-    QString tempGame = tempPath + "/game";
-    QDir().mkpath(tempGame);
+    // Step 2: Copy user data to temp root（直接散开，zip 内不再包 game/ 目录）
+    QString tempGame = tempPath;
 
     // Recursive copy
     std::function<void(const QString&, const QString&)> copyDir =
@@ -323,7 +322,7 @@ QVector<ImportItemInfo> UserDataBackend::parseArchiveItems(const QString& archiv
         return items;
     }
 
-    // Check for game/ directory
+    // 兼容两种包结构：旧包有 game/ 前缀，新导出格式直接散开（saves/mods/... 在 zip 根）
     QList<QZipReader::FileInfo> allFiles = zip.fileInfoList();
     bool hasGameDir = false;
     for (const auto& fi : allFiles) {
@@ -333,8 +332,27 @@ QVector<ImportItemInfo> UserDataBackend::parseArchiveItems(const QString& archiv
         }
     }
     if (!hasGameDir) {
-        errorMsg = QStringLiteral("数据目录结构异常：缺少 game/ 目录");
-        return items;
+        // 新格式：检查 zip 根是否有已知用户数据条目
+        static const QStringList knownTops = {
+            QStringLiteral("saves"), QStringLiteral("mods"), QStringLiteral("config"),
+            QStringLiteral("resourcepacks"), QStringLiteral("shaderpacks"), QStringLiteral("screenshots"),
+            QStringLiteral("logs"), QStringLiteral("defaultconfigs"), QStringLiteral("profilekeys"),
+            QStringLiteral("crash-reports"), QStringLiteral("options.txt"), QStringLiteral("optionsof.txt"),
+            QStringLiteral("servers.dat"), QStringLiteral("usercache.json"),
+            QStringLiteral("launcher_profiles.json"), QStringLiteral("allowed_sellers.json"),
+        };
+        bool hasTop = false;
+        for (const auto& fi : allFiles) {
+            QString p = fi.filePath;
+            if (p == QStringLiteral("README.txt") || p.isEmpty() || p.endsWith(QLatin1Char('/'))) continue;
+            int slash = p.indexOf(QLatin1Char('/'));
+            QString top = (slash >= 0) ? p.left(slash) : p;
+            if (knownTops.contains(top)) { hasTop = true; break; }
+        }
+        if (!hasTop) {
+            errorMsg = QStringLiteral("数据目录结构异常：缺少用户数据目录");
+            return items;
+        }
     }
 
     // Classify items inside game/
@@ -362,8 +380,14 @@ QVector<ImportItemInfo> UserDataBackend::parseArchiveItems(const QString& archiv
     QSet<QString> foundDirs;
     for (const auto& fi : allFiles) {
         QString path = fi.filePath;
-        if (!path.startsWith("game/")) continue;
-        QString rel = path.mid(5);  // strip "game/"
+        QString rel;
+        if (hasGameDir) {
+            if (!path.startsWith("game/")) continue;
+            rel = path.mid(5);  // strip "game/"
+        } else {
+            if (path == QStringLiteral("README.txt") || path.endsWith(QLatin1Char('/'))) continue;
+            rel = path;
+        }
         if (rel.isEmpty()) continue;
 
         // Get top-level entry name
@@ -378,7 +402,7 @@ QVector<ImportItemInfo> UserDataBackend::parseArchiveItems(const QString& archiv
             ImportItemInfo info;
             info.name = rule.name;
             info.displayName = rule.display;
-            info.relPath = "game/" + rule.name;
+            info.relPath = hasGameDir ? ("game/" + rule.name) : rule.name;
             info.isDir = rule.isDir;
             info.riskLevel = rule.risk;
             info.warning = rule.warning;
@@ -482,22 +506,42 @@ void UserDataBackend::executeImport(const QString& gameDir, const QString& targe
         }
 
         QList<QZipReader::FileInfo> allFiles = zip.fileInfoList();
+
+        // 兼容两种包结构：旧包 game/ 前缀，新导出格式直接散开
+        bool hasGameDir = false;
+        for (const auto& fi : allFiles) {
+            if (fi.filePath.startsWith("game/")) { hasGameDir = true; break; }
+        }
+        auto stripPrefix = [hasGameDir](const QString& fp) -> QString {
+            return hasGameDir ? fp.mid(5) : fp;
+        };
+
         int totalItems = 0;
         int processedItems = 0;
 
         // Count items to process
         for (const auto& fi : allFiles) {
-            if (fi.filePath.startsWith("game/") && !fi.isDir) {
-                totalItems++;
+            QString fp = fi.filePath;
+            if (fi.isDir) continue;
+            if (hasGameDir) {
+                if (!fp.startsWith("game/")) continue;
+            } else if (fp == QStringLiteral("README.txt")) {
+                continue;
             }
+            totalItems++;
         }
 
         // Import each file
         for (const auto& fi : allFiles) {
-            if (!fi.filePath.startsWith("game/")) continue;
             if (fi.isDir) continue;  // directories auto-created
+            QString fp = fi.filePath;
+            if (hasGameDir) {
+                if (!fp.startsWith("game/")) continue;
+            } else if (fp == QStringLiteral("README.txt")) {
+                continue;  // 描述文件不导入
+            }
 
-            QString relPath = fi.filePath.mid(5);  // strip "game/"
+            QString relPath = stripPrefix(fp);
             QString dstPath = targetVerDir + "/" + relPath;
             QDir().mkpath(QFileInfo(dstPath).absolutePath());
 

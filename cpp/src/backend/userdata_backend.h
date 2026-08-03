@@ -36,7 +36,8 @@ public:
     QString pendingArchivePath() const { return m_pendingArchivePath; }
     QVariantList pendingItems() const;
 
-    // Export: pack {gameDir}/versions/{versionId}/game/ into outputPath.zip
+    // Export: pack user data from {gameDir}/versions/{versionId}/ (whitelist: saves/mods/config/...) into outputPath.zip
+    // zip 内直接散开（README.txt + saves/ + mods/ + options.txt...，无 game/ 包装）
     Q_INVOKABLE void exportUserData(const QString& gameDir, const QString& versionId,
                                      const QString& outputPath);
 
@@ -49,7 +50,7 @@ public:
     // Cancel pending import
     Q_INVOKABLE void cancelPendingImport();
 
-    // Execute the pending import into targetVersionDir/game/
+    // Execute the pending import into targetVersionDir/ root (旧版 targetVersionDir/game/ 已废弃)
     Q_INVOKABLE void executeImport(const QString& gameDir, const QString& targetVersionId);
 
     // Extract archive to temp and return parsed items (called from worker thread)
