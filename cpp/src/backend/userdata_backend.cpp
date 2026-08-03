@@ -16,6 +16,8 @@
 #include <QtCore/private/qzipwriter_p.h>
 #include <QtCore/private/qzipreader_p.h>
 
+#include "../utils/logger.h"
+
 namespace ShadowLauncher {
 
 UserDataBackend::UserDataBackend(QObject* parent)
@@ -63,14 +65,16 @@ void UserDataBackend::exportUserData(const QString& gameDir, const QString& vers
 void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
                                 const QString& outputPath)
 {
-    QString srcDir = gameDir + "/versions/" + versionId + "/game";
-    QDir src(srcDir);
-    if (!src.exists()) {
-        QMetaObject::invokeMethod(this, [this, outputPath]() {
+    // 用户数据现在直接位于版本目录根（旧版曾有 {版本}/game 子目录，已废弃，不再查找）
+    QString verDir = gameDir + "/versions/" + versionId;
+    QDir vd(verDir);
+    if (!vd.exists()) {
+        qCWarning(logApp) << "[userdata] 导出失败: 版本目录不存在" << verDir;
+        QMetaObject::invokeMethod(this, [this, outputPath, verDir]() {
             m_exporting = false;
             emit exportStateChanged();
-            emit exportFinished(false, outputPath, QStringLiteral("版本游戏目录不存在: %1"));
-            emit logMessage("[userdata] Export failed: game directory not found");
+            emit exportFinished(false, outputPath, QStringLiteral("版本目录不存在: %1").arg(verDir));
+            emit logMessage("[userdata] Export failed: version directory not found");
         }, Qt::QueuedConnection);
         return;
     }
@@ -80,6 +84,7 @@ void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
     // Step 1: Create temp directory
     QTemporaryDir tempDir;
     if (!tempDir.isValid()) {
+        qCWarning(logApp) << "[userdata] 导出失败: 无法创建临时目录";
         QMetaObject::invokeMethod(this, [this, outputPath]() {
             m_exporting = false;
             emit exportStateChanged();
@@ -90,7 +95,7 @@ void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
     QString tempPath = tempDir.path();
     emit exportProgress(10, QStringLiteral("复制数据..."));
 
-    // Step 2: Copy game/ to temp/game/
+    // Step 2: Copy user data to temp/game/ (ZIP 内保留 game/ 前缀，兼容旧导入端)
     QString tempGame = tempPath + "/game";
     QDir().mkpath(tempGame);
 
@@ -110,7 +115,48 @@ void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
             }
         }
     };
-    copyDir(srcDir, tempGame);
+
+    // 用户数据白名单（对齐导入端 rules；*.jar / *.json / downloads / natives 等版本本体与运行缓存不导出）
+    static const QStringList dataNames = {
+        QStringLiteral("saves"),          // 存档世界
+        QStringLiteral("mods"),           // 模组
+        QStringLiteral("config"),         // 模组配置
+        QStringLiteral("resourcepacks"),  // 资源包
+        QStringLiteral("shaderpacks"),    // 光影包
+        QStringLiteral("screenshots"),    // 截图
+        QStringLiteral("logs"),           // 日志
+        QStringLiteral("defaultconfigs"), // 默认配置
+        QStringLiteral("profilekeys"),    // 玩家密钥
+        QStringLiteral("crash-reports"),  // 崩溃报告
+        QStringLiteral("options.txt"),    // 游戏设置
+        QStringLiteral("optionsof.txt"),  // OptiFine 设置
+        QStringLiteral("servers.dat"),    // 服务器列表
+        QStringLiteral("usercache.json"), // 用户缓存
+        QStringLiteral("launcher_profiles.json"),
+        QStringLiteral("allowed_sellers.json"),
+    };
+    int copiedCount = 0;
+    for (const QString& name : dataNames) {
+        QString src = verDir + "/" + name;
+        if (!QFileInfo::exists(src)) continue;
+        QString dst = tempGame + "/" + name;
+        if (QFileInfo(src).isDir()) {
+            copyDir(src, dst);
+        } else {
+            QDir().mkpath(QFileInfo(dst).absolutePath());
+            QFile::copy(src, dst);
+        }
+        ++copiedCount;
+    }
+    if (copiedCount == 0) {
+        qCWarning(logApp) << "[userdata] 导出失败: 版本目录未找到可导出的用户数据" << verDir;
+        QMetaObject::invokeMethod(this, [this, outputPath]() {
+            m_exporting = false;
+            emit exportStateChanged();
+            emit exportFinished(false, outputPath, QStringLiteral("版本目录中未找到可导出的用户数据"));
+        }, Qt::QueuedConnection);
+        return;
+    }
 
     // Count total size for progress
     qint64 totalSize = 0;
@@ -186,6 +232,7 @@ void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
     // Step 4: Create ZIP
     QZipWriter zip(outputPath);
     if (zip.status() != QZipWriter::NoError) {
+        qCWarning(logApp) << "[userdata] 导出失败: 无法创建ZIP文件" << outputPath << "status=" << static_cast<int>(zip.status());
         QMetaObject::invokeMethod(this, [this, outputPath]() {
             m_exporting = false;
             emit exportStateChanged();
@@ -223,6 +270,7 @@ void UserDataBackend::doExport(const QString& gameDir, const QString& versionId,
         emit exportFinished(true, outputPath, QString());
         emit logMessage(QStringLiteral("[userdata] Export complete: %1").arg(outputPath));
     }, Qt::QueuedConnection);
+    qCInfo(logApp) << "[userdata] 导出完成" << outputPath << "项数=" << copiedCount;
 }
 
 // ─── Validate / Parse ────────────────────────────────────────
@@ -417,8 +465,9 @@ void UserDataBackend::executeImport(const QString& gameDir, const QString& targe
     emit logMessage(QStringLiteral("[userdata] Importing user data to %1").arg(targetVersionId));
 
     QtConcurrent::run([this, gameDir, targetVersionId]() {
-        QString targetGame = gameDir + "/versions/" + targetVersionId + "/game";
-        QDir().mkpath(targetGame);
+        // 用户数据直接写入目标版本目录根（旧版曾有 {版本}/game 子目录，已废弃）
+        QString targetVerDir = gameDir + "/versions/" + targetVersionId;
+        QDir().mkpath(targetVerDir);
 
         // Open ZIP
         QZipReader zip(m_pendingArchivePath);
@@ -449,7 +498,7 @@ void UserDataBackend::executeImport(const QString& gameDir, const QString& targe
             if (fi.isDir) continue;  // directories auto-created
 
             QString relPath = fi.filePath.mid(5);  // strip "game/"
-            QString dstPath = targetGame + "/" + relPath;
+            QString dstPath = targetVerDir + "/" + relPath;
             QDir().mkpath(QFileInfo(dstPath).absolutePath());
 
             // Conflict resolution for options.txt and servers.dat

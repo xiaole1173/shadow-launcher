@@ -37,10 +37,13 @@ Rectangle {
             isExporting = false
             exportPct = 0
             exportStatus = ""
-            if (success) {
-                _showToast("用户数据已导出")
-            } else {
-                _showToast("导出失败: " + (error || "未知错误"))
+            // 通用蓝色 toast（ToastManager），不用本地 _showToast
+            if (toastManager) {
+                if (success) {
+                    toastManager.show("用户数据已导出")
+                } else {
+                    toastManager.show("导出失败: " + (error || "未知错误"), 5000)
+                }
             }
         }
     }
@@ -1459,7 +1462,7 @@ function _showToast(msg) {
                 path = path + ".zip"
             }
             if (backend && backend.userDataBackend) {
-                _showToast("正在导出用户数据...")
+                if (toastManager) toastManager.show("正在导出用户数据...")
                 backend.userDataBackend.exportUserData(backend.gameDir, currentSelectedVersion, path)
             }
         }
