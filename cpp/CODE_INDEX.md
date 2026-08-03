@@ -1,0 +1,286 @@
+# Shadow Launcher 代码功能归档（CODE INDEX）
+
+> 本文档是 Shadow Launcher（C++17 / Qt 6.8 / QML，Windows）**全部代码文件的功能查询索引**。
+> 用途：①让不读代码的人也能快速知道每个文件是干什么的；②找功能代码时**先查本表**再动手，避免大海捞针。
+>
+> **维护铁律**（必须遵守）：
+> 1. 每次新增/修改/删除代码文件，**必须同步更新本文档**；
+> 2. 编辑只能使用 `edit` 或增量追加，**绝对禁止整文件覆盖重写**；
+> 3. 本文档不含敏感信息（密钥/令牌/地址均为机制描述），可安全提交仓库。
+>
+> 更新日志见文末「文档更新记录」。
+
+---
+
+## 〇、速查：按功能找文件
+
+| 想找的功能 | 看这里 |
+|---|---|
+| 主程序入口 / 启动流程 | `src/main_release.cpp`（发布）、`src/main.cpp`（开发变体） |
+| QML 主界面唯一入口对象 `backend` | `src/backend/shadow_backend.{h,cpp}` |
+| 版本列表/安装/删除/校验/修复/隔离 | `src/backend/version_backend.{h,cpp}` |
+| 启动游戏（进程/参数/Token） | `src/backend/launch_backend.{h,cpp}`、`src/core/launcher.{h,cpp}` |
+| 账号（离线/微软正版/皮肤/披风） | `src/backend/account_backend.{h,cpp}`、`src/core/microsoft_auth.*` |
+| 外置登录（Yggdrasil/authlib-injector） | `src/backend/yggdrasil_backend.*`、`src/core/yggdrasil_auth.*` |
+| 设置持久化 | `src/backend/settings_backend.{h,cpp}` |
+| Java 扫描/选择 | `src/backend/java_backend.{h,cpp}` |
+| 游戏时长统计 | `src/backend/stats_backend.{h,cpp}` |
+| 启动前检查（Java/版本文件/内存） | `src/backend/check_backend.{h,cpp}` |
+| 游戏完整性校验/修复 | `version_backend.cpp` L3420 `verifyVersion` / L3926 `cancelVerify` / L3968 `cleanCorruptVersion` / L4028 `repairVersion` |
+| 下载中心：Mod/资源包/光影/整合包搜索 | `src/backend/resource_backend.{h,cpp}`、`src/core/resource_fetch_engine.*`（司南）、`src/core/cf_api.*`（CF） |
+| 下载引擎（通用批量） | `src/core/file_downloader.*`（夸父）、`src/core/downloader.*`（旧单文件） |
+| 下载引擎（assets 资源） | `src/core/asset_downloader.*`（山海经） |
+| 版本安装管线（client+libs+assets） | `src/core/version_downloader.*`（盘古） |
+| Mod 批量下载 | `src/core/modpack/mod_download_engine.*`（精卫） |
+| 整合包下载/解析/安装 | `modpack/modpack_downloader.*`（女娲）、`modpack_parser.*`、`modpack_install_task.*`、`modpack_importer.*` |
+| Forge/NeoForge/OptiFine 安装 | `src/core/mod_loader_installer.{h,cpp}`（4000 行，四分支：Legacy3/2/1/Bootstrapper） |
+| 本地 Mod/资源包/存档管理 | `src/core/local_mod_manager.{h,cpp}` |
+| 联机（陶瓦 Terracotta 兼容） | `src/multiplayer/multiplayer_manager.{h,cpp}`（核心） |
+| EasyTier 进程/TOML/白名单 | `src/multiplayer/easytier_process.{h,cpp}` |
+| 房码算法 | `src/multiplayer/room_code.{h,cpp}` |
+| Scaffolding 协议 | `src/multiplayer/scaffolding_protocol.{h,cpp}` |
+| UAC 提权接力 | `src/multiplayer/elevated_session.{h,cpp}` |
+| 更新检查/安装 | `src/core/update_checker.*`、`src/core/update_manager.*`、`src/update/SLUpdater.cpp`（更新器进程） |
+| 引擎雅名体系（盘古/夸父…） | `src/core/engine_identity.h` |
+| 安装步骤管线（进度 UI 模型） | `src/core/step_pipeline.*`、`src/core/step_node.*` |
+| 主窗口/全局路由 | `qml/MainWindow.qml` |
+| 主页 | `qml/HomePage.qml` |
+| 版本选择 | `qml/VersionSelectPage.qml`、`qml/VersionSelectOverlay.qml` |
+| 版本设置 | `qml/VersionSettingsPage.qml`、`qml/VersionSettingsOverlay.qml` |
+| 设置 | `qml/SettingsPage.qml` + `SettingsGeneral/Java/Memory/ExperimentalPage.qml` |
+| 统计 | `qml/StatsPage.qml` |
+| 联机 | `qml/MultiplayerPage.qml` + `Multiplayer*` 组件族 |
+| 设计令牌（颜色/字号/圆角） | `qml/StyleTokens.qml`、`qml/AnimationTokens.qml` |
+| Toast 通知 | `qml/ToastManager.qml` |
+| 通用按钮/输入框/下拉/开关 | `qml/ShadowButton/ShadowIconButton/ShadowSwitch/ShadowDropdown/InputBox/SearchBox` |
+
+---
+
+## 一、C++ 源码（`src/`）
+
+### 1.1 入口与主程序
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `src/main_release.cpp` | 783 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（无保存密钥 → 先弹 `BetaKeyDialog`，`betaVerified` 后加载 MainWindow）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。 |
+| `src/main.cpp` | 854 | **开发变体入口（未编入 CMake）**。与 main_release 逻辑相同，但支持 `SHADOW_DEV` 环境变量：从文件系统路径加载 QML 便于热调试。 |
+
+### 1.2 后端聚合层（`src/backend/`，QML 通过 `backend` 单对象访问）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `shadow_backend.h/.cpp` | 824 / 4311 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总。 |
+| `version_backend.h/.cpp` | 466 / 8287 | **版本管理大后端**：版本清单拉取/刷新（release/snapshot/old/aprilfool）、安装（走 VersionDownloader）、删除/重命名/克隆/迁移隔离、`verifyVersion`（游戏完整性校验）/`cancelVerify`/`cleanCorruptVersion`/`repairVersion`（修复，基于下载器 SHA1 校验重下缺失/损坏文件）、版本详情（Mod/资源包/存档列表异步）、installCards 模型、merged 安装上下文。 |
+| `launch_backend.h/.cpp` | 146 / 1417 | **启动后端**：组装 JVM/游戏参数、Token 刷新决策（`msTokenValid`/`shouldRefresh`）、进程启停（`launch`/`cancelLaunch`/`killGame*`）、崩溃检测结果传递、在线/离线模式路由。 |
+| `account_backend.h/.cpp` | 156 / 1207 | **账号后端**：离线登录（用户名/UUID/历史）、微软正版登录（MicrosoftAuth 封装：token 管理/后台刷新/过期判断）、皮肤下载/上传/缓存、披风（CapeInfo）、3D 头像渲染触发、离线皮肤。 |
+| `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。 |
+| `settings_backend.h/.cpp` | 242 / 1167 | **设置后端**：全部设置项读写（QSettings）、下载源/线程/限速、主题、语言、游戏目录、Java 默认、JVM/游戏参数、内存自动分配、背景图、协议同意状态等。 |
+| `java_backend.h/.cpp` | 96 / 351 | **Java 后端**：扫描系统 Java、版本检测（`java -version` 解析主版本）、自动选择、指定路径管理。 |
+| `stats_backend.h/.cpp` | 53 / 142 | **统计后端**：游戏时长统计（按版本聚合，读取启动记录）。 |
+| `userdata_backend.h/.cpp` | 99 / 503 | **用户数据后端**：用户目录数据管理（皮肤缓存、头像、可迁移数据）。 |
+| `check_backend.h/.cpp` | 38 / 442 | **启动前 P0 检查**（同步快速）：Java 架构 32/64 位、版本 client.jar 存在性、version.json 合法性、可用内存；`checkAll` 汇总。 |
+| `yggdrasil_backend.h/.cpp` | 132 / 553 | **外置登录后端**：Yggdrasil/authlib-injector 认证（服务器地址、登录/登出、UUID/皮肤）。 |
+| `yggdrasil_skin_fetcher.h/.cpp` | 49 / 201 | **外置皮肤拉取**：从 Yggdrasil 服务器下载皮肤/披风并缓存。 |
+| `app_backend.h/.cpp` | 59 / 93 | **应用信息后端**：版本号、应用名等静态信息。 |
+| `debug_logger.h/.cpp` | 53 / 102 | **调试日志**：调试构建下的日志辅助。 |
+
+### 1.3 核心引擎（`src/core/`）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `engine_identity.h` | 58 | **下载引擎雅名注册表**：盘古(VersionDownloader)/夸父(FileDownloader)/山海经(AssetDownloader)/精卫(ModDownloadEngine)/女娲(ModpackDownloader)/驿道(HttpClient)/司南(ResourceFetchEngine)；`engineTag`/`engineBanner` 日志前缀。 |
+| `http_client.h/.cpp` | 175 / 802 | **HTTP 传输底座（驿道）**：全引擎共用的 QNetworkAccessManager 封装；v2 起支持 >4MB 文件 Range 多线程分片、分片探测、限速、连接池、重试。 |
+| `file_downloader.h/.cpp` | 240 / 1178 | **通用批量文件下载引擎（夸父）**：QThreadPool 并发分块加速、SHA1 校验、断点续传、主机健康、缓存命中。⚠️ **用户 WIP（勿改勿提交）**。 |
+| `asset_downloader.h/.cpp` | 240 / 1181 | **assets 专项下载（山海经）**：异步 SHA1 预检（IO 池）、异步 DNS、多镜像降级、objects 索引解析。 |
+| `version_downloader.h/.cpp` | 232 / 1331 | **版本安装管线（盘古）**：下载 client.jar + libraries + assets 到版本目录（merged 任务中可指向 UUID 临时目录）、JSON 解析、文件清单生成、校验。 |
+| `downloader.h/.cpp` | 67 / 347 | **早期单文件下载器**（Phase 2.3，被夸父/驿道取代，遗留兼容）。 |
+| `mod_manager.h/.cpp` | 264 / 1651 | **Mod 下载管理**：下载任务、夸父引擎接入（分片）、Modpack 模式。⚠️ **用户 WIP（勿改勿提交）**。 |
+| `local_mod_manager.h/.cpp` | 104 / 782 | **本地 Mod/资源包管理**：扫描 mods/ 目录、解析 JAR（读取 mods.toml/fabric.mod.json 元数据）、Mod 列表/过滤、删除、导入复制。 |
+| `mod_loader_installer.h/.cpp` | 247 / 4006 | **Forge/NeoForge/OptiFine 安装器**：四分支（Legacy3/2/1 安装器 + Bootstrapper 模式）；Forge install_profile 处理、处理器列表、FART/srgutils、版本 JSON 生成；含 Java 自动下载（Tuna Adoptium 镜像，解压剥顶层目录）。 |
+| `launcher.h/.cpp` | 105 / 1665 | **游戏启动核心**：实际启动 Minecraft 进程（参数组装、natives 解压、JVM 启动、进程监控、退出码处理）、服务器属性准备。 |
+| `microsoft_auth.h/.cpp` | 64 / 357 | **微软 OAuth 认证**：设备码/浏览器流程、XBL→XSTS→Minecraft→Profile 四步链、token 获取与刷新。 |
+| `yggdrasil_auth.h/.cpp` | 87 / 266 | **Yggdrasil 认证**：外置登录协议实现（与服务器握手、校验、token）。 |
+| `cf_api.h/.cpp` | 73 / 370 | **CurseForge API 适配器**：搜索/分类/版本/依赖请求（走镜像 /curseforge/v1/）。 |
+| `cf_api_key_local.h` | 13 | CF API Key 本地源（占位/注入点）。 |
+| `cf_key_crypto.h` | 171 | **CF API Key 解密**：与 tools/encrypt_cf_key.py 对应的 AES-256-GCM 解密运行时。 |
+| `resource_fetch_engine.h/.cpp` | 110 / 293 | **资源拉取引擎（司南）**：统一调度 Modrinth/CurseForge 搜索 API 与图标拉取，三层缓存 + 本地缩略图 + 严格并发控制。 |
+| `geoip_service.h/.cpp` | 59 / 126 | **IP 地区检测**：ip-api.com，24h 缓存（QSettings），失败 5 分钟自动重试；供离线登录限制（非 CN 未正版登录禁止离线）与语言/版本区域适配。 |
+| `icon_cache.h/.cpp` | 46 / 105 | **图标缓存**：网络图标（webp）→ 本地 PNG 缓存。 |
+| `mc_language.h/.cpp` | 30 / 122 | **MC 语言映射**：地区码 → Minecraft 语言/region 设置（options.txt）。 |
+| `crash_detector.h/.cpp` | 51 / 252 | **崩溃检测**：解析崩溃报告/日志、判定崩溃类型、lastCrash 数据。 |
+| `screenshot_server.h/.cpp` | 79 / 361 | **调试截图服务器**（Debug 构建）：/eval + /screenshot 远程调试接口。 |
+| `step_node.h/.cpp` | 85 / 61 | **步骤节点**：安装/下载步骤的状态/进度/字节计数 QObject（Q_PROPERTY+NOTIFY 供 QML 绑定）。 |
+| `step_pipeline.h/.cpp` | 95 / 202 | **步骤管线**：StepModel（QAbstractListModel）+ StepPipeline（加权进度/推进/取消），驱动安装进度 UI。 |
+| `update_checker.h/.cpp` | 48 / 128 | **更新检查**：查询最新版本（版本 JSON）。 |
+| `update_manager.h/.cpp` | 119 / 496 | **更新管理**：下载更新包、校验、解压替换、重启更新器。 |
+| `version_manager.h/.cpp` | 86 / 320 | **版本清单**：从 Mojang manifest 拉取版本列表（release/snapshot/old）。 |
+| `version_isolation.h/.cpp` | 42 / 212 | **版本隔离**：独立 .minecraft 目录的创建/迁移/删除。 |
+| `render_head_util.h` | 68 | **3D 头像渲染工具**：皮肤 → 头像渲染辅助。 |
+| `modpack_importer.h/.cpp` | 135 / 249 | **整合包导入**：本地 zip/mrpack 导入入口（校验、落盘标记 `.shadow_modpack`）。 |
+| `cef_login_app.h/.cpp` | 19 / 9 | CEF 登录辅助（占位/启动壳，微软登录嵌入式浏览器用）。 |
+| `logger.h/.cpp` | 33 / 129 | 日志分类定义与输出（logApp/logLaunch/logLoader/logNet…）。 |
+
+### 1.4 整合包子域（`src/core/modpack/`）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `modpack_common.h/.cpp` | 74 / 108 | 整合包公共常量/工具。 |
+| `modpack_parser.h/.cpp` | 34 / 276 | **整合包 manifest 解析**（CF/Modrinth/通用格式）。 |
+| `modpack_downloader.h/.cpp` | 144 / 831 | **整合包编排下载（女娲）**：manifest → 文件清单 → 并行下载 → 覆盖备份钩子。 |
+| `mod_download_engine.h/.cpp` | 144 / 467 | **批量模组小文件下载（精卫）**：多源自降级、SHA1/大小校验、EMA 网速统计。 |
+| `modpack_install_task.h/.cpp` | 181 / 1280 | **整合包安装任务**：合并安装上下文（MergedInstallContext，主流启动器 式 UUID 临时目录隔离）、加载器安装编排、步骤管线、取消清理。 |
+| `zip_archive.h/.cpp` | 71 / 283 | ZIP 解压封装（QZipReader 包装）。 |
+
+### 1.5 联机子域（`src/multiplayer/`，陶瓦 Terracotta 兼容）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `multiplayer_manager.h/.cpp` | 276 / 2152 | **联机核心**：建房/加入房间状态机（Idle/CreatingRoom/JoiningNetwork/Discovering/Connecting/Connected/VerifyingConnection/WaitingForGuests/Error…）、Scaffolding 服务端（host）与客户端（guest）、协议 handler（ping/protocols/server_port/player_ping/profiles_list）、指纹验证、心跳、玩家列表同步、FakeServer（MC 局域网广播）、MC 扫描、连接难度计算（NAT 四档）、重连、UAC 提权接力、退出兜底清理。 |
+| `easytier_process.h/.cpp` | 132 / 732 | **EasyTier 进程管理**：easytier-core/cli 查找与启停、TOML 配置生成（`[[peer]]` 表数组 + 陶瓦公共节点）、`--no-tun` 参数、RPC 端口确定性生成、端口转发（port-forward add）、TCP 白名单动态更新、peer 表轮询解析（虚拟 IP/NAT 类型/host 活跃性 cost 过滤）。 |
+| `room_code.h/.cpp` | 26 / 111 | **房码算法**：16 位 base34（不含 I/O）整体 mod 7 校验（对齐陶瓦）、生成/解析、I→1/O→0 兼容。 |
+| `scaffolding_protocol.h/.cpp` | 46 / 59 | **Scaffolding 协议**：请求包 `[typeLen][type][bodyLen][body]`、响应包 `[status][bodyLen][body]`（无 type，FIFO 匹配）构建工具。 |
+| `mc_scanner.h/.cpp` | 64 / 205 | **MC LAN 扫描器**：UDP 224.0.2.60:4445 监听真实 MC 服务器广播，检测 MC 端口。 |
+| `port_request.h/.cpp` | 19 / 34 | **端口请求**：requestSpecific/requestFree（对齐陶瓦 ports.rs）。 |
+| `connection_guard.h/.cpp` | 47 / 109 | **频率限制**：房码/连接/包速率防护。 |
+| `elevated_session.h/.cpp` | 55 / 113 | **UAC 提权接力**：非提权实例保存联机参数到临时配置 → 提权重启自身 → 读取继续（--elevate-config）。 |
+| `relay_crypto.h/.cpp` | 28 / 148 | **中继端点解密**：AES-256-GCM 解密 243 字节 blob（中继地址/前缀），开源构建回落全零占位。 |
+| `encrypted_addr.h` | 37 | 加密 blob 布局定义（offset/len，全零占位；真实值在 .gitignore 的本地文件，由 tools/encrypt_addr.py 生成）。 |
+| `encrypted_frag_1..5.cpp/.h` | 8×5 | 加密 blob 分片（混淆存放，开源构建为占位桩），`encrypted_frag_stub.cpp` 为桩实现。 |
+
+### 1.6 会话与工具（`src/session/`、`src/utils/`）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `session/download_session.h/.cpp` | 147 / 137 | **下载会话**：跨任务下载会话状态（合并安装上下文关联）。 |
+| `utils/types.h` | 157 | 公共类型/枚举定义。 |
+| `utils/logger.h/.cpp` | 42 / 228 | 日志工具（文件日志、分类）。 |
+| `utils/hash_utils.h` | 18 | 哈希工具（SHA1 等）。 |
+| `utils/secure_wipe.h` | 24 | 安全内存擦除（SecureZeroMemory）。 |
+| `utils/temp_tracker.h/.cpp` | 32 / 141 | **临时目录追踪**：记录/清理 `%TEMP%/shadow-merged-*` 残留（启动时 cleanupOrphans）。 |
+| `utils/token_crypto.h/.cpp` | 38 / 322 | **令牌加密**：微软 refresh token 等敏感数据落盘加密。 |
+| `utils/lzma/LzmaDec.h`、`Types.h` | 237 / 83 | LZMA 解压（7z 支持）。 |
+
+### 1.7 其他
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `update/SLUpdater.cpp` | — | 独立更新器进程（下载并替换主程序）。 |
+| `tools/`（仓库） | — | 加密生成脚本：`encrypt_cf_key.py`、`encrypt_addr.py`（不在 src 内，见 git）。 |
+
+---
+
+## 二、QML 界面（`qml/`）
+
+### 2.1 窗口 / 全局
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `MainWindow.qml` | 1430 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门。 |
+| `SplashWindow.qml` | 50 | 启动画面。 |
+| `StyleTokens.qml` | 133 | **设计令牌**：颜色（bg/accent/text 系列）、字号、圆角、间距常量。 |
+| `AnimationTokens.qml` | 187 | **动画令牌**：时长/缓动曲线常量。 |
+| `ToastManager.qml` | 144 | **Toast 通知**：右下角堆叠、天蓝色、`show(msg, duration)`。 |
+| `ToastStyleSuccess.qml` / `ToastStyleWarning.qml` | 27×2 | Toast 成功/警告样式常量。 |
+| `AgreementOverlay.qml` | 329 | 用户协议/隐私/条款同意浮层（HTML 渲染）。 |
+| `BackgroundCropOverlay.qml` | 281 | 自定义背景裁剪设置浮层。 |
+| `BetaKeyDialog.qml` | 154 | 内测密钥输入窗口（无密钥时主程序先加载它）。 |
+| `DebugWindow.qml` / `DebugPanel.qml` | 164 / 132 | 调试窗口/面板（Debug 构建）。 |
+| `SubPageOverlays.qml` | 138 | 子页面浮层容器（版本选择/设置等 Overlay 的路由壳）。 |
+
+### 2.2 页面（导航主页面）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `HomePage.qml` | 1395 | **主页**：版本快捷选择卡、离线/正版/外置登录切换、启动按钮、游戏时长/最近游玩、背景。 |
+| `DownloadPage.qml` | 2166 | **下载中心**：Tab 页（Mod/资源包/光影/整合包）、搜索/筛选（FilterCard）/分页（PaginationFooter）、结果网格、下载队列入口。 |
+| `InstallPage.qml` | 849 | **安装页**：版本安装（原版/Forge/Fabric/NeoForge/OptiFine 选择、ModLoaderCard 列表）。 |
+| `InstallProgressPage.qml` | 72 | 安装进度页（步骤管线展示）。 |
+| `VersionSelectPage.qml` | 404 | **版本选择页**（独立页形态，替代旧左栏）。 |
+| `VersionSettingsPage.qml` | 1067 | **版本设置页**（独立页形态）。 |
+| `SettingsPage.qml` | 447 | **设置页**：左侧分类导航 → 各 Settings*Page。 |
+| `SettingsGeneralPage.qml` | 883 | 设置-通用：下载源/线程/限速、主题、语言、游戏目录、协议等。 |
+| `SettingsJavaPage.qml` | 404 | 设置-Java：Java 列表/选择/扫描。 |
+| `SettingsMemoryPage.qml` | 247 | 设置-内存（汇总视图）。 |
+| `SettingsMemorySection.qml` | 368 | 内存条组件（游戏分配标签文字自适应钳制）。 |
+| `SettingsExperimentalPage.qml` | 261 | 设置-实验性功能（审计范围外）。 |
+| `JavaPage.qml` | 620 | Java 管理页（详情/列表）。 |
+| `StatsPage.qml` | 297 | **统计页**：版本游戏时长条（Hover 显示完整版本名 tooltip——任务 4 改造对象）。 |
+| `MultiplayerPage.qml` | 336 | **联机页**：创建/加入房间、状态指示、房间码卡、网络监控、玩家列表、帮助面板、底部合规声明。 |
+
+### 2.3 详情/子页面
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `ModpackDetailPage.qml` | 457 | 整合包详情（版本列表/下载/导入）。 |
+| `ModDetailPage.qml` | 748 | Mod 详情（简介/版本/依赖/下载）。 |
+| `ResourcePackDetailPage.qml` | 494 | 资源包详情。 |
+| `ShaderDetailPage.qml` | 407 | 光影详情。 |
+| `ModpackImportOverlay.qml` | 328 | 整合包导入浮层（拖拽/选文件/自定义名）。 |
+| `InstallConfigOverlay.qml` | 151 | 安装配置浮层（版本名/加载器配置）。 |
+| `LaunchOverlay.qml` | 516 | 启动覆盖层（启动中状态/日志）。 |
+| `CrashDialog.qml` | 143 | 崩溃提示弹窗。 |
+
+### 2.4 版本相关
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `VersionCard.qml` | 115 | 版本卡片（列表项）。 |
+| `DetailVersionCard.qml` | 173 | 版本详情卡（概览）。 |
+| `DetailInfoCard.qml` | 110 | 通用信息卡（详情页统计项）。 |
+| `VersionSelectOverlay.qml` | 521 | 版本选择浮层（左栏版本/模组/占用卡 + 右侧详情）。 |
+| `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。 |
+| `VersionLaunchSection.qml` | 599 | 启动配置分区（Java/参数/GPU）。 |
+| `VersionMemorySection.qml` | 251 | 内存分区。 |
+
+### 2.5 联机组件族（`Multiplayer*`）
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `MultiplayerHelpPanel.qml` | 132 | 联机帮助折叠面板（架构/房主/访客/NAT/端口/FAQ）。 |
+| `MultiplayerStateIndicator.qml` | 112 | 状态指示面板（角色徽章/状态文字/进度条）。 |
+| `MultiplayerStateDot.qml` | 37 | 状态指示灯（颜色圆点+呼吸）。 |
+| `MultiplayerRoomCodeCard.qml` | 121 | 房间码卡（复制/难度徽章）。 |
+| `MultiplayerNetworkPanel.qml` | 119 | 网络监控面板（难度/协议/MC端口/在线玩家/指纹）。 |
+| `MultiplayerPlayerCard.qml` | 147 | 玩家卡（名称/身份/延迟动画）。 |
+
+### 2.6 通用组件
+
+| 文件 | 行数 | 功能 |
+|---|---|---|
+| `ShadowButton.qml` | 95 | 通用按钮（hover/press 缩放动效）。 |
+| `ShadowIconButton.qml` | 122 | 图标按钮。 |
+| `ShadowSwitch.qml` | 70 | 开关。 |
+| `ShadowDropdown.qml` | 222 | 下拉选择。 |
+| `LabeledDropdown.qml` | 36 | 带标签下拉。 |
+| `InputBox.qml` | 274 | 输入框（密码模式/历史下拉/校验错误态/右侧按钮）。 |
+| `SearchBox.qml` | 55 | 搜索框。 |
+| `ConfirmDialog.qml` | 72 | 确认弹窗。 |
+| `GenericPopup.qml` | 177 | 通用弹窗（标题/内容/按钮）。 |
+| `SelectionPopup.qml` | 217 | 选择列表弹窗。 |
+| `ProfileSelectPopup.qml` | 214 | 头像/配置选择弹窗。 |
+| `LoadingSpinner.qml` | 69 | 加载转圈（Canvas）。 |
+| `LoadStatus.qml` | 53 | 加载状态条。 |
+| `KillButton.qml` | 97 | 红色终止按钮。 |
+| `RefreshButton.qml` | 38 | 刷新按钮。 |
+| `BackButton.qml` | 53 | 返回按钮。 |
+| `PaginationFooter.qml` | 137 | 分页脚（上一页/页码/下一页）。 |
+| `FilterCard.qml` | 347 | 筛选卡（分类/加载器/版本过滤）。 |
+| `ExpandableGroupCard.qml` | 82 | 可折叠分组卡。 |
+| `DownloadCard.qml` | 320 | 下载项卡片（进度/速度/状态）。 |
+| `DownloadCardTagRow.qml` | 44 | 下载卡标签行。 |
+| `DownloadQueueCard.qml` | 366 | 下载队列卡片（队列项）。 |
+| `DownloadQueuePanel.qml` | 198 | 下载队列面板（右下角浮层）。 |
+| `ModLoaderCard.qml` | 163 | 加载器卡片（Forge/Fabric/NeoForge/OptiFine 选择）。 |
+| `ModpackInfoPanel.qml` | 149 | 整合包信息面板。 |
+| `MinecraftHead2D.qml` | 83 | 2D MC 头像（皮肤渲染）。 |
+| `InlineToast.qml` | 65 | 内联提示条。 |
+
+---
+
+## 三、文档更新记录
+
+| 日期 | 说明 |
+|---|---|
+| 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |
+
+> 之后每次代码变更后在此追加一行：日期 + 变更文件 + 一句话说明。
