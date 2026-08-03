@@ -204,7 +204,8 @@
 | `SettingsMemorySection.qml` | 368 | 内存条组件（游戏分配标签文字自适应钳制）。 |
 | `SettingsExperimentalPage.qml` | 261 | 设置-实验性功能（审计范围外）。 |
 | `JavaPage.qml` | 620 | Java 管理页（详情/列表）。 |
-| `StatsPage.qml` | 297 | **统计页**：版本游戏时长条（Hover 显示完整版本名 tooltip——任务 4 改造对象）。 |
+| `StatsPage.qml` | 297 | **统计页**：版本游戏时长条（Hover 显示完整版本名 tooltip——2026-08-03 改为自定义 Popup 圆角框，替代系统默认米白尖角 ToolTip）。 |
+| `SubPageOverlays.qml` | 138 | **⚠️ 死代码（无任何引用）**：旧式全页覆盖加载器（VersionSelectPage/VersionSettingsPage/Settings*Page），被 MainWindow 的 Overlay 形态取代。 |
 | `MultiplayerPage.qml` | 336 | **联机页**：创建/加入房间、状态指示、房间码卡、网络监控、玩家列表、帮助面板、底部合规声明。 |
 
 ### 2.3 详情/子页面
@@ -228,7 +229,7 @@
 | `DetailVersionCard.qml` | 173 | 版本详情卡（概览）。 |
 | `DetailInfoCard.qml` | 110 | 通用信息卡（详情页统计项）。 |
 | `VersionSelectOverlay.qml` | 521 | 版本选择浮层（左栏版本/模组/占用卡 + 右侧详情）。 |
-| `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。 |
+| `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层（实际生效）**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。概览快捷入口 2026-08-03 分类重做：统一 ShadowButton + 文件夹/日志/其他分组；Mod/config/光影可见性用本地 isModded()（backend.isModdedVersion 是 stub 恒 false 勿用）。 |
 | `VersionLaunchSection.qml` | 599 | 启动配置分区（Java/参数/GPU）。 |
 | `VersionMemorySection.qml` | 251 | 内存分区。 |
 
@@ -282,6 +283,7 @@
 | 日期 | 说明 |
 |---|---|
 | 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |
-| 2026-08-03 | main_release.cpp / main.cpp：新增禁用 Win11 DWM 系统圆角（DWM 圆角 + 透明分层窗口在浅色主题下四角露系统背景色 = 用户反馈的“白色小角”）。 |
+| 2026-08-03 | VersionSettingsOverlay 概览快捷入口分类重做（ShadowButton 统一 + 文件夹/日志/其他分组 + 修 stub isModdedVersion 恒隐藏 bug）；StatsPage tooltip 自定义 Popup 圆角框。 |
+| 2026-08-03 | 审计发现：SubPageOverlays.qml / VersionSelectPage.qml / VersionSettingsPage.qml / SettingsGeneralPage.qml / SettingsMemoryPage.qml 为死代码（无引用）；VersionSelectOverlay/VersionSettingsOverlay 为实际生效页。 |
 
 > 之后每次代码变更后在此追加一行：日期 + 变更文件 + 一句话说明。
