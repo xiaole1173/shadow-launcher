@@ -27,7 +27,7 @@ Rectangle {
     property string exportStatus: ""
 
     Connections {
-        target: backend && backend.userDataBackend ? backend.userDataBackend : null
+        target: backend ? backend.userDataBackend() : null
         function onExportProgress(pct, status) {
             isExporting = true
             exportPct = pct
@@ -1450,12 +1450,15 @@ function _showToast(msg) {
         defaultSuffix: "zip"
         currentFile: currentSelectedVersion ? (currentSelectedVersion + "_userdata.zip") : ""
         onAccepted: {
-            var path = exportFileDialog.selectedFile
-            if (!path.toString().toLowerCase().endsWith(".zip")) {
+            var url = exportFileDialog.selectedFile
+            // QUrl.toString() 带 file:/// 前缀，C++ 无法按本地路径创建 → 必须 toLocalFile
+            var path = (url && url.scheme === "file") ? url.toLocalFile() : url.toString()
+            if (!path.toLowerCase().endsWith(".zip")) {
                 path = path + ".zip"
             }
-            if (backend && backend.userDataBackend) {
-                backend.userDataBackend.exportUserData(backend.gameDir, currentSelectedVersion, path.toString())
+            if (backend && backend.userDataBackend()) {
+                _showToast("正在导出用户数据...")
+                backend.userDataBackend().exportUserData(backend.gameDir, currentSelectedVersion, path)
             }
         }
     }

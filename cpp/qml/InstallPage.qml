@@ -146,7 +146,7 @@ Rectangle {
         importArchivePath = ""
         importArchiveName = ""
         importItems = []
-        if (backend && backend.userDataBackend) backend.userDataBackend.cancelPendingImport()
+        if (backend && backend.userDataBackend()) backend.userDataBackend().cancelPendingImport()
         if (backend) backend.cancelPendingUserDataImport(fullVersionName)
     }
 
@@ -821,23 +821,25 @@ Rectangle {
         fileMode: FileDialog.OpenFile
         nameFilters: ["ZIP 文件 (*.zip)"]
         onAccepted: {
-            var path = importFileDialog.selectedFile
-            if (backend && backend.userDataBackend) {
-                backend.userDataBackend.validateArchive(backend.gameDir, path.toString())
+            var url = importFileDialog.selectedFile
+            // QUrl.toString() 带 file:/// 前缀，C++ 无法按本地路径读取 → 必须 toLocalFile
+            var path = (url && url.scheme === "file") ? url.toLocalFile() : url.toString()
+            if (backend && backend.userDataBackend()) {
+                backend.userDataBackend().validateArchive(backend.gameDir, path)
             }
         }
     }
 
     Connections {
-        target: backend && backend.userDataBackend ? backend.userDataBackend : null
-        enabled: backend && backend.userDataBackend
+        target: backend ? backend.userDataBackend() : null
+        enabled: backend && backend.userDataBackend()
         function onValidateFinished(success, archivePath, items, error) {
             if (success) {
                 root.importArchivePath = archivePath
                 root.importArchiveName = archivePath.split("/").pop().split("\\").pop()
                 root.importItems = items
-                if (backend && backend.userDataBackend) {
-                    backend.userDataBackend.setPendingImport(archivePath, items)
+                if (backend && backend.userDataBackend()) {
+                    backend.userDataBackend().setPendingImport(archivePath, items)
                 }
             } else {
                 if (root.toastManager) {

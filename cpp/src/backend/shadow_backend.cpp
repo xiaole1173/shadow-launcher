@@ -129,6 +129,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_userData = new UserDataBackend(this);
     bp("UserDataBackend");
 
+    // 用户数据导出/导入日志接入主日志（诊断用）
+    connect(m_userData, &UserDataBackend::logMessage,
+            this, &ShadowBackend::logMessage);
+
     // ── Icon cache (3 separate caches: mod / shader / rp, each max 100) ──
     QString iconBase = m_app->dataDir() + "/icons";
     m_modIconCache = new IconCache(iconBase + "/mod", 100, this);
