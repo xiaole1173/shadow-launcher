@@ -353,11 +353,14 @@ Rectangle {
                 Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
 
                 // 当前版本是否带加载器（Mod 相关按钮可见性；backend.isModdedVersion 是 stub 恒 false，勿用）
-                function isModded() {
-                    if (!backend || !backend.versionDetails || !currentSelectedVersion) return false
-                    for (var i = 0; i < backend.versionDetails.length; i++) {
-                        if (backend.versionDetails[i].id === currentSelectedVersion) {
-                            var lt = backend.versionDetails[i].loaderType || ""
+                // 用绑定属性而非函数：函数体内的属性引用不被绑定引擎追踪，versionDetails 异步加载完成/
+                // 切换版本时 visible 不会重新求值（曾导致原版版本误显示 Mods 按钮/加载后不刷新）
+                readonly property bool _isModded: {
+                    var det = backend ? backend.versionDetails : []
+                    if (!det || !currentSelectedVersion) return false
+                    for (var i = 0; i < det.length; i++) {
+                        if (det[i].id === currentSelectedVersion) {
+                            var lt = det[i].loaderType || "原版"  // 字段缺失按原版处理，绝不误显示
                             return lt !== "原版" && lt !== ""
                         }
                     }
@@ -403,7 +406,7 @@ Rectangle {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("Mod 文件夹"); iconSource: "icons/lucide/puzzle.svg"; iconSize: 14
                         accentColor: "#3a4a90"
-                        visible: isModded()
+                        visible: _isModded
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -414,7 +417,7 @@ Rectangle {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("config 文件夹"); iconSource: "icons/lucide/settings.svg"; iconSize: 14
                         accentColor: "#3a4a90"
-                        visible: isModded()
+                        visible: _isModded
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -425,7 +428,7 @@ Rectangle {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("光影包"); iconSource: "icons/lucide/sparkles.svg"; iconSize: 14
                         accentColor: "#3a4a90"
-                        visible: isModded()
+                        visible: _isModded
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
