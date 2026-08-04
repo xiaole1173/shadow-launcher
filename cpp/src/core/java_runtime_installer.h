@@ -7,6 +7,11 @@
 #include <QStringList>
 #include <QSet>
 #include <QVariantList>
+#include <QElapsedTimer>
+#include <QLockFile>
+#include <functional>
+
+#include "http_client.h"
 
 namespace ShadowLauncher {
 
@@ -31,6 +36,11 @@ class JavaRuntimeInstaller : public QObject {
     Q_PROPERTY(int currentStep READ currentStep NOTIFY progressChanged)
     Q_PROPERTY(int totalSteps READ totalSteps CONSTANT)
     Q_PROPERTY(QString statusText READ statusText NOTIFY progressChanged)
+    // ── 下载进度（异步下载期间实时更新） ──
+    Q_PROPERTY(int downloadPercent READ downloadPercent NOTIFY downloadProgressChanged)
+    Q_PROPERTY(qint64 downloadBytes READ downloadBytes NOTIFY downloadProgressChanged)
+    Q_PROPERTY(qint64 downloadTotal READ downloadTotal NOTIFY downloadProgressChanged)
+    Q_PROPERTY(double downloadSpeedMBps READ downloadSpeedMBps NOTIFY downloadProgressChanged)
 
 public:
     explicit JavaRuntimeInstaller(QObject* parent = nullptr);
@@ -43,6 +53,10 @@ public:
     int currentStep() const { return m_currentStep; }
     int totalSteps() const { return 3; }
     QString statusText() const { return m_statusText; }
+    int downloadPercent() const { return m_dlPercent; }
+    qint64 downloadBytes() const { return m_dlBytes; }
+    qint64 downloadTotal() const { return m_dlTotal; }
+    double downloadSpeedMBps() const { return m_dlSpeedMBps; }
 
     /// 一键安装 Java 8 (JRE) + 17 (JDK) + 25 (JDK)，跳过已安装
     Q_INVOKABLE void installRequiredJavas();
@@ -63,17 +77,16 @@ public:
     /// 已检测到的同 major Java 的路径
     QString existingJavaPath(int major) const;
 
-    /// 安装单个版本。返回 java.exe 路径（成功）或空串（失败/已取消）。
-    /// type: "jdk" 或 "jre"
-    QString installJava(int majorVersion, const QString& type);
-
-    /// 从 Tuna 镜像按架构/类型/版本下载 ZIP 并解压到 java_cache/{major}/
-    /// （与 ModLoaderInstaller::downloadAndExtractJava 同源，支持架构/类型参数化）
-    QString downloadAndExtract(int majorVersion, const QString& type, const QString& arch);
+    /// 安装单个版本（异步入口：列目录→下载→解压→验证→回调）。
+    /// onDone(ok, errorMsg, javaExe)
+    void installJavaAsync(int majorVersion, const QString& type,
+                          std::function<void(bool, const QString&, const QString&)> onDone);
 
 signals:
     void progressChanged();
     void runningChanged();
+    /// 下载进度实时更新（百分比 0-100 / 字节 / 速度 MB/s）
+    void downloadProgressChanged();
     /// 单个版本安装完成（label: "Java 8 (JRE)" 等；path: java.exe 路径；skipped: 已存在跳过）
     void javaInstalled(const QString& label, const QString& path, bool skipped);
     /// 全部完成
@@ -95,12 +108,6 @@ private:
     QVariantList m_detectedJavas;
     /// 已扫描路径去重
     QSet<QString> m_seenBinDirs;
-    /// 收集单个 java.exe（版本解析 + JDK 判定 + 去重）
-    void collectJava(const QString& exePath);
-    /// 递归扫描一个目录树（深度限制 + 跳过特殊目录）
-    void scanDirRecursive(const QString& dir, int maxDepth, int currentDepth);
-    /// 从注册表扫描（Windows）
-    void scanRegistryJavas();
     /// 过滤已知无意义路径（System32 等）
     static bool isSpecialPath(const QString& binDir);
 
@@ -111,6 +118,33 @@ private:
     bool m_waitingForScan = false;
     int m_currentStep = 0;
     QString m_statusText;
+
+    // ── 下载进度状态 ──
+    int m_dlPercent = 0;
+    qint64 m_dlBytes = 0;
+    qint64 m_dlTotal = 0;
+    double m_dlSpeedMBps = 0.0;
+    qint64 m_dlLastBytes = 0;
+    QElapsedTimer m_dlTimer;
+
+    // ── 异步安装状态机 ──
+    struct InstallJob {
+        int major = 0;
+        QString type;
+        QString zipUrl;
+        QString zipPath;     // 临时 zip 文件路径
+        QString javaDir;
+        QString javaExe;
+        std::function<void(bool, const QString&, const QString&)> onDone;
+        QLockFile* lock = nullptr;
+        HttpClient::DownloadHandle* dlHandle = nullptr;
+    };
+    InstallJob m_job;
+    void stepFetchZipList();
+    void stepDownloadZip();
+    void stepExtractZip();
+    void failJob(const QString& error);
+    void finishJob(const QString& javaExe);
 };
 
 } // namespace ShadowLauncher

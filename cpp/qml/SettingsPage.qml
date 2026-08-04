@@ -441,6 +441,15 @@ Rectangle {
                         anchors.left: parent.left; anchors.right: parent.right
                         anchors.top: parent.top; anchors.margins: 17; spacing: 8
 
+                        function _fmtBytes(bytes) {
+                            if (!bytes || bytes <= 0) return "0 B"
+                            var units = ["B", "KB", "MB", "GB"]
+                            var i = 0
+                            var v = bytes
+                            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+                            return v.toFixed(v >= 10 || i === 0 ? 0 : 1) + " " + units[i]
+                        }
+
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Image { source: "icons/lucide/download-cloud.svg"; width: 18; height: 18 }
@@ -545,6 +554,41 @@ Rectangle {
                             }
                         }
 
+                        // ── 下载进度条（下载中显示百分比 + 速度） ──
+                        ColumnLayout {
+                            visible: backend && backend.javaBackend && backend.javaBackend.javaInstalling
+                                && backend.javaBackend.javaDownloadTotal > 0
+                            Layout.fillWidth: true; spacing: 4
+
+                            Rectangle {
+                                Layout.fillWidth: true; height: 6; radius: 3
+                                color: StyleTokens.bgInput
+                                Rectangle {
+                                    width: parent.width * (backend.javaBackend.javaDownloadPercent / 100.0)
+                                    height: parent.height; radius: 3
+                                    color: StyleTokens.accent
+                                    Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 6
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "%1%  %2 / %3".arg(
+                                        backend.javaBackend.javaDownloadPercent,
+                                        _fmtBytes(backend.javaBackend.javaDownloadBytes),
+                                        _fmtBytes(backend.javaBackend.javaDownloadTotal))
+                                    font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
+                                }
+                                Text {
+                                    text: backend.javaBackend.javaDownloadSpeedMBps > 0
+                                        ? backend.javaBackend.javaDownloadSpeedMBps.toFixed(1) + " MB/s" : ""
+                                    font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink
+                                }
+                            }
+                        }
+
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             ShadowButton {
@@ -620,6 +664,12 @@ Rectangle {
                 if (ok) toastManager.show(qsTr("全部所需 Java 就绪"), 4500)
                 else toastManager.show(qsTr("Java 安装失败: %1").arg(error || qsTr("未知错误")), 6000)
             }
+        }
+        function onLogMessage(msg) {
+            // 只弹关键信息（ARM64 降级/扫描完成/锁定/异常），过滤常规进度文字
+            if (!msg || !toastManager) return
+            if (msg.indexOf("正在") === 0 || msg.indexOf("前置检测完成：系统中已有") === 0) return
+            toastManager.show(msg, 4000)
         }
     }
 

@@ -24,12 +24,17 @@ class JavaBackend : public QObject
     Q_PROPERTY(QString selectedArch READ selectedArch WRITE setSelectedArch NOTIFY selectedArchChanged)
     Q_PROPERTY(QString selectedOS READ selectedOS WRITE setSelectedOS NOTIFY selectedOSChanged)
 
-    // ── 一键安装所需 Java（设置-关于页） ──
+    // ── 一键安装所需 Java ──
     Q_PROPERTY(QString cpuArch READ cpuArch CONSTANT)
     Q_PROPERTY(bool javaInstalling READ javaInstalling NOTIFY javaInstallStateChanged)
     Q_PROPERTY(int javaInstallStep READ javaInstallStep NOTIFY javaInstallStateChanged)
     Q_PROPERTY(int javaInstallTotal READ javaInstallTotal CONSTANT)
     Q_PROPERTY(QString javaInstallStatus READ javaInstallStatus NOTIFY javaInstallStateChanged)
+    // ── 下载进度（异步下载实时更新） ──
+    Q_PROPERTY(int javaDownloadPercent READ javaDownloadPercent NOTIFY javaDownloadProgressChanged)
+    Q_PROPERTY(qint64 javaDownloadBytes READ javaDownloadBytes NOTIFY javaDownloadProgressChanged)
+    Q_PROPERTY(qint64 javaDownloadTotal READ javaDownloadTotal NOTIFY javaDownloadProgressChanged)
+    Q_PROPERTY(double javaDownloadSpeedMBps READ javaDownloadSpeedMBps NOTIFY javaDownloadProgressChanged)
 
 public:
     explicit JavaBackend(QObject *parent = nullptr);
@@ -72,6 +77,10 @@ public:
     int javaInstallStep() const;
     int javaInstallTotal() const;
     QString javaInstallStatus() const;
+    int javaDownloadPercent() const;
+    qint64 javaDownloadBytes() const;
+    qint64 javaDownloadTotal() const;
+    double javaDownloadSpeedMBps() const;
 
 signals:
     void javaVersionsChanged();
@@ -96,6 +105,8 @@ signals:
     void javaInstallFinished(bool ok, const QString &error);
     /// 前置检测完成
     void systemJavaScanFinished();
+    /// 下载进度实时更新
+    void javaDownloadProgressChanged();
 
 private:
     void fetchUrl(const QString &url, std::function<void(const QStringList &)> callback,

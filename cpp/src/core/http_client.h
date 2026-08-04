@@ -15,6 +15,7 @@
 #include <QNetworkProxy>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QTimer>
 #include <QList>
 #include <QVector>

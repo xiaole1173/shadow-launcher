@@ -35,6 +35,8 @@ JavaBackend::JavaBackend(QObject *parent)
             this, &JavaBackend::logMessage);
     connect(m_runtimeInstaller, &JavaRuntimeInstaller::systemJavaScanFinished,
             this, &JavaBackend::systemJavaScanFinished);
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::downloadProgressChanged,
+            this, &JavaBackend::javaDownloadProgressChanged);
 }
 
 // ── Setters trigger cascading fetches ──
@@ -411,6 +413,26 @@ int JavaBackend::javaInstallTotal() const
 QString JavaBackend::javaInstallStatus() const
 {
     return m_runtimeInstaller->statusText();
+}
+
+int JavaBackend::javaDownloadPercent() const
+{
+    return m_runtimeInstaller->downloadPercent();
+}
+
+qint64 JavaBackend::javaDownloadBytes() const
+{
+    return m_runtimeInstaller->downloadBytes();
+}
+
+qint64 JavaBackend::javaDownloadTotal() const
+{
+    return m_runtimeInstaller->downloadTotal();
+}
+
+double JavaBackend::javaDownloadSpeedMBps() const
+{
+    return m_runtimeInstaller->downloadSpeedMBps();
 }
 
 } // namespace ShadowLauncher
