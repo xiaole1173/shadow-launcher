@@ -340,6 +340,10 @@ public:
     Q_INVOKABLE bool openLogsFolder(const QString& versionId = {});
     Q_INVOKABLE bool openLauncherLogsFolder();
     Q_INVOKABLE bool openCrashLog(const QString& versionId = {});
+    // ── Crash analysis (forwarded to LaunchBackend) ──
+    Q_INVOKABLE void analyzeCrashNow();
+    Q_INVOKABLE QString exportCrashLogs(const QString& destDir = {});
+    Q_INVOKABLE void openPath(const QString& path);
     Q_INVOKABLE bool openSavesFolder(const QString& versionId = {});
     Q_INVOKABLE bool openScreenshotsFolder(const QString& versionId = {});
     Q_INVOKABLE bool openModsFolder(const QString& versionId = {});
@@ -367,32 +371,40 @@ public:
     Q_INVOKABLE void searchModsEx(const QString& query, const QString& loader,
         const QString& category, const QString& gameVersion,
         const QString& environment, const QString& license,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
     Q_INVOKABLE QVariantMap getModCategories();
     // CurseForge 分类静态表（QML 叠加下拉用）
     Q_INVOKABLE QVariantList cfCategories(int classId) const;
     Q_INVOKABLE void searchShadersEx(const QString& query, const QStringList& gameVersions,
         const QStringList& categories, const QStringList& performance,
-        const QStringList& loader, int offset, int limit);
+        const QStringList& loader, int offset, int limit, const QString& source = {});
     // 翻页预取（只预热缓存，不产生聚合信号，与真实搜索物理隔离）
     Q_INVOKABLE void prefetchModsEx(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
     Q_INVOKABLE void prefetchShadersEx(const QString& query, const QStringList& gameVersions,
-        const QStringList& categories, int offset, int limit);
+        const QStringList& categories, int offset, int limit, const QString& source = {});
     Q_INVOKABLE void prefetchResourcepacks(const QString& query, const QString& gameVersion,
-        int offset, const QStringList& categories);
+        int offset, const QStringList& categories, const QString& source = {});
     // 整合包翻页预取（只预热缓存，不产生聚合信号）
     Q_INVOKABLE void prefetchModpacks(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
+    // 数据包翻页预取（同构）
+    Q_INVOKABLE void prefetchDatapacks(const QString& query, const QString& category,
+        const QStringList& gameVersions, const QString& sort,
+        int offset, int limit, const QString& source = {});
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
-    Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
+    Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {}, const QString& source = {});
     // 整合包双源搜索（池子架构）
     Q_INVOKABLE void searchModpacksEx(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
+    // 数据包双源搜索（Modrinth project_type:datapack + CF classId=6945）
+    Q_INVOKABLE void searchDatapacksEx(const QString& query, const QString& category,
+        const QStringList& gameVersions, const QString& sort,
+        int offset, int limit, const QString& source = {});
     // 整合包详情版本列表（Modrinth slug / CF 数字 id 自动路由，复用 modVersionsPartial）
     Q_INVOKABLE void fetchModpackVersions(const QString& slug, const QString& gameVersion = {}, const QString& loader = {});
     /// 整合包压缩包下载：静默下载到 {gameDir}/downloads/，完成后自动走导入流程
@@ -605,6 +617,10 @@ signals:
     void minecraftStopped();
     // ── Crash detection ──
     void crashDetected(const QVariantMap& report);
+    /// 启动失败 → 开始异步分析（QML 弹 toast）
+    void crashAnalysisStarted();
+    /// 异步分析完成（完整报告）
+    void crashAnalysisReady(const QVariantMap& report);
     void isRunningChanged();
     void runningCountChanged();
     void resourceDownloadStateChanged();
@@ -629,6 +645,8 @@ signals:
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     /// 整合包搜索完成（池子全量，QML 按页切片）
     void modpackSearchResultsReady(const QVariantList& results);
+    /// 数据包搜索完成（池子全量，QML 按页切片）
+    void datapackSearchResultsReady(const QVariantList& results);
     /// CF 前置依赖解析完成（QML 回填依赖卡片）
     void cfDependenciesResolved(const QString& modId, const QVariantList& deps);
 

@@ -369,6 +369,18 @@ void Launcher::onReadyReadStdout()
     if (text.isEmpty())
         return;
 
+    // ── Crash analysis ring buffer: keep raw lines (unfiltered) ──
+    {
+        const QStringList rawLines = QString::fromUtf8(data).split(QLatin1Char('\n'));
+        for (const QString& raw : rawLines) {
+            const QString t = raw.trimmed();
+            if (t.isEmpty()) continue;
+            m_outputRing.append(t);
+            if (m_outputRing.size() > 600)
+                m_outputRing.removeFirst();
+        }
+    }
+
     // Filter: discard routine MC INFO/Trace/DEBUG output, keep errors/crashes
     // Process line-by-line so a mixed chunk (INFO + ERROR) keeps the ERROR part
     const QStringList lines = text.split(QLatin1Char('\n'));
@@ -386,8 +398,24 @@ void Launcher::onReadyReadStderr()
     QByteArray data = m_process->readAllStandardError();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
+        // ── Crash analysis ring buffer ──
+        const QStringList rawLines = QString::fromUtf8(data).split(QLatin1Char('\n'));
+        for (const QString& raw : rawLines) {
+            const QString t = raw.trimmed();
+            if (t.isEmpty()) continue;
+            m_outputRing.append(t);
+            if (m_outputRing.size() > 600)
+                m_outputRing.removeFirst();
+        }
         emit launchProgress(text);
     }
+}
+
+QStringList Launcher::recentOutput(int maxLines) const
+{
+    if (maxLines <= 0 || m_outputRing.size() <= maxLines)
+        return m_outputRing;
+    return m_outputRing.mid(m_outputRing.size() - maxLines);
 }
 
 // ── MC output noise filter: drop routine INFO/Trace/DEBUG log lines ──

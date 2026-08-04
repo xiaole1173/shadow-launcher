@@ -406,6 +406,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 m_lastCrash = report;
                 emit crashDetected(report);
             });
+    connect(m_launch, &LaunchBackend::crashAnalysisStarted,
+            this, &ShadowBackend::crashAnalysisStarted);
+    connect(m_launch, &LaunchBackend::crashAnalysisReady,
+            this, &ShadowBackend::crashAnalysisReady);
     connect(m_launch, &LaunchBackend::isRunningChanged,
             this, &ShadowBackend::isRunningChanged);
     connect(m_launch, &LaunchBackend::runningCountChanged,
@@ -594,6 +598,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // 整合包搜索完成透传（QML 回填列表）
     connect(m_resource, &ResourceBackend::modpackSearchResultsReady,
             this, &ShadowBackend::modpackSearchResultsReady);
+    // 数据包搜索完成透传（QML 回填列表）
+    connect(m_resource, &ResourceBackend::datapackSearchResultsReady,
+            this, &ShadowBackend::datapackSearchResultsReady);
     // CF 前置依赖解析结果透传（QML 回填依赖卡片）
     connect(m_resource, &ResourceBackend::cfDependenciesResolved,
             this, &ShadowBackend::cfDependenciesResolved);
@@ -1670,6 +1677,19 @@ bool ShadowBackend::openCrashLog(const QString& versionId) {
     return false;
 }
 
+void ShadowBackend::analyzeCrashNow() {
+    if (m_launch) m_launch->analyzeCrashNow();
+}
+
+QString ShadowBackend::exportCrashLogs(const QString& destDir) {
+    if (!m_launch) return {};
+    return m_launch->exportCrashLogs(destDir);
+}
+
+void ShadowBackend::openPath(const QString& path) {
+    if (m_launch) m_launch->openPath(path);
+}
+
 bool ShadowBackend::openSavesFolder(const QString& versionId) {
     QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
     QDir().mkpath(savesDir);
@@ -2358,12 +2378,12 @@ void ShadowBackend::searchMods(const QString& query, const QString& loader) {
 void ShadowBackend::searchModsEx(const QString& query, const QString& loader,
     const QString& category, const QString& gameVersion,
     const QString& environment, const QString& license,
-    int offset, int limit) {
+    int offset, int limit, const QString& source) {
     QStringList versions;
     if (!gameVersion.isEmpty())
         versions << gameVersion;
     m_resource->searchModsEx(query, loader, category, versions,
-                             environment, license, offset, limit);
+                             environment, license, offset, limit, source);
 }
 
 QVariantMap ShadowBackend::getModCategories() {
@@ -2377,25 +2397,25 @@ QVariantList ShadowBackend::cfCategories(int classId) const
 
 void ShadowBackend::searchShadersEx(const QString& query, const QStringList& gameVersions,
     const QStringList& categories, const QStringList& performance,
-    const QStringList& loader, int offset, int limit) {
-    m_resource->searchShadersEx(query, gameVersions, categories, performance, loader, offset, limit);
+    const QStringList& loader, int offset, int limit, const QString& source) {
+    m_resource->searchShadersEx(query, gameVersions, categories, performance, loader, offset, limit, source);
 }
 
 // 翻页预取：只预热缓存，不产生聚合信号
 void ShadowBackend::prefetchModsEx(const QString& query, const QString& loader,
     const QString& category, const QStringList& gameVersions,
-    int offset, int limit) {
-    m_resource->prefetchModsEx(query, loader, category, gameVersions, offset, limit);
+    int offset, int limit, const QString& source) {
+    m_resource->prefetchModsEx(query, loader, category, gameVersions, offset, limit, source);
 }
 
 void ShadowBackend::prefetchShadersEx(const QString& query, const QStringList& gameVersions,
-    const QStringList& categories, int offset, int limit) {
-    m_resource->prefetchShadersEx(query, gameVersions, categories, offset, limit);
+    const QStringList& categories, int offset, int limit, const QString& source) {
+    m_resource->prefetchShadersEx(query, gameVersions, categories, offset, limit, source);
 }
 
 void ShadowBackend::prefetchResourcepacks(const QString& query, const QString& gameVersion,
-    int offset, const QStringList& categories) {
-    m_resource->prefetchResourcepacks(query, gameVersion, categories, offset, 20);
+    int offset, const QStringList& categories, const QString& source) {
+    m_resource->prefetchResourcepacks(query, gameVersion, categories, offset, 20, source);
 }
 
 void ShadowBackend::downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir) {
@@ -2406,8 +2426,8 @@ void ShadowBackend::downloadShader(const QString& slug, const QString& gameVersi
     m_resource->downloadShader(slug, gameVersion, minecraftDir);
 }
 
-void ShadowBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories) {
-    m_resource->searchResourcepacks(query, gameVersion, offset, categories);
+void ShadowBackend::searchResourcepacks(const QString& query, const QString& gameVersion, int offset, const QStringList& categories, const QString& source) {
+    m_resource->searchResourcepacks(query, gameVersion, offset, categories, source);
 }
 
 void ShadowBackend::downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir) {
@@ -2446,8 +2466,8 @@ void ShadowBackend::resolveCfDependencies(const QString& modId, const QVariantLi
 // ── 整合包：双源搜索 / 详情版本 / 下载→自动导入 ──
 void ShadowBackend::searchModpacksEx(const QString& query, const QString& loader,
     const QString& category, const QStringList& gameVersions,
-    int offset, int limit) {
-    m_resource->searchModpacksEx(query, loader, category, gameVersions, offset, limit);
+    int offset, int limit, const QString& source) {
+    m_resource->searchModpacksEx(query, loader, category, gameVersions, offset, limit, source);
 }
 
 void ShadowBackend::fetchModpackVersions(const QString& slug, const QString& gameVersion, const QString& loader) {
@@ -2456,8 +2476,21 @@ void ShadowBackend::fetchModpackVersions(const QString& slug, const QString& gam
 
 void ShadowBackend::prefetchModpacks(const QString& query, const QString& loader,
     const QString& category, const QStringList& gameVersions,
-    int offset, int limit) {
-    m_resource->prefetchModpacks(query, loader, category, gameVersions, offset, limit);
+    int offset, int limit, const QString& source) {
+    m_resource->prefetchModpacks(query, loader, category, gameVersions, offset, limit, source);
+}
+
+// ── 数据包：双源搜索 / 翻页预取 ──
+void ShadowBackend::searchDatapacksEx(const QString& query, const QString& category,
+    const QStringList& gameVersions, const QString& sort,
+    int offset, int limit, const QString& source) {
+    m_resource->searchDatapacksEx(query, category, gameVersions, sort, offset, limit, source);
+}
+
+void ShadowBackend::prefetchDatapacks(const QString& query, const QString& category,
+    const QStringList& gameVersions, const QString& sort,
+    int offset, int limit, const QString& source) {
+    m_resource->prefetchDatapacks(query, category, gameVersions, sort, offset, limit, source);
 }
 
 int ShadowBackend::downloadModpack(const QString& url, const QString& filename, qint64 size,

@@ -71,12 +71,21 @@ public:
     void setGameDir(const QString& dir);
     void setAccount(AccountBackend* account) { m_account = account; }
 
+    // ── Crash analysis (public API) ──
+    Q_INVOKABLE void analyzeCrashNow();          // manual re-analysis (e.g. from dialog "重新分析")
+    Q_INVOKABLE QString exportCrashLogs(const QString& destDir = {});  // one-click log export
+    Q_INVOKABLE void openPath(const QString& path);  // open file/folder in system explorer
+
 signals:
     void launchProgressChanged(int progress, const QString& status);
     void launchStateChanged();
     void minecraftStarted();
     void minecraftStopped();
     void crashDetected(const QVariantMap& report);
+    /// Emitted when a failed launch triggers async crash analysis (QML shows "analyzing" state)
+    void crashAnalysisStarted();
+    /// Emitted when async crash analysis completes
+    void crashAnalysisReady(const QVariantMap& report);
     void isRunningChanged();
     void runningCountChanged();
     void logMessage(const QString& msg);
@@ -99,6 +108,7 @@ private:
     void handleLaunchStarted(Launcher* launcher);
     void handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg);
     void writeLauncherProfilesJson();  // 写入官方启动器兼容的认证信息
+    void runCrashAnalysis();           // async analysis worker (singleShot)
 
     AccountBackend* m_account = nullptr;
     Launcher* m_activeLauncher = nullptr;  // only accept progress from this launcher
@@ -141,6 +151,11 @@ private:
     bool m_pendingHighPerfGpu = false;
     int m_windowWidth = 854;
     int m_windowHeight = 480;
+
+    // ── Crash analysis state ──
+    QStringList m_pendingOutput;   // last output of the crashed game
+    QString m_launcherLogPath;     // path of the launcher's own log file
+    bool m_crashAnalysisRunning = false;
 };
 
 } // namespace ShadowLauncher

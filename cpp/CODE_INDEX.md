@@ -69,9 +69,9 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `shadow_backend.h/.cpp` | 824 / 4311 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总。 |
+| `shadow_backend.h/.cpp` | 857 / 4362 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总；崩溃分析信号转发（`crashAnalysisStarted`/`crashAnalysisReady`）+ `analyzeCrashNow`/`exportCrashLogs`/`openPath`。 |
 | `version_backend.h/.cpp` | 466 / 8287 | **版本管理大后端**：版本清单拉取/刷新（release/snapshot/old/aprilfool）、安装（走 VersionDownloader）、删除/重命名/克隆/迁移隔离、`verifyVersion`（游戏完整性校验）/`cancelVerify`/`cleanCorruptVersion`/`repairVersion`（修复，基于下载器 SHA1 校验重下缺失/损坏文件）、版本详情（Mod/资源包/存档列表异步）、installCards 模型、merged 安装上下文。 |
-| `launch_backend.h/.cpp` | 146 / 1417 | **启动后端**：组装 JVM/游戏参数、Token 刷新决策（`msTokenValid`/`shouldRefresh`）、进程启停（`launch`/`cancelLaunch`/`killGame*`）、崩溃检测结果传递、在线/离线模式路由。 |
+| `launch_backend.h/.cpp` | 161 / 1480 | **启动后端**：组装 JVM/游戏参数、Token 刷新决策（`msTokenValid`/`shouldRefresh`）、进程启停（`launch`/`cancelLaunch`/`killGame*`）、在线/离线模式路由；**崩溃分析异步链路**：启动失败 → `crashAnalysisStarted` → `runCrashAnalysis`（QTimer 异步）→ `crashAnalysisReady`；`analyzeCrashNow`/`exportCrashLogs`/`openPath` Q_INVOKABLE。 |
 | `account_backend.h/.cpp` | 156 / 1207 | **账号后端**：离线登录（用户名/UUID/历史）、微软正版登录（MicrosoftAuth 封装：token 管理/后台刷新/过期判断）、皮肤下载/上传/缓存、披风（CapeInfo）、3D 头像渲染触发、离线皮肤。 |
 | `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。 |
 | `settings_backend.h/.cpp` | 242 / 1167 | **设置后端**：全部设置项读写（QSettings）、下载源/线程/限速、主题、语言、游戏目录、Java 默认、JVM/游戏参数、内存自动分配、背景图、协议同意状态等。 |
@@ -97,7 +97,7 @@
 | `mod_manager.h/.cpp` | 264 / 1651 | **Mod 下载管理**：下载任务、夸父引擎接入（分片）、Modpack 模式。⚠️ **用户 WIP（勿改勿提交）**。 |
 | `local_mod_manager.h/.cpp` | 104 / 782 | **本地 Mod/资源包管理**：扫描 mods/ 目录、解析 JAR（读取 mods.toml/fabric.mod.json 元数据）、Mod 列表/过滤、删除、导入复制。 |
 | `mod_loader_installer.h/.cpp` | 247 / 4006 | **Forge/NeoForge/OptiFine 安装器**：四分支（Legacy3/2/1 安装器 + Bootstrapper 模式）；Forge install_profile 处理、处理器列表、FART/srgutils、版本 JSON 生成；含 Java 自动下载（Tuna Adoptium 镜像，解压剥顶层目录）。 |
-| `launcher.h/.cpp` | 105 / 1665 | **游戏启动核心**：实际启动 Minecraft 进程（参数组装、natives 解压、JVM 启动、进程监控、退出码处理）、服务器属性准备。 |
+| `launcher.h/.cpp` | 105 / 1710 | **游戏启动核心**：实际启动 Minecraft 进程（参数组装、natives 解压、JVM 启动、进程监控、退出码处理）、服务器属性准备；**输出环形缓冲**（recentOutput，最近 600 行原始输出供崩溃分析）。 |
 | `microsoft_auth.h/.cpp` | 64 / 357 | **微软 OAuth 认证**：设备码/浏览器流程、XBL→XSTS→Minecraft→Profile 四步链、token 获取与刷新。 |
 | `yggdrasil_auth.h/.cpp` | 87 / 266 | **Yggdrasil 认证**：外置登录协议实现（与服务器握手、校验、token）。 |
 | `cf_api.h/.cpp` | 73 / 370 | **CurseForge API 适配器**：搜索/分类/版本/依赖请求（走镜像 /curseforge/v1/）。 |
@@ -107,7 +107,7 @@
 | `geoip_service.h/.cpp` | 59 / 126 | **IP 地区检测**：ip-api.com，24h 缓存（QSettings），失败 5 分钟自动重试；供离线登录限制（非 CN 未正版登录禁止离线）与语言/版本区域适配。 |
 | `icon_cache.h/.cpp` | 46 / 105 | **图标缓存**：网络图标（webp）→ 本地 PNG 缓存。 |
 | `mc_language.h/.cpp` | 30 / 122 | **MC 语言映射**：地区码 → Minecraft 语言/region 设置（options.txt）。 |
-| `crash_detector.h/.cpp` | 51 / 252 | **崩溃检测**：解析崩溃报告/日志、判定崩溃类型、lastCrash 数据。 |
+| `crash_detector.h/.cpp` | 141 / 1150 | **崩溃分析引擎（v2 完整版）**：主流启动器 式 51 条正则规则库（OpenJ9/内存/Mod冲突/Mixin/OptiFine兼容等）+ 堆栈关键词黑名单分析 + 日志收集（崩溃报告/hs_err/latest.log/debug.log）+ 一键导出 + Markdown 报告生成（过长自动落盘）。`analyzeCrash(gameDir, latestOutput, launcherLog)` 全链路入口；`exportLogs()` 收集导出；`writeReport()` 生成报告。 |
 | `screenshot_server.h/.cpp` | 79 / 361 | **调试截图服务器**（Debug 构建）：/eval + /screenshot 远程调试接口。 |
 | `step_node.h/.cpp` | 85 / 61 | **步骤节点**：安装/下载步骤的状态/进度/字节计数 QObject（Q_PROPERTY+NOTIFY 供 QML 绑定）。 |
 | `step_pipeline.h/.cpp` | 95 / 202 | **步骤管线**：StepModel（QAbstractListModel）+ StepPipeline（加权进度/推进/取消），驱动安装进度 UI。 |
@@ -175,7 +175,7 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `MainWindow.qml` | 1430 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门。 |
+| `MainWindow.qml` | 1445 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）。 |
 | `SplashWindow.qml` | 50 | 启动画面。 |
 | `StyleTokens.qml` | 133 | **设计令牌**：颜色（bg/accent/text 系列）、字号、圆角、间距常量。 |
 | `AnimationTokens.qml` | 187 | **动画令牌**：时长/缓动曲线常量。 |
@@ -219,7 +219,7 @@
 | `ModpackImportOverlay.qml` | 328 | 整合包导入浮层（拖拽/选文件/自定义名）。 |
 | `InstallConfigOverlay.qml` | 151 | 安装配置浮层（版本名/加载器配置）。 |
 | `LaunchOverlay.qml` | 516 | 启动覆盖层（启动中状态/日志）。 |
-| `CrashDialog.qml` | 143 | 崩溃提示弹窗。 |
+| `CrashDialog.qml` | 330 | **崩溃分析弹窗（v2）**：双态——分析中（LoadingSpinner 转圈+提示文案）/结果（原因、建议列表、嫌疑模组标签云、报告文件提示）；按钮：重新分析/导出全部日志/打开崩溃报告/打开报告/关闭；入场 scale+opacity 动画（AnimationTokens）；`beginAnalyzing()` + `crashData` 属性驱动。 |
 
 ### 2.4 版本相关
 
@@ -282,6 +282,8 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-04 | 新增数据包（Data Pack）Tab：双源池子（Modrinth project_type:datapack + CF classId=6945）、DataPackDetailPage、FilterCard datapack 行（来源/类别/排序）；随后全 Tab 加来源筛选（sourceFilter → 五池 source 参数）；CF sortField 参数化；数据包池权重 2.5→1.0。 |
+| 2026-08-04 | 修 StatsPage 黑屏：Popup 残留 ToolTip 专属属性（text/delay/timeout）导致 QML 报错 delegate 创建失败；改自定义 tipText 属性 + parent 挂 root + mapToItem 坐标换算。 |
 | 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |
 | 2026-08-03 | VersionSettingsOverlay 概览快捷入口分类重做（ShadowButton 统一 + 文件夹/日志/其他分组 + 修 stub isModdedVersion 恒隐藏 bug）；StatsPage tooltip 自定义 Popup 圆角框。 |
 | 2026-08-03 | 快捷入口 Mod 按钮 visible 改 sidebar 同款内联白名单（readonly property 中转不生效，内联可靠）；删光影包/config 按钮；移除临时 DIA 日志。 |

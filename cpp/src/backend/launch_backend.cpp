@@ -19,6 +19,10 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QNetworkRequest>
+#include <QDate>
+#include <QUrl>
+#include <QDesktopServices>
+#include <QCoreApplication>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -938,21 +942,16 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
         qCCritical(logLaunch) << QStringLiteral("[启动] Minecraft 启动失败 原因=%1").arg(errorMsg);
         emit logMessage(tr("启动失败: %1").arg(errorMsg));
 
-        // ── Crash detection: scan for crash reports ──
-        CrashDetector detector;
-        CrashReport cr = detector.scanLatestCrash(m_gameDir);
-        if (cr.isValid) {
-            QVariantMap report;
-            report[QStringLiteral("type")] = cr.type;
-            report[QStringLiteral("reason")] = cr.reason;
-            report[QStringLiteral("description")] = cr.description;
-            report[QStringLiteral("suspectedMods")] = cr.suspectedMods;
-            report[QStringLiteral("filePath")] = cr.filePath;
-            report[QStringLiteral("timestamp")] = cr.timestamp;
-            report[QStringLiteral("isValid")] = true;
-            qCDebug(logLaunch) << "[CRASH] emitting crashDetected" << cr.type << cr.reason;
-            emit crashDetected(report);
-        }
+        // ── Crash detection: async full analysis ──
+        // 1) Immediately notify QML (toast: "启动失败，正在分析日志信息…")
+        // 2) Run analysis off the UI thread via singleShot
+        m_pendingOutput = launcher->recentOutput(300);
+        m_launcherLogPath = QCoreApplication::applicationDirPath()
+                            + QStringLiteral("/logs/shadow_launcher_")
+                            + QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))
+                            + QStringLiteral(".log");
+        emit crashAnalysisStarted();
+        QTimer::singleShot(120, this, &LaunchBackend::runCrashAnalysis);
     }
     m_launching = false;
 }
@@ -1410,6 +1409,70 @@ void LaunchBackend::writeLauncherProfilesJson()
         qCInfo(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 已写入 玩家=%1").arg(m_authName);
     } else {
         qCWarning(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 写入失败 错误=%1").arg(f.errorString());
+    }
+}
+
+// ============================================================
+// Crash analysis (async)
+// ============================================================
+
+void LaunchBackend::runCrashAnalysis()
+{
+    if (m_crashAnalysisRunning)
+        return;
+    m_crashAnalysisRunning = true;
+
+    qCInfo(logLaunch) << QStringLiteral("[崩溃分析] 异步分析开始 目录=%1").arg(m_gameDir);
+    CrashDetector detector;
+    CrashReport cr = detector.analyzeCrash(m_gameDir, m_pendingOutput, m_launcherLogPath);
+
+    QVariantMap report = cr.toVariantMap();
+    qCDebug(logLaunch) << "[CRASH] analysis ready" << report.value("type").toString()
+                       << report.value("reason").toString()
+                       << "suggestions=" << report.value("suggestions").toStringList().size();
+
+    // Legacy signal for backward compatibility
+    emit crashDetected(report);
+    // Full analysis signal
+    emit crashAnalysisReady(report);
+    m_crashAnalysisRunning = false;
+}
+
+void LaunchBackend::analyzeCrashNow()
+{
+    if (m_crashAnalysisRunning)
+        return;
+    m_pendingOutput.clear();
+    runCrashAnalysis();
+}
+
+QString LaunchBackend::exportCrashLogs(const QString& destDir)
+{
+    QString dir = destDir;
+    if (dir.isEmpty()) {
+        QString base = m_gameDir + QStringLiteral("/crash-analysis");
+        QDir().mkpath(base);
+        QString ts = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+        dir = base + QStringLiteral("/") + ts + QStringLiteral("-export");
+    }
+
+    CrashDetector detector;
+    QString result = detector.exportLogs(m_gameDir, dir, m_launcherLogPath);
+    if (!result.isEmpty()) {
+        qCInfo(logLaunch) << "[崩溃分析] 日志已导出:" << result;
+        emit logMessage(tr("日志已导出到: %1").arg(result));
+    }
+    return result;
+}
+
+void LaunchBackend::openPath(const QString& path)
+{
+    if (path.isEmpty())
+        return;
+    QUrl url = QUrl::fromLocalFile(path);
+    if (!QDesktopServices::openUrl(url)) {
+        qCWarning(logLaunch) << "[崩溃分析] 打开路径失败:" << path;
+        emit logMessage(tr("无法打开: %1").arg(path));
     }
 }
 

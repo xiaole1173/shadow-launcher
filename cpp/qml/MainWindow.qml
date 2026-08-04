@@ -1055,6 +1055,18 @@ Window {
             crashDialogLoader.active = true
             if (crashDialogLoader.item) crashDialogLoader.item.crashData = report
         }
+        // ── 崩溃分析 v2：启动失败 → Toast 提示 → 弹窗进入分析态 → 结果态 ──
+        function onCrashAnalysisStarted() {
+            console.log("[crash] analysis started")
+            if (toastManager) toastManager.show(qsTr("启动失败，正在分析日志信息…"), 3500)
+            crashDialogLoader.active = true
+            if (crashDialogLoader.item) crashDialogLoader.item.beginAnalyzing()
+        }
+        function onCrashAnalysisReady(report) {
+            console.log("[crash] analysis ready:", JSON.stringify(report))
+            crashDialogLoader.active = true
+            if (crashDialogLoader.item) crashDialogLoader.item.crashData = report
+        }
     }
 
     // Confirm Dialog (lazy-loaded — only builds SceneGraph when shown)
@@ -1174,6 +1186,12 @@ Window {
         id: crashDialogLoader; asynchronous: true; active: false
         anchors.fill: parent; z: 500
         source: "CrashDialog.qml"
+        onItemChanged: {
+            if (item) {
+                item.backend = backend
+                item.toastManager = toastManager
+            }
+        }
     }
 
 
