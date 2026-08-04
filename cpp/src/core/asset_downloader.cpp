@@ -382,16 +382,18 @@ void AssetDownloader::fireNext()
         h1cfg.setNumberOfConnectionsPerHost(128);
         req.setHttp1Configuration(h1cfg);
     }
-    // Per-source adaptive timeout:
-    //   min(avg_first_byte × 3, 30s)
-    // This avoids long waits on dead hosts while allowing slow-but-alive ones.
+    // Per-source adaptive timeout（主流启动器语义）:
+    //   min(max(avg_first_byte, 15s) × (1+fails), 30s)
+    // 15s 下限避免快网络误杀慢连接；avg_first_byte 增长上限 30s。
     {
         QString host = extractHost(url);
         QMutexLocker lock(&m_hostMutex);
         auto it = m_hostStats.find(host);
-        qint64 timeoutMs = (it != m_hostStats.end())
-            ? qMin(it->avgFirstByteMs * 3, 30000LL)
+        int fails = (it != m_hostStats.end()) ? it->consecutiveFails : 0;
+        qint64 base = (it != m_hostStats.end())
+            ? qMax(it->avgFirstByteMs, 15000LL)
             : 15000;
+        qint64 timeoutMs = qMin(base * (1 + qMin(fails, 3)), 30000LL);
         req.setTransferTimeout(static_cast<int>(timeoutMs));
         it->activeRequests++;
     }

@@ -649,14 +649,20 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
             connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             connect(&timeout, &QTimer::timeout, [&]() { timedOut = true; loop.quit(); });
+            // ── 无数据超时（主流启动器语义，2026-08-05 修正）──
+            // 所有模式统一：每次收到数据包重置超时计时器——有数据持续传输的
+            // 大文件不被固定超时误杀（主流启动器: 传输阶段取消固定超时，靠速度监控；
+            // 无数据超过 Timeout 才断开）。旧实现 MC 模式 QTimer 不随数据重置，
+            // 大文件下载中 12s 必被掐断（严重 bug）。
             if (m_modpackMode) {
-                // 模组专项：空闲无数据超时——每次收到数据包重置，连续 30s 无数据才断；
-                // 慢速持续传输的大文件不被整体超时误杀（PCL「无数据才超时」语义）
+                // 模组专项：空闲无数据超时——每次收到数据包重置，连续 30s 无数据才断
                 timeout.start(kChunkTimeoutMs);
                 connect(reply, &QNetworkReply::readyRead, &timeout,
                         [&timeout]() { timeout.start(kChunkTimeoutMs); });
             } else {
                 timeout.start(timeoutMs);
+                connect(reply, &QNetworkReply::readyRead, &timeout,
+                        [&timeout, timeoutMs]() { timeout.start(timeoutMs); });
             }
 
             qint64 lastProgressEmitMs = getElapsedMs();
@@ -673,6 +679,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     if (th->state == 1) th->state = 2;
                     m_downloadedBytes.fetchAndAddRelaxed(delta);
                     th->downloadDone = received;
+                    // 主流启动器语义：收到数据重置源失败计数（FailCount=0）——
+                    // 偶发失败不累计，避免误伤正常源
+                    if (sourceIdx < file->sourceFailCounts.size())
+                        file->sourceFailCounts[sourceIdx] = 0;
                 }
                 th->lastReceiveTime = getElapsedMs();
                 qint64 now = getElapsedMs();
@@ -885,8 +895,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 connect(reply, &QNetworkReply::readyRead, &timeout,
                         [&timeout]() { timeout.start(kChunkTimeoutMs); });
             } else {
+                // 无数据超时（主流启动器语义）：有数据持续传输不掐断（2026-08-05 修正）
                 int timeoutMs = (attempt == 0) ? kFirstAttemptTimeoutMs : kChunkTimeoutMs;
                 timeout.start(timeoutMs);
+                connect(reply, &QNetworkReply::readyRead, &timeout,
+                        [&timeout, timeoutMs]() { timeout.start(timeoutMs); });
             }
 
             connect(reply, &QNetworkReply::downloadProgress,

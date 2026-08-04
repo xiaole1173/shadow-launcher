@@ -1,15 +1,21 @@
-第三轮复查：速度门限只挡分片不挡首线程；镜像判断移到选中源后；全源禁用重置重试
+第四轮复查（读 主流启动器 线程主循环）：修复无数据超时误杀大文件等 3 处
 
-复查发现的 3 个问题：
-1. 速度门限 return 在 Phase2 开头——连"无线程文件的首线程补启动"也挡住了，
-   速度够时部分文件永远不启动。修正：门限只挡"给已有线程的文件加分片"
-   （主流启动器：等待文件启动不受速度门限限制），首线程补启动不受限。
-2. 镜像禁止分片判断用 orderedSources.first()——若源 0 官方、源 1 镜像，
-   分片选中镜像时仍会分片（主流启动器 检查的是"当前选中源"）。修正：镜像判断
-   移到源选择之后（选中镜像才不分片）。
-3. 全源禁用（FailCount>=5）后文件永久等待（首线程启动不了）。修正：
-   主流启动器 Retried 语义——首次全禁用重置失败计数重试一轮（retriedOnce 标志），
-   重试后仍全禁用则无法启动（返回 nullptr）。
+完整读 主流启动器 NetThread.Thread 主循环后发现的偏差：
 
-另外：tryStartFirstThread/tryAddThread 的源选择跳过 per-file 禁用源
-（sourceFailCounts>=5，对应 主流启动器 GetSource 跳过 IsFailed）。
+1. 【严重】MC 模式超时 QTimer 一次性启动、不随数据重置——大文件下载中
+   12s 必被掐断（有数据也超时）。主流启动器: 传输阶段取消固定超时，靠
+   "无数据超过 Timeout 才断开"（有数据持续传输不掐）。修正：所有模式
+   统一 readyRead 重置超时计时器（无数据才超时）。兜底重试路径同样修正。
+
+2. 主流启动器 收到数据时重置源失败计数（Th.Source.FailCount = 0）——偶发失败
+   不累计。我们 sourceFailCounts 没有重置 → 偶发超时累计误伤正常源。
+   修正：downloadProgress 收到数据时重置 sourceFailCounts[sourceIdx]=0。
+
+3. 山海经超时无 15s 下限（avgFirstByteMs×3 可能 <15s 误杀慢连接）。
+   主流启动器: max(ConnectAverage, 15000)。修正：加 15s 下限 + 失败次数增长
+   （上限 30s，与 主流启动器 一致）。
+
+核对无误项：Range 处理（首线程 Range 0-end + 截断兼容非 Range 服务器）、
+QNAM 线程亲和（worker 线程内 QNAM + loop.exec，lambda 引用安全）、
+数据完整性检查（data.size() < expectedSize 重试）、失败分片重下、
+MC 兜底重试（expectedSha1 3 次）。
