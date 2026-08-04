@@ -327,25 +327,11 @@ void AssetDownloader::fireNext()
         }
 
         // Pick source: skip degraded hosts, respect per-host limits
-        // ── 多源加权分流（2026-08-04）：65% 文件从首选组开始（官方优先/镜像
-        // 优先由源列表顺序决定），35% 从备选组开始——体现“优先”语义同时让
-        // 备选组分担并发，避免全部先压 mirrors[0] 打满排队（实测 5000 文件
-        // 全压官方 16 并发后期停摆）。哈希起点 + 环形遍历（组内优先命中）。
+        // ── 主流启动器 GetSource 语义（2026-08-04）：从源 0 开始顺序找第一个可用源。
+        // 源列表 = [首选组(官方或镜像按设置)..., 备选组...]——首选组用完/被
+        // 禁用才轮到备选组；不做多源混合分流（哈希 65/35 已废除）。
         selectedMirror = -1;
-        int groupSize = 1;
-        while (groupSize < dispatchTask.mirrors.size()
-               && isSameHostClass(dispatchTask.mirrors[groupSize], dispatchTask.mirrors[0]))
-            ++groupSize;
-        const int total = dispatchTask.mirrors.size();
-        const quint32 h = qHash(dispatchTask.savePath);
-        int startIdx;
-        if (groupSize >= total || (h % 100) < 65) {
-            startIdx = (groupSize >= total) ? (h % total) : (h % groupSize);
-        } else {
-            startIdx = groupSize + (h % (total - groupSize));
-        }
-        for (int k = 0; k < total; ++k) {
-            const int i = (startIdx + k) % total;
+        for (int i = 0; i < dispatchTask.mirrors.size(); ++i) {
             QString host = extractHost(dispatchTask.mirrors[i]);
             if (hostCanAccept(host)) {
                 selectedMirror = i;
@@ -859,18 +845,6 @@ QString AssetDownloader::extractHost(const QString& url) const
 {
     QUrl qurl(url);
     return qurl.host().toLower();
-}
-
-bool AssetDownloader::isSameHostClass(const QString& urlA, const QString& urlB) const
-{
-    // 官方源（Mojang/Minecraft 域名）与镜像站分为两组：
-    // 用户设置「官方优先/镜像优先」决定哪组在前，组内多源可哈希分流，
-    // 但组间顺序严格遵循设置（首选组全满才用备选组）。
-    const auto isOfficial = [](const QString& u) {
-        return u.contains(QStringLiteral("mojang.com"))
-            || u.contains(QStringLiteral("minecraft.net"));
-    };
-    return isOfficial(urlA) == isOfficial(urlB);
 }
 
 int AssetDownloader::getHostLimit(const QString& host) const

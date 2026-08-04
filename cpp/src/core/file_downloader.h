@@ -186,7 +186,7 @@ private:
     QMap<QString, HostStats> m_hostStats;
 
     static QString extractHost(const QString& url);
-    static bool isSameHostClass(const QString& urlA, const QString& urlB);
+    static bool isMirrorUrl(const QString& url);
     bool hostCanAccept(const QString& host) const;
     void recordHostResult(const QString& host, bool ok);
 
@@ -212,8 +212,8 @@ private:
 
     // ── Speed tracking ──
     static constexpr int kMaxSpeedRecords = 30;
-    // 小文件阈值：≤1MB 的文件 Phase1 延迟启动，避免瞬间占满并发饿死大文件
-    static constexpr qint64 kSmallFileThresholdBytes = 1LL * 1024 * 1024;
+    // 主流启动器 速度门限：全局下载速度 ≥256KB/s 不再追加分片线程（NetTaskSpeedLimitLow）
+    static constexpr qint64 kSpeedLimitLowBps = 256LL * 1024;
     QList<qint64> m_speedRecords;
     QElapsedTimer m_speedTimer;
     qint64 m_lastSpeedBytes = 0;

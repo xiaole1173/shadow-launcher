@@ -321,15 +321,6 @@ void FileDownloader::managerTick()
         for (auto& f : m_files) {
             if (f->state == 5 || f->state == 4) continue; // failed or finished
             if (f->state == 0) {
-                // 小文件延迟启动：Phase1 只启动大文件（>1MB）首线程，避免
-                // 海量小文件瞬间占满并发导致大文件单连接饿死（实测：56 个
-                // 小文件秒开连接 → fastutil 22MB 单连接龟速 23 秒）。
-                // 小文件留在 state 0，进入 PhaseAccelerate 后由下方循环
-                // 随大文件分片并行启动（小文件本身 1-2 秒下完）。
-                if (f->fileSize > 0 && f->fileSize <= kSmallFileThresholdBytes) {
-                    allStarted = false;
-                    continue;
-                }
                 if (active >= maxThreads) { allStarted = false; break; }
                 auto th = tryStartFirstThread(f);
                 if (th) {
@@ -351,16 +342,14 @@ void FileDownloader::managerTick()
     }
 
     // Phase 2-3: speed-based thread splitting
-    // 修复：删除速度门限（`curMbps >= floor 则不加线程`）。
-    // 该门限使 MC 单连接速度 ≥ 下限（峰值 85%）时永不追加线程 →
-    // client.jar 等大文件被锁死在单连接速率（实测 ~1MB/s）。
-    // 分片触发不再依赖速度判定，由 maxThreads / prep>dl / 512KB 最小碎片
-    // / per-host 上限四重守卫控制并发（PCL 语义：≥1MB 即分片，与速度无关）。
-    // 模组路径本就无视门限（下方分支），此改动仅影响 MC 路径。
+    // ── 速度门限（主流启动器语义，2026-08-04 恢复）──
+    // 全局下载速度 ≥256KB/s 就不追加分片线程：并发受控，避免把 CDN
+    // 打到限流（实测 14 个大文件全开分片 → 官方 CDN 限流 → 集体超时）。
+    // 速度不足时才加分片加速——主流启动器 NetTaskSpeedLimitLow=256KB/s。
+    if (m_emaMbps * 1024 * 1024 >= kSpeedLimitLowBps)
+        return;
 
     // Add threads to files with large remaining chunks
-    int smallStartedThisTick = 0;   // 小文件补启动限速：每 tick 最多 3 个，
-                                   // 把并发配额优先留给大文件分片（Phase2 主循环先于小文件启动）
     for (auto& f : m_files) {
         if (active >= maxThreads) break;
         if (f->state >= 3 || f->state == 5) continue; // merging/finished/failed
@@ -369,12 +358,11 @@ void FileDownloader::managerTick()
             auto th = tryStartFirstThread(f);
             if (th) { active++; continue; }
         }
-        // 小文件补启动：Phase1 延迟启动的小文件（≤kSmallFileThresholdBytes）
-        // 在此启动首线程（每 tick 限 3 个）——大文件分片优先，小文件随后并行。
+        // 小文件补启动：Phase1 因线程上限未启动的文件在此补首线程（主流启动器：
+        // 等待文件循环持续启动直到线程满；这里每 tick 继续补）。
         if (f->threads.isEmpty() && f->state == 0) {
-            if (smallStartedThisTick >= 3) continue;
             auto th = tryStartFirstThread(f);
-            if (th) { active++; smallStartedThisTick++; }
+            if (th) { active++; }
             continue;
         }
         if (f->isNoSplit && !f->threads.isEmpty()) continue; // single-thread files, already started
@@ -405,28 +393,12 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
     if (file->fileSize <= 0) { file->isUnknownSize = true; file->isNoSplit = true; }
 
     // Pick a healthy source
-    // ── 多源加权分流（2026-08-04）：65% 文件从首选组开始（官方优先/镜像优先
-    // 由用户设置决定哪组在前），35% 从备选组开始——既体现“优先”语义，又让
-    // 备选组分担并发，避免全部先压 orderedSources[0] 打满排队超时（实测
-    // 14 个大文件全压官方，3 个超时 30s 重试 → 支持库后期龟速）。
+    // ── 主流启动器 GetSource 语义（2026-08-04）：从源 0 开始顺序找第一个可用源。
+    // 源列表 = [首选组(官方或镜像按设置)..., 备选组...]——首选组用完/被禁用
+    // 才轮到备选组；不做多源混合分流（哈希 65/35 已废除）。
     int sourceIdx = 0;
     int srcLabel = 0;
-    int groupSize = 1;
-    while (groupSize < file->orderedSources.size()
-           && isSameHostClass(file->orderedSources[groupSize], file->orderedSources[0]))
-        ++groupSize;
-    const int total = file->orderedSources.size();
-    const quint32 h = qHash(file->localName);
-    int startIdx;
-    if (groupSize >= total || (h % 100) < 65) {
-        // 首选组内起点（组内哈希分散）
-        startIdx = (groupSize >= total) ? (h % total) : (h % groupSize);
-    } else {
-        // 备选组起点（辅助分担，35%）
-        startIdx = groupSize + (h % (total - groupSize));
-    }
-    for (int k = 0; k < total; ++k) {
-        const int i = (startIdx + k) % total;
+    for (int i = 0; i < file->orderedSources.size(); ++i) {
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; srcLabel = (i == 0) ? 0 : i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; srcLabel = i; } // last resort
@@ -481,23 +453,17 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     qint64 splitPoint = maxPiece->downloadEnd - static_cast<qint64>(maxUndone * 0.4);
 
     // Pick a healthy source
-    // 多源加权分流：分片也按 65/35 加权选起始源，同一文件不同分片分散到
-    // 官方+镜像，避免所有分片压源 0（官方单 CDN 排队超时）
-    int sourceIdx = 0;
-    int groupSize = 1;
-    while (groupSize < file->orderedSources.size()
-           && isSameHostClass(file->orderedSources[groupSize], file->orderedSources[0]))
-        ++groupSize;
-    const int total = file->orderedSources.size();
-    const quint32 h = qHash(file->localName) + file->threads.size();
-    int startIdx;
-    if (groupSize >= total || (h % 100) < 65) {
-        startIdx = (groupSize >= total) ? (h % total) : (h % groupSize);
-    } else {
-        startIdx = groupSize + (h % (total - groupSize));
+    // ── 主流启动器语义：顺序 fallback（源 0 起）+ 镜像禁止分片 ──
+    // BMCLAPI 等镜像：主流启动器 明确不分片（TryBeginThread 对 bmclapi 返回 Nothing），
+    // 镜像单连接下载 + 限速请求频率（防镜像限流）。分片仅限官方源。
+    {
+        const QString firstUrl = file->orderedSources.isEmpty()
+            ? QString() : file->orderedSources.first();
+        if (isMirrorUrl(firstUrl) || file->orderedSources.isEmpty())
+            return nullptr;
     }
-    for (int k = 0; k < total; ++k) {
-        const int i = (startIdx + k) % total;
+    int sourceIdx = 0;
+    for (int i = 0; i < file->orderedSources.size(); ++i) {
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; } // last resort
@@ -592,24 +558,37 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
         sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
+        // 镜像限速（主流启动器语义）：BMCLAPI 等镜像每线程请求间隔 100ms，
+        // 防镜像源高频请求限流（403/429）。主流启动器: TryBeginThread 对 bmclapi
+        // sleep 100ms。
+        if (sourceIdx > 0 && isMirrorUrl(url))
+            QThread::msleep(100);
         // 模组专项：重置重试轮每源仅 1 次尝试（PCL「逐个重新尝试下载」语义）
         const int attemptLimit = modRetriedOnce ? 1 : 6;
         for (int attempt = 0; attempt < attemptLimit && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
 
             int timeoutMs;
-            // 2026-08-04：官方 CDN 正常 1-2s 响应首字节——12s 无数据即超时，
-            // 快速切镜像；之前 30s×3=75s 的超时重试让安装后期（剩余大文件）
-            // 看起来“卡死”1-2 分钟。setTransferTimeout 是“无数据超时”，
-            // 持续下载的文件不会误杀。
-            switch (attempt) {
-                case 0: timeoutMs = 12000; break;
-                case 1: timeoutMs = 12000; break;
-                default: timeoutMs = 15000; break;
+            // ── 自适应超时（主流启动器语义）──
+            // 主流启动器: Timeout = min(max(ConnectAverage,15000)×(1+FailCount), 30000)
+            // 基础 12s（官方 CDN 正常 1-2s 首字节），连续失败次数越多超时越长
+            // （上限 30s）——避免死等也避免误杀慢速但存活的连接。
+            // setTransferTimeout 是“无数据超时”，持续下载的文件不受影响。
+            const bool isOfficialUrl = url.contains("mojang.com") || url.contains("minecraft.net");
+            {
+                QString host = extractHost(url);
+                int fails = 0;
+                {
+                    QMutexLocker hlock(&m_hostMutex);
+                    auto it = m_hostStats.find(host);
+                    if (it != m_hostStats.end())
+                        fails = it->consecutiveFails;
+                }
+                const qint64 base = isOfficialUrl ? 12000 : 15000;
+                timeoutMs = static_cast<int>(qMin(base * (1 + qMin(fails, 3)), 30000LL));
             }
             // 官方源（mojang.com/minecraft.net）只试 2 次就切镜像：
             // 实测 3 个大文件同时压官方必超时，快速切 BMCLAPI 反而秒下。
-            const bool isOfficialUrl = url.contains("mojang.com") || url.contains("minecraft.net");
             if (isOfficialUrl && attempt >= 2 && (getElapsedMs() - startTimeMs) < 20000)
                 break;
             if (attempt >= 2 && file->expectedSha1.isEmpty()
@@ -1214,15 +1193,19 @@ QString FileDownloader::extractHost(const QString& url)
     return QUrl(url).host().toLower();
 }
 
-bool FileDownloader::isSameHostClass(const QString& urlA, const QString& urlB)
+bool FileDownloader::isMirrorUrl(const QString& url)
 {
-    // 官方源（Mojang/Minecraft 域名）与镜像站分两组：组内多源可哈希分流，
-    // 组间顺序严格遵循用户设置（官方优先/镜像优先决定哪组在前）
-    const auto isOfficial = [](const QString& u) {
-        return u.contains(QStringLiteral("mojang.com"))
-            || u.contains(QStringLiteral("minecraft.net"));
-    };
-    return isOfficial(urlA) == isOfficial(urlB);
+    // 镜像判定（主流启动器语义）：BMCLAPI 及各类镜像站不分片、限速请求
+    const QString u = url.toLower();
+    return u.contains(QStringLiteral("bmclapi"))
+        || u.contains(QStringLiteral("bangbang93"))
+        || u.contains(QStringLiteral("mcimirror"))
+        || u.contains(QStringLiteral("mcbbs"))
+        || u.contains(QStringLiteral("tuna"))
+        || u.contains(QStringLiteral("ustc"))
+        || u.contains(QStringLiteral("aliyun"))
+        || u.contains(QStringLiteral("tencent"))
+        || u.contains(QStringLiteral("huawei"));
 }
 
 

@@ -112,7 +112,6 @@ private:
         int  dynamicLimit = 4;             // current dynamic per-host limit
     };
     QString extractHost(const QString& url) const;
-    bool isSameHostClass(const QString& urlA, const QString& urlB) const;
     bool hostCanAccept(const QString& host) const;
     void recordHostResult(const QString& host, bool ok, qint64 firstByteMs);
     /// Per-host connection limit — dynamically adjusted.
