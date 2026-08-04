@@ -1452,12 +1452,16 @@ void LaunchBackend::runCrashAnalysis()
     QtConcurrent::run([this, gameDir, pendingOutput, launcherLogPath]() {
         CrashDetector detector;
         CrashReport cr = detector.analyzeCrash(gameDir, pendingOutput, launcherLogPath);
+        const QString reportFilePath = cr.reportFilePath;
         const QVariantMap report = cr.toVariantMap();
 
-        QMetaObject::invokeMethod(this, [this, report]() {
+        QMetaObject::invokeMethod(this, [this, report, reportFilePath]() {
             qCDebug(logLaunch) << "[CRASH] analysis ready" << report.value("type").toString()
                                << report.value("reason").toString()
                                << "suggestions=" << report.value("suggestions").toStringList().size();
+
+            // 保存诊断报告路径，供“导出全部日志”打包（zip 内含 analysis-report.md）
+            m_crashReportPath = reportFilePath;
 
             // Legacy signal for backward compatibility
             emit crashDetected(report);
@@ -1490,7 +1494,10 @@ QString LaunchBackend::exportCrashLogs(const QString& destDir)
     }
 
     CrashDetector detector;
-    QString result = detector.exportLogs(m_gameDir, zipPath, m_launcherLogPath);
+    // 打包 JVM 输出 + 诊断报告 + 崩溃报告/日志（用户反馈：最核心的 JVM 输出
+    // 和诊断结果必须包含在导出 zip 里）
+    QString result = detector.exportLogs(m_gameDir, zipPath, m_launcherLogPath,
+                                         m_pendingOutput, m_crashReportPath);
     if (!result.isEmpty()) {
         qCInfo(logLaunch) << "[崩溃分析] 日志已导出:" << result;
         emit logMessage(tr("日志已导出到: %1").arg(result));

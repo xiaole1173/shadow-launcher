@@ -410,8 +410,15 @@ Popup {
                 accentColor: StyleTokens.accentLink
                 Layout.preferredWidth: 110; Layout.preferredHeight: 32
                 onClicked: {
-                    if (exportDialogRef) exportDialogRef.open()
-                    else if (backend) {
+                    if (exportDialogRef) {
+                        // 动态填充默认文件名（带时间戳），用户可直接保存
+                        var ts = new Date()
+                        var pad = function(n){ return n < 10 ? "0" + n : "" + n }
+                        var name = "crash-logs-" + ts.getFullYear() + pad(ts.getMonth()+1) + pad(ts.getDate())
+                                + "-" + pad(ts.getHours()) + pad(ts.getMinutes()) + pad(ts.getSeconds()) + ".zip"
+                        exportDialogRef.currentFile = name
+                        exportDialogRef.open()
+                    } else if (backend) {
                         // 兜底：无对话框引用时直接导出到默认位置
                         var dir = backend.exportCrashLogs("")
                         if (dir && toastManager) toastManager.show("日志已导出到: " + dir, 5000)

@@ -1245,7 +1245,7 @@ Window {
         fileMode: FileDialog.SaveFile
         nameFilters: ["ZIP 文件 (*.zip)"]
         defaultSuffix: "zip"
-        currentFile: "crash-logs-export.zip"
+        // currentFile 由 CrashDialog 点击导出时动态设置（带时间戳）
         onAccepted: {
             var dl = crashDialogLoader.item
             if (!dl || !dl.backend) return

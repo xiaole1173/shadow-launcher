@@ -156,6 +156,7 @@ private:
     // ── Crash analysis state ──
     QStringList m_pendingOutput;   // last output of the crashed game
     QString m_launcherLogPath;     // path of the launcher's own log file
+    QString m_crashReportPath;     // path of last analysis report (for export)
     bool m_crashAnalysisRunning = false;
 };
 

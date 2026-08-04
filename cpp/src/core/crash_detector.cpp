@@ -763,7 +763,9 @@ CrashReport CrashDetector::analyzeCrash(const QString& gameDir,
 
 QString CrashDetector::exportLogs(const QString& gameDir,
                                   const QString& exportZipPath,
-                                  const QString& launcherLogPath)
+                                  const QString& launcherLogPath,
+                                  const QStringList& jvmOutput,
+                                  const QString& reportFilePath)
 {
     if (exportZipPath.isEmpty())
         return {};
@@ -777,7 +779,7 @@ QString CrashDetector::exportLogs(const QString& gameDir,
 
     // 收集日志文件
     const QStringList logs = collectLogFiles(gameDir);
-    if (logs.isEmpty() && launcherLogPath.isEmpty()) {
+    if (logs.isEmpty() && launcherLogPath.isEmpty() && jvmOutput.isEmpty() && reportFilePath.isEmpty()) {
         qCWarning(logLaunch) << "[崩溃分析] 没有可导出的日志";
         return {};
     }
@@ -786,6 +788,13 @@ QString CrashDetector::exportLogs(const QString& gameDir,
     zip.setCompressionPolicy(QZipWriter::AlwaysCompress);
     int added = 0;
 
+    // 1. JVM 进程输出（最核心的诊断依据：stdout+stderr）
+    if (!jvmOutput.isEmpty()) {
+        zip.addFile(QStringLiteral("jvm-output.txt"), jvmOutput.join(QLatin1Char('\n')).toUtf8());
+        added++;
+    }
+
+    // 2. 崩溃报告 / hs_err / latest.log / debug.log
     for (const QString& src : logs) {
         QFile f(src);
         if (!f.open(QIODevice::ReadOnly))
@@ -799,10 +808,21 @@ QString CrashDetector::exportLogs(const QString& gameDir,
         added++;
     }
 
+    // 3. 启动器日志
     if (!launcherLogPath.isEmpty() && QFileInfo::exists(launcherLogPath)) {
         QFile f(launcherLogPath);
         if (f.open(QIODevice::ReadOnly)) {
             zip.addFile(QStringLiteral("launcher-log.txt"), f.readAll());
+            f.close();
+            added++;
+        }
+    }
+
+    // 4. 启动器诊断结果（分析报告 markdown）
+    if (!reportFilePath.isEmpty() && QFileInfo::exists(reportFilePath)) {
+        QFile f(reportFilePath);
+        if (f.open(QIODevice::ReadOnly)) {
+            zip.addFile(QStringLiteral("analysis-report.md"), f.readAll());
             f.close();
             added++;
         }
