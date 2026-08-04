@@ -1706,6 +1706,10 @@ void ShadowBackend::openPath(const QString& path) {
     if (m_launch) m_launch->openPath(path);
 }
 
+void ShadowBackend::cleanupCrashArtifacts() {
+    if (m_launch) m_launch->cleanupCrashArtifacts();
+}
+
 bool ShadowBackend::openSavesFolder(const QString& versionId) {
     QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
     QDir().mkpath(savesDir);

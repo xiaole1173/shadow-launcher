@@ -76,6 +76,9 @@ public:
     Q_INVOKABLE void analyzeCrashNow();          // manual re-analysis (e.g. from dialog "重新分析")
     Q_INVOKABLE QString exportCrashLogs(const QString& destDir = {});  // one-click log export
     Q_INVOKABLE void openPath(const QString& path);  // open file/folder in system explorer
+    /// 清理启动器生成的崩溃分析产物（crash-analysis/<时间戳>/ 子目录），
+    /// 保留用户导出的 zip；不碰启动器 logs/ 与游戏侧日志（用户要求）。
+    Q_INVOKABLE void cleanupCrashArtifacts();
 
 signals:
     void launchProgressChanged(int progress, const QString& status);

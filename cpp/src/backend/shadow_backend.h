@@ -344,6 +344,7 @@ public:
     Q_INVOKABLE void analyzeCrashNow();
     Q_INVOKABLE QString exportCrashLogs(const QString& destDir = {});
     Q_INVOKABLE void openPath(const QString& path);
+    Q_INVOKABLE void cleanupCrashArtifacts();
     Q_INVOKABLE bool openSavesFolder(const QString& versionId = {});
     Q_INVOKABLE bool openScreenshotsFolder(const QString& versionId = {});
     Q_INVOKABLE bool openModsFolder(const QString& versionId = {});

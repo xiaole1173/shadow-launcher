@@ -1516,5 +1516,43 @@ void LaunchBackend::openPath(const QString& path)
     }
 }
 
+void LaunchBackend::cleanupCrashArtifacts()
+{
+    // 用户要求：崩溃分析完毕、用户完成导出等操作后，关闭窗口即销毁
+    // 启动器生成的所有分析文件。
+    // - 删除 crash-analysis/<时间戳>/ 子目录（分析报告 + 日志副本）
+    // - 保留 crash-analysis/ 根级 zip（用户导出的成果）
+    // - 不碰启动器 logs/（自身日志）
+    // - 不碰游戏侧日志（.minecraft/logs、crash-reports 等）
+    const QString base = m_gameDir + QStringLiteral("/crash-analysis");
+    QDir dir(base);
+    if (!dir.exists())
+        return;
+
+    int removed = 0;
+    const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& fi : entries) {
+        // 时间戳子目录（如 20260804-171523）是分析产物
+        if (QDir(fi.absoluteFilePath()).removeRecursively())
+            removed++;
+    }
+
+    // 根级非 zip 文件也清掉（如历史遗留的散落日志），zip 保留
+    const auto files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+    for (const QFileInfo& fi : files) {
+        if (fi.suffix().compare(QLatin1String("zip"), Qt::CaseInsensitive) != 0) {
+            QFile::remove(fi.absoluteFilePath());
+            removed++;
+        }
+    }
+
+    if (removed > 0)
+        qCInfo(logLaunch) << "[崩溃分析] 已清理分析产物 目录=" << base << "清理项=" << removed;
+
+    // 重置内部状态，避免下次导出引用已删除的报告
+    m_crashReportPath.clear();
+    m_pendingOutput.clear();
+}
+
 } // namespace ShadowLauncher
 

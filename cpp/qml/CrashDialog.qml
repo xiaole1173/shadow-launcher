@@ -77,6 +77,12 @@ Popup {
         }
     }
 
+    // 关闭弹窗即销毁启动器生成的分析产物（报告/日志副本；保留用户导出的 zip；
+    // 不碰启动器 logs 与游戏侧日志）——用户要求
+    onClosed: {
+        if (backend) backend.cleanupCrashArtifacts()
+    }
+
     // ── 弹出动画 ──
     enter: Transition {
         NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: AnimationTokens.pageDuration; easing.type: AnimationTokens.pageEasing }
