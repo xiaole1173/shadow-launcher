@@ -23,6 +23,7 @@
 #include <QEventLoop>
 #include <QUrl>
 #include <QNetworkRequest>
+#include <QtConcurrent>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
@@ -262,6 +263,9 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     QJsonObject assetIdx = versionJson.value(QStringLiteral("assetIndex")).toObject();
 
     // ── 阶段 A：libs/jar 立即启动（assetObjects 空 → collectTasks 只产出 libs/jar）──
+    // 2026-08-04：缓存预检（读盘 SHA1）移后台线程——几百个库文件全量读盘 hash
+    // 会在主线程卡 UI（点击开始下载的卡顿主因）。collectTasks 仍主线程（纯 JSON
+    // 遍历，快）；addFile 排队 + start 在主线程，但 addFile 不再重复读盘。
     {
         m_assetObjects.clear();
         QVector<DownloadTask> libTasks;
@@ -271,41 +275,95 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         for (const auto& t : libTasks) totalEstimate += t.totalBytes;
         m_totalBytes.storeRelaxed(totalEstimate);
 
-        bool hasLibTasks = false;
-        if (!libTasks.isEmpty()) {
-            const bool preferOfficial = (m_downloadCfg.fileSource == DownloadSourcePolicy::PreferOfficial ||
-                                         m_downloadCfg.fileSource == DownloadSourcePolicy::AutoSwitch);
-            for (const auto& t : libTasks) {
-                const int cat = m_fileCategory.value(t.savePath, -1);
-                if (cat == 2) continue;   // 防御：空 assetObjects 不应有 assets 任务
-                hasLibTasks = true;
-                QStringList sources;
-                if (preferOfficial) {
-                    bool mojangAdded = false;
-                    for (const auto& m : t.mirrors) {
-                        if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
-                            sources.append(m); mojangAdded = true;
+        const bool preferOfficial = (m_downloadCfg.fileSource == DownloadSourcePolicy::PreferOfficial ||
+                                     m_downloadCfg.fileSource == DownloadSourcePolicy::AutoSwitch);
+
+        // ── 后台预检缓存：读盘 SHA1 在 worker 线程，命中者 notifyCacheHit 计入完成 ──
+        // 结果经 invokeMethod 回主线程，避免跨线程调 QObject/emit
+        struct LibPrecheck {
+            QString savePath;
+            QString name;
+            QStringList sources;
+            qint64 totalBytes;
+            QByteArray sha1;
+        };
+        QVector<LibPrecheck> prechecks;
+        for (const auto& t : libTasks) {
+            const int cat = m_fileCategory.value(t.savePath, -1);
+            if (cat == 2) continue;   // 防御：空 assetObjects 不应有 assets 任务
+            LibPrecheck p;
+            p.savePath = t.savePath;
+            p.name = t.name;
+            p.totalBytes = t.totalBytes;
+            p.sha1 = t.sha1.toUtf8();
+            if (preferOfficial) {
+                bool mojangAdded = false;
+                for (const auto& m : t.mirrors) {
+                    if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
+                        p.sources.append(m); mojangAdded = true;
+                    }
+                }
+                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
+                    p.sources.append(t.url);
+                for (const auto& m : t.mirrors) {
+                    if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
+                        p.sources.append(m);
+                }
+            } else {
+                p.sources.append(t.url);
+                for (const auto& m : t.mirrors) p.sources.append(m);
+            }
+            prechecks.append(p);
+        }
+        const bool hasLibTasks = !prechecks.isEmpty();
+
+        QtConcurrent::run([this, prechecks, hasLibTasks]() {
+            // worker 线程：逐个读盘 SHA1 判定缓存命中（不碰任何 QObject 成员）
+            QVector<LibPrecheck> toDownload;
+            QVector<QPair<QString, qint64>> cacheHits;   // (path, size)
+            for (const auto& p : prechecks) {
+                bool hit = false;
+                if (!p.sha1.isEmpty()) {
+                    QFileInfo fi(p.savePath);
+                    if (fi.exists() && fi.size() > 0) {
+                        QFile f(p.savePath);
+                        if (f.open(QIODevice::ReadOnly)) {
+                            QCryptographicHash hash(QCryptographicHash::Sha1);
+                            hash.addData(&f);
+                            f.close();
+                            if (hash.result() == p.sha1) {
+                                hit = true;
+                                cacheHits.append({p.savePath, fi.size()});
+                            }
                         }
                     }
-                    if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
-                        sources.append(t.url);
-                    for (const auto& m : t.mirrors) {
-                        if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
-                            sources.append(m);
-                    }
-                } else {
-                    sources.append(t.url);
-                    for (const auto& m : t.mirrors) sources.append(m);
                 }
-                m_downloader->addFile(t.savePath, t.name, sources,
-                                      t.totalBytes, t.sha1.toUtf8(), false);
+                if (!hit)
+                    toDownload.append(p);
             }
-        }
-        m_libTasksDone = !hasLibTasks;
-        if (hasLibTasks) {
-            emit logMessage(QStringLiteral("[盘古] 开始下载库文件 (%1 个)").arg(libTasks.size()));
-            m_downloader->start();
-        }
+
+            QMetaObject::invokeMethod(this, [this, toDownload, cacheHits, hasLibTasks]() {
+                // 命中者计入完成（不读盘不排队）
+                for (const auto& ch : cacheHits)
+                    m_downloader->notifyCacheHit(ch.first, ch.second);
+
+                // 未命中者排队（skipCacheCheck=true：已预检过，不再重复读盘）
+                bool anyQueued = false;
+                for (const auto& p : toDownload) {
+                    m_downloader->addFile(p.savePath, p.name, p.sources,
+                                          p.totalBytes, p.sha1, false, true);
+                    anyQueued = true;
+                }
+                m_libTasksDone = !anyQueued;
+                if (anyQueued) {
+                    emit logMessage(QStringLiteral("[盘古] 开始下载库文件 (%1 个)").arg(toDownload.size()));
+                    m_downloader->start();
+                } else if (hasLibTasks) {
+                    // 全部缓存命中：无网络任务，start() 空任务立即 allFinished
+                    m_downloader->start();
+                }
+            });
+        });
     }
 
     // ── 阶段 B：assets index 双源竞速下载 → 完成后启动山海经（assets）──

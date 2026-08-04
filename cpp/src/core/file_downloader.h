@@ -81,7 +81,10 @@ public:
     void addFile(const QString& localPath, const QString& localName,
                  const QStringList& sources, qint64 expectedSize = -1,
                  const QByteArray& sha1 = QByteArray(),
-                 bool jarStrip = false);
+                 bool jarStrip = false,
+                 bool skipCacheCheck = false);
+    /// 调用方已后台预检确认文件 SHA1 命中：直接计入完成，不读盘不排队。
+    void notifyCacheHit(const QString& localPath, qint64 size);
     void start();
     void pause();
     void resume();

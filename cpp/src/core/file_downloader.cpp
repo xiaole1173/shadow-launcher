@@ -71,12 +71,13 @@ FileDownloader::~FileDownloader()
 
 void FileDownloader::addFile(const QString& localPath, const QString& localName,
                               const QStringList& sources, qint64 expectedSize,
-                              const QByteArray& sha1, bool jarStrip)
+                              const QByteArray& sha1, bool jarStrip, bool skipCacheCheck)
 {
     qCInfo(logDownload) << QStringLiteral("[夸父] 添加下载任务 名称=%1 大小=%2").arg(localName, formatSize(expectedSize));
 
     // Pre-check SHA1 cache hit in working dir (tempDir for merged installs)
-    if (!sha1.isEmpty()) {
+    // skipCacheCheck=true：调用方已后台预检过缓存（未命中），跳过重复读盘 SHA1
+    if (!sha1.isEmpty() && !skipCacheCheck) {
         QFileInfo fi(localPath);
         if (fi.exists() && fi.size() > 0) {
             QFile f(localPath);
@@ -156,6 +157,16 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     if (file->fileSize > 0) m_totalBytes.fetchAndAddRelaxed(file->fileSize);
 
     qCInfo(logDownload) << QStringLiteral("[夸父] 任务已排队 名称=%1 队列总数=%2").arg(localName).arg(m_files.size());
+}
+
+void FileDownloader::notifyCacheHit(const QString& localPath, qint64 size)
+{
+    // 调用方已后台预检确认 SHA1 命中：直接计入完成（completed/total/cacheHits），
+    // 不读盘不排队——避免主线程批量读盘 hash 卡 UI。
+    // 不发 fileProgress（缓存命中不驱动上层 catBytesDl，语义与内部缓存命中一致）
+    m_cacheHits.fetchAndAddRelaxed(1);
+    m_cacheBytes.fetchAndAddRelaxed(size);
+    emit fileFinished(localPath, true);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
