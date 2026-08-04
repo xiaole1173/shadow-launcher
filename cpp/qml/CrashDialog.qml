@@ -438,14 +438,27 @@ Popup {
         }
     }
 
-    // ── 导出日志目录选择 ──
-    FolderDialog {
+    // ── 导出日志位置选择（用 FileDialog 而非 FolderDialog——FolderDialog 在
+    //    Popup 上下文打开 native 对话框会崩溃 0xc0000005；FileDialog 是项目
+    //    多处验证过的模式）──
+    FileDialog {
         id: exportDialog
-        title: "选择日志导出目录"
+        title: "选择日志导出位置（输入文件夹名）"
+        fileMode: FileDialog.SaveFile
+        currentFile: "crash-logs"
         onAccepted: {
             if (!backend) return
-            var dir = String(selectedFolder).replace(/^(file:\/{2,3})/i, "")
-            var result = backend.exportCrashLogs(dir)
+            // 防御式路径转换（selectedFile 可能是 QUrl 或字符串）
+            var sel = exportDialog.selectedFile
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
+            if (!path) return
+            var result = backend.exportCrashLogs(path)
             if (result && toastManager) toastManager.show("日志已导出到: " + result, 5000)
         }
     }
