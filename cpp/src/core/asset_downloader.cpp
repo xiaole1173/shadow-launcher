@@ -849,6 +849,15 @@ int AssetDownloader::getHostLimit(const QString& host) const
     // BMCLAPI: fixed at 8 (known to handle this well)
     if (host.contains(QStringLiteral("bmclapi")))
         return 8;
+    // 官方 CDN（Mojang 资源/库）：固定 16 并发——海量资源文件用 4→32 爬升太慢
+    // （后期吞吐锁死停摆）；但也不能用满用户并发（夸父+山海经双引擎叠加
+    // 会打爆 CDN 触发限流，实测 23:02:49 夸父大文件集体超时 46 秒）
+    if (host.contains(QStringLiteral("resources.download.minecraft.net"))
+        || host.contains(QStringLiteral("libraries.minecraft.net"))
+        || host.contains(QStringLiteral("piston-data.mojang.com"))
+        || host.contains(QStringLiteral("launcher.mojang.com"))) {
+        return 16;
+    }
     // Other hosts: use dynamically adjusted per-host limit
     QMutexLocker lock(&m_hostMutex);
     auto it = m_hostStats.find(host);
