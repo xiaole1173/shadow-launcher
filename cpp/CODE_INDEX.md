@@ -16,6 +16,7 @@
 
 | 想找的功能 | 看这里 |
 |---|---|
+| 2026-08-05 | **下载引擎全面对齐 主流启动器语义 + 进度/速度修复**（详见速查表下方新增「下载引擎 2026-08-05 大修」章节）：源策略（哈希混合分流废除→顺序 fallback）、速度门限（256KB/s→4MB/s 瞬时差分）、镜像不分片+限速、自适应超时、per-file 源禁用+Retried、无数据超时修复、分片阈值 1MB、山海经调度/大小降序、进度失真 4 处（总量丢失/分片进度/初始100%/超额虚高）。 |
 | 主程序入口 / 启动流程 | `src/main_release.cpp`（发布）、`src/main.cpp`（开发变体） |
 | QML 主界面唯一入口对象 `backend` | `src/backend/shadow_backend.{h,cpp}` |
 | 版本列表/安装/删除/校验/修复/隔离 | `src/backend/version_backend.{h,cpp}` |
@@ -53,6 +54,46 @@
 | 设计令牌（颜色/字号/圆角） | `qml/StyleTokens.qml`、`qml/AnimationTokens.qml` |
 | Toast 通知 | `qml/ToastManager.qml` |
 | 通用按钮/输入框/下拉/开关 | `qml/ShadowButton/ShadowIconButton/ShadowSwitch/ShadowDropdown/InputBox/SearchBox` |
+
+## 下载引擎 2026-08-05 大修（对齐 主流启动器语义）
+
+> 背景：用户实测下载速度曲线异常（前快中慢后停摆）+ 进度失真 + 超额下载浪费，
+> 连续 7 轮对照 主流启动器（ModNet.vb / ModDownload.vb）逐行核对修正。
+> 涉及：`file_downloader.*`（夸父）、`asset_downloader.*`（山海经）、`version_downloader.*`（盘古）、`version_backend.cpp`（进度计算）。
+
+### 核心语义修正（对照 主流启动器）
+| 项 | 旧（错误） | 新（主流启动器语义） | 位置 |
+|---|---|---|---|
+| 源策略 | 哈希 65/35 官方+镜像混合分流 | **顺序 fallback**：源列表=[首选组,备选组]，从源 0 找第一个可用；首选组全禁用才用备选组 | file_downloader.cpp tryStartFirstThread/tryAddThread、asset_downloader.cpp fireNext |
+| 速度门限 | 3s EMA ≥256KB/s 不加分片（官方单连接 300KB/s 永不触发） | **瞬时差分 m_instantBps ≥4MB/s** 才不加分片（低于期望速度就分片补偿） | file_downloader.h kSpeedLimitLowBps=4MB、speedTick 更新 m_instantBps |
+| 源禁用 | 官方试 2 次就切镜像 | **per-file FailCount≥5 且无进度才禁用**（sourceFailCounts）；全禁用重置重试一轮（retriedOnce） | file_downloader.h FileDownload.sourceFailCounts/retriedOnce |
+| 全局降级 | 3 次连续失败就全局拉黑 host | **10 次**（接近完全停摆才全局降级，防偶发失败架空官方优先） | recordHostResult |
+| 镜像处理 | 镜像参与分片 | **镜像禁止分片**（isMirrorUrl 检查选中源）+ 每线程请求限速 100ms | tryAddThread、runWorker |
+| 超时 | 固定 12s/30s | **自适应**：min(max(avg,15s)×(1+fails),30s)（同主流启动器）；无数据超时 readyRead 重置（防误杀大文件） | runWorker、asset_downloader fireNext |
+| 调度节拍 | 50ms | **20ms**（同主流启动器 StartManager） | file_downloader.h kManagerTickMs |
+| 分片阈值 | FilePieceLimit 512KB / isNoSplit 50MB | **256KB / 1MB**（同主流启动器） | tryAddThread、addFile |
+
+### 进度显示修复（version_backend.cpp + 引擎层）
+1. **总量丢失**：阶段 B startAssets 不再重置 m_categoryTotalBytes[1]（libs 总量被 assets 任务 collectTasks 清 0 → 支持库 0/0KB）
+2. **分片进度缺失**：fileProgress 上报文件级总进度（file->totalDone()/fileSize），不再报单分片 received（上层按 savePath 去重只计第一个分片）
+3. **初始 100% 闪**：catBytesTotal<=0 时不再用全局 bytesDl 臆断 completed（pending 0%）
+4. **超额虚高**：downloadDone 封顶线程范围（服务器返回全文件时进度不虚高）
+5. 文件完成补发满字节帧（进度精确到 100%）
+
+### 超额下载浪费修复
+- **根因**：fileSize 被分片响应（206 contentLen=分片大小）缩小 → isNoSplit 翻转 → 后续无 Range → 服务器返回全文件 200（23.9MB 只留 132KB）
+- **修复**：fileSize 更新只允许补差（actualSize>fileSize），不允许缩小
+- 200 全文件响应：isFullFile 标志整文件直接使用（mergeFile 优先），不截断浪费
+- 实测验证：curl + Qt 最小程序确认官方 CDN 正确返回 206 精确分片（排除服务器/Qt 问题）
+
+### 山海经（assets）调度修复
+- PhaseCooldown 误触发（小文件间隙速度归零 → 并发砍半 → 90% 后暴跌）：冷却条件收紧 pending>4
+- 任务大小降序（startDownload/appendTasks）：大文件先下（87 个 >1MB，最大 the_end.ogg 11MB），消除收尾停摆
+- 超时加 15s 下限（主流启动器 max(avg,15s)）
+
+### 双引擎架构（保留）
+- 支持库 >1MB → 夸父（分片加速）；≤1MB → 山海经（独立并发）；阶段 B assets 追加到山海经（appendTasks）
+- 完成判定：m_assetTasksDone 仅由 allFinished 置位（山海经小库+assets 全完成才算）
 
 ---
 
