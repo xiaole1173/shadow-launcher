@@ -214,8 +214,12 @@ private:
 
     // ── Speed tracking ──
     static constexpr int kMaxSpeedRecords = 30;
-    // 主流启动器 速度门限：全局下载速度 ≥256KB/s 不再追加分片线程（NetTaskSpeedLimitLow）
-    static constexpr qint64 kSpeedLimitLowBps = 256LL * 1024;
+    // 主流启动器 速度门限（NetTaskSpeedLimitLow=256KB/s）——但 主流启动器 默认走镜像
+    //（单连接快），官方源单连接仅 ~300KB/s 时 256KB/s 门限永远不触发分片
+    // → 大文件单连接龟速（用户实测中期 <1MB/s）。调高到 4MB/s：
+    // 低于期望速度就分片（官方多连接补偿单连接慢），速度到 4MB/s 自然停
+    //（per-host/线程上限仍防爆）。
+    static constexpr qint64 kSpeedLimitLowBps = 4LL * 1024 * 1024;
     QList<qint64> m_speedRecords;
     QElapsedTimer m_speedTimer;
     qint64 m_lastSpeedBytes = 0;
