@@ -2937,7 +2937,10 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
             qreal mlRaw = ds->mlBytesAll > 0 ? qMin(1.0, (qreal)ds->mlBytesDl / ds->mlBytesAll) : 0.0;
 
-            qreal raw = mlRaw > 0.0 ? qMin(1.0, (mcRaw + mlRaw) / 2.0) : mcRaw;
+            qreal raw = qMin(1.0, (mcRaw + mlRaw) / 2.0);
+
+            // 无条件 MC/loader 各占 50%：MC 完成但 loader 未开始时进度只能到 0.5，
+            // 绝不能把 MC 完成当 100%（否则缓存全命中时卡片提前绿 + dismiss，forge 还没装）
 
             ds->m_rawTotalProgress = raw;
 
@@ -3025,12 +3028,16 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
         if (!mergedSessionId.isEmpty()) {
 
             auto* ds3 = ensureSession(mergedSessionId);
-            qint64 grandTotal = (ds3 ? ds3->mcBytesAll : 0) + (ds3 ? ds3->mlBytesAll : 0);
+            qint64 mlAllG = ds3 ? ds3->mlBytesAll : 0;
+
+            qint64 grandTotal = mlAllG > 0 ? ((ds3 ? ds3->mcBytesAll : 0) + mlAllG) : (ds3 ? ds3->mcBytesAll : 0);
             qint64 grandDone = (ds3 ? ds3->mcBytesDl : 0) + (ds3 ? ds3->mlBytesDl : 0);
 
             rawTotalProgress = (grandTotal > 0)
 
-                ? qBound(0.0, (qreal)grandDone / grandTotal, 1.0)
+                ? (mlAllG > 0
+                    ? qBound(0.0, (qreal)grandDone / grandTotal, 1.0)
+                    : qBound(0.0, 0.5 * (qreal)(ds3 ? ds3->mcBytesDl : 0) / grandTotal, 0.5))
 
                 : (tb > 0 ? qBound(0.0, (qreal)db / tb, 1.0) : 0.0);
 
