@@ -405,21 +405,28 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
     if (file->fileSize <= 0) { file->isUnknownSize = true; file->isNoSplit = true; }
 
     // Pick a healthy source
-    // ── 多源分流（2026-08-04）：不同文件在“首选组”内从不同源开始尝试，
-    // 并发均匀分布到首选组的所有源（官方组或镜像组由用户设置决定在前），
-    // 避免全部先压 orderedSources[0] 打满排队超时（实测 23:02:49 大文件集体
-    // 超时 46 秒）。首选组全满才按顺序用备选组（不架空用户源策略）。
+    // ── 多源加权分流（2026-08-04）：65% 文件从首选组开始（官方优先/镜像优先
+    // 由用户设置决定哪组在前），35% 从备选组开始——既体现“优先”语义，又让
+    // 备选组分担并发，避免全部先压 orderedSources[0] 打满排队超时（实测
+    // 14 个大文件全压官方，3 个超时 30s 重试 → 支持库后期龟速）。
     int sourceIdx = 0;
     int srcLabel = 0;
     int groupSize = 1;
     while (groupSize < file->orderedSources.size()
            && isSameHostClass(file->orderedSources[groupSize], file->orderedSources[0]))
         ++groupSize;
-    const int startIdx = qHash(file->localName) % groupSize;
-    for (int k = 0; k < file->orderedSources.size(); ++k) {
-        const int i = (k < groupSize)
-            ? ((startIdx + k) % groupSize)
-            : (groupSize + (k - groupSize));
+    const int total = file->orderedSources.size();
+    const quint32 h = qHash(file->localName);
+    int startIdx;
+    if (groupSize >= total || (h % 100) < 65) {
+        // 首选组内起点（组内哈希分散）
+        startIdx = (groupSize >= total) ? (h % total) : (h % groupSize);
+    } else {
+        // 备选组起点（辅助分担，35%）
+        startIdx = groupSize + (h % (total - groupSize));
+    }
+    for (int k = 0; k < total; ++k) {
+        const int i = (startIdx + k) % total;
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; srcLabel = (i == 0) ? 0 : i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; srcLabel = i; } // last resort
@@ -474,18 +481,23 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     qint64 splitPoint = maxPiece->downloadEnd - static_cast<qint64>(maxUndone * 0.4);
 
     // Pick a healthy source
-    // 多源分流：分片也按文件名哈希在“首选组”内选起始源，同一文件的不同分片
-    // 分散到首选组不同源（官方组/镜像组按用户设置），避免所有分片压源 0
+    // 多源加权分流：分片也按 65/35 加权选起始源，同一文件不同分片分散到
+    // 官方+镜像，避免所有分片压源 0（官方单 CDN 排队超时）
     int sourceIdx = 0;
     int groupSize = 1;
     while (groupSize < file->orderedSources.size()
            && isSameHostClass(file->orderedSources[groupSize], file->orderedSources[0]))
         ++groupSize;
-    const int startIdx = (qHash(file->localName) + file->threads.size()) % groupSize;
-    for (int k = 0; k < file->orderedSources.size(); ++k) {
-        const int i = (k < groupSize)
-            ? ((startIdx + k) % groupSize)
-            : (groupSize + (k - groupSize));
+    const int total = file->orderedSources.size();
+    const quint32 h = qHash(file->localName) + file->threads.size();
+    int startIdx;
+    if (groupSize >= total || (h % 100) < 65) {
+        startIdx = (groupSize >= total) ? (h % total) : (h % groupSize);
+    } else {
+        startIdx = groupSize + (h % (total - groupSize));
+    }
+    for (int k = 0; k < total; ++k) {
+        const int i = (startIdx + k) % total;
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; } // last resort

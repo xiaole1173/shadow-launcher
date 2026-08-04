@@ -327,21 +327,25 @@ void AssetDownloader::fireNext()
         }
 
         // Pick source: skip degraded hosts, respect per-host limits
-        // ── 多源分流（2026-08-04）：不同文件在“首选组”内从不同源开始尝试，
-        // 并发均匀分布到首选组的所有源（官方组或镜像组，由源列表顺序决定，
-        // 用户设置「官方优先/镜像优先」决定哪组在前），避免全部任务先压
-        // mirrors[0] 把单个 CDN 打满排队（实测 5000 文件全压官方 16 并发后期停摆）。
-        // 首选组全满才按顺序用备选组（语义与设置一致，不架空用户选择）。
+        // ── 多源加权分流（2026-08-04）：65% 文件从首选组开始（官方优先/镜像
+        // 优先由源列表顺序决定），35% 从备选组开始——体现“优先”语义同时让
+        // 备选组分担并发，避免全部先压 mirrors[0] 打满排队（实测 5000 文件
+        // 全压官方 16 并发后期停摆）。哈希起点 + 环形遍历（组内优先命中）。
         selectedMirror = -1;
         int groupSize = 1;
         while (groupSize < dispatchTask.mirrors.size()
                && isSameHostClass(dispatchTask.mirrors[groupSize], dispatchTask.mirrors[0]))
             ++groupSize;
-        const int startIdx = qHash(dispatchTask.savePath) % groupSize;
-        for (int k = 0; k < dispatchTask.mirrors.size(); ++k) {
-            const int i = (k < groupSize)
-                ? ((startIdx + k) % groupSize)
-                : (groupSize + (k - groupSize));
+        const int total = dispatchTask.mirrors.size();
+        const quint32 h = qHash(dispatchTask.savePath);
+        int startIdx;
+        if (groupSize >= total || (h % 100) < 65) {
+            startIdx = (groupSize >= total) ? (h % total) : (h % groupSize);
+        } else {
+            startIdx = groupSize + (h % (total - groupSize));
+        }
+        for (int k = 0; k < total; ++k) {
+            const int i = (startIdx + k) % total;
             QString host = extractHost(dispatchTask.mirrors[i]);
             if (hostCanAccept(host)) {
                 selectedMirror = i;
