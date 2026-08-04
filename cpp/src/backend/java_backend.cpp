@@ -33,6 +33,8 @@ JavaBackend::JavaBackend(QObject *parent)
             this, &JavaBackend::javaInstallStateChanged);
     connect(m_runtimeInstaller, &JavaRuntimeInstaller::logMessage,
             this, &JavaBackend::logMessage);
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::systemJavaScanFinished,
+            this, &JavaBackend::systemJavaScanFinished);
 }
 
 // ── Setters trigger cascading fetches ──
@@ -374,6 +376,16 @@ void JavaBackend::installRequiredJavas()
 void JavaBackend::cancelJavaInstall()
 {
     m_runtimeInstaller->cancelInstall();
+}
+
+QVariantList JavaBackend::scanSystemJavas()
+{
+    return m_runtimeInstaller->scanSystemJavas();
+}
+
+QVariantList JavaBackend::detectedSystemJavas() const
+{
+    return m_runtimeInstaller->detectedSystemJavas();
 }
 
 QString JavaBackend::cpuArch() const

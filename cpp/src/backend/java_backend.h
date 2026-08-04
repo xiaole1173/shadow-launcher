@@ -64,6 +64,9 @@ public:
     // ── 一键安装所需 Java ──
     Q_INVOKABLE void installRequiredJavas();
     Q_INVOKABLE void cancelJavaInstall();
+    /// 前置检测：扫描系统已有 Java，返回 [{major, version, path, isJdk}]
+    Q_INVOKABLE QVariantList scanSystemJavas();
+    Q_INVOKABLE QVariantList detectedSystemJavas() const;
     QString cpuArch() const;
     bool javaInstalling() const;
     int javaInstallStep() const;
@@ -91,6 +94,8 @@ signals:
     void javaInstallStateChanged();
     void javaInstalled(const QString &label, const QString &path, bool skipped);
     void javaInstallFinished(bool ok, const QString &error);
+    /// 前置检测完成
+    void systemJavaScanFinished();
 
 private:
     void fetchUrl(const QString &url, std::function<void(const QStringList &)> callback,

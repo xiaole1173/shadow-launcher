@@ -17,7 +17,13 @@ Rectangle {
     opacity: 0; y: 10
     Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
     Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-    Component.onCompleted: { opacity = 1; y = 0; appWindow.pageLoading = false }
+    Component.onCompleted: {
+        opacity = 1; y = 0; appWindow.pageLoading = false
+        // 触发一次 Java 前置检测（幂等：重复调用直接返回缓存）
+        if (typeof backend !== "undefined" && backend && backend.javaBackend) {
+            backend.javaBackend.scanSystemJavas()
+        }
+    }
 
     // Called when switching sections — show loading bar
     function switchSection(idx) {
@@ -465,6 +471,64 @@ Rectangle {
                             font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.4
                         }
 
+                        // ── 前置检测状态（已检测到 → 绿色跳过 / 缺失 → 将安装） ──
+                        ColumnLayout {
+                            id: javaStatusRow
+                            visible: backend && backend.javaBackend
+                            Layout.fillWidth: true; spacing: 5
+
+                            // 扫描完成后 +1 触发 detected 重新求值（detectedSystemJavas 是函数）
+                            property int scanTick: 0
+                            function refreshScan() { scanTick++ }
+
+                            property var detected: (scanTick >= 0 && backend && backend.javaBackend)
+                                ? (backend.javaBackend.detectedSystemJavas() || []) : []
+
+                            function hasMajor(major) {
+                                for (var i = 0; i < detected.length; i++) {
+                                    if (detected[i].major === major) return true
+                                }
+                                return false
+                            }
+                            function labelFor(major) {
+                                for (var i = 0; i < detected.length; i++) {
+                                    if (detected[i].major === major) {
+                                        return "Java " + major + " (" + (detected[i].isJdk ? "JDK" : "JRE") + ")"
+                                    }
+                                }
+                                return "Java " + major
+                            }
+
+                            Repeater {
+                                model: [
+                                    { major: 8,  label: "Java 8" },
+                                    { major: 17, label: "Java 17" },
+                                    { major: 25, label: "Java 25" }
+                                ]
+                                delegate: RowLayout {
+                                    Layout.fillWidth: true; spacing: 6
+                                    Rectangle {
+                                        width: 6; height: 6; radius: 3
+                                        color: parent.parent.hasMajor(modelData.major) ? StyleTokens.success : StyleTokens.textMuted
+                                    }
+                                    Text {
+                                        text: modelData.label
+                                        font.pixelSize: StyleTokens.fontSizeXs
+                                        color: parent.parent.hasMajor(modelData.major) ? StyleTokens.success : StyleTokens.textTertiary
+                                        Layout.preferredWidth: 58
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true; elide: Text.ElideRight
+                                        text: parent.parent.hasMajor(modelData.major)
+                                            ? (qsTr("已检测到 ") + parent.parent.labelFor(modelData.major))
+                                            : qsTr("未检测到，将自动安装")
+                                        font.pixelSize: StyleTokens.fontSizeXs
+                                        color: parent.parent.hasMajor(modelData.major) ? "#7ec8a0" : StyleTokens.textMuted
+                                    }
+                                }
+                            }
+                        }
+
                         // 安装进度 / 状态行
                         RowLayout {
                             visible: backend && backend.javaBackend && backend.javaBackend.javaInstalling
@@ -543,6 +607,10 @@ Rectangle {
     // ── One-click Java install feedback ──
     Connections {
         target: (typeof backend !== "undefined" && backend && backend.javaBackend) ? backend.javaBackend : null
+        function onSystemJavaScanFinished() {
+            // 刷新前置检测状态显示
+            javaStatusRow.refreshScan()
+        }
         function onJavaInstalled(label, path, skipped) {
             if (toastManager) {
                 toastManager.show(skipped ? (label + " 已存在，跳过") : (label + " 安装完成"), 3500)
@@ -550,9 +618,10 @@ Rectangle {
         }
         function onJavaInstallFinished(ok, error) {
             if (toastManager) {
-                if (ok) toastManager.show(qsTr("全部所需 Java 安装完成"), 4500)
+                if (ok) toastManager.show(qsTr("全部所需 Java 就绪"), 4500)
                 else toastManager.show(qsTr("Java 安装失败: %1").arg(error || qsTr("未知错误")), 6000)
             }
         }
     }
-}
+
+} // end SettingsPage

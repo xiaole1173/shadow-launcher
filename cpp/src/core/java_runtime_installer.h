@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QSet>
+#include <QVariantList>
 
 namespace ShadowLauncher {
 
@@ -47,6 +49,20 @@ public:
     /// 取消（当前版本下载完成后停止后续）
     Q_INVOKABLE void cancelInstall();
 
+    /// 已检测到的系统 Java（前置检测）: [{major, version, path, isJdk}]
+    QVariantList detectedSystemJavas() const;
+    /// 重新执行前置检测（返回同上）
+    Q_INVOKABLE QVariantList scanSystemJavas();
+
+    /// 单个版本是否需要安装（基于前置检测）
+    /// major: 目标主版本；targetIsJdk: 目标是否 JDK
+    /// 规则：已有同 major 任意类型（JRE/JDK 均可）→ 不需要（JRE 已满足运行场景）
+    bool isRequired(int major, bool targetIsJdk) const;
+    /// 已检测到的同 major Java 的显示名（"Java 17 (JDK)"）
+    QString existingJavaLabel(int major) const;
+    /// 已检测到的同 major Java 的路径
+    QString existingJavaPath(int major) const;
+
     /// 安装单个版本。返回 java.exe 路径（成功）或空串（失败/已取消）。
     /// type: "jdk" 或 "jre"
     QString installJava(int majorVersion, const QString& type);
@@ -63,12 +79,25 @@ signals:
     /// 全部完成
     void finished(bool ok, const QString& error);
     void logMessage(const QString& msg);
+    /// 前置检测完成（QML 更新"已检测到/将安装"状态）
+    void systemJavaScanFinished();
 
 private:
     /// 校验 java.exe 真实主版本号（java -version 解析）
     static int verifyJavaMajor(const QString& javaExe);
     /// 递归查找 bin/java.exe（非标准 ZIP 布局兜底）
     static QString findJavaExeRecursive(const QString& dir);
+
+    /// 已检测系统 Java 缓存: {major, version, path, isJdk}
+    QVariantList m_detectedJavas;
+    /// 已扫描路径去重
+    QSet<QString> m_seenBinDirs;
+    /// 收集单个 java.exe（版本解析 + JDK 判定 + 去重）
+    void collectJava(const QString& exePath);
+    /// 扫描一个目录下的 java.exe（bin/java.exe 标准布局）
+    void scanDirForJava(const QString& dir);
+    /// 从注册表扫描（Windows）
+    void scanRegistryJavas();
 
     QString m_cpuArch;
     bool m_running = false;
