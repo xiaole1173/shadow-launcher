@@ -106,13 +106,15 @@ void ModLoaderInstaller::emitByteProgress(const QString& name, qint64 received, 
 // ============================================================
 
 void ModLoaderInstaller::downloadToFile(const QString& url, const QString& savePath,
-                                         std::function<void(bool ok, const QString& error)> done) {
+                                         std::function<void(bool ok, const QString& error)> done,
+                                         bool reportProgress) {
     if (m_cancelled) { done(false, "Cancelled"); return; }
     QString fileName = savePath.section('/', -1);
     HttpClient::DownloadHandle* reply = HttpClient::instance().downloadWithReply(url, savePath,
-        [this, fileName](qint64 received, qint64 total) {
+        [this, fileName, reportProgress](qint64 received, qint64 total) {
             if (m_cancelled) return;
-            emitByteProgress(fileName, received, total);
+            if (reportProgress)
+                emitByteProgress(fileName, received, total);
         },
         [this, done, reply](bool ok, const QString& error) {
             m_activeReplies.removeOne(reply);
@@ -124,7 +126,8 @@ void ModLoaderInstaller::downloadToFile(const QString& url, const QString& saveP
 
 void ModLoaderInstaller::downloadToMemory(const QString& url,
                                            std::function<void(bool ok, const QByteArray& data)> done,
-                                           const QString& fileNameHint) {
+                                           const QString& fileNameHint,
+                                           bool reportProgress) {
     if (m_cancelled) { done(false, QByteArray()); return; }
     QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
                        + "/sl_ml_" + m_installName + "_"
@@ -137,7 +140,7 @@ void ModLoaderInstaller::downloadToMemory(const QString& url,
         f.close();
         QFile::remove(tempPath);
         done(true, data);
-    });
+    }, reportProgress);
 }
 
 void ModLoaderInstaller::downloadToMemoryRace(const QStringList& urls,
@@ -154,10 +157,13 @@ void ModLoaderInstaller::downloadToMemoryRace(const QStringList& urls,
     auto pending = std::make_shared<QAtomicInt>(urls.size());
     auto lastError = std::make_shared<QString>();
     auto errorMutex = std::make_shared<QMutex>();
-
-    for (const QString& url : urls) {
+    // 进度只由第一个源报告（竞速多源并发会交错污染 m_bytesLast → 速度 0）
+    for (int i = 0; i < urls.size(); ++i) {
+        const QString url = urls[i];
+        const bool reportProgress = (i == 0);
         downloadToMemory(url,
             [this, url, won, pending, lastError, errorMutex, done](bool ok, const QByteArray& data) {
+                Q_UNUSED(url)
                 if (*won) return;  // another download already won
                 if (m_cancelled) { *won = true; done(false, QByteArray()); return; }
 
@@ -184,7 +190,7 @@ void ModLoaderInstaller::downloadToMemoryRace(const QStringList& urls,
                     done(false, QByteArray());
                 }
             },
-            fileNameHint);
+            fileNameHint, reportProgress);
     }
 }
 

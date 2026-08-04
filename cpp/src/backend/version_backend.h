@@ -12,6 +12,7 @@
 #include <QThread>
 #include <QAtomicInt>
 #include <QMap>
+#include <QtConcurrent>
 #include <QSet>
 #include <QVector>
 #include <QNetworkReply>
@@ -313,6 +314,7 @@ private:
 
     QStringList m_versionIds;
     QStringList m_installedIds;
+    bool m_refreshInstalledBusy = false;   // 防异步刷新重入
     QString m_selectedVersion;
     QMap<QString, QByteArray> m_prefetchedJson;  // version JSON prefetch cache
 

@@ -89,10 +89,12 @@ signals:
 private:
     // Download helpers
     void downloadToFile(const QString& url, const QString& savePath,
-                        std::function<void(bool ok, const QString& error)> done);
+                        std::function<void(bool ok, const QString& error)> done,
+                        bool reportProgress = true);
     void downloadToMemory(const QString& url,
                           std::function<void(bool ok, const QByteArray& data)> done,
-                          const QString& fileNameHint = QString());
+                          const QString& fileNameHint = QString(),
+                          bool reportProgress = true);
     /// TrueRace: fire multiple URLs concurrently, return first successful data
     void downloadToMemoryRace(const QStringList& urls,
                               std::function<void(bool ok, const QByteArray& data)> done,

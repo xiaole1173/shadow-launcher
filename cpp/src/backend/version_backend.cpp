@@ -395,9 +395,40 @@ void VersionBackend::refreshInstalled()
 
 {
 
-    updateInstalledList();
+    // ── 异步刷新：扫盘在 worker 线程，避免点击/改名等高频调用阻塞主线程 UI ──
+    if (m_refreshInstalledBusy)
+        return;
+    m_refreshInstalledBusy = true;
 
-    emit installedVersionsChanged();
+    const QString gameDir = m_gameDir;
+    QtConcurrent::run([this, gameDir]() {
+        // 纯读扫描（线程安全）：遍历 versions 目录，fast path 只 stat jar/json
+        QStringList found;
+        if (!gameDir.isEmpty()) {
+            const QString versionsDir = gameDir + QStringLiteral("/versions");
+            QDir dir(versionsDir);
+            if (dir.exists()) {
+                const QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const QString& subDir : subDirs) {
+                    const QString verPath = versionsDir + QStringLiteral("/") + subDir;
+                    const QString fastJar = verPath + QStringLiteral("/") + subDir + QStringLiteral(".jar");
+                    const QString fastJson = verPath + QStringLiteral("/") + subDir + QStringLiteral(".json");
+                    if (QFileInfo::exists(fastJar) || QFileInfo::exists(fastJson)) {
+                        found.append(subDir);
+                        continue;
+                    }
+                    if (!findVersionJson(verPath, subDir).isEmpty())
+                        found.append(subDir);
+                }
+            }
+        }
+
+        QMetaObject::invokeMethod(this, [this, found]() {
+            m_installedIds = found;
+            m_refreshInstalledBusy = false;
+            emit installedVersionsChanged();
+        });
+    });
 
 }
 
@@ -5742,7 +5773,7 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
             ds->smoothProgress = 1.0;
             emit logMessage(tr("[ModLoader] \u5b89\u88c5\u5b8c\u6210"));
             setInstallPhase(tr("\u5b8c\u6210"));
-            updateInstalledList();
+            refreshInstalled();
 
             bool allDone = true;
             for (auto it = m_downloadSessions.begin(); it != m_downloadSessions.end(); ++it) {
@@ -8139,7 +8170,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
 
                 emit logMessage(tr("安装完成"));
                 setInstallPhase(tr("完成"));
-                updateInstalledList();
+                refreshInstalled();
                 refreshInstalled();
                 // ── Fabric API 未下载完：标记封装完成但暂不收尾，等 API 完成后统一 finishInstall ──
                 // （原逻辑 API 完成回调里 !bootstrapperDone 直接 finishInstall → 封装没跑 → 版本残缺；
