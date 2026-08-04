@@ -598,11 +598,20 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             if (m_cancelled.loadRelaxed()) goto cleanup;
 
             int timeoutMs;
+            // 2026-08-04：官方 CDN 正常 1-2s 响应首字节——12s 无数据即超时，
+            // 快速切镜像；之前 30s×3=75s 的超时重试让安装后期（剩余大文件）
+            // 看起来“卡死”1-2 分钟。setTransferTimeout 是“无数据超时”，
+            // 持续下载的文件不会误杀。
             switch (attempt) {
-                case 0: timeoutMs = 30000; break;
-                case 1: timeoutMs = 30000; break;
+                case 0: timeoutMs = 12000; break;
+                case 1: timeoutMs = 12000; break;
                 default: timeoutMs = 15000; break;
             }
+            // 官方源（mojang.com/minecraft.net）只试 2 次就切镜像：
+            // 实测 3 个大文件同时压官方必超时，快速切 BMCLAPI 反而秒下。
+            const bool isOfficialUrl = url.contains("mojang.com") || url.contains("minecraft.net");
+            if (isOfficialUrl && attempt >= 2 && (getElapsedMs() - startTimeMs) < 20000)
+                break;
             if (attempt >= 2 && file->expectedSha1.isEmpty()
                 && (getElapsedMs() - startTimeMs) < 5500) break;
             if (attempt >= kMaxChunkAttempts && (getElapsedMs() - startTimeMs) < 5500) break;
