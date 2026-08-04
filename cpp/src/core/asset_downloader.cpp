@@ -631,16 +631,20 @@ void AssetDownloader::schedulePhase()
     case PhaseSteady:
         if (!hasWork) {
             m_targetInflight = inflight;
+        } else if (inflight > 0 && speed == 0 && inflight >= 4 && pending > 4) {
+            // Complete stall — reduce inflight to avoid congestion collapse
+            // 仅当大量任务排队且完全无速度时才冷却（小文件间隙速度归零
+            // 是正常的，不能误触发冷却 → 并发砍半 → 后期暴跌）
+            m_phase = PhaseCooldown;
+            m_targetInflight = qMax(4, inflight / 2);
         } else if (speed < floor && inflight < m_maxConcurrent && pending > 0) {
             // Speed dropped below floor — try adding more
             m_phase = PhaseAccelerate;
             m_targetInflight = qMin(inflight + kAccelStep, m_maxConcurrent);
-        } else if (inflight > 0 && speed == 0 && inflight >= 4) {
-            // Complete stall — reduce inflight to avoid congestion collapse
-            m_phase = PhaseCooldown;
-            m_targetInflight = qMax(4, inflight / 2);
         } else if (pending > 0) {
-            // Steady state: replace finished requests
+            // Steady state: keep ramping toward maxConcurrent regardless of
+            // speed floor——floor 只增不减，后期速度自然下降（小文件阶段）时
+            // speed<floor 恒成立但并发已满；这里保证剩余任务持续派发
             m_targetInflight = qMin(m_maxConcurrent, inflight + 1);
         }
         break;
