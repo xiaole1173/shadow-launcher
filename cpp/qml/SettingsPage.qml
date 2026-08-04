@@ -27,6 +27,13 @@ Rectangle {
         sectionLoadTimer.restart()
         console.info("[UI] 设置 切段 section=" + idx)
     }
+    // External entry (used by --navigate settings:about screenshot mode)
+    function selectSection(idx) {
+        currentSection = idx
+        if (appWindow) appWindow.pageLoading = true
+        sectionLoadTimer.restart()
+        console.info("[UI] 设置 外部切段 section=" + idx)
+    }
     Timer {
         id: sectionLoadTimer
         interval: 60
@@ -417,6 +424,94 @@ Rectangle {
                         }
                     }
                 }
+
+                // ═══ One-click Java install card ═══
+                Rectangle {
+                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
+                    Layout.preferredHeight: javaCardContent.height + 34
+
+                    ColumnLayout {
+                        id: javaCardContent
+                        anchors.left: parent.left; anchors.right: parent.right
+                        anchors.top: parent.top; anchors.margins: 17; spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Image { source: "icons/lucide/download-cloud.svg"; width: 18; height: 18 }
+                            Text {
+                                text: qsTr("一键安装所需 Java"); font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
+                                color: StyleTokens.textPrimary; Layout.fillWidth: true
+                            }
+                            // 架构徽标
+                            Rectangle {
+                                visible: backend && backend.javaBackend && backend.javaBackend.cpuArch
+                                color: StyleTokens.accentSubtle; radius: StyleTokens.radiusSm
+                                implicitHeight: archTagText.implicitHeight + 6
+                                implicitWidth: archTagText.implicitWidth + 10
+                                Text {
+                                    id: archTagText
+                                    anchors.centerIn: parent
+                                    text: backend && backend.javaBackend && backend.javaBackend.cpuArch
+                                        ? backend.javaBackend.cpuArch : ""
+                                    font.pixelSize: StyleTokens.fontSizeXs
+                                    color: StyleTokens.accentLink
+                                }
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: qsTr("包括游戏所需 Java 和启动器所需 Java（Java 8 JRE / 17 JDK / 25 JDK，下载到启动器目录，不写入注册表）")
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.4
+                        }
+
+                        // 安装进度 / 状态行
+                        RowLayout {
+                            visible: backend && backend.javaBackend && backend.javaBackend.javaInstalling
+                            Layout.fillWidth: true; spacing: 8
+                            LoadingSpinner {
+                                width: 16; height: 16
+                                running: backend.javaBackend.javaInstalling
+                            }
+                            Text {
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                                text: backend.javaBackend.javaInstallStatus || ""
+                                font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
+                            }
+                            Text {
+                                text: "%1/%2".arg(backend.javaBackend.javaInstallStep).arg(backend.javaBackend.javaInstallTotal)
+                                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            ShadowButton {
+                                accentColor: backend && backend.javaBackend && backend.javaBackend.javaInstalling
+                                    ? "#4a3a20" : StyleTokens.accent
+                                text: backend && backend.javaBackend && backend.javaBackend.javaInstalling
+                                    ? qsTr("安装中…") : qsTr("一键安装")
+                                Layout.preferredWidth: 110; Layout.preferredHeight: 28
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                enabled: backend && backend.javaBackend && !backend.javaBackend.javaInstalling
+                                onClicked: {
+                                    if (backend && backend.javaBackend) backend.javaBackend.installRequiredJavas()
+                                }
+                            }
+                            ShadowButton {
+                                accentColor: "#3a2020"
+                                text: qsTr("取消")
+                                Layout.preferredWidth: 70; Layout.preferredHeight: 28
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                visible: backend && backend.javaBackend && backend.javaBackend.javaInstalling
+                                onClicked: {
+                                    if (backend && backend.javaBackend) backend.javaBackend.cancelJavaInstall()
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
+                }
             }
         }
     }
@@ -442,6 +537,22 @@ Rectangle {
         target: typeof backend !== "undefined" ? backend : null
         function onToastMessage(message) {
             toastManager.show(message)
+        }
+    }
+
+    // ── One-click Java install feedback ──
+    Connections {
+        target: (typeof backend !== "undefined" && backend && backend.javaBackend) ? backend.javaBackend : null
+        function onJavaInstalled(label, path, skipped) {
+            if (toastManager) {
+                toastManager.show(skipped ? (label + " 已存在，跳过") : (label + " 安装完成"), 3500)
+            }
+        }
+        function onJavaInstallFinished(ok, error) {
+            if (toastManager) {
+                if (ok) toastManager.show(qsTr("全部所需 Java 安装完成"), 4500)
+                else toastManager.show(qsTr("Java 安装失败: %1").arg(error || qsTr("未知错误")), 6000)
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 #include "java_backend.h"
 #include "core/file_downloader.h"
+#include "core/java_runtime_installer.h"
 #include "utils/logger.h"
 #include <QNetworkReply>
 #include <QRegularExpression>
@@ -16,9 +17,22 @@ JavaBackend::JavaBackend(QObject *parent)
     : QObject(parent)
     , m_baseUrl("https://mirrors.tuna.tsinghua.edu.cn/Adoptium")
     , m_nam(new QNetworkAccessManager(this))
+    , m_runtimeInstaller(new JavaRuntimeInstaller(this))
 {
     qCInfo(logJava) << QStringLiteral("Java后端初始化");
     refreshVersions();
+
+    // ── 转发一键安装信号 ──
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::javaInstalled,
+            this, &JavaBackend::javaInstalled);
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::finished,
+            this, &JavaBackend::javaInstallFinished);
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::progressChanged,
+            this, &JavaBackend::javaInstallStateChanged);
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::runningChanged,
+            this, &JavaBackend::javaInstallStateChanged);
+    connect(m_runtimeInstaller, &JavaRuntimeInstaller::logMessage,
+            this, &JavaBackend::logMessage);
 }
 
 // ── Setters trigger cascading fetches ──
@@ -346,6 +360,45 @@ void JavaBackend::cancelDownload()
         m_downloader->deleteLater();
         m_downloader = nullptr;
     }
+}
+
+// ============================================================
+// 一键安装所需 Java（转发 JavaRuntimeInstaller）
+// ============================================================
+
+void JavaBackend::installRequiredJavas()
+{
+    m_runtimeInstaller->installRequiredJavas();
+}
+
+void JavaBackend::cancelJavaInstall()
+{
+    m_runtimeInstaller->cancelInstall();
+}
+
+QString JavaBackend::cpuArch() const
+{
+    return m_runtimeInstaller->cpuArch();
+}
+
+bool JavaBackend::javaInstalling() const
+{
+    return m_runtimeInstaller->running();
+}
+
+int JavaBackend::javaInstallStep() const
+{
+    return m_runtimeInstaller->currentStep();
+}
+
+int JavaBackend::javaInstallTotal() const
+{
+    return m_runtimeInstaller->totalSteps();
+}
+
+QString JavaBackend::javaInstallStatus() const
+{
+    return m_runtimeInstaller->statusText();
 }
 
 } // namespace ShadowLauncher

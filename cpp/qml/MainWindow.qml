@@ -185,6 +185,15 @@ Window {
                     dlItem.currentTab = subTab
                     pendingSubTab = -1
                 }
+            } else if (pageIndex === 4) {
+                // Settings page section (0=general 1=java 2=memory 3=experimental 4=about)
+                var stItem = settingsPageLoader.item
+                if (stItem && subTab >= 0) {
+                    stItem.selectSection(subTab)
+                } else if (subTab >= 0) {
+                    // Loader item not ready yet — retry shortly
+                    var timer = Qt.createQmlObject('import QtQuick; Timer { interval: 800; running: true; repeat: false; onTriggered: { if (settingsPageLoader.item) settingsPageLoader.item.selectSection(' + subTab + '); destroy() } }', appWindow)
+                }
             }
             switchPage(pageIndex)
         }

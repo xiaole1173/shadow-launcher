@@ -7,6 +7,7 @@
 namespace ShadowDownloader { class FileDownloader; }
 
 namespace ShadowLauncher {
+class JavaRuntimeInstaller;
 
 class JavaBackend : public QObject
 {
@@ -22,6 +23,13 @@ class JavaBackend : public QObject
     Q_PROPERTY(QString selectedType READ selectedType WRITE setSelectedType NOTIFY selectedTypeChanged)
     Q_PROPERTY(QString selectedArch READ selectedArch WRITE setSelectedArch NOTIFY selectedArchChanged)
     Q_PROPERTY(QString selectedOS READ selectedOS WRITE setSelectedOS NOTIFY selectedOSChanged)
+
+    // ── 一键安装所需 Java（设置-关于页） ──
+    Q_PROPERTY(QString cpuArch READ cpuArch CONSTANT)
+    Q_PROPERTY(bool javaInstalling READ javaInstalling NOTIFY javaInstallStateChanged)
+    Q_PROPERTY(int javaInstallStep READ javaInstallStep NOTIFY javaInstallStateChanged)
+    Q_PROPERTY(int javaInstallTotal READ javaInstallTotal CONSTANT)
+    Q_PROPERTY(QString javaInstallStatus READ javaInstallStatus NOTIFY javaInstallStateChanged)
 
 public:
     explicit JavaBackend(QObject *parent = nullptr);
@@ -53,6 +61,15 @@ public:
     Q_INVOKABLE QString javaInstallDir() const;
     Q_INVOKABLE void cancelDownload();
 
+    // ── 一键安装所需 Java ──
+    Q_INVOKABLE void installRequiredJavas();
+    Q_INVOKABLE void cancelJavaInstall();
+    QString cpuArch() const;
+    bool javaInstalling() const;
+    int javaInstallStep() const;
+    int javaInstallTotal() const;
+    QString javaInstallStatus() const;
+
 signals:
     void javaVersionsChanged();
     void javaTypesChanged();
@@ -69,6 +86,11 @@ signals:
     void downloadProgress(int pct, qint64 dlBytes, qint64 totalBytes, double speedMBps);
     void downloadFinished(bool ok, const QString &path);
     void logMessage(const QString &msg);
+
+    // ── 一键安装所需 Java ──
+    void javaInstallStateChanged();
+    void javaInstalled(const QString &label, const QString &path, bool skipped);
+    void javaInstallFinished(bool ok, const QString &error);
 
 private:
     void fetchUrl(const QString &url, std::function<void(const QStringList &)> callback,
@@ -91,6 +113,8 @@ private:
     QString m_selType;
     QString m_selArch;
     QString m_selOS;
+
+    JavaRuntimeInstaller* m_runtimeInstaller = nullptr;
 };
 
 } // namespace ShadowLauncher

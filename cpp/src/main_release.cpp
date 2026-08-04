@@ -586,20 +586,31 @@ int main(int argc, char *argv[])
         if (navIdx >= 0 && navIdx + 1 < args.size()) {
             QString navArg = args[navIdx + 1];
             QStringList parts = navArg.split(':');
+            QString pageStr;
             if (parts.size() >= 1) {
-                QString pageStr = parts[0].toLower();
+                pageStr = parts[0].toLower();
                 if (pageStr == "launch" || pageStr == "0") targetPage = 0;
                 else if (pageStr == "download" || pageStr == "1") targetPage = 1;
-                else if (pageStr == "settings" || pageStr == "2") targetPage = 2;
+                else if (pageStr == "multiplayer" || pageStr == "2") targetPage = 2;
+                else if (pageStr == "stats" || pageStr == "3") targetPage = 3;
+                else if (pageStr == "settings" || pageStr == "4") targetPage = 4;
             }
             if (parts.size() >= 2) {
                 QString tabStr = parts[1].toLower();
-                if (tabStr == "mc" || tabStr == "0") targetTab = 0;
-                else if (tabStr == "mod" || tabStr == "1") targetTab = 1;
-                else if (tabStr == "shader" || tabStr == "2") targetTab = 2;
-                else if (tabStr == "rp" || tabStr == "3") targetTab = 3;
-                else if (tabStr == "pack" || tabStr == "4") targetTab = 4;
-                else if (tabStr == "datapack" || tabStr == "dp" || tabStr == "5") targetTab = 5;
+                if (pageStr == "settings" || pageStr == "4") {
+                    if (tabStr == "general" || tabStr == "0") targetTab = 0;
+                    else if (tabStr == "java" || tabStr == "1") targetTab = 1;
+                    else if (tabStr == "memory" || tabStr == "2") targetTab = 2;
+                    else if (tabStr == "experimental" || tabStr == "3") targetTab = 3;
+                    else if (tabStr == "about" || tabStr == "4") targetTab = 4;
+                } else {
+                    if (tabStr == "mc" || tabStr == "0") targetTab = 0;
+                    else if (tabStr == "mod" || tabStr == "1") targetTab = 1;
+                    else if (tabStr == "shader" || tabStr == "2") targetTab = 2;
+                    else if (tabStr == "rp" || tabStr == "3") targetTab = 3;
+                    else if (tabStr == "pack" || tabStr == "4") targetTab = 4;
+                    else if (tabStr == "datapack" || tabStr == "dp" || tabStr == "5") targetTab = 5;
+                }
             }
         }
 

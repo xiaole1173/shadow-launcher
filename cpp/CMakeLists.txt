@@ -70,6 +70,7 @@ set(SOURCES
     src/core/yggdrasil_auth.cpp
     src/core/version_isolation.cpp
     src/core/mod_loader_installer.cpp
+    src/core/java_runtime_installer.cpp
     src/core/local_mod_manager.cpp
     src/core/modpack_importer.cpp
     src/core/modpack/modpack_common.cpp

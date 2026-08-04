@@ -1,0 +1,374 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 影 / Shadow / xiaole1173
+#include "java_runtime_installer.h"
+
+#include "http_client.h"
+#include "../utils/logger.h"
+
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QLockFile>
+#include <QBuffer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QEventLoop>
+#include <QTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
+#include <private/qzipreader_p.h>
+
+namespace ShadowLauncher {
+
+// ============================================================
+// 构造 / 架构检测
+// ============================================================
+
+JavaRuntimeInstaller::JavaRuntimeInstaller(QObject* parent)
+    : QObject(parent)
+    , m_cpuArch(detectCpuArch())
+{
+    qCInfo(logJava) << QStringLiteral("[Java安装] 初始化 架构=%1").arg(m_cpuArch);
+}
+
+QString JavaRuntimeInstaller::detectCpuArch()
+{
+    // 1. QSysInfo 报告（Qt 编译目标架构，够用）
+    QString arch = QSysInfo::currentCpuArchitecture();  // x86_64 / i686 / arm / arm64 ...
+
+    // 2. Windows 下用 PROCESSOR_ARCHITECTURE 环境变量做权威检测
+    //    （Qt 的 currentCpuArchitecture 在 32 位进程跑 64 位系统时会误报 x86）
+#ifdef Q_OS_WIN
+    QByteArray env = qgetenv("PROCESSOR_ARCHITECTURE");
+    if (!env.isEmpty()) {
+        const QString pa = QString::fromLatin1(env).toLower();
+        if (pa.contains(QLatin1String("amd64")) || pa.contains(QLatin1String("x86_64")))
+            return QStringLiteral("x64");
+        if (pa.contains(QLatin1String("arm64")))
+            return QStringLiteral("aarch64");
+        if (pa.contains(QLatin1String("x86")))
+            return QStringLiteral("x32");
+        // PROCESSOR_ARCHITEW6432: 32 位进程跑 64 位系统
+        QByteArray wow = qgetenv("PROCESSOR_ARCHITEW6432");
+        if (wow.contains("AMD64") || wow.contains("arm64"))
+            arch = QString::fromLatin1(wow).toLower();
+    }
+#endif
+
+    if (arch == QLatin1String("x86_64") || arch == QLatin1String("amd64"))
+        return QStringLiteral("x64");
+    if (arch == QLatin1String("i386") || arch == QLatin1String("i486")
+        || arch == QLatin1String("i586") || arch == QLatin1String("i686")
+        || arch == QLatin1String("x86"))
+        return QStringLiteral("x32");
+    if (arch == QLatin1String("arm64") || arch == QLatin1String("aarch64"))
+        return QStringLiteral("aarch64");
+    if (arch == QLatin1String("arm"))
+        return QStringLiteral("arm");
+    return QStringLiteral("unknown");
+}
+
+// ============================================================
+// 一键安装
+// ============================================================
+
+void JavaRuntimeInstaller::installRequiredJavas()
+{
+    if (m_running) {
+        emit logMessage(tr("Java 安装已在运行中"));
+        return;
+    }
+    m_running = true;
+    m_cancelled = false;
+    m_currentStep = 0;
+    emit runningChanged();
+    emit progressChanged();
+
+    // 架构降级策略
+    QString effectiveArch = m_cpuArch;
+    if (m_cpuArch == QLatin1String("aarch64")) {
+        // Temurin 17/25 无 Windows ARM64（Adoptium API 实测 0 结果），
+        // Win11 ARM64 通过 Prism x64 模拟运行
+        effectiveArch = QStringLiteral("x64");
+        emit logMessage(tr("当前系统为 ARM64，将安装 x64 版 Java（Windows 11 可通过模拟运行）"));
+    } else if (m_cpuArch == QLatin1String("arm")) {
+        emit finished(false, tr("当前系统为 32 位 ARM，暂不支持自动安装 Java。请手动安装 Java 后重试。"));
+        m_running = false;
+        emit runningChanged();
+        return;
+    } else if (m_cpuArch == QLatin1String("unknown")) {
+        emit finished(false, tr("无法检测系统架构，请手动安装 Java。"));
+        m_running = false;
+        emit runningChanged();
+        return;
+    }
+
+    // 安装清单：{版本, 类型, 标签}
+    struct Item { int major; QString type; QString label; };
+    const QList<Item> items = {
+        { 8,  QStringLiteral("jre"), QStringLiteral("Java 8 (JRE)") },
+        { 17, QStringLiteral("jdk"), QStringLiteral("Java 17 (JDK)") },
+        { 25, QStringLiteral("jdk"), QStringLiteral("Java 25 (JDK)") },
+    };
+
+    for (const Item& item : items) {
+        if (m_cancelled) {
+            emit finished(false, tr("Java 安装已取消"));
+            m_running = false;
+            emit runningChanged();
+            return;
+        }
+        m_currentStep++;
+        emit progressChanged();
+
+        const QString cacheExe = QDir::currentPath()
+            + QStringLiteral("/java_cache/%1/bin/java.exe").arg(item.major);
+
+        // 已安装（且版本正确）→ 跳过
+        if (QFile::exists(cacheExe) && verifyJavaMajor(cacheExe) == item.major) {
+            qCInfo(logJava) << QStringLiteral("[Java安装] %1 已存在，跳过").arg(item.label);
+            m_statusText = tr("%1 已安装，跳过").arg(item.label);
+            emit progressChanged();
+            emit javaInstalled(item.label, cacheExe, true);
+            continue;
+        }
+
+        m_statusText = tr("正在安装 %1...").arg(item.label);
+        emit progressChanged();
+
+        const QString exe = installJava(item.major, item.type);
+        if (exe.isEmpty()) {
+            // 下载/解压失败 — 检查是否因取消
+            if (m_cancelled) {
+                emit finished(false, tr("Java 安装已取消"));
+            } else {
+                emit finished(false, tr("%1 安装失败，请检查网络后重试").arg(item.label));
+            }
+            m_running = false;
+            emit runningChanged();
+            return;
+        }
+        emit javaInstalled(item.label, exe, false);
+    }
+
+    m_statusText = tr("全部 Java 安装完成");
+    emit progressChanged();
+    emit finished(true, {});
+    m_running = false;
+    emit runningChanged();
+}
+
+void JavaRuntimeInstaller::cancelInstall()
+{
+    m_cancelled = true;
+    emit logMessage(tr("Java 安装取消请求已发送（当前版本下载完成后停止）"));
+}
+
+// ============================================================
+// 单版本安装
+// ============================================================
+
+QString JavaRuntimeInstaller::installJava(int majorVersion, const QString& type)
+{
+    // 架构降级：ARM64 → x64（Prism 模拟）
+    QString arch = m_cpuArch;
+    if (arch == QLatin1String("aarch64"))
+        arch = QStringLiteral("x64");
+
+    return downloadAndExtract(majorVersion, type, arch);
+}
+
+// ============================================================
+// 下载 + 解压（Tuna Adoptium 镜像）
+// ============================================================
+
+QString JavaRuntimeInstaller::downloadAndExtract(int majorVersion, const QString& type, const QString& arch)
+{
+    const QString baseDir = QDir::currentPath() + QStringLiteral("/java_cache/");
+    const QString javaDir = baseDir + QString::number(majorVersion);
+    const QString javaExe = javaDir + QStringLiteral("/bin/java.exe");
+
+    // 已存在（下载中/已完成）
+    if (QFile::exists(javaExe)) {
+        qCInfo(logJava) << QStringLiteral("[Java安装] %1 已存在于缓存").arg(majorVersion);
+        return javaExe;
+    }
+
+    // 并发锁
+    QDir().mkpath(baseDir);
+    QLockFile lockFile(baseDir + QStringLiteral("/jdk-%1.lock").arg(majorVersion));
+    lockFile.setStaleLockTime(600000);  // 10 min
+    if (!lockFile.tryLock(30000)) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] %1 下载被其他进程锁定").arg(majorVersion);
+        return {};
+    }
+    if (QFile::exists(javaExe)) {
+        qCInfo(logJava) << QStringLiteral("[Java安装] %1 已被其他进程下载").arg(majorVersion);
+        return javaExe;
+    }
+
+    // Tuna Adoptium 目录结构: {base}/{version}/{type}/{arch}/windows/
+    const QString mirrorBase = QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/%2/%3/windows/")
+                                   .arg(majorVersion).arg(type, arch);
+
+    QNetworkAccessManager* nam = HttpClient::instance().manager();
+    const auto fetchText = [nam](const QUrl& url, int timeoutMs, QByteArray* out) -> bool {
+        QNetworkRequest req(url);
+        req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        QNetworkReply* reply = nam->get(req);
+        QEventLoop loop;
+        QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        QTimer timer;
+        timer.setSingleShot(true);
+        QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        timer.start(timeoutMs);
+        loop.exec();
+        const bool ok = (reply->error() == QNetworkReply::NoError) && timer.isActive();
+        if (ok) *out = reply->readAll();
+        reply->deleteLater();
+        return ok;
+    };
+
+    // 1. 列目录，找 .zip
+    QByteArray html;
+    if (!fetchText(QUrl(mirrorBase), 15000, &html)) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] 获取 %1 文件列表失败").arg(mirrorBase);
+        return {};
+    }
+    static const QRegularExpression zipRe(QLatin1String("<a href=\"([^\"]+\\.zip)\""));
+    QStringList zipUrls;
+    auto it = zipRe.globalMatch(QString::fromUtf8(html));
+    while (it.hasNext()) {
+        auto m = it.next();
+        zipUrls.append(mirrorBase + m.captured(1));
+    }
+    if (zipUrls.isEmpty()) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] 镜像中未找到 %1 %2 %3 的 .zip 文件")
+                                  .arg(majorVersion).arg(type, arch);
+        return {};
+    }
+    // 取最新（Tuna 按字母序，最新版通常排最后）
+    const QString zipUrl = zipUrls.last();
+
+    // 2. 下载 ZIP（整体读入内存，与 ModLoaderInstaller 同策略）
+    m_statusText = tr("正在下载 Java %1 (%2)...").arg(majorVersion).arg(arch);
+    emit progressChanged();
+    QByteArray zipData;
+    if (!fetchText(QUrl(zipUrl), 600000, &zipData)) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] 下载 %1 ZIP 失败").arg(majorVersion);
+        return {};
+    }
+
+    // 3. 解压（剥离顶层 jdk-x.x.x+/ 目录）
+    m_statusText = tr("正在解压 Java %1...").arg(majorVersion);
+    emit progressChanged();
+    QBuffer buf;
+    buf.setData(zipData);
+    if (!buf.open(QIODevice::ReadOnly)) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] 打开 ZIP 缓冲失败");
+        return {};
+    }
+    {
+        QZipReader reader(&buf);
+        const QList<QZipReader::FileInfo> entries = reader.fileInfoList();
+
+        QString commonPrefix;
+        int nonDir = 0;
+        for (const auto& entry : entries) {
+            if (entry.isDir) continue;
+            ++nonDir;
+            const QString fp = entry.filePath;
+            const int slash = fp.indexOf(QLatin1Char('/'));
+            const QString top = (slash < 0) ? fp : fp.left(slash);
+            if (commonPrefix.isEmpty()) commonPrefix = top;
+            else if (commonPrefix != top) { commonPrefix.clear(); break; }
+        }
+        if (nonDir > 0 && !commonPrefix.isEmpty())
+            qCInfo(logJava) << QStringLiteral("[Java安装] %1 ZIP 顶层目录: %2，剥离").arg(majorVersion).arg(commonPrefix);
+
+        int extracted = 0;
+        for (const auto& entry : entries) {
+            if (entry.isDir || entry.isSymLink) continue;
+            QString rel = entry.filePath;
+            if (!commonPrefix.isEmpty()) {
+                if (rel.startsWith(commonPrefix + QLatin1Char('/')))
+                    rel = rel.mid(commonPrefix.length() + 1);
+                else if (rel == commonPrefix)
+                    continue;
+            }
+            QString outPath = javaDir + QStringLiteral("/") + rel;
+            QDir().mkpath(QFileInfo(outPath).absolutePath());
+            QFile out(outPath);
+            if (out.open(QIODevice::WriteOnly)) {
+                out.write(reader.fileData(entry.filePath));
+                out.close();
+                extracted++;
+            }
+        }
+        reader.close();
+        qCInfo(logJava) << QStringLiteral("[Java安装] %1 解压完成: %2 个文件").arg(majorVersion).arg(extracted);
+    }
+
+    if (!QFile::exists(javaExe)) {
+        const QString found = findJavaExeRecursive(javaDir);
+        if (found.isEmpty()) {
+            qCWarning(logJava) << QStringLiteral("[Java安装] %1 解压后未找到 java.exe").arg(majorVersion);
+            return {};
+        }
+        return found;
+    }
+
+    // 4. 验证
+    const int realMajor = verifyJavaMajor(javaExe);
+    if (realMajor != majorVersion) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] %1 版本校验失败 实际=%2").arg(majorVersion).arg(realMajor);
+        return {};
+    }
+    qCInfo(logJava) << QStringLiteral("[Java安装] Java %1 已就绪: %2").arg(majorVersion).arg(javaExe);
+    return javaExe;
+}
+
+// ============================================================
+// 工具
+// ============================================================
+
+int JavaRuntimeInstaller::verifyJavaMajor(const QString& javaExe)
+{
+    QProcess proc;
+    proc.start(javaExe, { QStringLiteral("-version") });
+    if (!proc.waitForFinished(8000))
+        return 0;
+    const QString output = QString::fromUtf8(proc.readAllStandardError());
+    static const QRegularExpression re(QStringLiteral("version\\s+\"([^\"]+)\""));
+    auto m = re.match(output);
+    if (!m.hasMatch()) return 0;
+    QString ver = m.captured(1);
+    ver.replace(QLatin1Char('_'), QLatin1Char('.'));
+    const QStringList parts = ver.split(QLatin1Char('.'));
+    if (parts.isEmpty()) return 0;
+    int major = parts[0].toInt();
+    if (major == 1 && parts.size() > 1)
+        major = parts[1].toInt();  // 1.8.0 → 8
+    return major;
+}
+
+QString JavaRuntimeInstaller::findJavaExeRecursive(const QString& dir)
+{
+    const QString direct = dir + QStringLiteral("/bin/java.exe");
+    if (QFile::exists(direct)) return direct;
+    QDir d(dir);
+    if (!d.exists()) return {};
+    const QStringList subdirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString& sub : subdirs) {
+        const QString found = findJavaExeRecursive(dir + QStringLiteral("/") + sub);
+        if (!found.isEmpty()) return found;
+    }
+    return {};
+}
+
+} // namespace ShadowLauncher

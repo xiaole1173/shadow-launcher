@@ -62,7 +62,7 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `src/main_release.cpp` | 783 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（无保存密钥 → 先弹 `BetaKeyDialog`，`betaVerified` 后加载 MainWindow）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。窗口层：`setColor(transparent)` + **禁用 Win11 DWM 系统圆角（DWMWCP_DONOTROUND）**——防浅色主题下四角露出系统背景色白角（2026-08-03 修）。 |
+| `src/main_release.cpp` | 814 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（无保存密钥 → 先弹 `BetaKeyDialog`，`betaVerified` 后加载 MainWindow）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。窗口层：`setColor(transparent)` + **禁用 Win11 DWM 系统圆角（DWMWCP_DONOTROUND）**——防浅色主题下四角露出系统背景色白角（2026-08-03 修）。截图模式 `--navigate settings:about` 支持设置页 section 导航（0-4）。 |
 | `src/main.cpp` | 854 | **开发变体入口（未编入 CMake）**。与 main_release 逻辑相同，但支持 `SHADOW_DEV` 环境变量：从文件系统路径加载 QML 便于热调试；同样含透明背景 + DWM 圆角禁用。 |
 
 ### 1.2 后端聚合层（`src/backend/`，QML 通过 `backend` 单对象访问）
@@ -75,7 +75,8 @@
 | `account_backend.h/.cpp` | 156 / 1207 | **账号后端**：离线登录（用户名/UUID/历史）、微软正版登录（MicrosoftAuth 封装：token 管理/后台刷新/过期判断）、皮肤下载/上传/缓存、披风（CapeInfo）、3D 头像渲染触发、离线皮肤。 |
 | `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。 |
 | `settings_backend.h/.cpp` | 242 / 1167 | **设置后端**：全部设置项读写（QSettings）、下载源/线程/限速、主题、语言、游戏目录、Java 默认、JVM/游戏参数、内存自动分配、背景图、协议同意状态等。 |
-| `java_backend.h/.cpp` | 96 / 351 | **Java 后端**：扫描系统 Java、版本检测（`java -version` 解析主版本）、自动选择、指定路径管理。 |
+| `java_backend.h/.cpp` | 120 / 404 | **Java 后端**：扫描系统 Java、版本检测（`java -version` 解析主版本）、自动选择、指定路径管理；Tuna Adoptium 目录浏览（版本/类型/架构/OS/文件五级）；**一键安装所需 Java**（转发 JavaRuntimeInstaller：架构检测 + 8 JRE/17 JDK/25 JDK 顺序安装 + 进度/完成信号）。 |
+| `java_runtime_installer.h/.cpp` | 70 / 364 | **一键安装 Java 运行时**：Tuna Adoptium ZIP 下载+解压到 java_cache/{ver}/（便携式不写注册表，同 主流启动器/主流启动器）；架构检测（x64/x32/aarch64/arm，ARM64 降级 x64 模拟，实测 Temurin 17/25 无 Windows ARM64）；版本策略 8=JRE/17=JDK/25=JDK；QLockFile 防并发 + 剥离顶层目录 + java -version 主版本校验；安装后自动被 ModLoaderInstaller::findJavaPath 发现。 |
 | `stats_backend.h/.cpp` | 53 / 142 | **统计后端**：游戏时长统计（按版本聚合，读取启动记录）。 |
 | `userdata_backend.h/.cpp` | 99 / 503 | **用户数据后端**：用户目录数据管理（皮肤缓存、头像、可迁移数据）。 |
 | `check_backend.h/.cpp` | 38 / 442 | **启动前 P0 检查**（同步快速）：Java 架构 32/64 位、版本 client.jar 存在性、version.json 合法性、可用内存；`checkAll` 汇总。 |
@@ -175,7 +176,7 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `MainWindow.qml` | 1445 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）。 |
+| `MainWindow.qml` | 1456 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面，0=启动 1=下载 2=联机 3=统计 4=设置 5=安装进度）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）；`--navigate settings:xxx` 支持设置页 section 切换。 |
 | `SplashWindow.qml` | 50 | 启动画面。 |
 | `StyleTokens.qml` | 133 | **设计令牌**：颜色（bg/accent/text 系列）、字号、圆角、间距常量。 |
 | `AnimationTokens.qml` | 187 | **动画令牌**：时长/缓动曲线常量。 |
@@ -197,7 +198,7 @@
 | `InstallProgressPage.qml` | 72 | 安装进度页（步骤管线展示）。 |
 | `VersionSelectPage.qml` | 404 | **版本选择页**（独立页形态，替代旧左栏）。 |
 | `VersionSettingsPage.qml` | 1067 | **版本设置页**（独立页形态）。 |
-| `SettingsPage.qml` | 447 | **设置页**：左侧分类导航 → 各 Settings*Page。 |
+| `SettingsPage.qml` | 558 | **设置页**：左侧分类导航 → 各 Settings*Page（通用/Java/内存/实验/关于）；关于页含「一键安装所需 Java」卡片（架构徽标 + 小字说明 + 进度/取消按钮 + Toast 完成反馈）。 |
 | `SettingsGeneralPage.qml` | 883 | 设置-通用：下载源/线程/限速、主题、语言、游戏目录、协议等。 |
 | `SettingsJavaPage.qml` | 404 | 设置-Java：Java 列表/选择/扫描。 |
 | `SettingsMemoryPage.qml` | 247 | 设置-内存（汇总视图）。 |
