@@ -28,9 +28,11 @@ public:
     using SearchCb = std::function<void(const QVariantList& items, int total)>;
 
     /// 搜索（index/limit 分页，按下载量降序）；categoryId<=0 不限制
+    /// sortField（CF 枚举）：2=总下载量 3=最近更新 4=名称（默认 6=热门度）
     void search(int classId, const QString& query, int categoryId,
                 const QString& gameVersion, const QString& loader,
-                int index, int limit, SearchCb done, JsonFail fail);
+                int index, int limit, SearchCb done, JsonFail fail,
+                int sortField = 6);
 
     /// 文件列表 → Modrinth 等价版本结构（composite key "mcVer|loader"）
     /// 供详情页复用现有 onModVersionsPartial 渲染

@@ -223,21 +223,24 @@ Item {
                                 // 用 Popup 而非 Rectangle：Popup 渲染在 Overlay 层，不会被 chartBox 的 clip 裁剪
                                 Popup {
                                     id: tip
+                                    // 注意：Popup 没有 ToolTip 的 text/delay/timeout 属性！
+                                    // （之前残留这三个属性导致 QML 报错 → delegate 创建失败 → 统计页黑屏）
+                                    property string tipText: modelData.displayName || modelData.versionId || ""
+                                    parent: root   // 挂到页面根，坐标基准统一，且 root 无 clip 不会被裁剪
                                     visible: rowHover.hovered && nameLabel.truncated
-                                    text: modelData.displayName || modelData.versionId || ""
-                                    delay: 0
-                                    timeout: -1
                                     padding: 0
                                     closePolicy: Popup.NoAutoClose
+                                    // Popup 坐标是相对 parent(root) 的，而 rowHover.point.position 是相对 barItem 的，
+                                    // 必须用 mapToItem(root) 换算，否则 tooltip 会出现在错误位置
                                     x: {
-                                        var cursorX = rowHover.point.position.x
+                                        var p = barItem.mapToItem(root, rowHover.point.position.x, rowHover.point.position.y)
                                         var gap = 12
                                         var tipW = tip.width > 0 ? tip.width : 0
-                                        return (cursorX + gap + tipW > barItem.width)
-                                            ? cursorX - gap - tipW
-                                            : cursorX + gap
+                                        return (p.x + gap + tipW > root.width)
+                                            ? p.x - gap - tipW
+                                            : p.x + gap
                                     }
-                                    y: rowHover.point.position.y - 28
+                                    y: barItem.mapToItem(root, rowHover.point.position.x, rowHover.point.position.y).y - 28
                                     enter: Transition {
                                         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
                                     }
@@ -250,7 +253,7 @@ Item {
                                         border.color: StyleTokens.bgInput; border.width: 1
                                     }
                                     contentItem: Text {
-                                        text: tip.text
+                                        text: tip.tipText
                                         font.pixelSize: StyleTokens.fontSizeSm
                                         color: StyleTokens.textSecondary
                                         leftPadding: 10; rightPadding: 10

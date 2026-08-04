@@ -48,6 +48,14 @@ Rectangle {
     property string rpFeature: ""
     property string rpResolution: ""
 
+    // 公共来源筛选（全部/Modrinth/CurseForge，所有 cardType 共用）
+    property string sourceFilter: ""
+
+    // Data Pack
+    property string dpSource: ""          // ""=全部, modrinth, curseforge
+    property string dpCategory: ""        // Modrinth 分类 slug / CF cf:xxx
+    property string dpSort: ""            // ""=下载量, updated=更新时间, name=名称
+
     // ── 内联数据模型 ──
     readonly property var _shaderCats: [
         {label:"全部", slug:""}, {label:"原版风格", slug:"vanilla-like"},
@@ -99,6 +107,12 @@ Rectangle {
     ]
 
     function _mcVersionLabel(v) { return v ? "MC " + v : "全部" }
+    // 来源下拉统一标签（五个 Tab 共用，避免复制粘贴）
+    function _srcLabel(v) {
+        if (v === "modrinth") return "Modrinth"
+        if (v === "curseforge") return "CurseForge"
+        return "全部"
+    }
 
     ColumnLayout {
         id: col
@@ -170,6 +184,14 @@ Rectangle {
 
             LabeledDropdown {
                 Layout.fillWidth: true
+                label: "来源"
+                model: ["", "modrinth", "curseforge"]
+                labelFn: function(v) { return root._srcLabel(v) }
+                currentValue: root.sourceFilter
+                onValueSelected: function(v) { root.sourceFilter = v }
+            }
+            LabeledDropdown {
+                Layout.fillWidth: true
                 label: "加载器"
                 model: root.modLoaderModel
                 labelFn: function(v) { return root.modLoaderLabels[v] || "全部" }
@@ -194,6 +216,14 @@ Rectangle {
             visible: root.cardType === "mod"
             Layout.fillWidth: true; spacing: 8
 
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "来源"
+                model: ["", "modrinth", "curseforge"]
+                labelFn: function(v) { return root._srcLabel(v) }
+                currentValue: root.sourceFilter
+                onValueSelected: function(v) { root.sourceFilter = v }
+            }
             LabeledDropdown {
                 Layout.fillWidth: true
                 label: "加载器"
@@ -227,6 +257,14 @@ Rectangle {
             visible: root.cardType === "shader"
             Layout.fillWidth: true; spacing: 8
 
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "来源"
+                model: ["", "modrinth", "curseforge"]
+                labelFn: function(v) { return root._srcLabel(v) }
+                currentValue: root.sourceFilter
+                onValueSelected: function(v) { root.sourceFilter = v }
+            }
             LabeledDropdown {
                 Layout.fillWidth: true
                 label: "风格"
@@ -266,6 +304,14 @@ Rectangle {
 
             LabeledDropdown {
                 Layout.fillWidth: true
+                label: "来源"
+                model: ["", "modrinth", "curseforge"]
+                labelFn: function(v) { return root._srcLabel(v) }
+                currentValue: root.sourceFilter
+                onValueSelected: function(v) { root.sourceFilter = v }
+            }
+            LabeledDropdown {
+                Layout.fillWidth: true
                 label: "类别"
                 model: root._rpCategories; valueKey: "key"
                 labelFn: function(v) {
@@ -294,6 +340,43 @@ Rectangle {
                 model: root._rpResolutions; valueKey: "key"
                 currentValue: root.rpResolution
                 onValueSelected: function(v) { root.rpResolution = v }
+            }
+        }
+
+        // ═════════════════════════════════════════════
+        // Row 2: Data Pack 筛选条件（来源 + 类别 + 排序）
+        // ═════════════════════════════════════════════
+        RowLayout {
+            visible: root.cardType === "datapack"
+            Layout.fillWidth: true; spacing: 8
+
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "来源"
+                model: ["", "modrinth", "curseforge"]
+                labelFn: function(v) { return root._srcLabel(v) }
+                currentValue: root.sourceFilter
+                onValueSelected: function(v) { root.sourceFilter = v }
+            }
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "类别"
+                model: root.modCatModel
+                labelFn: function(v) { return root.modCatLabels[v] || "全部" }
+                currentValue: root.dpCategory
+                onValueSelected: function(v) { root.dpCategory = v }
+            }
+            LabeledDropdown {
+                Layout.fillWidth: true
+                label: "排序"
+                model: ["", "updated", "name"]
+                labelFn: function(v) {
+                    if (v === "updated") return "更新时间"
+                    if (v === "name") return "名称"
+                    return "下载量"
+                }
+                currentValue: root.dpSort
+                onValueSelected: function(v) { root.dpSort = v }
             }
         }
 

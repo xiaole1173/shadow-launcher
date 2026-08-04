@@ -49,33 +49,42 @@ public:
     Q_INVOKABLE void searchModsEx(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
         const QString& environment, const QString& license,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
     Q_INVOKABLE QVariantMap getModCategories();
     Q_INVOKABLE void searchShadersEx(const QString& query, const QStringList& gameVersions,
         const QStringList& categories, const QStringList& performance,
-        const QStringList& loader, int offset, int limit);
+        const QStringList& loader, int offset, int limit, const QString& source = {});
     Q_INVOKABLE void downloadMod(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void downloadShader(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
-    Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {});
+    Q_INVOKABLE void searchResourcepacks(const QString& query, const QString& gameVersion = {}, int offset = 0, const QStringList& categories = {}, const QString& source = {});
     /// 整合包双源搜索（Modrinth project_type:modpack + CF classId=4471，池子架构）
     Q_INVOKABLE void searchModpacksEx(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
+    /// 数据包双源搜索（Modrinth project_type:datapack + CF classId=6945，池子架构）
+    /// sort: ""=下载量, "updated"=更新时间, "name"=名称（Modrinth index / CF sortField 映射）
+    Q_INVOKABLE void searchDatapacksEx(const QString& query, const QString& category,
+        const QStringList& gameVersions, const QString& sort,
+        int offset, int limit, const QString& source = {});
     /// 整合包详情版本列表（Modrinth slug → fetchModVersions；CF 数字 id → fetchModVersionsCf）
     /// 复用 modVersionsPartial 信号回传，QML 与 Mod 详情页同构
     Q_INVOKABLE void fetchModpackVersions(const QString& slug, const QString& gameVersion = {}, const QString& loader = {});
     // 翻页预取（只预热缓存，不产生聚合信号，与真实搜索物理隔离）
     Q_INVOKABLE void prefetchModsEx(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
     Q_INVOKABLE void prefetchShadersEx(const QString& query, const QStringList& gameVersions,
-        const QStringList& categories, int offset, int limit);
+        const QStringList& categories, int offset, int limit, const QString& source = {});
     Q_INVOKABLE void prefetchResourcepacks(const QString& query, const QString& gameVersion,
-        const QStringList& categories, int offset, int limit);
+        const QStringList& categories, int offset, int limit, const QString& source = {});
     /// 整合包翻页预取（只预热司南缓存 + 图标，不产生聚合信号）
     Q_INVOKABLE void prefetchModpacks(const QString& query, const QString& loader,
         const QString& category, const QStringList& gameVersions,
-        int offset, int limit);
+        int offset, int limit, const QString& source = {});
+    /// 数据包翻页预取（同构）
+    Q_INVOKABLE void prefetchDatapacks(const QString& query, const QString& category,
+        const QStringList& gameVersions, const QString& sort,
+        int offset, int limit, const QString& source = {});
     Q_INVOKABLE void downloadResourcepack(const QString& slug, const QString& gameVersion, const QString& minecraftDir = QString());
     Q_INVOKABLE void fetchResourcepackVersions(const QStringList& slugs);
     Q_INVOKABLE void fetchModVersions(const QStringList& slugs);
@@ -104,6 +113,8 @@ signals:
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     /// 整合包搜索完成（池子全量，QML 按页切片）
     void modpackSearchResultsReady(const QVariantList& results);
+    /// 数据包搜索完成（池子全量，QML 按页切片）
+    void datapackSearchResultsReady(const QVariantList& results);
     /// CF 前置依赖解析完成（QML 回填依赖卡片）
     void cfDependenciesResolved(const QString& modId, const QVariantList& deps);
     void searchResultsReady(const QVariantList& results);  // deprecated — use modSearchResultsReady / shaderSearchResultsReady
@@ -164,6 +175,7 @@ private:
     int m_modSearchPage = 0, m_modSearchLimit = 30;
     QString m_modSearchKey;
     QString m_modSearchQuery, m_modSearchLoader, m_modSearchCategory, m_modSearchEnv, m_modSearchLic;
+    QString m_modSearchSource;
     QStringList m_modSearchVersions;
     bool m_modSearchCfOnly = false, m_modSearchMrOnly = false;
 
@@ -176,7 +188,7 @@ private:
     int m_shaderShownCount = 0;   // 冻结区边界
     int m_shaderSearchPage = 0, m_shaderSearchLimit = 50;
     QString m_shaderSearchKey;
-    QString m_shaderSearchQuery;
+    QString m_shaderSearchQuery, m_shaderSearchSource;
     QStringList m_shaderSearchVersions, m_shaderSearchCats, m_shaderSearchPerf, m_shaderSearchLoader;
 
     QVariantList m_rpPool;
@@ -188,7 +200,7 @@ private:
     int m_rpShownCount = 0;   // 冻结区边界
     int m_rpSearchPage = 0, m_rpSearchLimit = 20;
     QString m_rpSearchKey;
-    QString m_rpSearchQuery, m_rpSearchVersion;
+    QString m_rpSearchQuery, m_rpSearchVersion, m_rpSearchSource;
     QStringList m_rpSearchCats;
 
     // ── 整合包池子（Modrinth project_type:modpack + CF classId=4471）──
@@ -201,12 +213,29 @@ private:
     int m_packShownCount = 0;   // 冻结区边界
     int m_packSearchPage = 0, m_packSearchLimit = 20;
     QString m_packSearchKey;
-    QString m_packSearchQuery, m_packSearchLoader, m_packSearchCategory;
+    QString m_packSearchQuery, m_packSearchLoader, m_packSearchCategory, m_packSearchSource;
     QStringList m_packSearchVersions;
     bool m_packFallbackUsed = false;
     void ensurePackPool();
     void onPackSourceDone(int gen);
     void emitPackPool();
+
+    // ── 数据包池子（Modrinth project_type:datapack + CF classId=6945）──
+    QVariantList m_dpPool;
+    QVariantList m_dpMrAll, m_dpCfAll;
+    int m_dpMrOffset = 0, m_dpCfOffset = 0;
+    int m_dpPending = 0;
+    bool m_dpMrMore = true, m_dpCfMore = true;
+    bool m_dpSearchActive = false;
+    int m_dpShownCount = 0;   // 冻结区边界
+    int m_dpSearchPage = 0, m_dpSearchLimit = 20;
+    QString m_dpSearchKey;
+    QString m_dpSearchQuery, m_dpSearchCategory, m_dpSearchSort, m_dpSearchSource;
+    QStringList m_dpSearchVersions;
+    bool m_dpFallbackUsed = false;
+    void ensureDpPool();
+    void onDpSourceDone(int gen);
+    void emitDpPool();
 
     // 本代是否已降级过官方（防镜像异常空时重复降级）
     bool m_mrFallbackUsed = false;

@@ -49,6 +49,10 @@ const CfCategory kCfCategories[] = {
     {12, 405, "Miscellaneous"},
     // Shaders (6552)
     {6552, 6553, "Realistic"}, {6552, 6554, "Fantasy"}, {6552, 6555, "Vanilla"},
+    // Data Packs (6945) — 数据包 tab（2026-08-04 API 实测提取）
+    {6945, 6947, "Miscellaneous"}, {6945, 6949, "Fantasy"}, {6945, 6952, "Magic"},
+    {6945, 6950, "Library"}, {6945, 6948, "Adventure"}, {6945, 6951, "Tech"},
+    {6945, 6953, "Utility"}, {6945, 6946, "Mod Support"}, {6945, 8938, "ModJam 2025"},
     // Modpacks (4471) — 整合包 tab 预留
     {4471, 4482, "Extra Large"}, {4471, 4481, "Small / Light"}, {4471, 4483, "Combat / PvP"},
     {4471, 4474, "Sci-Fi"}, {4471, 4475, "Adventure and RPG"}, {4471, 4487, "FTB Official Pack"},
@@ -126,7 +130,8 @@ void CfApi::getJsonWithFallback(const QString& mirrorUrl, const QString& officia
 
 void CfApi::search(int classId, const QString& query, int categoryId,
                    const QString& gameVersion, const QString& loader,
-                   int index, int limit, SearchCb done, JsonFail fail)
+                   int index, int limit, SearchCb done, JsonFail fail,
+                   int sortField)
 {
     if (!m_engine) { if (fail) fail(QStringLiteral("无司南引擎")); return; }
 
@@ -142,7 +147,7 @@ void CfApi::search(int classId, const QString& query, int categoryId,
     const int lt = loaderTypeFor(loader);
     if (lt > 0)
         params.addQueryItem(QStringLiteral("modLoaderType"), QString::number(lt));
-    params.addQueryItem(QStringLiteral("sortField"), QStringLiteral("6")); // 下载量
+    params.addQueryItem(QStringLiteral("sortField"), QString::number(sortField)); // 2=下载量 3=更新 4=名称 6=热门
     params.addQueryItem(QStringLiteral("sortOrder"), QStringLiteral("desc"));
     params.addQueryItem(QStringLiteral("index"), QString::number(index));
     params.addQueryItem(QStringLiteral("pageSize"), QString::number(limit));

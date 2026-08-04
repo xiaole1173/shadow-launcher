@@ -149,7 +149,7 @@ Rectangle {
         if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
         var offset = pageNum * page.rpPageSize
         console.log("[RP-DEBUG] searchRpPage page=", pageNum, "offset=", offset, "q=", q)
-        backend.searchResourcepacks(q, ver, offset, cats)
+        backend.searchResourcepacks(q, ver, offset, cats, rpFilterCard.sourceFilter)
     }
 
     function prefetchRpNextPage() {
@@ -166,7 +166,7 @@ Rectangle {
         if (page.rpResolutionFilter) cats.push(page.rpResolutionFilter)
         var offset = (page.rpPage + 1) * page.rpPageSize
         console.log("[RP-DEBUG] 预取下一页 offset=", offset)
-        backend.prefetchResourcepacks(q, ver, offset, cats)
+        backend.prefetchResourcepacks(q, ver, offset, cats, rpFilterCard.sourceFilter)
         page.rpPrefetching = false
     }
 
@@ -190,7 +190,7 @@ Rectangle {
             "", page.modLoader,
             page.modCategory, gv,
             page.modEnvironment, page.modLicense,
-            0, 30
+            0, 30, modFilterCard.sourceFilter
         )
     }
 
@@ -201,9 +201,11 @@ Rectangle {
         if (currentTab === 2 && !_shaderLoaded) { _shaderLoaded = true; shaderTab.doSearch() }
         if (currentTab === 3 && !rpResultsReady) { loadResourcepackResults(); rpResultsReady = true }
         if (currentTab === 4 && !_packLoaded) { _packLoaded = true; packTab.doPackSearch() }
+        if (currentTab === 5 && !_dpLoaded) { _dpLoaded = true; dpTab.doDpSearch() }
     }
     property bool _shaderLoaded: false
     property bool _packLoaded: false
+    property bool _dpLoaded: false
 
     // ──── Animations ────
     opacity: 0
@@ -362,7 +364,7 @@ Rectangle {
         height: 28
         spacing: 4
 
-        property var tabLabels: ["MC 版本", "Mod", "光影", "资源包", "整合包", "Java"]
+        property var tabLabels: ["MC 版本", "Mod", "光影", "资源包", "整合包", "数据包", "Java"]
 
         Repeater {
             model: [
@@ -371,6 +373,7 @@ Rectangle {
                 { label: "光影", icon: "sparkles" },
                 { label: "资源包", icon: "palette" },
                 { label: "整合包", icon: "package" },
+                { label: "数据包", icon: "scroll-text" },
                 { label: "Java", icon: "terminal" }
             ]
             Rectangle {
@@ -678,7 +681,7 @@ Rectangle {
             console.log("[MOD-SEARCH] calling searchModsEx q=" + JSON.stringify(q) + " tab=" + page.currentTab + " page=" + pageNum)
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             var offset = pageNum * page.modPageSize
-            backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize)
+            backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize, modFilterCard.sourceFilter)
         }
 
         function prefetchModNextPage() {
@@ -691,7 +694,7 @@ Rectangle {
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             var offset = (page.modCurrentPage + 1) * page.modPageSize
             console.log("[MOD-SEARCH] 预取下一页 offset=" + offset)
-            backend.prefetchModsEx(q, page.modLoader, page.modCategory, gv, offset, page.modPageSize)
+            backend.prefetchModsEx(q, page.modLoader, page.modCategory, gv, offset, page.modPageSize, modFilterCard.sourceFilter)
             // 预取无信号回包（结果只进缓存），直接复位标志
             page.modPrefetching = false
         }
@@ -850,7 +853,7 @@ Rectangle {
                 onSearchClicked: modTab.doModSearch()
                 onResetClicked: {
                     modLoader = ""; modCategory = ""; modEnvironment = ""; mcVersion = ""
-                    searchText = ""; modResultsModel.clear()
+                    sourceFilter = ""; searchText = ""; modResultsModel.clear()
                     modTab.doModSearch()
                 }
                 onModLoaderChanged: page.modLoader = modLoader
@@ -1015,7 +1018,7 @@ Rectangle {
             var c = shaderPerformance ? [shaderPerformance] : []
             var d = shaderLoader ? [shaderLoader] : []
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
-            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, shaderPageSize)
+            backend.searchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), [], [], shaderOffset, shaderPageSize, shaderFilterCard.sourceFilter)
         }
         function prefetchNextShaderPage() {
             // 翻页预取：滚到底时提前拉下一页（引擎缓存 + 图标预热），翻页时秒开
@@ -1030,11 +1033,12 @@ Rectangle {
             var ver = page.shaderGameVersion ? [page.shaderGameVersion] : []
             var offset = (shaderCurrentPage + 1) * shaderPageSize
             console.log("[SHADER] 预取下一页 offset=" + offset)
-            backend.prefetchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), offset, shaderPageSize)
+            backend.prefetchShadersEx(shaderFilterCard.searchText.trim(), ver, a.concat(b,c,d), offset, shaderPageSize, shaderFilterCard.sourceFilter)
             shaderPrefetching = false
         }
         function resetFilters() {
             shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
+            shaderFilterCard.sourceFilter = ""
             page.shaderGameVersion = ""; shaderFilterCard.searchText = ""
             doSearch()
         }
@@ -1119,7 +1123,7 @@ Rectangle {
                 onSearchClicked: shaderTab.doSearch()
                 onResetClicked: {
                     shaderCategory = ""; shaderFeature = ""; shaderPerformance = ""; shaderLoader = ""
-                    mcVersion = ""; searchText = ""
+                    mcVersion = ""; searchText = ""; sourceFilter = ""
                     shaderTab.doSearch()
                 }
             }
@@ -1238,7 +1242,7 @@ Rectangle {
                 onSearchClicked: searchRpPage(0)
                 onResetClicked: {
                     rpCategory = ""; rpFeature = ""; rpResolution = ""
-                    mcVersion = ""; searchText = ""
+                    mcVersion = ""; searchText = ""; sourceFilter = ""
                     searchRpPage(0)
                 }
             }
@@ -1314,9 +1318,13 @@ Rectangle {
     ListModel { id: shaderResultsModel }
     ListModel { id: rpResultsModel }
     ListModel { id: packResultsModel }
+    ListModel { id: dpResultsModel }
 
     // 整合包状态（游戏版本筛选走根属性，与 mod/shader/rp 同构）
     property string packGameVersion: ""
+
+    // 数据包状态
+    property string dpGameVersion: ""
 
     // Mod & Shader state
     property bool modSearching: false
@@ -1808,6 +1816,82 @@ Rectangle {
         }
     }
 
+    // ── DataPack Detail (DataPackDetailPage.qml) ──
+    property bool _showDpDetail: false
+    property string _dpDetailSlug: ""
+    property string _dpDetailTitle: ""
+    property string _dpDetailDesc: ""
+    property string _dpDetailIcon: ""
+    property string _dpDetailIconRaw: ""
+    property string _dpDetailSource: ""
+    property int _dpDetailDownloads: 0
+    property string _dpDetailUpdated: ""
+
+    Rectangle {
+        id: dpDetailOverlay
+        anchors.fill: parent
+        color: hasBg ? Qt.rgba(0.047, 0.059, 0.086, 0.92) : StyleTokens.bgPrimary
+        z: 10
+        opacity: page._showDpDetail ? 1 : 0
+        visible: page._showDpDetail
+        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+        // 鼠标事件拦截层（防止穿透到下层 Tab 的 hover/点击检测）
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+
+        SequentialAnimation {
+            id: dpExitAnim
+            NumberAnimation { target: dpDetailOverlay; property: "opacity"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            ScriptAction { script: { page._showDpDetail = false; dpDetailLoader._keepActive = false } }
+        }
+
+        Loader {
+            id: dpDetailLoader
+            anchors.fill: parent
+            property bool _keepActive: false
+            active: page._showDpDetail || _keepActive
+            source: active ? "DataPackDetailPage.qml" : ""
+
+            onLoaded: {
+                _keepActive = true
+                if (item) {
+                    item.goBack.connect(function() { dpExitAnim.start() })
+                    item.backend = backend
+                    item.toastManager = toastManager
+                    item.mainWindow = mainWindow
+                    item.dpDetailSlug = page._dpDetailSlug
+                    item.dpDetailTitle = page._dpDetailTitle
+                    item.dpDetailDesc = page._dpDetailDesc
+                    item.dpDetailIcon = page._dpDetailIcon
+                    item.dpDetailIconRaw = page._dpDetailIconRaw
+                    item.dpDetailSource = page._dpDetailSource
+                    item.dpDetailDownloads = page._dpDetailDownloads
+                    item.dpDetailUpdated = page._dpDetailUpdated
+                }
+            }
+
+            Connections {
+                target: page
+                function on_ShowDpDetailChanged() {
+                    if (page._showDpDetail) {
+                        dpDetailOverlay.opacity = Qt.binding(function() { return page._showDpDetail ? 1 : 0 })
+                    } else {
+                        dpUnloadTimer.start()
+                    }
+                }
+            }
+
+            Timer {
+                id: dpUnloadTimer
+                interval: 500
+                onTriggered: { if (!page._showDpDetail) dpDetailLoader._keepActive = false }
+            }
+        }
+    }
+
     // ── Shader Detail (ShaderDetailPage.qml) ──
     property bool _showShaderDetail: false
     property string _shaderDetailSlug: ""
@@ -1970,7 +2054,7 @@ Rectangle {
                 onSearchClicked: packTab.doPackSearch()
                 onResetClicked: {
                     modLoader = ""; modCategory = ""; mcVersion = ""
-                    searchText = ""; packResultsModel.clear()
+                    searchText = ""; sourceFilter = ""; packResultsModel.clear()
                     packTab.packLoader = ""; packTab.packCategory = ""
                     page.packGameVersion = ""
                     packTab.doPackSearch()
@@ -2130,7 +2214,8 @@ Rectangle {
             var ver = page.packGameVersion ? [page.packGameVersion] : []
             backend.searchModpacksEx(packFilterCard.searchText.trim(),
                                      packTab.packLoader, packTab.packCategory,
-                                     ver, offset, packTab.packPageSize)
+                                     ver, offset, packTab.packPageSize,
+                                     packFilterCard.sourceFilter)
         }
         function prefetchPackNextPage() {
             if (!backend || packTab.packPrefetching || packTab.packSearching) return
@@ -2140,13 +2225,237 @@ Rectangle {
             var offset = (packTab.packCurrentPage + 1) * packTab.packPageSize
             backend.prefetchModpacks(packFilterCard.searchText.trim(),
                                      packTab.packLoader, packTab.packCategory,
-                                     ver, offset, packTab.packPageSize)
+                                     ver, offset, packTab.packPageSize,
+                                     packFilterCard.sourceFilter)
             packTab.packPrefetching = false
         }
     }
 
     // ════════════════════════════════════════════
-    // TAB 5: Java 下载
+    // TAB 5: 数据包下载（双源：Modrinth project_type:datapack + CF classId=6945）
+    // ════════════════════════════════════════════
+    Item {
+        id: dpTab
+        anchors.top: tabBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 8
+        opacity: page.currentTab === 5 ? 1 : 0
+        visible: page.currentTab === 5
+        enabled: page.currentTab === 5
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        // ── 状态 ──
+        property bool dpSearching: false
+        property bool dpPrefetching: false
+        property int dpCurrentPage: 0
+        readonly property int dpPageSize: 20
+        property bool dpHasMore: false
+        property string dpCategory: ""
+        property string dpSort: ""          // ""=下载量, updated, name
+
+        // 数据包分类标签（Modrinth 侧与 Mod 同套；CF 6945 分类动态叠加）
+        property var dpCfCatZh: ({
+            "Miscellaneous": "杂项", "Fantasy": "幻想", "Magic": "魔法",
+            "Library": "库", "Adventure": "冒险", "Tech": "科技",
+            "Utility": "实用", "Mod Support": "模组支持", "ModJam 2025": "ModJam 2025"
+        })
+
+        // ── 筛选卡片 ──
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            FilterCard {
+                id: dpFilterCard
+                Layout.fillWidth: true
+                cardType: "datapack"
+                searchPlaceholder: qsTr("输入数据包名称...（仅支持英文搜索）")
+                rawVersionIds: backend ? backend.versionIds : []
+                modCatModel: {
+                    var m = [""].concat(Object.keys(page.modCatLabels))
+                    if (backend) {
+                        var cf = backend.cfCategories(6945)   // CurseForge Data Packs 分类叠加
+                        for (var i = 0; i < cf.length; i++) m.push(cf[i].value)
+                    }
+                    return m
+                }
+                modCatLabels: {
+                    var labels = {}
+                    for (var k in page.modCatLabels) labels[k] = page.modCatLabels[k]
+                    if (backend) {
+                        var cf = backend.cfCategories(6945)
+                        for (var i = 0; i < cf.length; i++) {
+                            var zh = dpTab.dpCfCatZh[cf[i].name]
+                            labels[cf[i].value] = zh ? ("CF·" + zh) : ("CF·" + cf[i].name)
+                        }
+                    }
+                    return labels
+                }
+
+                Component.onCompleted: {
+                    dpCategory = dpTab.dpCategory
+                    dpSort = dpTab.dpSort
+                    mcVersion = page.dpGameVersion
+                }
+                onSearchClicked: dpTab.doDpSearch()
+                onResetClicked: {
+                    dpCategory = ""; dpSort = ""; mcVersion = ""
+                    searchText = ""; sourceFilter = ""; dpResultsModel.clear()
+                    dpTab.dpCategory = ""; dpTab.dpSort = ""
+                    page.dpGameVersion = ""
+                    dpTab.doDpSearch()
+                }
+                onDpCategoryChanged: dpTab.dpCategory = dpCategory
+                onDpSortChanged: dpTab.dpSort = dpSort
+                onMcVersionChanged: page.dpGameVersion = mcVersion
+            }
+
+            // ── 搜索结果 ──
+            ScrollView {
+                Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                Component.onCompleted: contentItem.flickDeceleration = 250
+
+                ListView {
+                    id: dpListView
+                    anchors.fill: parent; spacing: 6
+                    model: dpResultsModel
+                    cacheBuffer: 200
+                    onAtYEndChanged: { if (atYEnd) dpTab.prefetchDpNextPage() }
+
+                    header: LoadStatus {
+                        width: dpListView.width
+                        loading: dpTab.dpSearching
+                        emptyText: qsTr("输入关键词搜索数据包")
+                        count: dpResultsModel.count
+                    }
+                    footer: PaginationFooter {
+                        currentPage: dpTab.dpCurrentPage
+                        hasNext: dpTab.dpHasMore
+                        loading: dpTab.dpSearching
+                        onFirstClicked: dpTab.doDpSearch(0)
+                        onPrevClicked: dpTab.doDpSearch(dpTab.dpCurrentPage - 1)
+                        onNextClicked: dpTab.doDpSearch(dpTab.dpCurrentPage + 1)
+                    }
+
+                    delegate: DownloadCard {
+                        width: dpListView.width - 8
+                        title: model.title || ""
+                        description: model.desc || ""
+                        iconUrl: model.icon || ""
+                        slug: model.slug || ""
+                        downloads: model.downloads || 0
+                        source: model.source || "Modrinth"
+                        gameVersions: Array.isArray(model.versions) ? model.versions.join(", ") : (model.versions || "")
+                        dateModified: model.dateModified || ""
+                        onClicked: {
+                            page._dpDetailSlug = model.slug
+                            page._dpDetailTitle = model.title || ""
+                            page._dpDetailDesc = model.desc || ""
+                            page._dpDetailIcon = model.icon || ""
+                            page._dpDetailIconRaw = model.iconRaw || ""
+                            page._dpDetailSource = model.source || "Modrinth"
+                            page._dpDetailDownloads = model.downloads || 0
+                            page._dpDetailUpdated = model.dateModified || ""
+                            page._showDpDetail = true
+                            console.info("[UI] 打开 数据包详情 slug=" + model.slug)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 搜索 ──
+        Connections {
+            target: backend
+            enabled: backend !== null
+            function onDatapackSearchResultsReady(results) {
+                if (dpTab.dpPrefetching) {
+                    // 预取响应：不污染列表，只预热图标缓存
+                    dpTab.dpPrefetching = false
+                    var urls = []
+                    for (var pi = 0; pi < (results ? results.length : 0); pi++) {
+                        var pu = (results[pi].icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                        if (pu) urls.push(pu)
+                    }
+                    if (urls.length > 0 && backend) backend.cacheIconBatchAsync(urls)
+                    return
+                }
+                // ═══ 池子架构：后端 emit 合并池全量，这里按当前页切片显示 ═══
+                var pool = results || []
+                var start = dpTab.dpCurrentPage * dpTab.dpPageSize
+                var end = Math.min(start + dpTab.dpPageSize, pool.length)
+                dpResultsModel.clear()
+                var urlsToCache = []
+                for (var j = start; j < end; j++) {
+                    var r = pool[j]
+                    var rawIcon = (r.icon || "").replace("cdn.modrinth.com", "mod.mcimirror.top").replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                    var iconUrl = ""
+                    if (rawIcon && backend) {
+                        urlsToCache.push(rawIcon)
+                        iconUrl = backend.resolveIconUrl(rawIcon)
+                    }
+                    dpResultsModel.append({
+                        slug: r.slug || "",
+                        title: r.title || r.slug || "Unknown",
+                        desc: r.desc || "",
+                        iconRaw: rawIcon,
+                        icon: iconUrl,
+                        downloads: r.downloads || 0,
+                        versions: Array.isArray(r.versions) ? r.versions.join(", ") : (typeof r.versions === "string" ? r.versions : ""),
+                        dateModified: r.dateModified || "",
+                        source: r.source || "Modrinth"
+                    })
+                }
+                dpTab.dpSearching = false
+                dpTab.dpHasMore = pool.length > (dpTab.dpCurrentPage + 1) * dpTab.dpPageSize
+                if (urlsToCache.length > 0 && backend) {
+                    backend.cacheIconBatchAsync(urlsToCache)
+                }
+            }
+
+            // 司南引擎图标就绪：更新 dp model 对应项
+            function onIconReady(url, localPath) {
+                for (var i = 0; i < dpResultsModel.count; i++) {
+                    if (dpResultsModel.get(i).iconRaw === url)
+                        dpResultsModel.setProperty(i, "icon", localPath)
+                }
+            }
+        }
+
+        function doDpSearch(pageNum) {
+            if (!backend) return
+            dpTab.dpPrefetching = false
+            pageNum = (pageNum !== undefined) ? pageNum : 0
+            dpTab.dpSearching = true
+            dpTab.dpCurrentPage = pageNum
+            var offset = pageNum * dpTab.dpPageSize
+            dpResultsModel.clear()
+            var ver = page.dpGameVersion ? [page.dpGameVersion] : []
+            backend.searchDatapacksEx(dpFilterCard.searchText.trim(),
+                                      dpTab.dpCategory, ver, dpTab.dpSort,
+                                      offset, dpTab.dpPageSize,
+                                      dpFilterCard.sourceFilter)
+        }
+        function prefetchDpNextPage() {
+            if (!backend || dpTab.dpPrefetching || dpTab.dpSearching) return
+            if (!dpTab.dpHasMore) return
+            dpTab.dpPrefetching = true
+            var ver = page.dpGameVersion ? [page.dpGameVersion] : []
+            var offset = (dpTab.dpCurrentPage + 1) * dpTab.dpPageSize
+            backend.prefetchDatapacks(dpFilterCard.searchText.trim(),
+                                      dpTab.dpCategory, ver, dpTab.dpSort,
+                                      offset, dpTab.dpPageSize,
+                                      dpFilterCard.sourceFilter)
+            dpTab.dpPrefetching = false
+        }
+    }
+
+    // ════════════════════════════════════════════
+    // TAB 6: Java 下载
     // ════════════════════════════════════════════
     JavaPage {
         id: javaPage
@@ -2155,8 +2464,8 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        opacity: page.currentTab === 5 ? 1 : 0
-        enabled: page.currentTab === 5
+        opacity: page.currentTab === 6 ? 1 : 0
+        enabled: page.currentTab === 6
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 

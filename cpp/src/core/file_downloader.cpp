@@ -133,7 +133,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                             return;
                         } else {
                             qCWarning(logDownload) << QStringLiteral("[夸父] [缓存] 复制失败 %1 → %2")
-                                .arg(fallbackPath, localPath);
+                                .arg(fallbackPath).arg(localPath);
                         }
                     }
                 }
@@ -477,8 +477,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
     th->state = 1;
     th->lastReceiveTime = getElapsedMs();
 
-    qCInfo(logDownload) << QStringLiteral("[夸父] 开始下载 URL=%1 文件=%2 偏移=%3")
-                            .arg(th->sourceUrl, file->localName).arg(th->downloadStart);
+    // URL 必须是最后一个 arg：QString::arg 对替换文本中的 %N 递归处理，
+    // URL 含 %2B 等编码时会被后续 .arg() 破坏（2026-08-02 实测日志错乱）
+    qCInfo(logDownload) << QStringLiteral("[夸父] 开始下载 文件=%2 偏移=%3 URL=%1")
+                            .arg(file->localName).arg(th->downloadStart).arg(th->sourceUrl);
 
     if (!ShadowLauncher::suppressUrlLog())
         emit logMessage(QStringLiteral("[夸父] 开始下载 %1 源=%2").arg(file->localName).arg(th->sourceUrl));
@@ -643,8 +645,13 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
             // Determine file size on first thread
             // 始终以实际 Content-Length（或收到的数据大小）为准，
-            // 修正 addFile 时传入的 expectedSize 可能偏小的问题
-            if (th->downloadStart == 0 && data.size() > 0) {
+            // 修正 addFile 时传入的 expectedSize 可能偏小的问题。
+            // 2026-08-02 实测修复：仅响应完整（data.size() >= contentLen）时才更新
+            // fileSize/isNoSplit——Modrinth 高峰下首线程可能拿到 404/截断响应
+            // （contentLen 偏小），旧逻辑据此把 isNoSplit 翻转为 true → 分片作废
+            // + 全量 SHA1 风暴 → 必失败。
+            if (th->downloadStart == 0 && data.size() > 0
+                && (contentLen <= 0 || data.size() >= contentLen)) {
                 qint64 actualSize = contentLen > 0 ? contentLen : data.size();
                 if (actualSize > 0 && actualSize != file->fileSize) {
                     if (file->fileSize > 0) {
@@ -667,9 +674,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 const QString dlHash = sha1Hex(data);
                 if (dlHash != QString::fromLatin1(file->expectedSha1)) {
                     qCWarning(logDownload) << QStringLiteral("[夸父] SHA1不匹配 URL=%1 预期=%2 实际=%3 (第%4次)")
-                        .arg(url, QString::fromLatin1(file->expectedSha1), dlHash)
+                        .arg(url).arg(QString::fromLatin1(file->expectedSha1)).arg(dlHash)
                         .arg(attempt + 1);
                     sourceOk = false;
+                    th->downloadDone = 0;   // 防续传错位：重试必须从头（2026-08-02 实测修复）
                     if (attempt >= 5) break;
                     continue;
                 }
