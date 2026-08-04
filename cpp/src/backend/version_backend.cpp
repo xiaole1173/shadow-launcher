@@ -3008,11 +3008,14 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 {
                     QString st1;
                     if (st2.catBytesTotal[1] <= 0) {
-                        st1 = st2.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending");
+                        // 总量未统计（阶段 A 未完成）→ pending 0%，不臆断完成
+                        //（旧逻辑 bytesDl>0 就显示 completed/100%——bytesDl 是全局
+                        // 下载字节，其他步骤在下载也会 >0 → 步骤创建瞬间误显 100%）
+                        st1 = QStringLiteral("pending");
                     } else {
                         st1 = (st2.catBytesDl[1] >= st2.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active");
                     }
-                    int raw1 = st2.catBytesTotal[1] > 0 ? (int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]) : (st2.bytesDl > 0 ? 100 : 0);
+                    int raw1 = st2.catBytesTotal[1] > 0 ? (int)(st2.catBytesDl[1] * 100 / st2.catBytesTotal[1]) : 0;
                     if (raw1 > 100)
                         qCWarning(logVersion) << QStringLiteral("[pctOverflow] ver=%1 step=1 rawPct=%2 dl=%3KB total=%4KB")
                             .arg(versionId).arg(raw1).arg(st2.catBytesDl[1]/1024).arg(st2.catBytesTotal[1]/1024);
@@ -3023,11 +3026,11 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 {
                     QString st2s;
                     if (st2.catBytesTotal[2] <= 0) {
-                        st2s = st2.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending");
+                        st2s = QStringLiteral("pending");
                     } else {
                         st2s = (st2.catBytesDl[2] >= st2.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active");
                     }
-                    int raw2 = st2.catBytesTotal[2] > 0 ? (int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]) : (st2.bytesDl > 0 ? 100 : 0);
+                    int raw2 = st2.catBytesTotal[2] > 0 ? (int)(st2.catBytesDl[2] * 100 / st2.catBytesTotal[2]) : 0;
                     if (raw2 > 100)
                         qCWarning(logVersion) << QStringLiteral("[pctOverflow] ver=%1 step=2 rawPct=%2 dl=%3KB total=%4KB")
                             .arg(versionId).arg(raw2).arg(st2.catBytesDl[2]/1024).arg(st2.catBytesTotal[2]/1024);
@@ -3097,9 +3100,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 }
                 {
                     QString s1 = (mst.catBytesTotal[1] <= 0)
-                        ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
+                        ? QStringLiteral("pending")
                         : ((mst.catBytesDl[1] >= mst.catBytesTotal[1]) ? QStringLiteral("completed") : QStringLiteral("active"));
-                    int mraw1 = mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : (mst.bytesDl > 0 ? 100 : 0);
+                    int mraw1 = mst.catBytesTotal[1] > 0 ? (int)(mst.catBytesDl[1] * 100 / mst.catBytesTotal[1]) : 0;
                     if (mraw1 > 100)
                         qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=1 rawPct=%2 dl=%3KB total=%4KB")
                             .arg(sit.key()).arg(mraw1).arg(mst.catBytesDl[1]/1024).arg(mst.catBytesTotal[1]/1024);
@@ -3108,9 +3111,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 }
                 {
                     QString s2 = (mst.catBytesTotal[2] <= 0)
-                        ? (mst.bytesDl > 0 ? QStringLiteral("completed") : QStringLiteral("pending"))
+                        ? QStringLiteral("pending")
                         : ((mst.catBytesDl[2] >= mst.catBytesTotal[2]) ? QStringLiteral("completed") : QStringLiteral("active"));
-                    int mraw2 = mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : (mst.bytesDl > 0 ? 100 : 0);
+                    int mraw2 = mst.catBytesTotal[2] > 0 ? (int)(mst.catBytesDl[2] * 100 / mst.catBytesTotal[2]) : 0;
                     if (mraw2 > 100)
                         qCWarning(logVersion) << QStringLiteral("[pctOverflow:M] ver=%1 step=2 rawPct=%2 dl=%3KB total=%4KB")
                             .arg(sit.key()).arg(mraw2).arg(mst.catBytesDl[2]/1024).arg(mst.catBytesTotal[2]/1024);
