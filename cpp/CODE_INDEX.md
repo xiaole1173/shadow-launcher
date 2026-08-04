@@ -69,7 +69,7 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `shadow_backend.h/.cpp` | 857 / 4362 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总；崩溃分析信号转发（`crashAnalysisStarted`/`crashAnalysisReady`）+ `analyzeCrashNow`/`exportCrashLogs`/`openPath`。 |
+| `shadow_backend.h/.cpp` | 857 / 4450 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总；崩溃分析信号转发（`crashAnalysisStarted`/`crashAnalysisReady`）+ `analyzeCrashNow`/`exportCrashLogs`/`openPath`；**Java 一键安装完成 → 自动刷新设置-Java 列表 + 一键安装卡片前置检测**。 |
 | `version_backend.h/.cpp` | 466 / 8287 | **版本管理大后端**：版本清单拉取/刷新（release/snapshot/old/aprilfool）、安装（走 VersionDownloader）、删除/重命名/克隆/迁移隔离、`verifyVersion`（游戏完整性校验）/`cancelVerify`/`cleanCorruptVersion`/`repairVersion`（修复，基于下载器 SHA1 校验重下缺失/损坏文件）、版本详情（Mod/资源包/存档列表异步）、installCards 模型、merged 安装上下文。 |
 | `launch_backend.h/.cpp` | 161 / 1480 | **启动后端**：组装 JVM/游戏参数、Token 刷新决策（`msTokenValid`/`shouldRefresh`）、进程启停（`launch`/`cancelLaunch`/`killGame*`）、在线/离线模式路由；**崩溃分析异步链路**：启动失败 → `crashAnalysisStarted` → `runCrashAnalysis`（QTimer 异步）→ `crashAnalysisReady`；`analyzeCrashNow`/`exportCrashLogs`/`openPath` Q_INVOKABLE。 |
 | `account_backend.h/.cpp` | 156 / 1207 | **账号后端**：离线登录（用户名/UUID/历史）、微软正版登录（MicrosoftAuth 封装：token 管理/后台刷新/过期判断）、皮肤下载/上传/缓存、披风（CapeInfo）、3D 头像渲染触发、离线皮肤。 |

@@ -126,6 +126,18 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_java = new JavaBackend(this);
     bp("JavaBackend");
 
+    // ── Java 一键安装完成后：自动刷新两处 Java 状态 ──
+    // 1) SettingsBackend 重新扫描系统 Java（设置-Java 列表更新）
+    // 2) JavaRuntimeInstaller 重新前置检测（关于页一键安装卡片更新）
+    connect(m_java, &JavaBackend::javaInstallFinished, this, [this](bool ok, const QString&) {
+        if (!ok) return;  // 安装失败不需要刷新
+        // 重新扫描设置-Java（findAllJava 现在含 java_cache，新装的会出现在列表）
+        m_settings->scanJavaInstallations();
+        // 刷新一键安装卡片的前置检测（scanSystemJavas 异步，完成后 emit systemJavaScanFinished）
+        m_java->scanSystemJavas();
+        qCInfo(logJava) << QStringLiteral("[Java安装] 安装完成，已触发 Java 列表与前置检测刷新");
+    });
+
     m_userData = new UserDataBackend(this);
     bp("UserDataBackend");
 
