@@ -321,7 +321,15 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
             // worker 线程：逐个读盘 SHA1 判定缓存命中（不碰任何 QObject 成员）
             QVector<LibPrecheck> toDownload;
             QVector<QPair<QString, qint64>> cacheHits;   // (path, size)
-            for (const auto& p : prechecks) {
+            // 大小降序：大文件先下（前期吃满带宽），小文件后批量收尾
+            // —— 避免 JSON 顺序导致的小文件集中在后期、每文件 TLS 建连开销
+            //    使后期速度暴跌（用户实测：下载支持库后期 <1MB/s）
+            QVector<LibPrecheck> sorted = prechecks;
+            std::sort(sorted.begin(), sorted.end(),
+                      [](const LibPrecheck& a, const LibPrecheck& b) {
+                          return a.totalBytes > b.totalBytes;
+                      });
+            for (const auto& p : sorted) {
                 bool hit = false;
                 if (!p.sha1.isEmpty()) {
                     QFileInfo fi(p.savePath);

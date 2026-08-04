@@ -1162,9 +1162,9 @@ bool FileDownloader::hostCanAccept(const QString& host) const
     // 会导致后续所有文件无法启动、整队列卡死（实测 129 文件尾部大文件全部拒启）；
     // MC 多源场景保留 degraded 源隔离（降级源不参与新连接）
     if (it->degraded && !m_modpackMode) return false;
-    // 模组专项：per-host 上限 12（实测 16+ 会触发 MCIM 镜像限流饿死连接，
-    // 12 路温和稳定；MC 场景保持 4 路多源隔离）
-    const int limit = m_modpackMode ? 12 : kMaxPerHost;
+    // per-host 上限跟随用户设置的最大线程数（m_maxThreads 已由用户配置流入）；
+    // 模组专项：MCIM 镜像实测 16+ 会限流饿死连接，固定 12 温和稳定
+    const int limit = m_modpackMode ? 12 : qMax(1, m_maxThreads);
     if (it->activeRequests >= limit) return false;
     return true;
 }
