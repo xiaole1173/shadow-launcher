@@ -43,6 +43,10 @@ Popup {
     property var exportDialogRef: null
     // 是否处于分析中
     property bool analyzing: false
+    // 抑制标志：beginAnalyzing 里 crashData=({}) 不应触发结果处理
+    // （否则 analyzing 被立即改回 false + 空数据 open()，第二次弹窗时
+    //  结果态→空态切换动画冲突导致 Qt6Core.dll 崩溃）
+    property bool _suppressResult: false
 
     // ── 安全取值辅助（crashData 未就绪时不产生 undefined→bool 警告）──
     function _has(key) { return !!(crashData && crashData[key]) }
@@ -50,24 +54,26 @@ Popup {
 
     // ── 由 MainWindow 调用 ──
     function beginAnalyzing() {
+        _suppressResult = true
         analyzing = true
         crashData = ({})
-        open()
+        _suppressResult = false
+        if (!opened) open()
     }
 
     onCrashDataChanged: {
+        // beginAnalyzing 的内部置空不处理
+        if (_suppressResult) return
         // 无论 isValid 与否都退出分析态（无效结果也显示“未找到崩溃报告”），
         // 否则重新分析/无日志场景会永远卡在加载圈。
         analyzing = false
-        if (crashData && crashData.isValid) {
+        // 有内容（含 isValid=false 的“未找到崩溃报告”）才展示；空对象忽略
+        if (crashData && Object.keys(crashData).length > 0) {
             console.log("[crash] dialog result type=", crashData.type,
                         "reason=", crashData.reason,
                         "suggestions=", (crashData.suggestions || []).length,
                         "reportTooLong=", crashData.reportTooLong)
-            open()
-        } else {
-            console.log("[crash] dialog result invalid (no crash report/log found)")
-            open()
+            if (!opened) open()
         }
     }
 
