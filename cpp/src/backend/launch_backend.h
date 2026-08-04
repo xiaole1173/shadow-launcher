@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <QVariantMap>
 #include <QList>
+#include <QtConcurrent>
 
 namespace ShadowLauncher {
 

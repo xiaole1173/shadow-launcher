@@ -1072,13 +1072,24 @@ Window {
         function onCrashAnalysisStarted() {
             console.log("[crash] analysis started")
             if (toastManager) toastManager.show(qsTr("启动失败，正在分析日志信息…"), 3500)
+            // Loader 异步加载：item 可能还没创建好，先设挂起标志，
+            // onItemChanged 里补调用 beginAnalyzing（否则第一次只有 Toast 没窗口）
+            _pendingCrashAnalyze = true
             crashDialogLoader.active = true
-            if (crashDialogLoader.item) crashDialogLoader.item.beginAnalyzing()
+            if (crashDialogLoader.item) {
+                _pendingCrashAnalyze = false
+                crashDialogLoader.item.beginAnalyzing()
+            }
         }
         function onCrashAnalysisReady(report) {
             console.log("[crash] analysis ready:", JSON.stringify(report))
             crashDialogLoader.active = true
-            if (crashDialogLoader.item) crashDialogLoader.item.crashData = report
+            if (crashDialogLoader.item) {
+                crashDialogLoader.item.crashData = report
+            } else {
+                // Loader 未就绪：缓存结果，onItemChanged 里补设
+                _pendingCrashResult = report
+            }
         }
     }
 
@@ -1195,6 +1206,8 @@ Window {
     }
 
     // Crash detection dialog (lazy-loaded)
+    property bool _pendingCrashAnalyze: false  // Loader 异步时挂起 beginAnalyzing
+    property var _pendingCrashResult: null     // Loader 异步时挂起分析结果
     Loader {
         id: crashDialogLoader; asynchronous: true; active: false
         anchors.fill: parent; z: 500
@@ -1203,6 +1216,16 @@ Window {
             if (item) {
                 item.backend = backend
                 item.toastManager = toastManager
+                // 补消费挂起的分析请求（第一次启动失败时 Loader 未就绪）
+                if (_pendingCrashAnalyze) {
+                    _pendingCrashAnalyze = false
+                    item.beginAnalyzing()
+                }
+                if (_pendingCrashResult) {
+                    var report = _pendingCrashResult
+                    _pendingCrashResult = null
+                    item.crashData = report
+                }
             }
         }
     }

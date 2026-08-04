@@ -6,8 +6,9 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
 // DetailVersionCard
-// Unified version card used by ModDetailPage and ResourcePackDetailPage
-// Features: version label, tags row, info lines, download button, L3 expand
+// Unified version card used by ModDetailPage / ResourcePackDetailPage / DataPackDetailPage / ShaderDetailPage / ModpackDetailPage
+// Features: version label, tags row, info lines, download button
+// Note: 统一方案，无 L3 展开（曾为 RP 独有 showExpand/L3 机制，布局溢出且与其他 Tab 不一致，已移除）
 
 Rectangle {
     id: card
@@ -36,16 +37,7 @@ Rectangle {
     property var infoLines: []             // [{label, value}] — info rows below version
     property bool hasDownload: false       // enable click-to-download
 
-    // ── L3 expand (RP detail) ──
-    property bool showExpand: false        // show expand toggle
-    property bool expanded: false          // current expand state
-    property var l3Detail: null            // expanded content data
-
-    // 注入的 L3 内容进入 l3Container（DetailVersionCard 的子内容默认进这里）
-    default property alias expandedContent: l3Container.data
-
     signal downloadClicked()
-    signal expandToggled()
 
     // ── Animations ──
     Behavior on color { ColorAnimation { duration: 200 } }
@@ -83,9 +75,6 @@ Rectangle {
                 card._clickScale = 0.92
                 clickRestoreTimer.restart()
                 downloadClicked()
-            }
-            if (showExpand) {
-                expandToggled()
             }
         }
     }
@@ -154,19 +143,6 @@ Rectangle {
                     elide: Text.ElideRight
                 }
             }
-        }
-
-        // ── L3 Detail (expandable, for RP) ──
-        // 注入内容（通常是一个 ColumnLayout { width: parent.width }）直接成为
-        // l3Container 的子项，父页面写的 width 绑定自然生效；
-        // l3Container 高度由 childrenRect 跟随（展开时卡片增高，收起时高度 0）。
-        Item {
-            id: l3Container
-            Layout.fillWidth: true
-            Layout.topMargin: 8
-            visible: card.showExpand && card.expanded
-            implicitHeight: l3Container.childrenRect.height
-            clip: true
         }
     }
 }

@@ -1423,19 +1423,31 @@ void LaunchBackend::runCrashAnalysis()
     m_crashAnalysisRunning = true;
 
     qCInfo(logLaunch) << QStringLiteral("[崩溃分析] 异步分析开始 目录=%1").arg(m_gameDir);
-    CrashDetector detector;
-    CrashReport cr = detector.analyzeCrash(m_gameDir, m_pendingOutput, m_launcherLogPath);
 
-    QVariantMap report = cr.toVariantMap();
-    qCDebug(logLaunch) << "[CRASH] analysis ready" << report.value("type").toString()
-                       << report.value("reason").toString()
-                       << "suggestions=" << report.value("suggestions").toStringList().size();
+    // 分析是 CPU/IO 密集（读日志 + 51 条 DotMatchesEverything 正则跑全文本，
+    // latest.log 数 MB 时会阻塞 UI 线程数秒）→ 必须放后台线程。
+    // CrashDetector 是纯计算类（无 QObject 状态），analyzeCrash 线程安全。
+    const QString gameDir = m_gameDir;
+    const QStringList pendingOutput = m_pendingOutput;
+    const QString launcherLogPath = m_launcherLogPath;
 
-    // Legacy signal for backward compatibility
-    emit crashDetected(report);
-    // Full analysis signal
-    emit crashAnalysisReady(report);
-    m_crashAnalysisRunning = false;
+    QtConcurrent::run([this, gameDir, pendingOutput, launcherLogPath]() {
+        CrashDetector detector;
+        CrashReport cr = detector.analyzeCrash(gameDir, pendingOutput, launcherLogPath);
+        const QVariantMap report = cr.toVariantMap();
+
+        QMetaObject::invokeMethod(this, [this, report]() {
+            qCDebug(logLaunch) << "[CRASH] analysis ready" << report.value("type").toString()
+                               << report.value("reason").toString()
+                               << "suggestions=" << report.value("suggestions").toStringList().size();
+
+            // Legacy signal for backward compatibility
+            emit crashDetected(report);
+            // Full analysis signal
+            emit crashAnalysisReady(report);
+            m_crashAnalysisRunning = false;
+        });
+    });
 }
 
 void LaunchBackend::analyzeCrashNow()

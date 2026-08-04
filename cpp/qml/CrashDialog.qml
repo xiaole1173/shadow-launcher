@@ -15,6 +15,9 @@ import QtQuick.Layouts
 // 用法（由 MainWindow 驱动）：
 //   crashDialogLoader.item.beginAnalyzing()          // 进入分析中状态
 //   crashDialogLoader.item.crashData = report        // 分析完成，展示结果
+//
+// 2026-08-04：复用 ShadowButton / StyleTokens，重写图标与颜色，
+//             修复 visible 表达式 undefined→bool QML 报错
 // ═══════════════════════════════════════════════════════════
 
 Popup {
@@ -36,6 +39,10 @@ Popup {
     property var toastManager: null
     // 是否处于分析中
     property bool analyzing: false
+
+    // ── 安全取值辅助（crashData 未就绪时不产生 undefined→bool 警告）──
+    function _has(key) { return !!(crashData && crashData[key]) }
+    function _len(key) { return (crashData && crashData[key]) ? crashData[key].length : 0 }
 
     // ── 由 MainWindow 调用 ──
     function beginAnalyzing() {
@@ -82,17 +89,28 @@ Popup {
         RowLayout {
             spacing: 10
 
-            Rectangle {
-                width: 36; height: 36; radius: 18
-                color: analyzing ? StyleTokens.accentSubtle
-                     : (crashData.type === "jvm" ? "#382020" : "#382828")
-                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: analyzing ? "…" : "[警告]"
-                    font.pixelSize: StyleTokens.fontSizeXl
-                    color: analyzing ? StyleTokens.accentLight : StyleTokens.textDanger
+            // 状态图标：分析中=转圈，结果=警示三角（用通用 LoadingSpinner 组件）
+            Item {
+                width: 36; height: 36
+                LoadingSpinner {
+                    anchors.fill: parent
+                    running: dialog.analyzing
+                    arcDegrees: 120; periodMs: 1000
+                    arcColor: StyleTokens.accentLight
+                    visible: dialog.analyzing
+                }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 18
+                    visible: !dialog.analyzing
+                    color: crashData.type === "jvm" ? "#2a1c1c" : "#2a2420"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "!"
+                        font.pixelSize: StyleTokens.fontSizeXl
+                        font.bold: true
+                        color: StyleTokens.textDanger
+                    }
                 }
             }
 
@@ -104,7 +122,7 @@ Popup {
                             crashData.type === "log" ? "游戏异常退出" : "崩溃诊断")
                     font.pixelSize: StyleTokens.fontSizeLg
                     font.bold: true
-                    color: analyzing ? StyleTokens.textSecondary : "#e8a0a0"
+                    color: analyzing ? StyleTokens.textSecondary : StyleTokens.textDanger
                 }
                 Text {
                     text: crashData.timestamp
@@ -112,7 +130,7 @@ Popup {
                         : ""
                     font.pixelSize: StyleTokens.fontSizeXs
                     color: StyleTokens.textSubtle
-                    visible: !!crashData.timestamp
+                    visible: _has("timestamp")
                 }
             }
 
@@ -178,7 +196,7 @@ Popup {
                 Layout.fillWidth: true
                 font.pixelSize: StyleTokens.fontSizeMd
                 font.bold: true
-                color: "#e8a0a0"
+                color: StyleTokens.textDanger
                 text: crashData.reason || "未知原因"
                 wrapMode: Text.Wrap
             }
@@ -188,17 +206,17 @@ Popup {
                 color: StyleTokens.textTertiary
                 text: crashData.description || ""
                 wrapMode: Text.Wrap
-                visible: !!crashData.description
+                visible: _has("description")
             }
 
             // ── 建议列表 ──
             ColumnLayout {
-                visible: crashData.suggestions && crashData.suggestions.length > 0
+                visible: _len("suggestions") > 0
                 spacing: 6
                 Layout.fillWidth: true
 
                 Text {
-                    text: "[提示] 建议处理方式"
+                    text: "建议处理方式"
                     font.pixelSize: StyleTokens.fontSizeSm
                     font.bold: true
                     color: StyleTokens.warning
@@ -210,8 +228,8 @@ Popup {
                         Layout.fillWidth: true
                         Layout.preferredHeight: sugText.implicitHeight + 12
                         radius: StyleTokens.radiusMd
-                        color: "#1a1810"
-                        border.color: "#3a3020"
+                        color: StyleTokens.bgElevated
+                        border.color: StyleTokens.border
 
                         Text {
                             id: sugText
@@ -219,7 +237,7 @@ Popup {
                             anchors.margins: 8
                             text: modelData
                             font.pixelSize: StyleTokens.fontSizeSm
-                            color: "#d8c090"
+                            color: StyleTokens.textSecondary
                             wrapMode: Text.Wrap
                         }
                     }
@@ -228,12 +246,12 @@ Popup {
 
             // ── 嫌疑模组 ──
             ColumnLayout {
-                visible: crashData.suspectedMods && crashData.suspectedMods.length > 0
+                visible: _len("suspectedMods") > 0
                 spacing: 6
                 Layout.fillWidth: true
 
                 Text {
-                    text: "[警告] 疑似相关模组"
+                    text: "疑似相关模组"
                     font.pixelSize: StyleTokens.fontSizeSm
                     font.bold: true
                     color: StyleTokens.textDanger
@@ -249,15 +267,15 @@ Popup {
                             width: modTagText.implicitWidth + 16
                             height: 24
                             radius: StyleTokens.radiusSm
-                            color: "#1a1420"
-                            border.color: StyleTokens.bgHover
+                            color: StyleTokens.bgElevated
+                            border.color: StyleTokens.border
 
                             Text {
                                 id: modTagText
                                 anchors.centerIn: parent
                                 text: modelData
                                 font.pixelSize: StyleTokens.fontSizeXs
-                                color: "#c8a0c8"
+                                color: StyleTokens.accentLink
                             }
                         }
                     }
@@ -266,7 +284,7 @@ Popup {
 
             // ── 完整报告已写入文件提示 ──
             Rectangle {
-                visible: !!crashData.reportFilePath
+                visible: _has("reportFilePath")
                 Layout.fillWidth: true
                 Layout.preferredHeight: 40
                 radius: StyleTokens.radiusMd
@@ -287,19 +305,15 @@ Popup {
                         color: StyleTokens.accentLink
                         elide: Text.ElideRight
                     }
-                    Rectangle {
-                        width: 72; height: 24; radius: StyleTokens.radiusSm
-                        color: repBtnHov.hovered ? StyleTokens.accentHover : StyleTokens.accent
-                        Text {
-                            anchors.centerIn: parent; text: "打开报告"
-                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textInverse
-                        }
-                        MouseArea {
-                            id: repBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (backend) backend.openPath(crashData.reportFilePath)
-                                else Qt.openUrlExternally("file:///" + crashData.reportFilePath)
-                            }
+                    ShadowButton {
+                        text: "打开报告"
+                        accentColor: StyleTokens.accent
+                        textColor: StyleTokens.textInverse
+                        btnRadius: StyleTokens.radiusSm
+                        Layout.preferredHeight: 24
+                        onClicked: {
+                            if (backend) backend.openPath(crashData.reportFilePath)
+                            else Qt.openUrlExternally("file:///" + crashData.reportFilePath)
                         }
                     }
                 }
@@ -312,86 +326,53 @@ Popup {
             Layout.fillWidth: true
             Layout.topMargin: 4
 
-            // 重新分析
-            Rectangle {
+            ShadowButton {
+                text: "重新分析"
+                outlined: true
                 Layout.preferredWidth: 90; Layout.preferredHeight: 32
-                radius: StyleTokens.radiusMd
-                color: reHov.hovered ? StyleTokens.bgHover : "transparent"
-                border.color: StyleTokens.borderLight
-                Text {
-                    anchors.centerIn: parent; text: "重新分析"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
-                }
-                MouseArea {
-                    id: reHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (backend) {
-                            dialog.analyzing = true
-                            backend.analyzeCrashNow()
-                        }
+                onClicked: {
+                    if (backend) {
+                        dialog.analyzing = true
+                        backend.analyzeCrashNow()
                     }
                 }
             }
 
-            // 导出全部日志
-            Rectangle {
+            ShadowButton {
+                text: "导出全部日志"
+                outlined: true
+                accentColor: StyleTokens.accentLink
                 Layout.preferredWidth: 110; Layout.preferredHeight: 32
-                radius: StyleTokens.radiusMd
-                color: expHov.hovered ? "#202840" : "#151828"
-                border.color: StyleTokens.textMuted
-                Text {
-                    anchors.centerIn: parent; text: "导出全部日志"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#a0b0d0"
-                }
-                MouseArea {
-                    id: expHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (backend) {
-                            var dir = backend.exportCrashLogs("")
-                            if (dir && toastManager) toastManager.show("日志已导出到: " + dir, 5000)
-                        }
+                onClicked: {
+                    if (backend) {
+                        var dir = backend.exportCrashLogs("")
+                        if (dir && toastManager) toastManager.show("日志已导出到: " + dir, 5000)
                     }
                 }
             }
 
             Item { Layout.fillWidth: true }
 
-            // 打开崩溃报告
-            Rectangle {
+            ShadowButton {
+                text: "打开崩溃报告"
+                outlined: true
+                accentColor: StyleTokens.accentLink
                 Layout.preferredWidth: 110; Layout.preferredHeight: 32
-                radius: StyleTokens.radiusMd
-                color: openHov.hovered ? "#202840" : "#151828"
-                border.color: StyleTokens.textMuted
-                visible: !!crashData.filePath
-                Text {
-                    anchors.centerIn: parent; text: "打开崩溃报告"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#a0b0d0"
-                }
-                MouseArea {
-                    id: openHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (crashData.filePath) {
-                            if (backend) backend.openPath(crashData.filePath)
-                            else Qt.openUrlExternally("file:///" + crashData.filePath)
-                        }
+                visible: _has("filePath")
+                onClicked: {
+                    if (crashData.filePath) {
+                        if (backend) backend.openPath(crashData.filePath)
+                        else Qt.openUrlExternally("file:///" + crashData.filePath)
                     }
                 }
             }
 
-            // 关闭
-            Rectangle {
+            ShadowButton {
+                text: "关闭"
+                outlined: true
+                accentColor: StyleTokens.textDanger
                 Layout.preferredWidth: 80; Layout.preferredHeight: 32
-                radius: StyleTokens.radiusMd
-                color: closeHov.hovered ? "#382020" : "#201818"
-                border.color: "#503030"
-                Text {
-                    anchors.centerIn: parent; text: "关闭"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#c0a0a0"
-                }
-                MouseArea {
-                    id: closeHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: { dialog.close() }
-                }
+                onClicked: { dialog.close() }
             }
         }
     }

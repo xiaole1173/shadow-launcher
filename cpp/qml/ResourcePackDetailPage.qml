@@ -9,7 +9,7 @@ import QtQuick.Dialogs
 // ResourcePackDetailPage
 // Full-screen detail page for a Resource Pack project's version list
 // Architecture: InstallPage-style — fixed top bar + Flickable + cards
-// Features L3 detail expansion within version cards
+// 版本卡片与 Mod/DataPack 等 Tab 统一：无 L3 展开（曾独占 showExpand 机制，已移除）
 
 Rectangle {
     id: root
@@ -51,7 +51,6 @@ Rectangle {
             rpVersionDetailCache = ({})
             rpVersionCacheVersion = 0
             expandedGroups = []
-            selectedVersion = ""
             // CurseForge 资源包（slug 为纯数字 modId）
             if (/^\d+$/.test(rpDetailSlug)) {
                 backend.fetchResourcepackVersionsCf(rpDetailSlug)
@@ -85,7 +84,6 @@ Rectangle {
         return result
     }
     property var expandedGroups: []
-    property string selectedVersion: ""
 
     function isGroupExpanded(major) {
         if (typeof expandedGroups === 'string') return expandedGroups === major
@@ -317,14 +315,13 @@ Rectangle {
                                 infoLines: {
                                     var d = getVerDetail(modelData)
                                     var lines = []
-                                    lines.push({ label: "名称:", value: d ? (d.name || "") : "" })
-                                    lines.push({ label: "下载量:", value: formatDownloads(d ? d.downloads : 0) })
+                                    lines.push({ label: "MC:", value: modelData })
+                                    lines.push({ label: "", value: d ? (d.name || "") : "" })
+                                    lines.push({ label: "", value: (d && d.filename ? "文件: " + d.filename : "") + (d ? "  |  下载量 " + formatDownloads(d.downloads || 0) : "") })
                                     return lines
                                 }
 
                                 hasDownload: true
-                                showExpand: true
-                                expanded: (root.selectedVersion === modelData)
                                 onDownloadClicked: {
                                     var d = getVerDetail(modelData)
                                     if (!d) { if (toastManager) toastManager.show("无法获取版本信息"); return }
@@ -348,69 +345,6 @@ Rectangle {
                                     rpFileDialog.currentFolder = "file:///" + versionsFolder.replace(/\\/g, "/")
                                     rpFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                     rpFileDialog.open()
-                                }
-                                onExpandToggled: {
-                                    if (root.selectedVersion === modelData) {
-                                        root.selectedVersion = ""
-                                    } else {
-                                        root.selectedVersion = modelData
-                                    }
-                                }
-
-                                // ── L3 Detail (expanded content) ──
-                                ColumnLayout {
-                                    width: parent.width
-                                    spacing: 6
-
-                                    // Feature flags (if any)
-                                    Repeater {
-                                        model: {
-                                            var d = getVerDetail(modelData)
-                                            if (!d || !d.features) return []
-                                            var features = d.features
-                                            var result = []
-                                            for (var fk in features) {
-                                                if (features[fk]) result.push(fk)
-                                            }
-                                            return result
-                                        }
-                                        delegate: RowLayout {
-                                            spacing: 4
-                                            Rectangle { width: 6; height: 6; radius: StyleTokens.radiusXs; color: StyleTokens.success }
-                                            Text {
-                                                text: modelData.replace(/_/g, " ").replace(/\b\w/g, function(c){return c.toUpperCase()})
-                                                color: "#9098b0"; font.pixelSize: StyleTokens.fontSizeXs
-                                            }
-                                        }
-                                    }
-
-                                    // Dependencies
-                                    Text {
-                                        visible: {
-                                            var d = getVerDetail(modelData)
-                                            return d && d.dependencies && d.dependencies.length > 0
-                                        }
-                                        text: qsTr("依赖: ") + (function(){
-                                            var d = getVerDetail(modelData)
-                                            return d && d.dependencies ? d.dependencies.join(", ") : ""
-                                        })()
-                                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeXs
-                                        Layout.fillWidth: true; wrapMode: Text.WordWrap
-                                    }
-
-                                    // Screenshots placeholder / download info
-                                    Text {
-                                        visible: {
-                                            var d = getVerDetail(modelData)
-                                            return d && d.filename
-                                        }
-                                        text: (function(){
-                                            var d = getVerDetail(modelData)
-                                            return d ? ("文件: " + (d.filename || "") + "  |  " + formatDownloads(d.downloads || 0) + " 下载") : ""
-                                        })()
-                                        color: "#606478"; font.pixelSize: StyleTokens.fontSizeXs
-                                        Layout.fillWidth: true; elide: Text.ElideRight
-                                    }
                                 }
                             }
                     }

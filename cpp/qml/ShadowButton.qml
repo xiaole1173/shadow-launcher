@@ -79,15 +79,18 @@ Button {
             var a = shadowBtn.accentColor
             if (!shadowBtn.enabled)
                 return Qt.rgba(a.r, a.g, a.b, 0.4)
+            if (shadowBtn.outlined)
+                return shadowBtn.hovered ? Qt.rgba(a.r, a.g, a.b, 0.10) : "transparent"
             return shadowBtn.hovered ? Qt.lighter(a, 1.08) : a
         }
 
         border.color: {
             var a = shadowBtn.accentColor
             if (!shadowBtn.enabled) return Qt.rgba(a.r, a.g, a.b, 0.25)
+            if (shadowBtn.outlined) return shadowBtn.hovered ? Qt.lighter(a, 1.2) : a
             return shadowBtn.hovered ? Qt.lighter(a, 1.2) : a
         }
-        border.width: 1
+        border.width: shadowBtn.outlined ? 1 : 0
 
         Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
         Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
