@@ -5850,7 +5850,8 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
                 auto st = ds->steps[i].toMap();
                 QString name = st.value(QStringLiteral("name")).toString();
                 if (name.contains(QStringLiteral("loader"), Qt::CaseInsensitive) ||
-                    name.contains(QStringLiteral("\u52a0\u8f7d\u5668"), Qt::CaseInsensitive) ) {
+                    name.contains(QStringLiteral("\u52a0\u8f7d\u5668"), Qt::CaseInsensitive) ||
+                    name.contains(QStringLiteral("\u4e3b\u6587\u4ef6"), Qt::CaseInsensitive) ) {
                     stepIdx = i;
                     break;
                 }
