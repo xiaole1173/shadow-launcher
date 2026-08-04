@@ -75,7 +75,8 @@ Item {
 
     Connections {
         target: backend
-        // 异步扫描完成后刷新列表（scanJavaInstallations 内部 emit javaPathChanged）
+        // 异步扫描完成后刷新列表
+        // （scanJavaInstallations 完成回调已保证每次扫描只 emit 一次 javaPathChanged）
         function onJavaPathChanged() {
             root.refreshAll()
             var count = root._javaList.length
