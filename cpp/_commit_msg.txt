@@ -1,12 +1,23 @@
-修复步骤初始 100%：总量未统计时不再用全局 bytesDl 臆断完成
+修复超额下载浪费 + MC 未完成子步骤提前 completed
 
-用户反馈：下载资源文件步骤刚创建任务时显示 100%，随后才跌回正常。
+用户实测两个问题：
+1. 合并下载时 MC 未下载完成，核心子步骤就显示 completed，
+   速度还在跳、校验不开始（进度虚高）
+2. 日志"截断多余数据"超额巨大（fastutil 200 响应 23.9MB 只保留
+   132KB）——浪费流量
 
-根因：catBytesTotal[cat] <= 0（该分类总量尚未统计，阶段 B 的
-collectTasks 未执行）时，旧逻辑用 st2.bytesDl（全局下载字节）判断
-步骤状态——bytesDl 是夸父+山海经合计字节，支持库等其他步骤在下时
-它恒 >0 → 资源文件步骤被臆断为 completed/100%。随后总量统计完成，
-才跌回正确进度。
+根因：
+1. 服务器忽略 Range 返回全文件（200）或超大分片（206 超额）时，
+   downloadProgress 把 received（全文件大小）累进 th->downloadDone
+   → file->totalDone() 虚高 → 步骤进度提前满 → 子步骤误显 completed
+2. 200 全文件响应：旧逻辑 mid(downloadStart, threadRange) 截断
+   ——23.9MB 只保留 132KB（浪费）+ 偏移取错 → SHA1 失败反复重试
+   → 文件不完成 → 校验不开始
 
-修复：总量未统计（<=0）时步骤状态为 pending、进度 0%，不做臆断；
-总量统计后正常计算。涉及纯 MC 路径（步骤 1/2）和 merged 路径两处。
+修复：
+1. downloadProgress 的 downloadDone 封顶到线程范围（received 超范围
+   不虚高）→ 进度只反映真实分片部分
+2. 200 全文件响应（data >= fileSize）：整文件直接使用（isFullFile
+   标志），mergeFile 优先用完整数据（主流启动器 RangeNotSupported →
+   单线程全量语义）——不截断不浪费，SHA1 通过文件正常完成
+3. 206 正常分片：left(threadRange) 保留（已正确）

@@ -680,8 +680,16 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     // 导致 MC >50MB 文件分片永不触发（分片机制对 MC 是死代码）。
                     // 豁免保留：放开为通用；模组路径行为与基线一致（基线模组本就置 state=2）。
                     if (th->state == 1) th->state = 2;
-                    m_downloadedBytes.fetchAndAddRelaxed(delta);
-                    th->downloadDone = received;
+                    // 封顶到线程范围：服务器返回超范围数据（200 全文件/超大 206）时，
+                    // received 会超过线程的 downloadEnd——downloadDone 若虚高，
+                    // file->totalDone() 也会虚高 → 步骤进度提前满（用户实测：MC 未
+                    // 下载完子步骤就显示 completed）。封顶后进度只反映真实分片部分。
+                    const qint64 thMax = th->downloadEnd - th->downloadStart;
+                    qint64 realDelta = delta;
+                    if (thMax > 0 && th->downloadDone + delta > thMax)
+                        realDelta = qMax<qint64>(0, thMax - th->downloadDone);
+                    m_downloadedBytes.fetchAndAddRelaxed(realDelta);
+                    th->downloadDone = qMin(received, thMax > 0 ? thMax : received);
                     // 主流启动器语义：收到数据重置源失败计数（FailCount=0）——
                     // 偶发失败不累计，避免误伤正常源
                     if (sourceIdx < file->sourceFailCounts.size())
@@ -838,11 +846,22 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                             QNetworkRequest::HttpStatusCodeAttribute).toInt();
                         qCInfo(logDownload) << QStringLiteral("[夸父] 截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5 状态=%6")
                             .arg(file->localName).arg(th->downloadStart).arg(threadRange).arg(data.size()).arg(excess).arg(respStatus);
-                        data = (respStatus == 206)
-                            ? data.left(threadRange)
-                            : data.mid(th->downloadStart, threadRange);
+                        if (respStatus == 200 && file->fileSize > 0 && data.size() >= file->fileSize) {
+                            // 服务器忽略 Range 返回全文件（200）——既然全文件已下完，
+                            // 直接整文件使用（不截断丢弃 23MB 浪费）：标记线程下载完整文件，
+                            // 合并时优先用完整数据（主流启动器 RangeNotSupported → 单线程全量语义）
+                            qCInfo(logDownload) << QStringLiteral("[夸父] 服务器返回全文件(忽略Range)，整文件使用 文件=%1 大小=%2")
+                                .arg(file->localName).arg(data.size());
+                            th->downloadDone = data.size();
+                            // 让合并逻辑走“单线程完整”路径：临时文件直接写全文件
+                            th->isFullFile = true;
+                        } else {
+                            data = (respStatus == 206)
+                                ? data.left(threadRange)
+                                : data.mid(th->downloadStart, threadRange);
+                            th->downloadDone = threadRange;
+                        }
                         // Adjust byte counters: the excess was already counted via downloadProgress
-                        th->downloadDone = threadRange;
                         m_downloadedBytes.fetchAndAddRelaxed(-excess);
                     }
                 }
@@ -1132,6 +1151,26 @@ bool FileDownloader::mergeFile(std::shared_ptr<FileDownload> file)
     if (!out.open(QIODevice::WriteOnly)) {
         emit logMessage(QString("[夸父] 无法写入: %1").arg(file->localPath));
         return false;
+    }
+
+    // 服务器返回全文件（忽略 Range）的线程：其 temp 是完整文件，直接复制为
+    // 最终文件（跳过其他分片——它们只是部分数据，完整数据已具备）
+    for (auto& th : file->threads) {
+        if (th->isFullFile && !th->tempPath.isEmpty()) {
+            QFile tf(th->tempPath);
+            if (tf.open(QIODevice::ReadOnly)) {
+                out.write(tf.readAll());
+                tf.close();
+                tf.remove();
+                out.close();
+                qCInfo(logDownload) << QStringLiteral("[夸父] 合并使用全文件数据 %1").arg(file->localName);
+                // 清理其余分片 temp
+                for (auto& o : file->threads) {
+                    if (o != th && !o->tempPath.isEmpty()) QFile::remove(o->tempPath);
+                }
+                return true;
+            }
+        }
     }
 
     // 按偏移排序合并——不能用 uuid（创建顺序）：tryAddThread 从"最大未完成片"切分，

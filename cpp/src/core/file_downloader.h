@@ -43,6 +43,7 @@ struct DownloadThread {
     qint64 lastReceiveTime = 0;
     int state = 0;  // 0=waiting,1=connecting,2=downloading,3=finished,4=failed
     bool retried = false;   // 分片失败已重试（模组专项：丢弃失败分片重下）
+    bool isFullFile = false;  // 服务器返回全文件（忽略 Range）→ 整文件数据，合并优先用
 
     qint64 downloadUndone() const { return downloadEnd - downloadStart - downloadDone; }
 };
