@@ -97,7 +97,7 @@
 | `downloader.h/.cpp` | 67 / 347 | **早期单文件下载器**（Phase 2.3，被夸父/驿道取代，遗留兼容）。 |
 | `mod_manager.h/.cpp` | 264 / 1651 | **Mod 下载管理**：下载任务、夸父引擎接入（分片）、Modpack 模式。⚠️ **用户 WIP（勿改勿提交）**。 |
 | `local_mod_manager.h/.cpp` | 104 / 782 | **本地 Mod/资源包管理**：扫描 mods/ 目录、解析 JAR（读取 mods.toml/fabric.mod.json 元数据）、Mod 列表/过滤、删除、导入复制。 |
-| `mod_loader_installer.h/.cpp` | 247 / 4006 | **Forge/NeoForge/OptiFine 安装器**：四分支（Legacy3/2/1 安装器 + Bootstrapper 模式）；Forge install_profile 处理、处理器列表、FART/srgutils、版本 JSON 生成；含 Java 自动下载（Tuna Adoptium 镜像 JRE——安装器只 java -cp 跑 jar 无需 JDK，与一键安装共享 java_cache）。 |
+| `mod_loader_installer.h/.cpp` | 247 / 4006 | **Forge/NeoForge/OptiFine 安装器**：四分支（Legacy3/2/1 安装器 + Bootstrapper 模式）；Forge install_profile 处理、处理器列表、FART/srgutils、版本 JSON 生成；含 Java 自动下载（Tuna Adoptium 镜像 JRE——安装器只 java -cp 跑 jar 无需 JDK，与一键安装共享 java_cache）；java_cache 路径统一 applicationDirPath。 |
 | `launcher.h/.cpp` | 105 / 1710 | **游戏启动核心**：实际启动 Minecraft 进程（参数组装、natives 解压、JVM 启动、进程监控、退出码处理）、服务器属性准备；**输出环形缓冲**（recentOutput，最近 600 行原始输出供崩溃分析）。 |
 | `microsoft_auth.h/.cpp` | 64 / 357 | **微软 OAuth 认证**：设备码/浏览器流程、XBL→XSTS→Minecraft→Profile 四步链、token 获取与刷新。 |
 | `yggdrasil_auth.h/.cpp` | 87 / 266 | **Yggdrasil 认证**：外置登录协议实现（与服务器握手、校验、token）。 |

@@ -13,6 +13,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QProcess>
+#include <QCoreApplication>
 #include <QThread>
 #include <QLockFile>
 #include <QCryptographicHash>
@@ -2021,7 +2022,7 @@ QString ModLoaderInstaller::findJavaPath(int minVersion) {
 
     // 2. Check auto-download cache first (from downloadAndExtractJava)
     {
-        const QString cacheExe = QDir::currentPath() + QStringLiteral("/java_cache/%1/bin/java.exe").arg(minVersion);
+        const QString cacheExe = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache/%1/bin/java.exe").arg(minVersion);
         if (QFile::exists(cacheExe)) {
             QProcess cacheProc;
             cacheProc.start(cacheExe, {QStringLiteral("-version")});
@@ -2093,7 +2094,7 @@ static QString findJavaExeRecursive(const QString& dir) {
 /** Auto-download Java from Tuna Adoptium mirror, extract ZIP to java_cache/{minVersion}/.
  *  Returns path to java.exe, or empty on failure. */
 QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
-    const QString baseDir = QDir::currentPath() + QStringLiteral("/java_cache/");
+    const QString baseDir = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache/");
     const QString javaDir = baseDir + QString::number(minVersion);
     const QString javaExe = javaDir + QStringLiteral("/bin/java.exe");
 
