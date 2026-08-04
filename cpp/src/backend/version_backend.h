@@ -278,6 +278,7 @@ signals:
     void installFinished(bool success);
     void installComplete(const QString& installId);
     void logMessage(const QString& msg);
+    void toastMessage(const QString& msg);
     void mcJsonReady(const QString& versionId);
 
     void verifyStarted();

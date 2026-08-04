@@ -1,0 +1,12 @@
+[feat] 版本设置概览按钮分类重做（仅 QML）+ 统计页 tooltip 自定义样式
+
+## 版本设置-概览快捷入口重做（任务 3，仅 QML）
+- 10 个手写重复 Rectangle 按钮 → 统一 ShadowButton 通用组件（accentColor 可配、图标、弹性缩放）
+- 分类排序：文件夹（版本/存档/截图/Mod*/config*/光影包*）→ 日志（logs/最新启动日志/崩溃日志）→ 其他（复制版本路径）；* 仅加载器版本可见
+- 修复隐藏 bug：概览 Mod/config/光影 三个按钮原用 backend.isModdedVersion()（C++ stub 恒 false）→ 永远不可见；改用本地 isModded()（基于 versionDetails.loaderType 真判断）
+- 代码量 -33%（12153 → 8193 字符）
+
+## 统计页 tooltip 自定义（任务 4）
+- StatsPage 时间条 hover 的默认系统 ToolTip（米白底尖角框）→ 自定义 Popup：radiusMd 圆角 + bgElevated 背景 + bgInput 边框 + 淡入淡出；Popup 在 Overlay 层不被 chartBox clip 裁剪
+
+已编译（exe 22:12:45）

@@ -638,12 +638,8 @@ Rectangle {
     }
 
     // ── Update check connections ──
-    Connections {
-        target: typeof backend !== "undefined" ? backend : null
-        function onToastMessage(message) {
-            toastManager.show(message)
-        }
-    }
+    // 注：toastMessage 全局监听已移到 MainWindow（onToastMessage），
+    // 此处不再重复监听，避免同一条消息弹两次。
 
     // ── One-click Java install feedback ──
     // root 级扫描计数器：Connections 无法直接访问 aboutComponent 内的组件，

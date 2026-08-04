@@ -151,6 +151,10 @@ Window {
             }
             // onInstallingChanged will handle nav hiding with a delay
         }
+        // ── 全局 Toast（Forge/NeoForge 安装自动下载 Java 等场景，任意页面可见）──
+        function onToastMessage(message) {
+            if (toastManager) toastManager.show(message)
+        }
         // ── 模组/光影/资源包文件下载完成/失败：成功/失败 Toast（卡片保留绿色/红色终态）──
         function onModFileDownloadFinished(dlId, success, filePath, displayName) {
             if (toastManager) {

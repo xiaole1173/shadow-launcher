@@ -1,0 +1,13 @@
+[fix] 左上角白色小角：禁用 Win11 DWM 系统圆角（DWMWCP_DONOTROUND）
+
+根因：无边框窗口是透明分层窗口（WS_EX_LAYERED），Win11 DWM 默认圆角（DEFAULT）
+在浅色主题下会在四角填充系统窗口背景色（浅色=白/深色=深灰，随系统配色），
+把应用自绘的 16px 圆角"补全"成方形小角。内测用户多浅色系统故普遍反馈。
+
+修复：main_release.cpp + main.cpp 的 QQmlApplicationEngine::objectCreated 中，
+在 winId 就绪后 DwmSetWindowAttribute(DWMWCP_DONOTROUND) 显式禁用 DWM 圆角，
+窗口四角完全由应用自绘（透明→桌面），任何主题/版本下不再出现系统色角。
+原有 win->setColor(Qt::transparent) 保留（透明背景本身已正常）。
+
+验证：DwmGetWindowAttribute → DONOTROUND(1)；WS_EX_LAYERED 保留；屏幕截图四角=桌面。
+CODE_INDEX.md 同步更新（维护铁律）。

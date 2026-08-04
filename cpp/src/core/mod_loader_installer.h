@@ -79,6 +79,8 @@ signals:
     // Final
     void finished(bool success, const QString& error);
     void logMessage(const QString& msg);
+    // User-facing toast (e.g. auto Java download progress during loader install)
+    void toastMessage(const QString& msg);
     // Pause between verify and install (for parallel MC download)
     void waitingForMC();
     // Sub-progress within a step (for installer stdout parsing)

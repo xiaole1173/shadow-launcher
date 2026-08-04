@@ -2302,6 +2302,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
     if (javaPath.isEmpty()) {
         qCInfo(logLoader) << QStringLiteral("[安装] 未找到 Java %1+，尝试自动下载...").arg(minJava);
         emit progressChanged(3, m_totalSteps, QStringLiteral("未找到 Java %1+，正在自动下载...").arg(minJava));
+        emit toastMessage(QStringLiteral("%1 安装需要 Java %2，正在下载...")
+                              .arg(isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge"), QString::number(minJava)));
         javaPath = downloadAndExtractJava(minJava);
         if (javaPath.isEmpty()) {
             emit finished(false, QStringLiteral("未找到 Java %1+，且自动下载失败。请先在「设置 → Java」中下载 Java。").arg(minJava));
@@ -2309,6 +2311,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
             return;
         }
         qCInfo(logLoader) << QStringLiteral("[安装] 自动下载 Java 完成: %1").arg(javaPath);
+        emit toastMessage(QStringLiteral("Java %1 安装完成，继续 %2 安装流程...")
+                              .arg(QString::number(minJava), isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge")));
     }
 
     // 2. 提取 bootstrapper JAR（Forge 和 NeoForge 共用同一份）

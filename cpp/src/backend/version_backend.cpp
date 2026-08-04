@@ -5899,6 +5899,9 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     // --- logMessage ---
     connect(ml, &ModLoaderInstaller::logMessage, this, &VersionBackend::logMessage);
 
+    // --- toastMessage (e.g. auto Java download during loader install) ---
+    connect(ml, &ModLoaderInstaller::toastMessage, this, &VersionBackend::toastMessage);
+
     return ml;
 }
 
@@ -8238,6 +8241,9 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
 
     // logMessage: forward
     connect(ctx->installer, &ModLoaderInstaller::logMessage, this, &VersionBackend::logMessage);
+
+    // toastMessage: forward (e.g. auto Java download during loader install)
+    connect(ctx->installer, &ModLoaderInstaller::toastMessage, this, &VersionBackend::toastMessage);
 
     m_mergedContexts[installId] = ctx;
     return ctx;

@@ -1,0 +1,13 @@
+[fix] 修复 3 处 QML→C++ 断链 + 审计报告建档
+
+## 断链修复（审计发现，InstallPage 调用必报错）
+QML 直接调 backend.xxx 但 ShadowBackend 无此方法（只存在于 VersionBackend）：
+- installOptifineJar（OptiFine JAR 安装）
+- setPendingUserDataImport / cancelPendingUserDataImport（整合包导入-用户数据迁移）
+新增 3 个转发方法到 shadow_backend.{h,cpp}，已编译验证。
+
+## 审计报告
+- 新建 AUDIT_REPORT.md（仓库内）：三界面完整性审计结论 + 重点链路
+  （游戏完整性校验/一键修复）验证 + 断链扫描结果 + 问题清单（2 个未实现功能待产品决策
+  + 5 个死代码文件建议清理）
+- CODE_INDEX.md 同步更新

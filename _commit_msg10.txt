@@ -1,0 +1,16 @@
+[fix] 用户数据导出/导入：QUrl 路径 bug + userDataBackend 调用方式 + 日志接入
+
+用户反馈：导出无 toast、选择位置后目录无 zip。
+
+根因（代码核对 + eval 实证）：
+1. **QUrl 路径 bug（zip 不出现的真凶）**：FileDialog.selectedFile 是 QUrl，
+   QML 里 path.toString() 返回 "file:///C:/..." 前缀 → C++ QZipWriter 按该非法路径
+   创建 → 必失败。修复：url.scheme==="file" 时用 toLocalFile()（VSO 导出 +
+   InstallPage 导入 validateArchive 两处）
+2. **backend.userDataBackend 是 Q_INVOKABLE 方法不是属性**：QML 全 10 处
+   （VSO 3 + InstallPage 6 + Connections target）原写 backend.userDataBackend.xxx
+   → 在函数对象上取属性 → TypeError → 导出/导入根本没执行。修复为 backend.userDataBackend()
+3. 导出开始加 toast「正在导出用户数据...」（onAccepted 内）
+4. UserDataBackend::logMessage 接入 ShadowBackend 主日志（诊断可查）
+
+已编译（exe 00:22:49）。UI 交互验证交由用户。

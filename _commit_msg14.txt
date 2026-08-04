@@ -1,0 +1,13 @@
+[feat] 用户数据导出改为散开结构（去掉 game/ 包装）+ 导入兼容两种格式
+
+用户要求：导出的用户数据应直接散开（saves/mods/options.txt 在 zip 根），不要 game/ 文件夹。
+
+改动（userdata_backend.cpp/h）：
+1. doExport：白名单数据直接复制到 temp 根（原 temp/game/），zip 内 = README.txt + 用户数据散开
+2. parseArchiveItems：兼容两种包结构——旧包 game/ 前缀 + 新散开格式（zip 根有已知条目即合法）；
+   relPath 按格式自适应
+3. executeImport：兼容两种格式读取（stripPrefix），README.txt 不导入
+4. header 注释同步
+
+验证（eval 实测）：导出 zip 顶层 = README.txt + logs/ + saves/ + options.txt + usercache.json ✓
+exe 00:57:11

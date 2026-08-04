@@ -1,0 +1,14 @@
+[fix] 原版版本必须隐藏 Mods 快捷按钮：isModded() 函数绑定改为响应式 _isModded 属性
+
+问题：原版（无加载器）版本下快捷入口的 Mod 文件夹/config/光影包按钮未可靠隐藏。
+根因：visible: isModded() 是函数调用绑定，QML 绑定引擎不追踪函数体内的属性引用——
+versionDetails 异步加载完成或切换版本时 visible 不会重新求值；且 loaderType 字段缺失时
+(undefined !== "原版" && undefined !== "") 判断误返回 true → 按钮误显示。
+
+修复（VersionSettingsOverlay.qml 概览分区）：
+- function isModded() → readonly property bool _isModded（内联绑定表达式，直接引用
+  backend.versionDetails + currentSelectedVersion，响应式追踪 ✓）
+- loaderType 缺失按"原版"处理（|| "原版"），绝不误显示
+- 三个按钮 visible: _isModded
+
+已验证：括号平衡、qmllint 无错误、编译通过（exe 22:22:33）

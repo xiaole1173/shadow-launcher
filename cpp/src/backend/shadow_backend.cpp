@@ -359,6 +359,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::installComplete);
     connect(m_version, &VersionBackend::logMessage,
             this, &ShadowBackend::logMessage);
+    connect(m_version, &VersionBackend::toastMessage,
+            this, &ShadowBackend::toastMessage);
     connect(m_version, &VersionBackend::verifyStarted,
             this, &ShadowBackend::verifyStarted);
     connect(m_version, &VersionBackend::verifyProgress,
