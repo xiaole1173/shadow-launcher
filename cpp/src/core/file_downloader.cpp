@@ -321,6 +321,15 @@ void FileDownloader::managerTick()
         for (auto& f : m_files) {
             if (f->state == 5 || f->state == 4) continue; // failed or finished
             if (f->state == 0) {
+                // 小文件延迟启动：Phase1 只启动大文件（>1MB）首线程，避免
+                // 海量小文件瞬间占满并发导致大文件单连接饿死（实测：56 个
+                // 小文件秒开连接 → fastutil 22MB 单连接龟速 23 秒）。
+                // 小文件留在 state 0，进入 PhaseAccelerate 后由下方循环
+                // 随大文件分片并行启动（小文件本身 1-2 秒下完）。
+                if (f->fileSize > 0 && f->fileSize <= kSmallFileThresholdBytes) {
+                    allStarted = false;
+                    continue;
+                }
                 if (active >= maxThreads) { allStarted = false; break; }
                 auto th = tryStartFirstThread(f);
                 if (th) {
@@ -350,6 +359,8 @@ void FileDownloader::managerTick()
     // 模组路径本就无视门限（下方分支），此改动仅影响 MC 路径。
 
     // Add threads to files with large remaining chunks
+    int smallStartedThisTick = 0;   // 小文件补启动限速：每 tick 最多 3 个，
+                                   // 把并发配额优先留给大文件分片（Phase2 主循环先于小文件启动）
     for (auto& f : m_files) {
         if (active >= maxThreads) break;
         if (f->state >= 3 || f->state == 5) continue; // merging/finished/failed
@@ -357,6 +368,14 @@ void FileDownloader::managerTick()
             // 模组专项双保险：Phase1 已退出但仍有 state 0 文件（极端时序）→ 补启动首线程
             auto th = tryStartFirstThread(f);
             if (th) { active++; continue; }
+        }
+        // 小文件补启动：Phase1 延迟启动的小文件（≤kSmallFileThresholdBytes）
+        // 在此启动首线程（每 tick 限 3 个）——大文件分片优先，小文件随后并行。
+        if (f->threads.isEmpty() && f->state == 0) {
+            if (smallStartedThisTick >= 3) continue;
+            auto th = tryStartFirstThread(f);
+            if (th) { active++; smallStartedThisTick++; }
+            continue;
         }
         if (f->isNoSplit && !f->threads.isEmpty()) continue; // single-thread files, already started
 

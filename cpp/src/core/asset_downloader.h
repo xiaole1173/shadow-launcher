@@ -58,6 +58,9 @@ public:
     void setFallbackCacheDir(const QString& dir) { m_fallbackCacheDir = dir; }
 
     void startDownload(const QVector<AssetTask>& tasks, int maxConcurrent = 16);
+    /// 运行中追加任务（m_pendingQueue 追加，dispatch 循环会消费）。
+    /// 用于：阶段 A 小库文件先启动，阶段 B assets 就绪后追加同引擎并行。
+    void appendTasks(const QVector<AssetTask>& tasks);
     void cancel();
     bool isRunning() const { return m_state == Running; }
 

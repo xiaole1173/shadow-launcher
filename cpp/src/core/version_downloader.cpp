@@ -355,19 +355,52 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                 for (const auto& ch : cacheHits)
                     m_downloader->notifyCacheHit(ch.first, ch.second);
 
-                // 未命中者排队（skipCacheCheck=true：已预检过，不再重复读盘）
-                bool anyQueued = false;
+                // 未命中者分流：大文件（>1MB）→ 夸父（分片加速）；
+                // 小文件（≤1MB）→ 山海经（独立并发引擎，双引擎并行）。
+                // 修复：56 个小文件瞬间占满夸父并发 → 大文件单连接饿死
+                // （fastutil 22MB 龟速 23 秒）；小文件交给山海经后夸父专心分片。
+                QVector<AssetDownloader::AssetTask> smallTasks;
+                QVector<LibPrecheck> bigTasks;
                 for (const auto& p : toDownload) {
+                    if (p.totalBytes > 0 && p.totalBytes <= 1LL * 1024 * 1024) {
+                        AssetDownloader::AssetTask at;
+                        at.savePath = p.savePath;
+                        at.sha1 = QString::fromUtf8(p.sha1);
+                        at.mirrors = p.sources;
+                        at.size = p.totalBytes;
+                        smallTasks.append(at);
+                    } else {
+                        bigTasks.append(p);
+                    }
+                }
+
+                // 大文件 → 夸父
+                bool anyBig = false;
+                for (const auto& p : bigTasks) {
                     m_downloader->addFile(p.savePath, p.name, p.sources,
                                           p.totalBytes, p.sha1, false, true);
-                    anyQueued = true;
+                    anyBig = true;
                 }
-                m_libTasksDone = !anyQueued;
-                if (anyQueued) {
-                    emit logMessage(QStringLiteral("[盘古] 开始下载库文件 (%1 个)").arg(toDownload.size()));
+
+                // 小文件 → 山海经（立即启动，不等 assets index）
+                bool anySmall = !smallTasks.isEmpty();
+                if (anySmall) {
+                    emit logMessage(QStringLiteral("[盘古] 小库文件交山海经引擎 (%1 个)").arg(smallTasks.size()));
+                    if (m_assetDownloader->isRunning()) {
+                        // 阶段 B 可能已先启动（index 快于预检）→ 追加
+                        m_assetDownloader->appendTasks(smallTasks);
+                    } else {
+                        m_assetDownloader->startDownload(smallTasks, m_maxWorkers);
+                    }
+                }
+
+                const bool anyQueued = anyBig || anySmall;
+                m_libTasksDone = !anyBig;   // 夸父侧 libs 完成（山海经侧由 allFinished 计数）
+                if (anyBig) {
+                    emit logMessage(QStringLiteral("[盘古] 开始下载库文件 (%1 个)").arg(bigTasks.size()));
                     m_downloader->start();
-                } else if (hasLibTasks) {
-                    // 全部缓存命中：无网络任务，start() 空任务立即 allFinished
+                } else if (hasLibTasks && !anySmall) {
+                    // 全部缓存命中且无小文件：start() 空任务立即 allFinished
                     m_downloader->start();
                 }
             });
@@ -384,8 +417,12 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         QVector<DownloadTask> tasks;
         collectTasks(versionJson, versionId, m_assetObjects, tasks);
         if (tasks.isEmpty()) {
-            m_assetTasksDone = true;
-            checkBothDownloadersDone();
+            // assets 无任务：山海经若还在跑阶段 A 的小库文件，等它 allFinished；
+            // 没在跑则直接完成（m_assetTasksDone 由 allFinished 统一置位）
+            if (!m_assetDownloader->isRunning()) {
+                m_assetTasksDone = true;
+                checkBothDownloadersDone();
+            }
             return;
         }
 
@@ -426,10 +463,15 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
         }
         m_totalFiles.fetchAndAddRelaxed(assetTasks.size());
         m_totalBytes.fetchAndAddRelaxed(assetsBytes);
-        m_assetTasksDone = !hasAssetTasks;
+        m_assetTasksDone = !hasAssetTasks && !m_assetDownloader->isRunning();
         if (hasAssetTasks) {
             emit logMessage(QStringLiteral("[盘古] 开始下载资源文件 (%1 个)").arg(assetTasks.size()));
-            m_assetDownloader->startDownload(assetTasks, m_maxWorkers);
+            if (m_assetDownloader->isRunning()) {
+                // 山海经正在下小库文件（阶段 A 分流）→ 追加 assets 任务并行
+                m_assetDownloader->appendTasks(assetTasks);
+            } else {
+                m_assetDownloader->startDownload(assetTasks, m_maxWorkers);
+            }
         }
         checkBothDownloadersDone();
     };

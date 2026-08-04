@@ -246,6 +246,29 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     logState("startDownload complete");
 }
 
+void AssetDownloader::appendTasks(const QVector<AssetTask>& tasks)
+{
+    if (tasks.isEmpty()) return;
+    if (m_state != Running) {
+        // 未在运行（阶段 A 没启动）：直接走 startDownload
+        startDownload(tasks, m_maxConcurrent);
+        return;
+    }
+    // 运行中追加：入队 + 更新内部总量统计；DNS/precheck 新 host 由 fireNext 惰性处理
+    // m_pendingQueue 仅主线程访问（fireNext/dispatch 由 timer 触发）→ 无需加锁
+    // m_totalFiles/m_totalBytes 是山海经内部计数（progressChanged 数据源），
+    // 追加必须同步增加；VersionDownloader 侧的 m_totalFiles 由调用方（阶段 A/B）负责。
+    for (const auto& t : tasks) {
+        m_pendingQueue.enqueue(t);
+        m_totalTaskCount++;
+        m_totalFiles.fetchAndAddRelaxed(1);
+        m_totalBytes.fetchAndAddRelaxed(t.size);
+    }
+    qCInfo(logAsset) << QStringLiteral("[山海经] 追加 %1 个任务（运行中）").arg(tasks.size());
+    if (m_inFlight.size() < m_maxConcurrent)
+        fireNext();
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Cancel
 // ═════════════════════════════════════════════════════════════════════════════

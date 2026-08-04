@@ -211,6 +211,8 @@ private:
 
     // ── Speed tracking ──
     static constexpr int kMaxSpeedRecords = 30;
+    // 小文件阈值：≤1MB 的文件 Phase1 延迟启动，避免瞬间占满并发饿死大文件
+    static constexpr qint64 kSmallFileThresholdBytes = 1LL * 1024 * 1024;
     QList<qint64> m_speedRecords;
     QElapsedTimer m_speedTimer;
     qint64 m_lastSpeedBytes = 0;
