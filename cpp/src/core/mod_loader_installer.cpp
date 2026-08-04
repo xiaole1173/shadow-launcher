@@ -2118,7 +2118,9 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
     }
 
     // Fetch directory listing from Tuna Adoptium mirror
-    const QString mirrorBase = QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/jdk/x64/windows/")
+    // 类型用 jre（2026-08-04 确认）：Forge/NeoForge 安装器只 java -cp 跑 jar，
+    // JRE 足够且体积为 JDK 1/4；与一键安装 Java（全 JRE）共享 java_cache
+    const QString mirrorBase = QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/jre/x64/windows/")
                                    .arg(minVersion);
     QNetworkAccessManager* nam = HttpClient::instance().manager();
     QNetworkRequest req;
