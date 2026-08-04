@@ -91,7 +91,7 @@
 |---|---|---|
 | `engine_identity.h` | 58 | **下载引擎雅名注册表**：盘古(VersionDownloader)/夸父(FileDownloader)/山海经(AssetDownloader)/精卫(ModDownloadEngine)/女娲(ModpackDownloader)/驿道(HttpClient)/司南(ResourceFetchEngine)；`engineTag`/`engineBanner` 日志前缀。 |
 | `http_client.h/.cpp` | 175 / 802 | **HTTP 传输底座（驿道）**：全引擎共用的 QNetworkAccessManager 封装；v2 起支持 >4MB 文件 Range 多线程分片、分片探测、限速、连接池、重试。 |
-| `file_downloader.h/.cpp` | 240 / 1178 | **通用批量文件下载引擎（夸父）**：QThreadPool 并发分块加速、SHA1 校验、断点续传、主机健康、缓存命中。⚠️ **用户 WIP（勿改勿提交）**。 |
+| `file_downloader.h/.cpp` | 240 / 1180 | **通用批量文件下载引擎（夸父）**：QThreadPool 并发分块加速、SHA1 校验、断点续传、主机健康、缓存命中。**缓存命中修复（2026-08-04，commit 25fc4d5）**：addFile 只累计 m_cacheHits/m_cacheBytes，start() 统一入账（避免进度条从高完成度开始）；全缓存命中（m_files 空）时 start() 立即 allFinished（否则卡死）。 |
 | `asset_downloader.h/.cpp` | 240 / 1181 | **assets 专项下载（山海经）**：异步 SHA1 预检（IO 池）、异步 DNS、多镜像降级、objects 索引解析。 |
 | `version_downloader.h/.cpp` | 232 / 1331 | **版本安装管线（盘古）**：下载 client.jar + libraries + assets 到版本目录（merged 任务中可指向 UUID 临时目录）、JSON 解析、文件清单生成、校验。 |
 | `downloader.h/.cpp` | 67 / 347 | **早期单文件下载器**（Phase 2.3，被夸父/驿道取代，遗留兼容）。 |
