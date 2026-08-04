@@ -226,7 +226,7 @@ private:
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;
     static constexpr double kFloorRatio = 0.85;        // 速度下限 = 加权均值 × kFloorRatio
     static constexpr qint64 kFloorDecayMs = 5000;      // 下限无增长衰减周期
-    static constexpr int kManagerTickMs = 50;          // 调度轮询节拍
+    static constexpr int kManagerTickMs = 20;          // 调度轮询节拍（同主流启动器 20ms）
     static constexpr int kSpeedTickMs = 100;           // 速度采样节拍
     static constexpr int kMaxChunkAttempts = 5;        // 分片最大尝试次数（含首试）
     static constexpr int kRetryBackoffMs = 500;        // 分片重试退避

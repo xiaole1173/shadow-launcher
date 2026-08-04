@@ -149,8 +149,10 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     file->needsJarStrip = jarStrip;
     file->fileSize = expectedSize;
     file->isUnknownSize = (expectedSize <= 0);
+    // 主流启动器 IsNoSplit 语义：<1MB 不分片（FileSize < 1024*1024）——
+    // 1MB 以上可分片（配合速度门限防并发爆炸）；镜像源在 tryAddThread 拦截
     file->isNoSplit = (!file->isUnknownSize
-                       && file->fileSize < (m_modpackMode ? 1LL : 50LL) * 1024 * 1024);
+                       && file->fileSize < 1LL * 1024 * 1024);
 
     QMutexLocker lock(&m_filesMutex);
     m_files.append(file);
@@ -470,7 +472,7 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
         qint64 u = t->downloadUndone();
         if (u > maxUndone) { maxUndone = u; maxPiece = t; }
     }
-    if (!maxPiece || maxUndone < 512 * 1024) return nullptr;
+    if (!maxPiece || maxUndone < 256 * 1024) return nullptr;   // 主流启动器 FilePieceLimit=256KB
 
     qint64 splitPoint = maxPiece->downloadEnd - static_cast<qint64>(maxUndone * 0.4);
 
@@ -580,10 +582,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
 
         sourceOk = false;
         qint64 startTimeMs = getElapsedMs();
-        // 镜像限速（主流启动器语义）：BMCLAPI 等镜像每线程请求间隔 100ms，
-        // 防镜像源高频请求限流（403/429）。主流启动器: TryBeginThread 对 bmclapi
-        // sleep 100ms。
-        if (sourceIdx > 0 && isMirrorUrl(url))
+        // 镜像限速（主流启动器语义）：只要是 BMCLAPI 等镜像源就限速 100ms
+        //（无论是否为首选源——镜像优先设置时源 0 也是镜像），
+        // 防镜像源高频请求限流（403/429）。主流启动器: TryBeginThread 对
+        // bmclapi sleep 100ms。
+        if (isMirrorUrl(url))
             QThread::msleep(100);
         // 模组专项：重置重试轮每源仅 1 次尝试（PCL「逐个重新尝试下载」语义）
         const int attemptLimit = modRetriedOnce ? 1 : 6;
@@ -785,7 +788,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     }
                     file->fileSize = actualSize;
                     file->isUnknownSize = false;
-                    file->isNoSplit = (actualSize < (m_modpackMode ? 1LL : 50LL) * 1024 * 1024);
+                    file->isNoSplit = (actualSize < 1LL * 1024 * 1024);   // 主流启动器: <1MB 不分片
                     th->downloadEnd = actualSize;
                 }
             }
@@ -1285,7 +1288,12 @@ void FileDownloader::recordHostResult(const QString& host, bool ok)
     } else {
         st.consecutiveFails++;
         st.totalFails++;
-        if (st.consecutiveFails >= 3)
+        // ── 全局降级阈值（2026-08-05 修正）──
+        // 主流启动器 是 per-file 源禁用（FailCount>=5 只影响该文件）；我们的 host
+        // 降级是全局的（影响所有文件）——阈值必须足够高，接近“官方完全停摆”
+        // 才全局降级，避免偶发失败（3 次）就把官方全局拉黑 → 全部切镜像 →
+        // 镜像负载暴增限流（“官方优先”设置被架空）。10 次连续失败 ≈ 源真挂。
+        if (st.consecutiveFails >= 10)
             st.degraded = true;
     }
 }
