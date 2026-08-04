@@ -1,23 +1,20 @@
-修复超额下载浪费 + MC 未完成子步骤提前 completed
+修复超额下载根因：fileSize 被分片响应缩小 → isNoSplit 翻转 → 无 Range
 
-用户实测两个问题：
-1. 合并下载时 MC 未下载完成，核心子步骤就显示 completed，
-   速度还在跳、校验不开始（进度虚高）
-2. 日志"截断多余数据"超额巨大（fastutil 200 响应 23.9MB 只保留
-   132KB）——浪费流量
+用户实测：fastutil 200 响应 23.9MB 只留 132KB（超额 23.8MB），
+26.2.jar 206 响应 39MB（超额 34MB）——浪费流量 + 卡顿。
 
-根因：
-1. 服务器忽略 Range 返回全文件（200）或超大分片（206 超额）时，
-   downloadProgress 把 received（全文件大小）累进 th->downloadDone
-   → file->totalDone() 虚高 → 步骤进度提前满 → 子步骤误显 completed
-2. 200 全文件响应：旧逻辑 mid(downloadStart, threadRange) 截断
-   ——23.9MB 只保留 132KB（浪费）+ 偏移取错 → SHA1 失败反复重试
-   → 文件不完成 → 校验不开始
+根因（Qt/curl 实测排除服务器和 Qt 问题——官方 CDN 正确返回
+206 + 精确分片）：
+1. 首线程 split 后，旧请求（Range 全文件）继续返回全文件数据
+   ——split 时机导致的固有开销（一次性的，可接受）
+2. 【严重】首线程 split 后响应是分片（206，contentLen=分片大小如
+   5MB）——789 行用 actualSize != fileSize 更新 fileSize → 39MB
+   文件被改成 5MB → isNoSplit 翻转（<1MB 时）→ 后续请求无 Range
+   → 服务器返回全文件 200 → 23.9MB 只留 132KB（fastutil 实测）
 
-修复：
-1. downloadProgress 的 downloadDone 封顶到线程范围（received 超范围
-   不虚高）→ 进度只反映真实分片部分
-2. 200 全文件响应（data >= fileSize）：整文件直接使用（isFullFile
-   标志），mergeFile 优先用完整数据（主流启动器 RangeNotSupported →
-   单线程全量语义）——不截断不浪费，SHA1 通过文件正常完成
-3. 206 正常分片：left(threadRange) 保留（已正确）
+修复：fileSize 更新只允许补差（actualSize > fileSize），不允许缩小
+——分片响应（contentLen=分片大小）不会再把文件大小改小；isNoSplit
+保持正确 → 请求始终带 Range → 不再全文件超额下载。
+
+Qt/curl 实测证据：piston-data.mojang.com 带 Range: bytes=0-5032092
+返回 206 + Content-Range 0-5032092/39193383 + 精确 5MB 数据。

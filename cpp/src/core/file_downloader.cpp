@@ -793,7 +793,12 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             if (th->downloadStart == 0 && data.size() > 0
                 && (contentLen <= 0 || data.size() >= contentLen)) {
                 qint64 actualSize = contentLen > 0 ? contentLen : data.size();
-                if (actualSize > 0 && actualSize != file->fileSize) {
+                // 只允许补差（actualSize > fileSize），不允许缩小：
+                // 首线程 split 后响应是分片（206，contentLen=分片大小）——
+                // 若用它更新会把 fileSize 缩成分片大小（实测：26.2.jar 39MB
+                // 首线程分片 5MB → fileSize 被改成 5MB → 分片/合并混乱 + 后续
+                // 请求误判 isNoSplit 无 Range → 全文件 200 超额下载）
+                if (actualSize > 0 && actualSize > file->fileSize) {
                     if (file->fileSize > 0) {
                         // API 提供的 expectedSize 小于实际大小，补差
                         m_totalBytes.fetchAndAddRelaxed(actualSize - file->fileSize);
@@ -804,6 +809,12 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     file->fileSize = actualSize;
                     file->isUnknownSize = false;
                     file->isNoSplit = (actualSize < 1LL * 1024 * 1024);   // 主流启动器: <1MB 不分片
+                    th->downloadEnd = actualSize;
+                } else if (file->fileSize <= 0) {
+                    // 未知大小且本次拿到完整响应（200）→ 采用
+                    file->fileSize = actualSize;
+                    file->isUnknownSize = false;
+                    file->isNoSplit = (actualSize < 1LL * 1024 * 1024);
                     th->downloadEnd = actualSize;
                 }
             }
