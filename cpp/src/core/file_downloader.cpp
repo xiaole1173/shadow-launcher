@@ -347,8 +347,9 @@ void FileDownloader::managerTick()
     // 全局下载速度 ≥256KB/s 就不追加分片线程：并发受控，避免把 CDN
     // 打到限流（实测 14 个大文件全开分片 → 官方 CDN 限流 → 集体超时）。
     // 速度不足时才加分片加速——主流启动器 NetTaskSpeedLimitLow=256KB/s。
-    if (m_emaMbps * 1024 * 1024 >= kSpeedLimitLowBps)
-        return;
+    // 注意：速度门限只挡“给已有线程的文件加分片”，不挡“无线程文件的
+    // 首线程补启动”（主流启动器 StartManager：等待文件启动不受速度门限限制）。
+    const bool speedEnough = (m_emaMbps * 1024 * 1024 >= kSpeedLimitLowBps);
 
     // Add threads to files with large remaining chunks
     for (auto& f : m_files) {
@@ -361,12 +362,16 @@ void FileDownloader::managerTick()
         }
         // 小文件补启动：Phase1 因线程上限未启动的文件在此补首线程（主流启动器：
         // 等待文件循环持续启动直到线程满；这里每 tick 继续补）。
+        // 不受速度门限限制（主流启动器语义：等待文件无条件启动首线程）。
         if (f->threads.isEmpty() && f->state == 0) {
             auto th = tryStartFirstThread(f);
             if (th) { active++; }
             continue;
         }
         if (f->isNoSplit && !f->threads.isEmpty()) continue; // single-thread files, already started
+
+        // 速度门限：速度足够时不再给已有线程的文件加分片（主流启动器语义）
+        if (speedEnough) continue;
 
         // Check if preparing threads outnumber downloading threads
         int prep = 0, dl = 0;
@@ -399,10 +404,26 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
     // 才轮到备选组；不做多源混合分流（哈希 65/35 已废除）。
     int sourceIdx = 0;
     int srcLabel = 0;
+    bool allDisabled = true;
     for (int i = 0; i < file->orderedSources.size(); ++i) {
+        // 主流启动器 GetSource：跳过已禁用源（per-file FailCount>=5 → IsFailed）
+        if (i < file->sourceFailCounts.size() && file->sourceFailCounts[i] >= 5)
+            continue;
+        allDisabled = false;
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; srcLabel = (i == 0) ? 0 : i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; srcLabel = i; } // last resort
+    }
+    // 主流启动器 Retried 语义：所有源均被禁用（连续失败）→ 重置失败计数重试一轮
+    //（主流启动器: SourcesOnce 全部重新标记，逐个重新尝试下载；Retried 只允许一次）
+    if (allDisabled && !file->retriedOnce) {
+        qCInfo(logDownload) << QStringLiteral("[夸父] 全部源被禁用，重置失败计数重试 文件=%1").arg(file->localName);
+        file->retriedOnce = true;
+        file->sourceFailCounts.fill(0);
+        sourceIdx = 0;
+        srcLabel = 0;
+    } else if (allDisabled) {
+        return nullptr;   // 已重试过仍全禁用 → 无法启动首线程（等上层失败处理）
     }
 
     // Source selection log (sampled)
@@ -457,18 +478,18 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     // ── 主流启动器语义：顺序 fallback（源 0 起）+ 镜像禁止分片 ──
     // BMCLAPI 等镜像：主流启动器 明确不分片（TryBeginThread 对 bmclapi 返回 Nothing），
     // 镜像单连接下载 + 限速请求频率（防镜像限流）。分片仅限官方源。
-    {
-        const QString firstUrl = file->orderedSources.isEmpty()
-            ? QString() : file->orderedSources.first();
-        if (isMirrorUrl(firstUrl) || file->orderedSources.isEmpty())
-            return nullptr;
-    }
     int sourceIdx = 0;
     for (int i = 0; i < file->orderedSources.size(); ++i) {
+        // 主流启动器 GetSource：跳过已禁用源（per-file FailCount>=5）
+        if (i < file->sourceFailCounts.size() && file->sourceFailCounts[i] >= 5)
+            continue;
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; } // last resort
     }
+    // 镜像禁止分片（主流启动器：当前选中源是镜像则不分片）——在选中源之后判断
+    if (isMirrorUrl(file->orderedSources[sourceIdx]))
+        return nullptr;
 
     // Source selection log (sampled per 20 addition threads)
     static int s_addSrcLogCtr = 0;
