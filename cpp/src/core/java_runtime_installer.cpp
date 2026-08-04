@@ -700,86 +700,102 @@ void JavaRuntimeInstaller::stepExtractZip()
     m_statusText = tr("正在解压 Java %1...").arg(m_job.major);
     emit progressChanged();
 
-    // 解压（剥离顶层目录）
-    QFile zipFile(m_job.zipPath);
-    if (!zipFile.open(QIODevice::ReadOnly)) {
-        failJob(tr("无法读取 Java %1 压缩包").arg(m_job.major));
-        return;
-    }
-    const QByteArray zipData = zipFile.readAll();
-    zipFile.close();
-    QFile::remove(m_job.zipPath);
+    // 解压是 CPU+IO 密集操作（40-180MB、数百文件），必须在后台线程执行，
+    // 否则 UI 线程阻塞 → 转圈/进度条冻结（表现为"卡顿"）。
+    const QString zipPath = m_job.zipPath;
+    const QString javaDir = m_job.javaDir;
+    const QString javaExe = m_job.javaExe;
+    const int major = m_job.major;
 
-    QBuffer buf;
-    buf.setData(zipData);
-    if (!buf.open(QIODevice::ReadOnly)) {
-        failJob(tr("Java %1 压缩包损坏").arg(m_job.major));
-        return;
-    }
-
-    QZipReader reader(&buf);
-    const QList<QZipReader::FileInfo> entries = reader.fileInfoList();
-
-    // 剥离顶层目录（Adoptium zip 均带一层 jdk-x.x.x+/ 或 jre-x.x.x+/）
-    QString commonPrefix;
-    int nonDir = 0;
-    for (const auto& entry : entries) {
-        if (entry.isDir) continue;
-        ++nonDir;
-        const QString fp = entry.filePath;
-        const int slash = fp.indexOf(QLatin1Char('/'));
-        const QString top = (slash < 0) ? fp : fp.left(slash);
-        if (commonPrefix.isEmpty()) commonPrefix = top;
-        else if (commonPrefix != top) { commonPrefix.clear(); break; }
-    }
-    if (nonDir > 0 && !commonPrefix.isEmpty())
-        qCInfo(logJava) << QStringLiteral("[Java安装] %1 ZIP 顶层目录: %2，剥离").arg(m_job.major).arg(commonPrefix);
-
-    int extracted = 0;
-    for (const auto& entry : entries) {
-        if (entry.isDir || entry.isSymLink) continue;
-        QString rel = entry.filePath;
-        if (!commonPrefix.isEmpty()) {
-            if (rel.startsWith(commonPrefix + QLatin1Char('/')))
-                rel = rel.mid(commonPrefix.length() + 1);
-            else if (rel == commonPrefix)
-                continue;
-        }
-        const QString outPath = m_job.javaDir + QStringLiteral("/") + rel;
-        QDir().mkpath(QFileInfo(outPath).absolutePath());
-        QFile out(outPath);
-        if (out.open(QIODevice::WriteOnly)) {
-            out.write(reader.fileData(entry.filePath));
-            out.close();
-            extracted++;
-        }
-    }
-    reader.close();
-    qCInfo(logJava) << QStringLiteral("[Java安装] %1 解压完成: %2 个文件").arg(m_job.major).arg(extracted);
-
-    // 验证
-    QString exe = m_job.javaExe;
-    if (!QFile::exists(exe)) {
-        const QString found = findJavaExeRecursive(m_job.javaDir);
-        if (found.isEmpty()) {
-            failJob(tr("Java %1 解压后未找到 java.exe").arg(m_job.major));
+    std::thread([this, zipPath, javaDir, javaExe, major]() {
+        // ── 后台线程：读 zip + 解压 + 剥离顶层目录 ──
+        QFile zipFile(zipPath);
+        if (!zipFile.open(QIODevice::ReadOnly)) {
+            QMetaObject::invokeMethod(this, [this, major]() {
+                failJob(tr("无法读取 Java %1 压缩包").arg(major));
+            }, Qt::QueuedConnection);
             return;
         }
-        exe = found;
-    }
-    const int realMajor = verifyJavaMajor(exe);
-    if (realMajor != m_job.major) {
-        failJob(tr("Java %1 版本校验失败（实际 %2）").arg(m_job.major).arg(realMajor));
-        return;
-    }
-    // 完整性校验：核心文件必须齐全（lib/modules、jvm.dll 等）
-    if (!isJavaComplete(exe)) {
-        failJob(tr("Java %1 解压不完整（缺少核心文件），请重试").arg(m_job.major));
-        return;
-    }
+        const QByteArray zipData = zipFile.readAll();
+        zipFile.close();
+        QFile::remove(zipPath);
 
-    qCInfo(logJava) << QStringLiteral("[Java安装] Java %1 已就绪: %2").arg(m_job.major).arg(exe);
-    finishJob(exe);
+        QBuffer buf;
+        buf.setData(zipData);
+        if (!buf.open(QIODevice::ReadOnly)) {
+            QMetaObject::invokeMethod(this, [this, major]() {
+                failJob(tr("Java %1 压缩包损坏").arg(major));
+            }, Qt::QueuedConnection);
+            return;
+        }
+
+        QZipReader reader(&buf);
+        const QList<QZipReader::FileInfo> entries = reader.fileInfoList();
+
+        // 剥离顶层目录（Adoptium zip 均带一层 jdk-x.x.x+/ 或 jre-x.x.x+/）
+        QString commonPrefix;
+        int nonDir = 0;
+        for (const auto& entry : entries) {
+            if (entry.isDir) continue;
+            ++nonDir;
+            const QString fp = entry.filePath;
+            const int slash = fp.indexOf(QLatin1Char('/'));
+            const QString top = (slash < 0) ? fp : fp.left(slash);
+            if (commonPrefix.isEmpty()) commonPrefix = top;
+            else if (commonPrefix != top) { commonPrefix.clear(); break; }
+        }
+        if (nonDir > 0 && !commonPrefix.isEmpty())
+            qCInfo(logJava) << QStringLiteral("[Java安装] %1 ZIP 顶层目录: %2，剥离").arg(major).arg(commonPrefix);
+
+        int extracted = 0;
+        for (const auto& entry : entries) {
+            if (entry.isDir || entry.isSymLink) continue;
+            QString rel = entry.filePath;
+            if (!commonPrefix.isEmpty()) {
+                if (rel.startsWith(commonPrefix + QLatin1Char('/')))
+                    rel = rel.mid(commonPrefix.length() + 1);
+                else if (rel == commonPrefix)
+                    continue;
+            }
+            const QString outPath = javaDir + QStringLiteral("/") + rel;
+            QDir().mkpath(QFileInfo(outPath).absolutePath());
+            QFile out(outPath);
+            if (out.open(QIODevice::WriteOnly)) {
+                out.write(reader.fileData(entry.filePath));
+                out.close();
+                extracted++;
+            }
+        }
+        reader.close();
+        qCInfo(logJava) << QStringLiteral("[Java安装] %1 解压完成: %2 个文件").arg(major).arg(extracted);
+
+        // ── 回主线程：验证 + 完成/失败 ──
+        QMetaObject::invokeMethod(this, [this, javaExe, javaDir, major]() {
+            // 验证
+            QString exe = javaExe;
+            if (!QFile::exists(exe)) {
+                const QString found = findJavaExeRecursive(javaDir);
+                if (found.isEmpty()) {
+                    failJob(tr("Java %1 解压后未找到 java.exe").arg(major));
+                    return;
+                }
+                exe = found;
+            }
+            const int realMajor = verifyJavaMajor(exe);
+            if (realMajor != major) {
+                failJob(tr("Java %1 版本校验失败（实际 %2）").arg(major).arg(realMajor));
+                return;
+            }
+            // 完整性校验：核心文件必须齐全（lib/modules、jvm.dll 等）
+            if (!isJavaComplete(exe)) {
+                failJob(tr("Java %1 解压不完整（缺少核心文件），请重试").arg(major));
+                return;
+            }
+
+            qCInfo(logJava) << QStringLiteral("[Java安装] Java %1 已就绪: %2").arg(major).arg(exe);
+            finishJob(exe);
+        }, Qt::QueuedConnection);
+    }).detach();
 }
 
 void JavaRuntimeInstaller::failJob(const QString& error)
