@@ -32,6 +32,8 @@ Window {
     property bool _installProgressFadeOut: false
     property bool _dlFadeOut: false
     property var runningListModel: []
+    property bool _pendingCrashAnalyze: false   // Loader 异步时挂起崩溃分析请求
+    property var _pendingCrashResult: null      // Loader 异步时挂起崩溃分析结果
 
     function navLabel(key) {
         switch (key) {
@@ -1211,8 +1213,6 @@ Window {
     }
 
     // Crash detection dialog (lazy-loaded)
-    property bool _pendingCrashAnalyze: false  // Loader 异步时挂起 beginAnalyzing
-    property var _pendingCrashResult: null     // Loader 异步时挂起分析结果
     Loader {
         id: crashDialogLoader; asynchronous: true; active: false
         anchors.fill: parent; z: 500

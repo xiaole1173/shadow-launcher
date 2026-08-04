@@ -285,6 +285,7 @@ Popup {
 
             // ── JVM 输出（分析依据：游戏进程 stdout+stderr，主流启动器/同主流启动器）──
             ColumnLayout {
+                id: jvmCol
                 visible: _len("jvmOutput") > 0
                 spacing: 6
                 Layout.fillWidth: true
@@ -296,31 +297,31 @@ Popup {
                     Layout.fillWidth: true
                     spacing: 6
                     Text {
-                        text: "JVM 输出（最后 " + crashData.jvmOutput.length + " 行）"
+                        text: "JVM 输出（最后 " + (crashData.jvmOutput ? crashData.jvmOutput.length : 0) + " 行）"
                         font.pixelSize: StyleTokens.fontSizeSm
                         font.bold: true
                         color: StyleTokens.textSecondary
                         Layout.fillWidth: true
                     }
                     Text {
-                        text: parent.parent.jvmExpanded ? "收起 ▾" : "展开 ▸"
+                        text: jvmCol.jvmExpanded ? "收起 ▾" : "展开 ▸"
                         font.pixelSize: StyleTokens.fontSizeXs
                         color: StyleTokens.accentLink
                     }
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: parent.parent.jvmExpanded = !parent.parent.jvmExpanded
+                        onClicked: jvmCol.jvmExpanded = !jvmCol.jvmExpanded
                     }
                 }
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: jvmExpanded ? Math.min(180, jvmFlick.contentHeight + 16) : 0
+                    Layout.preferredHeight: jvmCol.jvmExpanded ? Math.min(180, jvmFlick.contentHeight + 16) : 0
                     radius: StyleTokens.radiusMd
                     color: StyleTokens.bgPrimary
                     border.color: StyleTokens.border
-                    visible: jvmExpanded
+                    visible: jvmCol.jvmExpanded
                     clip: true
 
                     Flickable {
@@ -334,7 +335,7 @@ Popup {
                         Text {
                             id: jvmText
                             width: jvmFlick.width - 4
-                            text: crashData.jvmOutput.join("\n")
+                            text: crashData.jvmOutput ? crashData.jvmOutput.join("\n") : ""
                             font.pixelSize: StyleTokens.fontSizeXs
                             font.family: "Consolas, monospace"
                             color: StyleTokens.textTertiary
