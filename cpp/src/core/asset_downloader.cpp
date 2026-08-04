@@ -133,7 +133,16 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     m_totalBytes.storeRelaxed(totalEst);
     m_totalFiles.storeRelaxed(tasks.size());
 
-    for (const auto& t : tasks)
+    // 大小降序（2026-08-05）：大文件先下（前期高并发/多连接竞争），
+    // 后期全小文件（每个 0.1s）——避免哈希序尾部碰巧集中大文件（音乐 ogg
+    // 11MB）→ 收尾阶段单连接慢（用户实测：90% 后停摆 48 秒）
+    QVector<AssetTask> sorted = tasks;
+    std::sort(sorted.begin(), sorted.end(),
+              [](const AssetTask& a, const AssetTask& b) {
+                  return a.size > b.size;
+              });
+
+    for (const auto& t : sorted)
         m_pendingQueue.enqueue(t);
 
     m_state = Running;
@@ -258,7 +267,13 @@ void AssetDownloader::appendTasks(const QVector<AssetTask>& tasks)
     // m_pendingQueue 仅主线程访问（fireNext/dispatch 由 timer 触发）→ 无需加锁
     // m_totalFiles/m_totalBytes 是山海经内部计数（progressChanged 数据源），
     // 追加必须同步增加；VersionDownloader 侧的 m_totalFiles 由调用方（阶段 A/B）负责。
-    for (const auto& t : tasks) {
+    // 大小降序（与 startDownload 一致）：大文件先下，避免收尾阶段单连接慢
+    QVector<AssetTask> sorted = tasks;
+    std::sort(sorted.begin(), sorted.end(),
+              [](const AssetTask& a, const AssetTask& b) {
+                  return a.size > b.size;
+              });
+    for (const auto& t : sorted) {
         m_pendingQueue.enqueue(t);
         m_totalTaskCount++;
         m_totalFiles.fetchAndAddRelaxed(1);
