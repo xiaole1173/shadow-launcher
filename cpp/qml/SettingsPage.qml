@@ -477,11 +477,8 @@ Rectangle {
                             visible: backend && backend.javaBackend
                             Layout.fillWidth: true; spacing: 5
 
-                            // 扫描完成后 +1 触发 detected 重新求值（detectedSystemJavas 是函数）
-                            property int scanTick: 0
-                            function refreshScan() { scanTick++ }
-
-                            property var detected: (scanTick >= 0 && backend && backend.javaBackend)
+                            // root._javaScanTick 递增时触发 detected 重新求值（detectedSystemJavas 是函数）
+                            property var detected: (page._javaScanTick >= 0 && backend && backend.javaBackend)
                                 ? (backend.javaBackend.detectedSystemJavas() || []) : []
 
                             function hasMajor(major) {
@@ -605,11 +602,13 @@ Rectangle {
     }
 
     // ── One-click Java install feedback ──
+    // root 级扫描计数器：Connections 无法直接访问 aboutComponent 内的组件，
+    // 通过这个计数器驱动 javaStatusRow 的 detected 重绑定
+    property int _javaScanTick: 0
     Connections {
         target: (typeof backend !== "undefined" && backend && backend.javaBackend) ? backend.javaBackend : null
         function onSystemJavaScanFinished() {
-            // 刷新前置检测状态显示
-            javaStatusRow.refreshScan()
+            _javaScanTick++
         }
         function onJavaInstalled(label, path, skipped) {
             if (toastManager) {

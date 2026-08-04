@@ -22,6 +22,7 @@
 #include <QJsonArray>
 #include <QSet>
 #include <QVariantMap>
+#include <thread>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -43,6 +44,9 @@ JavaRuntimeInstaller::JavaRuntimeInstaller(QObject* parent)
     , m_cpuArch(detectCpuArch())
 {
     qCInfo(logJava) << QStringLiteral("[Java安装] 初始化 架构=%1").arg(m_cpuArch);
+    // 前置检测完成后自动继续安装流程（installRequiredJavas 触发扫描后等待此回调）
+    connect(this, &JavaRuntimeInstaller::systemJavaScanFinished,
+            this, &JavaRuntimeInstaller::runInstallAfterScan);
 }
 
 QString JavaRuntimeInstaller::detectCpuArch()
@@ -98,17 +102,34 @@ void JavaRuntimeInstaller::installRequiredJavas()
     emit runningChanged();
     emit progressChanged();
 
-    // ── 前置检测：扫描系统已有 Java ──
-    scanSystemJavas();
+    // ── 前置检测（异步完整扫描）→ 完成后自动进入安装流程 ──
+    m_statusText = tr("正在扫描系统中已有的 Java...");
+    emit progressChanged();
+    if (m_scanThreadRunning) {
+        // 扫描已在进行中（如设置页加载时触发过）——等待其完成回调
+        m_waitingForScan = true;
+        emit logMessage(tr("Java 扫描已在进行中，等待完成..."));
+    } else {
+        m_waitingForScan = true;
+        scanSystemJavas();
+    }
+}
+
+/// 扫描完成回调：执行实际安装
+void JavaRuntimeInstaller::runInstallAfterScan()
+{
+    if (!m_running) {
+        m_waitingForScan = false;
+        return;  // 安装未在进行（纯 UI 刷新场景）
+    }
+    m_waitingForScan = false;
     const int detectedCount = m_detectedJavas.size();
     emit logMessage(tr("前置检测完成：系统中已有 %1 个 Java 运行时").arg(detectedCount));
 
     // 架构降级策略
-    QString effectiveArch = m_cpuArch;
     if (m_cpuArch == QLatin1String("aarch64")) {
         // Temurin 17/25 无 Windows ARM64（Adoptium API 实测 0 结果），
         // Win11 ARM64 通过 Prism x64 模拟运行
-        effectiveArch = QStringLiteral("x64");
         emit logMessage(tr("当前系统为 ARM64，将安装 x64 版 Java（Windows 11 可通过模拟运行）"));
     } else if (m_cpuArch == QLatin1String("arm")) {
         emit finished(false, tr("当前系统为 32 位 ARM，暂不支持自动安装 Java。请手动安装 Java 后重试。"));
@@ -213,161 +234,197 @@ QVariantList JavaRuntimeInstaller::detectedSystemJavas() const
 
 QVariantList JavaRuntimeInstaller::scanSystemJavas()
 {
-    m_detectedJavas.clear();
-    m_seenBinDirs.clear();
+    // 完整扫描在后台线程执行，避免阻塞 UI（递归扫目录可能耗时数百 ms）
+    if (m_scanThreadRunning)
+        return m_detectedJavas;
+    m_scanThreadRunning = true;
 
-    // 1. JAVA_HOME / JDK_HOME
-    const QString javaHome = qEnvironmentVariable("JAVA_HOME");
-    if (!javaHome.isEmpty()) scanDirForJava(javaHome);
-    const QString jdkHome = qEnvironmentVariable("JDK_HOME");
-    if (!jdkHome.isEmpty() && jdkHome != javaHome) scanDirForJava(jdkHome);
+    std::thread([this]() {
+        QVariantList results;
+        QSet<QString> seen;
 
-    // 2. PATH (where java)
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("where"), { QStringLiteral("java") });
-        if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
-            const QStringList lines = QString::fromLocal8Bit(proc.readAllStandardOutput())
-                                          .split(QRegularExpression(QStringLiteral("[\r\n]")), Qt::SkipEmptyParts);
-            for (const QString& line : lines) {
-                const QString p = QDir::cleanPath(line.trimmed());
-                if (!p.isEmpty()) collectJava(p);
-            }
-        }
-    }
+        auto collect = [&](const QString& exePath) {
+            if (exePath.isEmpty()) return;
+            const QFileInfo fi(exePath);
+            if (!fi.isFile()) return;
+            const QString binDir = QDir::cleanPath(fi.absolutePath()).toLower();
+            if (seen.contains(binDir) || isSpecialPath(binDir)) return;
 
-    // 3. 启动器自身缓存 java_cache/*/bin/java.exe
-    {
-        const QString cacheRoot = QDir::currentPath() + QStringLiteral("/java_cache");
-        QDir cd(cacheRoot);
-        if (cd.exists()) {
-            for (const QString& sub : cd.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-                scanDirForJava(cacheRoot + QStringLiteral("/") + sub);
-            }
-        }
-    }
+            // 版本解析
+            QProcess proc;
+            proc.start(exePath, { QStringLiteral("-version") });
+            if (!proc.waitForFinished(8000) || proc.exitCode() != 0)
+                return;
+            const QString output = QString::fromUtf8(proc.readAllStandardError());
+            static const QRegularExpression verRe(QStringLiteral("version\\s+\"([^\"]+)\""));
+            auto m = verRe.match(output);
+            if (!m.hasMatch()) return;
+            QString ver = m.captured(1);
+            ver.replace(QLatin1Char('_'), QLatin1Char('.'));
+            const QStringList parts = ver.split(QLatin1Char('.'));
+            if (parts.isEmpty()) return;
+            int major = parts[0].toInt();
+            if (major == 1 && parts.size() > 1)
+                major = parts[1].toInt();  // 1.8.0 → 8
+            if (major <= 0) return;
 
-    // 4. 常见安装目录（一层子目录，不递归，避免卡 UI）
-    {
-        static const QStringList commonRoots = {
-            QStringLiteral("C:/Program Files/Java"),
-            QStringLiteral("C:/Program Files/Eclipse Adoptium"),
-            QStringLiteral("C:/Program Files/Adoptium"),
-            QStringLiteral("C:/Program Files/Amazon Corretto"),
-            QStringLiteral("C:/Program Files/Microsoft"),
-            QStringLiteral("C:/Program Files (x86)/Java"),
-            QStringLiteral("C:/Program Files (x86)/Eclipse Adoptium"),
-            QStringLiteral("C:/Program Files (x86)/Adoptium"),
+            // JDK 判定：同目录存在 javac.exe
+            const bool isJdk = QFile::exists(QDir(fi.absolutePath()).filePath(QStringLiteral("javac.exe")));
+            seen.insert(binDir);
+
+            QVariantMap entry;
+            entry[QStringLiteral("major")] = major;
+            entry[QStringLiteral("version")] = ver;
+            entry[QStringLiteral("path")] = exePath;
+            entry[QStringLiteral("isJdk")] = isJdk;
+            results.append(entry);
+            qCInfo(logJava) << QStringLiteral("[Java安装] 检测到 Java %1 %2: %3")
+                                   .arg(major).arg(isJdk ? QStringLiteral("JDK") : QStringLiteral("JRE")).arg(exePath);
         };
-        for (const QString& root : commonRoots) {
-            QDir d(root);
-            if (!d.exists()) continue;
-            for (const QString& sub : d.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-                scanDirForJava(root + QStringLiteral("/") + sub);
+
+        auto scanDir = [&](const QString& dir, int depth) {
+            auto impl = [&](auto&& self, const QString& d, int cur) -> void {
+                if (cur > depth) return;
+                QDir qd(d);
+                if (!qd.exists()) return;
+                // 本目录标准布局 bin/java.exe
+                const QString direct = d + QStringLiteral("/bin/java.exe");
+                if (QFile::exists(direct)) collect(direct);
+                const QString flat = d + QStringLiteral("/java.exe");
+                if (QFile::exists(flat)) collect(flat);
+                // 递归子目录
+                const auto entries = qd.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
+                for (const auto& entry : entries) {
+                    if (entry.isSymLink() || entry.isShortcut()) continue;
+                    const QString lower = entry.fileName().toLower();
+                    if (lower == QLatin1String("system32") || lower == QLatin1String("syswow64")
+                        || lower == QLatin1String("windows"))
+                        continue;
+                    self(self, entry.absoluteFilePath(), cur + 1);
+                }
+            };
+            impl(impl, dir, 0);
+        };
+
+        // 1. JAVA_HOME / JDK_HOME
+        const QString javaHome = qEnvironmentVariable("JAVA_HOME");
+        if (!javaHome.isEmpty()) scanDir(javaHome, 3);
+        const QString jdkHome = qEnvironmentVariable("JDK_HOME");
+        if (!jdkHome.isEmpty() && jdkHome != javaHome) scanDir(jdkHome, 3);
+
+        // 2. PATH (where java)
+        {
+            QProcess proc;
+            proc.start(QStringLiteral("where"), { QStringLiteral("java") });
+            if (proc.waitForFinished(5000) && proc.exitCode() == 0) {
+                const QStringList lines = QString::fromLocal8Bit(proc.readAllStandardOutput())
+                                              .split(QRegularExpression(QStringLiteral("[\r\n]")), Qt::SkipEmptyParts);
+                for (const QString& line : lines)
+                    collect(QDir::cleanPath(line.trimmed()));
             }
         }
-    }
 
-    // 5. Windows 注册表（JDK/JRE JavaHome）
-    scanRegistryJavas();
+        // 3. 启动器自身缓存 java_cache/*/bin/java.exe
+        {
+            const QString cacheRoot = QDir::currentPath() + QStringLiteral("/java_cache");
+            QDir cd(cacheRoot);
+            if (cd.exists()) {
+                for (const QString& sub : cd.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+                    scanDir(cacheRoot + QStringLiteral("/") + sub, 2);
+            }
+        }
 
-    qCInfo(logJava) << QStringLiteral("[Java安装] 前置检测完成 共检测到 %1 个 Java")
-                           .arg(m_detectedJavas.size());
-    emit systemJavaScanFinished();
+        // 4. 常见安装目录（递归完整扫描，深度 5）
+        {
+            static const QStringList commonRoots = {
+                QStringLiteral("C:/Program Files/Java"),
+                QStringLiteral("C:/Program Files/Eclipse Adoptium"),
+                QStringLiteral("C:/Program Files/Adoptium"),
+                QStringLiteral("C:/Program Files/Amazon Corretto"),
+                QStringLiteral("C:/Program Files/Microsoft"),
+                QStringLiteral("C:/Program Files/Zulu"),
+                QStringLiteral("C:/Program Files (x86)/Java"),
+                QStringLiteral("C:/Program Files (x86)/Eclipse Adoptium"),
+                QStringLiteral("C:/Program Files (x86)/Adoptium"),
+                QStringLiteral("C:/Program Files (x86)/Zulu"),
+                QStringLiteral("%USERPROFILE%/.jdks"),
+            };
+            for (const QString& raw : commonRoots) {
+                QString root = raw;
+                if (root.startsWith(QLatin1Char('%'))) {
+                    const int end = root.indexOf(QLatin1Char('%'), 1);
+                    if (end > 1) {
+                        const QString var = root.mid(1, end - 1);
+                        const QString val = qEnvironmentVariable(var.toLocal8Bit());
+                        if (val.isEmpty()) continue;
+                        root = val + root.mid(end + 1);
+                    }
+                }
+                scanDir(root, 5);
+            }
+        }
+
+        // 5. Windows 注册表（JDK/JRE JavaHome）
+        {
+#ifdef Q_OS_WIN
+            const wchar_t* regPaths[] = {
+                L"SOFTWARE\\JavaSoft\\JDK",
+                L"SOFTWARE\\JavaSoft\\Java Runtime Environment",
+                L"SOFTWARE\\Eclipse Adoptium\\JDK",
+                L"SOFTWARE\\Eclipse Foundation\\JDK",
+                L"SOFTWARE\\Microsoft\\JDK",
+            };
+            for (const auto* rp : regPaths) {
+                HKEY hKey;
+                if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, rp, 0,
+                                  KEY_READ | KEY_WOW64_64KEY, &hKey) != ERROR_SUCCESS)
+                    continue;
+                DWORD idx = 0;
+                wchar_t name[256];
+                DWORD nameLen = 256;
+                while (RegEnumKeyExW(hKey, idx, name, &nameLen,
+                                     nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
+                    HKEY hSub;
+                    if (RegOpenKeyExW(hKey, name, 0, KEY_READ, &hSub) == ERROR_SUCCESS) {
+                        wchar_t home[512];
+                        DWORD sz = sizeof(home), type;
+                        if (RegQueryValueExW(hSub, L"JavaHome", nullptr, &type,
+                                             reinterpret_cast<BYTE*>(home), &sz) == ERROR_SUCCESS
+                            && type == REG_SZ) {
+                            scanDir(QString::fromWCharArray(home), 3);
+                        }
+                        RegCloseKey(hSub);
+                    }
+                    ++idx;
+                    nameLen = 256;
+                }
+                RegCloseKey(hKey);
+            }
+#endif
+        }
+
+        // 回到主线程发布结果
+        QMetaObject::invokeMethod(this, [this, results]() {
+            m_detectedJavas = results;
+            m_seenBinDirs.clear();
+            m_scanThreadRunning = false;
+            qCInfo(logJava) << QStringLiteral("[Java安装] 前置检测完成 共检测到 %1 个 Java")
+                                   .arg(results.size());
+            emit systemJavaScanFinished();
+        }, Qt::QueuedConnection);
+    }).detach();
+
     return m_detectedJavas;
 }
 
-void JavaRuntimeInstaller::collectJava(const QString& exePath)
+bool JavaRuntimeInstaller::isSpecialPath(const QString& binDir)
 {
-    if (exePath.isEmpty()) return;
-    const QFileInfo fi(exePath);
-    if (!fi.isFile()) return;
-
-    const QString binDir = QDir::cleanPath(fi.absolutePath()).toLower();
-    if (m_seenBinDirs.contains(binDir)) return;  // 去重
-
-    // 版本解析
-    QProcess proc;
-    proc.start(exePath, { QStringLiteral("-version") });
-    if (!proc.waitForFinished(8000) || proc.exitCode() != 0)
-        return;
-    const QString output = QString::fromUtf8(proc.readAllStandardError());
-    static const QRegularExpression verRe(QStringLiteral("version\\s+\"([^\"]+)\""));
-    auto m = verRe.match(output);
-    if (!m.hasMatch()) return;
-    QString ver = m.captured(1);
-    ver.replace(QLatin1Char('_'), QLatin1Char('.'));
-    const QStringList parts = ver.split(QLatin1Char('.'));
-    if (parts.isEmpty()) return;
-    int major = parts[0].toInt();
-    if (major == 1 && parts.size() > 1)
-        major = parts[1].toInt();  // 1.8.0 → 8
-    if (major <= 0) return;
-
-    // JDK 判定：同目录存在 javac.exe
-    const bool isJdk = QFile::exists(QDir(fi.absolutePath()).filePath(QStringLiteral("javac.exe")));
-
-    m_seenBinDirs.insert(binDir);
-    QVariantMap entry;
-    entry[QStringLiteral("major")] = major;
-    entry[QStringLiteral("version")] = ver;
-    entry[QStringLiteral("path")] = exePath;
-    entry[QStringLiteral("isJdk")] = isJdk;
-    m_detectedJavas.append(entry);
-    qCInfo(logJava) << QStringLiteral("[Java安装] 检测到 Java %1 %2: %3")
-                           .arg(major).arg(isJdk ? QStringLiteral("JDK") : QStringLiteral("JRE")).arg(exePath);
-}
-
-void JavaRuntimeInstaller::scanDirForJava(const QString& dir)
-{
-    if (dir.isEmpty()) return;
-    const QString direct = dir + QStringLiteral("/bin/java.exe");
-    if (QFile::exists(direct)) {
-        collectJava(direct);
-        return;
-    }
-    const QString flat = dir + QStringLiteral("/java.exe");
-    if (QFile::exists(flat))
-        collectJava(flat);
-}
-
-void JavaRuntimeInstaller::scanRegistryJavas()
-{
-#ifdef Q_OS_WIN
-    const wchar_t* regPaths[] = {
-        L"SOFTWARE\\JavaSoft\\JDK",
-        L"SOFTWARE\\JavaSoft\\Java Runtime Environment",
-        L"SOFTWARE\\Eclipse Adoptium\\JDK",
-        L"SOFTWARE\\Eclipse Foundation\\JDK",
-        L"SOFTWARE\\Microsoft\\JDK",
-    };
-    for (const auto* rp : regPaths) {
-        HKEY hKey;
-        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, rp, 0,
-                          KEY_READ | KEY_WOW64_64KEY, &hKey) != ERROR_SUCCESS)
-            continue;
-        DWORD idx = 0;
-        wchar_t name[256];
-        DWORD nameLen = 256;
-        while (RegEnumKeyExW(hKey, idx, name, &nameLen,
-                             nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
-            HKEY hSub;
-            if (RegOpenKeyExW(hKey, name, 0, KEY_READ, &hSub) == ERROR_SUCCESS) {
-                wchar_t home[512];
-                DWORD sz = sizeof(home), type;
-                if (RegQueryValueExW(hSub, L"JavaHome", nullptr, &type,
-                                     reinterpret_cast<BYTE*>(home), &sz) == ERROR_SUCCESS
-                    && type == REG_SZ) {
-                    scanDirForJava(QString::fromWCharArray(home));
-                }
-                RegCloseKey(hSub);
-            }
-            ++idx;
-            nameLen = 256;
-        }
-        RegCloseKey(hKey);
-    }
-#endif
+    const QString lower = binDir.toLower();
+    return lower.contains(QLatin1String("javapath_target_"))
+        || lower.contains(QLatin1String("java8path_target_"))
+        || lower.contains(QLatin1String("javatmp"))
+        || lower.contains(QLatin1String("system32"))
+        || lower.contains(QLatin1String("syswow64"));
 }
 
 bool JavaRuntimeInstaller::isRequired(int major, bool targetIsJdk) const

@@ -88,20 +88,27 @@ private:
     /// 递归查找 bin/java.exe（非标准 ZIP 布局兜底）
     static QString findJavaExeRecursive(const QString& dir);
 
+    /// 扫描完成后执行实际安装流程（由 scanSystemJavas 的完成回调触发）
+    void runInstallAfterScan();
+
     /// 已检测系统 Java 缓存: {major, version, path, isJdk}
     QVariantList m_detectedJavas;
     /// 已扫描路径去重
     QSet<QString> m_seenBinDirs;
     /// 收集单个 java.exe（版本解析 + JDK 判定 + 去重）
     void collectJava(const QString& exePath);
-    /// 扫描一个目录下的 java.exe（bin/java.exe 标准布局）
-    void scanDirForJava(const QString& dir);
+    /// 递归扫描一个目录树（深度限制 + 跳过特殊目录）
+    void scanDirRecursive(const QString& dir, int maxDepth, int currentDepth);
     /// 从注册表扫描（Windows）
     void scanRegistryJavas();
+    /// 过滤已知无意义路径（System32 等）
+    static bool isSpecialPath(const QString& binDir);
 
     QString m_cpuArch;
     bool m_running = false;
     bool m_cancelled = false;
+    bool m_scanThreadRunning = false;
+    bool m_waitingForScan = false;
     int m_currentStep = 0;
     QString m_statusText;
 };

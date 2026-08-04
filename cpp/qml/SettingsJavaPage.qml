@@ -75,6 +75,17 @@ Item {
 
     Connections {
         target: backend
+        // 异步扫描完成后刷新列表（scanJavaInstallations 内部 emit javaPathChanged）
+        function onJavaPathChanged() {
+            root.refreshAll()
+            var count = root._javaList.length
+            if (toastManager) {
+                var msg = count > 0
+                    ? qsTr("扫描完成，共检出 ") + count + qsTr(" 个 Java")
+                    : qsTr("未检测到 Java 环境，请手动导入或安装 Java")
+                toastManager.show(msg)
+            }
+        }
     }
 
     Component.onCompleted: refreshAll()
@@ -185,15 +196,8 @@ Item {
                                 if (!backend) return
                                 if (toastManager) toastManager.show(qsTr("正在扫描 Java 环境..."))
                                 backend.scanJavaInstallations()
-                                root._javaList = backend.availableJavaList || []
-                                root._updateJavaIndex()
-                                var count = root._javaList.length
-                                if (toastManager) {
-                                    var msg = count > 0
-                                        ? qsTr("扫描完成，共检出 ") + count + qsTr(" 个 Java")
-                                        : qsTr("未检测到 Java 环境，请手动导入或安装 Java")
-                                    toastManager.show(msg)
-                                }
+                                // 结果异步返回：scanJavaInstallations 完成后 emit
+                                // javaPathChanged → onJavaPathChanged 刷新列表 + Toast
                             }
                         }
                     }

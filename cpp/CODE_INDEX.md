@@ -76,7 +76,7 @@
 | `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。 |
 | `settings_backend.h/.cpp` | 242 / 1167 | **设置后端**：全部设置项读写（QSettings）、下载源/线程/限速、主题、语言、游戏目录、Java 默认、JVM/游戏参数、内存自动分配、背景图、协议同意状态等。 |
 | `java_backend.h/.cpp` | 125 / 416 | **Java 后端**：扫描系统 Java、版本检测（`java -version` 解析主版本）、自动选择、指定路径管理；Tuna Adoptium 目录浏览（版本/类型/架构/OS/文件五级）；**一键安装所需 Java**（转发 JavaRuntimeInstaller：前置检测 + 8 JRE/17 JDK/25 JDK 顺序安装 + 进度/完成信号）。 |
-| `java_runtime_installer.h/.cpp` | 130 / 640 | **一键安装 Java 运行时**：Tuna Adoptium ZIP 下载+解压到 java_cache/{ver}/（便携式不写注册表，同 主流启动器/主流启动器）；架构检测（x64/x32/aarch64/arm，ARM64 降级 x64 模拟，实测 Temurin 17/25 无 Windows ARM64）；版本策略 8=JRE/17=JDK/25=JDK；**前置检测**（JAVA_HOME/JDK_HOME/PATH/注册表/常见目录/java_cache 轻量扫描，javac.exe 判定 JDK/JRE，已有同 major 任意类型→跳过，避免重复安装）；QLockFile 防并发 + 剥离顶层目录 + java -version 主版本校验；安装后自动被 ModLoaderInstaller::findJavaPath 发现。 |
+| `java_runtime_installer.h/.cpp` | 100 / 700 | **一键安装 Java 运行时**：Tuna Adoptium ZIP 下载+解压到 java_cache/{ver}/（便携式不写注册表，同 主流启动器/主流启动器）；架构检测（x64/x32/aarch64/arm，ARM64 降级 x64 模拟，实测 Temurin 17/25 无 Windows ARM64）；版本策略 8=JRE/17=JDK/25=JDK；**完整前置检测**（后台线程：JAVA_HOME/JDK_HOME/PATH/注册表/常见目录递归 5 层/java_cache，javac.exe 判定 JDK/JRE，已有同 major 任意类型→跳过；扫描完成信号驱动安装流程与 UI 刷新）；QLockFile 防并发 + 剥离顶层目录 + java -version 主版本校验；安装后自动被 ModLoaderInstaller::findJavaPath 发现。 |
 | `stats_backend.h/.cpp` | 53 / 142 | **统计后端**：游戏时长统计（按版本聚合，读取启动记录）。 |
 | `userdata_backend.h/.cpp` | 99 / 503 | **用户数据后端**：用户目录数据管理（皮肤缓存、头像、可迁移数据）。 |
 | `check_backend.h/.cpp` | 38 / 442 | **启动前 P0 检查**（同步快速）：Java 架构 32/64 位、版本 client.jar 存在性、version.json 合法性、可用内存；`checkAll` 汇总。 |
@@ -200,7 +200,7 @@
 | `VersionSettingsPage.qml` | 1067 | **版本设置页**（独立页形态）。 |
 | `SettingsPage.qml` | 627 | **设置页**：左侧分类导航 → 各 Settings*Page（通用/Java/内存/实验/关于）；关于页含「一键安装所需 Java」卡片（架构徽标 + 前置检测状态三行「已检测到/将安装」+ 小字说明 + 进度/取消按钮 + Toast 完成反馈），进入页面自动触发扫描。 |
 | `SettingsGeneralPage.qml` | 883 | 设置-通用：下载源/线程/限速、主题、语言、游戏目录、协议等。 |
-| `SettingsJavaPage.qml` | 404 | 设置-Java：Java 列表/选择/扫描。 |
+| `SettingsJavaPage.qml` | 408 | 设置-Java：Java 列表/选择/扫描；刷新按钮异步扫描（scanJavaInstallations → onJavaPathChanged → refreshAll 刷新列表+Toast，修复同步读旧缓存问题）。 |
 | `SettingsMemoryPage.qml` | 247 | 设置-内存（汇总视图）。 |
 | `SettingsMemorySection.qml` | 368 | 内存条组件（游戏分配标签文字自适应钳制）。 |
 | `SettingsExperimentalPage.qml` | 261 | 设置-实验性功能（审计范围外）。 |
