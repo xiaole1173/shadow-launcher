@@ -86,17 +86,16 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                 f.close();
                 if (hash.result().toHex() == sha1) {
                     // 缓存命中：本地文件 SHA1 完全匹配 → 直接复用，跳过网络请求。
-                    // 不产生任何网络 IO —— 严禁把本地文件读取/缓存标记数据计入下载速度统计：
-                    // 仅累加文件数与总大小（任务进度分母），不触碰 m_downloadedBytes（网络字节计数器）
-                    // 与 m_cacheBytes，避免缓存字节经竞态窗口混入 speedTick 差分导致界面网速虚高。
-                    m_completedFiles.fetchAndAddRelaxed(1);
-                    m_totalBytes.fetchAndAddRelaxed(fi.size());
+                    // 计数延迟到 start() 统一入账（m_cacheHits）——否则 addFile 阶段
+                    // completed 提前涨高，进度条从高完成度开始；全命中时 completed==total
+                    // 但无 worker → allFinished 永不触发 → 下载流程卡死（问题 1/2 根因）。
+                    m_cacheHits.fetchAndAddRelaxed(1);
+                    m_cacheBytes.fetchAndAddRelaxed(fi.size());
                     emit logMessage(QString::fromUtf8("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                         .arg(localName));
                     qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                            .arg(localName);
                     emit fileProgress(localPath, localName, fi.size(), fi.size(), localPath);
-                    m_totalFiles.fetchAndAddRelaxed(1);
                     emit fileFinished(localPath, true);
                     return;
                 }
@@ -117,18 +116,16 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                     f.close();
                     if (hash.result().toHex() == sha1) {
                         // Cache hit from gameDir! Copy to working dir.
-                        // 同工作目录缓存命中：仅累加文件数/总大小，不累加网络字节计数
-                        // （m_downloadedBytes/m_cacheBytes），缓存复用不产生任何速度统计流量。
+                        // 计数延迟到 start() 统一入账（m_cacheHits），同工作目录缓存命中
                         QDir().mkpath(QFileInfo(localPath).absolutePath());
                         if (QFile::copy(fallbackPath, localPath)) {
-                            m_completedFiles.fetchAndAddRelaxed(1);
-                            m_totalBytes.fetchAndAddRelaxed(ffi.size());
+                            m_cacheHits.fetchAndAddRelaxed(1);
+                            m_cacheBytes.fetchAndAddRelaxed(ffi.size());
                             emit logMessage(QString::fromUtf8("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                                 .arg(localName));
                             qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                                    .arg(localName);
                             emit fileProgress(localPath, localName, ffi.size(), ffi.size(), localPath);
-                            m_totalFiles.fetchAndAddRelaxed(1);
                             emit fileFinished(localPath, true);
                             return;
                         } else {
@@ -178,9 +175,33 @@ void FileDownloader::start()
     m_speedFloorBps.storeRelaxed(kMinSpeedFloorBps);
     m_speedRecords.clear();
 
-    // 修复：删除同步 DNS 预解析（QHostInfo::fromName 同步阻塞主线程，多 host 时
-    // 数秒~十几秒无进度；且解析结果 m_dnsCache 无任何消费方——runWorker 请求
-    // 直接用域名，不走 IP 直连）。启动即调度，DNS 由系统/连接层按需解析。
+    // ── 缓存命中统一入账（addFile 阶段只累计 m_cacheHits，start 时再补计数）──
+    // 修复：之前 addFile 阶段就 completed++/total++，进度条从高完成度开始；
+    // 缓存全命中时 completed==total 但无 worker → allFinished 永不触发 → 下载卡死。
+    {
+        const int hits = m_cacheHits.fetchAndStoreRelaxed(0);
+        if (hits > 0) {
+            m_completedFiles.fetchAndAddRelaxed(hits);
+            m_totalFiles.fetchAndAddRelaxed(hits);
+            // 缓存字节并入总字节（进度条字节显示完整）
+            const qint64 cb = m_cacheBytes.fetchAndStoreRelaxed(0);
+            m_totalBytes.fetchAndAddRelaxed(cb);
+        }
+    }
+
+    // ── 无网络任务（全缓存命中）：无 worker 可跑，立即完成 ──
+    if (m_files.isEmpty()) {
+        qCInfo(logDownload) << QStringLiteral("[夸父] 无待下载文件（全部缓存命中或空任务），直接完成");
+        emit logMessage(QStringLiteral("[夸父] 无待下载文件，直接完成"));
+        m_state = Idle;
+        const int done = m_completedFiles.loadRelaxed();
+        const int total = m_totalFiles.loadRelaxed();
+        emit progressChanged(done, total,
+                              m_downloadedBytes.loadRelaxed(),
+                              m_totalBytes.loadRelaxed());
+        emit allFinished();
+        return;
+    }
 
     // Clear thread pool from any previous runs
     m_threadPool.clear();
