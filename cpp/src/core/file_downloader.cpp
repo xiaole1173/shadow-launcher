@@ -144,6 +144,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
     file->localPath = localPath;
     file->localName = localName;
     file->orderedSources = sources;
+    file->sourceFailCounts.fill(0, sources.size());
     file->expectedSha1 = sha1;
     file->needsJarStrip = jarStrip;
     file->fileSize = expectedSize;
@@ -587,10 +588,8 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 const qint64 base = isOfficialUrl ? 12000 : 15000;
                 timeoutMs = static_cast<int>(qMin(base * (1 + qMin(fails, 3)), 30000LL));
             }
-            // 官方源（mojang.com/minecraft.net）只试 2 次就切镜像：
-            // 实测 3 个大文件同时压官方必超时，快速切 BMCLAPI 反而秒下。
-            if (isOfficialUrl && attempt >= 2 && (getElapsedMs() - startTimeMs) < 20000)
-                break;
+            // 主流启动器语义：源失败累计（failCount≥5 且无进度）才禁用换源——
+            // 不在 attempt 层面对官方特殊处理（官方优先时坚持官方直到禁用）
             if (attempt >= 2 && file->expectedSha1.isEmpty()
                 && (getElapsedMs() - startTimeMs) < 5500) break;
             if (attempt >= kMaxChunkAttempts && (getElapsedMs() - startTimeMs) < 5500) break;
@@ -694,12 +693,27 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     .arg(attempt + 1);
                 reply->abort();
                 reply->deleteLater();
+                // ── 主流启动器 SourceFail 语义 ──
+                // 同一源失败累计（FailCount）达标（≥5 且无下载进度）才禁用该源换下一个；
+                // 未达标则同源继续重试（主流启动器: FailCount ≥ min(ThreadLimit,5~30) 且
+                // DownloadDone<1 → IsFailed）。模组模式：网络错误立即换源（历史实测）。
+                if (sourceIdx < file->sourceFailCounts.size())
+                    file->sourceFailCounts[sourceIdx]++;
                 if (m_modpackMode) {
-                    // 模组专项：网络错误（超时/连接关闭/4xx/5xx）立即放弃当前源换下一个（PCL 禁源策略）
                     th->downloadDone = 0;
                     break;
                 }
-                if (attempt >= 2 && !file->expectedSha1.isEmpty()) break;
+                const bool hasProgress = (th->downloadDone > 0);
+                const int failCount = (sourceIdx < file->sourceFailCounts.size())
+                    ? file->sourceFailCounts[sourceIdx] : attempt + 1;
+                // 主流启动器: FailCount ≥ 5 且无进度 → 禁用此源，换下一个
+                if (!hasProgress && failCount >= 5) {
+                    qCInfo(logDownload) << QStringLiteral("[夸父] 源禁用(连续失败) 文件=%1 源=%2 URL=%3")
+                        .arg(file->localName).arg(sourceIdx).arg(url);
+                    break;
+                }
+                // 有 SHA1 校验的整文件下载（非分片），重试上限内同源继续
+                if (attempt >= 6) break;
                 th->downloadDone = 0;
                 continue;
             }

@@ -56,6 +56,7 @@ struct FileDownload {
     bool isNoSplit = false;    // files < 50MB, single range
     int state = 0;             // 0=waiting,1=connecting,2=downloading,3=merging,4=finished,5=failed
     QStringList orderedSources;
+    QVector<int> sourceFailCounts;   // per-source 失败计数（主流启动器 NetSource.FailCount 语义）
     QList<std::shared_ptr<DownloadThread>> threads;
     QByteArray expectedSha1;
     bool needsJarStrip = false;
