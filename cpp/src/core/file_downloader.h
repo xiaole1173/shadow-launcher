@@ -221,6 +221,7 @@ private:
     qint64 m_lastSpeedBytes = 0;
     mutable QMutex m_speedMutex;
     double m_emaMbps = 0.0;
+    qint64 m_instantBps = 0;   // 最近一次差分速度（主流启动器 Speed 语义，200ms 采样）——速度门限用
     QAtomicInteger<qint64> m_speedFloorBps{256 * 1024};
     qint64 m_lastFloorIncreaseMs = 0;
     static constexpr qint64 kMinSpeedFloorBps = 256 * 1024;

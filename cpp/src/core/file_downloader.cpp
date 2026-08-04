@@ -351,7 +351,7 @@ void FileDownloader::managerTick()
     // 速度不足时才加分片加速——主流启动器 NetTaskSpeedLimitLow=256KB/s。
     // 注意：速度门限只挡“给已有线程的文件加分片”，不挡“无线程文件的
     // 首线程补启动”（主流启动器 StartManager：等待文件启动不受速度门限限制）。
-    const bool speedEnough = (m_emaMbps * 1024 * 1024 >= kSpeedLimitLowBps);
+    const bool speedEnough = (m_instantBps >= kSpeedLimitLowBps);
 
     // Add threads to files with large remaining chunks
     for (auto& f : m_files) {
@@ -867,10 +867,15 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
         }
     }
 
-    // Last resort retry（模组专项已重置重试一轮覆盖，跳过原兜底）
-    if (!sourceOk && !m_modpackMode && !file->expectedSha1.isEmpty() && file->orderedSources.size() > 0) {
-        const QString url = file->orderedSources[0];
-        qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底重试 URL=%1").arg(url);
+    // Last resort retry（主流启动器 SourcesOnce 语义：全部源重新逐个尝试一轮，
+    // 每源 1 次——兼容多源中部分源返回错误/部分源多线程下抽风的情况）
+    // 模组专项已用 modRetriedOnce 覆盖，跳过
+    if (!sourceOk && !m_modpackMode && !file->expectedSha1.isEmpty()
+        && file->orderedSources.size() > 0) {
+        qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底：全部源逐个重试一轮 %1").arg(file->localName);
+        for (int si = 0; si < file->orderedSources.size() && !sourceOk; ++si) {
+            const QString url = file->orderedSources[si];
+            qCInfo(logDownload) << QStringLiteral("[夸父] 最终兜底重试 URL=%1").arg(url);
         for (int attempt = 0; attempt < 3 && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
             if (attempt > 0) QThread::msleep(kRetryBackoffMs);
@@ -986,6 +991,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
                 th->state = 3;
                 goto worker_done;
+            }
             }
         }
     }
@@ -1165,6 +1171,7 @@ void FileDownloader::speedTick()
     m_speedTimer.restart();
 
     qint64 actualBps = bytes * 1000 / elapsed;
+    m_instantBps = actualBps;   // 主流启动器 Speed 语义：瞬时差分（速度门限用，响应快）
 
     {
         QMutexLocker lock(&m_speedMutex);
