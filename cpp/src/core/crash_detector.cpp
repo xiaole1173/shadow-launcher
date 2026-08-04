@@ -704,6 +704,33 @@ CrashReport CrashDetector::analyzeCrash(const QString& gameDir,
     if (!r.matchedRules.isEmpty())
         r.suggestions = suggestionsForRules(r.matchedRules);
 
+    // ── 4b. 动态 Java 版本建议（适配新版 MC：class file version 直接换算所需 Java）──
+    // TOO_OLD_JAVA 捕获 class file version（如 69.0 = Java 25），写死的
+    // “1.17+ 需要 Java 17/21”已过时——按实际版本给出准确建议。
+    if (r.matchedRules.contains(QLatin1String("TOO_OLD_JAVA"))) {
+        static const QRegularExpression classVerRe(
+            QStringLiteral(R"(UnsupportedClassVersionError: .*? version (\d+)\.0)"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch cm = classVerRe.match(analysisText);
+        if (cm.hasMatch()) {
+            bool ok = false;
+            const int classVer = cm.captured(1).toInt(&ok);
+            if (ok && classVer >= 45) {  // 45 = Java 1.1
+                const int needJava = classVer - 44;  // 55→11, 61→17, 65→21, 69→25
+                const QString dyn = tr("Java 版本过低：游戏/模组需要 Java %1（class file %2.0）。"
+                                       "请在「设置 → Java」安装 Java %1，或使用一键安装。")
+                                        .arg(needJava).arg(classVer);
+                // 替换写死的 TOO_OLD_JAVA 建议（保留其他建议）
+                for (int i = 0; i < r.suggestions.size(); ++i) {
+                    if (r.suggestions[i].contains(tr("1.17+ 需要 Java")))
+                        r.suggestions[i] = dyn;
+                }
+                if (!r.suggestions.contains(dyn))
+                    r.suggestions.prepend(dyn);
+            }
+        }
+    }
+
     // ── 5. Stack-trace keyword analysis (suspected mods) ──
     if (r.type == QLatin1String("minecraft")) {
         QString crashContent;
