@@ -118,7 +118,7 @@ static LONG WINAPI CrashDumpHandler(EXCEPTION_POINTERS* ep)
         mei.ExceptionPointers = ep;
         mei.ClientPointers = TRUE;
         MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile,
-                          MiniDumpNormal, &mei, nullptr, nullptr);
+                          MiniDumpWithFullMemory, &mei, nullptr, nullptr);
         CloseHandle(hFile);
         OutputDebugStringA("[CrashDump] minidump written\n");
     }

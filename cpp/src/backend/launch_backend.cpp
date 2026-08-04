@@ -1463,9 +1463,9 @@ void LaunchBackend::runCrashAnalysis()
             // 保存诊断报告路径，供“导出全部日志”打包（zip 内含 analysis-report.md）
             m_crashReportPath = reportFilePath;
 
-            // Legacy signal for backward compatibility
-            emit crashDetected(report);
-            // Full analysis signal
+            // 只发 crashAnalysisReady（v2 主信号）；crashDetected 是 legacy 兼容信号，
+            // 双发会导致 QML onCrashDetected+onCrashAnalysisReady 都设置 crashData →
+            // CrashDialog onCrashDataChanged 触发两次 open()（Popup 重复打开竞态）
             emit crashAnalysisReady(report);
             m_crashAnalysisRunning = false;
         });
