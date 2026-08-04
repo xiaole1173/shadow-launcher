@@ -467,7 +467,7 @@ Rectangle {
 
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
-                            text: qsTr("包括游戏所需 Java 和启动器所需 Java（Java 8 JRE / 17 JDK / 25 JDK，下载到启动器目录，不写入注册表）")
+                            text: qsTr("包括游戏所需 Java 和启动器所需 Java（Java 8 / 17 / 25 JRE，下载到启动器目录，不写入注册表）")
                             font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.4
                         }
 

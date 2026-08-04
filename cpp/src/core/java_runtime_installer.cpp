@@ -144,11 +144,16 @@ void JavaRuntimeInstaller::runInstallAfterScan()
     }
 
     // 安装清单：{版本, 类型, 标签}
+    // 类型全部 JRE（2026-08-04 实测确认）：
+    //   - 游戏运行只需 JRE（MC 本身是运行时）
+    //   - Forge/NeoForge 安装器只 java -cp 跑 jar（bootstrapper/srgutils/FART），无 javac 调用
+    //   - Tuna 镜像 8/17/25 均有 JRE 构建（25/jre/x64/windows 实测存在）
+    //   - JRE 体积约为 JDK 的 1/4（省 130MB+/版本）
     struct Item { int major; QString type; QString label; };
     const QList<Item> items = {
         { 8,  QStringLiteral("jre"), QStringLiteral("Java 8 (JRE)") },
-        { 17, QStringLiteral("jdk"), QStringLiteral("Java 17 (JDK)") },
-        { 25, QStringLiteral("jdk"), QStringLiteral("Java 25 (JDK)") },
+        { 17, QStringLiteral("jre"), QStringLiteral("Java 17 (JRE)") },
+        { 25, QStringLiteral("jre"), QStringLiteral("Java 25 (JRE)") },
     };
 
     int installedCount = 0, skippedCount = 0;

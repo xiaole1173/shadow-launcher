@@ -17,9 +17,9 @@ namespace ShadowLauncher {
 /// 自动发现（其第 2 步扫描 java_cache/{major}/bin/java.exe）。
 ///
 /// 版本策略（2026-08-04 实测确认）：
-///   - Java 8  → JRE（老版本游戏运行够用，体积小）
-///   - Java 17 → JDK
-///   - Java 25 → JDK
+///   - Java 8 / 17 / 25 全部安装 JRE（Tuna 镜像均有 JRE 构建；
+///     游戏运行与 Forge/NeoForge 安装都只需 JRE——安装器全程 java -cp 跑 jar 无 javac 调用）
+///   - JRE 体积约为 JDK 的 1/4
 /// 架构策略（Windows）：
 ///   - x64 → x64；x86 → x32（Tuna 目录名）；ARM64 → x64（Win11 Prism 模拟运行，
 ///     实测 Temurin 17/25 无 Windows ARM64 构建，Adoptium API 0 结果确认）
