@@ -29,7 +29,8 @@ QVariantMap CrashReport::toVariantMap() const
     report[QStringLiteral("description")] = description;
     report[QStringLiteral("suspectedMods")] = suspectedMods;
     report[QStringLiteral("filePath")] = filePath;
-    report[QStringLiteral("timestamp")] = timestamp;
+    report[QStringLiteral("timestamp")] = timestamp.isValid()
+        ? timestamp.toString(Qt::ISODate) : QString{};
     report[QStringLiteral("isValid")] = isValid;
     report[QStringLiteral("suggestions")] = suggestions;
     report[QStringLiteral("matchedRules")] = matchedRules;

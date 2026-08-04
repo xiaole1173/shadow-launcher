@@ -1221,6 +1221,7 @@ Window {
             if (item) {
                 item.backend = backend
                 item.toastManager = toastManager
+                item.exportDialogRef = crashLogExportDialog
                 // 补消费挂起的分析请求（第一次启动失败时 Loader 未就绪）
                 if (_pendingCrashAnalyze) {
                     _pendingCrashAnalyze = false
@@ -1232,6 +1233,33 @@ Window {
                     item.crashData = report
                 }
             }
+        }
+    }
+
+    // 崩溃日志导出对话框（放 Window 顶层——FileDialog 声明在 Popup 内部
+    // 会导致 Qt6Core.dll 崩溃 0xc0000005，必须挂在普通窗口上下文）
+    FileDialog {
+        id: crashLogExportDialog
+        title: "导出崩溃日志为 ZIP"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["ZIP 文件 (*.zip)"]
+        defaultSuffix: "zip"
+        currentFile: "crash-logs-export.zip"
+        onAccepted: {
+            var dl = crashDialogLoader.item
+            if (!dl || !dl.backend) return
+            var sel = crashLogExportDialog.selectedFile
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
+            if (!path) return
+            if (!/\.zip$/i.test(path)) path += ".zip"
+            var result = dl.backend.exportCrashLogs(path)
+            if (result && dl.toastManager) dl.toastManager.show("日志已导出到: " + result, 5000)
         }
     }
 

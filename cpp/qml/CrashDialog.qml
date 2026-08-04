@@ -38,6 +38,9 @@ Popup {
     property var backend: null
     // Toast 引用（MainWindow 注入），导出日志后反馈
     property var toastManager: null
+    // 导出对话框引用（MainWindow 注入——FileDialog 须挂在 Window 顶层，
+    // 声明在 Popup 内部会导致 Qt6Core.dll 崩溃 0xc0000005）
+    property var exportDialogRef: null
     // 是否处于分析中
     property bool analyzing: false
 
@@ -132,9 +135,8 @@ Popup {
                     color: analyzing ? StyleTokens.textSecondary : StyleTokens.textDanger
                 }
                 Text {
-                    text: crashData.timestamp
-                        ? new Date(crashData.timestamp).toLocaleString(Qt.locale(), "yyyy-MM-dd hh:mm:ss")
-                        : ""
+                    // timestamp 现在是 ISO 字符串（C++ 端格式化，避免 QML Date 转换崩溃）
+                    text: crashData.timestamp ? String(crashData.timestamp).replace("T", " ").slice(0, 19) : ""
                     font.pixelSize: StyleTokens.fontSizeXs
                     color: StyleTokens.textSubtle
                     visible: _has("timestamp")
@@ -408,7 +410,12 @@ Popup {
                 accentColor: StyleTokens.accentLink
                 Layout.preferredWidth: 110; Layout.preferredHeight: 32
                 onClicked: {
-                    if (backend) exportDialog.open()
+                    if (exportDialogRef) exportDialogRef.open()
+                    else if (backend) {
+                        // 兜底：无对话框引用时直接导出到默认位置
+                        var dir = backend.exportCrashLogs("")
+                        if (dir && toastManager) toastManager.show("日志已导出到: " + dir, 5000)
+                    }
                 }
             }
 
@@ -435,34 +442,6 @@ Popup {
                 Layout.preferredWidth: 80; Layout.preferredHeight: 32
                 onClicked: { dialog.close() }
             }
-        }
-    }
-
-    // ── 导出日志：保存对话框（打包为 zip）──
-    // 注：之前 FolderDialog 弹“选目录”不合逻辑——导出物是 zip，应该弹保存对话框。
-    // FileDialog 是项目多处验证过的模式（Popup 上下文 native 对话框安全）。
-    FileDialog {
-        id: exportDialog
-        title: "导出崩溃日志为 ZIP"
-        fileMode: FileDialog.SaveFile
-        nameFilters: ["ZIP 文件 (*.zip)"]
-        defaultSuffix: "zip"
-        currentFile: "crash-logs-" + (crashData.timestamp ? crashData.timestamp.toString().replace(/[^0-9]/g, "").slice(0, 12) : "export") + ".zip"
-        onAccepted: {
-            if (!backend) return
-            // 防御式路径转换（selectedFile 可能是 QUrl 或字符串）
-            var sel = exportDialog.selectedFile
-            var path = ""
-            if (typeof sel === "string") {
-                path = sel
-            } else if (sel && typeof sel.toString === "function") {
-                path = sel.toString()
-            }
-            if (path.indexOf("file:///") === 0) path = path.substring(8)
-            if (!path) return
-            if (!/\\.zip$/i.test(path)) path += ".zip"
-            var result = backend.exportCrashLogs(path)
-            if (result && toastManager) toastManager.show("日志已导出到: " + result, 5000)
         }
     }
 }

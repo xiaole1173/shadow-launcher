@@ -363,7 +363,7 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
         tr("如需更换 Java，可前往「设置 → Java」或使用一键安装")
     };
     report[QStringLiteral("suspectedMods")] = QStringList{};
-    report[QStringLiteral("timestamp")]   = QDateTime::currentDateTime();
+    report[QStringLiteral("timestamp")]   = QDateTime::currentDateTime().toString(Qt::ISODate);
     report[QStringLiteral("collectedLogs")] = QStringList{};
     report[QStringLiteral("jvmOutput")]   = QStringList{};
     emit crashDetected(report);
