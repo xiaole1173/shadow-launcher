@@ -186,6 +186,7 @@ private:
     QMap<QString, HostStats> m_hostStats;
 
     static QString extractHost(const QString& url);
+    static bool isSameHostClass(const QString& urlA, const QString& urlB);
     bool hostCanAccept(const QString& host) const;
     void recordHostResult(const QString& host, bool ok);
 

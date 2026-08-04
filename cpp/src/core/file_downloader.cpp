@@ -405,9 +405,21 @@ std::shared_ptr<DownloadThread> FileDownloader::tryStartFirstThread(
     if (file->fileSize <= 0) { file->isUnknownSize = true; file->isNoSplit = true; }
 
     // Pick a healthy source
+    // ── 多源分流（2026-08-04）：不同文件在“首选组”内从不同源开始尝试，
+    // 并发均匀分布到首选组的所有源（官方组或镜像组由用户设置决定在前），
+    // 避免全部先压 orderedSources[0] 打满排队超时（实测 23:02:49 大文件集体
+    // 超时 46 秒）。首选组全满才按顺序用备选组（不架空用户源策略）。
     int sourceIdx = 0;
     int srcLabel = 0;
-    for (int i = 0; i < file->orderedSources.size(); ++i) {
+    int groupSize = 1;
+    while (groupSize < file->orderedSources.size()
+           && isSameHostClass(file->orderedSources[groupSize], file->orderedSources[0]))
+        ++groupSize;
+    const int startIdx = qHash(file->localName) % groupSize;
+    for (int k = 0; k < file->orderedSources.size(); ++k) {
+        const int i = (k < groupSize)
+            ? ((startIdx + k) % groupSize)
+            : (groupSize + (k - groupSize));
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; srcLabel = (i == 0) ? 0 : i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; srcLabel = i; } // last resort
@@ -462,8 +474,18 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
     qint64 splitPoint = maxPiece->downloadEnd - static_cast<qint64>(maxUndone * 0.4);
 
     // Pick a healthy source
+    // 多源分流：分片也按文件名哈希在“首选组”内选起始源，同一文件的不同分片
+    // 分散到首选组不同源（官方组/镜像组按用户设置），避免所有分片压源 0
     int sourceIdx = 0;
-    for (int i = 0; i < file->orderedSources.size(); ++i) {
+    int groupSize = 1;
+    while (groupSize < file->orderedSources.size()
+           && isSameHostClass(file->orderedSources[groupSize], file->orderedSources[0]))
+        ++groupSize;
+    const int startIdx = (qHash(file->localName) + file->threads.size()) % groupSize;
+    for (int k = 0; k < file->orderedSources.size(); ++k) {
+        const int i = (k < groupSize)
+            ? ((startIdx + k) % groupSize)
+            : (groupSize + (k - groupSize));
         QString host = extractHost(file->orderedSources[i]);
         if (hostCanAccept(host)) { sourceIdx = i; break; }
         if (i == file->orderedSources.size() - 1) { sourceIdx = i; } // last resort
@@ -1169,6 +1191,17 @@ void FileDownloader::updateStats()
 QString FileDownloader::extractHost(const QString& url)
 {
     return QUrl(url).host().toLower();
+}
+
+bool FileDownloader::isSameHostClass(const QString& urlA, const QString& urlB)
+{
+    // 官方源（Mojang/Minecraft 域名）与镜像站分两组：组内多源可哈希分流，
+    // 组间顺序严格遵循用户设置（官方优先/镜像优先决定哪组在前）
+    const auto isOfficial = [](const QString& u) {
+        return u.contains(QStringLiteral("mojang.com"))
+            || u.contains(QStringLiteral("minecraft.net"));
+    };
+    return isOfficial(urlA) == isOfficial(urlB);
 }
 
 

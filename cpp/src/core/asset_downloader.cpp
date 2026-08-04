@@ -327,8 +327,21 @@ void AssetDownloader::fireNext()
         }
 
         // Pick source: skip degraded hosts, respect per-host limits
+        // ── 多源分流（2026-08-04）：不同文件在“首选组”内从不同源开始尝试，
+        // 并发均匀分布到首选组的所有源（官方组或镜像组，由源列表顺序决定，
+        // 用户设置「官方优先/镜像优先」决定哪组在前），避免全部任务先压
+        // mirrors[0] 把单个 CDN 打满排队（实测 5000 文件全压官方 16 并发后期停摆）。
+        // 首选组全满才按顺序用备选组（语义与设置一致，不架空用户选择）。
         selectedMirror = -1;
-        for (int i = 0; i < dispatchTask.mirrors.size(); ++i) {
+        int groupSize = 1;
+        while (groupSize < dispatchTask.mirrors.size()
+               && isSameHostClass(dispatchTask.mirrors[groupSize], dispatchTask.mirrors[0]))
+            ++groupSize;
+        const int startIdx = qHash(dispatchTask.savePath) % groupSize;
+        for (int k = 0; k < dispatchTask.mirrors.size(); ++k) {
+            const int i = (k < groupSize)
+                ? ((startIdx + k) % groupSize)
+                : (groupSize + (k - groupSize));
             QString host = extractHost(dispatchTask.mirrors[i]);
             if (hostCanAccept(host)) {
                 selectedMirror = i;
@@ -842,6 +855,18 @@ QString AssetDownloader::extractHost(const QString& url) const
 {
     QUrl qurl(url);
     return qurl.host().toLower();
+}
+
+bool AssetDownloader::isSameHostClass(const QString& urlA, const QString& urlB) const
+{
+    // 官方源（Mojang/Minecraft 域名）与镜像站分为两组：
+    // 用户设置「官方优先/镜像优先」决定哪组在前，组内多源可哈希分流，
+    // 但组间顺序严格遵循设置（首选组全满才用备选组）。
+    const auto isOfficial = [](const QString& u) {
+        return u.contains(QStringLiteral("mojang.com"))
+            || u.contains(QStringLiteral("minecraft.net"));
+    };
+    return isOfficial(urlA) == isOfficial(urlB);
 }
 
 int AssetDownloader::getHostLimit(const QString& host) const

@@ -297,21 +297,46 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
             p.totalBytes = t.totalBytes;
             p.sha1 = t.sha1.toUtf8();
             if (preferOfficial) {
+                // 严格分组：官方源全部在前（组内按 t.url/mirrors 顺序），
+                // 镜像源全部在后——下载器按“首选组内哈希分流”需要组连续。
+                // t.url 若为官方并入官方组，否则并入镜像组。
                 bool mojangAdded = false;
                 for (const auto& m : t.mirrors) {
                     if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
                         p.sources.append(m); mojangAdded = true;
                     }
                 }
-                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
-                    p.sources.append(t.url);
+                if (t.url.contains("mojang.com") || t.url.contains("minecraft.net")) {
+                    if (!mojangAdded) {
+                        p.sources.append(t.url);
+                    } else if (!p.sources.contains(t.url)) {
+                        p.sources.append(t.url);
+                    }
+                }
                 for (const auto& m : t.mirrors) {
                     if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
                         p.sources.append(m);
                 }
+                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
+                    p.sources.append(t.url);
             } else {
-                p.sources.append(t.url);
-                for (const auto& m : t.mirrors) p.sources.append(m);
+                // PreferMirror：严格分组——镜像源全部在前（含 t.url 若镜像），
+                // 官方源全部在后（组连续，供下载器“首选组内哈希分流”）
+                const bool urlIsOfficial = t.url.contains("mojang.com") || t.url.contains("minecraft.net");
+                if (!urlIsOfficial)
+                    p.sources.append(t.url);
+                for (const auto& m : t.mirrors) {
+                    if (!m.contains("mojang.com") && !m.contains("minecraft.net")
+                        && !p.sources.contains(m))
+                        p.sources.append(m);
+                }
+                if (urlIsOfficial && !p.sources.contains(t.url))
+                    p.sources.append(t.url);
+                for (const auto& m : t.mirrors) {
+                    if ((m.contains("mojang.com") || m.contains("minecraft.net"))
+                        && !p.sources.contains(m))
+                        p.sources.append(m);
+                }
             }
             prechecks.append(p);
         }
@@ -438,21 +463,43 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
             assetsBytes += t.totalBytes;
             QStringList mirrors;
             if (preferOfficial) {
+                // 严格分组：官方源全部在前，镜像源全部在后
+                //（下载器按“首选组内哈希分流”需要组连续）
                 bool mojangAdded = false;
                 for (const auto& m : t.mirrors) {
                     if (!mojangAdded && (m.contains("mojang.com") || m.contains("minecraft.net"))) {
                         mirrors.append(m); mojangAdded = true;
                     }
                 }
-                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
-                    mirrors.append(t.url);
+                if (t.url.contains("mojang.com") || t.url.contains("minecraft.net")) {
+                    if (!mojangAdded)
+                        mirrors.append(t.url);
+                    else if (!mirrors.contains(t.url))
+                        mirrors.append(t.url);
+                }
                 for (const auto& m : t.mirrors) {
                     if (!m.contains("mojang.com") && !m.contains("minecraft.net"))
                         mirrors.append(m);
                 }
+                if (!t.url.contains("mojang.com") && !t.url.contains("minecraft.net"))
+                    mirrors.append(t.url);
             } else {
-                mirrors.append(t.url);
-                for (const auto& m : t.mirrors) mirrors.append(m);
+                // PreferMirror：严格分组——镜像源全部在前（含 t.url 若镜像），官方源全部在后
+                const bool urlIsOfficial = t.url.contains("mojang.com") || t.url.contains("minecraft.net");
+                if (!urlIsOfficial)
+                    mirrors.append(t.url);
+                for (const auto& m : t.mirrors) {
+                    if (!m.contains("mojang.com") && !m.contains("minecraft.net")
+                        && !mirrors.contains(m))
+                        mirrors.append(m);
+                }
+                if (urlIsOfficial && !mirrors.contains(t.url))
+                    mirrors.append(t.url);
+                for (const auto& m : t.mirrors) {
+                    if ((m.contains("mojang.com") || m.contains("minecraft.net"))
+                        && !mirrors.contains(m))
+                        mirrors.append(m);
+                }
             }
             AssetDownloader::AssetTask at;
             at.savePath = t.savePath;
