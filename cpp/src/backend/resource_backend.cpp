@@ -1961,7 +1961,10 @@ void ResourceBackend::onResourcepackSearchCompleted(const QJsonArray& results, i
         entry[QStringLiteral("downloads")] = obj[QStringLiteral("downloads")].toInt();
         entry[QStringLiteral("author")]    = obj[QStringLiteral("author")].toString();
         entry[QStringLiteral("updated")]   = obj[QStringLiteral("updated")].toString();
-        entry[QStringLiteral("source")]    = QStringLiteral("Modrinth");
+        // 保留来源（Modrinth/CurseForge）：池子合并时 CF 条目自带 source=CurseForge，
+        // 不能硬编码 Modrinth（曾导致 CF 资源包卡片右上角来源标签错误）
+        entry[QStringLiteral("source")]    = obj[QStringLiteral("source")].toString().isEmpty()
+                                                ? QStringLiteral("Modrinth") : obj[QStringLiteral("source")].toString();
         // Categories as QVariant string list
         QJsonArray cats = obj[QStringLiteral("categories")].toArray();
         QStringList catList;

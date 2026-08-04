@@ -1284,6 +1284,7 @@ Rectangle {
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
                         downloads: model.downloads || 0
+                        source: model.source || "Modrinth"
                         gameVersions: Array.isArray(model.versionStr) ? model.versionStr.join(", ") : (model.versionStr || "")
                         dateModified: model.updated || ""
                         categoriesJson: model.categories || "[]"

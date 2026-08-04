@@ -13,7 +13,7 @@ Rectangle {
     id: card
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(52, contentLayout.implicitHeight + 20 + (card.showExpand && card.expanded ? l3Container.implicitHeight + 16 : 0))
+    implicitHeight: Math.max(52, contentLayout.implicitHeight + 20)
     radius: StyleTokens.radiusLg
     color: card.cardHovered ? "#161a26" : StyleTokens.bgSecondary
     border.color: card.cardHovered ? "#4068c8" : StyleTokens.border
@@ -40,6 +40,9 @@ Rectangle {
     property bool showExpand: false        // show expand toggle
     property bool expanded: false          // current expand state
     property var l3Detail: null            // expanded content data
+
+    // 注入的 L3 内容进入 l3Container（DetailVersionCard 的子内容默认进这里）
+    default property alias expandedContent: l3Container.data
 
     signal downloadClicked()
     signal expandToggled()
@@ -152,22 +155,18 @@ Rectangle {
                 }
             }
         }
-    }
 
-    // ── L3 Detail (expandable, for RP) ──
-    // Injected via default property alias from parent page
-    // Usage: DetailVersionCard { ... L3Content { ... } }
-    default property alias expandedContent: l3Container.data
-    Item {
-        id: l3Container
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: contentLayout.bottom
-        anchors.topMargin: 8
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        visible: card.showExpand && card.expanded
-        height: visible ? l3Container.implicitHeight : 0
-        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        // ── L3 Detail (expandable, for RP) ──
+        // 注入内容（通常是一个 ColumnLayout { width: parent.width }）直接成为
+        // l3Container 的子项，父页面写的 width 绑定自然生效；
+        // l3Container 高度由 childrenRect 跟随（展开时卡片增高，收起时高度 0）。
+        Item {
+            id: l3Container
+            Layout.fillWidth: true
+            Layout.topMargin: 8
+            visible: card.showExpand && card.expanded
+            implicitHeight: l3Container.childrenRect.height
+            clip: true
+        }
     }
 }
