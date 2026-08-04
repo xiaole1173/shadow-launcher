@@ -33,6 +33,7 @@ QVariantMap CrashReport::toVariantMap() const
     report[QStringLiteral("suggestions")] = suggestions;
     report[QStringLiteral("matchedRules")] = matchedRules;
     report[QStringLiteral("collectedLogs")] = collectedLogs;
+    report[QStringLiteral("jvmOutput")] = jvmOutput;
     report[QStringLiteral("reportFilePath")] = reportFilePath;
     report[QStringLiteral("exportDir")] = exportDir;
     report[QStringLiteral("reportTooLong")] = reportTooLong;
@@ -646,6 +647,24 @@ CrashReport CrashDetector::analyzeCrash(const QString& gameDir,
         r.filePath = parsed.filePath;
         r.timestamp = parsed.timestamp;
         r.suspectedMods = parsed.suspectedMods;
+    } else if (!latestOutput.isEmpty()) {
+        // 无崩溃报告/latest.log，但有游戏进程输出（同主流启动器：规则引擎直接跑进程输出）。
+        // 典型场景：Java 不匹配/版本过高等启动即退出，唯一诊断源就是 JVM stdout/stderr。
+        const QString raw = latestOutput.join(QLatin1Char('\n'));
+        r.type = QStringLiteral("log");
+        r.reason = tr("游戏进程异常退出（未找到崩溃报告，依据 JVM 输出分析）");
+        r.description = tr("游戏在启动阶段退出。以下基于游戏进程最后输出进行规则分析。");
+        r.isValid = true;
+        r.jvmOutput = latestOutput;
+        // 提取最后一条 ERROR/异常行作为具体原因
+        static const QRegularExpression errRe(
+            QStringLiteral(R"((?m)^.*(ERROR|FATAL|Exception|Error).*$)"));
+        QStringList errLines;
+        auto it = errRe.globalMatch(raw);
+        while (it.hasNext() && errLines.size() < 8)
+            errLines.append(it.next().captured(0).trimmed());
+        if (!errLines.isEmpty())
+            r.reason = errLines.last();
     } else {
         r.isValid = false;
         r.reason = tr("未找到崩溃报告");
@@ -674,6 +693,7 @@ CrashReport CrashDetector::analyzeCrash(const QString& gameDir,
     if (!latestOutput.isEmpty()) {
         analysisText += QStringLiteral("\n\n===== 游戏进程最后输出 =====\n");
         analysisText += latestOutput.join(QLatin1Char('\n'));
+        r.jvmOutput = latestOutput;
     }
     r.analysisText = analysisText;
 

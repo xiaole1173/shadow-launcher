@@ -9,6 +9,7 @@
 
 #include <QDir>
 #include <QDirIterator>
+#include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -349,6 +350,23 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
     emit launchStateChanged();
     qCCritical(logLaunch) << QStringLiteral("[启动] 启动前检查失败 阶段=%1 原因=%2").arg(phase, reason);
     emit logMessage(tr("启动失败: %1").arg(reason));
+
+    // ── 预检失败也弹崩溃诊断（主流启动器/同主流启动器：启动前失败直接弹错误框）──
+    // 此时游戏未启动，无 JVM 输出/崩溃报告可分析，诊断结果 = 失败阶段 + 原因。
+    QVariantMap report;
+    report[QStringLiteral("type")]        = QStringLiteral("precheck");
+    report[QStringLiteral("reason")]      = phase;
+    report[QStringLiteral("description")] = reason;
+    report[QStringLiteral("isValid")]     = true;
+    report[QStringLiteral("suggestions")] = QStringList{
+        tr("请检查上述配置后重试"),
+        tr("如需更换 Java，可前往「设置 → Java」或使用一键安装")
+    };
+    report[QStringLiteral("suspectedMods")] = QStringList{};
+    report[QStringLiteral("timestamp")]   = QDateTime::currentDateTime();
+    report[QStringLiteral("collectedLogs")] = QStringList{};
+    report[QStringLiteral("jvmOutput")]   = QStringList{};
+    emit crashDetected(report);
 }
 
 // ── Begin token refresh attempt (with retry support) ──

@@ -1066,7 +1066,12 @@ Window {
         function onCrashDetected(report) {
             console.log("[crash] crashDetected signal received:", JSON.stringify(report))
             crashDialogLoader.active = true
-            if (crashDialogLoader.item) crashDialogLoader.item.crashData = report
+            if (crashDialogLoader.item) {
+                crashDialogLoader.item.crashData = report
+            } else {
+                // Loader 异步未就绪：缓存结果，onItemChanged 里补设
+                _pendingCrashResult = report
+            }
         }
         // ── 崩溃分析 v2：启动失败 → Toast 提示 → 弹窗进入分析态 → 结果态 ──
         function onCrashAnalysisStarted() {

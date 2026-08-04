@@ -108,7 +108,7 @@
 | `geoip_service.h/.cpp` | 59 / 126 | **IP 地区检测**：ip-api.com，24h 缓存（QSettings），失败 5 分钟自动重试；供离线登录限制（非 CN 未正版登录禁止离线）与语言/版本区域适配。 |
 | `icon_cache.h/.cpp` | 46 / 105 | **图标缓存**：网络图标（webp）→ 本地 PNG 缓存。 |
 | `mc_language.h/.cpp` | 30 / 122 | **MC 语言映射**：地区码 → Minecraft 语言/region 设置（options.txt）。 |
-| `crash_detector.h/.cpp` | 141 / 1150 | **崩溃分析引擎（v2 完整版）**：主流启动器 式 51 条正则规则库（OpenJ9/内存/Mod冲突/Mixin/OptiFine兼容等）+ 堆栈关键词黑名单分析 + 日志收集（崩溃报告/hs_err/latest.log/debug.log）+ 一键导出 + Markdown 报告生成（过长自动落盘）。`analyzeCrash(gameDir, latestOutput, launcherLog)` 全链路入口；`exportLogs()` 收集导出；`writeReport()` 生成报告。 |
+| `crash_detector.h/.cpp` | 141 / 1150 | **崩溃分析引擎（v2 完整版）**：主流启动器 式 51 条正则规则库（OpenJ9/内存/Mod冲突/Mixin/OptiFine兼容等）+ 堆栈关键词黑名单分析 + 日志收集（崩溃报告/hs_err/latest.log/debug.log）+ 一键导出 + Markdown 报告生成（过长自动落盘）。`analyzeCrash(gameDir, latestOutput, launcherLog)` 全链路入口；**无崩溃报告但有 JVM 输出时也用输出做规则分析**（同主流启动器，覆盖 Java 不匹配/启动即退）；CrashReport 新增 jvmOutput 字段供 UI 展示。 |
 | `screenshot_server.h/.cpp` | 79 / 361 | **调试截图服务器**（Debug 构建）：/eval + /screenshot 远程调试接口。 |
 | `step_node.h/.cpp` | 85 / 61 | **步骤节点**：安装/下载步骤的状态/进度/字节计数 QObject（Q_PROPERTY+NOTIFY 供 QML 绑定）。 |
 | `step_pipeline.h/.cpp` | 95 / 202 | **步骤管线**：StepModel（QAbstractListModel）+ StepPipeline（加权进度/推进/取消），驱动安装进度 UI。 |

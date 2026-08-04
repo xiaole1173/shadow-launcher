@@ -24,6 +24,7 @@ struct CrashReport {
     QStringList suggestions;     // Human-readable fix suggestions (from matched rules)
     QStringList matchedRules;    // Rule ids that matched
     QStringList collectedLogs;   // All log files collected for this analysis
+    QStringList jvmOutput;       // Raw game process output (stdout+stderr, for display)
     QString analysisText;        // Full analysis text (for report document)
     QString reportFilePath;      // Path of generated report document ("" if inline only)
     QString exportDir;           // Directory where logs were exported ("" if not exported)
@@ -42,6 +43,7 @@ struct CrashReport {
     Q_PROPERTY(QStringList suggestions MEMBER suggestions)
     Q_PROPERTY(QStringList matchedRules MEMBER matchedRules)
     Q_PROPERTY(QStringList collectedLogs MEMBER collectedLogs)
+    Q_PROPERTY(QStringList jvmOutput MEMBER jvmOutput)
     Q_PROPERTY(QString reportFilePath MEMBER reportFilePath)
     Q_PROPERTY(QString exportDir MEMBER exportDir)
     Q_PROPERTY(bool reportTooLong MEMBER reportTooLong)

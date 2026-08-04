@@ -119,6 +119,7 @@ Popup {
                     text: analyzing ? "正在分析崩溃日志…"
                          : (crashData.type === "jvm" ? "JVM 崩溃" :
                             crashData.type === "minecraft" ? "Minecraft 崩溃" :
+                            crashData.type === "precheck" ? "启动检查失败" :
                             crashData.type === "log" ? "游戏异常退出" : "崩溃诊断")
                     font.pixelSize: StyleTokens.fontSizeLg
                     font.bold: true
@@ -277,6 +278,67 @@ Popup {
                                 font.pixelSize: StyleTokens.fontSizeXs
                                 color: StyleTokens.accentLink
                             }
+                        }
+                    }
+                }
+            }
+
+            // ── JVM 输出（分析依据：游戏进程 stdout+stderr，主流启动器/同主流启动器）──
+            ColumnLayout {
+                visible: _len("jvmOutput") > 0
+                spacing: 6
+                Layout.fillWidth: true
+
+                property bool jvmExpanded: false
+
+                // 点击展开/收起
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Text {
+                        text: "JVM 输出（最后 " + crashData.jvmOutput.length + " 行）"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        font.bold: true
+                        color: StyleTokens.textSecondary
+                        Layout.fillWidth: true
+                    }
+                    Text {
+                        text: parent.parent.jvmExpanded ? "收起 ▾" : "展开 ▸"
+                        font.pixelSize: StyleTokens.fontSizeXs
+                        color: StyleTokens.accentLink
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: parent.parent.jvmExpanded = !parent.parent.jvmExpanded
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: jvmExpanded ? Math.min(180, jvmFlick.contentHeight + 16) : 0
+                    radius: StyleTokens.radiusMd
+                    color: StyleTokens.bgPrimary
+                    border.color: StyleTokens.border
+                    visible: jvmExpanded
+                    clip: true
+
+                    Flickable {
+                        id: jvmFlick
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        contentHeight: jvmText.implicitHeight
+                        clip: true
+                        ScrollBar.vertical: ScrollBar {}
+
+                        Text {
+                            id: jvmText
+                            width: jvmFlick.width - 4
+                            text: crashData.jvmOutput.join("\n")
+                            font.pixelSize: StyleTokens.fontSizeXs
+                            font.family: "Consolas, monospace"
+                            color: StyleTokens.textTertiary
+                            wrapMode: Text.WrapAnywhere
                         }
                     }
                 }
