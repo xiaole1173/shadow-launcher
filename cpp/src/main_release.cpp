@@ -29,6 +29,7 @@
 #include <QTranslator>
 #include <QSettings>
 #include <memory>
+#include <string>
 
 #ifdef Q_OS_WIN
 #  ifndef NOMINMAX
@@ -37,7 +38,9 @@
 #  include <windows.h>
 #  include <shellapi.h>
 #  include <dwmapi.h>
+#  include <dbghelp.h>
 #  pragma comment(lib, "dwmapi.lib")
+#  pragma comment(lib, "dbghelp.lib")
 #endif
 
 #include "utils/logger.h"
@@ -86,8 +89,48 @@ public:
 // Global for screenshot mode
 static QWindow* screenshotWindow = nullptr;
 
+#ifdef Q_OS_WIN
+// ── 崩溃转储（minidump）：未处理异常时写 dmp 供调试 ──
+static LONG WINAPI CrashDumpHandler(EXCEPTION_POINTERS* ep)
+{
+    wchar_t exePath[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    std::wstring appDir(exePath);
+    auto slash = appDir.find_last_of(L"\\/");
+    appDir = (slash == std::wstring::npos) ? L"." : appDir.substr(0, slash);
+
+    std::wstring ts;
+    {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        wchar_t buf[32];
+        swprintf_s(buf, L"%04d%02d%02d_%02d%02d%02d", st.wYear, st.wMonth, st.wDay,
+                   st.wHour, st.wMinute, st.wSecond);
+        ts = buf;
+    }
+    std::wstring dmpPath = appDir + L"\\crash-" + ts + L".dmp";
+
+    HANDLE hFile = CreateFileW(dmpPath.c_str(), GENERIC_WRITE, 0, nullptr,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        MINIDUMP_EXCEPTION_INFORMATION mei{};
+        mei.ThreadId = GetCurrentThreadId();
+        mei.ExceptionPointers = ep;
+        mei.ClientPointers = TRUE;
+        MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile,
+                          MiniDumpNormal, &mei, nullptr, nullptr);
+        CloseHandle(hFile);
+        OutputDebugStringA("[CrashDump] minidump written\n");
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    SetUnhandledExceptionFilter(CrashDumpHandler);
+#endif
     QElapsedTimer startupTimer;
     startupTimer.start();
     // ── Pending update from previous session? ──
