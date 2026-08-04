@@ -163,9 +163,12 @@ void FileDownloader::notifyCacheHit(const QString& localPath, qint64 size)
 {
     // 调用方已后台预检确认 SHA1 命中：直接计入完成（completed/total/cacheHits），
     // 不读盘不排队——避免主线程批量读盘 hash 卡 UI。
-    // 不发 fileProgress（缓存命中不驱动上层 catBytesDl，语义与内部缓存命中一致）
+    // 发 fileProgress 让上层分类字节（catBytesDl）计入缓存命中——否则子步骤进度
+    // （如“下载支持库”）不含缓存文件，进度到 42% 突然跳完成。
     m_cacheHits.fetchAndAddRelaxed(1);
     m_cacheBytes.fetchAndAddRelaxed(size);
+    const QString name = localPath.section(QLatin1Char('/'), -1);
+    emit fileProgress(localPath, name, size, size, localPath);
     emit fileFinished(localPath, true);
 }
 
