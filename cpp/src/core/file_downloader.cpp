@@ -386,6 +386,50 @@ void FileDownloader::managerTick()
         auto th = tryAddThread(f);
         if (th) active++;
     }
+
+    // ── 尾程加速：慢速分片检测（2026-08-05）──
+    // 大文件收尾阶段只剩 1-2 个分片在跑，若碰上慢速连接（CDN 边缘抖动，
+    // 实测 16KB/s），整批下载被拖到龟速。检测持续慢速的分片线程，
+    // 将其剩余范围一分为二并开新连接——老分片保留进度不丢，新线程新连接
+    // 有机会命中更快边缘；多次切分后尾部多连接并跑，聚合速度成倍提升
+    // （并发上限 maxThreads，镜像源不分片、小于 32KB 不再切）。
+    const qint64 scanNow = getElapsedMs();
+    if (scanNow - m_lastSlowScanMs >= kSlowScanMs) {
+        m_lastSlowScanMs = scanNow;
+        for (auto& f : m_files) {
+            if (active >= maxThreads) break;
+            if (f->state >= 3 || f->state == 5) continue;
+            // ⚠️ 必须下标遍历：trySplitSlowThread 会 append 新分片到 f->threads，
+            // Qt6 QList 连续存储 append 扩容会使引用/迭代器失效（实测崩溃）
+            for (int ti = 0; ti < f->threads.size(); ++ti) {
+                // 取原始指针而非引用：trySplitSlowThread 可能 append 扩容 QList，
+                // 引用会悬垂；DownloadThread 对象由 shared_ptr 持有不随扩容移动
+                DownloadThread* t = f->threads[ti].get();
+                if (active >= maxThreads) break;
+                if (t->state != 2) { t->slowBaseMs = 0; t->slowStreak = 0; continue; }
+                if (t->downloadUndone() < kMinSplitPieceBytes) { t->slowBaseMs = 0; t->slowStreak = 0; continue; }
+                if (t->slowBaseMs == 0) { t->slowBaseMs = scanNow; t->slowBaseBytes = t->downloadDone; continue; }
+                const qint64 dt = scanNow - t->slowBaseMs;
+                const qint64 gained = t->downloadDone - t->slowBaseBytes;
+                if (dt >= kSlowScanMs) {
+                    const qint64 bps = gained * 1000 / qMax<qint64>(1, dt);
+                    if (bps < kSlowSegBps) {
+                        t->slowStreak++;
+                        if (t->slowStreak >= kSlowStreakLimit) {
+                            t->slowStreak = 0;
+                            // 现取 shared_ptr 按值传（append 后引用失效，原始指针 t 仍有效）
+                            if (trySplitSlowThread(f, f->threads[ti])) active++;
+                        }
+                    } else {
+                        t->slowStreak = 0;
+                    }
+                    // 滚动基线（~500ms 滑动窗口）
+                    t->slowBaseMs = scanNow;
+                    t->slowBaseBytes = t->downloadDone;
+                }
+            }
+        }
+    }
     lock.unlock();
 }
 
@@ -524,8 +568,69 @@ std::shared_ptr<DownloadThread> FileDownloader::tryAddThread(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Worker — QRunnable that downloads one file range
+// trySplitSlowThread — 尾程慢速分片（2026-08-05）
 // ═════════════════════════════════════════════════════════════════════════════
+
+std::shared_ptr<DownloadThread> FileDownloader::trySplitSlowThread(
+    std::shared_ptr<FileDownload> file, std::shared_ptr<DownloadThread> th)
+{
+    if (file->fileSize <= 0 || file->isNoSplit || file->threads.isEmpty()) return nullptr;
+    if (th->state != 2) return nullptr;
+    const qint64 undone = th->downloadUndone();
+    // 剩余不足两倍最小粒度（32KB×2）不再切——保证切出的两半都 ≥32KB，
+    // 避免无限细分产生碎片分片
+    if (undone < 2 * kMinSplitPieceBytes) return nullptr;
+    if (m_activeThreads.loadRelaxed() >= m_maxThreads) return nullptr;
+
+    // 源选择（同 tryAddThread：顺序 fallback + 镜像禁止分片）
+    int sourceIdx = 0;
+    for (int i = 0; i < file->orderedSources.size(); ++i) {
+        if (i < file->sourceFailCounts.size() && file->sourceFailCounts[i] >= 5)
+            continue;
+        QString host = extractHost(file->orderedSources[i]);
+        if (hostCanAccept(host)) { sourceIdx = i; break; }
+        if (i == file->orderedSources.size() - 1) sourceIdx = i; // last resort
+    }
+    if (isMirrorUrl(file->orderedSources[sourceIdx]))
+        return nullptr;
+
+    // 中点切分：老分片保留 [start, splitPoint)，新分片 [splitPoint, end)
+    const qint64 splitPoint = th->downloadEnd - undone / 2;
+    if (splitPoint <= th->downloadStart) return nullptr;
+
+    auto nth = std::make_shared<DownloadThread>();
+    nth->uuid = m_nextUuid.fetchAndAddRelaxed(1);
+    nth->downloadStart = splitPoint;
+    nth->downloadEnd = th->downloadEnd;
+    nth->sourceUrl = file->orderedSources[sourceIdx];
+    th->downloadEnd = splitPoint;
+
+    file->threads.append(nth);
+    m_activeThreads.fetchAndAddRelaxed(1);
+
+    {
+        QString host = extractHost(nth->sourceUrl);
+        QMutexLocker lock(&m_hostMutex);
+        m_hostStats[host].activeRequests++;
+    }
+
+    qCInfo(logDownload) << QStringLiteral("[夸父] 慢速分片 文件=%1 线程=%2 剩余=%3 切分点=%4 新片=[%5-%6] 源=%7")
+        .arg(file->localName).arg(th->uuid).arg(undone).arg(splitPoint)
+        .arg(nth->downloadStart).arg(nth->downloadEnd)
+        .arg(extractHost(nth->sourceUrl));
+
+    launchWorker(nth, file);
+
+    // 中止老分片连接：原请求还在按旧 range 龟速流（不中止则分片白切——
+    // 老线程要等整条旧响应流完才截断）。置标志由 worker 轮询自己 abort，
+    // 重试时以缩小后的范围换新连接（有机会命中快边缘）。预算防止 attempt
+    // 耗尽（每线程最多 kMaxWatchdogAborts 次）。
+    if (th->watchdogAbortCount < kMaxWatchdogAborts) {
+        th->watchdogAbortCount++;
+        th->watchdogAbort.storeRelaxed(1);
+    }
+    return nth;
+}
 
 class DownloadWorker : public QRunnable {
 public:
@@ -590,8 +695,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             QThread::msleep(100);
         // 模组专项：重置重试轮每源仅 1 次尝试（PCL「逐个重新尝试下载」语义）
         const int attemptLimit = modRetriedOnce ? 1 : 6;
+        bool prevWatchdogAbort = false;   // 上一次尝试是否因看门狗中止（跳过快速失败守卫）
         for (int attempt = 0; attempt < attemptLimit && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
+            bool watchdogAbortedThisAttempt = false;   // 本次尝试被看门狗中止
 
             int timeoutMs;
             // ── 自适应超时（主流启动器语义）──
@@ -614,9 +721,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             }
             // 主流启动器语义：源失败累计（failCount≥5 且无进度）才禁用换源——
             // 不在 attempt 层面对官方特殊处理（官方优先时坚持官方直到禁用）
+            // 看门狗中止后跳过该守卫：中止是策略性换连接，不是快速失败
             if (attempt >= 2 && file->expectedSha1.isEmpty()
-                && (getElapsedMs() - startTimeMs) < 5500) break;
-            if (attempt >= kMaxChunkAttempts && (getElapsedMs() - startTimeMs) < 5500) break;
+                && (getElapsedMs() - startTimeMs) < 5500 && !prevWatchdogAbort) break;
+            if (attempt >= kMaxChunkAttempts && (getElapsedMs() - startTimeMs) < 5500
+                && !prevWatchdogAbort) break;
             if (attempt > 0) QThread::msleep(kRetryBackoffMs);
 
             QNetworkRequest req{QUrl(url)};
@@ -714,6 +823,23 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 }
             });
 
+            // ── 尾程看门狗轮询（2026-08-05）──
+            // 主线程慢速扫描可能置 th->watchdogAbort 请求中止当前连接：
+            // 切分后让本线程以缩小后的范围重试（换新连接，有机会命中快边缘）。
+            // worker 自己 abort 自己的 reply（线程安全），不跨线程碰 QNetworkReply。
+            QTimer watchdogPoll;
+            watchdogPoll.setSingleShot(true);
+            connect(&watchdogPoll, &QTimer::timeout, [&]() {
+                if (th->watchdogAbort.fetchAndStoreRelaxed(0)) {
+                    watchdogAbortedThisAttempt = true;
+                    reply->abort();
+                    loop.quit();
+                } else {
+                    watchdogPoll.start(500);
+                }
+            });
+            watchdogPoll.start(500);
+
             // Register reply for thread-safe abort on cancel
             // QMetaObject::invokeMethod("abort", QueuedConnection) from the main
             // thread triggers reply->abort() on THIS worker thread (the owner).
@@ -742,6 +868,16 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     .arg(attempt + 1);
                 reply->abort();
                 reply->deleteLater();
+                // ── 看门狗中止（2026-08-05）──
+                // 慢速分片后的策略性换连接：不算失败（不累计 FailCount）、
+                // 跳过快速失败守卫，直接以缩小后的范围换新连接重试。
+                if (watchdogAbortedThisAttempt) {
+                    watchdogAbortedThisAttempt = false;
+                    prevWatchdogAbort = true;
+                    th->downloadDone = 0;
+                    continue;
+                }
+                prevWatchdogAbort = false;
                 // ── 主流启动器 SourceFail 语义 ──
                 // 同一源失败累计（FailCount）达标（≥5 且无下载进度）才禁用该源换下一个；
                 // 未达标则同源继续重试（主流启动器: FailCount ≥ min(ThreadLimit,5~30) 且
@@ -853,6 +989,8 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     qint64 threadRange = th->downloadEnd - th->downloadStart;
                     if (threadRange > 0 && data.size() > threadRange) {
                         qint64 excess = data.size() - threadRange;
+                        // 已计入 m_downloadedBytes 的字节（downloadProgress 按当时范围封顶计数）
+                        const qint64 counted = th->downloadDone;
                         const int respStatus = reply->attribute(
                             QNetworkRequest::HttpStatusCodeAttribute).toInt();
                         qCInfo(logDownload) << QStringLiteral("[夸父] 截断多余数据 文件=%1 起始=%2 预期=%3 实际=%4 超额=%5 状态=%6")
@@ -872,8 +1010,15 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                                 : data.mid(th->downloadStart, threadRange);
                             th->downloadDone = threadRange;
                         }
-                        // Adjust byte counters: the excess was already counted via downloadProgress
-                        m_downloadedBytes.fetchAndAddRelaxed(-excess);
+                        // ── 字节修正（2026-08-05）──
+                        // downloadProgress 已按线程范围封顶计数（49ac408）：分片后到达的
+                        // 超额数据从未计入 m_downloadedBytes，旧代码无条件扣 excess 会把
+                        // 未计入部分二次扣减 → 全局字节欠计（尾部下载中速度/进度被拉低）。
+                        // 改为只扣“已计入但超出最终范围”的部分；未计入的超额由切分出的
+                        // 新分片线程另行计数，总量自洽。
+                        const qint64 finalDone = th->downloadDone;
+                        if (counted > finalDone)
+                            m_downloadedBytes.fetchAndAddRelaxed(-(counted - finalDone));
                     }
                 }
                 // Write data

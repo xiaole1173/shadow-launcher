@@ -16,7 +16,7 @@
 
 | 想找的功能 | 看这里 |
 |---|---|
-| 2026-08-05 | **下载引擎全面对齐 主流启动器语义 + 进度/速度修复**（详见速查表下方新增「下载引擎 2026-08-05 大修」章节）：源策略（哈希混合分流废除→顺序 fallback）、速度门限（256KB/s→4MB/s 瞬时差分）、镜像不分片+限速、自适应超时、per-file 源禁用+Retried、无数据超时修复、分片阈值 1MB、山海经调度/大小降序、进度失真 4 处（总量丢失/分片进度/初始100%/超额虚高）。 |
+| 2026-08-05 | **下载引擎全面对齐 主流启动器语义 + 进度/速度修复 + 尾程加速**（详见速查表下方新增「下载引擎 2026-08-05 大修」章节）：源策略（哈希混合分流废除→顺序 fallback）、速度门限（256KB/s→4MB/s 瞬时差分）、镜像不分片+限速、自适应超时、per-file 源禁用+Retried、无数据超时修复、分片阈值 1MB、山海经调度/大小降序、进度失真 4 处（总量丢失/分片进度/初始100%/超额虚高）、**尾程慢速分片看门狗**（慢分片一分为二并跑）、**分片截断字节二次扣减修正**。 |
 | 主程序入口 / 启动流程 | `src/main_release.cpp`（发布）、`src/main.cpp`（开发变体） |
 | QML 主界面唯一入口对象 `backend` | `src/backend/shadow_backend.{h,cpp}` |
 | 版本列表/安装/删除/校验/修复/隔离 | `src/backend/version_backend.{h,cpp}` |
@@ -90,6 +90,16 @@
 - PhaseCooldown 误触发（小文件间隙速度归零 → 并发砍半 → 90% 后暴跌）：冷却条件收紧 pending>4
 - 任务大小降序（startDownload/appendTasks）：大文件先下（87 个 >1MB，最大 the_end.ogg 11MB），消除收尾停摆
 - 超时加 15s 下限（主流启动器 max(avg,15s)）
+
+### 尾程加速：慢速分片看门狗（2026-08-05 追加）
+- **背景**：大文件收尾只剩 1-2 个分片在跑，碰上慢边缘连接（实测 fastutil 尾部 195KB 以 16KB/s 爬 12s，前 12s 还整体无数据超时）→ 整批下载最后一步龟速。分片只在剩余 ≥256KB 时切分（主流启动器 FilePieceLimit），尾部小分片即使龟速也永不重分。
+- **实现（file_downloader.{h,cpp}）**：
+  1. managerTick 每 500ms 扫描活动分片（state=2），滚动基线算瞬时 bps，持续 2s <128KB/s → `trySplitSlowThread` 将剩余范围中点一分为二并开新连接并跑；
+  2. **切分后中止老连接**（关键）：老请求还在按旧 range 龟速流，不中止则分片白切（老线程要等整条旧响应流完才截断）。worker 侧 500ms 轮询 QTimer 消费主线程置的 `watchdogAbort` 原子标志，自己 abort 自己的 reply（线程安全），重试时以缩小后的范围换新连接（有机会命中快边缘）；
+  3. **中止不算失败**：不走 FailCount 累计，且跳过“快速失败守卫”（attempt≥2 且 <5.5s 即 break，否则看门狗中止会把重试链掐断）；每线程中止预算 2 次（kMaxWatchdogAborts，防 attempt 耗尽）；
+  4. 约束：并发上限 maxThreads（MC 64/模组 12）；镜像源不分片；剩余 <32KB 不再切；老分片响应超范围数据由既有截断逻辑裁剪。
+- **配套字节修正**：分片中段被切分后 downloadProgress 已按范围封顶计数，但完成时旧代码无条件扣 excess → 超额部分二次扣减 → m_downloadedBytes 欠计（尾部速度/进度显示被拉低）；改为只扣“已计入但超出最终范围”的部分（`counted - finalDone`），未计入超额由新分片另行计数，总量自洽。
+- **本地实测**（FDTest + 自建慢边缘服务器 _slow_tail_server.py：尾部 30% range 16KB/s，其余 2MB/s）：2.5MB 文件 18.3s → 10.4s（MC 模式 64 线程）/ 10.3s（modpack 24 线程），SHA1 校验一致；**迭代教训**：①QList append 扩容使引用/迭代器失效崩溃 → 下标遍历+原始指针；②轮询定时器曾误装进最终兜底块（无 sha1 时永不执行）→ 主请求循环；③看门狗中止触发快速失败守卫 break → prevWatchdogAbort 绕过。
 
 ### 双引擎架构（保留）
 - 支持库 >1MB → 夸父（分片加速）；≤1MB → 山海经（独立并发）；阶段 B assets 追加到山海经（appendTasks）
@@ -324,6 +334,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 尾程加速：慢速分片看门狗（<128KB/s 持续 2s → 剩余范围一分为二并跑）+ 分片截断字节二次扣减修正（file_downloader.{h,cpp}） |
 | 2026-08-04 | 新增数据包（Data Pack）Tab：双源池子（Modrinth project_type:datapack + CF classId=6945）、DataPackDetailPage、FilterCard datapack 行（来源/类别/排序）；随后全 Tab 加来源筛选（sourceFilter → 五池 source 参数）；CF sortField 参数化；数据包池权重 2.5→1.0。 |
 | 2026-08-04 | 修 StatsPage 黑屏：Popup 残留 ToolTip 专属属性（text/delay/timeout）导致 QML 报错 delegate 创建失败；改自定义 tipText 属性 + parent 挂 root + mapToItem 坐标换算。 |
 | 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |

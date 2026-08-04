@@ -45,6 +45,13 @@ struct DownloadThread {
     bool retried = false;   // 分片失败已重试（模组专项：丢弃失败分片重下）
     bool isFullFile = false;  // 服务器返回全文件（忽略 Range）→ 整文件数据，合并优先用
 
+    // ── 尾程慢速检测（2026-08-05）──
+    qint64 slowBaseMs = 0;       // 慢速观测基线（getElapsedMs 时间戳）
+    qint64 slowBaseBytes = 0;    // 慢速观测基线字节
+    int    slowStreak = 0;       // 连续慢速采样计数（≥ kSlowStreakLimit → 切分）
+    QAtomicInt watchdogAbort{0}; // 主线程请求中止当前连接（worker 轮询消费后清零）
+    int    watchdogAbortCount = 0; // 已中止次数（预算，主线程锁内读写）
+
     qint64 downloadUndone() const { return downloadEnd - downloadStart - downloadDone; }
 };
 
@@ -207,6 +214,9 @@ private:
     // ── Worker management ──
     std::shared_ptr<DownloadThread> tryStartFirstThread(std::shared_ptr<FileDownload> file);
     std::shared_ptr<DownloadThread> tryAddThread(std::shared_ptr<FileDownload> file);
+    /// 尾程加速：慢速分片一分为二，新开连接并跑（老分片保留进度）
+    std::shared_ptr<DownloadThread> trySplitSlowThread(std::shared_ptr<FileDownload> file,
+                                                       std::shared_ptr<DownloadThread> th);
     void launchWorker(std::shared_ptr<DownloadThread> th, std::shared_ptr<FileDownload> file);
     void runWorker(std::shared_ptr<DownloadThread> th, std::shared_ptr<FileDownload> file);
     bool mergeFile(std::shared_ptr<FileDownload> file);
@@ -236,6 +246,12 @@ private:
     static constexpr int kSpeedTickMs = 100;           // 速度采样节拍
     static constexpr int kMaxChunkAttempts = 5;        // 分片最大尝试次数（含首试）
     static constexpr int kRetryBackoffMs = 500;        // 分片重试退避
+    // ── 尾程慢速切分（2026-08-05）──
+    static constexpr qint64 kSlowScanMs = 500;             // 慢速扫描节拍
+    static constexpr int    kSlowStreakLimit = 4;          // 连续 4 次（≈2s）确认慢速
+    static constexpr qint64 kSlowSegBps = 128 * 1024;      // 单分片 <128KB/s 视为慢速
+    static constexpr int    kMaxWatchdogAborts = 2;        // 每线程看门狗中止预算（防 attempt 耗尽）
+    static constexpr qint64 kMinSplitPieceBytes = 32 * 1024; // 尾程切分最小粒度（32KB）
     static constexpr int kFirstAttemptTimeoutMs = 60000; // 分片首试超时
     static constexpr int kChunkTimeoutMs = 30000;      // 分片重试超时
     static constexpr int kProgressEmitThrottleMs = 150;  // 进度发射节流
@@ -245,6 +261,7 @@ private:
     QTimer* m_speedTimer2 = nullptr;
     void managerTick();
     void speedTick();
+    qint64 m_lastSlowScanMs = 0;   // 尾程慢速扫描上次执行时间
 
     static QString formatSize(qint64 bytes);
     static qint64 getElapsedMs();
