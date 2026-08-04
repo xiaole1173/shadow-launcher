@@ -21,6 +21,7 @@
 #include <QEventLoop>
 #include <QNetworkRequest>
 #include <QDate>
+#include <QPointer>
 #include <QUrl>
 #include <QDesktopServices>
 #include <QCoreApplication>
@@ -853,8 +854,14 @@ void LaunchBackend::handleLaunchStarted(Launcher* launcher)
     emit minecraftStarted();
 
     // After 3s, check if process still alive
-    QTimer::singleShot(3000, this, [this, launcher]() {
+    // BUGFIX(2026-08-04): 用 QPointer 捕获——游戏失败时 handleLaunchFinished 会
+    // deleteLater launcher，3 秒后 lambda 裸指针访问已销毁对象 → Qt6Core 崩溃
+    // （movzx [d_ptr+0x304] = isSignalConnected 空指针，崩溃偏移 0x297bb4 稳定复现）
+    const QPointer<Launcher> weakLauncher(launcher);
+    QTimer::singleShot(3000, this, [this, weakLauncher]() {
         if (m_cancelled) return;  // Guard: cancel may have fired
+        Launcher* launcher = weakLauncher.data();
+        if (!launcher) return;    // launcher 已销毁（启动失败被清理），跳过
         if (!launcher->isRunning()) {
             emit launchProgressChanged(0, tr("游戏进程意外退出"));
             emit launchCheckFailed(tr("进程存活"), tr("游戏进程在窗口出现前退出"));
