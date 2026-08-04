@@ -1,0 +1,9 @@
+启动 Overlay 修复：离线登录不显示玩家名 + 标注登录方式
+
+1. 根因：launch() 里 username 一律取 m_account->username()（微软正版账号名），
+   离线登录时为空，导致 Overlay 不显示玩家名。
+   修复：按登录方式严格分离（用户要求，不能相互回退）
+   - 0 正版：m_account->username()
+   - 1 离线：m_account->offlineUsername()（offlineLogin 强制非空，与正版完全隔离）
+   - 2 外置：ygg->username()
+2. LaunchOverlay 玩家行加登录方式标注（正版/离线/外置登录，放在用户名前）

@@ -2006,13 +2006,19 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     }
 
     // 外置登录模式：从 yggdrasil backend 获取用户名和 token
+    // 三种登录方式严格分离（用户要求）：0=正版(微软账号)、1=离线(离线名)、2=外置(ygg)
     QString username;
     auto *ygg = static_cast<YggdrasilBackend*>(m_yggdrasil);
     if (m_lastLoginMode == 2 && ygg && ygg->loggedIn()) {
         username = ygg->username();
         // 通知 launch backend 使用外置登录
         m_launch->setYggdrasilMode(ygg->apiRoot(), ygg->accessToken());
+    } else if (m_lastLoginMode == 1) {
+        // 离线登录：用离线用户名（m_account->username() 是微软正版账号名，离线时为空）
+        username = m_account->offlineUsername();
+        m_launch->clearYggdrasilMode();
     } else {
+        // 正版登录：微软账号用户名
         username = m_account->username();
         m_launch->clearYggdrasilMode();
     }

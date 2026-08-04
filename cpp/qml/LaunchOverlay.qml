@@ -204,7 +204,12 @@ Rectangle {
 
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: username ? ("玩家: " + username + "  |  内存: " + memory + " MB") : ""
+            // 登录方式标注（0=正版 1=离线 2=外置，与 HomePage 一致）
+            text: {
+                var mode = (backend && backend.lastLoginMode !== undefined) ? backend.lastLoginMode : 0
+                var modeLabel = mode === 1 ? "离线" : (mode === 2 ? "外置登录" : "正版")
+                return username ? (modeLabel + "  |  玩家: " + username + "  |  内存: " + memory + " MB") : ""
+            }
             color: "#606478"
             font.pixelSize: StyleTokens.fontSizeSm
             visible: !checkFailed
