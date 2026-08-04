@@ -228,6 +228,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // ── Signal forwarding: SettingsBackend → ShadowBackend ──
     connect(m_settings, &SettingsBackend::javaPathChanged,
             this, &ShadowBackend::javaPathChanged);
+    connect(m_settings, &SettingsBackend::javaScanFinished,
+            this, &ShadowBackend::javaScanFinished);
     connect(m_settings, &SettingsBackend::memorySettingsChanged,
             this, &ShadowBackend::memorySettingsChanged);
     connect(m_settings, &SettingsBackend::generalSettingsChanged,

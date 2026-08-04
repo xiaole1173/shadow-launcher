@@ -584,6 +584,8 @@ signals:
     void offlineSkinReady();
     void offlineHistoryChanged();
     void javaPathChanged();
+    /// Java 扫描完整结束（设置-Java 刷新按钮 toast）
+    void javaScanFinished();
     void javaReadyChanged();
     void memorySettingsChanged();
     void jvmArgsChanged();

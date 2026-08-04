@@ -287,22 +287,23 @@ QVariantList SettingsBackend::scanJavaInstallations()
             m_javaCacheValid = true;
             m_javaScanning = false;
 
-            // 注意：javaPathChanged 每次扫描只 emit 一次，避免 QML 双重刷新/重复 toast。
-            //   - 需要自动选中时：autoSelectJava() 内部会 emit（选中变化通知）
-            //   - 否则：手动 emit 一次（列表更新通知）
+            // 列表已更新：通知属性绑定刷新（javaPath/javaVersion 等）
+            emit javaPathChanged();
+
             if (!results.isEmpty()) {
                 emit logMessage(tr("找到 %1 个 Java 安装，最新: Java %2 (优先 Java 21)")
                                     .arg(results.size())
                                     .arg(results.first().major));
                 if (!m_javaReady || !QFileInfo::exists(m_javaPath)) {
-                    autoSelectJava();  // 内部 emit javaPathChanged（选中变化）
-                } else {
-                    emit javaPathChanged();  // 列表已更新，无需重选
+                    // 自动选中（内部会再 emit javaPathChanged 表示选中变化，属正常）
+                    autoSelectJava();
                 }
             } else {
                 emit logMessage(tr("[警告] 未在系统中找到 Java 安装"));
-                emit javaPathChanged();  // 空结果也要通知 QML 刷新（显示"未检测到"）
             }
+
+            // 扫描完整结束：专用信号（QML 弹 toast 只用它，避免开始/完成/选中多重通知）
+            emit javaScanFinished();
         }, Qt::QueuedConnection);
     }).detach();
 

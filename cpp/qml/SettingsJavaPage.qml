@@ -75,10 +75,13 @@ Item {
 
     Connections {
         target: backend
-        // 异步扫描完成后刷新列表
-        // （scanJavaInstallations 完成回调已保证每次扫描只 emit 一次 javaPathChanged）
+        // javaPathChanged：列表/选中变化（扫描开始时也会 emit 用于 loading 提示）
+        // → 只同步列表，不弹 toast
         function onJavaPathChanged() {
             root.refreshAll()
+        }
+        // javaScanFinished：一次扫描完整结束 → 弹 toast（避免开始/完成/选中多重通知重复弹）
+        function onJavaScanFinished() {
             var count = root._javaList.length
             if (toastManager) {
                 var msg = count > 0
@@ -197,8 +200,8 @@ Item {
                                 if (!backend) return
                                 if (toastManager) toastManager.show(qsTr("正在扫描 Java 环境..."))
                                 backend.scanJavaInstallations()
-                                // 结果异步返回：scanJavaInstallations 完成后 emit
-                                // javaPathChanged → onJavaPathChanged 刷新列表 + Toast
+                                // 结果异步返回：完成后 emit javaScanFinished
+                                // → onJavaScanFinished 刷新列表 + Toast（只弹一次）
                             }
                         }
                     }

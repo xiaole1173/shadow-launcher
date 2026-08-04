@@ -162,6 +162,8 @@ public:
 
 signals:
     void javaPathChanged();
+    /// 一次 Java 扫描完整结束（刷新按钮/自动检测完成后弹 toast）
+    void javaScanFinished();
     void javaReadyChanged();
     void memorySettingsChanged();
     void generalSettingsChanged();
