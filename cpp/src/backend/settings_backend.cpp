@@ -819,6 +819,21 @@ QVector<SettingsBackend::JavaInfo> SettingsBackend::findAllJava()
         }
     }
 
+    // 2.5 启动器自带 java_cache（一键安装的便携 Java，用户应可在设置-Java 选用）
+    {
+        const QString cacheRoot = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache");
+        QDir cacheDir(cacheRoot);
+        if (cacheDir.exists()) {
+            for (const QString& sub : cacheDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+                bool ok = false;
+                sub.toInt(&ok);
+                if (!ok) continue;
+                const QString exe = cacheRoot + QStringLiteral("/") + sub + QStringLiteral("/bin/java.exe");
+                if (QFile::exists(exe)) add(exe);
+            }
+        }
+    }
+
     // 3. Scan common directories (recursive, up to 6 levels, parallel)
     {
         // Collect all valid root directories (expand env vars)

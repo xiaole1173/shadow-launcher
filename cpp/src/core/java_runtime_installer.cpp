@@ -75,8 +75,10 @@ void JavaRuntimeInstaller::cleanupStaleCache()
         if (!ok) continue;  // 只处理数字版本目录
         const QString exe = cacheRoot + QStringLiteral("/") + d + QStringLiteral("/bin/java.exe");
         if (QFile::exists(exe)) {
+            // 完整校验：版本匹配 + 核心文件齐全（防"-version 能跑但 lib 缺失"的残缺）
             const int major = verifyJavaMajor(exe);
-            if (major == d.toInt()) continue;  // 有效缓存，保留
+            if (major == d.toInt() && isJavaComplete(exe))
+                continue;  // 有效缓存，保留
         }
         // 目录存在但 java.exe 缺失或校验失败 → 半解压残留
         QDir sub(cacheRoot + QStringLiteral("/") + d);
@@ -240,8 +242,10 @@ void JavaRuntimeInstaller::installNext(int idx)
         return;
     }
 
-    // 启动器自身缓存已有（版本校验通过）→ 跳过
-    if (QFile::exists(cacheExe) && verifyJavaMajor(cacheExe) == item.major) {
+    // 启动器自身缓存已有（版本 + 完整性校验通过）→ 跳过
+    if (QFile::exists(cacheExe)
+        && verifyJavaMajor(cacheExe) == item.major
+        && isJavaComplete(cacheExe)) {
         qCInfo(logJava) << QStringLiteral("[Java安装] %1 已存在于缓存，跳过").arg(item.label);
         m_statusText = tr("%1 已在启动器缓存中，跳过").arg(item.label);
         emit progressChanged();
@@ -351,6 +355,14 @@ QVariantList JavaRuntimeInstaller::scanSystemJavas()
             if (major == 1 && parts.size() > 1)
                 major = parts[1].toInt();  // 1.8.0 → 8
             if (major <= 0) return;
+
+            // 完整性校验：-version 能跑 ≠ 完整（bin 解压了但 lib/modules 缺失时
+            // 照样能输出版本号，但实际无法运行）。残缺 Java 不列入检测列表，
+            // 视为缺失 → 会重新安装。
+            if (!isJavaComplete(exePath)) {
+                qCInfo(logJava) << QStringLiteral("[Java安装] 检测到残缺 Java（忽略）: %1").arg(exePath);
+                return;
+            }
 
             // JDK 判定：同目录存在 javac.exe
             const bool isJdk = QFile::exists(QDir(fi.absolutePath()).filePath(QStringLiteral("javac.exe")));
@@ -570,14 +582,16 @@ void JavaRuntimeInstaller::installJavaAsync(int majorVersion, const QString& typ
         + QStringLiteral("/java_cache/.tmp-jdk-%1.zip").arg(majorVersion);
     m_job.onDone = std::move(onDone);
 
-    // 已存在（完整校验通过）→ 直接完成
-    if (QFile::exists(m_job.javaExe) && verifyJavaMajor(m_job.javaExe) == m_job.major) {
+    // 已存在（完整校验通过：版本正确 + 核心文件齐全）→ 直接完成
+    if (QFile::exists(m_job.javaExe)
+        && verifyJavaMajor(m_job.javaExe) == m_job.major
+        && isJavaComplete(m_job.javaExe)) {
         finishJob(m_job.javaExe);
         return;
     }
-    // 存在但校验失败/残缺（上次解压中断残留）→ 删除重装
+    // 存在但残缺/版本不符（上次解压中断残留：bin 解压了但 lib/modules 缺失）→ 删除重装
     if (QFile::exists(m_job.javaExe)) {
-        qCWarning(logJava) << QStringLiteral("[Java安装] %1 缓存残缺（校验失败），删除重装")
+        qCWarning(logJava) << QStringLiteral("[Java安装] %1 缓存残缺（版本校验或完整性校验失败），删除重装")
                                   .arg(m_job.major);
         QDir(m_job.javaDir).removeRecursively();
     }
@@ -591,9 +605,16 @@ void JavaRuntimeInstaller::installJavaAsync(int majorVersion, const QString& typ
         failJob(tr("Java %1 下载被其他进程锁定").arg(majorVersion));
         return;
     }
-    if (QFile::exists(m_job.javaExe)) {
+    // 锁后复查：其他进程可能已装好（完整校验）
+    if (QFile::exists(m_job.javaExe)
+        && verifyJavaMajor(m_job.javaExe) == m_job.major
+        && isJavaComplete(m_job.javaExe)) {
         finishJob(m_job.javaExe);
         return;
+    }
+    if (QFile::exists(m_job.javaExe)) {
+        // 残缺（其他进程下载中断）→ 清理后继续自己装
+        QDir(m_job.javaDir).removeRecursively();
     }
 
     stepFetchZipList();
@@ -751,6 +772,11 @@ void JavaRuntimeInstaller::stepExtractZip()
         failJob(tr("Java %1 版本校验失败（实际 %2）").arg(m_job.major).arg(realMajor));
         return;
     }
+    // 完整性校验：核心文件必须齐全（lib/modules、jvm.dll 等）
+    if (!isJavaComplete(exe)) {
+        failJob(tr("Java %1 解压不完整（缺少核心文件），请重试").arg(m_job.major));
+        return;
+    }
 
     qCInfo(logJava) << QStringLiteral("[Java安装] Java %1 已就绪: %2").arg(m_job.major).arg(exe);
     finishJob(exe);
@@ -819,6 +845,44 @@ int JavaRuntimeInstaller::verifyJavaMajor(const QString& javaExe)
     if (major == 1 && parts.size() > 1)
         major = parts[1].toInt();  // 1.8.0 → 8
     return major;
+}
+
+/// 校验 Java 安装是否完整（-version 能跑 ≠ 完整：bin 解压了但 lib 缺失时
+/// -version 照样能输出版本号，但实际启动游戏/安装器会失败）。
+/// 检查运行必需的核心文件：
+///   - Java 9+：lib/modules（模块镜像，缺失则 JVM 无法加载任何类）
+///   - Java 8：lib/rt.jar（核心运行时库）
+///   - 通用：bin/server/jvm.dll（JVM 本体）、release（版本标识）
+bool JavaRuntimeInstaller::isJavaComplete(const QString& javaExe)
+{
+    const QString binDir = QFileInfo(javaExe).absolutePath();  // .../bin
+    const QString base = QDir(binDir).absolutePath();           // .../bin
+    // 根目录 = bin 的上一级（{root}/bin/java.exe → {root}）
+    QDir baseDir(base);
+    const QString root = baseDir.filePath(QStringLiteral(".."));
+
+    // 1. JVM 本体 DLL（Windows）
+#ifdef Q_OS_WIN
+    const QString jvmDll = binDir + QStringLiteral("/server/jvm.dll");
+    if (!QFile::exists(jvmDll))
+        return false;
+#endif
+
+    // 2. release 文件（所有 Java 8+ 都有）
+    if (!QFile::exists(root + QStringLiteral("/release")))
+        return false;
+
+    // 3. 模块镜像 / 核心运行时库（区分 Java 8 与 9+）
+    const int major = verifyJavaMajor(javaExe);
+    if (major <= 0)
+        return false;
+    if (major >= 9) {
+        // Java 9+：lib/modules 是模块镜像，缺失则 JVM 无法加载任何类
+        return QFile::exists(root + QStringLiteral("/lib/modules"));
+    }
+    // Java 8：rt.jar 在 {root}/lib/rt.jar 或 {root}/jre/lib/rt.jar
+    return QFile::exists(root + QStringLiteral("/lib/rt.jar"))
+        || QFile::exists(root + QStringLiteral("/jre/lib/rt.jar"));
 }
 
 QString JavaRuntimeInstaller::findJavaExeRecursive(const QString& dir)

@@ -72,6 +72,11 @@ public:
     /// major: 目标主版本；targetIsJdk: 目标是否 JDK
     /// 规则：已有同 major 任意类型（JRE/JDK 均可）→ 不需要（JRE 已满足运行场景）
     bool isRequired(int major, bool targetIsJdk) const;
+
+    /// 校验 java.exe 真实主版本号（java -version 解析）
+    static int verifyJavaMajor(const QString& javaExe);
+    /// 校验 Java 安装是否完整（-version 能跑 ≠ 完整：检查 lib/modules、rt.jar、jvm.dll、release）
+    static bool isJavaComplete(const QString& javaExe);
     /// 已检测到的同 major Java 的显示名（"Java 17 (JDK)"）
     QString existingJavaLabel(int major) const;
     /// 已检测到的同 major Java 的路径
@@ -96,8 +101,6 @@ signals:
     void systemJavaScanFinished();
 
 private:
-    /// 校验 java.exe 真实主版本号（java -version 解析）
-    static int verifyJavaMajor(const QString& javaExe);
     /// 递归查找 bin/java.exe（非标准 ZIP 布局兜底）
     static QString findJavaExeRecursive(const QString& dir);
 
