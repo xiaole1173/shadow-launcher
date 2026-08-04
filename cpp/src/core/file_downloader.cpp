@@ -95,7 +95,8 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                                         .arg(localName));
                     qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                            .arg(localName);
-                    emit fileProgress(localPath, localName, fi.size(), fi.size(), localPath);
+                    // 不发 fileProgress：缓存命中不是网络下载，不应驱动上层 catBytesDl
+                    // （否则缓存全命中时 catBytesDl 立即满 → 卡片提前绿色完成态）
                     emit fileFinished(localPath, true);
                     return;
                 }
@@ -125,7 +126,7 @@ void FileDownloader::addFile(const QString& localPath, const QString& localName,
                                                 .arg(localName));
                             qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1，直接复用本地文件，跳过网络请求")
                                                    .arg(localName);
-                            emit fileProgress(localPath, localName, ffi.size(), ffi.size(), localPath);
+                            // 不发 fileProgress（同工作目录缓存命中）：避免驱动上层 catBytesDl 提前满
                             emit fileFinished(localPath, true);
                             return;
                         } else {
