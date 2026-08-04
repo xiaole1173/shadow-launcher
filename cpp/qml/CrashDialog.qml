@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 // ═══════════════════════════════════════════════════════════
 // CrashDialog — 崩溃分析弹窗（v2 完整版）
@@ -52,12 +53,17 @@ Popup {
     }
 
     onCrashDataChanged: {
+        // 无论 isValid 与否都退出分析态（无效结果也显示“未找到崩溃报告”），
+        // 否则重新分析/无日志场景会永远卡在加载圈。
+        analyzing = false
         if (crashData && crashData.isValid) {
-            analyzing = false
             console.log("[crash] dialog result type=", crashData.type,
                         "reason=", crashData.reason,
                         "suggestions=", (crashData.suggestions || []).length,
                         "reportTooLong=", crashData.reportTooLong)
+            open()
+        } else {
+            console.log("[crash] dialog result invalid (no crash report/log found)")
             open()
         }
     }
@@ -137,18 +143,11 @@ Popup {
 
             Item { Layout.fillWidth: true }
 
-            // 关闭按钮
-            Rectangle {
-                width: 24; height: 24; radius: StyleTokens.radiusMd
-                color: closeBtnHov.hovered ? StyleTokens.bgHover : "transparent"
-                Text {
-                    anchors.centerIn: parent; text: "✕"
-                    color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd
-                }
-                MouseArea {
-                    id: closeBtnHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: dialog.close()
-                }
+            // 关闭按钮（复用通用图标按钮组件）
+            ShadowIconButton {
+                icon: "\u2715"
+                type: "close"
+                onClicked: dialog.close()
             }
         }
 
@@ -171,13 +170,15 @@ Popup {
             }
 
             Text {
-                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
                 text: "正在收集并分析崩溃日志…"
                 font.pixelSize: StyleTokens.fontSizeMd
                 color: StyleTokens.textSecondary
             }
             Text {
-                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
                 text: "将扫描崩溃报告、游戏日志与启动器日志，识别崩溃原因与相关模组"
                 font.pixelSize: StyleTokens.fontSizeXs
                 color: StyleTokens.textSubtle
@@ -407,10 +408,7 @@ Popup {
                 accentColor: StyleTokens.accentLink
                 Layout.preferredWidth: 110; Layout.preferredHeight: 32
                 onClicked: {
-                    if (backend) {
-                        var dir = backend.exportCrashLogs("")
-                        if (dir && toastManager) toastManager.show("日志已导出到: " + dir, 5000)
-                    }
+                    if (backend) exportDialog.open()
                 }
             }
 
@@ -437,6 +435,18 @@ Popup {
                 Layout.preferredWidth: 80; Layout.preferredHeight: 32
                 onClicked: { dialog.close() }
             }
+        }
+    }
+
+    // ── 导出日志目录选择 ──
+    FolderDialog {
+        id: exportDialog
+        title: "选择日志导出目录"
+        onAccepted: {
+            if (!backend) return
+            var dir = String(selectedFolder).replace(/^(file:\/{2,3})/i, "")
+            var result = backend.exportCrashLogs(dir)
+            if (result && toastManager) toastManager.show("日志已导出到: " + result, 5000)
         }
     }
 }
