@@ -103,6 +103,10 @@ private:
 
     /// 扫描完成后执行实际安装流程（由 scanSystemJavas 的完成回调触发）
     void runInstallAfterScan();
+    /// 安装链：处理第 idx 个版本（异步串联，状态存成员避免悬空引用）
+    void installNext(int idx);
+    /// 安装链：单个版本异步安装完成回调（含自动重试）
+    void onInstallDone(int idx, bool ok, const QString& error, const QString& exe);
     /// 启动清理：删除上次崩溃/失败残留的临时 zip 与残缺目录
     void cleanupStaleCache();
 
@@ -112,6 +116,16 @@ private:
     QSet<QString> m_seenBinDirs;
     /// 过滤已知无意义路径（System32 等）
     static bool isSpecialPath(const QString& binDir);
+
+    // ── 安装链状态（成员：异步回调触发时局部变量已销毁，必须存成员） ──
+    struct PlanItem {
+        int major = 0;
+        QString type;
+        QString label;
+    };
+    QList<PlanItem> m_planItems;
+    int m_installedCount = 0;
+    int m_skippedCount = 0;
 
     QString m_cpuArch;
     bool m_running = false;

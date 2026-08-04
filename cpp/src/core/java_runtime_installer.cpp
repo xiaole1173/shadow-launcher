@@ -183,126 +183,117 @@ void JavaRuntimeInstaller::runInstallAfterScan()
         return;
     }
 
-    // 安装清单：{版本, 类型, 标签}
-    // 类型全部 JRE（2026-08-04 实测确认）：
-    //   - 游戏运行只需 JRE（MC 本身是运行时）
-    //   - Forge/NeoForge 安装器只 java -cp 跑 jar（bootstrapper/srgutils/FART），无 javac 调用
-    //   - Tuna 镜像 8/17/25 均有 JRE 构建（25/jre/x64/windows 实测存在）
-    //   - JRE 体积约为 JDK 的 1/4（省 130MB+/版本）
-    struct Item { int major; QString type; QString label; };
-    const QList<Item> items = {
+    // 安装清单：{版本, 类型, 标签}（成员 m_planItems，异步回调需要）
+    m_planItems = {
         { 8,  QStringLiteral("jre"), QStringLiteral("Java 8 (JRE)") },
         { 17, QStringLiteral("jre"), QStringLiteral("Java 17 (JRE)") },
         { 25, QStringLiteral("jre"), QStringLiteral("Java 25 (JRE)") },
     };
+    m_installedCount = 0;
+    m_skippedCount = 0;
 
     // 异步串联安装三个版本（每个版本下载/解压/验证完成后才进入下一个）
-    int installedCount = 0, skippedCount = 0;
-    std::function<void(int)> installNext = [&](int idx) {
+    installNext(0);
+}
+
+/// 安装链：处理第 idx 个版本
+void JavaRuntimeInstaller::installNext(int idx)
+{
+    if (m_cancelled) {
+        emit finished(false, tr("Java 安装已取消"));
+        m_running = false;
+        emit runningChanged();
+        return;
+    }
+    if (idx >= m_planItems.size()) {
+        m_statusText = tr("全部 Java 就绪（已安装 %1 个，跳过 %2 个）")
+                           .arg(m_installedCount).arg(m_skippedCount);
+        emit progressChanged();
+        emit finished(true, {});
+        m_running = false;
+        emit runningChanged();
+        return;
+    }
+
+    const PlanItem& item = m_planItems[idx];
+    m_currentStep = idx + 1;
+    m_retriedThisRound = false;
+    m_lastFailedMajor = item.major;
+    emit progressChanged();
+
+    const bool isJdkTarget = (item.type == QLatin1String("jdk"));
+    const QString cacheExe = QCoreApplication::applicationDirPath()
+        + QStringLiteral("/java_cache/%1/bin/java.exe").arg(item.major);
+
+    // ── 前置检测跳过逻辑 ──
+    // 规则：已有同 major 任意类型（JRE/JDK）→ 不需要重复安装。
+    // 理由（实际应用场景）：
+    //   - 游戏运行需要 JRE，JDK 是超集但运行场景不需要额外工具链
+    //   - 用户已装 Java 17 JRE → 游戏/Forge 安装器都能跑，无需再装 17 JDK
+    //   - 只有该 major 完全缺失时才按预设类型安装
+    if (!isRequired(item.major, isJdkTarget)) {
+        m_statusText = tr("已检测到 %1，跳过").arg(existingJavaLabel(item.major));
+        emit progressChanged();
+        emit javaInstalled(item.label, existingJavaPath(item.major), true);
+        m_skippedCount++;
+        installNext(idx + 1);
+        return;
+    }
+
+    // 启动器自身缓存已有（版本校验通过）→ 跳过
+    if (QFile::exists(cacheExe) && verifyJavaMajor(cacheExe) == item.major) {
+        qCInfo(logJava) << QStringLiteral("[Java安装] %1 已存在于缓存，跳过").arg(item.label);
+        m_statusText = tr("%1 已在启动器缓存中，跳过").arg(item.label);
+        emit progressChanged();
+        emit javaInstalled(item.label, cacheExe, true);
+        m_skippedCount++;
+        installNext(idx + 1);
+        return;
+    }
+
+    m_statusText = tr("正在安装 %1...").arg(item.label);
+    emit progressChanged();
+
+    installJavaAsync(item.major, item.type,
+        [this, idx](bool ok, const QString& error, const QString& exe) {
+            onInstallDone(idx, ok, error, exe);
+        });
+}
+
+/// 单个版本安装完成回调（含自动重试）
+void JavaRuntimeInstaller::onInstallDone(int idx, bool ok, const QString& error, const QString& exe)
+{
+    const PlanItem item = m_planItems[idx];  // 值拷贝（retry lambda 捕获用）
+    if (!ok) {
+        // 网络抖动自动重试一次（非取消场景）
+        if (!m_cancelled && !m_retriedThisRound) {
+            m_retriedThisRound = true;
+            m_statusText = tr("%1 安装失败，正在自动重试...").arg(item.label);
+            emit progressChanged();
+            emit logMessage(tr("%1 安装失败（%2），正在自动重试...").arg(item.label, error));
+            // 延迟 800ms 后重试（给网络/锁释放时间）
+            QTimer::singleShot(800, this, [this, idx, item]() {
+                installJavaAsync(item.major, item.type,
+                    [this, idx](bool ok2, const QString& err2, const QString& exe2) {
+                        onInstallDone(idx, ok2, err2, exe2);
+                    });
+            });
+            return;
+        }
         if (m_cancelled) {
             emit finished(false, tr("Java 安装已取消"));
-            m_running = false;
-            emit runningChanged();
-            return;
+        } else {
+            emit finished(false, error.isEmpty()
+                ? tr("%1 安装失败，请检查网络后重试").arg(item.label)
+                : tr("%1 安装失败: %2").arg(item.label, error));
         }
-        if (idx >= items.size()) {
-            m_statusText = tr("全部 Java 就绪（已安装 %1 个，跳过 %2 个）")
-                               .arg(installedCount).arg(skippedCount);
-            emit progressChanged();
-            emit finished(true, {});
-            m_running = false;
-            emit runningChanged();
-            return;
-        }
-
-        const Item& item = items[idx];
-        m_currentStep = idx + 1;
-        m_retriedThisRound = false;
-        m_lastFailedMajor = item.major;
-        emit progressChanged();
-
-        const bool isJdkTarget = (item.type == QLatin1String("jdk"));
-        const QString cacheExe = QCoreApplication::applicationDirPath()
-            + QStringLiteral("/java_cache/%1/bin/java.exe").arg(item.major);
-
-        // ── 前置检测跳过逻辑 ──
-        // 规则：已有同 major 任意类型（JRE/JDK）→ 不需要重复安装。
-        // 理由（实际应用场景）：
-        //   - 游戏运行需要 JRE，JDK 是超集但运行场景不需要额外工具链
-        //   - 用户已装 Java 17 JRE → 游戏/Forge 安装器都能跑，无需再装 17 JDK
-        //   - 只有该 major 完全缺失时才按预设类型安装
-        if (!isRequired(item.major, isJdkTarget)) {
-            m_statusText = tr("已检测到 %1，跳过").arg(existingJavaLabel(item.major));
-            emit progressChanged();
-            emit javaInstalled(item.label, existingJavaPath(item.major), true);
-            skippedCount++;
-            installNext(idx + 1);
-            return;
-        }
-
-        // 启动器自身缓存已有（版本校验通过）→ 跳过
-        if (QFile::exists(cacheExe) && verifyJavaMajor(cacheExe) == item.major) {
-            qCInfo(logJava) << QStringLiteral("[Java安装] %1 已存在于缓存，跳过").arg(item.label);
-            m_statusText = tr("%1 已在启动器缓存中，跳过").arg(item.label);
-            emit progressChanged();
-            emit javaInstalled(item.label, cacheExe, true);
-            skippedCount++;
-            installNext(idx + 1);
-            return;
-        }
-
-        m_statusText = tr("正在安装 %1...").arg(item.label);
-        emit progressChanged();
-
-        installJavaAsync(item.major, item.type,
-            [this, &installNext, &installedCount, idx, item](bool ok, const QString& error, const QString& exe) {
-                if (!ok) {
-                    // 网络抖动自动重试一次（非取消场景）
-                    if (!m_cancelled && m_lastFailedMajor == item.major && !m_retriedThisRound) {
-                        m_retriedThisRound = true;
-                        m_statusText = tr("%1 安装失败，正在自动重试...").arg(item.label);
-                        emit progressChanged();
-                        emit logMessage(tr("%1 安装失败（%2），正在自动重试...").arg(item.label, error));
-                        // 延迟 800ms 后重试（给网络/锁释放时间）
-                        QTimer::singleShot(800, this, [this, item, &installNext, &installedCount, idx]() {
-                            installJavaAsync(item.major, item.type,
-                                [this, &installNext, &installedCount, idx, item](bool ok2, const QString& err2, const QString& exe2) {
-                                    if (!ok2) {
-                                        if (m_cancelled) {
-                                            emit finished(false, tr("Java 安装已取消"));
-                                        } else {
-                                            emit finished(false, err2.isEmpty()
-                                                ? tr("%1 安装失败，请检查网络后重试").arg(item.label)
-                                                : tr("%1 安装失败: %2").arg(item.label, err2));
-                                        }
-                                        m_running = false;
-                                        emit runningChanged();
-                                        return;
-                                    }
-                                    emit javaInstalled(item.label, exe2, false);
-                                    installedCount++;
-                                    installNext(idx + 1);
-                                });
-                        });
-                        return;
-                    }
-                    if (m_cancelled) {
-                        emit finished(false, tr("Java 安装已取消"));
-                    } else {
-                        emit finished(false, error.isEmpty()
-                            ? tr("%1 安装失败，请检查网络后重试").arg(item.label)
-                            : tr("%1 安装失败: %2").arg(item.label, error));
-                    }
-                    m_running = false;
-                    emit runningChanged();
-                    return;
-                }
-                emit javaInstalled(item.label, exe, false);
-                installedCount++;
-                installNext(idx + 1);
-            });
-    };
-    installNext(0);
+        m_running = false;
+        emit runningChanged();
+        return;
+    }
+    emit javaInstalled(item.label, exe, false);
+    m_installedCount++;
+    installNext(idx + 1);
 }
 
 void JavaRuntimeInstaller::cancelInstall()
