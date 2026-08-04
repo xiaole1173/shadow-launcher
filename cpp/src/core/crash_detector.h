@@ -80,13 +80,14 @@ public:
                              const QString& launcherLogPath = {});
 
     /// Export all relevant logs (crash reports, hs_err, latest.log, debug.log,
-    /// launcher log, JVM process output, analysis report) into a zip.
+    /// launcher log, JVM process output (full + recent), analysis report) into a zip.
     /// Returns the zip path, or "" on failure.
     QString exportLogs(const QString& gameDir,
                        const QString& exportZipPath,
                        const QString& launcherLogPath = {},
-                       const QStringList& jvmOutput = {},
-                       const QString& reportFilePath = {});
+                       const QStringList& recentJvmOutput = {},
+                       const QString& reportFilePath = {},
+                       const QString& fullJvmLogPath = {});
 
     /// Write a full analysis report document (markdown) to reportFilePath.
     /// Returns true on success.

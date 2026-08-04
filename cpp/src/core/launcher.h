@@ -7,6 +7,7 @@
 #include <QString>
 #include <QTimer>
 #include <QJsonObject>
+#include <QFile>
 
 namespace ShadowLauncher {
 
@@ -49,6 +50,8 @@ public:
 
     /// Last N lines of raw process output (for crash analysis).
     QStringList recentOutput(int maxLines = 300) const;
+    /// Path of the full JVM output log (all stdout+stderr lines, overwritten per launch).
+    QString jvmFullLogPath() const { return m_jvmFullLogPath; }
 
     void setAuthInfo(const QString& username, const QString& uuid, const QString& accessToken, bool isOnline) {
         m_authName = username;
@@ -98,6 +101,8 @@ private:
     bool m_cancelling = false;
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
     QStringList m_outputRing;  // ring buffer of raw stdout/stderr lines (for crash analysis)
+    QString m_jvmFullLogPath;  // full JVM output log path ("" if not opened)
+    QFile m_jvmFullLog;        // full JVM output log file handle
     QString m_detectedRegion;
     QString m_versionGameDir;
     int m_javaMajorVersion = 0;  // Cache: Java major version of the JVM used for this launch

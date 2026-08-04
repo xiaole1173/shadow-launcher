@@ -971,6 +971,7 @@ void LaunchBackend::handleLaunchFinished(Launcher* launcher, bool success, const
         // 1) Immediately notify QML (toast: "启动失败，正在分析日志信息…")
         // 2) Run analysis off the UI thread via singleShot
         m_pendingOutput = launcher->recentOutput(300);
+        m_jvmFullLogPath = launcher->jvmFullLogPath();
         m_launcherLogPath = QCoreApplication::applicationDirPath()
                             + QStringLiteral("/logs/shadow_launcher_")
                             + QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))
@@ -1501,10 +1502,9 @@ QString LaunchBackend::exportCrashLogs(const QString& destDir)
     }
 
     CrashDetector detector;
-    // 打包 JVM 输出 + 诊断报告 + 崩溃报告/日志（用户反馈：最核心的 JVM 输出
-    // 和诊断结果必须包含在导出 zip 里）
+    // 打包 JVM 全量输出 + 最近截取 + 诊断报告 + 崩溃报告/日志
     QString result = detector.exportLogs(m_gameDir, zipPath, m_launcherLogPath,
-                                         m_pendingOutput, m_crashReportPath);
+                                         m_pendingOutput, m_crashReportPath, m_jvmFullLogPath);
     if (!result.isEmpty()) {
         qCInfo(logLaunch) << "[崩溃分析] 日志已导出:" << result;
         emit logMessage(tr("日志已导出到: %1").arg(result));
@@ -1556,9 +1556,16 @@ void LaunchBackend::cleanupCrashArtifacts()
     if (removed > 0)
         qCInfo(logLaunch) << "[崩溃分析] 已清理分析产物 目录=" << base << "清理项=" << removed;
 
+    // 全量 JVM 输出日志（启动器生成，每次启动覆盖）也一并清理
+    if (!m_jvmFullLogPath.isEmpty() && QFile::exists(m_jvmFullLogPath)) {
+        QFile::remove(m_jvmFullLogPath);
+        qCInfo(logLaunch) << "[崩溃分析] 已清理全量 JVM 输出日志:" << m_jvmFullLogPath;
+    }
+
     // 重置内部状态，避免下次导出引用已删除的报告
     m_crashReportPath.clear();
     m_pendingOutput.clear();
+    m_jvmFullLogPath.clear();
 }
 
 } // namespace ShadowLauncher

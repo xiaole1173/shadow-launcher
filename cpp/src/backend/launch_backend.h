@@ -160,6 +160,7 @@ private:
     QStringList m_pendingOutput;   // last output of the crashed game
     QString m_launcherLogPath;     // path of the launcher's own log file
     QString m_crashReportPath;     // path of last analysis report (for export)
+    QString m_jvmFullLogPath;      // full JVM output log (all stdout+stderr, per launch)
     bool m_crashAnalysisRunning = false;
 };
 

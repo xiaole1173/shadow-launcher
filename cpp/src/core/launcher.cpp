@@ -184,6 +184,17 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     m_currentVersionId = versionId;
     m_cancelling = false;
 
+    // ── 全量 JVM 输出日志：每次启动覆盖，stdout+stderr 全量落盘 ──
+    // 崩溃分析导出时同时产出两份：jvm-output.txt（全量）+ jvm-output-recent.txt（截取）
+    m_jvmFullLog.close();
+    m_jvmFullLogPath = m_gameDir + QStringLiteral("/logs/shadow-jvm-output.log");
+    QDir().mkpath(m_gameDir + QStringLiteral("/logs"));
+    m_jvmFullLog.setFileName(m_jvmFullLogPath);
+    if (!m_jvmFullLog.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        qCWarning(logApp) << "[启动] 无法打开全量 JVM 输出日志:" << m_jvmFullLogPath;
+        m_jvmFullLogPath.clear();
+    }
+
     // Detect Java major version from the executable (used by buildArgs for --add-opens)
     {
         QProcess javap;
@@ -381,6 +392,10 @@ void Launcher::onReadyReadStdout()
         }
     }
 
+    // ── Full JVM output log (all lines, for crash-analysis export) ──
+    if (m_jvmFullLog.isOpen())
+        m_jvmFullLog.write(data);
+
     // Filter: discard routine MC INFO/Trace/DEBUG output, keep errors/crashes
     // Process line-by-line so a mixed chunk (INFO + ERROR) keeps the ERROR part
     const QStringList lines = text.split(QLatin1Char('\n'));
@@ -409,6 +424,10 @@ void Launcher::onReadyReadStderr()
         }
         emit launchProgress(text);
     }
+
+    // ── Full JVM output log (stderr too) ──
+    if (m_jvmFullLog.isOpen())
+        m_jvmFullLog.write(data);
 }
 
 QStringList Launcher::recentOutput(int maxLines) const
@@ -458,6 +477,10 @@ bool Launcher::isMcOutputNoise(const QString& line) const
 void Launcher::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     Q_UNUSED(exitStatus)
+
+    // flush 全量 JVM 输出，确保崩溃分析/导出时文件完整
+    if (m_jvmFullLog.isOpen())
+        m_jvmFullLog.flush();
 
     if (m_cancelling) {
         emit launchFinished(true, QString());

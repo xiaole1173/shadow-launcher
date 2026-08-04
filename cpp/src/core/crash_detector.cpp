@@ -764,8 +764,9 @@ CrashReport CrashDetector::analyzeCrash(const QString& gameDir,
 QString CrashDetector::exportLogs(const QString& gameDir,
                                   const QString& exportZipPath,
                                   const QString& launcherLogPath,
-                                  const QStringList& jvmOutput,
-                                  const QString& reportFilePath)
+                                  const QStringList& recentJvmOutput,
+                                  const QString& reportFilePath,
+                                  const QString& fullJvmLogPath)
 {
     if (exportZipPath.isEmpty())
         return {};
@@ -779,7 +780,9 @@ QString CrashDetector::exportLogs(const QString& gameDir,
 
     // 收集日志文件
     const QStringList logs = collectLogFiles(gameDir);
-    if (logs.isEmpty() && launcherLogPath.isEmpty() && jvmOutput.isEmpty() && reportFilePath.isEmpty()) {
+    const bool hasFullJvm = !fullJvmLogPath.isEmpty() && QFileInfo::exists(fullJvmLogPath);
+    if (logs.isEmpty() && launcherLogPath.isEmpty() && recentJvmOutput.isEmpty()
+        && reportFilePath.isEmpty() && !hasFullJvm) {
         qCWarning(logLaunch) << "[崩溃分析] 没有可导出的日志";
         return {};
     }
@@ -788,9 +791,23 @@ QString CrashDetector::exportLogs(const QString& gameDir,
     zip.setCompressionPolicy(QZipWriter::AlwaysCompress);
     int added = 0;
 
-    // 1. JVM 进程输出（最核心的诊断依据：stdout+stderr）
-    if (!jvmOutput.isEmpty()) {
-        zip.addFile(QStringLiteral("jvm-output.txt"), jvmOutput.join(QLatin1Char('\n')).toUtf8());
+    // 1a. JVM 全量输出（用户要求：全输出保留为独立文件）
+    if (hasFullJvm) {
+        QFile f(fullJvmLogPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QByteArray all = f.readAll();
+            f.close();
+            if (!all.isEmpty()) {
+                zip.addFile(QStringLiteral("jvm-output.txt"), all);
+                added++;
+            }
+        }
+    }
+
+    // 1b. JVM 最近输出截取（启动器捕获的异常相关部分，独立文件）
+    if (!recentJvmOutput.isEmpty()) {
+        zip.addFile(QStringLiteral("jvm-output-recent.txt"),
+                    recentJvmOutput.join(QLatin1Char('\n')).toUtf8());
         added++;
     }
 
