@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QCoreApplication>
 #include <QRegularExpression>
 #include <QLockFile>
 #include <QBuffer>
@@ -47,6 +48,45 @@ JavaRuntimeInstaller::JavaRuntimeInstaller(QObject* parent)
     // 前置检测完成后自动继续安装流程（installRequiredJavas 触发扫描后等待此回调）
     connect(this, &JavaRuntimeInstaller::systemJavaScanFinished,
             this, &JavaRuntimeInstaller::runInstallAfterScan);
+    cleanupStaleCache();
+}
+
+/// 启动清理：删除上次崩溃/失败残留的临时 zip 与残缺目录
+void JavaRuntimeInstaller::cleanupStaleCache()
+{
+    // 统一用 applicationDirPath（与安装缓存 javaInstallDir 一致，避免 currentPath 漂移）
+    const QString cacheRoot = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache");
+    QDir root(cacheRoot);
+    if (!root.exists()) return;
+
+    // 1. 残留临时 zip（注意 . 开头文件默认被 QDir 过滤，需 QDir::Hidden）
+    const QStringList tmpZips = root.entryList({ QStringLiteral(".tmp-jdk-*.zip") },
+                                               QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden);
+    for (const QString& f : tmpZips) {
+        QFile::remove(cacheRoot + QStringLiteral("/") + f);
+        qCInfo(logJava) << QStringLiteral("[Java安装] 清理残留临时文件: %1").arg(f);
+    }
+
+    // 2. 残缺版本目录（有 bin/java.exe 但校验失败，或目录非空但无有效 java）
+    const QStringList dirs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString& d : dirs) {
+        bool ok = false;
+        d.toInt(&ok);
+        if (!ok) continue;  // 只处理数字版本目录
+        const QString exe = cacheRoot + QStringLiteral("/") + d + QStringLiteral("/bin/java.exe");
+        if (QFile::exists(exe)) {
+            const int major = verifyJavaMajor(exe);
+            if (major == d.toInt()) continue;  // 有效缓存，保留
+        }
+        // 目录存在但 java.exe 缺失或校验失败 → 半解压残留
+        QDir sub(cacheRoot + QStringLiteral("/") + d);
+        if (sub.isEmpty()) {
+            sub.rmdir(cacheRoot + QStringLiteral("/") + d);  // 空目录
+        } else {
+            sub.removeRecursively();
+            qCInfo(logJava) << QStringLiteral("[Java安装] 清理残缺 Java 缓存目录: %1").arg(d);
+        }
+    }
 }
 
 QString JavaRuntimeInstaller::detectCpuArch()
@@ -177,10 +217,12 @@ void JavaRuntimeInstaller::runInstallAfterScan()
 
         const Item& item = items[idx];
         m_currentStep = idx + 1;
+        m_retriedThisRound = false;
+        m_lastFailedMajor = item.major;
         emit progressChanged();
 
         const bool isJdkTarget = (item.type == QLatin1String("jdk"));
-        const QString cacheExe = QDir::currentPath()
+        const QString cacheExe = QCoreApplication::applicationDirPath()
             + QStringLiteral("/java_cache/%1/bin/java.exe").arg(item.major);
 
         // ── 前置检测跳过逻辑 ──
@@ -215,6 +257,35 @@ void JavaRuntimeInstaller::runInstallAfterScan()
         installJavaAsync(item.major, item.type,
             [this, &installNext, &installedCount, idx, item](bool ok, const QString& error, const QString& exe) {
                 if (!ok) {
+                    // 网络抖动自动重试一次（非取消场景）
+                    if (!m_cancelled && m_lastFailedMajor == item.major && !m_retriedThisRound) {
+                        m_retriedThisRound = true;
+                        m_statusText = tr("%1 安装失败，正在自动重试...").arg(item.label);
+                        emit progressChanged();
+                        emit logMessage(tr("%1 安装失败（%2），正在自动重试...").arg(item.label, error));
+                        // 延迟 800ms 后重试（给网络/锁释放时间）
+                        QTimer::singleShot(800, this, [this, item, &installNext, &installedCount, idx]() {
+                            installJavaAsync(item.major, item.type,
+                                [this, &installNext, &installedCount, idx, item](bool ok2, const QString& err2, const QString& exe2) {
+                                    if (!ok2) {
+                                        if (m_cancelled) {
+                                            emit finished(false, tr("Java 安装已取消"));
+                                        } else {
+                                            emit finished(false, err2.isEmpty()
+                                                ? tr("%1 安装失败，请检查网络后重试").arg(item.label)
+                                                : tr("%1 安装失败: %2").arg(item.label, err2));
+                                        }
+                                        m_running = false;
+                                        emit runningChanged();
+                                        return;
+                                    }
+                                    emit javaInstalled(item.label, exe2, false);
+                                    installedCount++;
+                                    installNext(idx + 1);
+                                });
+                        });
+                        return;
+                    }
                     if (m_cancelled) {
                         emit finished(false, tr("Java 安装已取消"));
                     } else {
@@ -348,7 +419,7 @@ QVariantList JavaRuntimeInstaller::scanSystemJavas()
 
         // 3. 启动器自身缓存 java_cache/*/bin/java.exe
         {
-            const QString cacheRoot = QDir::currentPath() + QStringLiteral("/java_cache");
+            const QString cacheRoot = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache");
             QDir cd(cacheRoot);
             if (cd.exists()) {
                 for (const QString& sub : cd.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
@@ -501,21 +572,28 @@ void JavaRuntimeInstaller::installJavaAsync(int majorVersion, const QString& typ
     m_job = InstallJob{};
     m_job.major = majorVersion;
     m_job.type = type;
-    m_job.javaDir = QDir::currentPath() + QStringLiteral("/java_cache/%1").arg(majorVersion);
+    m_job.retryCount = 0;
+    m_job.javaDir = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache/%1").arg(majorVersion);
     m_job.javaExe = m_job.javaDir + QStringLiteral("/bin/java.exe");
-    m_job.zipPath = QDir::currentPath()
+    m_job.zipPath = QCoreApplication::applicationDirPath()
         + QStringLiteral("/java_cache/.tmp-jdk-%1.zip").arg(majorVersion);
     m_job.onDone = std::move(onDone);
 
-    // 已存在
-    if (QFile::exists(m_job.javaExe)) {
+    // 已存在（完整校验通过）→ 直接完成
+    if (QFile::exists(m_job.javaExe) && verifyJavaMajor(m_job.javaExe) == m_job.major) {
         finishJob(m_job.javaExe);
         return;
     }
+    // 存在但校验失败/残缺（上次解压中断残留）→ 删除重装
+    if (QFile::exists(m_job.javaExe)) {
+        qCWarning(logJava) << QStringLiteral("[Java安装] %1 缓存残缺（校验失败），删除重装")
+                                  .arg(m_job.major);
+        QDir(m_job.javaDir).removeRecursively();
+    }
 
     // 并发锁
-    QDir().mkpath(QDir::currentPath() + QStringLiteral("/java_cache"));
-    m_job.lock = new QLockFile(QDir::currentPath()
+    QDir().mkpath(QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache"));
+    m_job.lock = new QLockFile(QCoreApplication::applicationDirPath()
         + QStringLiteral("/java_cache/jdk-%1.lock").arg(majorVersion));
     m_job.lock->setStaleLockTime(600000);
     if (!m_job.lock->tryLock(1000)) {
@@ -694,7 +772,12 @@ void JavaRuntimeInstaller::failJob(const QString& error)
         m_job.dlHandle->abort();
         m_job.dlHandle = nullptr;
     }
+    // 清理残留：临时 zip + 半解压目录（避免下次检测到残缺 java.exe 误判"已安装"）
     QFile::remove(m_job.zipPath);
+    if (!m_job.javaDir.isEmpty()) {
+        QDir(m_job.javaDir).removeRecursively();
+        qCInfo(logJava) << QStringLiteral("[Java安装] 已清理残留目录: %1").arg(m_job.javaDir);
+    }
     if (m_job.lock) {
         m_job.lock->unlock();
         delete m_job.lock;
@@ -718,8 +801,9 @@ void JavaRuntimeInstaller::finishJob(const QString& javaExe)
         m_job.lock = nullptr;
     }
     auto cb = std::move(m_job.onDone);
+    const QString exeCopy = javaExe;  // 拷贝：m_job 即将被清空
     m_job = InstallJob{};
-    if (cb) cb(true, {}, javaExe);
+    if (cb) cb(true, {}, exeCopy);
 }
 
 // ============================================================

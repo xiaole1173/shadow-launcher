@@ -76,7 +76,7 @@
 | `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。 |
 | `settings_backend.h/.cpp` | 242 / 1167 | **设置后端**：全部设置项读写（QSettings）、下载源/线程/限速、主题、语言、游戏目录、Java 默认、JVM/游戏参数、内存自动分配、背景图、协议同意状态等。 |
 | `java_backend.h/.cpp` | 136 / 438 | **Java 后端**：扫描系统 Java、版本检测（`java -version` 解析主版本）、自动选择、指定路径管理；Tuna Adoptium 目录浏览（版本/类型/架构/OS/文件五级）；**一键安装所需 Java**（转发 JavaRuntimeInstaller：前置检测 + 8/17/25 JRE 顺序安装 + 步骤/下载进度/速度信号）。 |
-| `java_runtime_installer.h/.cpp` | 130 / 740 | **一键安装 Java 运行时**：Tuna Adoptium ZIP 下载+解压到 java_cache/{ver}/（便携式不写注册表，同 主流启动器/主流启动器）；架构检测（x64/x32/aarch64/arm，ARM64 降级 x64 模拟，实测 Temurin 17/25 无 Windows ARM64）；**版本策略 8/17/25 全部 JRE**；**完整前置检测**（后台线程递归扫描，javac.exe 判定 JDK/JRE，已有同 major 任意类型→跳过）；**异步状态机安装**（列目录→downloadWithReply 实时进度→解压剥顶层→java -version 校验，UI 不阻塞）；QLockFile 防并发 + 取消即时 abort；安装后自动被 ModLoaderInstaller::findJavaPath 发现。 |
+| `java_runtime_installer.h/.cpp` | 145 / 830 | **一键安装 Java 运行时**：Tuna Adoptium ZIP 下载+解压到 java_cache/{ver}/（便携式不写注册表，同 主流启动器/主流启动器）；架构检测（x64/x32/aarch64/arm，ARM64 降级 x64 模拟）；**版本策略 8/17/25 全部 JRE**；**完整前置检测**（后台线程递归扫描，javac.exe 判定 JDK/JRE，已有同 major 任意类型→跳过）；**异步状态机安装**（列目录→downloadWithReply 实时进度→解压剥顶层→java -version 校验）；**失败自愈**：残缺缓存检测删除重装、失败自动重试 1 次、启动清理残留（.tmp zip + 半解压目录）、failJob 清理临时文件；路径统一 applicationDirPath；安装后自动被 ModLoaderInstaller::findJavaPath 发现。 |
 | `stats_backend.h/.cpp` | 53 / 142 | **统计后端**：游戏时长统计（按版本聚合，读取启动记录）。 |
 | `userdata_backend.h/.cpp` | 99 / 503 | **用户数据后端**：用户目录数据管理（皮肤缓存、头像、可迁移数据）。 |
 | `check_backend.h/.cpp` | 38 / 442 | **启动前 P0 检查**（同步快速）：Java 架构 32/64 位、版本 client.jar 存在性、version.json 合法性、可用内存；`checkAll` 汇总。 |

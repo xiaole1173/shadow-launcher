@@ -103,6 +103,8 @@ private:
 
     /// 扫描完成后执行实际安装流程（由 scanSystemJavas 的完成回调触发）
     void runInstallAfterScan();
+    /// 启动清理：删除上次崩溃/失败残留的临时 zip 与残缺目录
+    void cleanupStaleCache();
 
     /// 已检测系统 Java 缓存: {major, version, path, isJdk}
     QVariantList m_detectedJavas;
@@ -116,6 +118,8 @@ private:
     bool m_cancelled = false;
     bool m_scanThreadRunning = false;
     bool m_waitingForScan = false;
+    bool m_retriedThisRound = false;   // 当前版本已自动重试过（每个版本仅重试 1 次）
+    int m_lastFailedMajor = 0;
     int m_currentStep = 0;
     QString m_statusText;
 
@@ -138,6 +142,7 @@ private:
         std::function<void(bool, const QString&, const QString&)> onDone;
         QLockFile* lock = nullptr;
         HttpClient::DownloadHandle* dlHandle = nullptr;
+        int retryCount = 0;   // 已重试次数（网络抖动自动重试 1 次）
     };
     InstallJob m_job;
     void stepFetchZipList();
