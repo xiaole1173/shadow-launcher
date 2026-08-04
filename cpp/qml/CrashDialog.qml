@@ -438,14 +438,16 @@ Popup {
         }
     }
 
-    // ── 导出日志位置选择（用 FileDialog 而非 FolderDialog——FolderDialog 在
-    //    Popup 上下文打开 native 对话框会崩溃 0xc0000005；FileDialog 是项目
-    //    多处验证过的模式）──
+    // ── 导出日志：保存对话框（打包为 zip）──
+    // 注：之前 FolderDialog 弹“选目录”不合逻辑——导出物是 zip，应该弹保存对话框。
+    // FileDialog 是项目多处验证过的模式（Popup 上下文 native 对话框安全）。
     FileDialog {
         id: exportDialog
-        title: "选择日志导出位置（输入文件夹名）"
+        title: "导出崩溃日志为 ZIP"
         fileMode: FileDialog.SaveFile
-        currentFile: "crash-logs"
+        nameFilters: ["ZIP 文件 (*.zip)"]
+        defaultSuffix: "zip"
+        currentFile: "crash-logs-" + (crashData.timestamp ? crashData.timestamp.toString().replace(/[^0-9]/g, "").slice(0, 12) : "export") + ".zip"
         onAccepted: {
             if (!backend) return
             // 防御式路径转换（selectedFile 可能是 QUrl 或字符串）
@@ -458,6 +460,7 @@ Popup {
             }
             if (path.indexOf("file:///") === 0) path = path.substring(8)
             if (!path) return
+            if (!/\\.zip$/i.test(path)) path += ".zip"
             var result = backend.exportCrashLogs(path)
             if (result && toastManager) toastManager.show("日志已导出到: " + result, 5000)
         }

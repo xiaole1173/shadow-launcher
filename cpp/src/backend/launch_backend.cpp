@@ -1479,16 +1479,18 @@ void LaunchBackend::analyzeCrashNow()
 
 QString LaunchBackend::exportCrashLogs(const QString& destDir)
 {
-    QString dir = destDir;
-    if (dir.isEmpty()) {
+    QString zipPath = destDir;
+    if (zipPath.isEmpty()) {
         QString base = m_gameDir + QStringLiteral("/crash-analysis");
         QDir().mkpath(base);
         QString ts = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-        dir = base + QStringLiteral("/") + ts + QStringLiteral("-export");
+        zipPath = base + QStringLiteral("/crash-logs-") + ts + QStringLiteral(".zip");
+    } else if (!zipPath.endsWith(QLatin1String(".zip"), Qt::CaseInsensitive)) {
+        zipPath += QStringLiteral(".zip");
     }
 
     CrashDetector detector;
-    QString result = detector.exportLogs(m_gameDir, dir, m_launcherLogPath);
+    QString result = detector.exportLogs(m_gameDir, zipPath, m_launcherLogPath);
     if (!result.isEmpty()) {
         qCInfo(logLaunch) << "[崩溃分析] 日志已导出:" << result;
         emit logMessage(tr("日志已导出到: %1").arg(result));

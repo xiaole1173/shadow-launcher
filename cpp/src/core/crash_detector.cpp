@@ -11,6 +11,7 @@
 #include <QSet>
 #include <QStandardPaths>
 #include <QDateTime>
+#include <private/qzipwriter_p.h>
 
 #include "../utils/logger.h"
 
@@ -760,38 +761,60 @@ CrashReport CrashDetector::analyzeCrash(const QString& gameDir,
 // ============================================================
 
 QString CrashDetector::exportLogs(const QString& gameDir,
-                                  const QString& exportDir,
+                                  const QString& exportZipPath,
                                   const QString& launcherLogPath)
 {
-    if (exportDir.isEmpty())
+    if (exportZipPath.isEmpty())
         return {};
 
-    if (!QDir().mkpath(exportDir)) {
-        qCWarning(logLaunch) << "[崩溃分析] 创建导出目录失败:" << exportDir;
+    // 确保目标目录存在（zip 文件所在目录）
+    QFileInfo zipInfo(exportZipPath);
+    if (!QDir().mkpath(zipInfo.absolutePath())) {
+        qCWarning(logLaunch) << "[崩溃分析] 创建导出目录失败:" << zipInfo.absolutePath();
         return {};
     }
 
+    // 收集日志文件
     const QStringList logs = collectLogFiles(gameDir);
-    int copied = 0;
+    if (logs.isEmpty() && launcherLogPath.isEmpty()) {
+        qCWarning(logLaunch) << "[崩溃分析] 没有可导出的日志";
+        return {};
+    }
+
+    QZipWriter zip(exportZipPath);
+    zip.setCompressionPolicy(QZipWriter::AlwaysCompress);
+    int added = 0;
+
     for (const QString& src : logs) {
-        QFileInfo si(src);
-        QString dst = exportDir + QStringLiteral("/") + si.fileName();
-        if (QFile::exists(dst))
-            dst = exportDir + QStringLiteral("/") + QFileInfo(src).completeBaseName()
-                  + QStringLiteral("-") + QString::number(copied)
-                  + QLatin1Char('.') + si.suffix();
-        if (QFile::copy(src, dst))
-            copied++;
+        QFile f(src);
+        if (!f.open(QIODevice::ReadOnly))
+            continue;
+        const QByteArray data = f.readAll();
+        f.close();
+        if (data.isEmpty())
+            continue;
+        // 顶层目录打平（仅文件名），避免路径嵌套
+        zip.addFile(QFileInfo(src).fileName(), data);
+        added++;
     }
 
     if (!launcherLogPath.isEmpty() && QFileInfo::exists(launcherLogPath)) {
-        QString dst = exportDir + QStringLiteral("/launcher-log.txt");
-        if (QFile::copy(launcherLogPath, dst))
-            copied++;
+        QFile f(launcherLogPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            zip.addFile(QStringLiteral("launcher-log.txt"), f.readAll());
+            f.close();
+            added++;
+        }
     }
 
-    qCInfo(logLaunch) << "[崩溃分析] 日志导出完成 目录=" << exportDir << "文件数=" << copied;
-    return copied > 0 ? exportDir : QString{};
+    zip.close();
+    if (added == 0 || !QFile::exists(exportZipPath)) {
+        QFile::remove(exportZipPath);
+        return {};
+    }
+
+    qCInfo(logLaunch) << "[崩溃分析] 日志已打包 文件=" << exportZipPath << "条目数=" << added;
+    return exportZipPath;
 }
 
 // ============================================================
