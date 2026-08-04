@@ -435,7 +435,9 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
     // ── 阶段 B：assets index 双源竞速下载 → 完成后启动山海经（assets）──
     auto startAssets = [this, versionJson, versionId, assetIdx]() {
         if (m_state == Cancelled) return;   // 取消后竞速完成不再启动下载（防 cancel 失效）
-        m_categoryTotalBytes[1] = 0;   // 重置 libs 分类计数（阶段 A 已统计过一次）
+        // 不重置 m_categoryTotalBytes[1]（libs 总量）——阶段 A 已统计，
+        // 阶段 B 的 collectTasks 只有 assets 任务会把它清 0 → 支持库进度
+        // 分母丢失（用户实测：支持库字节 0/0KB，进度失真）
         if (!assetIdx.isEmpty()) {
             m_assetObjects = parseAssetIndex(assetIdx);
         }

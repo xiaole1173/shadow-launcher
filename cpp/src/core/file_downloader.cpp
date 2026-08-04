@@ -695,7 +695,14 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                                           m_downloadedBytes.loadRelaxed(), m_totalBytes.loadRelaxed());
                     // 与 progressChanged 同节奏节流：高并发（模组 12 路 + MC 64 路）下
                     // 每个数据包都跨线程 emit 会灌爆主线程事件队列 → UI 卡死无响应。
-                    emit fileProgress(th->sourceUrl, file->localName, received, total, file->localPath);
+                    // ── 文件总进度（2026-08-05 修复）──
+                    // 多分片文件：received 是“该分片线程的接收量”（从 Range 起始算），
+                    // 多个分片各自报 received —— 上层按 savePath 去重只累计第一个分片
+                    // → 大文件进度缺失（用户实测：支持库 40% 后失真）。
+                    // 改为上报文件级总进度：received=所有分片累计下载量，total=文件大小。
+                    const qint64 fileDone = file->totalDone();
+                    const qint64 fileTotal = (file->fileSize > 0) ? file->fileSize : total;
+                    emit fileProgress(th->sourceUrl, file->localName, fileDone, fileTotal, file->localPath);
                 }
             });
 
@@ -1083,6 +1090,13 @@ cleanup:
                 self->m_completedFiles.fetchAndAddRelaxed(1);
                 for (const auto& t : file->threads)
                     self->recordHostResult(QUrl(t->sourceUrl).host().toLower(), true);
+                // 文件完成补发 fileProgress（满字节）——合并完成后不再有
+                // 下载中帧（received≈fileSize 差最后几 KB），补一帧让上层
+                // 进度精确到 100%（避免“永远差一点到 100%”）。
+                const qint64 fs = (file->fileSize > 0) ? file->fileSize : 0;
+                if (fs > 0)
+                    emit self->fileProgress(file->orderedSources.isEmpty() ? QString() : file->orderedSources.first(),
+                                            file->localName, fs, fs, file->localPath);
                 self->fileFinished(file->localPath, true);
             }
             self->updateStats();
