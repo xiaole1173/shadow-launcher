@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// 整合包导出测试：ModpackExportTest <gameDir> <versionId> [outPath]
-// 导出后校验 mrpack 结构（index.json 合法、mods/overrides 条目存在），
-// 并用 ZipArchive 读回验证可解析。
+// 整合包导出测试：ModpackExportTest <gameDir> <versionId> [outPath] [format]
+// 导出后校验包结构（mrpack: modrinth.index.json + files[]/overrides；
+// zip: manifest.json + overrides），并用 ZipArchive 读回验证可解析。
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QDir>
 #include <cstdio>
 
 #include "core/modpack/modpack_exporter.h"
@@ -21,13 +22,15 @@ int main(int argc, char** argv)
     ShadowLauncher::installFileLogger(QCoreApplication::applicationDirPath());
 
     if (argc < 3) {
-        printf("usage: ModpackExportTest <gameDir> <versionId> [outPath]\n");
+        printf("usage: ModpackExportTest <gameDir> <versionId> [outPath] [format=0]\n");
         return 2;
     }
     const QString gameDir = QString::fromUtf8(argv[1]);
     const QString versionId = QString::fromUtf8(argv[2]);
+    const int format = argc > 4 ? QString::fromUtf8(argv[4]).toInt() : 0;
+    const QString suffix = format == 1 ? QStringLiteral(".zip") : QStringLiteral(".mrpack");
     const QString outPath = argc > 3 ? QString::fromUtf8(argv[3])
-                                     : gameDir + QStringLiteral("/_export_test_") + versionId + QStringLiteral(".mrpack");
+                                     : gameDir + QStringLiteral("/_export_test_") + versionId + suffix;
     QFile::remove(outPath);
 
     auto* exporter = new ModpackExporter(&app);
@@ -40,34 +43,48 @@ int main(int argc, char** argv)
                 app.exit(1);
                 return;
             }
-            // ── 校验 mrpack 结构 ──
             ZipArchive zip;
             if (!zip.open(out)) {
                 printf("RESULT: fail 无法打开导出包: %s\n", zip.error().toUtf8().constData());
                 app.exit(1);
                 return;
             }
-            const QByteArray idx = zip.readEntry("modrinth.index.json", 4 * 1024 * 1024);
-            QJsonObject index = QJsonDocument::fromJson(idx).object();
-            const int fmt = index.value("formatVersion").toInt();
-            const QString game = index.value("game").toString();
-            const QString deps = QString::fromLatin1(
-                QJsonDocument(index.value("dependencies").toObject()).toJson(QJsonDocument::Compact));
-            const int fileCount = index.value("files").toArray().size();
             const QStringList entries = zip.listEntries();
-            int modsInZip = 0, overridesInZip = 0;
-            for (const auto& e : entries) {
-                if (e.startsWith("mods/")) modsInZip++;
-                if (e.startsWith("overrides/")) overridesInZip++;
+            int modsInOverrides = 0, overridesOther = 0, hostedInManifest = 0;
+            QString game, deps;
+            if (format == 1) {
+                const QByteArray mf = zip.readEntry("manifest.json", 4 * 1024 * 1024);
+                const QJsonObject manifest = QJsonDocument::fromJson(mf).object();
+                game = manifest.value("minecraft").toObject().value("version").toString();
+                hostedInManifest = manifest.value("files").toArray().size();
+            } else {
+                const QByteArray idx = zip.readEntry("modrinth.index.json", 4 * 1024 * 1024);
+                const QJsonObject index = QJsonDocument::fromJson(idx).object();
+                game = index.value("game").toString();
+                deps = QString::fromLatin1(QJsonDocument(
+                    index.value("dependencies").toObject()).toJson(QJsonDocument::Compact));
+                hostedInManifest = index.value("files").toArray().size();
             }
-            printf("RESULT: ok fmt=%d game=%s deps=%s files=%d modsInZip=%d overridesInZip=%d size=%.1fMB path=%s\n",
-                   fmt, game.toUtf8().constData(), deps.toUtf8().constData(), fileCount,
-                   modsInZip, overridesInZip, QFileInfo(out).size() / 1048576.0, out.toUtf8().constData());
+            for (const auto& e : entries) {
+                if (e.startsWith("overrides/mods/")) modsInOverrides++;
+                else if (e.startsWith("overrides/")) overridesOther++;
+            }
+            printf("RESULT: ok fmt=%d game=%s deps=%s hostedInManifest=%d modsInOverrides=%d overridesOther=%d size=%.2fMB path=%s\n",
+                   format, game.toUtf8().constData(), deps.toUtf8().constData(),
+                   hostedInManifest, modsInOverrides, overridesOther,
+                   QFileInfo(out).size() / 1048576.0, out.toUtf8().constData());
             zip.close();
             app.exit(0);
         });
 
-    exporter->exportVersion(versionId, versionId + "-export-test",
-                            true, true, true, outPath);
+    // 勾选全部存档测试 saves 子项路径
+    QVariantList saves;
+    const QDir savesDir(gameDir + QStringLiteral("/saves"));
+    if (savesDir.exists()) {
+        const auto list = savesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const auto& s : list) saves.append(s);
+    }
+    exporter->exportVersion(versionId, versionId + "-export-test", QStringLiteral("1.0.0"),
+                            true, saves, true, true, false, format, outPath);
     return app.exec();
 }

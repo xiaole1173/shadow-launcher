@@ -7,9 +7,8 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 
 /// 整合包导出（版本设置独立分区，Section 7）
-/// 后端 ModpackExporter 全程 worker 线程打包，进度/结果信号回主线程，
-/// 本组件不阻塞 UI。复用 InputBox/ShadowSwitch/ShadowButton 通用元件，
-/// 布局与配色对齐「工具与维护」分区。
+/// 后端 ModpackExporter 全程 worker 线程（哈希/双平台查询/打包），信号回主线程，
+/// UI 零阻塞。复用 InputBox/ShadowSwitch/ShadowDropdown/ShadowButton 通用元件。
 Item {
     id: root
 
@@ -22,10 +21,14 @@ Item {
     // ── 表单状态 ──
     property string _packName: ""
     property string _packVersion: "1.0.0"
+    property string _format: "modrinth"       // modrinth | curseforge
+    property bool _modrinthOnly: false        // ModrinthUploadMode（同主流启动器）
     property bool _includeConfig: true
     property bool _includeSaves: false
     property bool _includeResourcepacks: true
     property bool _includeShaderpacks: true
+    property var _saves: []                    // 版本下全部存档
+    property var _selectedSaves: []            // 勾选的存档
     property string _savePath: ""
     property bool _busy: false
     property real _progress: 0
@@ -40,7 +43,15 @@ Item {
     function _resetSavePath() {
         var dlDir = Qt.StandardPaths.writableLocation(Qt.StandardPaths.DownloadLocation)
         if (!dlDir) dlDir = Qt.StandardPaths.writableLocation(Qt.StandardPaths.DocumentsLocation)
-        _savePath = (dlDir ? dlDir + "/" : "") + (versionName || "modpack") + ".mrpack"
+        var ext = _format === "curseforge" ? ".zip" : ".mrpack"
+        _savePath = (dlDir ? dlDir + "/" : "") + (versionName || "modpack") + ext
+    }
+
+    function _loadSaves() {
+        if (backend && backend.modpackExporter) {
+            _saves = backend.modpackExporter.listSaves(versionId) || []
+            _selectedSaves = []
+        }
     }
 
     Component.onCompleted: {
@@ -55,7 +66,7 @@ Item {
                 root._busy = false
                 if (ok) {
                     root._progress = 1
-                    root._statusText = qsTr("导出完成")
+                    root._statusText = qsTr("导出完成") + " " + err
                     root._done = true
                     if (root.toastManager) root.toastManager.show(qsTr("整合包已导出: ") + out)
                 } else {
@@ -66,6 +77,7 @@ Item {
                 }
             })
         }
+        _loadSaves()
     }
 
     function _startExport() {
@@ -75,14 +87,20 @@ Item {
             if (root.toastManager) root.toastManager.show(qsTr("请填写整合包名称并选择保存位置"), 3000)
             return
         }
+        // ModrinthUploadMode 强制 Modrinth 格式（同主流启动器）
+        if (_modrinthOnly) _format = "modrinth"
+        var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         var path = _savePath
-        if (!/\.mrpack$/i.test(path)) path += ".mrpack"
+        if (!path.toLowerCase().endsWith(ext)) path += ext
         root._savePath = path
         root._done = false
         root._progress = 0
         root._statusText = ""
-        e.exportVersion(versionId, _packName.trim(),
-                        _includeSaves, _includeResourcepacks, _includeShaderpacks, path)
+        var fmt = _format === "curseforge" ? 1 : 0
+        e.exportVersion(versionId, _packName.trim(), _packVersion.trim(),
+                        _includeConfig, _selectedSaves,
+                        _includeResourcepacks, _includeShaderpacks,
+                        _modrinthOnly, fmt, path)
     }
 
     ColumnLayout {
@@ -97,7 +115,7 @@ Item {
             color: StyleTokens.textSecondary
         }
         Text {
-            text: qsTr("将当前版本打包为 .mrpack（Modrinth 格式），可在任意支持该格式的启动器导入。导出在后台线程执行，不影响其他操作。")
+            text: qsTr("将当前版本打包为整合包：Modrinth (.mrpack) 或 CurseForge (.zip)。本地模组将自动联网匹配在线来源（Modrinth SHA1 + CurseForge 指纹），匹配成功以引用形式打包，否则原文件直装。全程后台执行，不阻塞其他操作。")
             font.pixelSize: StyleTokens.fontSizeSm
             color: StyleTokens.textTertiary
             wrapMode: Text.WordWrap
@@ -121,7 +139,7 @@ Item {
                 }
             }
             ColumnLayout {
-                Layout.preferredWidth: 140
+                Layout.preferredWidth: 130
                 spacing: 6
                 Text { text: qsTr("整合包版本"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                 InputBox {
@@ -130,6 +148,24 @@ Item {
                     placeholderText: "1.0.0"
                     enabled: !root._busy
                     onTextChanged: root._packVersion = text
+                }
+            }
+            ColumnLayout {
+                Layout.preferredWidth: 170
+                spacing: 6
+                Text { text: qsTr("导出格式"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+                ShadowDropdown {
+                    Layout.fillWidth: true
+                    model: [
+                        { value: "modrinth", label: qsTr("Modrinth (.mrpack)") },
+                        { value: "curseforge", label: qsTr("CurseForge (.zip)") }
+                    ]
+                    currentValue: root._format
+                    enabled: !root._busy
+                    onValueSelected: function(v) {
+                        root._format = v
+                        root._resetSavePath()
+                    }
                 }
             }
         }
@@ -194,7 +230,7 @@ Item {
                     onToggled: root._includeConfig = checked
                 }
             }
-            // 存档
+            // 存档（含子项展开）
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
@@ -207,7 +243,62 @@ Item {
                 ShadowSwitch {
                     checked: root._includeSaves
                     enabled: !root._busy
-                    onToggled: root._includeSaves = checked
+                    onToggled: {
+                        root._includeSaves = checked
+                        if (checked && root._saves.length === 0) root._loadSaves()
+                        if (!checked) root._selectedSaves = []
+                    }
+                }
+            }
+            // 存档子项（勾选展开）
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: savesList.count > 0 ? Math.min(savesList.count * 30 + 12, 132) : 0
+                radius: StyleTokens.radiusMd
+                color: StyleTokens.bgCard
+                border.color: StyleTokens.bgElevated
+                visible: root._includeSaves
+                clip: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 2
+                    Text {
+                        visible: root._saves.length === 0
+                        text: qsTr("该版本暂无存档")
+                        color: StyleTokens.textMuted
+                        font.pixelSize: StyleTokens.fontSizeXs
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    Repeater {
+                        id: savesList
+                        model: root._saves
+                        delegate: RowLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 28
+                            spacing: 8
+                            Text {
+                                text: modelData
+                                color: StyleTokens.textSecondary
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                            ShadowSwitch {
+                                checked: root._selectedSaves.indexOf(modelData) >= 0
+                                enabled: !root._busy
+                                onToggled: {
+                                    var arr = root._selectedSaves.slice()
+                                    var idx = arr.indexOf(modelData)
+                                    if (checked && idx < 0) arr.push(modelData)
+                                    if (!checked && idx >= 0) arr.splice(idx, 1)
+                                    root._selectedSaves = arr
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // 资源包
@@ -240,6 +331,37 @@ Item {
                     checked: root._includeShaderpacks
                     enabled: !root._busy
                     onToggled: root._includeShaderpacks = checked
+                }
+            }
+        }
+
+        Item { height: 6; width: 1 }
+
+        // ── 高级 ──
+        Text {
+            text: qsTr("高级")
+            font.pixelSize: StyleTokens.fontSizeXs
+            color: "#9ca0b4"
+            font.letterSpacing: 1.5
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 30
+            Text {
+                text: qsTr("仅使用 Modrinth 资源（Modrinth 上传模式）")
+                color: StyleTokens.textSecondary
+                font.pixelSize: StyleTokens.fontSizeSm
+                Layout.fillWidth: true
+            }
+            ShadowSwitch {
+                checked: root._modrinthOnly
+                enabled: !root._busy
+                onToggled: {
+                    root._modrinthOnly = checked
+                    if (checked) {
+                        root._format = "modrinth"
+                        root._resetSavePath()
+                    }
                 }
             }
         }
@@ -292,7 +414,6 @@ Item {
             ShadowButton {
                 text: root._busy ? qsTr("取消导出") : qsTr("导出")
                 btnWidth: 140
-                enabled: !root._busy || root._busy
                 onClicked: {
                     if (root._busy) {
                         if (backend && backend.modpackExporter) backend.modpackExporter.cancel()
@@ -345,11 +466,14 @@ Item {
         id: exportFileDialog
         fileMode: FileDialog.SaveFile
         title: qsTr("保存整合包")
-        nameFilters: [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
+        nameFilters: root._format === "curseforge"
+            ? [qsTr("CurseForge 整合包 (*.zip)"), qsTr("所有文件 (*.*)")]
+            : [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
         currentFile: root._savePath
         onAccepted: {
             var p = String(selectedFile).replace(/^(file:\/{2,3})/i, "")
-            if (!/\.mrpack$/i.test(p)) p += ".mrpack"
+            var ext = root._format === "curseforge" ? ".zip" : ".mrpack"
+            if (!p.toLowerCase().endsWith(ext)) p += ext
             root._savePath = p
         }
     }

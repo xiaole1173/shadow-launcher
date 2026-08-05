@@ -1,21 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 //
-// modpack_exporter.h — 整合包导出（.mrpack，Modrinth 格式，2026-08-05）。
+// modpack_exporter.h — 整合包导出（完全对齐主流启动器实现 PageInstanceExport，2026-08-05）。
 //
-// 流程：读取已安装版本 → 解析加载器依赖 → 收集 mods + overrides → 后台线程
-// 打包 modrinth.index.json + mods/ + overrides/。与导入（ModpackImporter）闭环。
+// 流程（同主流启动器三阶段）：
+//   1. 收集：按导出规则收集 mods + overrides（config/saves 子项/资源包/光影/选项）
+//   2. 双平台查询：本地 mod 双哈希（Modrinth=SHA1、CurseForge=MurmurHash2 去空白种子1），
+//      并行批量查询 Modrinth v2/version_files + CurseForge v1/fingerprints/432，
+//      每个文件收集所有在线下载 URL（CF 域名五变体展开）
+//   3. 生成：Modrinth .mrpack（files[] 引用 + 未托管实体进 overrides/mods/）或
+//      CurseForge .zip（manifest.json files[] 引用 + 未托管实体进 overrides/mods/）
 //
-// mrpack 规范（Modrinth Pack Format v1）：
-//   modrinth.index.json { formatVersion:1, game, versionId, name, summary,
-//                         files[{path, hashes{sha1,sha512}, env?}],
-//                         dependencies{minecraft, forge|fabric-loader|...} }
-//   overrides/  → 覆写 .minecraft 根的用户文件（config、saves 等）
+// ModrinthUploadMode：仅查 Modrinth（跳过 CF），用于上传 Modrinth 场景；
+// 查询失败降级：单平台失败继续（该平台无结果），全失败则全部实体直装。
+// 全部在 QtConcurrent worker 线程执行，进度/结果 invokeMethod 回主线程，UI 零阻塞。
 
 #pragma once
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
+#include <QVariantList>
 #include <QAtomicInteger>
 
 namespace ShadowLauncher {
@@ -29,16 +34,26 @@ class ModpackExporter : public QObject {
 public:
     explicit ModpackExporter(QObject* parent = nullptr);
 
-    void setGameDir(const QString& dir) { m_gameDir = dir; }
+    void setGameDir(const QString& dir);
+    void setCurseForgeApiKey(const QString& key) { m_cfApiKey = key; }
 
     bool isBusy() const { return m_busy; }
     qreal progress() const { return m_progress; }
     QString statusText() const { return m_statusText; }
 
-    /// 导出已安装版本为 .mrpack。outPath 为完整目标路径（含 .mrpack 后缀）。
+    /// 列出版本下所有存档名（saves/ 子目录），供导出内容列表勾选（同步快操作）
+    Q_INVOKABLE QStringList listSaves(const QString& versionId) const;
+
+    /// 导出已安装版本为整合包。
+    ///   format: 0=Modrinth(.mrpack) 1=CurseForge(.zip)
+    ///   selectedSaves: 勾选的存档名列表（includeSaves 语义由非空列表表达）
+    ///   modrinthUploadMode: 仅查 Modrinth（跳过 CurseForge），同主流启动器
     Q_INVOKABLE void exportVersion(const QString& versionId, const QString& displayName,
-                                   bool includeSaves, bool includeResourcepacks,
-                                   bool includeShaderpacks, const QString& outPath);
+                                   const QString& packVersion, bool includeConfig,
+                                   const QVariantList& selectedSaves,
+                                   bool includeResourcepacks, bool includeShaderpacks,
+                                   bool modrinthUploadMode, int format,
+                                   const QString& outPath);
     Q_INVOKABLE void cancel();
 
 signals:
@@ -50,6 +65,7 @@ private:
     void setProgress(qreal p, const QString& text);
 
     QString m_gameDir;
+    QString m_cfApiKey;
     QAtomicInteger<int> m_cancel{0};
     bool m_busy = false;
     qreal m_progress = 0.0;

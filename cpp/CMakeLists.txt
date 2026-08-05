@@ -588,7 +588,7 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
         thirdparty/miniz/miniz.c
     )
     target_include_directories(ModpackExportTest PRIVATE src thirdparty/miniz)
-    target_link_libraries(ModpackExportTest PRIVATE Qt6::Core Qt6::Concurrent)
+    target_link_libraries(ModpackExportTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
     target_include_directories(FDTest PRIVATE src)
     target_link_libraries(FDTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 
