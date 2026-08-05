@@ -555,6 +555,15 @@ Window {
                         visible: opacity > 0
                         enabled: opacity >= 1
                         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        // 每次进入「启动」页校验选中版本真实存在：被删除/不存在的版本自动切换，
+                        // 避免用户对不存在版本误操作（快捷按钮/启动/版本设置入口）
+                        onVisibleChanged: {
+                            if (visible && backend && backend.ensureSelectedVersionValid) {
+                                if (backend.ensureSelectedVersionValid()) {
+                                    if (toastManager) toastManager.show(qsTr("所选版本已不存在，已自动切换到可用版本"))
+                                }
+                            }
+                        }
                         onItemChanged: {
                             if (item) {
                                 item.backend = backend

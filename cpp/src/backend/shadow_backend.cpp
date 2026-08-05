@@ -270,13 +270,23 @@ ShadowBackend::ShadowBackend(QObject* parent)
     // ── Signal forwarding: VersionBackend → ShadowBackend ──
     connect(m_version, &VersionBackend::versionListReady,
             this, &ShadowBackend::versionListReady);
-    connect(m_version, &VersionBackend::versionListReady,
+    connect(m_version, &VersionBackend::installedVersionsChanged,
             this, [this]() {
-                // Restore last selected version if it still exists
-                QString last = m_settings->lastSelectedVersion();
-                if (!last.isEmpty() && m_version->versionIds().contains(last)) {
+                // 已安装列表就绪时恢复上次选中版本——只恢复「真实存在」的版本（installedIds）。
+                // 旧逻辑挂在 versionListReady 且用 versionIds（manifest 在线清单），
+                // manifest 有但未安装的版本会被误选中（如 26.2 vs 实际安装的 26.2-forge-65.1.0）。
+                const QStringList installed = m_version->installedIds();
+                const QString last = m_settings->lastSelectedVersion();
+                if (!last.isEmpty() && installed.contains(last)) {
                     m_version->setSelectedVersion(last);
                     qCInfo(logLaunch) << QStringLiteral("恢复上次选中版本 版本=%1").arg(last);
+                    return;
+                }
+                // 自愈：当前选中版本已不存在（被删除/文件夹被手动删掉）→ 自动切换到可用版本
+                const QString cur = m_version->selectedVersion();
+                if (!cur.isEmpty() && !installed.contains(cur)) {
+                    m_version->ensureSelectedVersionValid();
+                    qCInfo(logLaunch) << QStringLiteral("选中版本 %1 已不存在，已自动切换").arg(cur);
                 }
             });
     connect(m_version, &VersionBackend::installedVersionsChanged,
@@ -1651,7 +1661,17 @@ bool ShadowBackend::openLatestLog(const QString& versionId) {
     return false;
 }
 
+bool ShadowBackend::isVersionInstalled(const QString& versionId) const {
+    if (versionId.isEmpty()) return false;
+    return QFileInfo::exists(m_app->gameDir() + QStringLiteral("/versions/") + versionId
+                             + QStringLiteral("/") + versionId + QStringLiteral(".json"));
+}
+
 bool ShadowBackend::openLogsFolder(const QString& versionId) {
+    if (!isVersionInstalled(versionId)) {
+        qCWarning(logMod) << "[openLogsFolder] 版本不存在，拒绝打开/创建:" << versionId;
+        return false;
+    }
     QString logsDir = gameDirForVersion(versionId) + QStringLiteral("/logs");
     QDir().mkpath(logsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
@@ -1713,6 +1733,10 @@ void ShadowBackend::cleanupCrashArtifacts() {
 }
 
 bool ShadowBackend::openSavesFolder(const QString& versionId) {
+    if (!isVersionInstalled(versionId)) {
+        qCWarning(logMod) << "[openSavesFolder] 版本不存在，拒绝打开/创建:" << versionId;
+        return false;
+    }
     QString savesDir = gameDirForVersion(versionId) + QStringLiteral("/saves");
     QDir().mkpath(savesDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(savesDir));
@@ -1721,6 +1745,10 @@ bool ShadowBackend::openSavesFolder(const QString& versionId) {
 }
 
 bool ShadowBackend::openScreenshotsFolder(const QString& versionId) {
+    if (!isVersionInstalled(versionId)) {
+        qCWarning(logMod) << "[openScreenshotsFolder] 版本不存在，拒绝打开/创建:" << versionId;
+        return false;
+    }
     QString screenshotsDir = gameDirForVersion(versionId) + QStringLiteral("/screenshots");
     QDir().mkpath(screenshotsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(screenshotsDir));
@@ -1729,6 +1757,10 @@ bool ShadowBackend::openScreenshotsFolder(const QString& versionId) {
 }
 
 bool ShadowBackend::openModsFolder(const QString& versionId) {
+    if (!isVersionInstalled(versionId)) {
+        qCWarning(logMod) << "[openModsFolder] 版本不存在，拒绝打开/创建:" << versionId;
+        return false;
+    }
     QString modsDir = gameDirForVersion(versionId) + QStringLiteral("/mods");
     QDir().mkpath(modsDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(modsDir));
@@ -1737,6 +1769,10 @@ bool ShadowBackend::openModsFolder(const QString& versionId) {
 }
 
 bool ShadowBackend::openResourcePacksFolder(const QString& versionId) {
+    if (!isVersionInstalled(versionId)) {
+        qCWarning(logMod) << "[openResourcePacksFolder] 版本不存在，拒绝打开/创建:" << versionId;
+        return false;
+    }
     QString rpDir = gameDirForVersion(versionId) + QStringLiteral("/resourcepacks");
     QDir().mkpath(rpDir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(rpDir));
@@ -1918,8 +1954,8 @@ bool ShadowBackend::importResourcePack(const QString& filePath, const QString& v
     return m_localMods->importResourcePack(filePath, versionId);
 }
 
-void ShadowBackend::openVersionDir(const QString& versionId) {
-    m_settings->openVersionDir(versionId);
+bool ShadowBackend::openVersionDir(const QString& versionId) {
+    return m_settings->openVersionDir(versionId);
 }
 
 void ShadowBackend::deleteVersion(const QString& versionId) {

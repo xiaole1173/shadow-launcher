@@ -705,11 +705,17 @@ void SettingsBackend::openGameDir()
     QDesktopServices::openUrl(QUrl::fromLocalFile(m_gameDir));
 }
 
-void SettingsBackend::openVersionDir(const QString& versionId)
+bool SettingsBackend::openVersionDir(const QString& versionId)
 {
-    QString d = m_gameDir + QStringLiteral("/versions/") + versionId;
-    QDir().mkpath(d);
+    const QString d = m_gameDir + QStringLiteral("/versions/") + versionId;
+    // 版本不存在（无版本 JSON）时拒绝打开——不再 mkpath 自动创建空文件夹
+    // （用户对不存在的版本点快捷入口会凭空生成垃圾目录）
+    if (!QFileInfo::exists(d + QStringLiteral("/") + versionId + QStringLiteral(".json"))) {
+        qCWarning(logApp) << "[openVersionDir] 版本不存在，拒绝打开/创建:" << d;
+        return false;
+    }
     QDesktopServices::openUrl(QUrl::fromLocalFile(d));
+    return true;
 }
 
 void SettingsBackend::deleteVersion(const QString& versionId)

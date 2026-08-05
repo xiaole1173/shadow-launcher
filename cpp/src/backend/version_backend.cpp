@@ -325,6 +325,35 @@ void VersionBackend::setSelectedVersion(const QString& versionId)
 
 }
 
+bool VersionBackend::ensureSelectedVersionValid()
+
+{
+
+    const QString cur = m_selectedVersion;
+
+    if (!cur.isEmpty() && m_installedIds.contains(cur))
+
+        return false;   // 当前选中有效
+
+    // 自愈：选第一个已安装版本；无已安装版本则清空
+
+    const QString fallback = m_installedIds.isEmpty() ? QString() : m_installedIds.first();
+
+    if (fallback == cur)
+
+        return false;
+
+    setSelectedVersion(fallback);
+
+    qCInfo(logMod) << QStringLiteral("[版本] 选中版本自愈: %1 → %2")
+
+                          .arg(cur.isEmpty() ? QStringLiteral("(空)") : cur,
+                               fallback.isEmpty() ? QStringLiteral("(空)") : fallback);
+
+    return true;
+
+}
+
 
 
 // ============================================================

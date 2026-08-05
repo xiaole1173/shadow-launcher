@@ -368,7 +368,10 @@ Rectangle {
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            if (backend) { backend.openVersionDir(currentSelectedVersion); toastManager.show("已打开版本文件夹") }
+                            if (backend) {
+                                if (backend.openVersionDir(currentSelectedVersion)) { toastManager.show("已打开版本文件夹") }
+                                else { toastManager.show("版本文件夹不存在") }
+                            }
                         }
                     }
                     ShadowButton {
@@ -378,7 +381,7 @@ Rectangle {
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { toastManager.show("已打开存档文件夹") } else { toastManager.show("无存档文件夹") } }
+                            if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { toastManager.show("已打开存档文件夹") } else { toastManager.show("版本不存在或文件夹未创建") } }
                         }
                     }
                     ShadowButton {
@@ -388,7 +391,7 @@ Rectangle {
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            if (backend) { if (backend.openScreenshotsFolder(currentSelectedVersion)) { toastManager.show("已打开截图文件夹") } else { toastManager.show("无截图文件夹") } }
+                            if (backend) { if (backend.openScreenshotsFolder(currentSelectedVersion)) { toastManager.show("已打开截图文件夹") } else { toastManager.show("版本不存在或文件夹未创建") } }
                         }
                     }
                     ShadowButton {
@@ -409,7 +412,7 @@ Rectangle {
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                            if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("无 Mod 文件夹") } }
+                            if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { toastManager.show("已打开 Mod 文件夹") } else { toastManager.show("版本不存在或文件夹未创建") } }
                         }
                     }
                 }
@@ -427,7 +430,7 @@ Rectangle {
                         accentColor: "#2a4590"
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
-                            if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("无日志文件夹") } }
+                            if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("版本不存在或文件夹未创建") } }
                         }
                     }
                     ShadowButton {
@@ -551,7 +554,7 @@ Rectangle {
                                 id: modFolderBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: {
                                     if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                                    if (backend) backend.openModsFolder(currentSelectedVersion)
+                                    if (backend) { if (backend.openModsFolder(currentSelectedVersion)) { /* no-op */ } else { toastManager.show("版本不存在或文件夹未创建") } }
                                 }
                             }
                             HoverHandler { id: modFolderBtnH }
@@ -768,7 +771,7 @@ Rectangle {
                                 id: rpFolderBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: {
                                     if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                                    if (backend) backend.openResourcePacksFolder(currentSelectedVersion)
+                                    if (backend) { if (backend.openResourcePacksFolder(currentSelectedVersion)) { /* no-op */ } else { toastManager.show("版本不存在或文件夹未创建") } }
                                 }
                             }
                             HoverHandler { id: rpFolderBtnH }
@@ -961,7 +964,7 @@ Rectangle {
                             id: saveFolderBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                             onClicked: {
                                 if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
-                                if (backend) backend.openSavesFolder(currentSelectedVersion)
+                                if (backend) { if (backend.openSavesFolder(currentSelectedVersion)) { /* no-op */ } else { toastManager.show("版本不存在或文件夹未创建") } }
                             }
                         }
                         HoverHandler { id: saveFolderBtnH }

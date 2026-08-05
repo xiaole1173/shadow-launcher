@@ -110,7 +110,7 @@ public:
     Q_INVOKABLE QString getVersionGameDir(const QString& versionId) const;
     Q_INVOKABLE bool isolationEnabled() const;
     Q_INVOKABLE void openGameDir();
-    Q_INVOKABLE void openVersionDir(const QString& versionId);
+    Q_INVOKABLE bool openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
     bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
     Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);

@@ -352,7 +352,7 @@ public:
     Q_INVOKABLE bool openModsFolder(const QString& versionId = {});
     Q_INVOKABLE bool openResourcePacksFolder(const QString& versionId = {});
     Q_INVOKABLE bool openShaderPacksFolder(const QString& versionId = {});
-    Q_INVOKABLE void openVersionDir(const QString& versionId);
+    Q_INVOKABLE bool openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
@@ -774,6 +774,7 @@ private:
     int requiredJavaMajor(const QString& versionId);
     static int inferJavaByMcVersion(const QString& mcVersion);
     QString gameDirForVersion(const QString& versionId) const;
+    bool isVersionInstalled(const QString& versionId) const;
     void syncPlayerName();
     void checkChangelog();
     void loadJavaRuntimeSettings();

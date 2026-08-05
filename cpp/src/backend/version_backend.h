@@ -184,6 +184,9 @@ public:
 
     VersionManager* versionManager() const { return m_versionMgr; }
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
+    /// 校验当前选中版本是否真实存在（已安装）；不存在/为空时自愈：
+    /// 优先选第一个已安装版本（无已安装则清空）。返回 true 表示发生过变化。
+    Q_INVOKABLE bool ensureSelectedVersionValid();
     Q_INVOKABLE void refreshVersionList();
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void installVersion(const QString& versionId);
