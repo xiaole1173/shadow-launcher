@@ -203,29 +203,9 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     QQueue<AssetTask> downloadQueue;
     while (!m_pendingQueue.isEmpty()) {
         AssetTask task = m_pendingQueue.dequeue();
-        if (!task.sha1.isEmpty()) {
-            // Check 1: working dir (tempDir)
-            QFileInfo fi(task.savePath);
-            if (fi.exists() && fi.size() > 0) {
-                if (task.size <= 0 || fi.size() == task.size) {
-                    enqueuePreCheck(task, task.savePath);
-                    fastCacheHits++;
-                    continue;
-                }
-            }
-            // Check 2: fallback cache dir (gameDir) — avoid re-downloading
-            if (!m_fallbackCacheDir.isEmpty()) {
-                const QString fallbackPath = m_fallbackCacheDir + QStringLiteral("/assets/objects/")
-                    + task.sha1.left(2) + QStringLiteral("/") + task.sha1;
-                QFileInfo ffi(fallbackPath);
-                if (ffi.exists() && ffi.size() > 0) {
-                    if (task.size <= 0 || ffi.size() == task.size) {
-                        enqueuePreCheck(task, fallbackPath);
-                        fastCacheHits++;
-                        continue;
-                    }
-                }
-            }
+        if (enqueueCachePreCheck(task)) {
+            fastCacheHits++;
+            continue;
         }
         // Needs download
         downloadQueue.enqueue(task);
@@ -259,6 +239,40 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     logState("startDownload complete");
 }
 
+bool AssetDownloader::enqueueCachePreCheck(const AssetTask& task)
+{
+    // 快速检查（无 SHA1 I/O）：savePath 或 fallback 存在且大小匹配 → 异步 SHA1 预检。
+    // 2026-08-05 抽出供 startDownload/appendTasks 共用：旧实现 appendTasks 无预检，
+    // 阶段 B assets 每次都全量重下（578MB）；fallback 路径旧写死 assets/objects，
+    // 对 libs 任务查错路径、merged tempDir 场景也无法命中真实 gameDir。
+    if (task.sha1.isEmpty()) return false;
+    // Check 1: working dir（纯 MC=gameDir；merged=tempDir）
+    QFileInfo fi(task.savePath);
+    if (fi.exists() && fi.size() > 0) {
+        if (task.size <= 0 || fi.size() == task.size) {
+            enqueuePreCheck(task, task.savePath);
+            return true;
+        }
+    }
+    // Check 2: fallback cache dir（真实 gameDir）——按相对路径推导
+    if (!m_fallbackCacheDir.isEmpty()) {
+        QString fallbackPath;
+        if (!m_minecraftDir.isEmpty() && task.savePath.startsWith(m_minecraftDir))
+            fallbackPath = m_fallbackCacheDir + task.savePath.mid(m_minecraftDir.length());
+        else
+            fallbackPath = m_fallbackCacheDir + QStringLiteral("/assets/objects/")
+                + task.sha1.left(2) + QStringLiteral("/") + task.sha1;
+        QFileInfo ffi(fallbackPath);
+        if (ffi.exists() && ffi.size() > 0) {
+            if (task.size <= 0 || ffi.size() == task.size) {
+                enqueuePreCheck(task, fallbackPath);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void AssetDownloader::appendTasks(const QVector<AssetTask>& tasks)
 {
     if (tasks.isEmpty()) return;
@@ -277,13 +291,26 @@ void AssetDownloader::appendTasks(const QVector<AssetTask>& tasks)
               [](const AssetTask& a, const AssetTask& b) {
                   return a.size > b.size;
               });
+    // ── 缓存预检查（2026-08-05 修复）──
+    // 旧实现：appendTasks 直接全部入队下载、无预检查 → 阶段 B assets 每次都全量
+    // 重下（实测 3643 文件 578MB 只命中 7 个，缓存形同虚设）。现在与 startDownload
+    // 共用 enqueueCachePreCheck：命中者走异步 SHA1 校验（onPreCheckResult 处理）。
+    int preCheckAdded = 0;
     for (const auto& t : sorted) {
-        m_pendingQueue.enqueue(t);
+        if (enqueueCachePreCheck(t)) {
+            preCheckAdded++;
+        } else {
+            m_pendingQueue.enqueue(t);
+        }
         m_totalTaskCount++;
         m_totalFiles.fetchAndAddRelaxed(1);
         m_totalBytes.fetchAndAddRelaxed(t.size);
     }
-    qCInfo(logAsset) << QStringLiteral("[山海经] 追加 %1 个任务（运行中）").arg(tasks.size());
+    qCInfo(logAsset) << QStringLiteral("[山海经] 追加 %1 个任务（运行中），%2 个进入缓存预检查")
+        .arg(tasks.size()).arg(preCheckAdded);
+    if (preCheckAdded > 0)
+        emit logMessage(QStringLiteral("[山海经] 追加 %1 个任务，%2 个进入缓存预检查")
+                            .arg(tasks.size()).arg(preCheckAdded));
     if (m_inFlight.size() < m_maxConcurrent)
         fireNext();
 }

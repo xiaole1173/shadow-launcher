@@ -180,6 +180,8 @@ void VersionDownloader::setMinecraftDir(const QString& dir)
     m_minecraftDir = dir;
     // FileDownloader needs the working dir to compute cache fallback paths
     if (m_downloader) m_downloader->setMinecraftDir(dir);
+    // 山海经 fallback 相对路径推导需要工作目录（2026-08-05）
+    if (m_assetDownloader) m_assetDownloader->setMinecraftDir(dir);
 }
 
 void VersionDownloader::setCacheFallbackDir(const QString& dir)
@@ -367,6 +369,31 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                             if (hash.result() == p.sha1) {
                                 hit = true;
                                 cacheHits.append({p.savePath, fi.size()});
+                            }
+                        }
+                    }
+                    // ── fallback 缓存（2026-08-05 修复）──
+                    // savePath 在 tempDir（merged）或跨版本共享库时：查真实 gameDir
+                    // 对应文件，SHA1 命中则直接复制到 savePath，省去重新下载。
+                    // 旧实现只查 savePath → merged 每次全量重下。
+                    if (!hit && !m_cacheFallbackDir.isEmpty()
+                        && p.savePath.startsWith(m_minecraftDir)) {
+                        const QString fbPath = m_cacheFallbackDir
+                            + p.savePath.mid(m_minecraftDir.length());
+                        QFileInfo ffi(fbPath);
+                        if (ffi.exists() && ffi.size() > 0) {
+                            QFile f(fbPath);
+                            if (f.open(QIODevice::ReadOnly)) {
+                                QCryptographicHash hash(QCryptographicHash::Sha1);
+                                hash.addData(&f);
+                                f.close();
+                                if (hash.result() == p.sha1) {
+                                    QDir().mkpath(QFileInfo(p.savePath).absolutePath());
+                                    if (QFile::copy(fbPath, p.savePath)) {
+                                        hit = true;
+                                        cacheHits.append({p.savePath, ffi.size()});
+                                    }
+                                }
                             }
                         }
                     }

@@ -53,6 +53,8 @@ public:
 
     void setMaxConcurrent(int n) { m_maxConcurrent = qBound(4, n, 256); }
     void setSpeedLimitMB(double mbps) { m_speedLimitMB = mbps; }
+    /// 工作目录（merged 场景为 UUID 临时目录）——用于缓存 fallback 相对路径推导（2026-08-05）
+    void setMinecraftDir(const QString& dir) { m_minecraftDir = dir; }
     /// If a file is not found in the working dir (tempDir), check this fallback
     /// dir (gameDir) for a matching SHA1 and copy it locally instead of re-downloading.
     void setFallbackCacheDir(const QString& dir) { m_fallbackCacheDir = dir; }
@@ -100,6 +102,9 @@ private:
     void schedulePhase();
     int  currentInflight() const;
     bool shouldThrottleSpeed() const;
+    /// 缓存预检查（startDownload 与 appendTasks 共用，2026-08-05）：
+    /// savePath 或 fallback 存在且大小匹配 → enqueuePreCheck，返回 true
+    bool enqueueCachePreCheck(const AssetTask& task);
 
     // ── Per-host health ──
     struct HostStats {
@@ -149,6 +154,9 @@ private:
         QByteArray data;
     };
     void enqueueIO(const AssetTask& task, const QByteArray& data);
+
+    // ── Cache fallback ──
+    QString m_minecraftDir;        // 工作目录（tempDir for merged；2026-08-05）
 
     // ── Async SHA1 pre-check (offloaded to IO pool, avoids main-thread blocking) ──
     /// checkPath: path to verify SHA1 at (default: task.savePath).
