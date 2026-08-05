@@ -109,6 +109,7 @@ private:
         int  totalSuccess = 0;
         qint64 avgFirstByteMs = 15000;     // running average, start conservative
         bool  degraded = false;            // skip if too many fails
+        qint64 degradedAtMs = 0;           // 降级时间戳（2026-08-05：超过 kDegradeRetryMs 自动恢复，防永久卡死）
         int  dynamicLimit = 4;             // current dynamic per-host limit
     };
     QString extractHost(const QString& url) const;
@@ -118,6 +119,16 @@ private:
     /// BMCLAPI: separate limit; others use host-specific dynamic limit.
     int  getHostLimit(const QString& host) const;
     void adjustHostLimits();              // called periodically to tune limits
+
+    // ── 全源不可用冷却（2026-08-05）──
+    // 所有镜像 degraded/限流时：fireNext 每 50ms 扫全队列无意义（锁竞争 + 无日志），
+    // 改为冷却 kAllBlockedRetryMs 后重试；持续不可用超过 kAllBlockedFailMs 判定失败收尾。
+    static constexpr qint64 kDegradeRetryMs = 30000;   // degraded 自动恢复周期（30s）
+    static constexpr qint64 kAllBlockedRetryMs = 5000; // 全拒冷却后重试（5s）
+    static constexpr qint64 kAllBlockedFailMs = 120000; // 全拒持续 120s → 剩余任务失败收尾
+    qint64 m_blockedUntilMs = 0;           // 全拒冷却截止时间
+    qint64 m_allBlockedSinceMs = 0;        // 首次全拒时间（持续超时用）
+    qint64 m_lastBlockedLogMs = 0;         // 全拒日志节流
 
     // ── DNS + IP reliability ──
     struct IPInfo {

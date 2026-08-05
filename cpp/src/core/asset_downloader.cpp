@@ -123,6 +123,10 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     m_inFlight.clear();
     m_failedFiles.clear();
     m_failedCount = 0;
+    // 全源不可用冷却状态重置（2026-08-05）
+    m_blockedUntilMs = 0;
+    m_allBlockedSinceMs = 0;
+    m_lastBlockedLogMs = 0;
     m_completedFiles.storeRelaxed(0);
     m_downloadedBytes.storeRelaxed(0);
     m_totalTaskCount = tasks.size();
@@ -362,11 +366,29 @@ void AssetDownloader::fireNext()
     }
 
     if (selectedMirror < 0) {
-        // All files tried, none dispatchable — let accelTick retry later
+        // ── 全源不可用（2026-08-05）──
+        // 所有镜像 degraded/限流：冷却 kAllBlockedRetryMs 后重试，避免每 50ms
+        // 扫全队列（锁竞争 + 静默空转，用户感知为卡死）。
+        // 持续不可用超时由 accelTick 兜底失败收尾（kAllBlockedFailMs）。
+        const qint64 nowB = QDateTime::currentMSecsSinceEpoch();
+        if (m_allBlockedSinceMs == 0)
+            m_allBlockedSinceMs = nowB;   // 记录全拒持续时长起点
+        m_blockedUntilMs = nowB + kAllBlockedRetryMs;
+        // 节流日志：每 10s 一条，让用户看到引擎仍活着而非死锁
+        if (nowB - m_lastBlockedLogMs >= 10000) {
+            m_lastBlockedLogMs = nowB;
+            qCWarning(logAsset) << QStringLiteral("  [山海经] 所有镜像源暂不可用（degraded/限流），待下载=%1，%2s 后自动重试（已持续 %3s）")
+                .arg(m_pendingQueue.size())
+                .arg(kAllBlockedRetryMs / 1000)
+                .arg((nowB - m_allBlockedSinceMs) / 1000);
+        }
         if (!m_accelTimer->isActive())
             m_accelTimer->start();
         return;
     }
+
+    // 成功派发 → 清零全拒持续计时（2026-08-05）
+    m_allBlockedSinceMs = 0;
 
     // ── Dispatch the found file ──
     QDir().mkpath(QFileInfo(dispatchTask.savePath).absolutePath());
@@ -556,6 +578,45 @@ void AssetDownloader::accelTick()
     if (!m_dnsAllResolved) {
         return;
     }
+
+    // ── degraded 过期自动恢复（2026-08-05）──
+    // 旧逻辑：degraded 后需 3 次成功才恢复，但 degraded 后不再派发新请求 →
+    // 所有源全 degraded 时永久卡死（实测：镜像批量失败后 3 分钟静默无日志）。
+    // 现在：降级超 kDegradeRetryMs 自动解除，镜像恢复后自动续传。
+    {
+        QMutexLocker lock(&m_hostMutex);
+        const qint64 nowR = QDateTime::currentMSecsSinceEpoch();
+        for (auto hit = m_hostStats.begin(); hit != m_hostStats.end(); ++hit) {
+            if (hit->degraded && hit->degradedAtMs > 0
+                && nowR - hit->degradedAtMs >= kDegradeRetryMs) {
+                qCInfo(logAsset) << QStringLiteral("  [山海经] 主机恢复探测 %1 (降级已超 %2s，重新尝试)")
+                    .arg(hit.key()).arg(kDegradeRetryMs / 1000);
+                hit->degraded = false;
+                hit->consecutiveFails = 0;
+            }
+        }
+    }
+
+    // ── 全源不可用冷却（2026-08-05）──
+    // fireNext 全拒后设置冷却：冷却期内不扫描派发（避免 50ms 空转扫全队列），
+    // 冷却结束自动重试（degraded 超 30s 的 host 会由 hostCanAccept 自动恢复）。
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (nowMs < m_blockedUntilMs) {
+        // 全拒持续超时 → 剩余任务失败收尾（终局兜底，防无限卡死）
+        if (m_allBlockedSinceMs > 0
+            && nowMs - m_allBlockedSinceMs >= kAllBlockedFailMs) {
+            qCWarning(logAsset) << QStringLiteral("  [山海经] 所有镜像源持续不可用 %1s，剩余 %2 个任务判定失败收尾")
+                .arg((nowMs - m_allBlockedSinceMs) / 1000).arg(m_pendingQueue.size());
+            while (!m_pendingQueue.isEmpty()) {
+                AssetTask t = m_pendingQueue.dequeue();
+                finishDownload(t, false);
+            }
+            m_allBlockedSinceMs = 0;
+            m_blockedUntilMs = 0;
+        }
+        return;
+    }
+    m_allBlockedSinceMs = 0;   // 冷却结束重试（若再次全拒由 fireNext 重新计时）
 
     // Sample speed every tick
     sampleSpeed();
@@ -894,6 +955,7 @@ bool AssetDownloader::hostCanAccept(const QString& host) const
     QMutexLocker lock(&m_hostMutex);
     auto it = m_hostStats.find(host);
     if (it == m_hostStats.end()) return true;  // unknown = accept
+    // degraded 过期自动恢复由 accelTick 定期执行（2026-08-05，本方法 const 只读）
     if (it->degraded) return false;
     if (it->activeRequests >= getHostLimit(host)) return false;
     return true;
@@ -915,8 +977,10 @@ void AssetDownloader::recordHostResult(const QString& host, bool ok, qint64 firs
         st.consecutiveFails++;
         st.totalFails++;
         // Degrade after 3 consecutive failures
-        if (st.consecutiveFails >= 3)
+        if (st.consecutiveFails >= 3 && !st.degraded) {
             st.degraded = true;
+            st.degradedAtMs = QDateTime::currentMSecsSinceEpoch();
+        }
         // Increase timeout estimate (host is slow)
         st.avgFirstByteMs = qMin(st.avgFirstByteMs * 2, 30000LL);
         // Failure → reduce dynamic limit (TCP congestion control style)
