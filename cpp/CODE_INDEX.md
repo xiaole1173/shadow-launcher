@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 资源索引双源竞速修复（镜像跟随302）+ 官方源分片下载（探测Range→4片并行），assets 启动提速（version_downloader.cpp） |
 | 2026-08-05 | 安装完成态残留修复：纯 MC 完成后 installing 永久 true → 整合包导入被拒；重复导入被 fail() phase 守卫静默吞掉（version_backend.cpp + modpack_install_task.cpp） |
 | 2026-08-05 | 山海经防卡死：degraded 30s 自动恢复 + 全源不可用 5s 冷却重试 + 持续 120s 失败收尾（asset_downloader.{h,cpp}） |
 | 2026-08-05 | 卡片总进度统一为步骤管线加权：删 merged 双写 smoothProgress（公式 A/B）、merged 卡片改 totalProgress、client.jar 归属澄清（cat1）、JSON 步骤尽早完成、syncPrimaryProgress 真两段式（version_backend.cpp） |
