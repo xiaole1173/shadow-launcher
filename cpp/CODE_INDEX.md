@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 缓存命中日志补齐：notifyCacheHit 节流明细 + 夸父完成汇总 + 盘古预检汇总（file_downloader.{h,cpp}、version_downloader.cpp） |
 | 2026-08-05 | 资源索引双源竞速修复（镜像跟随302）+ 官方源分片下载（探测Range→4片并行），assets 启动提速（version_downloader.cpp） |
 | 2026-08-05 | 安装完成态残留修复：纯 MC 完成后 installing 永久 true → 整合包导入被拒；重复导入被 fail() phase 守卫静默吞掉（version_backend.cpp + modpack_install_task.cpp） |
 | 2026-08-05 | 山海经防卡死：degraded 30s 自动恢复 + 全源不可用 5s 冷却重试 + 持续 120s 失败收尾（asset_downloader.{h,cpp}） |
