@@ -342,6 +342,8 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-06 | 修导出界面滚动不到底 + 滚动条遮挡内容：contentHeight 从绑 implicitHeight 改绑 childrenRect（ColumnLayout.implicitHeight 会漏显式 height 子项——QML 实测 218 vs 实际 374，导致滚动范围偏小滚不到底）；滚动条显式实例化 + 内容宽减滚动条宽（overlay 不再遮右侧）；onAccepted 防御式路径转换（typeof 判断 + file:/// 剥离）加固（ExportModpackSection.qml） |
+|---|---|
 | 2026-08-05 | 修弹窗莫名出现且关不掉：ConfirmDialog 组件靠外部 visible 控制（直接实例化即常显）→ exportLookupDialog 默认隐藏+信号驱动；opened 绑定覆盖赋值 → 改信号驱动；Qt.StandardPaths → Qt.labs.platform（2279efc） |
 | 2026-08-05 | 修版本设置页全空白：ExportModpackSection.qml 未登记进 CMakeLists QML 资源列表（qt6_add_resources 显式列表非 glob）→ qrc 缺失 → not a type（291e0b3） |
 | 2026-08-05 | 导出全面自查修复：ScrollView 防裁切、ConfirmDialog 移顶层全屏、存档版本切换重载、格式切换保留路径、批量查询分块 500（484ce7d） |

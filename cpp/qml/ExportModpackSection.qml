@@ -122,7 +122,11 @@ Item {
     // 保存窗确认 → 开始导出（真正入口）
     function _doExport(path) {
         var e = backend ? backend.modpackExporter : null
-        if (!e) return
+        if (!e) {
+            if (root.toastManager) root.toastManager.show(qsTr("导出模块未就绪，请稍后重试"), 3000)
+            console.log("[export] _doExport: modpackExporter is null")
+            return
+        }
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         if (!path.toLowerCase().endsWith(ext)) path += ext
         root._savePath = path
@@ -143,13 +147,25 @@ Item {
         anchors.fill: parent
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        // 显式实例化滚动条（拿 id 供内容区留白）：overlay 模式浮在内容上会遮挡右侧，
+        // 内容宽度减滚动条宽度后，滚动条落在独立留白区，不遮内容
+        ScrollBar.vertical: ScrollBar {
+            id: exportVBar
+            policy: ScrollBar.AsNeeded
+        }
         ColumnLayout {
-            width: exportScroll.availableWidth
+            id: exportCol
+            width: exportScroll.availableWidth - exportVBar.width
             // 高度自适应：内容矮时不滚动（撑满），内容高时随 Flickable 滚动
-            height: Math.max(exportScroll.availableHeight, implicitHeight)
-            // 显式同步 Flickable contentHeight，防滚动区高度不同步把底部按钮裁在视口外
-            Binding { target: exportScroll.contentItem; property: "contentHeight"; value: parent.height }
+            height: Math.max(exportScroll.availableHeight, exportCol.implicitHeight)
+            // 显式同步 Flickable contentHeight 到「实际布局高度」——不能绑 implicitHeight：
+            // ColumnLayout.implicitHeight 会漏掉显式 height 的子项（实测 218 vs 实际 374），
+            // 滚动范围偏小导致滚不到底部；childrenRect.height 是布局后的真实内容高度
+            Binding {
+                target: exportScroll.contentItem
+                property: "contentHeight"
+                value: exportCol.childrenRect.height
+            }
             spacing: 12
 
         // ── 标题 ──
@@ -520,8 +536,17 @@ Item {
             ? [qsTr("CurseForge 整合包 (*.zip)"), qsTr("所有文件 (*.*)")]
             : [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
         onAccepted: {
-            // 显式 id 访问（信号处理器作用域歧义防护）+ file:/// 前缀剥离
-            var p = String(exportFileDialog.selectedFile).replace(/^(file:\/{2,3})/i, "")
+            // 显式 id 访问（信号处理器作用域歧义防护）+ 防御式路径转换：
+            // selectedFile 在不同 Qt 版本/对话框实现下可能是 QUrl 或带 file:/// 前缀的字符串
+            var sel = exportFileDialog.selectedFile
+            var p = ""
+            if (typeof sel === "string") {
+                p = sel
+            } else if (sel && typeof sel.toString === "function") {
+                p = sel.toString()
+            }
+            p = String(p).replace(/^(file:\/{2,3})/i, "")
+            console.log("[export] onAccepted path=" + p)
             root._doExport(p)
         }
         onRejected: { /* 用户取消选择：不导出 */ }
