@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 整合包导出 .mrpack（P0 收官）：ModpackExporter + ZipArchive 写入 + ExportModpackOverlay 浮层 + 工具分区入口 + ModpackExportTest 回归测试 |
 | 2026-08-05 | 缓存命中失效修复：山海经 appendTasks 加预检查（assets 不再全量重下 578MB）、夸父后台预检加 fallback 复制（merged/跨版本命中）、AssetDownloader 增加 m_minecraftDir（asset_downloader.{h,cpp}、version_downloader.cpp） |
 | 2026-08-05 | 缓存命中日志补齐：notifyCacheHit 节流明细 + 夸父完成汇总 + 盘古预检汇总（file_downloader.{h,cpp}、version_downloader.cpp） |
 | 2026-08-05 | 资源索引双源竞速修复（镜像跟随302）+ 官方源分片下载（探测Range→4片并行），assets 启动提速（version_downloader.cpp） |
