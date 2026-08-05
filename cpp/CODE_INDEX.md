@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 导出对齐 主流启动器 补全：game=minecraft 规范、versionId/summary、IncludeJava、hostedAssetsOnly、查询失败 ConfirmDialog 弹窗、垃圾目录排除；修 ConfirmDialog onAccept/onClosed 覆盖 bug + zip 泄漏（c62cb43） |
 | 2026-08-05 | 整合包导出完全对齐 主流启动器：双平台在线来源查询（Modrinth sha1 + CF MurmurHash2 指纹）、hosted→files[]/未托管→overrides 直装、CF zip 格式、ModrinthUploadMode、存档子项（modpack_exporter.{h,cpp} + ExportModpackSection.qml） |
 | 2026-08-05 | 导出整合包改为版本设置独立分区 Section 7（ExportModpackSection.qml 取代浮层）：侧边栏入口、通用组件、worker 线程零阻塞 |
 | 2026-08-05 | 整合包导出 .mrpack（P0 收官）：ModpackExporter + ZipArchive 写入 + ExportModpackOverlay 浮层 + 工具分区入口 + ModpackExportTest 回归测试 |
