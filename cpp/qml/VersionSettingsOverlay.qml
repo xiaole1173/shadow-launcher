@@ -277,7 +277,8 @@ Rectangle {
                 { text: qsTr("Mod 管理"), icon: "" },
                 { text: qsTr("资源包管理"), icon: "" },
                 { text: qsTr("存档管理"), icon: "" },
-                { text: qsTr("工具与维护"), icon: "" }
+                { text: qsTr("工具与维护"), icon: "" },
+                { text: qsTr("导出整合包"), icon: "" }
             ]
 
             // Check if current version has a mod loader（白名单判定，与版本选择 getBlockIcon 一致）
