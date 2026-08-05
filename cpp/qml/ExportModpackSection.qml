@@ -96,23 +96,41 @@ Item {
         _loadSaves()
     }
 
+    // 点『导出』：校验后弹保存位置窗（主流启动器 交互），确认后真正开始
     function _startExport() {
-        var e = backend ? backend.modpackExporter : null
-        if (!e || _busy) return
-        if (!_packName.trim() || !_savePath.trim()) {
-            if (root.toastManager) root.toastManager.show(qsTr("请填写整合包名称并选择保存位置"), 3000)
+        if (!backend || !backend.modpackExporter) {
+            if (root.toastManager) root.toastManager.show(qsTr("导出模块未就绪，请稍后重试"), 3000)
+            console.log("[export] modpackExporter is null")
+            return
+        }
+        if (_busy) return
+        if (!_packName.trim()) {
+            if (root.toastManager) root.toastManager.show(qsTr("请填写整合包名称"), 3000)
             return
         }
         // ModrinthUploadMode 强制 Modrinth 格式（同主流启动器）
         if (_modrinthOnly) _format = "modrinth"
+        // 默认路径：下载目录 + 名称 + 后缀（打开对话框的初始位置）
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
-        var path = _savePath
+        var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+        if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        var defaultPath = (dlDir ? dlDir + "/" : "") + (_packName.trim() || "modpack") + ext
+        exportFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
+        exportFileDialog.open()
+    }
+
+    // 保存窗确认 → 开始导出（真正入口）
+    function _doExport(path) {
+        var e = backend ? backend.modpackExporter : null
+        if (!e) return
+        var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         if (!path.toLowerCase().endsWith(ext)) path += ext
         root._savePath = path
         root._done = false
         root._progress = 0
         root._statusText = ""
         var fmt = _format === "curseforge" ? 1 : 0
+        console.log("[export] start: " + path)
         e.exportVersion(versionId, _packName.trim(), _packVersion.trim(),
                         _includeConfig, _selectedSaves,
                         _includeResourcepacks, _includeShaderpacks,
@@ -431,42 +449,6 @@ Item {
 
         Item { height: 6; width: 1 }
 
-        // ── 保存位置 ──
-        Text {
-            text: qsTr("保存位置")
-            font.pixelSize: StyleTokens.fontSizeXs
-            color: "#9ca0b4"
-            font.letterSpacing: 1.5
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 34
-                radius: StyleTokens.radiusMd
-                color: StyleTokens.bgInput
-                border.color: StyleTokens.border
-                Text {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10; anchors.rightMargin: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root._savePath
-                    color: StyleTokens.textSecondary
-                    font.pixelSize: StyleTokens.fontSizeXs
-                    elide: Text.ElideMiddle
-                    verticalAlignment: Text.AlignVCenter
-                }
-            }
-            ShadowButton {
-                text: qsTr("选择...")
-                btnWidth: 88
-                outlined: true
-                enabled: !root._busy
-                onClicked: exportFileDialog.open()
-            }
-        }
-
         Item { height: 6; width: 1 }
 
         // ── 操作 ──
@@ -533,12 +515,11 @@ Item {
         nameFilters: root._format === "curseforge"
             ? [qsTr("CurseForge 整合包 (*.zip)"), qsTr("所有文件 (*.*)")]
             : [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
-        currentFile: root._savePath
         onAccepted: {
-            var p = String(selectedFile).replace(/^(file:\/{2,3})/i, "")
-            var ext = root._format === "curseforge" ? ".zip" : ".mrpack"
-            if (!p.toLowerCase().endsWith(ext)) p += ext
-            root._savePath = p
+            // 显式 id 访问（信号处理器作用域歧义防护）+ file:/// 前缀剥离
+            var p = String(exportFileDialog.selectedFile).replace(/^(file:\/{2,3})/i, "")
+            root._doExport(p)
         }
+        onRejected: { /* 用户取消选择：不导出 */ }
     }
 }
