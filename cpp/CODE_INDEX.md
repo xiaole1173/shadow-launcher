@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 修弹窗莫名出现且关不掉：ConfirmDialog 组件靠外部 visible 控制（直接实例化即常显）→ exportLookupDialog 默认隐藏+信号驱动；opened 绑定覆盖赋值 → 改信号驱动；Qt.StandardPaths → Qt.labs.platform（2279efc） |
 | 2026-08-05 | 修版本设置页全空白：ExportModpackSection.qml 未登记进 CMakeLists QML 资源列表（qt6_add_resources 显式列表非 glob）→ qrc 缺失 → not a type（291e0b3） |
 | 2026-08-05 | 导出全面自查修复：ScrollView 防裁切、ConfirmDialog 移顶层全屏、存档版本切换重载、格式切换保留路径、批量查询分块 500（484ce7d） |
 | 2026-08-05 | 导出对齐 主流启动器 补全：game=minecraft 规范、versionId/summary、IncludeJava、hostedAssetsOnly、查询失败 ConfirmDialog 弹窗、垃圾目录排除；修 ConfirmDialog onAccept/onClosed 覆盖 bug + zip 泄漏（c62cb43） |
