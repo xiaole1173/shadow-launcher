@@ -79,6 +79,7 @@ set(SOURCES
     src/core/modpack/modpack_downloader.cpp
     src/core/modpack/mod_download_engine.cpp
     src/core/modpack/modpack_install_task.cpp
+    src/core/modpack/modpack_exporter.cpp
     src/core/update_manager.cpp
     thirdparty/miniz/miniz.c
     src/utils/lzma/LzmaDec.c
@@ -133,6 +134,7 @@ set(HEADERS
     src/core/modpack/modpack_downloader.h
     src/core/modpack/mod_download_engine.h
     src/core/modpack/modpack_install_task.h
+    src/core/modpack/modpack_exporter.h
     src/core/update_manager.h
     src/core/version_isolation.h
     src/core/yggdrasil_auth.h
@@ -575,6 +577,18 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
         src/core/file_downloader.cpp
         src/utils/logger.cpp
     )
+
+    # 整合包导出测试（临时）：ModpackExportTest <gameDir> <versionId> [outPath]
+    add_executable(ModpackExportTest
+        tests/test_export.cpp
+        src/core/modpack/modpack_exporter.cpp
+        src/core/modpack/zip_archive.cpp
+        src/core/modpack/modpack_common.cpp
+        src/utils/logger.cpp
+        thirdparty/miniz/miniz.c
+    )
+    target_include_directories(ModpackExportTest PRIVATE src thirdparty/miniz)
+    target_link_libraries(ModpackExportTest PRIVATE Qt6::Core Qt6::Concurrent)
     target_include_directories(FDTest PRIVATE src)
     target_link_libraries(FDTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 

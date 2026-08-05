@@ -6,6 +6,7 @@
 #include "modpack_common.h"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
@@ -278,6 +279,149 @@ int ZipArchive::extractPrefixTo(const QString& prefix, const QString& destDir,
 
     qCInfo(logMod) << "[zip] 解压完成:" << done << "/" << total << "→" << destDir;
     return done;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 写入（2026-08-05 新增）：miniz mz_zip_writer_*，供整合包导出
+// ═════════════════════════════════════════════════════════════════════════════
+
+bool ZipArchive::openForWrite(const QString& zipPath)
+{
+    close();
+    m_data = new ZipArchiveData();
+#ifdef Q_OS_WIN
+    // 宽字符 fopen：中文路径在 ANSI 代码页下打不开（与读取同款处理）
+    const std::wstring wpath = zipPath.toStdWString();
+    m_data->file = _wfopen(wpath.c_str(), L"wb");
+#else
+    m_data->file = fopen(zipPath.toUtf8().constData(), "wb");
+#endif
+    if (!m_data->file) {
+        m_error = QStringLiteral("无法创建 ZIP 文件: %1").arg(zipPath);
+        delete m_data; m_data = nullptr;
+        return false;
+    }
+    if (!mz_zip_writer_init_cfile(&m_data->zip, m_data->file, 0)) {
+        m_error = QStringLiteral("ZIP 写入器初始化失败: %1").arg(zipPath);
+        fclose(m_data->file); m_data->file = nullptr;
+        delete m_data; m_data = nullptr;
+        return false;
+    }
+    m_open = true;
+    m_path = zipPath;
+    return true;
+}
+
+bool ZipArchive::addData(const QString& entryPath, const QByteArray& data, qint64)
+{
+    if (!m_open || !m_data) { m_error = QStringLiteral("ZIP 未打开（写入）"); return false; }
+    if (!mz_zip_writer_add_mem(&m_data->zip, entryPath.toUtf8().constData(),
+                               data.constData(), data.size(), MZ_BEST_SPEED)) {
+        m_error = QStringLiteral("写入条目失败: %1").arg(entryPath);
+        return false;
+    }
+    return true;
+}
+
+namespace {
+// 回调式文件读取：QFile 宽字符路径，规避 miniz add_file 内部 fopen 的 ANSI 限制
+size_t zipFileReadCb(void* pOpaque, mz_uint64 file_ofs, void* pBuf, size_t n)
+{
+    auto* f = static_cast<QFile*>(pOpaque);
+    if (!f->seek(static_cast<qint64>(file_ofs))) return 0;
+    const qint64 r = f->read(static_cast<char*>(pBuf), static_cast<qint64>(n));
+    return r > 0 ? static_cast<size_t>(r) : 0;
+}
+} // namespace
+
+bool ZipArchive::addFile(const QString& diskPath, const QString& entryPath, qint64)
+{
+    if (!m_open || !m_data) { m_error = QStringLiteral("ZIP 未打开（写入）"); return false; }
+    QFileInfo fi(diskPath);
+    if (!fi.exists() || !fi.isFile()) {
+        m_error = QStringLiteral("源文件不存在: %1").arg(diskPath);
+        return false;
+    }
+    QFile f(diskPath);
+    if (!f.open(QIODevice::ReadOnly)) {
+        m_error = QStringLiteral("无法读取源文件: %1").arg(diskPath);
+        return false;
+    }
+    const bool ok = mz_zip_writer_add_read_buf_callback(
+        &m_data->zip, entryPath.toUtf8().constData(),
+        zipFileReadCb, &f, static_cast<mz_uint64>(fi.size()),
+        nullptr, nullptr, 0, MZ_BEST_SPEED, nullptr, 0, nullptr, 0);
+    f.close();
+    if (!ok) {
+        m_error = QStringLiteral("打包条目失败: %1").arg(entryPath);
+        return false;
+    }
+    return true;
+}
+
+int ZipArchive::addDirectoryRecursive(const QString& dirPath, const QString& entryPrefix,
+                                      const QStringList& excludeSuffixes,
+                                      const std::atomic<bool>* cancelFlag,
+                                      const std::function<void(int, int)>& progress)
+{
+    if (!m_open || !m_data) { m_error = QStringLiteral("ZIP 未打开（写入）"); return -1; }
+    if (!QDir(dirPath).exists()) return 0;   // 目录不存在视为空，不报错
+
+    // 先扫文件清单（含子目录），再逐个打包——进度可预知总数
+    QStringList files;
+    QDirIterator it(dirPath, QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString p = it.next();
+        bool exclude = false;
+        for (const auto& suf : excludeSuffixes) {
+            if (p.endsWith(suf, Qt::CaseInsensitive)) { exclude = true; break; }
+        }
+        if (!exclude) files.append(p);
+    }
+    const int total = files.size();
+    int done = 0;
+    for (const auto& p : files) {
+        if (cancelFlag && cancelFlag->load()) return -2;   // 取消
+        const QString rel = QDir(dirPath).relativeFilePath(p);
+        const QString entry = entryPrefix.isEmpty() ? rel : entryPrefix + QStringLiteral("/") + rel;
+        if (!addFile(p, entry)) return -1;
+        ++done;
+        if (progress) progress(done, total);
+    }
+    return done;
+}
+
+bool ZipArchive::closeWrite()
+{
+    if (!m_open || !m_data) return false;
+    bool ok = mz_zip_writer_finalize_archive(&m_data->zip);
+    if (!ok)
+        m_error = QStringLiteral("ZIP 收尾失败（finalize）");
+    mz_zip_writer_end(&m_data->zip);
+    if (m_data->file) {
+        fclose(m_data->file);
+        m_data->file = nullptr;
+    }
+    delete m_data;
+    m_data = nullptr;
+    m_open = false;
+    return ok;
+}
+
+QStringList ZipArchive::listEntries(const QString& prefix) const
+{
+    QStringList out;
+    if (!m_open || !m_data) return out;
+    const mz_uint n = mz_zip_reader_get_num_files(&m_data->zip);
+    for (mz_uint i = 0; i < n; ++i) {
+        mz_zip_archive_file_stat st;
+        if (!mz_zip_reader_file_stat(&m_data->zip, i, &st)) continue;
+        if (st.m_is_directory) continue;
+        const QString name = QString::fromUtf8(st.m_filename);
+        if (prefix.isEmpty() || name.startsWith(prefix))
+            out.append(name);
+    }
+    return out;
 }
 
 } // namespace ShadowLauncher

@@ -7,6 +7,7 @@
 #include "../core/update_manager.h"
 #include "../core/icon_cache.h"
 #include "../core/modpack_importer.h"
+#include "../core/modpack/modpack_exporter.h"
 #include "../core/local_mod_manager.h"
 #include "../multiplayer/multiplayer_manager.h"
 #include "../multiplayer/relay_crypto.h"
@@ -162,6 +163,7 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_multiplayer = new MultiplayerManager(this);
     m_localMods = new LocalModManager(this);
     m_modpackImporter = new ModpackImporter(this);
+    m_modpackExporter = new ModpackExporter(this);
     {
         auto* importer = qobject_cast<ModpackImporter*>(m_modpackImporter);
         if (importer) {
@@ -2978,6 +2980,8 @@ void ShadowBackend::setGameDir(const QString& dir) {
     m_settings->setIsolationGameDir(dir);
     m_localMods->setGameDir(dir);
     m_launch->setGameDir(dir);
+    if (auto* exp = qobject_cast<ModpackExporter*>(m_modpackExporter))
+        exp->setGameDir(dir);
 }
 
 // ============================================================

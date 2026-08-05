@@ -59,6 +59,24 @@ public:
                         const std::function<void(const QString& destPath, bool existed)>& onBeforeWrite = nullptr);
 
     // 列出 prefix 前缀下的文件条目（不含目录条目），供解析层判断 overrides 是否存在。
+    QStringList listEntries(const QString& prefix = QString()) const;
+
+    // ── 写入（2026-08-05 新增，miniz mz_zip_writer_*）──
+    // 供整合包导出使用。线程约定同读取：单工作线程串行调用。
+    bool openForWrite(const QString& zipPath);
+    /// 从内存写入一个条目（entryPath 使用正斜杠相对路径，如 mods/jei.jar）
+    bool addData(const QString& entryPath, const QByteArray& data, qint64 timestampMs = 0);
+    /// 从磁盘文件写入一个条目；失败返回 false 并记录 error
+    bool addFile(const QString& diskPath, const QString& entryPath, qint64 timestampMs = 0);
+    /// 递归打包目录 dirPath 下所有文件到 entryPrefix 前缀下
+    /// （如 dirPath=mods, entryPrefix=mods）；excludeSuffixes 后缀排除（如 .disabled）；
+    /// 返回加入的文件数；cancelFlag 非空时每文件检查；progress(done, total) 先扫后加。
+    int addDirectoryRecursive(const QString& dirPath, const QString& entryPrefix,
+                              const QStringList& excludeSuffixes = {},
+                              const std::atomic<bool>* cancelFlag = nullptr,
+                              const std::function<void(int, int)>& progress = nullptr);
+    /// 收尾（写 central directory + 关文件）。成功后 isOpen()=false。
+    bool closeWrite();
 
 private:
     // 路径安全由 modpack_common 的共享工具 sanitizeRelPath 承担（解压层/解析层同一套规则）

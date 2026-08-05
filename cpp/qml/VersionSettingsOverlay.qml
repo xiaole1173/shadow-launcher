@@ -1476,4 +1476,18 @@ function _showToast(msg) {
             if (backend) backend.logUiMsg("[export] onRejected fired")
         }
     }
+
+    // ── 导出整合包浮层（工具分区入口，2026-08-05）──
+    property bool _exportOpen: false
+    ExportModpackOverlay {
+        anchors.fill: parent
+        z: 60
+        opened: versionSettingsOverlay._exportOpen
+        backend: versionSettingsOverlay.backend
+        toastManager: versionSettingsOverlay.toastManager
+        versionId: currentSelectedVersion || ""
+        versionName: currentSelectedVersion || ""
+        onClosed: versionSettingsOverlay._exportOpen = false
+    }
+
 }

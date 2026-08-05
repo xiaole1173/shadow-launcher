@@ -28,6 +28,7 @@ class VersionBackend;
 class LaunchBackend;
 class ResourceBackend;
 class ModpackImporter;
+class ModpackExporter;
 class StatsBackend;
 class JavaBackend;
 class UserDataBackend;
@@ -112,6 +113,7 @@ class ShadowBackend : public QObject {
 
     // ── Modpack Import ──
     Q_PROPERTY(QObject* modpackImporter READ modpackImporter CONSTANT)
+    Q_PROPERTY(QObject* modpackExporter READ modpackExporter CONSTANT)
 
     // ── Update ──
     Q_PROPERTY(bool updateChecking READ updateChecking NOTIFY updateCheckingChanged)
@@ -560,6 +562,7 @@ public:
 
     // ── Modpack Import ──
     QObject* modpackImporter() const { return m_modpackImporter; }
+    QObject* modpackExporter() const { return m_modpackExporter; }
 
     // ── Update ──
     Q_INVOKABLE void checkForUpdate();
@@ -797,6 +800,7 @@ private:
     LocalModManager* m_localMods = nullptr;
     class GeoIpService* m_geoIp = nullptr;
     QObject* m_modpackImporter = nullptr;
+    QObject* m_modpackExporter = nullptr;
 
     bool m_isolationEnabled = true;
     int m_lastLoginMode = 1;
