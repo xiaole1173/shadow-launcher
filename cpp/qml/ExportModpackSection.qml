@@ -128,7 +128,9 @@ Item {
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         ColumnLayout {
             width: exportScroll.availableWidth
-        spacing: 12
+            // 高度自适应：内容矮时不滚动（撑满），内容高时随 Flickable 滚动
+            height: Math.max(exportScroll.availableHeight, implicitHeight)
+            spacing: 12
 
         // ── 标题 ──
         Text {

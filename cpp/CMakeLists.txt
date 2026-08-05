@@ -220,6 +220,7 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/DetailVersionCard.qml
         qml/DownloadPage.qml
         qml/ExpandableGroupCard.qml
+    qml/ExportModpackSection.qml
         qml/HomePage.qml
         qml/InlineToast.qml
         qml/InstallConfigOverlay.qml
